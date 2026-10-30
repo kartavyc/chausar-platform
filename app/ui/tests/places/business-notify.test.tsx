@@ -31,7 +31,7 @@ function fakeBrowser(permission: PushPermission = 'default', answer: PushPermiss
   return { browser, state, change };
 }
 
-function start(options: { hosted?: boolean; browser?: BrowserPush; language?: 'en' | 'hi'; refuse?: Record<string, EngineError> } = {}) {
+function start(options: { hosted?: boolean; browser?: BrowserPush; language?: 'en'; refuse?: Record<string, EngineError> } = {}) {
   window.location.hash = '#/business/notifications';
   const engine = new FakeEngine({ now: () => NOW, hosted: options.hosted ?? false });
   const client = createFakeClient(engine);
@@ -235,11 +235,7 @@ describe('Business > Notifications on the hosted app', () => {
     await within(running).findByText('Nothing. On the hosted app, Chausar sleeps while nobody has it open.');
   });
 
-  it('in Hindi', async () => {
-    start({ hosted: true, language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'सूचनाएँ' })).toBeTruthy();
-    await screen.findByRole('button', { name: 'फ़ोन अलर्ट चालू करें' });
-  });
+
 });
 
 describe('phone alerts at every load of the hosted app', () => {

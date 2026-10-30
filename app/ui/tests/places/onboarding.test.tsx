@@ -8,7 +8,7 @@ import { EngineError, type EngineClient, type Transport } from '../../src/engine
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
 
 /** The fake engine behind a client that writes down every request, and can refuse the next call of a method once. */
-function start(options: FakeOptions = { fresh: true }, { hash = '#/today', language = 'en', transport }: { hash?: string; language?: 'en' | 'hi'; transport?: Transport } = {}) {
+function start(options: FakeOptions = { fresh: true }, { hash = '#/today', language = 'en', transport }: { hash?: string; language?: 'en'; transport?: Transport } = {}) {
   window.location.hash = hash;
   const engine = new FakeEngine(options);
   const fake = createFakeClient(engine);
@@ -253,14 +253,5 @@ describe('onboarding: New business from the business menu', () => {
     await waitFor(() => expect(cardTitle('Your plan is ready. Read it.')).toHaveLength(2));
     // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio.*Switch business/ })).toBeTruthy());
-  });
-});
-
-describe('onboarding: Hindi', () => {
-  it('speaks Hindi on the first run', async () => {
-    start({ fresh: true }, { language: 'hi' });
-    expect(await screen.findByRole('textbox', { name: 'आप क्या शुरू करना चाहते हैं?' })).toBeTruthy();
-    expect(screen.getByText('चौसर')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'शुरू करें' })).toBeTruthy();
   });
 });

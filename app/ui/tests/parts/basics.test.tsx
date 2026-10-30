@@ -113,12 +113,7 @@ describe('Receipt', () => {
     expect(window.location.hash).toBe('#/today?sheet=receipt%3AR-0419');
   });
 
-  it('says what it proves in Hindi too, and is plainly "Receipt" when it stands for no one amount', () => {
-    render(<TextProvider language="hi"><Receipt id="R-0419" amount="₹1,12,400" /></TextProvider>);
-    expect(screen.getByRole('button', { name: '₹1,12,400 की रसीद' }).dataset.receipt).toBe('R-0419');
-    render(<Receipt id="R-0420" />);
-    expect(screen.getByRole('button', { name: 'Receipt' }).dataset.receipt).toBe('R-0420');
-  });
+
 
   it("with source ca it opens the CA firm's calculator receipt (venture.ca.receipt) in the receipt sheet", () => {
     render(<Receipt id="w-portal-sep" source="ca" />);
@@ -167,10 +162,7 @@ describe('ModelEstimate', () => {
     const css = readFileSync(join(import.meta.dirname, '../../src/parts/ModelEstimate.module.css'), 'utf8');
     expect(new RegExp(`\\.${name}\\s*\\{[^}]*dashed var\\(--dash\\)[^}]*color:\\s*var\\(--mute\\)`).test(css)).toBe(true);
   });
-  it('in Hindi too', () => {
-    const { container } = render(<TextProvider language="hi"><ModelEstimate /></TextProvider>);
-    expect(container.textContent).toBe('मॉडल का अनुमान');
-  });
+
 });
 
 describe('EmptyState', () => {

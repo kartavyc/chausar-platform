@@ -17,7 +17,7 @@ import { assertInkRules } from '../helpers/ink-rules';
  */
 
 type Intercept = (params: unknown, original: () => Promise<unknown>) => unknown;
-interface Start { hash?: string; language?: 'en' | 'hi'; hosted?: boolean; engine?: FakeEngine; intercept?: Partial<Record<MethodName, Intercept>> }
+interface Start { hash?: string; language?: 'en'; hosted?: boolean; engine?: FakeEngine; intercept?: Partial<Record<MethodName, Intercept>> }
 function start({ hash = '#/connections', language = 'en', hosted = false, engine, intercept = {} }: Start = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(engine ?? new FakeEngine(hosted ? { hosted: true } : undefined));
@@ -377,15 +377,6 @@ describe('Team: which AI serves each role', () => {
   });
 });
 
-describe('in Hindi', () => {
-  it('the CLI tile localizes exact static setup evidence in Hindi', async () => {
-    start({ language: 'hi' });
-    const section = await region('आपके AI ऐप');
-    await within(section).findByText('Claude Code', { selector: 'h3' });
-    expect(within(section).getByRole('button', { name: 'फिर से जाँचें' })).toBeTruthy();
-    expect(section.textContent).toContain('Chausar ने Anthropic की शर्तें अभी मंज़ूर नहीं की हैं।');
-    expect(section.textContent).not.toMatch(/connections\.cli\./);
-  });
-});
+
 
 vi.setConfig({ testTimeout: 15_000 });

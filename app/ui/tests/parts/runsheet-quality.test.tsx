@@ -18,7 +18,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 const run = (id: string): RunDetail => structuredClone(RUNS.find((r) => r.runId === id)!);
 const NOW = new Date('2026-10-21T10:00:00.000Z');
 
-function show(detail: RunDetail, extra: { questionExpiresAt?: string } = {}, language: 'en' | 'hi' = 'en') {
+function show(detail: RunDetail, extra: { questionExpiresAt?: string } = {}, language: 'en' = 'en') {
   return render(
     <TextProvider language={language}>
       <ClockProvider now={() => NOW}>
@@ -142,14 +142,7 @@ describe('run sheet: coverage, outcomes, the report, expiry and interruptions (4
     expect(container.querySelector('[data-interrupted]')!.textContent).toBe('Interrupted: nothing was sent again.');
   });
 
-  it('in Hindi, the words are the screen own and the counts stay as counted', () => {
-    const detail = run('27');
-    detail.steps[0]!.coverage = coverage();
-    detail.outcome = { outcome: 'success', line: 'The page shows the post.' };
-    const { container } = show(detail, {}, 'hi');
-    expect(container.querySelector('[data-coverage]')!.textContent).toMatch(/1,210 में से 1,204/);
-    expect(container.querySelector('[data-outcome]')!.textContent).toMatch(/^सफल/);
-  });
+
 
   it('an items count names the units it adds up, never a bare "items"', () => {
     const detail = run('27');

@@ -120,11 +120,7 @@ describe('StoriesRow', () => {
     expect((screen.getByRole('list') as HTMLElement).dataset.scroll).toBe('');
   });
 
-  it('keeps the Ink rules and reads in Hindi with no key showing', () => {
-    const { container } = render(<TextProvider language="hi"><StoriesRow stories={STORIES} onOpen={() => {}} onAdd={() => {}} /></TextProvider>);
-    assertInkRules(document.body);
-    expect(keysShown(container)).toEqual([]);
-  });
+
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -287,16 +283,7 @@ describe('PreviewFrame', () => {
     assertInkRules(document.body);
   });
 
-  it('reads in Hindi with no key showing', () => {
-    const { container } = render(
-      <TextProvider language="hi">
-        <PreviewFrame variant="video" title="Cut" unseen duration="1:00" chapters={2} onOpen={() => {}} />
-        <PreviewFrame variant="post" account="A" platform="LinkedIn" text="B" />
-        <PreviewFrame variant="choice" label="L" options={[{ id: 'a', label: 'x' }]} />
-      </TextProvider>,
-    );
-    expect(keysShown(container)).toEqual([]);
-  });
+
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -685,11 +672,7 @@ describe('BottomTabs', () => {
     expect(today.querySelector('.sr-only')!.textContent).toBe(', 12 need you');
   });
 
-  it('keeps the Ink rules and reads in Hindi', () => {
-    const { container } = render(<TextProvider language="hi"><BottomTabs tabs={TABS} current="today" /></TextProvider>);
-    assertInkRules(document.body);
-    expect(keysShown(container)).toEqual([]);
-  });
+
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -819,9 +802,5 @@ describe('Gallery', () => {
     for (const button of screen.getAllByRole('button', { name: /^Start / })) expect(button.dataset.size).toBe('lg');
   });
 
-  it('reads in Hindi with no key showing', () => {
-    const { container } = render(<TextProvider language="hi"><Gallery ways={[...ways, { ...WAY, id: 'mine', running: 'Sample Films' }]} featured="tuition" onStart={() => {}} /></TextProvider>);
-    expect(screen.getByRole('button', { name: 'एक और शुरू करें: Wedding videos' })).toBeTruthy();
-    expect(keysShown(container)).toEqual([]);
-  });
+
 });

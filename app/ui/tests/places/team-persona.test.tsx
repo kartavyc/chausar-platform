@@ -173,11 +173,7 @@ describe('the agent panel: Can do (W4 4J22b, from 4J18)', () => {
     expect(step.querySelector('[data-state]')!.textContent).toBe('Planned');
   });
 
-  it('words the states in Hindi, the lines staying the engine\'s', async () => {
-    start('#/team?sheet=agent:editor&tab=cando', { language: 'hi' });
-    const tab = await tabPanel('Editor');
-    expect([...tab.querySelectorAll('[data-state]')].map((chip) => chip.textContent)).toContain('चलता है');
-  });
+
 });
 
 describe('the agent file (W4 4J22b, from 4J17)', () => {

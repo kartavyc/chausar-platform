@@ -22,7 +22,7 @@ type Request = (method: string, params?: unknown) => Promise<unknown>;
 type Override = (params: unknown, request: Request) => unknown;
 const NOW = () => '2026-10-21T11:00:00.000Z';
 
-function start(hash: string, options: { engine?: FakeEngine; override?: Record<string, Override>; language?: 'en' | 'hi' } = {}) {
+function start(hash: string, options: { engine?: FakeEngine; override?: Record<string, Override>; language?: 'en' } = {}) {
   window.location.hash = hash;
   const engine = options.engine ?? new FakeEngine({ now: NOW });
   const client = createFakeClient(engine);
@@ -523,17 +523,4 @@ describe('Money v2: Amount', () => {
     expect(screen.getByText('USD 0.2500 this month (includes estimates)').className).toBe('');
     expect(screen.getByText('कोई कीमत नहीं').className).toBe('');
   });
-});
-
-describe('Money v2: Hindi', () => {
-  for (const hash of ['#/money', '#/money/invoices', '#/money/books', '#/money/spend', '#/money/journal']) {
-    it(`${hash} shows no text key`, async () => {
-      start(hash, { language: 'hi' });
-      await waitFor(() => expect(main().querySelector('[data-figure], [data-row], [data-receipt]')).toBeTruthy());
-      const walker = document.createTreeWalker(main(), NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        expect(node.textContent?.trim() ?? '').not.toMatch(/^[a-z]+(\.[a-zA-Z0-9-]+)+$/);
-      }
-    });
-  }
 });

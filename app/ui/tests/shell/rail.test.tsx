@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 
-function start(hash = '#/today', language: 'en' | 'hi' = 'en') {
+function start(hash = '#/today', language: 'en' = 'en') {
   window.location.hash = hash;
   render(<App client={createFakeClient(new FakeEngine())} language={language} />);
   return screen.getByRole('navigation', { name: language === 'en' ? 'Places' : 'जगहें' });
@@ -82,11 +82,6 @@ describe('the rail', () => {
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('.mono')!.hasAttribute('data-tone')).toBe(false);
   });
 
-  it('speaks Hindi, the brand keeping its own name', async () => {
-    const rail = start('#/today', 'hi');
-    expect(within(rail).getByRole('link', { name: 'Chausar, आज' })).toBeTruthy();
-    await waitFor(() => expect(within(rail).getByRole('button', { name: /Lumen Studio/ }).textContent).toContain('बिज़नेस बदलें'));
-  });
 });
 
 describe('the app icon', () => {

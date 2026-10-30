@@ -80,11 +80,7 @@ describe('Connections: the setup guide in each connector\'s sheet', () => {
     expect(guide.querySelector('[data-guide="missing"]')?.textContent).toBe('Missing: the GitHub token. Chausar keeps it only while the app is open, so paste it again.');
   });
 
-  it('in Hindi the headings are Hindi and the guide stays in the engine\'s words', async () => {
-    await start('#/connections?sheet=connector:bank-account', { language: 'hi' });
-    const guide = await screen.findByRole('region', { name: 'कैसे जोड़ें' });
-    expect(within(guide).getAllByRole('listitem')[0]!.textContent).toBe("1. Download a statement from your bank's site as a CSV file.");
-  });
+
 });
 
 describe('Connections: Check connections', () => {

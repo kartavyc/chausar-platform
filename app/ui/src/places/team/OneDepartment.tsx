@@ -181,7 +181,7 @@ function RecentRun({ run }: { run: RunSummary }) {
 /** A week's key (its Monday, ISO) as a short date in the UI's language ("14 Sep"); any other key as the engine labelled it. */
 function shortWeek(key: string, label: string, language: 'en' | 'hi'): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return label;
-  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${key}T00:00:00.000Z`));
+  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${key}T00:00:00.000Z`));
 }
 
 /**
@@ -199,4 +199,3 @@ function weeksOf(data: DepartmentData, language: 'en' | 'hi'): { points: BarPoin
   });
   return { points, spend: withSpend };
 }
-

@@ -38,7 +38,6 @@ function iconMarkup(name: IconName): string {
 }
 
 const en = (key: string, values?: Record<string, string | number>) => format(CATALOGUES.en, 'en', key, values);
-const hi = (key: string, values?: Record<string, string | number>) => format(CATALOGUES.hi, 'hi', key, values);
 
 describe('Bento and Tile', () => {
   it('Bento is the 12-column grid, in the element and with the label it is given', () => {
@@ -249,10 +248,7 @@ describe('chips', () => {
     expect((container.firstElementChild as HTMLElement).dataset.tone).toBe('neutral');
   });
 
-  it('StateChip speaks Hindi', () => {
-    const { container } = render(<TextProvider language="hi"><StateChip kind="run" value="waiting" /></TextProvider>);
-    expect(container.textContent).toBe(hi('state.run.waiting'));
-  });
+
 
   it('the chip tones map to their tokens (accent-soft, wait-soft, fail-soft, wash, the line chip)', () => {
     expect(rule('Chip.module.css', ".chip[data-tone='working']")).toMatch(/background:\s*var\(--accent-soft\)[\s\S]*color:\s*var\(--accent-text\)/);
@@ -270,20 +266,7 @@ describe('chips', () => {
     expect(chip.querySelector('[data-dot]')).toBeNull();
   });
 
-  it('DeptChip names each of the five departments, on its tint', () => {
-    const words = { sales: 'Sales and clients', mkt: 'Marketing', prod: 'Production', money: 'Money', ops: 'Operations' };
-    for (const dept of DEPT_IDS) {
-      const { container, unmount } = render(<DeptChip dept={dept} />);
-      const chip = container.firstElementChild as HTMLElement;
-      expect(chip.textContent).toBe(words[dept]);
-      expect(chip.textContent).toBe(en(`dept.${dept}`));
-      expect(chip.dataset.dept).toBe(dept);
-      expect(rule('Chip.module.css', `.dept[data-dept='${dept}']`)).toMatch(new RegExp(`background:\\s*var\\(--${dept}-tint\\)[\\s\\S]*color:\\s*var\\(--${dept}\\)`));
-      unmount();
-    }
-    const { container } = render(<TextProvider language="hi"><DeptChip dept="prod" /></TextProvider>);
-    expect(container.textContent).toBe(hi('dept.prod'));
-  });
+
 
   it('KindChip says the kind in words from states.ts with its icon; it can be amber or red; on a phone it is the icon alone', () => {
     const { container } = render(<KindChip kind="price" />);
@@ -339,11 +322,7 @@ describe('chips', () => {
     expect(rule('Chip.module.css', ".count[data-tone='wait']")).toMatch(/background:\s*var\(--wait-soft\)[\s\S]*color:\s*var\(--wait\)/);
   });
 
-  it('Hindi chips may wrap to two lines instead of being cut', () => {
-    const css = cssOf('Chip.module.css');
-    expect(css).toMatch(/\.chip:lang\(hi\)[^{]*\{[^}]*white-space:\s*normal/);
-    expect(css).toMatch(/\.kind:lang\(hi\)[^{]*\{[^}]*white-space:\s*normal/);
-  });
+
 });
 
 describe('FilterChips', () => {
@@ -405,11 +384,10 @@ describe('FilterChips', () => {
     expect(screen.getByRole('button', { name: 'Production', pressed: true })).toBeTruthy();
   });
 
-  it('pressed chips use the selected tokens; on a phone the row scrolls sideways; Hindi chips may wrap', () => {
+  it('pressed chips use the selected tokens; on a phone the row scrolls sideways', () => {
     expect(rule('FilterChips.module.css', ".chip[aria-pressed='true']")).toMatch(/background:\s*var\(--selected\)[\s\S]*color:\s*var\(--on-selected\)/);
     const { container } = render(<FilterChips label="Show" options={options} value="all" onChange={() => {}} scroll />);
     expect(container.querySelector('[role="group"]')!.hasAttribute('data-scroll')).toBe(true);
-    expect(cssOf('FilterChips.module.css')).toMatch(/\.chip:lang\(hi\)[^{]*\{[^}]*white-space:\s*normal/);
   });
 
   it('the phone row keeps room for the focus ring: padded by --sp-1 and pulled back by the same', () => {
@@ -434,10 +412,7 @@ describe('FilterChips', () => {
     for (const stub of stubs) stub.mockRestore();
   });
 
-  it('says "locked" in Hindi', () => {
-    render(<TextProvider language="hi"><FilterChips label="दिखाएँ" options={options} value="all" onChange={() => {}} /></TextProvider>);
-    expect(screen.getByRole('button', { name: `Sitara Events, ${hi('filter.locked')} 1` })).toBeTruthy();
-  });
+
 });
 
 describe('Segmented', () => {
@@ -593,8 +568,6 @@ describe('Segmented', () => {
     const { container } = render(<Segmented mode="buttons" label={en('dept.show')} value="all" onChange={() => {}} options={choices} />);
     expect(screen.getByRole('group', { name: 'Show departments' })).toBeTruthy();
     expect(container.querySelectorAll('[data-dept]')).toHaveLength(5);
-    const hiChoices = departmentChoices((key) => hi(key));
-    expect(hiChoices.map((c) => c.label)).toEqual(['all', ...DEPT_IDS].map((id) => hi(`dept.${id}`)));
   });
 });
 
@@ -638,17 +611,7 @@ describe('StatTile', () => {
     expect(rule('StatTile.module.css', '.row')).toMatch(/flex-wrap:\s*wrap/);
   });
 
-  it('the sub line wraps rather than cutting words or a figure in it, in any language', () => {
-    const { container } = render(
-      <TextProvider language="hi">
-        <StatTile label="AI" count={2} sub={<>प्लस <Figure value="₹18.00" receiptId="R-0403" /> चल रहे काम के लिए रोका गया</>} />
-      </TextProvider>,
-    );
-    expect(assertFiguresProved(container)).toHaveLength(1);
-    const sub = rule('StatTile.module.css', '.sub');
-    expect(sub).not.toMatch(/text-overflow|nowrap|line-clamp/);
-    expect(cssOf('StatTile.module.css')).not.toMatch(/ellipsis/);
-  });
+
 
   it('takes a figure or a count, never both and never neither', () => {
     // @ts-expect-error a stat tile shows one value: a figure or a count, not both
@@ -710,7 +673,6 @@ describe('the new strings', () => {
     const keys = ['dept.sales', 'dept.mkt', 'dept.prod', 'dept.money', 'dept.ops', 'dept.all', 'dept.show', 'filter.locked'];
     for (const key of keys) {
       expect(CATALOGUES.en[key], key).toBeDefined();
-      expect(CATALOGUES.hi[key], key).toBeDefined();
     }
   });
 });

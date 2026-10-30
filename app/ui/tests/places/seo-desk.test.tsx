@@ -22,12 +22,7 @@ describe('SEO answer panel desk',()=>{
     expect(screen.getByText('No captured answers yet. Missing slots stay in the denominator.')).toBeTruthy();
     assertInkRules();
   });
-  it('shows Hindi controls and honest empty evidence',async()=>{
-    render(<TextProvider language="hi"><EngineProvider client={createFakeClient(new FakeEngine())}><SeoVisibilityDesk /></EngineProvider></TextProvider>);
-    expect(await screen.findByRole('heading',{name:'उत्तर पैनल'})).toBeTruthy();
-    expect(screen.getByRole('button',{name:'नया उत्तर पैनल'})).toBeTruthy();
-    expect(screen.queryByText('Not built yet')).toBeNull();
-  });
+
 });
 
 

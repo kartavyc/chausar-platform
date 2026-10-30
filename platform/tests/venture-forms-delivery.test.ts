@@ -3,13 +3,13 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {kitBusiness,owner,approveWaiting,draft} from './fixtures/venture/kit-business.ts';
 import {definePlaybook} from '../runtime/venture/playbooks/kit/define.ts';
 import {installTestPlaybooks} from '../runtime/venture/playbooks/kit/installed.ts';
-import {FORMS_DATA,FORMS_HI} from '../runtime/venture/playbooks/data-entry-desk/definition-data.ts';
+import { FORMS_DATA } from '../runtime/venture/playbooks/data-entry-desk/definition-data.ts';
 import {formsRunSource} from '../runtime/venture/playbooks/data-entry-desk/run-source.ts';
 import {FORMS_ACCESS_RULE} from '../runtime/venture/playbooks/data-entry-desk/rules.ts';
 import {formArtifact} from '../runtime/venture/playbooks/data-entry-desk/checks.ts';
 import {listRecords,ventureAction} from '../runtime/venture/records.ts';
 test('R2 public mapping workflow reads real source, rejects invented outcomes and invalidates after source edit',async t=>{
- t.after(installTestPlaybooks([{definition:definePlaybook(FORMS_DATA,FORMS_HI),hi:FORMS_HI}]));const e=await kitBusiness({now:new Date('2026-10-29T10:00:00Z')},{idea:'Data entry service for client records'});
+ t.after(installTestPlaybooks([{definition:definePlaybook(FORMS_DATA),}]));const e=await kitBusiness({now:new Date('2026-10-29T10:00:00Z')},{idea:'Data entry service for client records'});
  const order=await e.call('venture.order.create',{clientId:e.client.id,offerId:e.offers[0].id,request:'Map and compare the supplied client records.',intake:{fields:{'record-id-column':'Record','site-url':'https://records.example.com/form','data-consent':true}},intakeFiles:{'source-file':{name:'records.csv',contentBase64:Buffer.from('Record,Customer\nA001,Asha').toString('base64')},'permission-file':{name:'permission.txt',contentBase64:Buffer.from('Written permission for the fixture client.').toString('base64')}}});
  const file={id:order.intake.fields['source-file']};
  const entry=await e.call('venture.desk.act',{playbook:'data-entry-desk',kind:'entries',id:'new',action:'prepare',payload:{orderId:order.id,fileId:file.id,identityColumn:'Record',rowIndex:0}});

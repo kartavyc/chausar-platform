@@ -10,7 +10,7 @@ import { fakeYoutubeDesk } from '../../src/engine/fake-youtube';
 import type { W4DeskHost } from '../../src/engine/fake-w4';
 import type { EngineClient } from '../../src/engine/types';
 
-function start(language: 'en' | 'hi' = 'en', desktop = true) {
+function start(language: 'en' = 'en', desktop = true) {
   const orders = [{ id: 'o1', request: 'Coffee video', status: 'open', intake: { cutFile: 'C:\\Videos\\coffee.mp4', rights: { basis: 'own-footage', holder: 'Asha' } } }];
   const host = { current: () => 'b1', now: () => '2026-10-28T10:00:00Z', hosted: () => false, digest: (value: unknown) => JSON.stringify(value), emit: () => {}, uploadFingerprint: () => 'source', ask: (method: string) => method === 'venture.files.list' ? [{ id: 'u1', name: 'words.srt', format: 'transcript', bytes: 50, at: '2026-10-28', scope: { kind: 'order', orderId: 'o1' } }] : method === 'venture.assets.list' ? { assets: [] } : orders } as unknown as W4DeskHost;
   const desks = fakeYoutubeDesk(host).kinds;
@@ -59,11 +59,7 @@ it('records a change request without claiming a model already made it', async ()
   expect(await within(card).findByText('Use a gentler opening')).not.toBeNull();
   expect(client.request).toHaveBeenCalledWith('venture.desk.act', expect.objectContaining({ action: 'request', payload: { outputId: 'interchange-edl', words: 'Use a gentler opening' } }));
 });
-it('labels web folder saving honestly and renders the output controls in Hindi', async () => {
-  start('hi', false);
-  expect(await screen.findByText('प्रोजेक्ट फ़ोल्डर के लिए डेस्कटॉप ऐप खोलें।')).not.toBeNull();
-  expect(screen.getByRole('button', { name: 'आउटपुट तैयार करें' })).not.toBeNull();
-});
+
 it('runs speaking-time checks and exposes local tools as unavailable without fake measurements', async () => {
   const { client } = start(); await prepare();
   fireEvent.click(screen.getByText('Checks and editor handoff'));

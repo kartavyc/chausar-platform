@@ -91,12 +91,12 @@ describe('Ink tokens', () => {
     const fonts = read('../src/tokens/fonts.css');
     const files = readdirSync(join(import.meta.dirname, '../assets/fonts'));
     const urls = [...fonts.matchAll(/url\('([^']+)'\)/g)].map((m) => m[1]!);
-    expect(urls).toHaveLength(7);
+    expect(urls).toHaveLength(5);
     for (const url of urls) {
       expect(url).not.toMatch(/^https?:/);
       expect(files).toContain(url.split('/').pop());
     }
-    for (const family of ['Instrument Sans', 'DM Mono', 'Noto Sans Devanagari']) expect(fonts).toContain(`font-family: '${family}'`);
+    for (const family of ['Instrument Sans', 'DM Mono']) expect(fonts).toContain(`font-family: '${family}'`);
   });
 });
 

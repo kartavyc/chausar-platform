@@ -24,7 +24,7 @@ const OCT_21 = () => '2026-10-21T11:00:00.000Z';
 /** 10 Nov 2026: INV-0039 is 13 days late, past its 10-day reminder. */
 const NOV_10 = () => '2026-11-10T06:00:00.000Z';
 
-function start(hash: string, options: { now?: () => string; override?: Record<string, Override>; language?: 'en' | 'hi'; extra?: Partial<EngineClient>; before?: (engine: FakeEngine) => unknown } = {}) {
+function start(hash: string, options: { now?: () => string; override?: Record<string, Override>; language?: 'en'; extra?: Partial<EngineClient>; before?: (engine: FakeEngine) => unknown } = {}) {
   window.location.hash = hash;
   const engine = new FakeEngine({ now: options.now ?? OCT_21 });
   // The fake answers at once: what before asks of it is done before the page first reads.
@@ -268,15 +268,7 @@ describe('Money w4: the whole overview', () => {
     assertOnePrimary(document.body);
   });
 
-  it('speaks Hindi: the ages, the months and the cash tile in Hindi words', async () => {
-    start('#/money', { now: NOV_10, language: 'hi' });
-    const owed = await tile('आपको मिलना बाकी');
-    const chart = (await within(owed).findByRole('img')).closest('[data-chart]') as HTMLElement;
-    expect(chart.textContent).toContain('1 से 30 दिन की देर');
-    expect(await tile('नकद, अगले 13 हफ़्ते')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /^अपने CA के लिए एक्सपोर्ट करें/ })).toBeTruthy();
-    assertInkRules();
-  });
+
 });
 
 describe('Money w4: the overview at narrow widths', () => {

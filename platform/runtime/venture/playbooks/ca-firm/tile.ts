@@ -16,8 +16,3 @@ export const CA_FIRM_TILE: StartTile = Object.freeze({
 });
 
 /** The tile's lines in Hindi (machine-drafted, needs a native reviewer). */
-export const CA_FIRM_TILE_HI = Object.freeze({
-  line: 'छोटे बिज़नेस के लिए बही-खाते, GST, TDS और इनकम टैक्स के वर्किंग पेपर्स; जो भी काम नियमों के तहत है, उस पर आपके CA दस्तख़त करते हैं।',
-  youDo: 'क्लाइंट से मिलें, ड्राफ़्ट जाँचें, अपने CA के साथ काम करें।',
-  teamLine: 'बही-खाते, वर्किंग और हर आँकड़े की रसीद।',
-});

@@ -21,7 +21,7 @@ import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } fr
 /** A time on this computer's own clock, built from local parts so every time zone reads the same hour. */
 const at = (hour: number, minute = 0) => () => new Date(2026, 9, 23, hour, minute);
 
-interface Start { hash?: string; engine?: FakeEngine; client?: EngineClient; language?: 'en' | 'hi'; now?: () => Date }
+interface Start { hash?: string; engine?: FakeEngine; client?: EngineClient; language?: 'en'; now?: () => Date }
 
 function start({ hash = '#/today', engine = new FakeEngine(), client, language = 'en', now = at(19, 5) }: Start = {}) {
   window.location.hash = hash;
@@ -733,26 +733,5 @@ describe('Today v2: working now and earlier', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: 'October goal' }).querySelector('[data-ui-number]')).toBeTruthy());
     await settle();
     assertInkRules(document.body);
-  });
-});
-
-describe('Today v2 in Hindi', () => {
-  it('shows no key as text', async () => {
-    start({ language: 'hi' });
-    await waitFor(() => expect(document.querySelectorAll('[data-row]').length).toBeGreaterThan(0));
-    await settle();
-    const main = screen.getByRole('main');
-    const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
-    const keys: string[] = [];
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = (node.textContent ?? '').trim();
-      if (/^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(text)) keys.push(text);
-    }
-    for (const el of main.querySelectorAll('[aria-label]')) {
-      const label = el.getAttribute('aria-label') ?? '';
-      if (/^[a-z]+(\.[a-zA-Z0-9]+)+$/.test(label)) keys.push(label);
-    }
-    expect(keys).toEqual([]);
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('शुभ संध्या');
   });
 });

@@ -16,7 +16,7 @@ function wrap(base: FakeClient, intercept: Intercept): EngineClient {
   };
 }
 
-function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept } = {}) {
+function start(hash = '#/team', options: { language?: 'en'; intercept?: Intercept } = {}) {
   window.location.hash = hash;
   const base = createFakeClient(new FakeEngine());
   const client = options.intercept ? wrap(base, options.intercept) : base;
@@ -327,12 +327,5 @@ describe('Team: live and empty', () => {
     expect(within(main()).queryByText('No team yet.')).toBeNull();
   });
 
-  it('speaks Hindi', async () => {
-    const { base } = start('#/team', { language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'टीम' })).toBeTruthy();
-    await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
-    const sheet = await openAgent('Billing');
-    expect(within(sheet).getByText('हर काम पर मंज़ूरी')).toBeTruthy();
-    expect(within(sheet).getByText('हमेशा आपसे पूछता है')).toBeTruthy();
-  });
+
 });

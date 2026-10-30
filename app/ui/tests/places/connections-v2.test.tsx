@@ -16,7 +16,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
  */
 
 type Intercept = (params: unknown, original: () => Promise<unknown>) => unknown;
-function start(hash = '#/connections', options: { language?: 'en' | 'hi'; hosted?: boolean; intercept?: Partial<Record<MethodName, Intercept>> } = {}) {
+function start(hash = '#/connections', options: { language?: 'en'; hosted?: boolean; intercept?: Partial<Record<MethodName, Intercept>> } = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(new FakeEngine(options.hosted ? { hosted: true } : undefined));
   const request = fake.request.bind(fake);
@@ -287,12 +287,5 @@ describe('Connections in the Ink v2 look', () => {
     expect(within(credit).getByRole('button', { name: 'Record payment' })).toBeTruthy();
   });
 
-  it('speaks Hindi everywhere on the page and in the sheets, with no key showing', async () => {
-    start('#/connections?sheet=connector:x', { language: 'hi' });
-    const sheet = await sheetNamed('X');
-    await screen.findByText('कनेक्शन', { selector: 'h1' });
-    await waitFor(() => expect(document.querySelector('main')!.querySelectorAll('li').length).toBeGreaterThan(10));
-    expect(keyLikeText(document.querySelector('main')!)).toEqual([]);
-    expect(keyLikeText(sheet)).toEqual([]);
-  });
+
 });

@@ -20,7 +20,7 @@ type Intercept = (method: string, params: Record<string, unknown>, base: FakeCli
 
 const RATE = 'at ₹83.50 per $1 (your rate, set 15 Oct 2026)';
 
-function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept } = {}) {
+function start(hash = '#/team', options: { language?: 'en'; intercept?: Intercept } = {}) {
   window.location.hash = hash;
   const base = createFakeClient(new FakeEngine());
   const spy = vi.fn();
@@ -377,11 +377,5 @@ describe('Team w4: axe and Hindi', () => {
     });
   }
 
-  it('speaks Hindi: the Keeper chip, its outcome words and the stats with no key showing as text', async () => {
-    start('#/team', { language: 'hi' });
-    const keeper = await cardOf('Keeper');
-    await within(keeper).findByRole('list');
-    expect(main().textContent).not.toMatch(/\b(team|chart|dept)\.[a-zA-Z.]+/);
-    expect(keeper.textContent).not.toContain('Runs as code, not AI');
-  });
+
 });

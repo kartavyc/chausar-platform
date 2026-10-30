@@ -7,7 +7,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { BookkeepingCfoDesk } from '../../src/places/work/desks/BookkeepingCfoDesk';
 import { assertInkRules } from '../helpers/ink-rules';
 
-async function start(language: 'en' | 'hi' = 'en') {
+async function start(language: 'en' = 'en') {
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-27T12:00:00.000Z' }));
   const order = (await client.request('venture.order.list', {}))[0]!;
   await client.request('venture.files.add', { orderId: order.id, name: 'collections.csv', contentBase64: btoa('kind,id,invoice,debtor,on,dueOn,amount,state\ninvoice,buyer-a,INV-A,Buyer,2026-10-01,2026-10-10,100,open') });
@@ -48,10 +48,5 @@ describe('Collections desk', () => {
     assertInkRules(document.body);
   });
 
-  it('shows the desk in Hindi, including the debtor boundary', async () => {
-    await start('hi');
-    expect(await screen.findByRole('heading', { name: 'वसूली' })).toBeTruthy();
-    expect(screen.getByText('आपका क्लाइंट हर याद दिलाने वाला संदेश जांचकर भेजता है। चौसर देनदारों से संपर्क नहीं करता।')).toBeTruthy();
-    assertInkRules(document.body);
-  });
+
 });

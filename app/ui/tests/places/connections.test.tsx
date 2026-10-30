@@ -11,7 +11,7 @@ import { EngineError, type ConnectorCardLite, type ModelStatusLite, type BuildSt
 
 type Bridged = Window & { chausar?: unknown };
 
-function start(hash = '#/connections', engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(hash = '#/connections', engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(engine);
   render(<App client={client} language={language} />);
@@ -193,10 +193,6 @@ describe('Connections', () => {
     expect(within(sheet).queryByText('Works today')).toBeNull();
   });
 
-  it('speaks Hindi', async () => {
-    start('#/connections', new FakeEngine(), 'hi');
-    expect(await screen.findByRole('heading', { level: 1, name: 'कनेक्शन' })).toBeTruthy();
-  });
 });
 
 describe('Connections: Your AI', () => {

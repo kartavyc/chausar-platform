@@ -53,7 +53,7 @@ const ACTION_ICON: Partial<Record<QueueAction['id'], IconName>> = { approve: 'ch
 export function timeOf(at: string, language: Language): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
 }
 
 export interface DecideExtra { viewed: boolean; answer?: string }

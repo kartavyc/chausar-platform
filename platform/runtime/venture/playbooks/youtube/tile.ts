@@ -15,8 +15,3 @@ export const YOUTUBE_TILE: StartTile = Object.freeze({
 });
 
 /** The tile's lines in Hindi (machine-drafted, needs a native reviewer). */
-export const YOUTUBE_TILE_HI = Object.freeze({
-  line: 'अपने या क्लाइंट के चैनल के लिए एपिसोड, शॉर्ट्स, पैकेजिंग और जाँच, उसी फ़ुटेज से जो आपका अपना है या लाइसेंस पर है।',
-  youDo: 'रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।',
-  teamLine: 'एडिट, शॉर्ट्स, टाइटल और स्पॉन्सर के लिए कोटेशन।',
-});

@@ -9,7 +9,7 @@ import { EngineError, type DeliveryLite, type MethodName } from '../../src/engin
 // the verdict the engine stored reads as the judge check's own detail, also when the judge ran on its own (judgeAuto).
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; engine?: FakeEngine; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; engine?: FakeEngine; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 const NOW = '2026-10-23T10:00:00.000Z';
 const PASSED = 'Every rule passed its own floor. Each yes cited something code found in the run.';
@@ -244,12 +244,7 @@ describe('Work: the judge on its own', () => {
     expect(within(line).getByRole('button', { name: 'Ask the judge' })).toBeTruthy();
   });
 
-  it('reads in Hindi too', async () => {
-    await start('#/work?order=o-boat-14', { language: 'hi' });
-    await waitFor(() => expect(document.body.querySelector('[data-judge-line="d-ep14-script"] button')).not.toBeNull());
-    expect(screen.queryByRole('button', { name: 'Ask the judge' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'The judge' })).toBeNull();
-  });
+
 });
 
 describe('the fake engine judges by the engine rules', () => {

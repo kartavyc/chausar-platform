@@ -12,7 +12,7 @@ import type { MethodName } from '../../src/engine/types';
  */
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; now?: string; intercept?: Partial<Record<MethodName, (params: unknown, base: (p?: unknown) => Promise<unknown>) => unknown>> }
+interface StartOptions { language?: 'en'; now?: string; intercept?: Partial<Record<MethodName, (params: unknown, base: (p?: unknown) => Promise<unknown>) => unknown>> }
 
 function start(hash: string, options: StartOptions = {}) {
   window.location.hash = hash;
@@ -57,11 +57,7 @@ describe('1. the agent sheet note card says what the engine did', () => {
     expect(within(panel).getByRole('article', { name: 'Note for Researcher' }).textContent).toContain("Saved in Researcher's notes.");
   });
 
-  it('in Hindi the note card is worded by the UI', async () => {
-    start('#/team?sheet=agent:editor&tab=chat', { language: 'hi' });
-    const panel = await screen.findByRole('complementary', { name: 'Editor' });
-    expect(await within(panel).findByRole('article', { name: 'Editor के लिए नोट' })).toBeTruthy();
-  });
+
 });
 
 describe('2. Work: an order\'s button follows the engine\'s next step', () => {
@@ -91,10 +87,7 @@ describe('4. Start: the country, the hours and Start', () => {
     expect(await screen.findByText('Based in India')).toBeTruthy();
   });
 
-  it('in Hindi the country is a Hindi word, from the engine\'s code', async () => {
-    start('#/onboarding', { language: 'hi' });
-    expect(await screen.findByText('देश: भारत')).toBeTruthy();
-  });
+
 
   it('hours read as body text, not code; every way\'s button reads Start (the running one says "another" to a screen reader)', async () => {
     start('#/onboarding');
@@ -205,30 +198,10 @@ describe('9. a known failure in plain words, the technical line one step away', 
     expect(working.textContent).not.toContain('ffmpeg');
   });
 
-  it('in Hindi too', async () => {
-    start('#/work', { language: 'hi' });
-    const tile = (await screen.findByRole('button', { name: 'Rendering the thumbnail set' })).closest('li')!;
-    await waitFor(() => expect(tile.textContent).toContain('वीडियो का टूल इस कंप्यूटर पर अभी इंस्टॉल नहीं है।'));
-  });
+
 });
 
-describe('10. Today in Hindi: action labels and the summary in Hindi words', () => {
-  it('the cards\' buttons and the line under the greeting are Hindi', async () => {
-    start('#/today', { language: 'hi' });
-    const plan = (await screen.findByRole('button', { name: 'Your plan is ready. Read it.' })).closest('article')!;
-    expect(within(plan).getByRole('button', { name: 'पढ़ें' })).toBeTruthy();
-    for (const english of ['Read', 'Accept', 'Deny', 'Approve', 'Later']) expect(screen.queryAllByRole('button', { name: english }).map((b) => b.closest('article')?.textContent?.slice(0, 80) ?? b.outerHTML.slice(0, 200)), english).toEqual([]);
-    const head = document.querySelector('main h1')!.parentElement!.parentElement!;
-    expect(head.textContent).not.toMatch(/need you|across|is locked/);
-    expect(head.textContent).toMatch(/आपका इंतज़ार कर रहे हैं, \d+ बिज़नेस में/);
-  });
 
-  it('in English the engine\'s words stay as they are', async () => {
-    start('#/today');
-    const plan = (await screen.findByRole('button', { name: 'Your plan is ready. Read it.' })).closest('article')!;
-    expect(within(plan).getByRole('button', { name: 'Read' })).toBeTruthy();
-  });
-});
 
 describe('11. phone layout at 390', () => {
   const charts = () => readFileSync(join(import.meta.dirname, '../../src/parts/charts/Charts.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -251,4 +224,13 @@ describe('11. phone layout at 390', () => {
     expect(chips.hasAttribute('data-scroll')).toBe(false);
     vi.restoreAllMocks();
   });
+});
+
+describe('Today: engine words in English', () => {
+  it('in English the engine\'s words stay as they are', async () => {
+    start('#/today');
+    const plan = (await screen.findByRole('button', { name: 'Your plan is ready. Read it.' })).closest('article')!;
+    expect(within(plan).getByRole('button', { name: 'Read' })).toBeTruthy();
+  });
+
 });

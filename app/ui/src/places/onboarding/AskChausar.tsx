@@ -52,7 +52,7 @@ export function FitTile({ fit, way, onStart }: { fit: ChiefFit; way: WayView; on
   const language = useLanguage();
   const chipId = useId();
   const titleId = useId();
-  const words = language === 'hi' ? way.hi : way;
+  const words = way;
   return (
     <Tile as="section" labelledBy={`${chipId} ${titleId}`} className={s.fit}>
       <p id={chipId} className={s.chip}><Icon name="sparkles" size={14} />{t('onboarding.fit.chip')}</p>

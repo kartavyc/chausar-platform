@@ -28,7 +28,7 @@ const TONE: Readonly<Record<JournalEntry['state'], StatusTone>> = {
 /** "21 Oct", the day a line was written, in the reader's language. */
 function dayOf(at: string, language: string): string {
   const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' }).format(date);
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(date);
 }
 
 /**

@@ -13,7 +13,7 @@ import { CONNECTORS } from '../../src/engine/fixtures-business';
 
 type Call = { method: string; params: unknown };
 
-function start(options: { engine?: FakeEngine; language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> } = {}) {
+function start(options: { engine?: FakeEngine; language?: 'en'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> } = {}) {
   window.location.hash = '#/connections';
   const client = createFakeClient(options.engine ?? new FakeEngine());
   const calls: Call[] = [];
@@ -54,12 +54,7 @@ describe('Connections: sign in for posting', () => {
     await waitFor(() => expect(within(linkedin).getByRole('alert').textContent).toBe("Couldn't open the sign-in window: X blocked this account. Do not sign in again or reconnect."));
   });
 
-  it('in Hindi too', async () => {
-    start({ language: 'hi' });
-    const linkedin = await card('X');
-    expect(within(linkedin).queryByRole('button', { name: 'Sign in to X' })).toBeNull();
-    expect(linkedin.querySelector('[data-posting-sign-in]')).toBeTruthy();
-  });
+
 });
 
 describe('the fake engine signs in by the engine rules', () => {
@@ -225,12 +220,7 @@ describe('Connections: the posting steps', () => {
     expect((await card('YouTube')).querySelector('[data-posting-steps]')).toBeNull();
   });
 
-  it('in Hindi too', async () => {
-    start({ language: 'hi' });
-    const linkedin = await card('X');
-    const steps = linkedin.querySelector('[data-posting-steps]') as HTMLElement;
-    expect(steps.textContent).toContain('चरण अभी जाँचे नहीं गए');
-  });
+
 
   it('the fake engine checks the steps by the engine rules', async () => {
     const desktop = new FakeEngine({ now: NOW });
@@ -276,14 +266,7 @@ describe('Connections: the date a check can give', () => {
     expect((await stepsOf('X')).textContent).toContain('Post box and button last checked working on 20 Oct 2026.');
   });
 
-  it('in Hindi too', async () => {
-    const cards = structuredClone(CONNECTORS).map((item) => ({
-      ...item, postingOptions: item.postingOptions.map((option) => (item.id === 'x' && option.mode === 'owner-browser-session' ? { ...option, boxAndButtonCheckedOn: '2026-10-20' } : option)),
-    }));
-    start({ language: 'hi', intercept: { 'venture.connectors.list': () => cards } });
-    const linkedin = await card('X');
-    expect((linkedin.querySelector('[data-posting-steps]') as HTMLElement).textContent).toContain('पोस्ट बॉक्स और बटन');
-  });
+
 
   it('the fake engine gives the box and button date after a check', async () => {
     const x = await new FakeEngine({ now: () => '2026-10-23T09:00:00.000Z' }).request('venture.posting.checkSteps', { connectorId: 'x' }) as PostingStepsView;
@@ -292,10 +275,10 @@ describe('Connections: the date a check can give', () => {
   });
 });
 
-for(const language of ['en','hi'] as const)for(const connected of [false,true])it('posting heading names the actual '+(connected?'API':'browser')+' mode in '+language,async()=>{
+for(const language of ['en'] as const)for(const connected of [false,true])it('posting heading names the actual '+(connected?'API':'browser')+' mode in '+language,async()=>{
  const engine=new FakeEngine(),client=createFakeClient(engine);
  if(connected){const base={playbook:'social-agency' as const,kind:'open-posting',id:'bluesky'},first=await client.request('venture.desk.get',base);await client.request('venture.desk.act',{...base,action:'connect',digest:first.digest,payload:{setup:{platform:'bluesky',server:'https://bsky.social',account:'owner.bsky.social',channel:''},credential:'fixture-app-password'}});}
  const original=(await client.request('venture.connectors.list',{})).find(c=>c.id==='bluesky')!;start({engine,language});const tile=await card('Bluesky'),posting=tile.querySelector('[data-posting]')!;
- expect(posting.firstElementChild!.textContent).toBe(connected?(language==='hi'?'एपीआई से पोस्ट करना':'API posting'):(language==='hi'?'ब्राउज़र से पोस्ट करना':'Browser posting'));
+ expect(posting.firstElementChild!.textContent).toBe(connected?'API posting':'Browser posting');
  expect(posting.querySelector('[data-label]')!.getAttribute('data-label')).toBe(connected?'write':'planned');expect(tile.querySelector('[data-label]')!.getAttribute('data-label')).toBe('write');expect((await client.request('venture.connectors.list',{})).find(c=>c.id==='bluesky')).toEqual(original);
 });

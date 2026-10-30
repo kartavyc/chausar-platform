@@ -33,7 +33,7 @@ function nextOf(routine: RoutineView, t: T, language: string): string {
   if (!routine.on) return t('business.routines.offLine');
   if (!routine.next) return t('business.routines.noMore');
   const timeZone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : FIRST_ZONE;
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+  const locale = 'en-IN';
   const at = new Date(routine.next);
   try {
     const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone }).format(at);

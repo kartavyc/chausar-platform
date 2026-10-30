@@ -22,7 +22,7 @@ import s from './GoalsView.module.css';
 export function GoalsView() {
   const t = useT();
   const language = useLanguage();
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+  const locale = 'en-IN';
   const current = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
   const [picked, setPicked] = useState<string | null>(null);
   const thisMonth = current.data?.month;
@@ -87,7 +87,7 @@ interface MonthGoalProps {
 function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalProps) {
   const t = useT();
   const language = useLanguage();
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+  const locale = 'en-IN';
   const client = useEngine();
   const plan = usePlan();
   const taxRegistered = plan.data?.blueprint.backOffice.taxRegistered.value === true;

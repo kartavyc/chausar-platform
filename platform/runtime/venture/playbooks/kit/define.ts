@@ -15,7 +15,7 @@ import type { RuleFloor } from '../../delivery/judge/rules.ts';
 import { validateFlow } from '../../delivery/flow.ts';
 import type { FlagshipCheckInput } from '../draft-checks.ts';
 import { validateRegistry, type PlaybookRegistration } from '../registry.ts';
-import { allWords, hiProblem, keepHi, loadHi, wordProblem, type HiFile } from './words.ts';
+import { allWords, wordProblem } from './words.ts';
 import { createRequire } from 'node:module';
 import type { ToolName } from '../../contracts.ts';
 import { TOOL_GROUPS } from '../../delivery/harness/tool-groups.ts';
@@ -247,7 +247,7 @@ export type PlaybookDefinition = {
   scope: KitScope;
   /** What is never built for this playbook, in plain words. */
   notBuilt: readonly string[];
-  /** Every string shown to people, for the word checks and the Hindi file (playbooks/<id>/hi.json). */
+  /** Every string shown to people, for word checks and future translations. */
   words(): readonly string[];
 };
 
@@ -306,15 +306,15 @@ export function kitEngineSteps(definition: Pick<PlaybookDefinition, 'steps' | 'c
  * 'owner-sets' as the price), the approvals, the connectors (one of the six labels; a planned one names its manual path
  * and who it waits on), the intake fields, the judge rules (each with a floor), the tools, the tile (hours from one to
  * sixty, the fewest first; rupees above zero, the lowest first; at most four team roles it has) and every shown string
- * (house style, no claim of finished work, no number, and its Hindi in hi.json). Each step holds only tools inside its
+ * (house style, no claim of finished work, no number). Each step holds only tools inside its
  * own ceiling (patches.ts toolCeiling with this definition alone), its own tools are the kit's or its own group's, and
  * its engine steps pass the engine's own validatePlaybook. 5A3's dated rules, recipes, measurement boundaries and manual
  * paths are checked by their own functions (their codes: RULE_INVALID, RECIPE_INVALID, BOUNDARY_INVALID,
  * MANUAL_PATH_MISSING), and the recipes' judge mistakes join the judge rules.
- * hi: the playbook's Hindi; default its own playbooks/<id>/hi.json. today: the day the rules are checked against
+ * today: the day the rules are checked against
  * (default the India calendar day now). Returns the definition, frozen.
  */
-export function definePlaybook(definition: PlaybookDefinition, hi?: HiFile, today: IsoDate = localDayAt(new Date(), { code: 'IN' })): PlaybookDefinition {
+export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = localDayAt(new Date(), { code: 'IN' })): PlaybookDefinition {
   const id = typeof definition?.registration?.id === 'string' ? definition.registration.id : 'new';
   const refuse = (field: string, why: string): never => {
     throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} playbook's ${field}: ${why}`);
@@ -431,11 +431,9 @@ export function definePlaybook(definition: PlaybookDefinition, hi?: HiFile, toda
   const own = new Set((definition.judgeRules ?? []).map(rule => rule.id));
   for (const rule of fromRecipes) if (own.has(rule.id)) refuse('judgeRules', `${rule.id} is also a recipe's judge rule; give it another id.`);
 
-  const hindi = hi ?? loadHi(id);
   for (const text of allWords(definition)) {
-    const problem = wordProblem(text) ?? hiProblem(hindi, text);
+    const problem = wordProblem(text);
     if (problem) refuse('words', `${JSON.stringify(text)} ${problem}.`);
   }
-  if (hi) keepHi(id, hi);
   return Object.freeze({ ...definition, judgeRules: Object.freeze([...definition.judgeRules, ...fromRecipes]) });
 }

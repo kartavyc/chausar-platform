@@ -1,7 +1,7 @@
 // The Start gallery's tiles from the playbook kit (Ink v2 wave 5, package 5A1, test 6; plan "Gallery tile" lines of 5B,
 // 5C and 5D). venture.playbooks.list shows one tile per registered playbook that delivers, the three flagships
 // included: a kit playbook's tile comes from its definition's startTile (kit/tile.ts maps it onto the gallery's
-// WayData), a flagship's from its own tile.ts. Hours and pay are a model estimate, labelled so, in English and Hindi.
+// WayData), a flagship's from its own tile.ts. Hours and pay are a model estimate, labelled so, in English.
 // A playbook whose package has not landed (its definition stub still null) has no tile.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ import { definePlaybook } from '../runtime/venture/playbooks/kit/define.ts';
 import { YOUTUBE_TILE } from '../runtime/venture/playbooks/youtube/tile.ts';
 import { CA_FIRM_TILE } from '../runtime/venture/playbooks/ca-firm/tile.ts';
 import { SOCIAL_AGENCY_TILE } from '../runtime/venture/playbooks/social/tile.ts';
-import { fixtureHi, kitFixture } from './fixtures/venture/kit-fixture.ts';
+import { kitFixture } from './fixtures/venture/kit-fixture.ts';
 import { installKitFixture } from './fixtures/venture/kit-business.ts';
 
 const DEVANAGARI = /\p{Script=Devanagari}/u;
@@ -40,7 +40,7 @@ test('the three flagship tiles carry the plan\'s words, hours, team and pay, as 
     assert.equal(way.hoursEstimate, true);
     assert.equal(way.clientsPay.estimate, true);
     assert.equal(way.clientsPay.source, WAY_SOURCE.en);
-    for (const words of [way.hi.line, way.hi.youDo, way.hi.teamLine, way.hi.source]) assert.match(words, DEVANAGARI, words);
+
   }
   // Each flagship's tile is its tile.ts data, team roles included (at most four, code roles left off the avatars).
   for (const [tile, id] of [[YOUTUBE_TILE, 'youtube'], [CA_FIRM_TILE, 'ca-firm'], [SOCIAL_AGENCY_TILE, 'social-agency']] as const) {
@@ -50,7 +50,7 @@ test('the three flagship tiles carry the plan\'s words, hours, team and pay, as 
   }
 });
 
-test('a kit playbook gets one tile from its definition, in English and Hindi, with both figures a model estimate', async t => {
+test('a kit playbook gets one tile from its definition, in English, with both figures a model estimate', async t => {
   const before = listWays({});
   assert.ok(!before.ways.some(way => way.id === 'kit-fixture'));
   t.after(installKitFixture());
@@ -62,17 +62,17 @@ test('a kit playbook gets one tile from its definition, in English and Hindi, wi
   ]);
   assert.deepEqual(kit.team.map(member => [member.role, member.department]), [['Researcher', 'marketing'], ['Writer', 'production']], 'Billing is code, never an AI avatar');
   assert.deepEqual([kit.clientsPay.text, kit.clientsPay.per, kit.clientsPay.estimate, kit.hoursEstimate], ['₹5,000 to ₹15,000', 'a client a month', true, true]);
-  assert.equal(kit.hi.label, 'हिंदी में: Kit fixture studio');
-  assert.equal(kit.hi.line, 'हिंदी में: Voice sheets, calendars and posts for small shops.');
-  assert.deepEqual(kit.hi.team, ['हिंदी में: Researcher', 'हिंदी में: Writer']);
-  assert.equal(kit.hi.hours, 'हफ़्ते में 2 से 4 घंटे');
+
+
+
+
   assert.match(kit.needs.connections, /Your mail app/);
   assert.doesNotMatch(kit.needs.connections, /scheduler/i, 'a planned connector is not a need');
   assert.equal(view.categories.find(category => category.id === 'marketing')!.count, before.categories.find(category => category.id === 'marketing')!.count + 1);
 });
 
 test('a registered playbook with no definition yet has no tile; kitWay maps a definition onto the gallery\'s way data', () => {
-  const fixture = definePlaybook(kitFixture(), fixtureHi(kitFixture()));
+  const fixture = definePlaybook(kitFixture());
   const registry = [...PLAYBOOK_REGISTRY, fixture.registration];
   assert.deepEqual(waysView(WAYS, registry, []).ways.map(way => way.id), ['ca-firm', 'youtube', 'social-agency'], 'registered, but its way data never landed');
   const way = kitWay(fixture);

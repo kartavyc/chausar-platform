@@ -41,7 +41,7 @@ function wayView(way: WayData, registry: readonly PlaybookRegistration[], busine
   const shown = way.team ? way.team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles;
   const agents = shown.filter(role => role.kind === 'agent');
   const team = agents.map(role => ({ role: role.name, initials: initialsOf(role.name), department: departmentOfRole(delivery, role.id) }));
-  const pay = { en: `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`, hi: `${rupees(way.pay.minRupees)} से ${rupees(way.pay.maxRupees)}` };
+  const pay = { en: `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`,  };
   return {
     id: way.playbook, playbook: way.playbook, label: way.en.label, category: way.category,
     department: departmentOfService(registration.serviceType), line: way.en.line,
@@ -51,12 +51,7 @@ function wayView(way: WayData, registry: readonly PlaybookRegistration[], busine
     needs: { ai: WAY_AI_NEED.en, connections: way.en.needs },
     starter: way.en.starter,
     yours: businesses.filter(business => business.playbook === way.playbook).map(business => ({ businessId: business.businessId, name: business.name })),
-    hi: {
-      label: way.hi.label, line: way.hi.line, hours: `हफ़्ते में ${way.hours.min} से ${way.hours.max} घंटे`, youDo: way.hi.youDo,
-      team: agents.map(role => way.roles[role.id] ?? role.name), teamLine: way.hi.teamLine,
-      pay: pay.hi, per: way.hi.per, source: WAY_SOURCE.hi, starter: way.hi.starter,
-      needs: { ai: WAY_AI_NEED.hi, connections: way.hi.needs },
-    },
+
   };
 }
 
@@ -71,9 +66,9 @@ export function waysView(data: readonly WayData[], registry: readonly PlaybookRe
     .map(way => (way ? wayView(way, registry, businesses) : null))
     .filter((way): way is WayView => way !== null);
   const categories = WAY_CATEGORIES
-    .map(category => ({ id: category.id, label: category.en, hi: category.hi, count: ways.filter(way => way.category === category.id).length }))
+    .map(category => ({ id: category.id, label: category.en,  count: ways.filter(way => way.category === category.id).length }))
     .filter(category => category.count > 0);
-  return { ways, categories, upTo: { maxHours: UP_TO_HOURS, label: UP_TO_WORDS.en, hi: UP_TO_WORDS.hi, count: waysUpTo(ways, UP_TO_HOURS).length } };
+  return { ways, categories, upTo: { maxHours: UP_TO_HOURS, label: UP_TO_WORDS.en,  count: waysUpTo(ways, UP_TO_HOURS).length } };
 }
 
 /**
@@ -103,9 +98,9 @@ export function waysUpTo<T extends Pick<WayView, 'maxHours'>>(ways: readonly T[]
  * fewest hours goes by the most hours a week, then the fewest, then the name; name goes by the shown name in the
  * owner's language.
  */
-export function orderWays(ways: readonly WayView[], by: WaySort, fitWayId: string | null = null, language: 'en' | 'hi' = 'en'): WayView[] {
-  const nameOf = (way: WayView) => (language === 'hi' ? way.hi.label : way.label);
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+export function orderWays(ways: readonly WayView[], by: WaySort, fitWayId: string | null = null, _language: 'en' = 'en'): WayView[] {
+  const nameOf = (way: WayView) => way.label;
+  const locale = 'en-IN';
   const byName = (a: WayView, b: WayView) => nameOf(a).localeCompare(nameOf(b), locale);
   const list = [...ways];
   if (by === 'name') return list.sort(byName);

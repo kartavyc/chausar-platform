@@ -9,7 +9,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
  * the ledger with each row's classification and its Record payment, Add as cost and Skip buttons. Every figure and line
  * is the engine's own; Ink adds none and works none out.
  */
-function start(engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = '#/connections';
   render(<App client={createFakeClient(engine)} language={language} />);
   return engine;
@@ -209,12 +209,5 @@ describe('Connections > Bank account', () => {
     expect(callsOf(spy, 'venture.bank.import')).toEqual([{ csv, account: 'HDFC current' }]);
   });
 
-  it('shows in Hindi with every new string translated', async () => {
-    window.location.hash = '#/connections?sheet=bank:bank-account';
-    render(<App client={createFakeClient(new FakeEngine())} language="hi" />);
-    const sheet = await screen.findByRole('complementary');
-    await waitFor(() => expect(within(sheet).getByText('TRANSFER TO SAVINGS')).toBeTruthy());
-    expect(sheet.textContent).not.toMatch(/connections\.bankSheet\./);
-    expect(sheet.textContent).not.toContain('Record payment');
-  });
+
 });

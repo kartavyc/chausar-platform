@@ -20,12 +20,12 @@ import { applyPatch, toolCeiling } from '../runtime/venture/delivery/harness/pat
 import { definePlaybook } from '../runtime/venture/playbooks/kit/define.ts';
 import { runKitBaseline, type KitBaselineFile } from '../runtime/venture/playbooks/kit/baseline.ts';
 import { runKitChecks } from '../runtime/venture/playbooks/kit/checks.ts';
-import { KIT_FIXTURE_CASES, brandNamed, fixtureHi, kitFixture, noGuarantee, otherFixture } from './fixtures/venture/kit-fixture.ts';
+import { KIT_FIXTURE_CASES, brandNamed, kitFixture, noGuarantee, otherFixture } from './fixtures/venture/kit-fixture.ts';
 import { approveWaiting, draft as kitDraft, installKitFixture, kitBusiness } from './fixtures/venture/kit-business.ts';
 
 const code = (expected: string, words?: RegExp) => (error: any) => { assert.equal(error?.code, expected, error?.message); if (words) assert.match(error.message, words); return true; };
-const FIXTURE = definePlaybook(kitFixture(), fixtureHi(kitFixture()));
-const OTHER = definePlaybook(otherFixture(), fixtureHi(otherFixture()));
+const FIXTURE = definePlaybook(kitFixture());
+const OTHER = definePlaybook(otherFixture());
 const DEFINITIONS = [FIXTURE, OTHER];
 const META = { by: 'owner', at: '2026-10-27T10:00:00.000Z', today: '2026-10-27', host: 'test' as const };
 
@@ -311,17 +311,17 @@ test('5A3 wiring: a check resting on an unconfirmed rule says so; a client run o
   const base = kitFixture();
   const rule = base.rules[0];
   const input = checkInput(draft(['A warm voice for Sunrise Bakery.']), { 'brand-name': 'Sunrise Bakery' });
-  const unsure = definePlaybook(kitFixture({ rules: [{ ...rule, read: 'unconfirmed', sources: [{ title: 'A forum post', url: 'https://example.com/post' }] }] }), fixtureHi(base));
+  const unsure = definePlaybook(kitFixture({ rules: [{ ...rule, read: 'unconfirmed', sources: [{ title: 'A forum post', url: 'https://example.com/post' }] }] }));
   assert.match(runKitChecks(unsure, input).find(item => item.check === 'no-guarantee')!.detail, /This rule is not confirmed\.$/);
   // 5A3 review: a rule says who must confirm it (needs); one a CA must confirm carries confirmedBy null until they do.
-  const waiting = definePlaybook(kitFixture({ rules: [{ ...rule, needs: 'ca', confirmedBy: null }] }), fixtureHi(base));
+  const waiting = definePlaybook(kitFixture({ rules: [{ ...rule, needs: 'ca', confirmedBy: null }] }));
   assert.throws(() => runKitChecks(waiting, input), code('RULE_UNCONFIRMED', /Promised results/));
   assert.ok(runKitChecks(waiting, { ...input, mode: 'rehearsal' }).length > 0, 'practice runs go on');
 });
 
 test('5A3 wiring: the kit draft checks end with rules-current, not run once a rule is past its recheck window', async () => {
   const base = kitFixture();
-  const old = definePlaybook(kitFixture({ rules: [{ ...base.rules[0], checkedOn: '2026-05-01' }] }), fixtureHi(base));
+  const old = definePlaybook(kitFixture({ rules: [{ ...base.rules[0], checkedOn: '2026-05-01' }] }));
   const results = await runFlagshipChecks(checkInput(draft(['A warm voice for Sunrise Bakery.']), { 'brand-name': 'Sunrise Bakery' }), [old]);
   const current = results.find(item => item.check === 'rules-current')!;
   assert.equal(current.outcome, 'not-run');

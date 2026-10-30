@@ -229,7 +229,7 @@ const WAYS: WaysView = {
     { ...UNREAD, id: 'social-agency', playbook: 'social', label: 'Social media agency', category: 'marketing', hours: '6 to 10 h a week', maxHours: 10, team: [], clientsPay: { text: 'Varies', per: '', estimate: true, source: 'model' }, yours: [] },
   ],
   categories: [],
-  upTo: { maxHours: 5, label: '', hi: '', count: 0 },
+  upTo: { maxHours: 5, label: '', count: 0 },
 };
 
 test('chief: Good fit for you is the AI\'s judgement, labelled a model estimate, or nothing without an AI', async () => {

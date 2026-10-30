@@ -12,7 +12,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
  * step away, and a business not registered for GST never sees a GST field.
  */
 
-function start(hash: string, engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(hash: string, engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = hash;
   render(<App client={createFakeClient(engine)} language={language} />);
   return engine;
@@ -289,18 +289,7 @@ describe('Business in the Ink v2 look', () => {
     }
   });
 
-  it('speaks Hindi on every business page, with no key showing', async () => {
-    for (const hash of ['#/business/plan', '#/business/prices', '#/business/build', '#/business/keep', '#/business/practice']) {
-      window.location.hash = hash;
-      const view = render(<App client={createFakeClient(new FakeEngine())} language="hi" />);
-      // Each step of the page in turn: the header, then its tiles.
-      await waitFor(() => expect(document.querySelector('main h1')).not.toBeNull());
-      await waitFor(() => expect(document.querySelector('main')!.querySelectorAll('h2, h3').length, hash).toBeGreaterThan(1));
-      for (const fold of document.querySelectorAll('details')) fold.open = true;
-      expect(keyLikeText(document.querySelector('main')!), hash).toEqual([]);
-      view.unmount();
-    }
-  });
+
 
   it('Plan keeps the change form one press away', async () => {
     start('#/business/plan');

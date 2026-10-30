@@ -14,7 +14,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
 
-function start(options: { breakAt?: number; language?: 'en' | 'hi' } = {}) {
+function start(options: { breakAt?: number; language?: 'en' } = {}) {
   window.location.hash = '#/money/journal';
   const engine = new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' });
   const client = createFakeClient(engine);
@@ -109,10 +109,5 @@ describe('Money > Journal: the chain line and Check a receipt (4J22a)', () => {
     }
   });
 
-  it('in Hindi the chain line is worded from its codes', async () => {
-    start({ language: 'hi', breakAt: 3 });
-    const line = (await found('[data-chain="corrupt"]'));
-    expect(line.textContent).toMatch(/3/);
-    expect(line.textContent).not.toMatch(/[A-Za-z]{3,}/);
-  });
+
 });

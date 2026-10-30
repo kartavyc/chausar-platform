@@ -11,7 +11,7 @@ import { assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
  * Make a copy.
  */
 
-function start(hash: string, language: 'en' | 'hi' = 'en') {
+function start(hash: string, language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
   const spy = vi.spyOn(client, 'request');
@@ -50,16 +50,7 @@ describe('Work: order stage steps', () => {
   });
 });
 
-describe('Work: order stage steps in Hindi', () => {
-  it('words every stage, its state and what waits on the owner in Hindi, with no engine English', async () => {
-    start('#/work', 'hi');
-    await waitFor(() => expect(document.querySelectorAll('[data-order-steps]').length).toBeGreaterThan(0));
-    const steps = document.querySelector<HTMLElement>('[data-order-steps]')!;
-    const card = steps.closest('li[data-row]') as HTMLElement;
-    expect(card.querySelector('[data-waits-on-you]')!.textContent).toBe('2 आपका इंतज़ार: दाम, एपिसोड');
-    for (const li of steps.querySelectorAll('li')) expect(li.textContent ?? '', li.textContent ?? '').not.toMatch(/[A-Za-z]{3,}/);
-  });
-});
+
 
 describe('the run sheet: the Delivered card (A17)', () => {
   it('lists what the run handed over with digests, and apart the files changed during it, read-only, with Make a copy', async () => {

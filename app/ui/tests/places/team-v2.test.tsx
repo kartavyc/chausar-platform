@@ -33,7 +33,7 @@ function beforeW4(view: TeamListView): TeamListView {
   };
 }
 
-function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept } = {}) {
+function start(hash = '#/team', options: { language?: 'en'; intercept?: Intercept } = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(new FakeEngine());
   const base: FakeClient = {
@@ -82,7 +82,7 @@ const withDepartments: Intercept = (method, _params, base) => method === 'ventur
     }))
   : undefined;
 
-function renderWithEngine(node: React.ReactNode, language: 'en' | 'hi' = 'en') {
+function renderWithEngine(node: React.ReactNode, language: 'en' = 'en') {
   return render(
     <EngineProvider client={createFakeClient(new FakeEngine())}>
       <TextProvider language={language}>{node}</TextProvider>
@@ -561,24 +561,5 @@ describe('Team v2: the agent panel', () => {
     await click(within(panel).getByRole('tab', { name: 'Runs' }));
     await settle();
     expect(await check()).toEqual([]);
-  });
-});
-
-describe('Team v2: Hindi', () => {
-  it('renders the place, a department panel and the agent panel with no key showing as text', async () => {
-    start('#/team', { language: 'hi', intercept: withDepartments });
-    await screen.findByRole('group', { name: 'विभाग दिखाएँ' });
-    await settle();
-    // The waiting agent's card says the wait in Hindi, before the engine's own words for what it waits on.
-    const waiting = within(main()).getByRole('button', { name: 'आपका इंतज़ार' });
-    expect(waiting.closest('p')!.textContent).toBe('आपका इंतज़ार Pricing the sponsor slot');
-    await click(within(main()).getAllByRole('button').find((b) => b.textContent === 'Editor')!);
-    const panel = await screen.findByRole('complementary', { name: 'Editor' });
-    await click(within(panel).getAllByRole('tab')[1]!);
-    await settle();
-    const texts = [...document.body.querySelectorAll('*')].flatMap((el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent!.trim()));
-    expect(texts.filter((text) => KEY_LIKE.test(text))).toEqual([]);
-    const labels = [...document.body.querySelectorAll('[aria-label]')].map((el) => el.getAttribute('aria-label')!);
-    expect(labels.filter((text) => KEY_LIKE.test(text))).toEqual([]);
   });
 });

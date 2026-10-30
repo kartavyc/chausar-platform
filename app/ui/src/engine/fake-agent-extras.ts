@@ -881,12 +881,11 @@ function learnVoice(samples: readonly string[]): { language: 'en' | 'hi'; howITa
   const openers = repeated(train.map((one) => one.opener));
   const closers = repeated(train.map((one) => one.closer));
   const lines = [...new Set([...openers, ...closers, ...repeated(train.flatMap((one) => one.body.split('\n')))])].slice(0, 6);
-  const hi = language === 'hi';
-  const howITalk = [...openers.slice(0, 2).map((line) => (hi ? `शुरुआत: "${line}"` : `Opens with: "${line}"`)), ...closers.slice(0, 2).map((line) => (hi ? `अंत: "${line}"` : `Signs off with: "${line}"`))];
+  const howITalk = [...openers.slice(0, 2).map((line) => `Opens with: "${line}"`), ...closers.slice(0, 2).map((line) => `Signs off with: "${line}"`)];
   const average = (texts: string[]) => { const all = texts.flatMap(sentencesOf); return all.length ? all.reduce((sum, item) => sum + item.split(/\s+/).length, 0) / all.length : 0; };
   const mean = average(train.map((one) => one.body));
   const size = mean <= 12 ? 0 : mean <= 20 ? 1 : 2;
-  const format = [hi ? ['छोटे वाक्य', 'मध्यम लंबाई के वाक्य', 'लंबे वाक्य'][size]! : ['Short sentences', 'Sentences of medium length', 'Long sentences'][size]!];
+  const format = [['Short sentences', 'Sentences of medium length', 'Long sentences'][size]!, ...(train.filter(one => /[?？]/u.test(one.body)).length * 2 > train.length ? ['Asks the reader questions'] : [])];
   const heldWords = new Set(wordsOf(held.body));
   const shared = wordsIUse.filter((word) => heldWords.has(word)).length;
   const heldMean = average([held.body]);

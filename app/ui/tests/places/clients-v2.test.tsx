@@ -11,7 +11,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 type Fake = ReturnType<typeof createFakeClient>;
 
-async function start(hash = '#/clients', options: { language?: 'en' | 'hi'; prepare?: (client: Fake) => Promise<void>; override?: (client: Fake) => void } = {}) {
+async function start(hash = '#/clients', options: { language?: 'en'; prepare?: (client: Fake) => Promise<void>; override?: (client: Fake) => void } = {}) {
   window.location.hash = hash;
   const client = createFakeClient(new FakeEngine());
   await options.prepare?.(client);
@@ -338,21 +338,5 @@ describe('Clients: the lead sheet', () => {
     // The owner's send is read on this computer's clock, as on the card: never the raw stored time.
     expect(sheet.textContent).toContain('You sent it 21 Oct');
     expect(sheet.textContent).not.toContain('2026-10-21');
-  });
-});
-
-describe('Clients in Hindi', () => {
-  it('both tabs render with no key showing as text', async () => {
-    const { container } = await start('#/clients', { language: 'hi' });
-    await screen.findByRole('button', { name: 'Boat Audio' });
-    expect(container.textContent).not.toMatch(/clients\.[a-z]/);
-    expect(container.textContent).not.toMatch(/(board|state)\.[a-z]/);
-  });
-
-  it('the pipeline renders in Hindi with no key showing as text', async () => {
-    const { container } = await start('#/clients/pipeline', { language: 'hi' });
-    await screen.findByRole('button', { name: 'Asha Rao' });
-    expect(container.textContent).not.toMatch(/clients\.[a-z]/);
-    expect(container.textContent).not.toMatch(/(board|state)\.[a-z]/);
   });
 });

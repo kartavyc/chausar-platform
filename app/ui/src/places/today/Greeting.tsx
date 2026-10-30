@@ -18,7 +18,7 @@ const never = () => false;
 
 /** "Friday, 23 October" in the reader's language, from the clock. */
 function dayOf(now: Date, language: string): string {
-  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
+  return new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
 }
 
 /**

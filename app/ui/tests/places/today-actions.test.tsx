@@ -242,15 +242,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     expect(send().disabled).toBe(false);
   });
 
-  it('the box starts in Hindi in Hindi', async () => {
-    window.location.hash = '#/today';
-    const client = createFakeClient(new FakeEngine({ now: () => NOW }));
-    render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="hi" /></ClockProvider>);
-    const card = (await screen.findByRole('heading', { level: 3, name: 'Episode 14 is cut' })).closest('article') as HTMLElement;
-    await press(within(card).getByRole('button', { name: 'वापस भेजें' }));
-    const box = card.querySelector<HTMLElement>('[data-send-back]')!;
-    expect((within(box).getByRole('textbox') as HTMLTextAreaElement).value).toBe('इसे ऐसे बदलें: ');
-  });
+
 
   it('after failed checks it asks "Fix all, or tell me which?" and a pick calls venture.delivery.fix', async () => {
     const row: Seed = {

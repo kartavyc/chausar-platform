@@ -37,7 +37,7 @@ async function start(options: FakeOptions = {}, { language = 'en', transport, ai
 const gallery = () => screen.findByRole('region', { name: 'All ways to earn' });
 const offered=START.ways as unknown as WaysView;
 const offeredNames=offered.ways.map(way=>way.label);
-const chipNames=(language:'en'|'hi')=>[`${language==='hi'?'सभी':'All'} ${offered.ways.length}`,...offered.categories.filter(c=>c.count>0).map(c=>`${language==='hi'?c.hi:c.label} ${c.count}`),...(offered.upTo.count>0?[`${language==='hi'?offered.upTo.hi:offered.upTo.label} ${offered.upTo.count}`]:[])];
+const chipNames=(_language:'en')=>[`All ${offered.ways.length}`,...offered.categories.filter(c=>c.count>0).map(c=>`${c.label} ${c.count}`),...(offered.upTo.count>0?[`${offered.upTo.label} ${offered.upTo.count}`]:[])];
 const tileNames = (region: HTMLElement, list = 'Ways to earn') => within(within(region).getByRole('list', { name: list })).getAllByRole('article').map((tile) => tile.querySelector('h3')?.textContent);
 
 describe('Start: the ways to earn from the engine', () => {
@@ -123,16 +123,7 @@ describe('Start: the ways to earn from the engine', () => {
     expect(methods().slice(before).filter((m) => /preview|create|suggest/.test(m))).toEqual([]);
   });
 
-  it('in Hindi: the engine\'s Hindi words on the tiles and chips, and Name sorts by hi-IN collation', async () => {
-    await start({}, { language: 'hi' });
-    const region = await screen.findByRole('region', { name: 'कमाई के सभी तरीके' });
-    const chips = within(region).getByRole('group', { name: 'दिखाएँ' });
-    expect(within(chips).getAllByRole('button').map((chip) => chip.textContent)).toEqual(chipNames('hi'));
-    fireEvent.change(within(region).getByRole('combobox', { name: 'क्रम' }), { target: { value: 'name' } });
-    const names = offered.ways.map(way=>way.hi.label).sort((a, b) => a.localeCompare(b, 'hi-IN'));
-    expect(tileNames(region, 'कमाई के तरीके')).toEqual(names);
-    expect(within(region).getByRole('article', { name: 'CA प्रैक्टिस' }).textContent).toContain('हफ़्ते में 6 से 10 घंटे');
-  });
+
 });
 
 /**
@@ -187,13 +178,7 @@ describe('Start: the flagship tiles (5A1)', () => {
     figures(tile);
   });
 
-  it('in Hindi, each flagship tile carries its Hindi words', async () => {
-    await start({}, { language: 'hi' });
-    const region = await screen.findByRole('region', { name: 'कमाई के सभी तरीके' });
-    expect(within(region).getByRole('article', { name: 'YouTube चैनल' }).textContent).toContain('रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।');
-    expect(within(region).getByRole('article', { name: 'CA प्रैक्टिस' }).textContent).toContain('बही-खाते, वर्किंग और हर आँकड़े की रसीद।');
-    expect(within(region).getByRole('article', { name: 'सोशल मीडिया एजेंसी' }).textContent).toContain('लोकल दुकानों, क्लिनिक और कोच के लिए पोस्ट, जवाब, रील और महीने की रिपोर्ट।');
-  });
+
 });
 
 describe('Start: the business picker', () => {
@@ -303,7 +288,7 @@ describe('Start: the business picker', () => {
     const { methods } = await start();
     fireEvent.click(await screen.findByRole('radio', { name: 'Add this to Lumen Studio' }));
     const examples = screen.getByRole('group', { name: 'Examples' });
-    expect(within(examples).getAllByRole('button').map((b) => b.textContent)).toEqual(['Short reels from each video', 'A monthly report for clients', 'हर क्लाइंट को साप्ताहिक अपडेट']);
+    expect(within(examples).getAllByRole('button').map((b) => b.textContent)).toEqual(['Short reels from each video', 'A monthly report for clients', 'Weekly client updates']);
     const before = methods().length;
     fireEvent.click(within(examples).getByRole('button', { name: 'A monthly report for clients' }));
     expect((screen.getByRole('textbox', { name: 'Or describe it in one sentence' }) as HTMLTextAreaElement).value).toBe('Send each client a monthly report of what we made for them.');

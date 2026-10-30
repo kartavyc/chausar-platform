@@ -16,12 +16,11 @@ describe('fake engine: the Start gallery and the setup checklist (4J8)', () => {
       expect(way.clientsPay.source).toMatch(/^Model estimate/);
       expect(way.needs.ai.length).toBeGreaterThan(0);
       expect(way.needs.connections.length).toBeGreaterThan(0);
-      expect(way.hi.needs.connections).toMatch(/\p{Script=Devanagari}/u);
     }
     // Lumen Studio (a YouTube channel) is open in the sample.
     expect(view.ways.find((way) => way.playbook === 'youtube')!.yours).toEqual([{ businessId: 'lumen', name: 'Lumen Studio' }]);
     expect(view.ways.filter((way) => way.playbook !== 'youtube').flatMap((way) => way.yours)).toEqual([]);
-    expect(view.upTo).toEqual({ maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: view.ways.filter(way=>way.maxHours<=5).length });
+    expect(view.upTo).toEqual({ maxHours: 5, label: 'Up to 5 h a week', count: view.ways.filter(way=>way.maxHours<=5).length });
     const refused = await engine.request('venture.playbooks.list', { sort: 'name' }).catch((error: unknown) => error);
     expect((refused as EngineError).code).toBe('INVALID_VENTURE_REQUEST');
   });

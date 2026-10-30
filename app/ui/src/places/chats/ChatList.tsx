@@ -18,7 +18,7 @@ import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
 
-const LOCALE: Record<Language, string> = { en: 'en-IN', hi: 'hi-IN' };
+const LOCALE: Record<Language, string> = { en: 'en-IN' };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The day of a moment on this computer's calendar, as 2026-10-23. */

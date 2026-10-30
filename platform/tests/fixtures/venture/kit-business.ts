@@ -18,7 +18,7 @@ import { handlers as playbookHandlers } from '../../../runtime/venture/playbooks
 import { definePlaybook } from '../../../runtime/venture/playbooks/kit/define.ts';
 import { installTestPlaybooks } from '../../../runtime/venture/playbooks/kit/installed.ts';
 import { VentureTestStore } from '../../venture-test-store.ts';
-import { fixtureHi, kitFixture } from './kit-fixture.ts';
+import { kitFixture } from './kit-fixture.ts';
 
 export const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 export const KIT_IDEA = 'A kit fixture studio for bakeries and gyms in Pune';
@@ -76,7 +76,7 @@ const HANDLERS = { ...coreHandlers, ...moneyHandlers, ...deliveryHandlers, ...vi
 
 /** Installs kit-fixture (defined and with its Hindi) for the test; returns the undo. */
 export function installKitFixture(definition = kitFixture()): () => void {
-  return installTestPlaybooks([{ definition: definePlaybook(definition, fixtureHi(definition)), hi: fixtureHi(definition) }]);
+  return installTestPlaybooks([{ definition: definePlaybook(definition),  }]);
 }
 
 /**

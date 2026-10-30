@@ -64,7 +64,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
   const t = useT();
   const language = useLanguage();
   const titleId = useId();
-  const agents = new Intl.ListFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { style: 'long', type: 'conjunction' }).format(way.team.names);
+  const agents = new Intl.ListFormat('en-IN', { style: 'long', type: 'conjunction' }).format(way.team.names);
   const startName = way.running ? t('gallery.startAnotherNamed', { name: way.name }) : t('gallery.startNamed', { name: way.name });
   return (
     <article className={cx(s.tile, className)} aria-labelledby={titleId} data-card="" data-featured={featured ? '' : undefined}>

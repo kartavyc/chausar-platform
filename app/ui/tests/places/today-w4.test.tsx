@@ -58,7 +58,7 @@ type Fake = ReturnType<typeof createFakeClient>;
 const FRIDAY = '2026-10-23T10:00:00.000Z';
 const THURSDAY = '2026-10-29T10:00:00.000Z';
 
-async function startOutreach(options: { prepare?: (client: Fake) => Promise<void>; language?: 'en' | 'hi' } = {}) {
+async function startOutreach(options: { prepare?: (client: Fake) => Promise<void>; language?: 'en' } = {}) {
   window.location.hash = '#/today';
   const clock = { now: FRIDAY };
   const fake = createFakeClient(new FakeEngine({ now: () => clock.now, queue: [] }));
@@ -106,12 +106,7 @@ describe('Today w4: follow-ups, replies and notes after a call (4E4)', () => {
     assertInkRules(document.body);
   });
 
-  it('a follow-up reads in Hindi from its parts', async () => {
-    await startOutreach({ language: 'hi' });
-    const card = await cardTitled('Tara Iyer से दोबारा बात करें');
-    expect(card.textContent).toContain('2 दिन देर');
-    expect(within(card).getByRole('button', { name: 'मेल में खोलें' })).toBeTruthy();
-  });
+
 
   it('a reply that asks about pricing opens the owner\'s mail to reply, and a match Chausar is unsure of asks', async () => {
     const open = desktopOpen();
@@ -155,15 +150,7 @@ describe('Today w4: follow-ups, replies and notes after a call (4E4)', () => {
 describe('Today w4: opt-outs, dead domains and the notes consent (4E4 review)', () => {
   const readTwice = async (client: Fake) => { await mailbox(client); await client.request('venture.mailbox.sync', {}); };
 
-  it('an opt-out the mail cannot prove asks to block her other address and close her card, in Hindi too', async () => {
-    const { spy } = await startOutreach({ prepare: readTwice });
-    const card = await cardTitled('Tara asked not to be contacted. Block tara@kettleaudio.example and close the card too?');
-    expect(card.textContent).toContain('Tara asked not to be contacted from tara.iyer@gmail.com. Blocked tara.iyer@gmail.com. Mail of');
-    expect(within(card).getByRole('button', { name: 'Not now' })).toBeTruthy();
-    await press(within(card).getByRole('button', { name: 'Block and close' }));
-    expect(calls(spy, 'venture.queue.decide').at(-1)![1]).toMatchObject({ action: 'approve' });
-    await waitFor(() => expect(screen.getByText(/Blocked tara@kettleaudio\.example and closed the card as Lost\./)).toBeTruthy());
-  });
+
 
   it('once blocked, Tara cannot be added again, and no draft or handoff reaches her; her closed card says so', async () => {
     const { client } = await startOutreach({ prepare: readTwice });
@@ -194,12 +181,7 @@ describe('Today w4: opt-outs, dead domains and the notes consent (4E4 review)', 
     await waitFor(() => expect(screen.getByText(/Only the address stays blocked\. The domain is not\./)).toBeTruthy());
   });
 
-  it('the opt-out and domain answers read in Hindi', async () => {
-    await startOutreach({ prepare: readTwice, language: 'hi' });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'रोकें और बंद करें' })).toBeTruthy());
-    expect(screen.getByRole('button', { name: 'पूरा डोमेन रोकें' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'सिर्फ़ यह पता' })).toBeTruthy();
-  });
+
 
   it('a follow-up card shows no time, since its time is only its due day', async () => {
     await startOutreach();

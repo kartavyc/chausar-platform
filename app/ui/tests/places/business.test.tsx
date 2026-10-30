@@ -8,7 +8,7 @@ import { receiptMark } from '../helpers/ink-rules';
 
 type Bridged = Window & { chausar?: unknown };
 
-function start(hash: string, engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(hash: string, engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(engine);
   render(<App client={client} language={language} />);
@@ -469,10 +469,6 @@ describe('Business menu', () => {
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
-  it('speaks Hindi on the business pages', async () => {
-    start('#/business/plan', new FakeEngine(), 'hi');
-    expect(await screen.findByRole('heading', { level: 1, name: 'प्लान और प्लेबुक' })).toBeTruthy();
-  });
 });
 
 describe('Business: your CA (CA firm playbook)', () => {
@@ -588,10 +584,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     await expect(engine.request('venture.ca.explainDiff', { receiptId: 'w-portal-sep', key: 'net-payable', note: 'Another note.', membershipNo: '412345' })).rejects.toMatchObject({ code: 'CA_DIFF_EXPLAINED' });
   });
 
-  it('explains in Hindi too', async () => {
-    start('#/business/ca', await ledgerline(), 'hi');
-    expect(await screen.findByRole('button', { name: 'समझाएं' })).toBeTruthy();
-  });
+
 
   it('says so when no regulated papers carry calculator receipts yet', async () => {
     const engine = await ledgerline();

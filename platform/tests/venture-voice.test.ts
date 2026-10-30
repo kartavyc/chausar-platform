@@ -113,6 +113,9 @@ test('voice learn: a held-out text unlike the others fails, and the voice is not
   assert.ok(!JSON.stringify(withCard).includes(TEST_CARD.replace(/ /g, '').slice(0, 8)) && !JSON.stringify(withCard).includes(TEST_CARD), 'a card number never reaches the kept lines');
   const hindi = learnVoice(['नमस्ते दोस्तों,\nआज छोटे कदम की बात करते हैं।\nसरल रखिए', 'नमस्ते दोस्तों,\nबचत छोटे कदम से शुरू होती है।\nसरल रखिए', 'नमस्ते दोस्तों,\nहर हफ्ते छोटे कदम रखिए।\nसरल रखिए']);
   assert.equal(hindi.language, 'hi');
+  assert.deepEqual(hindi.sections.format, ['Short sentences']);
+  assert.ok(hindi.sections.howITalk.every(line => /^(Opens with|Signs off with):/.test(line)));
+  assert.ok(hindi.sections.howITalk.some(line => line.includes('नमस्ते दोस्तों')));
 });
 
 test('voice check: never-use words and claims the owner will not make fail a draft by code; a voice that is off or for another channel does not', () => {

@@ -109,13 +109,12 @@ describe('Start: the one-sentence tile', () => {
     const box = await screen.findByRole('textbox', { name: 'What do you want to start?' });
     const tile = box.closest('section')!;
     expect(within(tile).getByRole('heading', { level: 2, name: 'What do you want to start?' })).toBeTruthy();
-    expect(tile.textContent).toContain('Write in English or हिन्दी');
-    expect(within(tile).getByText('हिन्दी').getAttribute('lang')).toBe('hi');
+    expect(tile.textContent).toContain('Write in English');
     const primaries = [...tile.querySelectorAll('[data-variant="primary"]')];
     expect(primaries.map((b) => b.textContent)).toEqual(['Make my plan']);
     const examples = within(tile).getByRole('group', { name: 'Examples' });
-    expect(within(examples).getAllByRole('button').map((b) => b.textContent)).toEqual(['Wedding invitation videos', 'GST filing for kirana shops', 'बच्चों को ऑनलाइन गणित']);
-    expect(within(examples).getByRole('button', { name: 'बच्चों को ऑनलाइन गणित' }).getAttribute('lang')).toBe('hi');
+    expect(within(examples).getAllByRole('button').map((b) => b.textContent)).toEqual(['Wedding invitation videos', 'GST filing for kirana shops', 'Online maths lessons']);
+    expect(within(examples).getByRole('button', { name: 'Online maths lessons' }).getAttribute('lang')).toBeNull();
     expect(within(examples).getByRole('button', { name: 'Wedding invitation videos' }).hasAttribute('lang')).toBe(false);
     assertInkRules();
   });
@@ -129,8 +128,8 @@ describe('Start: the one-sentence tile', () => {
     const before = calls.length;
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Wedding invitation videos' })); });
     expect(box.value).toBe('I make wedding invitation videos for families.');
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'बच्चों को ऑनलाइन गणित' })); });
-    expect(box.value).toBe('बच्चों के लिए ऑनलाइन गणित की कक्षाएँ।');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Online maths lessons' })); });
+    expect(box.value).toBe('Online maths lessons for children.');
     expect(calls.slice(before)).toEqual([]);
   });
 
@@ -295,7 +294,7 @@ describe('Start: the first run stays simple', () => {
     // The two-square mark is decorative; the name is said once.
     expect(main.querySelectorAll('svg[aria-hidden="true"] rect')).toHaveLength(2);
     expect(within(main).getByText('Chausar')).toBeTruthy();
-    expect(main.textContent).toContain('Write in English or हिन्दी');
+    expect(main.textContent).toContain('Write in English');
     expect(within(main).queryByRole('group', { name: 'Examples' })).toBeNull();
     expect(within(main).queryByRole('region', { name: 'How starting works' })).toBeNull();
     expect(within(main).queryByRole('link', { name: 'Resume setup' })).toBeNull();
@@ -368,24 +367,5 @@ describe('Start: the gallery slot (filled by W4 4J21)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Describe your business' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'All ways to earn' })).toBeNull();
     expect(await screen.findByRole('textbox', { name: 'What do you want to start?' })).toBeTruthy();
-  });
-});
-
-describe('Start: Hindi', () => {
-  it('renders the place with no key showing as text', async () => {
-    start({}, { language: 'hi' });
-    await screen.findByRole('textbox', { name: 'आप क्या शुरू करना चाहते हैं?' });
-    await screen.findByRole('link', { name: 'सेटअप फिर से शुरू करें' });
-    expect(keysShown(document.body)).toEqual([]);
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('अपने बिज़नेस के बारे में बताइए');
-  });
-
-  it('the gallery page in Hindi has no key showing either', () => {
-    page({ ways, featured: 'tuition', onStart: () => {} }, 'hi');
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('कमाई का एक तरीका चुनें');
-    const section = screen.getByRole('region', { name: 'कमाई के सभी तरीके' });
-    expect(within(section).getAllByRole('article')).toHaveLength(2);
-    expect(screen.getByRole('textbox', { name: 'या एक वाक्य में बताइए' })).toBeTruthy();
-    expect(keysShown(document.body)).toEqual([]);
   });
 });

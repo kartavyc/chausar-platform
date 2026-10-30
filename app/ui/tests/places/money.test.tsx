@@ -9,7 +9,7 @@ import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink
 type Call = [string, unknown];
 type Override = (params: unknown) => unknown;
 
-function start(hash: string, options: { language?: 'en' | 'hi'; override?: Record<string, Override> } = {}) {
+function start(hash: string, options: { language?: 'en'; override?: Record<string, Override> } = {}) {
   window.location.hash = hash;
   const engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' });
   const client = createFakeClient(engine);
@@ -133,11 +133,7 @@ describe('Money overview', () => {
   // The overview's word budget (Ink v1's 45, raised to 79 by 3F for the D tiles) moved to tests/budgets.test.tsx (w3
   // 3I), with every place's, measured the same way: the overview as the real engine sends it, with its receipts.
 
-  it('speaks Hindi', async () => {
-    start('#/money', { language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'पैसा' })).toBeTruthy();
-    expect(await screen.findByRole('region', { name: 'आपको मिलना बाकी' })).toBeTruthy();
-  });
+
 });
 
 describe('Money source', () => {

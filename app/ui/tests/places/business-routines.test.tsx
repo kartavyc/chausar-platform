@@ -14,7 +14,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
 
-function start(intercept: Partial<Record<MethodName, (params: unknown) => unknown>> = {}, language: 'en' | 'hi' = 'en') {
+function start(intercept: Partial<Record<MethodName, (params: unknown) => unknown>> = {}, language: 'en' = 'en') {
   window.location.hash = '#/business/routines';
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
   const calls: Call[] = [];
@@ -141,12 +141,5 @@ describe('Business > Routines (4J22a)', () => {
     expect(screen.getAllByRole('status').map((el) => el.textContent)).toContain('Weekly review is removed. Its history stays.');
   });
 
-  it('in Hindi, the schedule is worded from its codes', async () => {
-    start({}, 'hi');
-    const item = await screen.findByRole('article', { name: 'Weekly review' });
-    expect(item.querySelector('[data-when]')!.textContent).toBe('हर सोमवार 09:00, Asia/Kolkata');
-    // The next run is worded from its codes too, so no English shows; Chausar stays Chausar.
-    expect(item.querySelector('[data-routine-line]')!.textContent).toMatch(/^अगला रन /);
-    expect(item.querySelector('[data-asks]')!.textContent).toBe('Chausar से पूछता है');
-  });
+
 });

@@ -9,7 +9,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 // computer, your n8n or Make, speech from text. Each tile carries the engine's honest label and one action at rest;
 // forms are one step away; a webhook address is kept like a key; the engine's refusals are worded in both languages.
 
-async function start(language: 'en' | 'hi' = 'en') {
+async function start(language: 'en' = 'en') {
   window.location.hash = '#/connections';
   const fake = createFakeClient(new FakeEngine({ now: () => '2026-10-27T10:00:00.000Z' }));
   const spy = vi.spyOn(fake, 'request');
@@ -125,9 +125,5 @@ describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => 
     expect(card.querySelectorAll('[data-thread] [data-content]').length).toBeGreaterThan(0);
   });
 
-  it('reads in Hindi', async () => {
-    await start('hi');
-    expect(await screen.findByRole('region', { name: 'जुड़ने के और तरीके' })).toBeTruthy();
-    expect(await tile('जिन पेजों पर आप नज़र रखते हैं')).toBeTruthy();
-  });
+
 });

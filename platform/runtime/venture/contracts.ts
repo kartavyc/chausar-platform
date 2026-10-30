@@ -4844,15 +4844,11 @@ export interface FileRequestView { id: string; orderId: string; url: string | nu
  * promise. department: the playbook's own (its service type's, 4A1), for the icon tint. team: the playbook's agents
  * only (code is never shown as AI), with their departments. starter: a sentence a tile's Start puts in the one-sentence
  * box (never sent by itself); it picks this playbook. yours: the businesses of this kind the host named (the open one;
- * 4J6 adds the others), never from a payload. hi: the same words in Hindi, machine-drafted for a native reviewer.
+ * 4J6 adds the others), never from a payload.
  */
 export type WayCategory = 'content' | 'marketing' | 'money-and-tax' | 'shops-and-firms';
 /** needs: what the way needs in plain words, besides the owner's time (hours): the owner's own AI, and the connections that work today. */
 export type WayNeeds = { ai: Display; connections: Display };
-export type WayWords = {
-  label: Display; line: Display; hours: Display; youDo: Display; team: Display[]; teamLine: Display;
-  pay: Display; per: Display; source: Display; starter: Display; needs: WayNeeds;
-};
 export type WayView = {
   id: string; playbook: string; label: Display; category: WayCategory; department: DepartmentId; line: Display;
   hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
@@ -4861,13 +4857,12 @@ export type WayView = {
   needs: WayNeeds;
   starter: Display;
   yours: { businessId: string; name: string }[];
-  hi: WayWords;
 };
 /** categories: only those with a way, with counts; upTo: the "Up to 5 h a week" filter (maxHours at most 5) and its count. */
 export interface WaysView {
   ways: WayView[];
-  categories: { id: WayCategory; label: Display; hi: Display; count: number }[];
-  upTo: { maxHours: number; label: Display; hi: Display; count: number };
+  categories: { id: WayCategory; label: Display; count: number }[];
+  upTo: { maxHours: number; label: Display; count: number };
 }
 /**
  * 4J8. One change a plan suggestion makes, in plain words: before and after (empty before for an offer added).

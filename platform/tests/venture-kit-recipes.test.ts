@@ -10,8 +10,8 @@ import { recipeJudgeRules, recipeViews, validateRecipes } from '../runtime/ventu
 import { boundaryViews, validateBoundaries } from '../runtime/venture/playbooks/kit/boundaries.ts';
 import { rulesListOf } from '../runtime/venture/playbooks/rules-view.ts';
 import { definePlaybook, type KitConnector, type KitRecipe, type PlaybookDefinition } from '../runtime/venture/playbooks/kit/define.ts';
-import { forgetHi, type HiFile } from '../runtime/venture/playbooks/kit/words.ts';
-import { fixtureHi, kitFixture } from './fixtures/venture/kit-fixture.ts';
+
+import { kitFixture } from './fixtures/venture/kit-fixture.ts';
 import { FIXTURE_BOUNDARIES, FIXTURE_CONNECTORS, FIXTURE_RECIPES, FIXTURE_STEPS, TODAY, fixtureDefinition } from './venture-kit-rules-helpers.ts';
 
 const code = (expected: string, words?: RegExp) => (error: any) => {
@@ -128,14 +128,14 @@ test('Plan and playbook: venture.rules.list hands over the recipes and the bound
 // ---------------------------------------------------------------------------
 
 /** definePlaybook refused it with PLAYBOOK_DEFINITION_INVALID on this field, with these words. */
-function refusedDefinition(definition: PlaybookDefinition, field: string, words: RegExp, hi: HiFile = fixtureHi(definition)) {
-  assert.throws(() => definePlaybook(definition, hi, '2026-10-27'), (error: any) => {
+function refusedDefinition(definition: PlaybookDefinition, field: string, words: RegExp) {
+  assert.throws(() => definePlaybook(definition, '2026-10-27'), (error: any) => {
     assert.equal(error?.code, 'PLAYBOOK_DEFINITION_INVALID', error?.message);
     assert.match(error.message, new RegExp(`^The kit-fixture playbook's ${field}: `), error.message);
     assert.match(error.message, words);
     return true;
   });
-  forgetHi('kit-fixture');
+
 }
 
 test('definePlaybook checks the words of recipes, boundaries, dated rules and the recipes\' judge rules, house style and Hindi', () => {
@@ -148,25 +148,20 @@ test('definePlaybook checks the words of recipes, boundaries, dated rules and th
     'Skipping the voice sheet.', 'A post export', 'Which posts went out and when.', 'Why people bought.', 'Promised results', 'A post never promises results.',
     'Chausar house rule.', 'Covers the words of a post, not its pictures.',
     'Does the draft avoid this mistake: promising results in a post?', 'Voice before posts: avoid promising results in a post.'];
-  for (const text of shown) {
-    const hi = { ...fixtureHi(base) } as Record<string, string>;
-    assert.ok(Object.hasOwn(hi, text), `${text} is a shown string`);
-    delete hi[text];
-    refusedDefinition(base, 'words', /has no Hindi/, hi);
-  }
-  const defined = definePlaybook(base, fixtureHi(base), '2026-10-27');
+
+  const defined = definePlaybook(base, '2026-10-27');
   assert.deepEqual(defined.judgeRules.map(item => item.id), ['on-brief', 'voice-first-mistake-1']);
-  forgetHi('kit-fixture');
+
 });
 
 test('definePlaybook: a planned connector without its manual path is MANUAL_PATH_MISSING, and a recipe judge rule may not reuse a judge rule id', () => {
   const base = kitFixture();
   const { manualPath: _gone, ...noPath } = base.connectors[1];
   const lost = kitFixture({ connectors: [base.connectors[0], noPath] });
-  assert.throws(() => definePlaybook(lost, fixtureHi(lost), '2026-10-27'), code('MANUAL_PATH_MISSING', /A scheduler is planned/));
+  assert.throws(() => definePlaybook(lost, '2026-10-27'), code('MANUAL_PATH_MISSING', /A scheduler is planned/));
   const { waitsOn: _none, ...noWait } = base.connectors[1];
   const waiting = kitFixture({ connectors: [base.connectors[0], noWait] });
-  assert.throws(() => definePlaybook(waiting, fixtureHi(waiting), '2026-10-27'), code('MANUAL_PATH_MISSING', /who it waits on/));
+  assert.throws(() => definePlaybook(waiting, '2026-10-27'), code('MANUAL_PATH_MISSING', /who it waits on/));
   const twice = kitFixture({ judgeRules: [...base.judgeRules, { id: 'voice-first-mistake-1', question: 'Is the voice first?', text: 'The voice comes first.', floor: { kind: 'required-yes' } }] });
   refusedDefinition(twice, 'judgeRules', /voice-first-mistake-1 is also a recipe's judge rule/);
 });

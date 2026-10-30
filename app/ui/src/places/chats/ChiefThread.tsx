@@ -34,7 +34,7 @@ import s from './Chats.module.css';
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
 const SUGGESTIONS = ['chats.suggest.invoiced', 'chats.suggest.waiting', 'chats.suggest.spend'] as const;
-const LOCALE: Record<Language, string> = { en: 'en-IN', hi: 'hi-IN' };
+const LOCALE: Record<Language, string> = { en: 'en-IN' };
 
 const codeOf = (error: unknown) => (error instanceof EngineError ? error.code : null);
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));

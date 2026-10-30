@@ -44,38 +44,37 @@ const CATEGORY_ICON: Readonly<Record<WayCategory, IconName>> = {
   content: 'file-pen', marketing: 'megaphone', 'money-and-tax': 'receipt-text', 'shops-and-firms': 'briefcase',
 };
 
-/** One engine way as a tile, in the owner's language (the engine sends every shown word in Hindi too, `hi`). */
-export function wayData(way: WayView, language: 'en' | 'hi', categories: WaysView['categories']): WayData {
-  const words = language === 'hi' ? way.hi : null;
+/** One engine way as an English tile, preserving every engine-computed figure. */
+export function wayData(way: WayView, language: 'en', categories: WaysView['categories']): WayData {
   const category = categories.find((item) => item.id === way.category);
   return {
     id: way.id,
-    name: words?.label ?? way.label,
-    line: words?.line ?? way.line,
+    name: way.label,
+    line: way.line,
     icon: PLAYBOOK_ICON[way.playbook] ?? CATEGORY_ICON[way.category] ?? 'briefcase',
     dept: DEPT[way.department],
-    category: category ? (language === 'hi' ? category.hi : category.label) : undefined,
+    category: category ? (category.label) : undefined,
     categoryId: way.category,
     running: way.yours[0]?.name,
-    hours: words?.hours ?? way.hours,
+    hours: way.hours,
     hoursEstimate: way.hoursEstimate,
     minHours: way.minHours,
     maxHours: way.maxHours,
-    youDo: words?.youDo ?? way.youDo,
-    team: { names: words?.team ?? way.team.map((member) => member.role), line: words?.teamLine ?? way.teamLine },
-    pay: { range: words?.pay ?? way.clientsPay.text, per: (words?.per ?? way.clientsPay.per) || undefined, source: words?.source ?? way.clientsPay.source },
-    needs: words ? [words.needs.ai, words.needs.connections] : [way.needs.ai, way.needs.connections],
-    starter: words?.starter ?? way.starter,
+    youDo: way.youDo,
+    team: { names: way.team.map((member) => member.role), line: way.teamLine },
+    pay: { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source },
+    needs: [way.needs.ai, way.needs.connections],
+    starter: way.starter,
   };
 }
 
 /** The engine's list as the gallery's slot (without what a tile's Start does, which the page adds). */
-export function waysSlotOf(view: WaysView, language: 'en' | 'hi', featured: string | null): Omit<WaysSlot, 'onStart'> {
+export function waysSlotOf(view: WaysView, language: 'en', featured: string | null): Omit<WaysSlot, 'onStart'> {
   return {
     ways: view.ways.map((way) => wayData(way, language, view.categories)),
     featured: featured ?? undefined,
-    categories: view.categories.map((item) => ({ id: item.id, label: language === 'hi' ? item.hi : item.label, count: item.count })),
-    upTo: { id: 'up-to', label: language === 'hi' ? view.upTo.hi : view.upTo.label, count: view.upTo.count, maxHours: view.upTo.maxHours },
+    categories: view.categories.map((item) => ({ id: item.id, label: item.label, count: item.count })),
+    upTo: { id: 'up-to', label: view.upTo.label, count: view.upTo.count, maxHours: view.upTo.maxHours },
   };
 }
 
@@ -85,10 +84,10 @@ export const WAY_SORTS: readonly WaySort[] = ['best-fit', 'fewest-hours', 'name'
 /**
  * The ways in one of the gallery's orders, as the engine orders them (core/ways.ts orderWays): best fit puts the fit
  * first and keeps the rest as given; fewest hours goes by the most hours a week, then the fewest, then the name; name
- * goes by the shown name in the owner's language (Hindi by hi-IN collation).
+ * goes by the shown English name.
  */
-export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: string | undefined, language: 'en' | 'hi'): WayData[] {
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: string | undefined, language: 'en'): WayData[] {
+  const locale = 'en-IN';
   const byName = (a: WayData, b: WayData) => a.name.localeCompare(b.name, locale);
   const list = [...ways];
   if (by === 'name') return list.sort(byName);

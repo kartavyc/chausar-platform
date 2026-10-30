@@ -16,7 +16,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 type FakeClient = ReturnType<typeof createFakeClient>;
 type Intercept = (method: string, params: Record<string, unknown>, base: FakeClient) => Promise<unknown> | undefined;
 
-function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept; engine?: FakeEngine } = {}) {
+function start(hash = '#/team', options: { language?: 'en'; intercept?: Intercept; engine?: FakeEngine } = {}) {
   window.location.hash = hash;
   const engine = options.engine ?? new FakeEngine();
   const base = createFakeClient(engine);

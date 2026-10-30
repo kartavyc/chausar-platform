@@ -9,7 +9,7 @@ import { EngineError, type MethodName } from '../../src/engine/types';
 // the judge's own setting (venture.judge.auto.*). The engine decides and words every result; the page shows it.
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; engine?: FakeEngine; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; engine?: FakeEngine; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 const NOW = '2026-10-23T10:00:00.000Z';
 const ENOUGH = 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.';
@@ -224,13 +224,7 @@ describe('Business: the judge setting', () => {
     await waitFor(() => expect(within(judge).getByRole('alert').textContent).toBe("Couldn't change this: Only you change when the judge runs, inside the Chausar app."));
   });
 
-  it('the page reads in Hindi too', async () => {
-    start({ language: 'hi' });
-    await waitFor(() => expect(document.querySelector('a[href="#/business/practice"]')).not.toBeNull());
-    expect(document.querySelector('a[href="#/business/practice"]')?.textContent).not.toBe('Practice and improve');
-    await waitFor(() => expect(document.querySelectorAll('[data-practice-client]').length).toBe(3));
-    expect(screen.queryByRole('button', { name: 'Rehearse now' })).toBeNull();
-  });
+
 });
 
 describe('the fake engine practises and improves by the engine rules', () => {

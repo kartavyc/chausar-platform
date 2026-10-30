@@ -6,7 +6,7 @@ import { EngineError, type MethodName, type OrderLite } from '../../src/engine/t
 import { receiptMark } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; folder?: string; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; folder?: string; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 async function start(hash = '#/work', options: StartOptions = {}) {
   window.location.hash = hash;
@@ -354,15 +354,5 @@ describe('Work: new order', () => {
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add order' })); });
     expect(await within(sheet).findByText("Couldn't add the order: Set a price for this service first.")).toBeTruthy();
     expect((within(sheet).getByLabelText('What they asked for') as HTMLTextAreaElement).value).toBe('One mention');
-  });
-});
-
-describe('Work: Hindi', () => {
-  it('speaks Hindi', async () => {
-    await start('#/work', { language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'काम' })).toBeTruthy();
-    const ep12 = await rowOf('Two mentions in episode 12');
-    await waitFor(() => expect(ep12.textContent).toContain('INV-0039'));
-    expect(ep12.textContent).not.toContain('Waiting for payment');
   });
 });

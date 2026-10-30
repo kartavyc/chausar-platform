@@ -215,10 +215,10 @@ function repeated(lines: readonly (string | null)[]): string[] {
   return [...seen.values()].filter(item => item.count >= 2).map(item => item.text);
 }
 
-/** The words of how long the sentences are, in the voice's language. HINDI_REVIEW: machine-drafted Hindi. */
-function lengthWords(average: number, language: 'en' | 'hi'): string {
+/** English system labels; sampled client words keep their original language. */
+function lengthWords(average: number): string {
   const size = average <= 12 ? 0 : average <= 20 ? 1 : 2;
-  return language === 'hi' ? ['छोटे वाक्य', 'मध्यम लंबाई के वाक्य', 'लंबे वाक्य'][size] : ['Short sentences', 'Sentences of medium length', 'Long sentences'][size];
+  return ['Short sentences', 'Sentences of medium length', 'Long sentences'][size];
 }
 
 /**
@@ -246,14 +246,13 @@ export function learnVoice(samples: readonly string[]): LearnedVoice {
   const openers = repeated(train.map(shape => shape.opener));
   const closers = repeated(train.map(shape => shape.closer));
   const lines = [...openers, ...closers, ...repeated(train.flatMap(shape => shape.body.split('\n')))].filter((line, index, all) => all.indexOf(line) === index).slice(0, LINES_KEPT);
-  const hi = language === 'hi';
   const howITalk = [
-    ...openers.slice(0, 2).map(line => (hi ? `शुरुआत: "${line}"` : `Opens with: "${line}"`)),
-    ...closers.slice(0, 2).map(line => (hi ? `अंत: "${line}"` : `Signs off with: "${line}"`)),
+    ...openers.slice(0, 2).map(line => `Opens with: "${line}"`),
+    ...closers.slice(0, 2).map(line => `Signs off with: "${line}"`),
   ];
   const average = averageLength(train.map(shape => shape.body));
   const questions = train.filter(shape => /[?？]/u.test(shape.body)).length * 2 > train.length;
-  const format = [lengthWords(average, language), ...(questions ? [hi ? 'पाठक से सवाल पूछते हैं' : 'Asks the reader questions'] : [])];
+  const format = [lengthWords(average), ...(questions ? ['Asks the reader questions'] : [])];
   // The held-out text, which nothing above read.
   const heldWords = new Set(wordsOf(held.body));
   const shared = wordsIUse.filter(word => heldWords.has(word)).length;

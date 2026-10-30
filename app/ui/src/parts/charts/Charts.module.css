@@ -250,7 +250,7 @@
   font-weight: var(--weight-medium);
 }
 
-/* A long label (or a longer Hindi one) wraps at its spaces to a second line rather than being cut. */
+
 .xLabel {
   padding-top: var(--sp-2);
   color: var(--mute);

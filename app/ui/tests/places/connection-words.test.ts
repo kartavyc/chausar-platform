@@ -2,16 +2,16 @@ import { expect, it } from 'vitest';
 import { localizedConnectionCard, connectionWords } from '../../src/places/connections/ConnectionWords';
 import { capabilityWords } from '../../src/places/team/CapabilityWords';
 import en from '../../src/text/en/connection-words.json';
-import hi from '../../src/text/hi/connection-words.json';
+
 import type { ConnectorCardLite } from '../../src/engine/types';
 
-const t = (key: string) => (hi as Record<string, string>)[key] ?? key;
+const t = (key: string) => (en as Record<string, string>)[key] ?? key;
 
 it('translates exact static W5 notes and modes without changing capability evidence', () => {
   const card = { id: 'voice-provider', note: en['connection-words.card.voice-provider.note'], modes: [{ mode: 'write', status: 'planned', qualification: 'unqualified', what: en['connection-words.card.voice-provider.write'] }] } as ConnectorCardLite;
   const result = localizedConnectionCard(t, card);
-  expect(result.note).toBe(hi['connection-words.card.voice-provider.note']);
-  expect(result.modes[0]).toEqual({ ...card.modes[0], what: hi['connection-words.card.voice-provider.write'] });
+  expect(result.note).toBe(en['connection-words.card.voice-provider.note']);
+  expect(result.modes[0]).toEqual({ ...card.modes[0], what: en['connection-words.card.voice-provider.write'] });
   expect(card.note).toBe(en['connection-words.card.voice-provider.note']);
 });
 

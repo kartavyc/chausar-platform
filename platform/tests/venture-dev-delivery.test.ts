@@ -1,14 +1,14 @@
 // Real kit delivery: a code report cannot be replaced by a generic draft or reused after source revision.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import hi from '../runtime/venture/playbooks/dev-agency/hi.json' with {type:'json'};
+
 import {DEV_DATA} from '../runtime/venture/playbooks/dev-agency/definition-data.ts';
 import {definePlaybook} from '../runtime/venture/playbooks/kit/define.ts';
 import {installTestPlaybooks} from '../runtime/venture/playbooks/kit/installed.ts';
 import {kitBusiness,owner} from './fixtures/venture/kit-business.ts';
 import {ventureAction,listRecords} from '../runtime/venture/records.ts';
 test('developer delivery requires reviewed current evidence, makes no model request, and refuses stale or rewritten acceptance',async()=>{
- const undo=installTestPlaybooks([{definition:definePlaybook(DEV_DATA,hi),hi}]);try{
+ const undo=installTestPlaybooks([{definition:definePlaybook(DEV_DATA),}]);try{
  const e=await kitBusiness(undefined,{idea:'A code review service'}),offer=e.offers.find(o=>o.playbookOffer==='qa-service')!;
  const source=JSON.stringify({repository:'client/shop',revision:'a'.repeat(40),files:[{path:'app.ts',content:'export const enabled = true;'}]});
  const order=await e.call('venture.order.create',{clientId:e.client.id,offerId:offer.id,request:'Review the copied source',intake:{fields:{startedAt:'2026-10-20',private:false}},intakeFiles:{source:{name:'source.txt',contentBase64:Buffer.from(source).toString('base64')}}});

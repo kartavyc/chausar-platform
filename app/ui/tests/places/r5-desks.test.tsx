@@ -9,10 +9,3 @@ it('owner imports a permitted channel message, selects exact excerpt, approves i
 it('benign refresh preserves a dirty source form, while actual privacy event erases it',async()=>{const f=mount('monitored-data');fireEvent.click(await screen.findByRole('button',{name:'New source'}));fireEvent.change(screen.getByLabelText('Public page'),{target:{value:'https://private.example/name'}});await act(async()=>f.host.emit({type:'desk.changed',businessId:'business',at:f.host.now()}));expect((screen.getByLabelText('Public page') as HTMLInputElement).value).toContain('private');await act(async()=>f.host.emit({type:'privacy.forgotten',businessId:'business',at:f.host.now()}));fireEvent.click(screen.getByRole('button',{name:'New source'}));expect((screen.getByLabelText('Public page') as HTMLInputElement).value).toBe('');});
 
 import {within} from '@testing-library/react';import {CATALOGUES,format} from '../../src/text';import {TriageEvidence} from '../../src/places/work/desks/TriageEvidence';import type {TriageView} from '../../src/places/work/desks/ItTriageDesk';
-it('Hindi triage approval repeats the manual no-effect boundary without rewriting source summary or approval',()=>{
- const t=(k:string)=>format(CATALOGUES.hi,'hi',k),text='Help-channel triage for human review\nMessage one: Exact owner source words',calls:unknown[]=[];
- const item={orderId:'order',channel:'CHELP',messages:[],summary:{text,digest:'summary'},approved:null} as unknown as TriageView;
- render(<TextProvider language="hi"><TriageEvidence item={item} digest="current" busy={false} act={async(...args)=>{calls.push(args);return{id:'order',result:{}};}}/></TextProvider>);
- const review=screen.getByRole('region',{name:t('pb-r5.triage.summary')});expect(within(review).getByText(t('pb-r5.triage.quoteHelp'))).toBeTruthy();expect(review.querySelector('pre')!.textContent).toBe(text);
- fireEvent.click(within(review).getByRole('button',{name:t('pb-r5.triage.approve')}));expect(calls).toEqual([['order','approve',{},'current']]);
-});

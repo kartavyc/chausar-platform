@@ -91,16 +91,15 @@
   "onboarding.how.approve.line": "Your agents do the work. You approve what matters on Today.",
   "onboarding.describe.line": "One sentence is enough. You can change the plan before anything starts.",
   "onboarding.describe.or": "Or describe it in one sentence",
-  "onboarding.hint.line": "Write in English or {hindi}",
-  "onboarding.hint.hindi": "हिन्दी",
+  "onboarding.hint.line": "Write in English",
   "onboarding.examples.label": "Examples",
   "onboarding.examples.try": "Try",
   "onboarding.examples.wedding.label": "Wedding invitation videos",
   "onboarding.examples.wedding.text": "I make wedding invitation videos for families.",
   "onboarding.examples.gst.label": "GST filing for kirana shops",
   "onboarding.examples.gst.text": "Monthly GST filing for kirana shops in my area.",
-  "onboarding.examples.tuition.label": "बच्चों को ऑनलाइन गणित",
-  "onboarding.examples.tuition.text": "बच्चों के लिए ऑनलाइन गणित की कक्षाएँ।",
+  "onboarding.examples.tuition.label": "Online maths lessons",
+  "onboarding.examples.tuition.text": "Online maths lessons for children.",
   "onboarding.gallery.title": "All ways to earn",
   "onboarding.gallery.meta": "Hours and prices are for a typical start",
   "onboarding.resume.title": "{name} is not set up yet",
@@ -155,6 +154,6 @@
   "onboarding.ways.ex.reels.text": "Add short reels cut from each client video.",
   "onboarding.ways.ex.report.label": "A monthly report for clients",
   "onboarding.ways.ex.report.text": "Send each client a monthly report of what we made for them.",
-  "onboarding.ways.ex.weekly.label": "हर क्लाइंट को साप्ताहिक अपडेट",
-  "onboarding.ways.ex.weekly.text": "हर क्लाइंट को हर हफ़्ते एक छोटा अपडेट भेजें।"
+  "onboarding.ways.ex.weekly.label": "Weekly client updates",
+  "onboarding.ways.ex.weekly.text": "Send every client a short weekly update."
 }

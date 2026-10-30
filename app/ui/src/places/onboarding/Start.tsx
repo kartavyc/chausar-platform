@@ -378,22 +378,8 @@ export function Brand() {
   );
 }
 
-/** "Write in English or हिन्दी" (D's `.hint`): the word Hindi in Hindi, marked as Hindi in the English app. */
+/** The language supported by the beta. */
 function Hint() {
   const t = useT();
-  const language = useLanguage();
-  const hindi = t('onboarding.hint.hindi');
-  const line = t('onboarding.hint.line', { hindi });
-  const at = line.indexOf(hindi);
-  return (
-    <span className={s.hint}>
-      {at < 0 ? line : (
-        <>
-          {line.slice(0, at)}
-          <span lang={language === 'hi' ? undefined : 'hi'}>{hindi}</span>
-          {line.slice(at + hindi.length)}
-        </>
-      )}
-    </span>
-  );
+  return <span className={s.hint}>{t('onboarding.hint.line')}</span>;
 }

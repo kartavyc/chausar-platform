@@ -15,7 +15,7 @@ import { assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
 type Intercept = (params: unknown, real: () => Promise<unknown>) => unknown;
-interface StartOptions { language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, Intercept>> }
+interface StartOptions { language?: 'en'; intercept?: Partial<Record<MethodName, Intercept>> }
 
 const NOW = () => new Date('2026-10-23T19:05:00.000+05:30');
 
@@ -158,16 +158,7 @@ describe('Work: the stopped tile (O1, O14)', () => {
     expect(within(tile).queryByRole('button', { name: 'How to fix it' })).toBeNull();
   });
 
-  it('a failed run with a fix from the engine offers How to fix it; the fix is worded in Hindi too', async () => {
-    const fixed = (p: unknown, real: () => Promise<unknown>) => ((p as { runId: string }).runId === '28'
-      ? real().then((run) => ({ ...(run as RunDetail), fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg' }))
-      : real());
-    await start('#/work', { language: 'hi', intercept: { 'venture.runs.get': fixed } });
-    const tile = await tileOf('Rendering the thumbnail set');
-    const fix = await within(tile).findByRole('button', { name: 'ठीक कैसे करें' });
-    await click(fix);
-    expect(within(tile).getByText('ffmpeg इंस्टॉल करें, फिर ज़रूरी फ़िनिशिंग जाँच दोबारा चलाएँ।')).toBeTruthy();
-  });
+
 });
 
 describe('Work: the round gate (O2)', () => {

@@ -1334,26 +1334,22 @@ export interface FileRequestView { id: string; orderId: string; url: string | nu
 /**
  * `WayView` in platform/runtime/venture/contracts.ts (4J8): one way per playbook that runs today. Hours and pay are a
  * model estimate (clientsPay.source is their basis); team is the playbook's agents only; starter fills the one-sentence
- * box and never sends; yours is the open business when it is of this kind; hi is every shown word in Hindi.
+ * box and never sends; yours is the open business when it is of this kind.
  */
 export type WayCategory = 'content' | 'marketing' | 'money-and-tax' | 'shops-and-firms';
 /** needs: besides the owner's time (hours), the owner's own AI and the connections that work today, in plain words. */
 export interface WayNeeds { ai: Display; connections: Display }
-export interface WayWords {
-  label: Display; line: Display; hours: Display; youDo: Display; team: Display[]; teamLine: Display;
-  pay: Display; per: Display; source: Display; starter: Display; needs: WayNeeds;
-}
 export interface WayView {
   id: string; playbook: string; label: Display; category: WayCategory; department: DepartmentId; line: Display;
   hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
   team: { role: string; initials: string; department: DepartmentId }[]; teamLine: Display;
   clientsPay: { text: Display; per: Display; estimate: true; source: Display }; needs: WayNeeds; starter: Display;
-  yours: { businessId: string; name: string }[]; hi: WayWords;
+  yours: { businessId: string; name: string }[];
 }
 export interface WaysView {
   ways: WayView[];
-  categories: { id: WayCategory; label: Display; hi: Display; count: number }[];
-  upTo: { maxHours: number; label: Display; hi: Display; count: number };
+  categories: { id: WayCategory; label: Display; count: number }[];
+  upTo: { maxHours: number; label: Display; count: number };
 }
 /** `ComposeAttachmentNote` (onboarding-contracts.ts): a dropped file's name, whether it was used, and why not, never its text. */
 export interface AttachmentNote { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null }

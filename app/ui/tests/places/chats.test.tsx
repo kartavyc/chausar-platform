@@ -16,7 +16,7 @@ type Fake = ReturnType<typeof createFakeClient>;
 type Override = (client: Fake) => void;
 const NOW = '2026-10-23T10:00:00.000Z';
 
-async function start(hash = '#/chats', options: { override?: Override; language?: 'en' | 'hi'; fake?: FakeOptions; prepare?: (engine: FakeEngine) => Promise<unknown> } = {}) {
+async function start(hash = '#/chats', options: { override?: Override; language?: 'en'; fake?: FakeOptions; prepare?: (engine: FakeEngine) => Promise<unknown> } = {}) {
   window.location.hash = hash;
   const engine = new FakeEngine({ now: () => NOW, ...options.fake });
   await options.prepare?.(engine);
@@ -317,12 +317,7 @@ describe('#/chats: a thread', () => {
     expect(within(thread()).getByText('One figure was left out: it had no receipt.')).toBeTruthy();
   });
 
-  it('counts by code in Hindi', async () => {
-    stubWidth(false);
-    await start('#/chats?thread=chiefthread-billed', { override: counted, language: 'hi' });
-    const box = await within(await screen.findByRole('log')).findByRole('group', { name: 'कोड से गिना गया; सारांश नहीं बन सका।' });
-    expect(within(box).getAllByRole('listitem')[0]!.textContent).toBe('4 क्लाइंट');
-  });
+
 });
 
 describe('#/chats: asking', () => {
@@ -506,12 +501,7 @@ describe('#/chats: asking', () => {
     expect(assertFiguresProved(thread()).length).toBeGreaterThan(0);
   });
 
-  it('the place in Hindi shows no text key', async () => {
-    stubWidth(false);
-    await start('#/chats?thread=chiefthread-billed', { language: 'hi' });
-    await screen.findByRole('region', { name: 'एक छोटा प्लान' });
-    expect(document.body.textContent).not.toMatch(/\bchats\.[a-z]/);
-  });
+
 });
 
 describe('Today: the Chausar story', () => {

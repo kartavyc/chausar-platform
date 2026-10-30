@@ -7,7 +7,7 @@ import {FakeEngine,createFakeClient} from '../../src/engine/fake';
 import {SupportDeskDesk} from '../../src/places/work/desks/SupportDeskDesk';
 import {assertInkRules} from '../helpers/ink-rules';
 const settle=()=>act(async()=>{for(let i=0;i<4;i++)await new Promise(r=>setTimeout(r,0));});
-function start(language:'en'|'hi'='en'){const client=createFakeClient(new FakeEngine({now:()=> '2026-10-27T10:00:00.000Z'}));render(<EngineProvider client={client}><TextProvider language={language}><SupportDeskDesk/></TextProvider></EngineProvider>);return client;}
+function start(language:'en'='en'){const client=createFakeClient(new FakeEngine({now:()=> '2026-10-27T10:00:00.000Z'}));render(<EngineProvider client={client}><TextProvider language={language}><SupportDeskDesk/></TextProvider></EngineProvider>);return client;}
 const type=(label:string,value:string)=>fireEvent.change(screen.getByLabelText(label),{target:{value}});
 describe('Support owner desk',()=>{
  it('proposes and confirms a ticket before a sourced reply, then offers only an unsent handoff',async()=>{
@@ -28,12 +28,7 @@ describe('Support owner desk',()=>{
   expect(screen.getByText('Nothing was sent. Send from the shop mailbox, then record it here.')).toBeTruthy();
   assertInkRules(document.body);
  });
- it('words the empty state and controls in Hindi',async()=>{
-  start('hi');await screen.findByRole('heading',{name:'सहायता कतार'});
-  expect(screen.getByRole('button',{name:'टिकट जोड़ें'})).toBeTruthy();
-  expect(await screen.findByText('क्लाइंट मेल से एक टिकट जोड़ें। हर जवाब आप मंज़ूर करके ख़ुद भेजते हैं।')).toBeTruthy();
-  assertInkRules(document.body);
- });
+
 });
 
 

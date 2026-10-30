@@ -6,7 +6,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
 
 /**
- * w3 3H2: every place in Hindi with the fake engine. A missing Hindi string shows its key (text/index.tsx `format`),
+ * w3 3H2: every place in English with the fake engine. A missing English string shows its key (text/index.tsx `format`),
  * and a value nobody filled shows its `{name}`; neither may reach the owner. Visible text and the words assistive
  * technology reads (aria-label, title, placeholder, alt) are both checked.
  */
@@ -17,8 +17,8 @@ const MORNING = () => new Date(2026, 9, 23, 10, 0);
 const PREFIXES = new Set(Object.keys(CATALOGUES.en).map((key) => key.split('.')[0]!));
 const KEYS = new Set(Object.keys(CATALOGUES.en));
 const KEYLIKE = /(?<![\w.@/-])([a-z]+(?:\.[a-zA-Z0-9-]+)+)(?![\w@/-])/g;
-/** Every loading line in Hindi, so the check waits for the content and not the line that stands in for it. */
-const LOADING = new Set(Object.entries(CATALOGUES.hi).filter(([key]) => /(?:^|\.)loading$/.test(key)).map(([, message]) => message as string));
+/** Every loading line in English, so the check waits for the content and not the line that stands in for it. */
+const LOADING = new Set(Object.entries(CATALOGUES.en).filter(([key]) => /(?:^|\.)loading$/.test(key)).map(([, message]) => message as string));
 
 function leaks(text: string): string[] {
   const found: string[] = [];
@@ -51,7 +51,7 @@ function words(root: HTMLElement): { where: string; text: string }[] {
 
 async function settle(hash: string, engine = new FakeEngine()): Promise<HTMLElement> {
   window.location.hash = hash;
-  const { container } = render(<ClockProvider now={MORNING}><App client={createFakeClient(engine)} language="hi" /></ClockProvider>);
+  const { container } = render(<ClockProvider now={MORNING}><App client={createFakeClient(engine)} language="en" /></ClockProvider>);
   await waitFor(() => {
     expect(container.querySelector('[data-boot]')).toBeNull();
     expect(container.querySelector('h1')).not.toBeNull();
@@ -78,7 +78,7 @@ const CASES: { name: string; hash: string }[] = [
   { name: 'Start', hash: '#/onboarding' },
 ];
 
-describe('every place in Hindi shows no key and no unfilled value', () => {
+describe('every place in English shows no key and no unfilled value', () => {
   it('the leak check catches what it should, on samples', () => {
     expect(leaks('today.goal.edit')).toEqual(['today.goal.edit']);
     expect(leaks('Editor · state.run.nope · 4m')).toEqual(['state.run.nope']);
@@ -93,8 +93,8 @@ describe('every place in Hindi shows no key and no unfilled value', () => {
       expect(shown.length, 'the place drew its content').toBeGreaterThan(15);
       const found = shown.flatMap(({ where, text }) => leaks(text).map((leak) => `${where}: ${leak} in "${text.trim()}"`));
       expect(found).toEqual([]);
-      // The page really is in Hindi: its title is a Hindi word.
-      expect(root.querySelector('h1')!.textContent).toMatch(/[ऀ-ॿ]/);
+      expect(root.querySelector('h1')!.textContent).toMatch(/[A-Za-z]/);
+      expect(root.querySelector('h1')!.textContent).not.toMatch(/[\u0900-\u097f]/);
     }, each.hash.startsWith('#/today') ? 15_000 : 10_000);
   }
 });

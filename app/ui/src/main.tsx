@@ -7,14 +7,8 @@ import './tokens/base.css';
 import { App } from './shell/App';
 import { createEngineClient } from './engine/client';
 import { browserPush, startHostedPush } from './shell/push';
-import { pickLanguage, type Language } from './text';
+import { pickLanguage } from './text';
 import type { EngineClient } from './engine/types';
-
-/** `?lang=hi` picks Hindi for a check or a screenshot; otherwise the computer's languages decide. */
-function language(): Language {
-  const asked = new URLSearchParams(window.location.search).get('lang');
-  return asked === 'hi' || asked === 'en' ? asked : pickLanguage();
-}
 
 async function engine(): Promise<EngineClient> {
   // Only `npm run dev:ui` (vite --mode fake) uses the fake engine; any other build leaves it out entirely.
@@ -26,7 +20,7 @@ async function engine(): Promise<EngineClient> {
 }
 
 async function start() {
-  const lang = language();
+  const lang = pickLanguage();
   document.documentElement.lang = lang;
   const client = await engine();
   // The hosted app only (W4 4G4): the service worker for phone alerts, and this browser's subscription sent again so it

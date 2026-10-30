@@ -277,10 +277,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
     expect(card().textContent).toContain(INCOMPLETE);
   });
 
-  it('reads in Hindi with no key showing', () => {
-    render(<TextProvider language="hi"><ApprovalRow layout="card" row={draft} onDecide={vi.fn()} /></TextProvider>);
-    for (const node of card().querySelectorAll('p, span, h3, button')) expect(node.textContent ?? '').not.toMatch(/^[a-z]+(\.[a-zA-Z0-9-]+)+$/);
-  });
+
 });
 
 describe('ApprovalRow as a compact card (layout="compact")', () => {

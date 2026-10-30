@@ -19,7 +19,7 @@ function stubPhone() {
   }) as unknown as MediaQueryList);
 }
 
-function start(hash = '#/today', engine = new FakeEngine({ now: NOW }), language: 'en' | 'hi' = 'en') {
+function start(hash = '#/today', engine = new FakeEngine({ now: NOW }), language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(engine);
   const calls: [string, unknown][] = [];
@@ -116,12 +116,7 @@ describe('the bell', () => {
     expect(screen.queryByRole('group', { name: 'Page tools' })?.querySelector('[data-look="outlined"]') ?? null).toBeNull();
   });
 
-  it('in Hindi', async () => {
-    start('#/work', new FakeEngine({ now: NOW }), 'hi');
-    fireEvent.click(await screen.findByRole('button', { name: /^सूचनाएँ/ }));
-    await waitFor(() => expect(centre()).not.toBeNull());
-    expect(within(centre()!).getByRole('button', { name: 'सब पढ़ा हुआ करें' })).toBeTruthy();
-  });
+
 
   it('the bell and the centre read one shared list, say a new count aloud once it goes up, and word every kind', async () => {
     const state = { unread: 1, items: [] as NotificationView[] };

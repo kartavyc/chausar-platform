@@ -255,7 +255,7 @@ describe('Ink v2 rules the UI keeps (w3 plan)', () => {
   });
 
   it('no emoji in src or the text catalogues', () => {
-    expect(everything.some(({ f }) => f.startsWith('text/hi/'))).toBe(true);
+    expect(everything.some(({ f }) => f.startsWith('text/hi/'))).toBe(false);
     for (const { f, text } of everything) expect(text.match(/\p{Extended_Pictographic}/u)?.[0], f).toBeUndefined();
   });
 
@@ -301,15 +301,6 @@ function subjects(selector: string): { classes: string[]; hindi: boolean }[] {
 }
 const declared = (decls: Declaration[], property: RegExp, value: RegExp) => decls.some(([p, v]) => property.test(p) && value.test(v));
 
-/** Chips that may not wrap in English must wrap in Hindi: each such class has a `:lang(hi)` rule with `white-space: normal`. */
-function unwrappedHindiChips(css: string, everyClass = false): string[] {
-  const all = rules(css);
-  const chipLike = (cls: string) => everyClass || segments(cls).some((word) => /^(?:chips?|kind)$/.test(word));
-  const nowrap = new Set(all.filter(({ decls }) => declared(decls, /^white-space$/, /^nowrap$/)).flatMap(({ selector }) => subjects(selector).filter((s) => !s.hindi).flatMap((s) => s.classes.filter(chipLike))));
-  const wraps = new Set(all.filter(({ decls }) => declared(decls, /^white-space$/, /^normal$/)).flatMap(({ selector }) => subjects(selector).filter((s) => s.hindi).flatMap((s) => s.classes)));
-  return [...nowrap].filter((cls) => !wraps.has(cls)).map((cls) => `.${cls} sets nowrap but has no .${cls}:lang(hi) { white-space: normal }`);
-}
-
 const PROSE = /^(?:title|line|role|now|sub|name)$/;
 const FIGURE = /^(?:fig|figure|amt|amount|value|count|price|total|num)$/;
 /** Rules that cut text (an ellipsis or a line clamp) must name a prose part, never a figure. */
@@ -323,19 +314,8 @@ function truncatedFigures(css: string): string[] {
     );
 }
 
-describe('Hindi wraps and figures stay whole (w3 3H2, spec section 8)', () => {
-  it('a :lang(hi) rule lets chips, kind chips and filter chips wrap to two lines', () => {
-    expect(unwrappedHindiChips('.chip { white-space: nowrap } .qcKind { white-space: nowrap }')).toHaveLength(2);
-    expect(unwrappedHindiChips('.chip { white-space: nowrap } .chip:lang(hi) { white-space: normal } .other { white-space: nowrap }')).toEqual([]);
-    expect(unwrappedHindiChips('.dept { white-space: nowrap }', true)).toHaveLength(1);
-    const byFile = new Map(sheets.map((sheet) => [sheet.f, sheet.css]));
-    // The Chip part's every chip (chip, dept, kind, posture), the filter chips and the approval card's kind chip.
-    for (const f of ['parts/Chip.module.css', 'parts/FilterChips.module.css']) expect(unwrappedHindiChips(byFile.get(f) ?? '', true), f).toEqual([]);
-    expect(byFile.get('parts/ApprovalRow.module.css'), 'the approval card').toMatch(/\.kind:lang\(hi\)/);
-    for (const sheet of sheets) expect(unwrappedHindiChips(sheet.css), sheet.f).toEqual([]);
-  });
-
-  it('text-overflow: ellipsis and line-clamp only on prose parts (title, line, role, now, sub, name), never on a figure', () => {
+describe('figures stay whole', () => {
+  it('text-overflow and line-clamp only cut prose, never a figure', () => {
     expect(truncatedFigures('.title { text-overflow: ellipsis } .compact .postLine { line-clamp: 2 } .rankName { -webkit-line-clamp: 3 }')).toEqual([]);
     expect(truncatedFigures('.amount { text-overflow: ellipsis } .cardHead { -webkit-line-clamp: 2 } .subCount { text-overflow: ellipsis } .title { line-clamp: none }')).toHaveLength(3);
     for (const sheet of sheets) expect(truncatedFigures(sheet.css), sheet.f).toEqual([]);

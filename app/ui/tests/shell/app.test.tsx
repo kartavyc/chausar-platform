@@ -9,7 +9,7 @@ import { EngineError, type CustodyViewLite, type EngineClient } from '../../src/
 const MORNING = () => new Date(2026, 9, 23, 10, 0);
 const TODAY = 'Good morning';
 
-function start(hash = '#/today', language: 'en' | 'hi' = 'en') {
+function start(hash = '#/today', language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(new FakeEngine());
   const view = render(<ClockProvider now={MORNING}><App client={client} language={language} /></ClockProvider>);
@@ -86,12 +86,6 @@ describe('shell', () => {
     await waitFor(() => expect(screen.getByText(/Moved to later/)).toBeTruthy());
   });
 
-  it('speaks Hindi when asked', async () => {
-    start('#/today', 'hi');
-    expect(await screen.findByRole('heading', { level: 1, name: 'सुप्रभात' })).toBeTruthy();
-    // Exactly the rail's place: Today's team tile also links to Team (Ink v2, 3C).
-    expect(screen.getByRole('link', { name: 'टीम' })).toBeTruthy();
-  });
 });
 
 // Catalogue U14: the experimental storage notice is back beyond Keep. Today, Work and Money say it under the header.

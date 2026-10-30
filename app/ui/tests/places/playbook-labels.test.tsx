@@ -3,9 +3,9 @@ import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-libra
 import {App} from '../../src/shell/App';
 import {FakeEngine,createFakeClient} from '../../src/engine/fake';
 import {priceAndAcceptPlan} from '../helpers/accepted-plan';
-const en='Lead generation and appointment setting',hi='संभावित क्लाइंट खोजना और मुलाकात तय करना';
+const en='Lead generation and appointment setting';
 afterEach(()=>{cleanup();window.location.hash='';});
-async function mount(language:'en'|'hi',custom?:string){
+async function mount(language:'en',custom?:string){
  const client=createFakeClient(new FakeEngine({fresh:true}));
  await client.request('workspace.create',{name:'Fictional label review',pack:'services'});
  await client.request('venture.create',{idea:'lead generation',countryCode:'IN'});
@@ -16,7 +16,7 @@ async function mount(language:'en'|'hi',custom?:string){
  window.location.hash='#/work?state=orders';render(<App client={client} language={language}/>);
  await waitFor(()=>expect(document.querySelector('[data-desk="lead-generation"]')).toBeTruthy());
 }
-for(const [name,language,custom,label] of [['Hindi','hi',undefined,hi],['English','en',undefined,en],['custom owner label','hi','My custom lead practice','My custom lead practice']] as const){
+for(const [name,language,custom,label] of [['English','en',undefined,en],['custom owner label','en','My custom lead practice','My custom lead practice']] as const){
  it('preserves the correct '+name+' label in actual Work, business menu and plan',async()=>{
   await mount(language,custom);
   const desk=document.querySelector('[data-desk="lead-generation"]') as HTMLElement;

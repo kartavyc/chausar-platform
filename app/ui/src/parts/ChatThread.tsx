@@ -41,7 +41,7 @@ export interface ChatThreadProps {
   className?: string | undefined;
 }
 
-const LOCALE: Record<Language, string> = { en: 'en-IN', hi: 'hi-IN' };
+const LOCALE: Record<Language, string> = { en: 'en-IN' };
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** How close to the bottom, in px, still counts as reading the newest messages. */
 const NEAR_BOTTOM = 64;

@@ -17,7 +17,7 @@ const WORDS = /[A-Za-zऀ-ॿ]/;
 
 /** Names joined the way the UI's language joins them ("Editor and Researcher"; "Editor, Researcher and Keeper"). */
 function joined(names: string[], language: 'en' | 'hi'): string {
-  return new Intl.ListFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { type: 'conjunction' }).format(names);
+  return new Intl.ListFormat('en-IN', { type: 'conjunction' }).format(names);
 }
 
 /** D's `.stack`: overlapping avatars, hidden, because the names are said in words under them. */

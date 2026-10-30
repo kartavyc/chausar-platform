@@ -118,14 +118,7 @@ describe('Today: question cards in rounds (W4 4J22b, from 4J17)', () => {
     expect(calls(spy, 'venture.queue.decide')).toEqual([]);
   });
 
-  it('says the answer back in Hindi too', async () => {
-    start({ language: 'hi' });
-    const article = (await screen.findByRole('heading', { level: 3, name: 'Two questions before I cut episode 15' })).closest('article') as HTMLElement;
-    // 4Z2: the engine's "Answer" is worded in Hindi on a Hindi screen.
-    await press(within(article).getByRole('button', { name: 'जवाब दें' }));
-    await type(within(article).getByRole('textbox', { name: 'आपका जवाब' }), '1 yes, 2 no');
-    expect(within(article).getByRole('button', { name: 'भेजें: 1 yes, 2 no' })).toBeTruthy();
-  });
+
 
   it('a question with no card keeps the plain Send answer', async () => {
     const plain: Seed = { ...ROUND, id: 'q-plain', preview: undefined, title: 'Two questions before I cut episode 15' };

@@ -42,9 +42,7 @@ describe('state words: one module for every state the engine sends', () => {
       for (const value of values) {
         const word = stateWord(kind as StateKind, value);
         expect(word.key.startsWith('state.'), `${kind}.${value}`).toBe(true);
-        expect(CATALOGUES.en[word.key], word.key).toBeDefined();
-        expect(CATALOGUES.hi[word.key], word.key).toBeDefined();
-        expect(STATE_TONES).toContain(word.tone);
+        expect(CATALOGUES.en[word.key], word.key).toBeDefined();        expect(STATE_TONES).toContain(word.tone);
       }
     }
     expect([...STATE_TONES]).toEqual(['working', 'wait', 'fail', 'idle', 'done', 'neutral']);

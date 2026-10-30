@@ -1,7 +1,7 @@
 import {it,expect}from'vitest';import{render,screen,fireEvent,waitFor}from'@testing-library/react';import{YoutubeCommentIdeas}from'../../src/places/work/desks/YoutubeCommentIdeas';import{EngineProvider}from'../../src/engine/context';import{createFakeClient,FakeEngine}from'../../src/engine/fake';import{TextProvider}from'../../src/text';
 import {YoutubeResearchResult} from '../../src/places/work/desks/YoutubeResearchResult';
 import type {YoutubeResearchView} from '../../src/places/work/desks/YoutubeResearch';
-it.each([['en','Reply drafts'],['hi','जवाब के ड्राफ़्ट']] as const)('separates exact reply drafts from held comments in %s', (language,heading)=>{
+it.each([['en','Reply drafts']] as const)('separates exact reply drafts from held comments in %s', (language,heading)=>{
  const view:YoutubeResearchView={id:'order-one',digest:'review-one',approved:false,mode:'comments',source:{id:'comments-one',name:'Owner export.csv',digest:'source-one'},orderDigest:'order-source',mapping:{id:'id',text:'text'},options:{},sourceConsent:true,receiptId:'receipt-one',approval:null,result:{piles:{bait:[{id:'held-one',text:'An abusive comment.'}]},replies:[{id:'reply-one',reply:'The owner-approved answer.'}],ideas:[]}};
  const client=createFakeClient(new FakeEngine());
  render(<TextProvider language={language}><EngineProvider client={client}><YoutubeResearchResult view={view}/></EngineProvider></TextProvider>);

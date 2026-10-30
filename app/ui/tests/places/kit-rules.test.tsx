@@ -150,12 +150,7 @@ describe('Work > Ideas (5A3, P13)', () => {
     await waitFor(() => expect(card('A reel on how we price a 30-minute video').querySelector('[data-graded]')!.textContent).toBe('Graded: So-so'));
   });
 
-  it('reads in Hindi', async () => {
-    start({ language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 2, name: 'आइडिया' })).toBeTruthy();
-    expect(column('इनबॉक्स')).toBeTruthy();
-    expect(within(card('A behind-the-scenes short of a recording day')).getByRole('button', { name: 'छँटाई में ले जाएँ' })).toBeTruthy();
-  });
+
 });
 
 describe('Work > Ideas edge cases and the order card\'s manual path (5A3 review)', () => {
