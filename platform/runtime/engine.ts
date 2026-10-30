@@ -596,7 +596,7 @@ export class Engine {
     });
   }
   private async adapter(folder = 'main') {
-    if (this.options.storage === 'experimental-file' && this.options.demo) {
+    if (this.options.storage === 'experimental-file' && (this.options.demo || this.options.venture?.host === 'desktop')) {
       if (!this.options.vaultStorage) return 'experimental-file' as const;
       // A trusted host's own file store (the hosted server's capped one, 4J23); the same folder-name check first.
       this.workspacePath(folder);
@@ -610,7 +610,7 @@ export class Engine {
       if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new ChausarError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
       return adapter;
     }
-    check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Production requires configured PostgreSQL. File storage is available only in the explicitly experimental demo.');
+    check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Use the desktop encrypted file store or configure PostgreSQL for this host.');
     const url = new URL(this.options.postgresUrl);
     check(url.protocol === 'postgresql:' || url.protocol === 'postgres:', 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');
     return PostgresSnapshotAdapter.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1', port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)), vaultSlot: hash(this.workspacePath(folder)) });
@@ -2356,7 +2356,7 @@ export class Engine {
   private custodyFiles(): CustodyFiles { return this.#custodyFiles ??= new CustodyFiles(this.options.directory); }
   private custodyNow(): number { return this.custodyHost()?.clock() ?? Date.now(); }
   private storageKind(): 'experimental-file' | 'postgres' {
-    return this.vault?.storageKind ?? (this.options.storage === 'experimental-file' && this.options.demo ? 'experimental-file' : 'postgres');
+    return this.vault?.storageKind ?? (this.options.storage === 'experimental-file' && (this.options.demo || this.options.venture?.host === 'desktop') ? 'experimental-file' : 'postgres');
   }
   /** One custody change, backup write, rotation or reseal at a time. */
   private custodySerial<T>(work: () => Promise<T>): Promise<T> {

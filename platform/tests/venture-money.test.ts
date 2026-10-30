@@ -584,6 +584,21 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.deepEqual((await call(env, 'venture.invoice.list', {})).map(i => i.number), ['INV-0002', 'INV-0001']);
 });
 
+test('issued desktop invoices have no practice line while hosted invoices retain the storage warning', async () => {
+  for (const host of ['desktop', 'hosted-web'] as const) {
+    const env = await setup('IN');
+    env.deps.host = host;
+    await seedBlueprint(env, { status: 'accepted' });
+    const { order } = await orderFor(env, { name: 'Synthetic storage client', stateCode: '27' });
+    const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+    const issued = await call(env, 'venture.invoice.issue', { invoiceId: draft.invoice.id, digest: draft.invoice.digest });
+    assert.equal(issued.invoice.status, 'issued');
+    assert.equal(issued.receipt.id, issued.invoice.priceReceiptId);
+    assert.equal(issued.documentText.includes('Practice invoice'), host === 'hosted-web');
+    assert.equal(issued.notes.includes(EXPERIMENTAL), host === 'hosted-web');
+  }
+});
+
 test('invoice titles follow the owner settings and the experimental notice follows the storage', async () => {
   // India, registered, no SAC code: not a tax invoice, and the notes say what to add.
   const india = await setup('IN');

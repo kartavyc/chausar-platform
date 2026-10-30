@@ -6583,11 +6583,10 @@ export type VentureStorage = 'experimental-file' | 'postgres';
 /** Where the engine runs: the desktop window, local web mode, the experimental hosted web server, or a test. */
 export type VentureHostKind = 'desktop' | 'local-web' | 'hosted-web' | 'test';
 /**
- * Whether money screens say "practice": with file storage anywhere, and on the hosted web server with any storage until
- * a real deploy has been tested (docs/venture/hosted.md).
+ * Desktop encrypted file storage is beta-grade. Other file hosts and the hosted web tier retain the practice label.
  */
 export function experimentalStorage(deps: { storage: VentureStorage; host: VentureHostKind }): boolean {
-  return deps.storage === 'experimental-file' || deps.host === 'hosted-web';
+  return deps.host === 'hosted-web' || (deps.storage === 'experimental-file' && deps.host !== 'desktop');
 }
 export type VentureDeps = {
   store: StateStore;

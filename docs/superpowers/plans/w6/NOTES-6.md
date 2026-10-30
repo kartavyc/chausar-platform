@@ -77,3 +77,14 @@
 - Plan adjustments: used a single screenshot worker and a separate UI temp folder to keep this machine stable. Engine tests always used C: temp. Preserved interrupted reports, then reran under lighter load. A helper capacity error required the integrator to finish the sequential engine runs.
 - Founder input: none needed to begin Batch 1. Later founder-only items remain as listed in DECISIONS.md, including the OpenAI access form and any service account not covered by the completed setup.
 - Next: Batch 1 foundations, with failing tests before implementation and separate reviewed package commits. The mandatory founder review remains after Batch 2. Nothing has been pushed or merged.
+
+## Batch 1 work
+
+### 6A1: desktop storage
+
+- The desktop worker now selects encrypted file storage with demo mode off. Desktop startup no longer launches bundled PostgreSQL. Other hosts retain their existing storage requirements, and the hosted tier retains the practice label. Existing preview-install restrictions remain until the packaging work in Batch 10.
+- Red first: the worker selected PostgreSQL; non-demo desktop creation refused file storage; desktop startup launched a database; the invoice and UI still showed practice/experimental labels. Evidence: results/w6-6A1-red.log, w6-6A1-desktop-red.log, w6-6A1-invoice-red.log, w6-6A1-ui-red.log and w6-6A1-notice-red.log. The existing atomic-save implementation already passed the new crash test and needed no production change.
+- Storage evidence: a child process is killed after writing half of an actual encrypted temporary file, before rename. The committed authority remains byte-exact, reopens at its prior revision, and accepts a later save. Backup/restore preserves encrypted business data; recovery replaces the passphrase and rejects the old one. All engine scratch directories are on C:.
+- Focused engine checks: 20 storage/startup tests, 21 money tests and 19 worker/server/harness tests passed, 60 total. Exact invoice approvals and code-computed receipts remain unchanged.
+- Live check: installed Electron 44.4.5 ran the real worker on a disposable synthetic business with demo mode off. Creation, encrypted backup, restore and recovery-code opening passed without PostgreSQL. The harness stopped and the sample directory was removed. Evidence: results/w6-6A1-live.log. This qualifies the worker/storage path, not the later installer packaging.
+- Cold review against REVIEW.md found no actionable issues. An isolated export of the staged package passed both typechecks, syntax/JSON validation for 2,893 source files, 41 storage/startup/money tests and all 53 nearest UI tests. It retained the pre-6A2 Hindi tests, so this commit is independently valid. Evidence: results/w6-6A1-index-*.log. The isolated run caught a misplaced selectively staged test block; its placement was corrected and the complete three-file UI run passed. The working-tree equivalent also passed 51 English-only UI tests.

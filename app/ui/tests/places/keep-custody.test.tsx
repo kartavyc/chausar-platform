@@ -58,6 +58,13 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'clipboard');
 });
 
+it('desktop file custody is beta-grade', async () => {
+  const desktop = start('#/business/keep', new FakeEngine(), 'desktop');
+  await fold('All backups, 3');
+  expect(sent(desktop.calls, 'workspace.custody.get').length).toBeGreaterThan(0);
+  expect(screen.queryByText(/experimental storage/)).toBeNull();
+});
+
 describe('Keep this business: all backups and their restore', () => {
   it('lists every backup with its kind and how it opens; a restore asks first and sends nothing until confirmed', async () => {
     const { calls } = start('#/business/keep');

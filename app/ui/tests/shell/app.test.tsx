@@ -113,7 +113,7 @@ describe('the experimental storage notice', () => {
     let read = false;
     const client: EngineClient = {
       ...fake,
-      transport: transport ?? fake.transport,
+      transport: transport ?? 'web',
       request: (async (method: string, params?: unknown) => {
         methods.push(method);
         const reply = await request(method as never, params as never);
@@ -149,6 +149,15 @@ describe('the experimental storage notice', () => {
       await settled(read);
       expect(screen.getByRole('heading', { level: 1, name: title })).toBeTruthy();
       expect(screen.queryByRole('note')).toBeNull();
+      expect(screen.queryByText(EXPERIMENTAL)).toBeNull();
+    });
+  }
+
+  for (const transport of ['desktop', 'fake'] as const) {
+    it(`hides the experimental warning on the ${transport} desktop file store`, async () => {
+      const { methods } = startWith('#/today', 'experimental-file', transport);
+      expect(await screen.findByRole('heading', { level: 1, name: TODAY })).toBeTruthy();
+      await waitFor(() => expect(methods()).toContain('venture.queue.list'));
       expect(screen.queryByText(EXPERIMENTAL)).toBeNull();
     });
   }

@@ -8,11 +8,10 @@ const require = createRequire(new URL('../../app/desktop/main.cjs', import.meta.
 const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, options: { files?: string[]; written?: Set<string> } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string> } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>();
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
-  let databaseCloses = 0;
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
@@ -50,23 +49,21 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   const powerMonitor = new EventEmitter();
   const electron = { app, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
-  if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
     if (name === './money-export.cjs') return require('./money-export.cjs');
-    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
-    if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
     return require(name);
-  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer,
+  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer,
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, databaseCloses: () => databaseCloses, trays, notes, written, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -94,6 +91,15 @@ test('unsigned packaged preview refuses explicit production mode before starting
   const d = await desktop(['--production']); assert.match(d.errors[0], /synthetic data only/); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
 });
 
+test('the real desktop starts its file worker without starting a bundled database', async () => {
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  assert.equal(d.errors.length, 0);
+  assert.equal([...d.written].some(path => path.includes("database")), false);
+  assert.equal(d.engines.length, 1);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
+  assert.equal(d.engines[0].options.environment.CHAUSAR_POSTGRES_URL, undefined);
+});
+
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {
   let release!: () => void; const gate = new Promise<void>(accept => { release = accept; });
   const d = await desktop([], gate);
@@ -101,13 +107,6 @@ test('quit awaits in-flight startup and never opens a window or starts a late wo
   assert.equal(d.app.quits, 0); assert.equal(d.engines.length, 0);
   release(); await flush();
   assert.equal(d.app.quits, 1); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.errors.length, 0);
-});
-
-test('quit during bundled database startup closes the completed database before exiting', async () => {
-  let release!: () => void; const gate = new Promise<void>(accept => { release = accept; });
-  const d = await desktop(['--production'], Promise.resolve(), gate);
-  d.app.emit('before-quit', { preventDefault() {} }); await flush(); assert.equal(d.app.quits, 0);
-  release(); await flush(); assert.equal(d.databaseCloses(), 1); assert.equal(d.app.quits, 1); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0);
 });
 
 test('desktop reports actual window, background and sleep transitions before shutdown', async () => {
@@ -176,7 +175,7 @@ test('the tray is there in every mode, with Open and Quit, so the count it shows
 });
 
 test('notify.new with a count: "Chausar: 3 need you" in the tooltip, "3 need you" in the menu, one OS notification with the count alone (4G3)', async () => {
-  const d = await desktop([], Promise.resolve(), Promise.resolve());
+  const d = await desktop([], Promise.resolve(), true);
   const tray = d.trays[0], engine = d.engines[0], window = d.windows[0];
   assert.equal(tray.tooltips.at(-1), 'Chausar');
   // The centre changed without an alert: nothing outside the app.
@@ -239,7 +238,7 @@ test('the first time the window closes in the background on Windows, one balloon
 });
 
 test('the tray says when a run is working; busy lingers 1.5 s after the last run stops (O23)', async t => {
-  const d = await desktop([], Promise.resolve(), Promise.resolve());
+  const d = await desktop([], Promise.resolve(), true);
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const tray = d.trays[0], engine = d.engines[0];
   engine.emit('venture-event', runEvent('run.started', { runId: 'run_a' }));

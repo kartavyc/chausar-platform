@@ -174,7 +174,7 @@ describe('Business in the Ink v2 look', () => {
     assertInkRules(document.body);
   });
 
-  it('the experimental storage note shows under the header on every business page but Keep, which says it once itself', async () => {
+  it('the local web experimental storage note shows under the header on every business page but Keep, which says it once itself', async () => {
     const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
     function custody(hash: string) {
       window.location.hash = hash;
@@ -182,6 +182,7 @@ describe('Business in the Ink v2 look', () => {
       const request = fake.request.bind(fake);
       const client: EngineClient = {
         ...fake,
+        transport: 'web',
         request: (async (method: string, params?: unknown) => {
           const reply = await request(method as never, params as never);
           if (method !== 'workspace.custody.get') return reply;
