@@ -1,7 +1,7 @@
 // Browser-safe seller operations metadata, original Chausar code.
 export const SELLER_AMAZON_OFFERS = [
  ['ungating','Amazon category access checklist'],['brand-registry','Amazon brand registry checklist'],['returns','Amazon returns checklist'],['storefront','Amazon storefront checklist'],['deals','Amazon deals checklist'],['compliance','Amazon compliance checklist'],
-].map(([id,name])=>({id:'amazon-'+id,name:name!,description:'An owner-priced handoff checklist. You review and submit it yourself.',pricing:'project' as const,unit:'per pack',price:'owner-sets' as const,stages:['amazon-checklist-draft'],workflow:['amazon-checklist-draft','approve'],includes:['Seller checklist'],pilotable:false,rights:[],intake:['permission'],audience:'client' as const}));
+].map(([id,name])=>({id:'amazon-'+id,name:name!,description:'A checklist with your prices. You review and submit it yourself.',pricing:'project' as const,unit:'per pack',price:'owner-sets' as const,stages:['amazon-checklist-draft'],workflow:['amazon-checklist-draft','approve'],includes:['Seller checklist'],pilotable:false,rights:[],intake:['permission'],audience:'client' as const}));
 export const SELLER_OPERATION_OFFERS = [
   {
     "id": "catalogue-upload",
@@ -200,7 +200,7 @@ export const SELLER_OPERATION_INTAKE = [
 export const SELLER_OPERATION_STEPS = [
   {
     "id": "catalogue-draft",
-    "title": "Draft the catalogue handoff",
+    "title": "Draft the catalogue copy",
     "kind": "write",
     "role": "analyst",
     "produces": "Catalogue upload pack",
@@ -263,7 +263,7 @@ export const SELLER_OPERATION_STEPS = [
   },
   {
     "id": "photo-draft",
-    "title": "Draft the photo handoff",
+    "title": "Draft the photo copy",
     "kind": "write",
     "role": "photo-producer",
     "produces": "Product photo pack",

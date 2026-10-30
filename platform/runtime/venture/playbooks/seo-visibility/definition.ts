@@ -11,7 +11,7 @@ const steps: KitStep[] = [
     { id: 'refresh', kind: 'work', title: 'Plan the smallest useful update', tier: 'actor', model: 'fast', doneBy: 'agent', role: 'researcher', produces: 'Refresh plan', requiredSections: [], checks: [], tools: ['seo.refresh', 'seo.meta', 'seo.local'], guidance: ['Use the owner supplied export. A refresh plan never edits a live post.'] },
     { id: 'impact', kind: 'work', title: 'Measure the observed change', tier: 'actor', model: 'fast', doneBy: 'agent', role: 'analyst', produces: 'Impact evidence', requiredSections: [], checks: [], tools: ['seo.impact'], guidance: ['Read complete windows after settling. Hurt is a prompt to inspect, not proof.'] },
     { id: 'approve-article', kind: 'approve', title: 'Approve the exact article', tier: 'code', model: null, doneBy: 'you', role: 'owner', produces: 'Article approval', requiredSections: [], checks: [], tools: [], floor: 'You approve the article, then the client approves the shared draft.' },
-    { id: 'publish', kind: 'approve', title: 'Send an approved draft', tier: 'code', model: null, doneBy: 'you', role: 'owner', produces: 'Draft handoff', requiredSections: [], checks: [], tools: [], floor: 'Approve every exact draft or site change. Publishing remains your own step.' },
+    { id: 'publish', kind: 'approve', title: 'Send an approved draft', tier: 'code', model: null, doneBy: 'you', role: 'owner', produces: 'Draft you send', requiredSections: [], checks: [], tools: [], floor: 'Approve every exact draft or site change. Publishing remains your own step.' },
     { id: 'gather', kind: 'gather', title: 'Read the site brief', tier: 'actor', model: 'fast', doneBy: 'agent', role: 'researcher', produces: 'Site notes', requiredSections: [], checks: [], tools: ['files.read'], guidance: [] },
     { id: 'diagnose', kind: 'work', title: 'Check the site', tier: 'actor', model: 'fast', doneBy: 'agent', role: 'researcher', produces: 'Site evidence', requiredSections: [], checks: [], tools: ['seo.diagnose', 'seo.aiAccess'], guidance: [] },
     { id: 'approve-panel', kind: 'approve', title: 'Approve the answer panel', tier: 'code', model: null, doneBy: 'you', role: 'owner', produces: 'Frozen panel', requiredSections: [], checks: [], tools: [], floor: 'Approve the exact questions and collection windows.' },
@@ -64,7 +64,7 @@ export const SEO_VISIBILITY_DATA: PlaybookDefinition = {
         { id: 'competitors', label: 'Competitor sites', help: 'Public competitor addresses supplied by the client.', kind: 'list', required: false },
         { id: 'city', label: 'City', help: 'Where the client serves customers.', kind: 'text', required: false },
         { id: 'serviceArea', label: 'Service area', help: 'The areas the client actually serves.', kind: 'text', required: false },
-        { id: 'wordpressUrl', label: 'WordPress address', help: 'For a later draft handoff, when needed.', kind: 'text', required: false },
+        { id: 'wordpressUrl', label: 'WordPress address', help: 'For a later draft you send, when needed.', kind: 'text', required: false },
     ],
     checks: [seoDraftChecks,seoClaimChecks,seoLocalChecks,seoReceiptChecks], checkIds: ['no-ranking-promise','claims-corroborated','local-not-doorway','report-cites-receipts'],
     judgeRules: [
@@ -88,6 +88,6 @@ export const SEO_VISIBILITY_DATA: PlaybookDefinition = {
     planPicks: { offers: ['visibility-check', 'quarterly-remeasure', 'website-check','content-retainer','fix-and-measure','local-seo'], approvals: ['panel', 'report'], connectors: ['client-site', 'gsc-export', 'ai-engines', 'lintapple'] },
     draftStep: offerId => offerId === 'content-retainer' || offerId === 'local-seo' ? 'write' : 'report', startTile: SEO_TILE,
     scope: { inScope: ['site checks', 'search visibility', 'AI answer checks'], outOfScope: ['ranking guarantees', 'link schemes', 'scraping Google results'], pointElsewhere: 'An owner approved manual website change.' },
-    notBuilt: ['Live publishing remains an owner handoff. API answer collection is planned.'], words: () => [],
+    notBuilt: ['You publish it yourself. API answer collection is planned.'], words: () => [],
 };
 export const SEO_VISIBILITY_DEFINITION = definePlaybook(SEO_VISIBILITY_DATA);

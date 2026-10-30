@@ -22,7 +22,7 @@ export function fakeYoutubeBoard(host:W4DeskHost,records:()=>Map<string,EditItem
   const owned=(id:unknown)=>{const edit=records().get(String(id));check(edit,'EDIT_NOT_FOUND','That edit is not in this business.');requireFakeWordSource(host,edit);rights(edit.orderId);const order=(host.ask('venture.order.list',{}) as OrderLite[]).find(order=>order.id===edit.orderId)!;return{edit,order};};
   const assets=(edit:EditItem)=>(host.ask('venture.assets.list',{orderId:edit.orderId}) as AssetsView).assets.filter(asset=>asset.orderId===edit.orderId);
   return{
-    list(p){exact(p,['playbook','kind','filter'],['playbook','kind']);const filter=exact(p.filter??{},['orderId']);return{playbook:'youtube',kind:'board',rows:[...records().values()].filter(edit=>filter.orderId===undefined||edit.orderId===filter.orderId).map(view),line:'Review each output before saving a project. Publishing remains a manual handoff.'};},
+    list(p){exact(p,['playbook','kind','filter'],['playbook','kind']);const filter=exact(p.filter??{},['orderId']);return{playbook:'youtube',kind:'board',rows:[...records().values()].filter(edit=>filter.orderId===undefined||edit.orderId===filter.orderId).map(view),line:'Review each output before saving a project. Publishing remains a copy you send yourself.'};},
     get(p){exact(p,['playbook','kind','id'],['playbook','kind','id']);const{edit}=owned(p.id);return{playbook:'youtube',kind:'board',item:view(edit),digest:host.digest(edit)};},
     act(p){try{
       exact(p,['playbook','kind','id','action','payload','digest'],['playbook','kind','id','action','payload','digest']);

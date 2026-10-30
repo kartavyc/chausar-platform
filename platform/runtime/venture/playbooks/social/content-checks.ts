@@ -26,7 +26,7 @@ export function socialContentChecks(input: FlagshipCheckInput): Omit<PlaybookChe
             // every goal, action, hook and other displayed surface still supplies its factual claims.
             const sourceWords = [deliverableWords({ ...input.deliverable, sections: input.deliverable.sections.map(section => section.heading.trim().toLowerCase() === 'post plan' ? { ...section, parts: section.parts.map(part => part.kind === 'text' ? { ...part, text: part.text.replace(/^([ \t]*Post[ \t]+)[1-9][0-9]{0,2}(?=[ \t]*\|)/gim, '$1').replace(/\|[ \t]*(Value|Sell)[ \t]*\|[ \t]*Goal:/gi, match => match.toLowerCase()).replace(/\|[ \t]*(Reader action|Hook):/gi, match => match.toLowerCase()) } : part) } : section) }), ...input.deliverable.sections.map(section => section.heading)].join('\n');
             const claims = checkClaims(sourceWords, [{ id: file.id, text: source }], { known: input.known, dateOrder: input.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year' });
-            results.push({ check: 'source-faithful', outcome: claims.passed ? 'pass' : 'fail', detail: claims.passed ? 'Specific claims match only the bound source. The judge still checks facts said in other words.' : claims.detail });
+            results.push({ check: 'source-faithful', outcome: claims.passed ? 'pass' : 'fail', detail: claims.passed ? 'Specific claims match only the bound source. The quality check still checks facts said in other words.' : claims.detail });
         }
         catch (error) {
             results.push({ check: 'source-faithful', outcome: 'fail', detail: (error as Error).message });

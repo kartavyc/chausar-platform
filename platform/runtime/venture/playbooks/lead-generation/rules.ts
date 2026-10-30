@@ -11,7 +11,7 @@ export const LEAD_RULES: readonly DatedRule[] = [
   ordinary('gmail-senders', 'Gmail sender requirements', 'The owner checks sender authentication and provider requirements before using their mail app.', 'https://support.google.com/a/answer/81126', ['draft']),
   ordinary('can-spam', 'United States commercial email', 'A lawyer must confirm the message, disclosure, address and opt-out rules before client use.', 'https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business', ['outreach-allowed'], true),
   ordinary('dpdp-contact-data', 'Contact data privacy', 'Keep only necessary contact data and honour withdrawal and Forget; a lawyer confirms the applicable notice and basis.', 'https://www.meity.gov.in/content/digital-personal-data-protection-act-2023-0', ['outreach-allowed'], true),
-  ordinary('linkedin-handoff', 'LinkedIn handoff', 'Only copy the text and open the profile; no automated reading or messaging.', 'https://www.linkedin.com/legal/user-agreement', ['send']),
+  ordinary('linkedin-handoff', 'Copy for LinkedIn', 'Only copy the text and open the profile; no automated reading or messaging.', 'https://www.linkedin.com/legal/user-agreement', ['send']),
   ordinary('reddit-access', 'Community API access', 'Reddit API reading waits for access; use owner-pasted posts under community rules meanwhile.', 'https://redditinc.com/policies/data-api-terms', ['report']),
   { ...ordinary('happenstance-price', 'Happenstance search credits', 'Show the dated credit cost and obtain exact approval before a paid search.', 'https://developer.happenstance.ai/openapi.json', ['source']), value: '2', unit: 'credits per search' },
 ];

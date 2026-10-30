@@ -45,7 +45,7 @@ function aiWaitFor(deps: VentureDeps, ctx: Context): string | null {
 
 const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
 export const FLOOR_WORDS = STEP_FLOOR_WORDS;
-const KEEPER_IS_CODE = 'Keeper is code, not AI. It has no steps or posture to change; its jobs are on Team.';
+const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 
 /** Why a step is in the always-ask floor, or null. Code decides from the step's kind and its tools' effects. */
@@ -239,7 +239,7 @@ export async function teamPostureHandler(deps: VentureDeps, ctx: Context, payloa
   const body = exactPayload(payload, ['agentId', 'posture'], ['agentId', 'posture']);
   const agentId = identifier(body.agentId, 'Agent');
   check(typeof body.posture === 'string' && (POSTURES as readonly string[]).includes(body.posture), 'INVALID_VENTURE_REQUEST',
-    'Choose rehearsal, shadow, approve each or auto with spot checks.');
+    'Choose practice, practice on real orders, approve each or spot checks.');
   check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', KEEPER_IS_CODE);
   const posture = body.posture as Posture;
   autoLocked(posture); // 4J15: auto with spot checks is built but locked (policy/auto-lock.ts), whatever readiness says.

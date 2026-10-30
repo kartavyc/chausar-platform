@@ -102,8 +102,8 @@ export async function judgeYoutubeDraft(ask: RulesAsk | null, input: YoutubeJudg
   }
   const notRunLine = input.code.filter(item => item.outcome === 'not-run').map(item => `${item.check}: ${item.detail}`).join(' ');
   if (!ask) {
-    const rules = notRuled(YOUTUBE_DRAFT_RULES, 'No AI is connected to judge this draft.');
-    return { outcome: 'unverified', asked: false, code, rules, callIds: [], detail: `No AI is connected to judge this draft.${notRunLine ? ` Also not run: ${notRunLine}` : ''}` };
+    const rules = notRuled(YOUTUBE_DRAFT_RULES, 'Connect an AI to check this draft.');
+    return { outcome: 'unverified', asked: false, code, rules, callIds: [], detail: `Connect an AI to check this draft.${notRunLine ? ` Also not run: ${notRunLine}` : ''}` };
   }
   const rules = await judgeByRules(ask, { rules: YOUTUBE_DRAFT_RULES, trace: input.trace, draft: input.draft, containsClientData: input.containsClientData, context: input.context }, input.samples ?? 1);
   const { callIds, ...verdict } = rules;

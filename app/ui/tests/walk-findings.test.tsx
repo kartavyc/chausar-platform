@@ -188,7 +188,7 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
   it('6. on Team the AI spend tile shows the amount as the figure and the engine\'s words beside it', async () => {
     window.location.hash = '#/team';
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
     // 4Z3: a business in India with a rupee rate leads with rupees, then its words, the dollars beneath.
     await waitFor(() => expect(glance.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10'));
     expect(glance.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(' (includes estimates)');

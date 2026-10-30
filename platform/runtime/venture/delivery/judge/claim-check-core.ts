@@ -641,7 +641,7 @@ export function receiptsVerdict(numbers: readonly DraftNumber[], references: rea
   const forbidden = options.estimates === 'forbid' ? estimates.filter(number => number.amount).map(number => number.text) : [];
   const labelled = estimates.filter(number => !(options.estimates === 'forbid' && number.amount)).map(number => number.text);
   if (forbidden.length) {
-    problems.push(`This playbook allows no model estimates of money, rates or tax, and ${forbidden.length === 1 ? 'this figure has' : 'these figures have'} no receipt: ${quoted(forbidden)}.`);
+    problems.push(`This work plan allows no model estimates of money, rates or tax, and ${forbidden.length === 1 ? 'this figure has' : 'these figures have'} no receipt: ${quoted(forbidden)}.`);
   }
   const one = labelled.length === 1;
   const label = labelled.length

@@ -665,12 +665,12 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const stale = new ChausarError('APPROVAL_STALE', MESSAGES.approvalStale);
         if (!current || current.status !== 'preview' || current.approvedDigest !== null || current.payloadDigest !== approvedDigest || !held) throw stale;
         if (nowMs > Date.parse(current.at) + PREVIEW_TTL_MS) throw stale;
-        check(!standing || current.purpose === 'judge', 'INVALID_VENTURE_REQUEST', 'Only the judge goes on standing consent.');
+        check(!standing || current.purpose === 'judge', 'INVALID_VENTURE_REQUEST', 'Only the quality check goes on standing consent.');
         check(!fileDrop || (FILE_DROP_PURPOSES.has(current.purpose) && current.containsClientData), 'INVALID_VENTURE_REQUEST', 'Only a call that carries a file the owner dropped goes that way.');
         if (standing) {
           // Read again in the commit that claims the call: the judge setting must still be on with its consent.
           const setting = listRecords(tx.state, 'venture-judge-setting', current.ventureId).at(-1);
-          check(setting && setting.auto && setting.consent, 'POLICY_DENIED', 'The judge setting is off, or its standing consent is not recorded, so nothing went on its own.');
+          check(setting && setting.auto && setting.consent, 'POLICY_DENIED', 'The quality check setting is off, or its standing consent is not recorded, so nothing went on its own.');
         }
         const spec = presetSpec(current.presetId);
         const connection = current.connectionId ? txConnections(tx).find(item => item.id === current.connectionId) : undefined;

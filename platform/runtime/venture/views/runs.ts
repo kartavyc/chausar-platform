@@ -84,7 +84,7 @@ export function playbookCheckLabel(result: PlaybookCheckResult): string {
  * passed. A judge that was never asked did not run (4J14, the one table), so it reads "Not run".
  */
 function judgeMissing(results: readonly CheckResult[]): { kind: string; id: string; label: string } {
-  const why = results.every(result => result.passed) ? 'no judge connected.' : 'a code check failed first, so the judge was not asked.';
+  const why = results.every(result => result.passed) ? 'no quality check connected.' : 'a code check failed first, so the quality check was not asked.';
   return { kind: 'check', id: 'rules-judge', label: `${checkWord('not-run')}: ${why}` };
 }
 /** What a call did. With a round ledger, a call that ran but failed its audit says why it does not count. */
@@ -346,7 +346,7 @@ function posterTile(posters: PosterIndex, record: DeliveryRunRecord): Pick<RunSu
 // ---------------------------------------------------------------------------
 
 const POSTURE_WORDS: Readonly<Record<Posture, string>> = Object.freeze({
-  rehearsal: 'in rehearsal', shadow: 'in shadow', 'approve-each': 'at approve each', 'auto-spot-check': 'at auto with spot checks',
+  rehearsal: 'in rehearsal', shadow: 'in practice on real orders', 'approve-each': 'at approve each', 'auto-spot-check': 'at auto with spot checks',
 });
 const ACTION_WORDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
   'outbox.propose': 'Propose an outside action, which waits for your approval',
@@ -527,8 +527,8 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
 }
 
 const IMPROVEMENT_RESULT: Readonly<Record<Exclude<ImprovementRunRecord['status'], 'incomplete'>, string>> = {
-  'kept-candidate': 'A better playbook is ready for you to adopt.',
-  'kept-parent': 'Kept your current playbook: the change did not do better.',
+  'kept-candidate': 'Better work instructions are ready for you to adopt.',
+  'kept-parent': 'Kept your current work instructions: the change did not do better.',
 };
 /** What a round tried to fix: an owner's reason in words, else the check that failed. */
 function fixWords(reason: string): string {
@@ -539,14 +539,14 @@ function fixWords(reason: string): string {
 function improvementRun(state: State, venture: VentureRecord, record: ImprovementRunRecord, business: { id: string }): Built {
   const startedAt = record.startedAt ?? record.at;
   const summary: RunSummary = {
-    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve the playbook from your feedback', state: 'done',
+    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
     startedAt, elapsed: elapsedText(startedAt, record.at),
     result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300) : IMPROVEMENT_RESULT[record.status],
   };
   const steps: RunStep[] = record.rounds.map(round => plain({
     id: `round-${round.round}`, state: 'done' as const,
     purpose: round.diagnosis.chosen ? `Try a change for ${fixWords(round.diagnosis.chosen.reason)}` : 'Look for another change to try',
-    ...(round.gate ? { tools: [{ name: 'Compared with your current playbook', line: short(round.gate.reason, 240) }] }
+    ...(round.gate ? { tools: [{ name: 'Compared with your current work instructions', line: short(round.gate.reason, 240) }] }
       : round.refused ? { tools: [{ name: round.diagnosis.chosen ? 'Proposed a change' : 'Looked for a change', line: short(round.refused, 240) }] } : {}),
   }));
   return { summary, detail: { ...summary, steps } };

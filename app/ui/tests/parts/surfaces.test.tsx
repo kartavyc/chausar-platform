@@ -294,7 +294,7 @@ describe('chips', () => {
   it('PostureChip says the posture with its icon', () => {
     const cases = [
       ['approve-each', 'Asks each time', 'shield-check'],
-      ['shadow', 'Shadowing', 'eye'],
+      ['shadow', 'Practice on real orders', 'eye'],
       ['rehearsal', 'Rehearsing', 'history'],
       ['auto-spot-check', 'Auto with spot checks', 'check'],
     ] as const;

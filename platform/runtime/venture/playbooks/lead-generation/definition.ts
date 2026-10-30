@@ -22,7 +22,7 @@ export function leadBaselineScore(testCase: KitBaselineCase, draft: string): { p
     : testCase.id === 'whatsapp-not-opted-in' ? /hold/i.test(draft) && /consent|opt.in/i.test(draft) && !/wa\.me/.test(draft)
     : testCase.id === 'price-reply-to-owner' ? /owner|yourself/i.test(draft) && !/we (?:charge|offer a price)/i.test(draft)
     : testCase.id === 'community-vote-quoted' ? draft.includes('missing questions') && /4|four/i.test(draft) && /quote/i.test(draft) : false;
-  return { pass, why: pass ? 'The expected source, handoff or refusal is present.' : 'The source, handoff or refusal is missing.' };
+  return { pass, why: pass ? 'The expected source, prepared copy or refusal is present.' : 'The source, prepared copy or refusal is missing.' };
 }
 const step = (id: string, title: string, kind: KitStep['kind'], role: string, tools: KitStep['tools'] = []): KitStep => ({ id, title, kind, role, tier: ['gather', 'write'].includes(kind) ? 'actor' : 'code', model: kind === 'write' ? 'main' : kind === 'gather' ? 'fast' : null, doneBy: ['approve', 'operator'].includes(kind) ? 'you' : 'agent', requiredSections: kind === 'write' ? ['Lead report'] : [], checks: kind === 'write' ? [...DRAFT_CHECKS] : kind === 'operator' ? ['no-outside-writes'] : [], tools, guidance: [], produces: title });
 const rawDefinition: PlaybookDefinition = {

@@ -87,8 +87,8 @@ function judgeCost(deps: VentureDeps, ctx: Context, state: State, venture: Ventu
   const subject = { type: 'judge-cost' as const, recordId: run.id };
   const notice = run.preview?.callId === callId ? judgeNotice(deps, ctx, state, venture, run) : null;
   if (!notice || notice.boundMicros === null) return receiptOf(venture, id, subject, run.at, [], MOVED_ON, true);
-  return receiptOf(venture, id, subject, run.at, [usd('judge', "Most the judge's check can cost", notice.boundMicros, notice.cost)],
-    `Once this draft is ready, the judge reads it on your AI for quick work. The most that check can cost, worked out by code from that AI's price table: ${notice.cost}. Nothing is spent until it runs.`,
+  return receiptOf(venture, id, subject, run.at, [usd('judge', "Most the quality check can cost", notice.boundMicros, notice.cost)],
+    `Once this draft is ready, the quality check reads it on your AI for quick work. The most that check can cost, worked out by code from that AI's price table: ${notice.cost}. Nothing is spent until it runs.`,
     false);
 }
 

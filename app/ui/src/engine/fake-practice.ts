@@ -35,25 +35,25 @@ const PRACTICE_METHODS = new Set<string>([
 
 /** The engine's words (delivery/judge-run.ts, delivery/improve.ts, delivery/launch.ts, delivery/runs.ts, delivery/checks.ts). */
 export const PRACTICE_WORDS = Object.freeze({
-  judgeOn: "The judge reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.",
-  judgeOff: 'The judge reads a draft only when you ask it to, from the draft in Work.',
-  failedCheck: 'Fix the failed check first; the judge reads only drafts that pass the code checks.',
-  notReady: 'The judge reads a draft once it is ready for your review.',
-  outline: 'The judge reads drafts an agent wrote; this is a template outline.',
+  judgeOn: "The quality check reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.",
+  judgeOff: 'The quality check reads a draft only when you ask, from the draft in Work.',
+  failedCheck: 'Fix the failed check first; the quality check reads only drafts that pass the code checks.',
+  notReady: 'The quality check reads a draft once it is ready for your review.',
+  outline: 'The quality check reads drafts an agent wrote; this is a template outline.',
   practice: 'Practice drafts are not for clients. Move to approve each to use drafts.',
-  noAi: 'Connect an AI for quick work first; the judge runs on your own AI.',
-  already: 'The judge already read this draft.',
-  notWaiting: 'Ask the judge first, then send it.',
+  noAi: 'Connect an AI for quick work first; the quality check runs on your own AI.',
+  already: 'The quality check already read this draft.',
+  notWaiting: 'Ask the quality check first, then send it.',
   readAgain: 'This changed since you read it. Read it again.',
-  changed: 'The draft changed since you asked the judge. Ask again.',
-  expired: 'Ask the judge again; the call you read is no longer available.',
+  changed: 'The draft changed since you asked the quality check. Ask again.',
+  expired: 'Ask the quality check again; the call you read is no longer available.',
   passed: 'Every rule passed its own floor. Each yes cited something code found in the run.',
-  due: 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.',
+  due: 'There are enough reviewed drafts to improve the work plan. The improvement loop tries one change and keeps it only if it wins.',
   notDue: 'The improvement loop can run once a draft was rejected or edited, a check failed or a rehearsal failed. It learns more from more reviewed drafts.',
   nothingToImprove: 'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.',
   acceptPlan: 'Accept your plan first.',
   /** runs.ts JUDGE_EDIT_LINE: on a judged draft the owner edited, the judge's line says its verdict is on the agent's words. */
-  edited: "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft.",
+  edited: "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft.",
 });
 /** scenarios.ts SOURCE_WORDS: where a signal case came from. */
 const SIGNAL_WORDS = { 'owner-edited': 'a draft you edited', 'owner-rejected': 'a draft you rejected', 'check-failed': 'a draft that failed a check' } as const;
@@ -297,7 +297,7 @@ export class FakePracticeDesk {
     if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
     const current = this.inUse[biz];
     if (current === candidate.id) return 'This version is already in use.';
-    if (current !== run.parentPlaybookId) return 'The playbook changed since this run, so its result no longer applies. Run the loop again.';
+    if (current !== run.parentPlaybookId) return 'The work instructions changed since this run, so its result no longer applies. Run the loop again.';
     if (!this.fits(candidate)) return 'Your plan changed since this run. Run the loop again.';
     return null;
   }
@@ -374,7 +374,7 @@ export class FakePracticeDesk {
   /** venture.improve.rollback (the owner's, in the app): back from an improved version to the one it was made from. */
   private rollback(biz: string, p: Record<string, unknown>): PlaybookLite {
     const body = exact(p, ['playbookId', 'digest'], ['playbookId', 'digest']);
-    const playbookId = identifier(body.playbookId, 'Playbook');
+    const playbookId = identifier(body.playbookId, 'How the work is done');
     if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the version you saw in use.');
     const current = this.find(biz, this.inUse[biz]);
     const parent = this.find(biz, playbookId);
@@ -457,7 +457,7 @@ export class FakePracticeDesk {
   private judgeSend(biz: string, p: Record<string, unknown>): DeliveryLite {
     const body = exact(p, ['runId', 'digest'], ['runId', 'digest']);
     const runId = identifier(body.runId, 'Draft reply');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the judge call you read.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the quality check call you read.');
     const run = this.run(runId);
     const held = run.judge;
     if (held?.status === 'done') throw new EngineError('JUDGE_ALREADY_SENT', PRACTICE_WORDS.already);
@@ -468,7 +468,7 @@ export class FakePracticeDesk {
     if (held.draftDigest !== this.draftDigest(run)) throw new EngineError('APPROVAL_STALE', PRACTICE_WORDS.changed);
     const at = this.host.now();
     if (Date.parse(held.preview.expiresAt) <= Date.parse(at)) {
-      this.host.reviseDelivery(runId, (current) => ({ ...current, judge: { ...held, status: 'failed', preview: null, line: `The judge did not finish: ${PRACTICE_WORDS.expired} Ask the judge again.` } }));
+      this.host.reviseDelivery(runId, (current) => ({ ...current, judge: { ...held, status: 'failed', preview: null, line: `The quality check did not finish: ${PRACTICE_WORDS.expired} Ask the quality check again.` } }));
       throw new EngineError('APPROVAL_STALE', PRACTICE_WORDS.expired);
     }
     // Sending the automatic call that was shown with the setting's own words is the standing consent, recorded once.

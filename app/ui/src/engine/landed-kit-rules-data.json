@@ -623,7 +623,7 @@
         {
           "id": "seller-change-caps",
           "platform": "seller",
-          "rule": "Recheck source provenance and owner caps before preparing the exact handoff.",
+          "rule": "Recheck source provenance and owner caps before preparing your exact copy.",
           "checkedOn": "2026-10-28",
           "stale": false,
           "usedBy": [
@@ -2355,12 +2355,12 @@
             "Permission to read a source is not permission to contact someone."
           ],
           "source": {
-            "title": "LinkedIn handoff",
+            "title": "Copy for LinkedIn",
             "url": "https://www.linkedin.com/legal/user-agreement"
           },
           "sources": [
             {
-              "title": "LinkedIn handoff",
+              "title": "Copy for LinkedIn",
               "url": "https://www.linkedin.com/legal/user-agreement"
             }
           ],
@@ -2515,7 +2515,7 @@
         "confirmed": false
       },
       "linkedin-handoff": {
-        "topic": "LinkedIn handoff",
+        "topic": "Copy for LinkedIn",
         "how": "Read the official provider documentation on build day.",
         "read": "official",
         "window": 90,

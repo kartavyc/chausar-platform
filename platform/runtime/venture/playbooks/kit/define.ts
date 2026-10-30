@@ -317,7 +317,7 @@ export function kitEngineSteps(definition: Pick<PlaybookDefinition, 'steps' | 'c
 export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = localDayAt(new Date(), { code: 'IN' })): PlaybookDefinition {
   const id = typeof definition?.registration?.id === 'string' ? definition.registration.id : 'new';
   const refuse = (field: string, why: string): never => {
-    throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} playbook's ${field}: ${why}`);
+    throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} work plan's ${field}: ${why}`);
   };
   if (definition.clientRoom !== undefined && typeof definition.clientRoom !== 'boolean') refuse('clientRoom', 'must be true or false.');
   try { validateRegistry([definition.registration]); } catch (error) { refuse('registration', (error as Error).message); }
@@ -348,13 +348,13 @@ export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = 
   for (const tool of definition.tools ?? []) {
     if (!(TOOL_NAMES as readonly string[]).includes(tool)) refuse('tools', `${tool} is not a tool Chausar has.`);
     const group = TOOL_GROUPS[tool as keyof typeof TOOL_GROUPS];
-    if (group !== 'kit' && group !== id) refuse('tools', `${tool} is another playbook's tool.`);
+    if (group !== 'kit' && group !== id) refuse('tools', `${tool} is another work plan's tool.`);
   }
   // Each step holds only what this playbook's agents may ever hold, by the engine's own ceiling.
   const { validatePlaybook, DEFAULT_LIMITS, toolCeiling } = engine();
   const ceiling = toolCeiling(definition.registration.serviceType, id, [definition]);
   for (const step of steps.values()) {
-    for (const tool of step.tools ?? []) if (!ceiling.includes(tool)) refuse('steps', `the step ${step.id} holds ${tool}, which this playbook's agents may not hold.`);
+    for (const tool of step.tools ?? []) if (!ceiling.includes(tool)) refuse('steps', `the step ${step.id} holds ${tool}, which this work plan's agents may not hold.`);
   }
   try { validatePlaybook(kitEngineSteps(definition), { limits: { ...DEFAULT_LIMITS }, aliases: {} }); } catch (error) { refuse('steps', (error as Error).message); }
 
@@ -429,7 +429,7 @@ export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = 
   validateManualPaths(definition);
   const fromRecipes = recipeJudgeRules(definition.recipes);
   const own = new Set((definition.judgeRules ?? []).map(rule => rule.id));
-  for (const rule of fromRecipes) if (own.has(rule.id)) refuse('judgeRules', `${rule.id} is also a recipe's judge rule; give it another id.`);
+  for (const rule of fromRecipes) if (own.has(rule.id)) refuse('judgeRules', `${rule.id} is also a recipe's quality check rule; give it another id.`);
 
   for (const text of allWords(definition)) {
     const problem = wordProblem(text);

@@ -170,7 +170,7 @@ test('the template plan for a YouTube idea keeps the playbook offers, approvals,
   assert.deepEqual(plan.offers.map(offer => offer.pricing.model), ['project', 'project', 'monthly'], 'the first choice shown was the first offer\'s own pricing');
   assert.ok(plan.offers.every(offer => offer.pricing.unitPriceMinor === null));
   assert.deepEqual(plan.approvals.map(line => line.value), YOUTUBE_APPROVALS.map(item => item.words));
-  assert.ok(plan.starterConnectorIds.includes('youtube'), 'the playbook\'s upload connector is a starter');
+  assert.ok(plan.starterConnectorIds.includes('youtube'), 'the work plan\'s upload connector is a starter');
   assert.ok(plan.starterConnectorIds.includes('razorpay') && plan.starterConnectorIds.includes('chausar-books'), 'the payment rail and the books stay');
   assert.equal('playbook' in plan, false, 'the record carries no playbook pick of its own');
   assert.equal(plan.digest.length, 64);
@@ -282,7 +282,7 @@ const who = (steps: { id: string; doneBy: string; who: string }[] | undefined, i
 };
 const titles = (steps: { id: string; title: unknown }[] | undefined) => steps?.map(step => ({ id: step.id, title: step.title }));
 
-test('the plan lists the flagship playbook\'s own delivery steps with who does each, so what the owner accepts is what runs', async () => {
+test('the plan lists the flagship work plan\'s own delivery steps with who does each, so what the owner accepts is what runs', async () => {
   const preview = previewPlan({ idea: YOUTUBE_IDEA, countryCode: 'IN' });
   assert.deepEqual(titles(preview.flagshipSteps), stepsOf('youtube'));
   assert.equal(who(preview.flagshipSteps, 'intake'), 'agent: Intake clerk');

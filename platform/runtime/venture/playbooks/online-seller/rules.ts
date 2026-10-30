@@ -4,7 +4,7 @@ import {STOREFRONT_PERMISSION_RULE} from './storefront-permission.ts';
 export const SELLER_RULES: readonly DatedRule[] = [
   STOREFRONT_PERMISSION_RULE,
   ...[
-    {id:'seller-change-caps',topic:'Owner change limits',rule:'Recheck source provenance and owner caps before preparing the exact handoff.',usedBy:['financial-draft']},
+    {id:'seller-change-caps',topic:'Owner change limits',rule:'Recheck source provenance and owner caps before preparing your exact copy.',usedBy:['financial-draft']},
     {id:'seller-stock-movements',topic:'Stock and payout records',rule:'Write stock movements under one authority and keep refunds separate from earnings.',usedBy:['financial-draft']},
     {id:'seller-research-review',topic:'Product research boundaries',rule:'Show deterministic evidence and every risk before any model view or buying decision.',usedBy:['research-draft']},
     {id:'seller-photo-reference',topic:'Real product references',rule:'Keep the real main product photo in every image brief and require an exact quote approval.',usedBy:['photo-draft']},

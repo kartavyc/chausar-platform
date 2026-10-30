@@ -10,7 +10,7 @@ import {screenUntrusted} from '../../policy/untrusted.ts';
 export function roomOrder(state:State,venture:VentureRecord,playbook:string,orderId:string){
  const order=listRecords(state,'venture-order',venture.id).find(r=>r.id===orderId);
  check(order&&order.status!=='cancelled'&&listRecords(state,'venture-client',venture.id).some(c=>c.id===order.clientId),'ORDER_NOT_FOUND','Choose a current client order.');
- check(kitDefinition(playbook)?.clientRoom===true&&orderChain(state,venture,order)?.definition.registration.id===playbook,'NOT_BUILT_YET','This playbook has no client room.');
+ check(kitDefinition(playbook)?.clientRoom===true&&orderChain(state,venture,order)?.definition.registration.id===playbook,'NOT_BUILT_YET','This work plan has no client room.');
  return order;
 }
 export function roomPrice(state:State,venture:VentureRecord,orderId:string):RoomPrice{

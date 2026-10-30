@@ -23,7 +23,7 @@ const data={
         "post"
       ],
       "includes": [
-        "Screened source excerpts and an approved manual handoff"
+        "Screened source excerpts and an approved copy you send yourself"
       ],
       "pilotable": true,
       "rights": [],
@@ -54,7 +54,7 @@ const data={
       "name": "You",
       "kind": "person",
       "department": "operations",
-      "job": "Approves exact source use and every handoff."
+      "job": "Approves exact source use and every file you send."
     },
     {
       "id": "triage-lead",
@@ -178,7 +178,7 @@ const data={
     },
     {
       "id": "triage-copy",
-      "name": "Approved reply handoff",
+      "name": "Approved reply you send",
       "label": "handoff",
       "note": "Review and download the approved text without sending."
     }

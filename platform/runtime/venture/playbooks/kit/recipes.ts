@@ -18,7 +18,7 @@ const filled = (value: unknown): value is string => typeof value === 'string' &&
  * result, or at least one common mistake. Returns the recipes as given.
  */
 export function validateRecipes(recipes: readonly KitRecipe[]): readonly KitRecipe[] {
-  check(recipes.length > 0, 'RECIPE_INVALID', 'A playbook needs at least one recipe.');
+  check(recipes.length > 0, 'RECIPE_INVALID', 'A work plan needs at least one recipe.');
   const seen = new Set<string>();
   for (const recipe of recipes) {
     const refuse = (ok: unknown, what: string): void => check(ok, 'RECIPE_INVALID', `The recipe ${recipe.id} ${what}.`);

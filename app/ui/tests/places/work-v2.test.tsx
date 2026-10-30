@@ -390,8 +390,8 @@ describe('Work v2: the orders head and a failed verdict', () => {
       judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: null, draftDigest: 'f'.repeat(64) },
     };
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [failed] } });
-    const judge = await screen.findByRole('region', { name: 'The judge' });
-    const verdict = await within(judge).findByText(`The judge found a problem: ${FAILED}`);
+    const judge = await screen.findByRole('region', { name: 'Quality check' });
+    const verdict = await within(judge).findByText(`Quality check found a problem: ${FAILED}`);
     expect(verdict.classList.contains(s.state!)).toBe(true);
     expect(verdict.classList.contains(s.failure!)).toBe(true);
     expect(colourOf(['state'])).toBe('var(--fg2)');

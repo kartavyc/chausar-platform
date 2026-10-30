@@ -90,7 +90,7 @@ const hoursWords = (value: number) => `${value} ${value === 1 ? 'hour' : 'hours'
  */
 export function pilotOf(definition: PilotDefinition, offerId: string, terms: PilotTerms): PilotPage {
   const offer = definition.offers.find(item => item.id === offerId);
-  check(offer, 'OFFER_NOT_FOUND', 'That offer is not in this playbook.');
+  check(offer, 'OFFER_NOT_FOUND', 'That offer is not in this work plan.');
   check(offer.pilotable, 'PILOT_NOT_OFFERED', `${offer.name} is not offered as a pilot. Choose an offer that is.`);
   const amount = terms.priceMinor !== null && /^\d{1,20}$/.test(terms.priceMinor) && BigInt(terms.priceMinor) > 0n;
   const share = !!terms.shareBps && /^\d{1,5}$/.test(terms.shareBps) && BigInt(terms.shareBps) > 0n;

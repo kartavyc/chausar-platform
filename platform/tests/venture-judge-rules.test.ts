@@ -146,10 +146,10 @@ test('rules: judgeByRules asks once per sample and code decides; with no AI ever
   assert.deepEqual(pick(verdict.rules[1]), { outcome: 'pass', yes: 3, no: 1, unverified: 0, needed: 3 });
   await assert.rejects(() => judgeByRules(ask, { rules: RULES, trace: TRACE, draft: 'A draft.', containsClientData: false }, 0), code('INVALID_VENTURE_REQUEST'));
 
-  const off = notRuled(RULES, 'No AI judge connected.');
+  const off = notRuled(RULES, 'No AI quality check connected.');
   assert.equal(off.outcome, 'unverified');
   assert.deepEqual(off.rules.map(rule => rule.outcome), ['unverified', 'unverified']);
-  assert.ok(off.rules.every(rule => rule.detail === 'No AI judge connected.'));
+  assert.ok(off.rules.every(rule => rule.detail === 'No AI quality check connected.'));
 });
 
 test('trace: a run gives citable ids for its turns, tool calls, hand-offs, files, tables and receipts', () => {

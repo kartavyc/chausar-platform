@@ -79,7 +79,7 @@ describe('Business in the Ink v2 look', () => {
     start('#/business/prices');
     const nav = await screen.findByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
+      ['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
       ['Practice and improve', '#/business/practice'],
       // W4 4J22a: routines on a schedule, after Practice.
       ['Routines', '#/business/routines'],
@@ -192,7 +192,7 @@ describe('Business in the Ink v2 look', () => {
       };
       return render(<App client={client} language="en" />);
     }
-    for (const [hash, title] of [['#/business/plan', 'Plan and playbook'], ['#/business/prices', 'Prices'], ['#/business/practice', 'Practice and improve']] as const) {
+    for (const [hash, title] of [['#/business/plan', 'How the work is done'], ['#/business/prices', 'Prices'], ['#/business/practice', 'Practice and improve']] as const) {
       const { unmount } = custody(hash);
       const note = await within(document.querySelector('main')!).findByRole('note');
       expect(note.textContent, hash).toBe(EXPERIMENTAL);
@@ -268,7 +268,7 @@ describe('Business in the Ink v2 look', () => {
     await act(async () => { fireEvent.click(await within(clients).findByRole('button', { name: 'Rehearse now' })); });
     const cost = await within(clients).findByText(/^Cost: /);
     expect(cost.closest('[data-engine-line]')).not.toBeNull();
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     await act(async () => { fireEvent.click(await within(improve).findByRole('button', { name: 'Run the improvement loop' })); });
     const costs = await within(improve).findAllByText(/^Cost: /);
     for (const line of costs) expect(line.closest('[data-engine-line]')).not.toBeNull();

@@ -89,7 +89,7 @@ const CURRENT={
           "url": ""
         }
       ],
-      "line": "Current. Checked with script, price and handoff tests."
+      "line": "Current. Checked with script, price and manual delivery tests."
     }
   ],
   "summary": "3 current, 0 to recheck.",
@@ -100,7 +100,7 @@ const CURRENT={
       "whenToUse": "Before using a client script",
       "steps": [
         {
-          "do": "Approve the facts, disclosure and human handoff.",
+          "do": "Approve the facts, disclosure and help from a person.",
           "why": "The client controls the claims and prices."
         }
       ],

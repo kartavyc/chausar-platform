@@ -251,7 +251,7 @@ test('narrative: a figure in the words with no receipt fails the check and block
   assert.equal(practice.outcome, 'not-run', 'practice clients send no exports');
 });
 
-test('grants: only the social agency playbook\'s agents may hold social.report', () => {
+test('grants: only the social agency work plan\'s agents may hold social.report', () => {
   const body = { steps: [{ id: 'gather', kind: 'gather' as const, title: 'Read', tier: 'actor' as const, model: 'fast' as const, doneBy: 'agent' as const, requiredSections: [], checks: [], tools: [], guidance: [] }], limits: { maxTurns: 4, maxToolCalls: 12, maxCallsPerTurn: 4, maxCostMicros: '500000', keepOutputs: 4 } as any, aliases: {} };
   const patch: PlaybookPatch = { id: 'p1', level: 'tools', op: 'tools.grant', stepId: 'gather', value: 'social.report', note: { hypothesis: 'More figures.', expectedFixes: [], likelyRegressions: [] }, proposedBy: 'chausar', parentHash: 'parent' };
   assert.throws(() => applyPatch(body, patch, { serviceType: 'agency', entryIds: [], flagship: null }), code('INVALID_VENTURE_REQUEST'));

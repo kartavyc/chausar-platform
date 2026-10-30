@@ -93,13 +93,13 @@ const REVIEW_DECISION_WORDS: Readonly<Record<'accepted' | 'edited' | 'rejected',
   accepted: 'Draft accepted.', edited: 'You edited the draft into your own version.', rejected: 'Draft rejected.',
 });
 
-export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
+export const STAGE_BLOCKED_REASON = 'Practise with your AI first, then practise on real orders.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
 /** The judge's line on a run the owner edited: the edit is the owner's own words, which the judge never reads. */
-export const JUDGE_EDIT_LINE = "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft.";
-export const JUDGE_READING = 'The judge is reading this draft. Accept it once its answer is in.';
+export const JUDGE_EDIT_LINE = "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft.";
+export const JUDGE_READING = 'The quality check is reading this draft. Accept it once its answer is in.';
 
 /** How long a ready draft stays marked as due for the judge (judgePending) before Accept opens anyway. */
 export const JUDGE_PENDING_MS = 10 * 60_000;
@@ -528,7 +528,7 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, context.order, deps.clock().toISOString().slice(0,10));
   (await socialVoiceGuard())(deps.store.read(),venture,context.order);
   const playbook = playbookForRun(state, run);
-  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The work instructions for this draft were not found.');
   if(playbook.flagship==='job-search-desk')careerRunSource(deps.store.read(),venture.id,run.orderId);
   if(playbook.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,venture.id,run.orderId,true);
   if(playbook.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,venture.id,run.orderId,true);
@@ -950,7 +950,7 @@ export async function previewNextTurn(deps: VentureDeps, ctx: Context, state: St
   vaRunCurrent(deps.store.read(),venture.id,run);formsRunCurrent(deps.store.read(),venture.id,run);
   const context = orderContext(state, venture, run.orderId);
   const playbook = playbookForRun(state, run);
-  check(playbook && playbook.ventureId === venture.id, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  check(playbook && playbook.ventureId === venture.id, 'PLAYBOOK_NOT_FOUND', 'The work instructions for this draft were not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, venture));
   if (!harness) {
     const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
@@ -997,7 +997,7 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
   refuseUnsignedRun(state, venture, run);
   const context = orderContext(state, venture, run.orderId);
   const playbook = playbookForRun(state, run);
-  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The work instructions for this draft were not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const files = uploadsById(state, venture.id, run.harness.uploadIds);
   const made = madeSoFar(state, run.harness);
@@ -1068,7 +1068,7 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
   const harness = run.harness!;
   const context = orderContext(state, venture, run.orderId);
   const playbook = playbookForRun(state, run);
-  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The work instructions for this draft were not found.');
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
   const files = uploadsById(state, venture.id, harness.uploadIds);
   const made = madeSoFar(state, harness);

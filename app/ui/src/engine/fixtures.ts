@@ -498,7 +498,7 @@ export const DELIVERIES: Record<string, DeliveryLite[]> = {
       servedBy: 'model', practiceNow: false, canAccept: false, acceptBlocked: null,
       // 4J19 review: which engine wrote it, as DeliveryRunView carries it (Ledgerline's main tier is its own Sonnet key).
       writtenBy: 'Written by Claude Sonnet 5.5',
-      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft." },
+      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft." },
     },
   ],
 };

@@ -232,16 +232,16 @@ const CODE_LINE = (name: string) => `${name} is code, not AI: it does the same s
 /** Why agent.delegate is off when neither CLI is set up on this computer. */
 export const NO_CLI = 'neither Claude Code nor Codex is set up on this computer.';
 const PROVIDER = 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.';
-const JUDGE_PROVIDER = 'The AI judge sends each draft it reads to your own AI provider.';
+const JUDGE_PROVIDER = 'The AI quality check sends each draft it reads to your own AI provider.';
 const NOTHING_SEEN = 'Nothing: none of its steps gives it anything to read.';
 const NOTHING_DONE = 'Nothing: none of its steps lets it work, ask or propose anything.';
 const NOTHING_OFF = `Nothing is off: every kind of action is open to it. ${APPROVAL}`;
 const WRITE_TAIL = 'You check the draft before anything leaves Chausar.';
 const CODE_TAIL = 'Code does this, with no AI.';
-const JUDGE_ON = 'Code runs the checks, then an AI judge reads the draft on your own AI.';
-const JUDGE_OFF = 'Code runs the checks. The AI judge is off for this business.';
+const JUDGE_ON = 'Code runs the checks, then an AI quality check reads the draft on your own AI.';
+const JUDGE_OFF = 'Code runs the checks. The AI quality check is off for this business.';
 /** judge-run.ts judgeAudience: papers gathered for the CA of record are an internal note, never judged. */
-const JUDGE_CA = 'Code runs the checks. Papers for your CA of record never go to the AI judge; only a draft that goes to a client does, on your own AI.';
+const JUDGE_CA = 'Code runs the checks. Papers for your CA of record never go to the AI quality check; only a draft that goes to a client does, on your own AI.';
 const SPEND_PLANNED = "Paying for it is planned: Chausar can't buy it yet, so nothing is spent.";
 const OUTBOX_MAIL = 'Propose an email for your approval. Nothing is sent: Chausar records it, and you send it yourself from your own mail app.';
 const OUTBOX_LINK = 'Propose a payment link for your approval. Planned: no payment link connector is built, so the proposal is only recorded.';

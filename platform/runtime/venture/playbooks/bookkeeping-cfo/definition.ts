@@ -48,7 +48,7 @@ export const BOOKKEEPING_CFO_DATA: PlaybookDefinition = {
     {id:'accounting-approve',title:'Review the exact accounting dry run',kind:'approve',tier:'code',model:null,doneBy:'you',requiredSections:[],checks:[],tools:[],role:'owner',produces:'Accounting review',floor:'Create drafts only after exact owner approval. Issuing asks separately.'},
     write('memo', 'Write the finance note'),
     { id: 'legal-review', title: 'Ask a qualified reviewer about legal and tax questions', kind: 'approve', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], role: 'owner', produces: 'Professional review', floor: 'Legal and tax conclusions wait for professional confirmation.' },
-    { id: 'approve', title: 'Review and approve the client report', kind: 'approve', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], role: 'owner', produces: 'Approved report', floor: 'Every report and reminder handoff needs the owner approval.' },
+    { id: 'approve', title: 'Review and approve the client report', kind: 'approve', tier: 'code', model: null, doneBy: 'you', requiredSections: [], checks: [], tools: [], role: 'owner', produces: 'Approved report', floor: 'You approve every report and reminder before sending.' },
   ],
   approvals: [
     {id:'review-accounting',words:'Review exact draft requests in the accounting desk. Issuing needs a separate approval.',step:'accounting-approve',who:'owner',floor:true,secondAsk:true},

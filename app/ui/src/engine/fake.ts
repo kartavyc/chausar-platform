@@ -704,7 +704,7 @@ export class FakeEngine {
     const agent = (this.agents[this.current] ?? []).find((a) => a.id === p.agentId);
     if (!agent) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
     const ladder: readonly Posture[] = ['rehearsal', 'shadow', 'approve-each', 'auto-spot-check'];
-    if (!ladder.includes(p.posture)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose rehearsal, shadow, approve each or auto with spot checks.');
+    if (!ladder.includes(p.posture)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose practice, practice on real orders, approve each or spot checks.');
     if (p.posture === 'auto-spot-check') throw new EngineError('AUTO_LOCKED', AUTO_LOCKED_WORDS);
     agent.posture = p.posture;
     this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });

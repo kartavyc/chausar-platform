@@ -501,6 +501,7 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.deepEqual(inv.lines, [{ description: 'Monthly books', quantity: '1', unitMinor: '249900', amountMinor: '249900', taxRateBps: '1800' }]);
   assert.match(inv.digest, /^[a-f0-9]{64}$/);
   assert.equal(view.receipt.id, inv.priceReceiptId);
+  assert.equal(view.documentText.includes(inv.priceReceiptId), false, 'the client copy must not expose the internal receipt id');
   assert.deepEqual(view.receipt.subject, { type: 'invoice', invoiceId: inv.id });
   assert.deepEqual(view.figures.map(f => [f.key, f.label, f.display]), [
     ['subtotal', 'Subtotal', 'INR 2,499.00'], ['cgst', 'CGST at 9%', 'INR 224.91'], ['sgst', 'SGST at 9%', 'INR 224.91'],
@@ -535,7 +536,6 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
     'Paid  INR 0.00',
     'Balance  INR 2,948.82',
     '----------------------------------------',
-    `Every number on this invoice has a receipt in Chausar: ${inv.priceReceiptId}`,
     'Practice invoice from an experimental Chausar build.',
   ].join('\n'));
 
@@ -928,7 +928,6 @@ test('a JPY venture runs end to end with zero minor digits', async () => {
     'Paid  JPY 0',
     'Balance  JPY 11,000',
     '----------------------------------------',
-    `Every number on this invoice has a receipt in Chausar: ${issued.invoice.priceReceiptId}`,
   ].join('\n'));
   assert.equal(env.calculator.receipt(owner, issued.invoice.booksReceiptId!).totalMinor, '10000');
   await assert.rejects(call(env, 'venture.payment.record', { invoiceId: issued.invoice.id, amount: '11000.5', receivedOn: '2026-10-05', method: 'card' }), code('INVALID_AMOUNT'));

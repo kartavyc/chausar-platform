@@ -100,8 +100,8 @@ const run = (runId: string, agentName: string, extra: Partial<RunSummary>): RunS
 describe('Team v2: the stats tiles', () => {
   it('says who works now and who waits on you, in counts and names, and the AI spend with its receipt as Money proves it', async () => {
     start();
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
-    const working = (await within(glance).findByText('Working now')).closest('[data-card]') as HTMLElement;
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    const working = (await within(glance).findByText('Working')).closest('[data-card]') as HTMLElement;
     await waitFor(() => expect(working.querySelector('[data-count]')?.textContent).toBe('2'));
     expect(working.textContent).toContain('Editor and Researcher');
     // The stack: one avatar each, drawn without rings (D's `.stack`), hidden since the names are in words.
@@ -115,7 +115,7 @@ describe('Team v2: the stats tiles', () => {
 
     // "Includes estimates" means calls not settled yet, a cost code worked out, not a number a model wrote: the spend
     // line's proof is its receipt, as on Money (money/parts.tsx lineProof), never the "model estimate" label.
-    const spend = (await within(glance).findByText('AI spend this month')).closest('[data-card]') as HTMLElement;
+    const spend = (await within(glance).findByText('Monthly AI spend')).closest('[data-card]') as HTMLElement;
     // 4Z3: a business in India with a rupee rate leads with rupees, its words after them, the dollars beneath (two decimals).
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
     expect(spend.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(', includes estimates');
@@ -131,11 +131,11 @@ describe('Team v2: the stats tiles', () => {
     const { base } = start();
     await within(main()).findByRole('button', { name: 'Editor' });
     await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
-    const spend = (await within(glance).findByText('AI spend this month')).closest('[data-card]') as HTMLElement;
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    const spend = (await within(glance).findByText('Monthly AI spend')).closest('[data-card]') as HTMLElement;
     await waitFor(() => expect(within(spend).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy());
     expect(spend.querySelector('[data-ui-number]')?.textContent).toBe('₹33.50');
-    const working = within(glance).getByText('Working now').closest('[data-card]') as HTMLElement;
+    const working = within(glance).getByText('Working').closest('[data-card]') as HTMLElement;
     expect(working.textContent).toContain('Nobody is working right now.');
     const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
     expect(waiting.textContent).toContain('Nothing waits on you.');
@@ -149,10 +149,10 @@ describe('Team v2: the stats tiles', () => {
         ? Promise.resolve({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', estimate: true }] })
         : undefined,
     });
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
-    await within(glance).findByText('Working now');
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    await within(glance).findByText('Working');
     await settle();
-    expect(within(glance).queryByText('AI spend this month')).toBeNull();
+    expect(within(glance).queryByText('Monthly AI spend')).toBeNull();
     expect(glance.textContent).not.toContain('₹60.10');
   });
 
@@ -163,8 +163,8 @@ describe('Team v2: the stats tiles', () => {
         ? Promise.resolve({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$33.50', receiptId: 'R-0412', rupees }] })
         : undefined,
     });
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
-    const spend = (await within(glance).findByText('AI spend this month')).closest('[data-card]') as HTMLElement;
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    const spend = (await within(glance).findByText('Monthly AI spend')).closest('[data-card]') as HTMLElement;
     const group = spend.querySelector('[data-figure-group]') as HTMLElement;
     expect(group.querySelector('[data-ui-number]')!.textContent).toBe('$33.50');
     expect(group.textContent).toContain(rupees);
@@ -392,7 +392,7 @@ describe('Team v2: one department', () => {
     expect(hero.getAttribute('data-dept')).toBe('prod');
     expect(within(hero).getByText('done this week').closest('div')!.querySelector('[data-count]')!.textContent).toBe('6');
     expect(within(hero).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
-    expect(within(hero).getByText('playbook steps').closest('div')!.querySelector('[data-count]')!.textContent).toBe('3');
+    expect(within(hero).getByText('work steps').closest('div')!.querySelector('[data-count]')!.textContent).toBe('3');
     expect(within(hero).getByText('1 working')).toBeTruthy();
     expect(within(hero).getByText('1 run failed')).toBeTruthy();
 
@@ -513,10 +513,10 @@ describe('Team v2: the agent panel', () => {
   it('Steps: the postures as radio cards, each with what it means, and the steps with their gates', async () => {
     start();
     const panel = await openPanel();
-    const group = within(panel).getByRole('group', { name: 'Posture' });
+    const group = within(panel).getByRole('group', { name: 'How much it asks you' });
     const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
     expect(radios).toHaveLength(4);
-    const shadow = within(group).getByRole('radio', { name: 'Shadow' });
+    const shadow = within(group).getByRole('radio', { name: 'Practice on real orders' });
     expect(shadow.getAttribute('aria-describedby')).toBeTruthy();
     expect(document.getElementById(shadow.getAttribute('aria-describedby')!)!.textContent).toBe('Works on real orders, but anything outside Chausar is only simulated.');
     for (const radio of radios) expect(radio.closest('[data-choice]')).not.toBeNull();

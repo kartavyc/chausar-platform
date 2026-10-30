@@ -16,7 +16,7 @@ const filled = (value: unknown): value is string => typeof value === 'string' &&
  * or the same evidence listed twice. Returns the rows as given.
  */
 export function validateBoundaries(boundaries: readonly KitBoundary[]): readonly KitBoundary[] {
-  check(boundaries.length > 0, 'BOUNDARY_INVALID', 'A playbook needs at least one row in its measurement-boundaries table.');
+  check(boundaries.length > 0, 'BOUNDARY_INVALID', 'A work plan needs at least one row in its measurement-boundaries table.');
   const seen = new Set<string>();
   for (const row of boundaries) {
     check(filled(row?.evidence), 'BOUNDARY_INVALID', 'Each measurement-boundaries row needs its evidence.');

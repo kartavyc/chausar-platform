@@ -25,7 +25,7 @@ function start(options: { language?: 'en'; intercept?: Intercept } = {}) {
   return { base };
 }
 
-const LOCKED = "Built but locked. It opens after two clean drill runs and the founder's yes.";
+const LOCKED = "Routine-step approval is not available yet.";
 
 async function openEditor() {
   const open = await within(screen.getByRole('main')).findByRole('button', { name: 'Editor' });
@@ -40,7 +40,7 @@ describe('Team: auto is built but locked (4J22a)', () => {
   it('the engine refuses auto AUTO_LOCKED in its own words, whatever the readiness', async () => {
     const engine = createFakeClient(new FakeEngine());
     await expect(engine.request('venture.team.posture', { agentId: 'editor', posture: 'auto-spot-check' })).rejects.toMatchObject({
-      code: 'AUTO_LOCKED', message: "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.",
+      code: 'AUTO_LOCKED', message: "Routine-step approval is not available yet.",
     });
     const readiness = await engine.request('venture.auto.readiness', { agent: 'editor' });
     expect(readiness.locked).toBe(true);
@@ -50,7 +50,7 @@ describe('Team: auto is built but locked (4J22a)', () => {
     const { base } = start();
     const spy = vi.spyOn(base.engine, 'request');
     const sheet = await openEditor();
-    const group = within(sheet).getByRole('group', { name: 'Posture' });
+    const group = within(sheet).getByRole('group', { name: 'How much it asks you' });
     const auto = within(group).getByRole('radio', { name: 'Auto with spot checks' }) as HTMLInputElement;
     expect(auto.getAttribute('aria-disabled')).toBe('true');
     const reason = auto.closest('[data-choice]')!.querySelector('[data-locked]')!;
@@ -71,7 +71,7 @@ describe('Team: auto is built but locked (4J22a)', () => {
     // Some other way in (a stale panel) sends auto; the refusal is worded by the screen.
     start({ intercept: (method) => (method === 'venture.team.posture' ? Promise.reject(new EngineError('AUTO_LOCKED', 'Auto with spot checks is built but locked.')) : undefined) });
     const sheet = await openEditor();
-    await act(async () => { fireEvent.click(within(sheet).getByRole('radio', { name: 'Shadow' })); });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('radio', { name: 'Practice on real orders' })); });
     await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe(LOCKED));
   });
 
@@ -82,7 +82,7 @@ describe('Team: auto is built but locked (4J22a)', () => {
     });
     const sheet = await openEditor();
     const line = await waitFor(() => within(sheet).getByText((_, el) => el?.hasAttribute('data-shadow') ?? false));
-    expect(line.textContent).toBe('In shadow: would have gone out 14, held 3, you would have changed -');
+    expect(line.textContent).toBe('Practice on real orders: would have gone out 14, held 3, you would have changed -');
   });
 
   it('folds what auto would need: each item met or not, in the engine words, and the lock', async () => {

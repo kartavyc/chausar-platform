@@ -66,18 +66,18 @@ function build(registration: PlaybookRegistration, offers: readonly Source[], ap
     serviceType: registration.serviceType,
     oneLiner: registration.summary,
     offers: Object.freeze(picks.offers.map(pick => {
-      const offer = offers.find(item => item.key === pick.key) ?? fail(`The ${registration.id} playbook has no offer ${pick.key}.`);
+      const offer = offers.find(item => item.key === pick.key) ?? fail(`The ${registration.id} work plan has no offer ${pick.key}.`);
       return Object.freeze({ key: offer.key, name: offer.name, description: offer.description, model: offer.model, block: pick.block, rights: Object.freeze([...(offer.rights ?? [])]), ...(offer.intake ? { intake: offer.intake } : {}) });
     })),
     approvals: Object.freeze(picks.approvals.map(pick => {
-      const approval = approvals.find(item => item.key === pick.key) ?? fail(`The ${registration.id} playbook has no approval ${pick.key}.`);
+      const approval = approvals.find(item => item.key === pick.key) ?? fail(`The ${registration.id} work plan has no approval ${pick.key}.`);
       return Object.freeze({ key: approval.key, words: approval.words, block: pick.block });
     })),
-    connectors: Object.freeze([...new Set(picks.connectors.map(pick => (connectorIds.includes(pick.from) ? pick.id : fail(`The ${registration.id} playbook has no connector ${pick.from}.`))))]),
+    connectors: Object.freeze([...new Set(picks.connectors.map(pick => (connectorIds.includes(pick.from) ? pick.id : fail(`The ${registration.id} work plan has no connector ${pick.from}.`))))]),
   });
 }
 
-const registration = (id: string) => PLAYBOOK_REGISTRY.find(entry => entry.id === id) ?? fail(`The playbook ${id} is not registered.`);
+const registration = (id: string) => PLAYBOOK_REGISTRY.find(entry => entry.id === id) ?? fail(`The work plan ${id} is not registered.`);
 
 const CA_FIRM_PLAN = build(
   registration(CA_FIRM_ID),
@@ -158,19 +158,19 @@ export function kitPlan(definition: PlaybookDefinition): FlagshipPlan {
   const plan: FlagshipPlan = Object.freeze({
     id, label: definition.registration.label, serviceType: definition.registration.serviceType, oneLiner: definition.registration.summary,
     offers: Object.freeze(definition.planPicks.offers.map(key => {
-      const offer = definition.offers.find(item => item.id === key) ?? fail(`The ${id} playbook has no offer ${key}.`);
-      const intake = offer.intake.map(field => definition.intakeFields.find(item => item.id === field) ?? fail(`The ${id} playbook has no intake field ${field}.`));
+      const offer = definition.offers.find(item => item.id === key) ?? fail(`The ${id} work plan has no offer ${key}.`);
+      const intake = offer.intake.map(field => definition.intakeFields.find(item => item.id === field) ?? fail(`The ${id} work plan has no intake field ${field}.`));
       return Object.freeze({
         key: offer.id, name: offer.name, description: offer.description, model: offer.pricing, block: KIT_OFFER_BLOCKS[offer.pricing],
         rights: Object.freeze([...offer.rights]), intake: Object.freeze(intake.map(field => Object.freeze({ ...field }))),
       });
     })),
     approvals: Object.freeze(definition.planPicks.approvals.map(key => {
-      const approval = definition.approvals.find(item => item.id === key) ?? fail(`The ${id} playbook has no approval ${key}.`);
+      const approval = definition.approvals.find(item => item.id === key) ?? fail(`The ${id} work plan has no approval ${key}.`);
       return Object.freeze({ key: approval.id, words: approval.words, block: approval.block ?? 'each-draft' as const });
     })),
     connectors: Object.freeze([...new Set(definition.planPicks.connectors.flatMap(key => {
-      const connector = definition.connectors.find(item => item.id === key) ?? fail(`The ${id} playbook has no connector ${key}.`);
+      const connector = definition.connectors.find(item => item.id === key) ?? fail(`The ${id} work plan has no connector ${key}.`);
       return connector.catalogueId && !connector.label.startsWith('planned') ? [connector.catalogueId] : [];
     }))]),
   });

@@ -94,8 +94,8 @@ const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'sta
   'seo-wordpress': {qualification:'fixture-tested',what:'Creates only the exact owner and client approved article draft. The owner publishes it in WordPress.'},
   'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Writes an exact reviewed existing key, journals the result and keeps its previous value for undo.'},
   // Ink v2 wave 5 (5A6, K24): one item you approve, exactly as shown, to your own webhook (build/webhook-handoff.ts).
-  'n8n-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own n8n webhook. In this build that is the test item.' },
-  'make-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own Make webhook. In this build that is the test item.' },
+  'n8n-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own n8n connection. In this build that is the test item.' },
+  'make-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own Make connection. In this build that is the test item.' },
   'chausar-crm': { qualification: 'built-in', what: 'Adds clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Issues invoices and records payments inside Chausar, each number with a receipt.' },
 });

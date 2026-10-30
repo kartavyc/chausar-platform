@@ -103,7 +103,7 @@ test('ask the judge: refused for a draft that is not ready, failed a check, is p
   assert.ok(failed.checks.some((item: any) => !item.passed), 'a heading is missing');
   await assert.rejects(env.call('venture.delivery.judge', { runId: failed.id }), (error: any) => {
     assert.equal(error.code, 'JUDGE_NOT_READY');
-    assert.equal(error.message, 'Fix the failed check first; the judge reads only drafts that pass the code checks.');
+    assert.equal(error.message, 'Fix the failed check first; the quality check reads only drafts that pass the code checks.');
     return true;
   });
 
@@ -232,7 +232,7 @@ test('judgeAuto on: the write turn says the judge will read the draft and what i
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: ORDER });
   const waiting = await env.call('venture.delivery.run', { orderId: order.id });
   assert.ok(waiting.judgeNotice.startsWith(JUDGE_AUTO_ON_LINE), waiting.judgeNotice);
-  assert.match(waiting.judgeNotice, /the judge's check could cost up to USD \d+\.\d{4}\.$/);
+  assert.match(waiting.judgeNotice, /the quality check could cost up to USD \d+\.\d{4}\.$/);
   const [listed] = await env.call('venture.delivery.list');
   assert.equal(listed.judgeNotice, waiting.judgeNotice, 'Work reads it on the waiting turn');
   const row = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'quote');
@@ -243,7 +243,7 @@ test('judgeAuto on: the write turn says the judge will read the draft and what i
   // Approved on Today, whose row binds the notice it showed: that is where the standing consent is given.
   const run = await approveFromToday(env, waiting.id);
   const write = journal(env).find(entry => entry.subject === `${waiting.id}:${waiting.callId}`)!;
-  assert.match(write.describe, /^Send the next step for Asha Rao to your AI\. Then the judge reads the ready draft on your AI, with your client's words, for up to USD /);
+  assert.match(write.describe, /^Send the next step for Asha Rao to your AI\. Then the quality check reads the ready draft on your AI, with your client's words, for up to USD /);
   const [setting] = settings(env);
   assert.deepEqual(setting.consent, { at: '2026-10-21T10:00:00.000Z', by: 'owner', how: 'default', entryId: write.id }, 'consent recorded against the approved entry');
   assert.equal(judgeOf(run).passed, true, 'then the judge ran on its own');
@@ -253,7 +253,7 @@ test('judgeAuto on: the write turn says the judge will read the draft and what i
   const standing = judgeEntries(env)[0];
   assert.match(standing.describe, /standing consent/);
   const approval = standing.journal.find(step => step.state === 'approved')!;
-  assert.equal(approval.line, 'Sent under your standing judge setting.', 'never "You approved this."');
+  assert.equal(approval.line, 'Sent under your standing quality check setting.', 'never "You approved this."');
   assert.equal(approval.by, 'engine');
   assert.equal(standing.decidedBy, null);
   assert.equal(standing.approval!.approvedBy, null, 'no owner is recorded as approving the judge call');
@@ -262,13 +262,13 @@ test('judgeAuto on: the write turn says the judge will read the draft and what i
   const next = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Please advise on my bundle prices.' });
   const second = await env.call('venture.delivery.run', { orderId: next.id });
   // Once consented, the setting's words are not repeated, but the judge's cost is still shown before the write turn.
-  assert.match(second.judgeNotice, /^Once this draft is ready, the judge reads it on your AI; that check could cost up to USD \d+\.\d{4}\.$/);
+  assert.match(second.judgeNotice, /^Once this draft is ready, the quality check reads it on your AI; that check could cost up to USD \d+\.\d{4}\.$/);
   assert.ok(!second.judgeNotice.includes(JUDGE_AUTO_ON_LINE));
   const secondRow = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'quote');
   assert.ok(secondRow.line.includes(second.judgeNotice), 'Today shows the cost too');
   const judged = await env.call('venture.delivery.approve', { runId: second.id, digest: second.preview.digest });
   const secondWrite = journal(env).find(entry => entry.subject === `${second.id}:${second.callId}`)!;
-  assert.match(secondWrite.describe, /Then the judge reads the ready draft on your AI, for up to USD /);
+  assert.match(secondWrite.describe, /Then the quality check reads the ready draft on your AI, for up to USD /);
   assert.equal(judgeOf(judged).passed, true);
   assert.equal(settings(env).length, 1, 'the consent is recorded once');
   await assert.rejects(env.call('venture.delivery.judge', { runId: judged.id }), code('JUDGE_ALREADY_SENT'));
@@ -339,7 +339,7 @@ test('judgeAuto on: a refused automatic ballot settles nothing and blocks nothin
   const view = await env.call('venture.queue.view', { id: run.id, kind: 'draft' });
   const counted = run.checks.filter((item: any) => !item.notChecked).length;
   assert.deepEqual(view.sections.find((section: any) => section.heading === 'Checks').lines[0],
-    `${counted} of ${counted} checks passed. The judge settled no rule, so its check is not counted.`);
+    `${counted} of ${counted} checks passed. The quality check settled no rule, so its check is not counted.`);
   const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!;
   assert.equal(draftPostChecks(env.store.read(), stored, { channel: 'linkedin', text: 'Our new prices start this week.' }).checks, 'passed');
   const failedJudge = { ...stored, checks: [...stored.checks.filter(item => item.check !== 'rules-judge'), { check: 'rules-judge' as const, passed: false, detail: 'Failed: goal-met.' }] };
@@ -418,7 +418,7 @@ test('judgeAuto on: a CA firm draft the judge fails records its first failed rul
   assert.equal(diagnosis.chosen?.reason, 'right-head');
   const practiceCase = signalScenario(signals[0], 'bookkeeping');
   assert.ok(practiceCase.checks.includes('rules-judge'), 'its practice case asks the judge again');
-  assert.match(practiceCase.expectedOutcome, /Watch for the judge's rule right-head\./);
+  assert.match(practiceCase.expectedOutcome, /Watch for the quality check's rule right-head\./);
 });
 
 test('judgeAuto on: a preview that cannot be made, or a send refused before it went, leaves the run saying why', async () => {
@@ -433,7 +433,7 @@ test('judgeAuto on: a preview that cannot be made, or a send refused before it w
   env.models.refuseSend = task => rulesTask(task) ? new ChausarError('BUDGET_REACHED', 'Your monthly AI limit is reached.') : null;
   const held = await readyDraft(env);
   assert.equal(held.judge.status, 'waiting', 'the call still waits for the owner');
-  assert.match(held.judge.line, /The judge did not run on its own: Your monthly AI limit is reached\./);
+  assert.match(held.judge.line, /The quality check did not run on its own: Your monthly AI limit is reached\./);
   assert.equal(env.models.rulesTasks().length, 0);
   env.models.refuseSend = null;
   const judged = await env.call('venture.delivery.judgeSend', { runId: held.id, digest: held.judge.preview.digest });
@@ -481,14 +481,14 @@ test('judgeAuto on: Accept waits while the automatic call is out, and a verdict 
     const [listed] = await env.call('venture.delivery.list');
     await assert.rejects(env.call('venture.delivery.review', { runId: listed.id, verdict: 'accepted' }), (error: any) => {
       assert.equal(error.code, 'INVALID_VENTURE_REQUEST');
-      assert.equal(error.message, 'The judge is reading this draft. Accept it once its answer is in.');
+      assert.equal(error.message, 'The quality check is reading this draft. Accept it once its answer is in.');
       return true;
     });
     during = listed;
   };
   const run = await readyDraft(env);
   assert.equal(during.canAccept, false);
-  assert.equal(during.acceptBlocked, 'The judge is reading this draft. Accept it once its answer is in.');
+  assert.equal(during.acceptBlocked, 'The quality check is reading this draft. Accept it once its answer is in.');
   assert.equal(run.canAccept, false, 'the failing verdict landed before anything was accepted');
   assert.match(run.acceptBlocked, /offers a discount/);
 
@@ -509,22 +509,22 @@ test('judgeAuto on: Today and the draft view say when the judge has not read a d
   refused.models.respond['judge-rules'] = () => ({ answer: 'looks fine' });
   const run = await readyDraft(refused);
   const row = (await refused.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.match(row.line, /Not checked by the judge\./);
+  assert.match(row.line, /Not checked by the quality check\./);
   const view = await refused.call('venture.queue.view', { id: run.id, kind: 'draft' });
-  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.includes('Not checked by the judge.')));
+  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.includes('Not checked by the quality check.')));
 
   const capped = await business(PLAIN_IDEA);
   capped.models.estimateFor = task => rulesTask(task) ? '300000' : '1000';
   const waiting = await agentRun(capped);
   const cappedRow = (await capped.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.match(cappedRow.line, /The judge has not read this draft\. The judge did not run on its own: this run is at its spend cap/);
+  assert.match(cappedRow.line, /The quality check has not read this draft\. The quality check did not run automatically: this run is at its spend cap/);
   const cappedView = await capped.call('venture.queue.view', { id: waiting.id, kind: 'draft' });
-  assert.ok(cappedView.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.startsWith('The judge has not read this draft.')));
+  assert.ok(cappedView.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.startsWith('The quality check has not read this draft.')));
 
   const passed = await business(PLAIN_IDEA);
   await readyDraft(passed);
   const passedRow = (await passed.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.doesNotMatch(passedRow.line, /judge/, 'a passing verdict adds nothing');
+  assert.doesNotMatch(passedRow.line, /quality check/, 'a passing verdict adds nothing');
 });
 
 test('judgeAuto on: a refused automatic ballot still counts the cost the port billed against the run, once', async () => {
@@ -658,7 +658,7 @@ test('judgeAuto: between the ready draft and the judge, Accept waits; an accepte
   assert.equal(waiting.canAccept, true, 'a judge call waiting for the owner does not hold Accept');
   await unread.call('venture.delivery.review', { runId: waiting.id, verdict: 'accepted' });
   const view = await unread.call('venture.queue.view', { id: waiting.id, kind: 'draft' });
-  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.includes('The judge never read this draft before you accepted it.'));
+  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.includes('The quality check never read this draft before you accepted it.'));
 });
 
 test('judgeAuto: a call left reading after its time is up stops holding Accept and stops saying it is reading', async () => {
@@ -676,7 +676,7 @@ test('judgeAuto: a call left reading after its time is up stops holding Accept a
   assert.equal(reading.line, JUDGE_READING, 'while its time lasts, Accept waits');
   env.setNow('2026-10-21T10:31:00.000Z');
   const open = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.match(open.line, /The judge has not read this draft\./);
+  assert.match(open.line, /The quality check has not read this draft\./);
   assert.doesNotMatch(open.line, /reading/);
 });
 
@@ -700,8 +700,8 @@ test('judgeAuto: a verdict that comes back after an edit or a reject keeps the r
   };
   const gone = await readyDraft(rejected);
   assert.equal(gone.status, 'rejected');
-  assert.equal(gone.judge.line, 'The draft was decided while the judge read it, so its answer is not kept.');
-  assert.doesNotMatch(gone.judge.line, /Ask the judge again/);
+  assert.equal(gone.judge.line, 'The draft was decided while the quality check read it, so its answer is not kept.');
+  assert.doesNotMatch(gone.judge.line, /Ask the quality check again/);
 });
 
 test('the journal: a standing approval is only for the judge\'s own send, and approveAction never makes one', async () => {

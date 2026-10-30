@@ -196,7 +196,7 @@ test('actions that outlive the session are refused before they are recorded: cre
     await assert.rejects(journalled(deps, owner, write(`op2_${operation}`, { operation }), sent().run), code('ACTION_DENYLISTED'), operation);
   }
   assert.equal(listRecords(store.read(), 'venture-journal-entry').length, 0, 'nothing was recorded');
-  assert.equal(ACTION_DENY_LINE, 'Chausar does not do this: it would keep working after you close the app, such as a new key or token, a webhook that keeps sending, or a batch that hides what it does. Do it yourself where you can see it.');
+  assert.equal(ACTION_DENY_LINE, 'Chausar does not do this: it would keep working after you close the app, such as a new key or token, a connection that keeps sending, or a batch that hides what it does. Do it yourself where you can see it.');
   // It fails closed: a write to a connected service names an operation Chausar knows, or it is refused.
   for (const operation of ['createApiKey', 'create_token', 'webhook.created', 'createWebhook', 'contacts.batch', 'contacts.update', undefined, null]) {
     await assert.rejects(proposeAction(deps, agent, write(`op3_${String(operation)}`, { operation })), (error: any) => {

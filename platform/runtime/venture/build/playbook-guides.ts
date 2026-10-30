@@ -98,12 +98,12 @@ export const PLAYBOOK_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charges
     "steps": [
       "Finish source review, the owner-approved outline and the article draft.",
       "Complete the required client-use review and approve the exact final article and companion text.",
-      "Copy the approved handoff into the client publishing account and publish it yourself."
+      "Copy the approved article into the client publishing account and publish it yourself."
     ],
-    "skipped": "A changed article needs fresh approval. No publishing password belongs in this handoff.",
-    "checks": "Chausar checks the saved source and exact approval before preparing the handoff. It does not check a publishing account or prove publication.",
+    "skipped": "A changed article needs fresh approval. No publishing password belongs in this copy.",
+    "checks": "Chausar checks the saved source and exact approval before preparing your copy. It does not check a publishing account or prove publication.",
     "sends": "Sends: nothing to a publisher. Copy and publish the approved article yourself.",
-    "agentLimits": "Agents cannot publish or mark a manual handoff as a confirmed live article."
+    "agentLimits": "Agents cannot publish or mark a copy you send as a confirmed live article."
   },
   "overpass": {
     "steps": [

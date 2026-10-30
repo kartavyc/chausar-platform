@@ -146,7 +146,7 @@ function patchWords(value: string, field: string, max: number, quote: string | n
 export const OWNER_PATCH_OPS: readonly PlaybookPatchOp[] = Object.freeze(['guidance.add', 'guidance.remove']);
 
 /** Why chat cannot make a change: it would touch what always asks the owner, money, or the tools, checks and limits. */
-export const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, at every posture. Chat does not change that.';
+export const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, with every approval setting. Chat does not change that.';
 export const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Business, not by an agent's instructions.";
 export const CONTROLS_REASON = 'Tools, checks and limits are not changed from chat.';
 /**
@@ -199,7 +199,7 @@ function ownerRules(patch: PlaybookPatch, owner: { steps: readonly string[]; add
   if (owner) {
     check(owner.steps.includes(patch.stepId), 'PATCH_NOT_YOUR_STEP', "That step is another agent's. Ask the agent that does it.");
     if (patch.op === 'guidance.remove') {
-      check(owner.added.includes(patch.value), 'PATCH_OWNER_OP', 'That instruction is built into the playbook, so chat cannot remove it. Chat removes only instructions you gave.');
+      check(owner.added.includes(patch.value), 'PATCH_OWNER_OP', 'That instruction is built into the work plan, so chat cannot remove it. Chat removes only instructions you gave.');
     }
   }
   return quote;
@@ -218,7 +218,7 @@ export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { 
   const next: PlaybookBody = structuredClone(body);
   const stepOf = (kinds: (kind: string) => boolean, what: string): PlaybookStep => {
     const step = next.steps.find(item => item.id === patch.stepId);
-    if (!step || !kinds(step.kind)) refuse(`The patch names ${JSON.stringify(patch.stepId)}, which is not ${what} in this playbook.`);
+    if (!step || !kinds(step.kind)) refuse(`The patch names ${JSON.stringify(patch.stepId)}, which is not ${what} in this work plan.`);
     return step!;
   };
   switch (patch.op) {
@@ -265,7 +265,7 @@ export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { 
     case 'limits.turns': {
       if (!(TURN_CHOICES as readonly string[]).includes(patch.value)) refuse(`Turn limits are one of ${TURN_CHOICES.join(', ')}.`);
       const turns = parseInt(patch.value, 10);
-      if (turns === next.limits.maxTurns) refuse('The playbook already has that turn limit.');
+      if (turns === next.limits.maxTurns) refuse('The work plan already has that turn limit.');
       next.limits = { ...next.limits, maxTurns: turns, maxToolCalls: turns * 3 };
       break;
     }

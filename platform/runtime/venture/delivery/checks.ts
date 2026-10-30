@@ -412,7 +412,7 @@ export function rulesJudgeResult(verdict: RulesVerdict): CheckResult {
   const said = verdict.outcome === 'fail' ? first?.votes.find(vote => vote.verified && vote.answer === 'no')?.reason : undefined;
   const why = first && first.detail !== verdict.detail ? ` ${first.detail}` : '';
   return {
-    check: 'rules-judge', passed: false, detail: `${verdict.detail}${why}${said ? ` The judge said: "${quote(said, 160)}"` : ''}`,
+    check: 'rules-judge', passed: false, detail: `${verdict.detail}${why}${said ? ` The quality check said: "${quote(said, 160)}"` : ''}`,
     // No rule settled with checked evidence: nothing was checked, so the screens say so instead of calling it a failure.
     ...(verdict.outcome === 'unverified' ? { notChecked: true as const } : {}),
   };
@@ -489,7 +489,7 @@ export function judgeAnswerRefused(error: unknown): boolean {
 
 /** A refused judge answer as a verdict: every rule unsettled, with why. Never a pass. */
 export function refusedVerdict(rules: readonly JudgeRule[], error: unknown): RulesVerdict {
-  const reason = `The judge's answer was refused, so no rule is settled: ${quote(error instanceof Error ? error.message : 'no reason given', 200)}`;
+  const reason = `The quality check's answer was refused, so no rule is settled: ${quote(error instanceof Error ? error.message : 'no reason given', 200)}`;
   return { ...notRuled(rules, reason), detail: reason };
 }
 
@@ -511,8 +511,8 @@ export async function preferDraft(
     }, { rounds: 1, random: () => 0 });
     const winner = result.winner === 'parent' || result.winner === 'candidate' ? result.winner : null;
     const detail = winner
-      ? `The judge preferred the ${winner === 'candidate' ? 'new' : 'old'} version's draft with the order swapped.`
-      : 'The judge preferred neither draft once the order was swapped, so the tie stands.';
+      ? `The quality check preferred the ${winner === 'candidate' ? 'new' : 'old'} version's draft with the order swapped.`
+      : 'The quality check preferred neither draft once the order was swapped, so the tie stands.';
     return { winner, detail, callIds: result.rounds.flatMap(round => round.callIds) };
   } catch (error) {
     if (!JUDGE_BEHAVIOUR.has(errorCode(error)) && errorCode(error) !== 'NO_MODEL_CONNECTED') throw error;

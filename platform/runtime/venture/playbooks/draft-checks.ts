@@ -168,7 +168,7 @@ function kitChecks(kit: PlaybookDefinition, input: FlagshipCheckInput, definitio
   return rules ? [...results, { playbook: input.flagship, check: rules.check, outcome: rules.outcome, detail: rules.detail }] : results;
 }
 
-const TEMPLATE_NOT_RUN = "not run: this playbook's checks read an agent's draft, and this is a template outline.";
+const TEMPLATE_NOT_RUN = "not run: this work plan's checks read an agent's draft, and this is a template outline.";
 
 async function playbookOwnChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
   const as = (check: string, outcome: PlaybookCheckResult['outcome'], detail: string): PlaybookCheckResult => ({ playbook: input.flagship, check, outcome, detail });

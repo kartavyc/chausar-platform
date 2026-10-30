@@ -256,7 +256,7 @@ describe('Team w4: Keeper', () => {
     expect(within(sheet).getByText('Runs as code, not AI')).toBeTruthy();
     expect(await within(sheet).findByRole('list', { name: "Keeper's jobs" })).toBeTruthy();
     expect(within(sheet).queryByRole('radiogroup')).toBeNull();
-    expect(within(sheet).queryByRole('group', { name: 'Posture' })).toBeNull();
+    expect(within(sheet).queryByRole('group', { name: 'How much it asks you' })).toBeNull();
   });
 });
 
@@ -308,12 +308,12 @@ describe('Team w4: health', () => {
   });
 
   it('degraded says its reason in wait words; healthy says nothing', async () => {
-    start('#/team', { intercept: withHealth('researcher', { status: 'degraded', reason: "The playbook is producing work people don't want. Revise it." }) });
+    start('#/team', { intercept: withHealth('researcher', { status: 'degraded', reason: "The work plan is producing work people don't want. Revise it." }) });
     const researcher = await cardOf('Researcher');
     await waitFor(() => expect(researcher.querySelector('[data-health]')).not.toBeNull());
     const health = researcher.querySelector('[data-health]') as HTMLElement;
     expect(health.querySelector('[data-tone="wait"]')?.textContent).toBe('Needs a look');
-    expect(health.textContent).toContain("The playbook is producing work people don't want. Revise it.");
+    expect(health.textContent).toContain("The work plan is producing work people don't want. Revise it.");
     expect(within(researcher).queryByRole('button', { name: 'Clear quarantine' })).toBeNull();
     expect((await cardOf('Editor')).querySelector('[data-health]')).toBeNull();
   });
@@ -344,12 +344,12 @@ describe('Team w4: health', () => {
 describe('Team w4: the stats tiles from the team totals', () => {
   it('"Done this week" counts the jobs with the departments\' bars beside; the AI spend is Money\'s own figure, the rupees beside and the held line under its receipt', async () => {
     start();
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
     const done = (await within(glance).findByText('Done this week')).closest('[data-card]') as HTMLElement;
     expect(done.querySelector('[data-count]')?.textContent).toBe('8');
     expect(done.textContent).not.toContain('jobs across five departments');
     expect([...done.querySelectorAll('svg rect')].map((bar) => bar.getAttribute('height'))).toEqual(['250', '750', '1000', '0', '0']);
-    const spend = within(glance).getByText('AI spend this month').closest('[data-card]') as HTMLElement;
+    const spend = within(glance).getByText('Monthly AI spend').closest('[data-card]') as HTMLElement;
     // 4Z3: rupees lead, the dollars beneath with two decimals and the rate.
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
     expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');

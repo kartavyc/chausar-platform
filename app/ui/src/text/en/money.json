@@ -118,7 +118,7 @@
   "money.spend.kind.billed": "billed",
   "money.spend.kind.refused": "refused",
   "money.spend.none": "No paid calls yet.",
-  "money.spend.refusedNote": "A call with no price is refused, never counted as free. Set its price under Limits and rates.",
+  "money.spend.refusedNote": "Calls without prices are refused, never free. Set prices under Limits and rates.",
   "money.journal.title": "{action} · {target}",
   "money.journal.none": "Nothing sent or changed yet.",
   "money.journal.state.described": "Described",

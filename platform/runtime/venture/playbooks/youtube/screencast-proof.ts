@@ -13,6 +13,6 @@ export function screencastProof(input:{board:YoutubeBoardBody;words:readonly Edi
  check(board.outputs.some(row=>row.kind==='publishing'&&row.decision==='approved'),'OUTPUT_APPROVAL_REQUIRED','Approve the exact publishing text on the board.');
  check(!input.scripted||typeof input.script==='string'&&!!input.script.trim(),'OUTPUT_APPROVAL_REQUIRED','Approve the speech script in the source desk before checking this scripted recording.');
  const coverage=input.scripted?scriptCoverage(input.script!,input.words):null;
- check(!coverage?.missing.length,'SCRIPT_COVERAGE_FAILED','The current cut is missing approved script words. Resolve the missing passages before handoff.');
+ check(!coverage?.missing.length,'SCRIPT_COVERAGE_FAILED','The current cut is missing approved script words. Resolve the missing passages before sending.');
  return {clipCount:3,longVideoCount:1,clips:board.clips.rows.map(row=>({...row})),coverage,capability:'handoff' as const};
 }

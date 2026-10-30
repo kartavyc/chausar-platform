@@ -148,7 +148,7 @@ function socialAgency(): FlagshipDelivery {
     return { stepId: step.id, role: role.kind === 'person' ? null : { id: step.role, name: role.name, job: role.does, kind: role.kind } };
   }));
   const floor: Record<string, string> = {};
-  for (const point of SOCIAL_APPROVALS) if (point.floor && !floor[point.stepId]) floor[point.stepId] = `${point.when}. This asks you at every posture.`;
+  for (const point of SOCIAL_APPROVALS) if (point.floor && !floor[point.stepId]) floor[point.stepId] = `${point.when}. This asks you with every approval setting.`;
   const steps = withGuidance(socialPlaybookSteps(), 'drafts', SOCIAL_POST_GUIDANCE).map(step=>['drafts','creative-briefs'].includes(step.id)?{...step,requiredSections:[...step.requiredSections,'Post plan']}:step);
   const doers = new Map(SOCIAL_STEPS.map(step => {
     const role = SOCIAL_ROLES[step.role as SocialRoleId];

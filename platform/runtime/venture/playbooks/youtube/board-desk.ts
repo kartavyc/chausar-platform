@@ -68,7 +68,7 @@ export const boardDesk: DeskHandler = {
     exactPayload(payload, ['playbook', 'kind', 'filter'], ['playbook', 'kind']);
     const filter = exactPayload(payload.filter ?? {}, ['orderId']);
     const { state, venture } = readAs(deps, ctx, 'read');
-    return { playbook: 'youtube', kind: 'board', rows: listRecords(state, 'venture-youtube-edit', venture.id).filter(edit => filter.orderId === undefined || edit.orderId === filter.orderId).map(boardView), line: 'Review each output before saving a project. Publishing remains a manual handoff.' };
+    return { playbook: 'youtube', kind: 'board', rows: listRecords(state, 'venture-youtube-edit', venture.id).filter(edit => filter.orderId === undefined || edit.orderId === filter.orderId).map(boardView), line: 'Review each output before saving a project. Publishing remains a copy you send yourself.' };
   },
   async get(deps, ctx, payload) {
     exactPayload(payload, ['playbook', 'kind', 'id'], ['playbook', 'kind', 'id']);

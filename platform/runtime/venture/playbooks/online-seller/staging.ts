@@ -10,7 +10,7 @@ function readCaps(raw:unknown):SellerCaps{exact(raw,['priceChangeBps','promotion
 /** Produces an immutable dry preview, never an API write. Missing evidence remains visible. */
 export function stageSellerChange(raw:unknown,request:unknown,rawCaps:unknown,today:string):SellerStaged{
  const product=sellerProduct(raw),caps=readCaps(rawCaps);sellerDate(today);exact(request,['field','value','clearance','scope','depthBps','endsOn'],['field','value']);const change=structuredClone(request) as SellerChange;
- if(!FIELDS.includes(change.field))sellerRefuse('SELLER_FIELD_UNWRITABLE','This channel handoff cannot change that field.');sellerText(change.value,'New value',2000);
+ if(!FIELDS.includes(change.field))sellerRefuse('SELLER_FIELD_UNWRITABLE','The copy for this channel cannot change that field.');sellerText(change.value,'New value',2000);
  if(change.clearance!==undefined&&typeof change.clearance!=='boolean')sellerRefuse('SELLER_INPUT_INVALID','Clearance needs the owner choice.');
  const missing:string[]=[];
  if(change.field==='price'){
@@ -27,7 +27,7 @@ export function stageSellerChange(raw:unknown,request:unknown,rawCaps:unknown,to
 }
 /** Owner-route approval and session provenance are checked by the API before this current-state recheck. */
 export function checkSellerApply(stage:SellerStaged,current:unknown,caps:unknown,today:string):SellerStaged{
- if(!stage.descriptionComplete)sellerRefuse('SELLER_PREVIEW_INCOMPLETE','Narrow the preview and supply the missing evidence before preparing a handoff.');const product=sellerProduct(current);
+ if(!stage.descriptionComplete)sellerRefuse('SELLER_PREVIEW_INCOMPLETE','Narrow the preview and supply the missing evidence before preparing your copy.');const product=sellerProduct(current);
  if(product.sku!==stage.product.sku||product.channel!==stage.product.channel||product.currency!==stage.product.currency)sellerRefuse('SELLER_PROVENANCE_REQUIRED','Read this exact product in the current session.');
  if(stage.change.field==='stock'&&product.stock!==stage.product.stock)sellerRefuse('SELLER_STOCK_CHANGED','The stock moved since it was read.');
  if(stage.change.field!=='stock'&&JSON.stringify(product)!==JSON.stringify(stage.product))sellerRefuse('SELLER_SOURCE_CHANGED','The product changed since it was read.');

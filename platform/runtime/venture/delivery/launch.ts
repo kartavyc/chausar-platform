@@ -13,7 +13,7 @@ import { acceptedBlueprintOrNull, newestFirst, readAs, serviceTypeOf } from './s
 import { AUTO_LOCKED_WORDS, autoLocked } from '../policy/auto-lock.ts';
 
 export const REASON_CONNECT_AI = "Connect an AI and rehearse with it first. Template outlines can't be judged.";
-export const REASON_REHEARSE_ALL = 'Rehearse all three practice clients with the current playbook.';
+export const REASON_REHEARSE_ALL = 'Rehearse all three practice clients with the current work plan.';
 export const REASON_TEMPLATE_DRAFTS = "Template outlines can't be judged. Rehearse each practice client with your AI writing the drafts.";
 export const REASON_NO_JUDGE = 'Your AI wrote the drafts, but no AI judged them. Connect an AI for quick work, then rehearse again.';
 export const REASON_NOT_JUDGED = 'Your last rehearsal was not judged. Run it again with your AI.';
@@ -98,7 +98,7 @@ function improvement(state: State, ventureId: string, now: Date): ImprovementRea
   return {
     judged, rejectedOrEdited, due, status: 'available',
     reason: due
-      ? 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.'
+      ? 'There are enough reviewed drafts to improve the work plan. The improvement loop tries one change and keeps it only if it wins.'
       : 'The improvement loop can run once a draft was rejected or edited, a check failed or a rehearsal failed. It learns more from more reviewed drafts.',
   };
 }
@@ -123,7 +123,7 @@ export function computeLaunchStatus(state: State, venture: VentureRecord, now: D
         : { stage, allowed: false, reason, status: 'available' };
     }
     if (!rehearsedWithAi) return { stage, allowed: false, reason, status: 'available' };
-    if (current < LAUNCH_STAGES.indexOf('shadow')) return { stage, allowed: false, reason: 'Move to shadow first.', status: 'available' };
+    if (current < LAUNCH_STAGES.indexOf('shadow')) return { stage, allowed: false, reason: 'Practise on real orders first.', status: 'available' };
     return { stage, allowed: true, reason: 'You approve each draft before you copy it to a client.', status: 'available' };
   });
   const runs = newestFirst(listRecords(state, 'venture-simulation-run', venture.id));

@@ -57,7 +57,7 @@ test('proposals: an answer drafts proposals; a brief goes to the agent at once; 
   assert.equal(reply.proposals[0].what, drafted.line);
   assert.deepEqual(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.proposalIds, [drafted.id]);
   assert.deepEqual(reply.dropped, [
-    'One proposal was left out: Chausar never changes your keys, money rules, posture or storage. You change those yourself.',
+    'One proposal was left out: Chausar never changes your keys, money rules, approval setting or storage. You change those yourself.',
     'One proposal was left out: Chausar cannot propose that.',
     'One proposal was left out: that order was not found.',
   ]);

@@ -19,7 +19,7 @@ export const SOCIAL_ROLES: Readonly<Record<SocialRoleId, SocialRole>> = Object.f
   strategist: { name: 'Strategist', kind: 'agent', does: 'Writes the voice sheet and content pillars, then fills topics and hooks into the calendar slots code made.' },
   writer: { name: 'Writer', kind: 'agent', does: 'Drafts captions, alt text, hashtags and reply drafts for each channel, in the voice the owner approved.' },
   creative: { name: 'Creative', kind: 'agent', does: 'Writes briefs for pictures, video and creator-style ads, each with the disclosure it needs.' },
-  checker: { name: 'Checker', kind: 'agent', does: 'Runs the code checks, then the yes or no judge, and reads the real output before a draft counts as ready.' },
+  checker: { name: 'Checker', kind: 'agent', does: 'Runs the code checks, then the yes or no quality check, and reads the real output before a draft counts as ready.' },
   analyst: { name: 'Analyst', kind: 'agent', does: 'Writes the report narrative from the figures code computed, citing receipts only.' },
   owner: { name: 'You', kind: 'person', does: 'Approve the voice sheet, every draft, every post, any spend and the report.' },
   client: { name: 'Your client', kind: 'person', does: 'Approves the drafts you approved, through a share link, and uploads the platform exports.' },
@@ -88,7 +88,7 @@ export const SOCIAL_STEPS: readonly SocialStep[] = Object.freeze([
     produces: 'Briefs with beats from hook to call to action. Generation waits until you see the cost from code.',
   },
   {
-    id: 'check', kind: 'verify', role: 'checker', title: 'Run the code checks, then the yes or no judge',
+    id: 'check', kind: 'verify', role: 'checker', title: 'Run the code checks, then the yes or no quality check',
     tier: 'code', model: null, doneBy: 'agent', requiredSections: [], checks: ['required-sections', 'house-style', 'length-bounds', 'no-done-claims', 'no-outside-writes', 'receipts'],
     tools: [], guidance: [], socialChecks: ALL_SOCIAL_CHECKS,
     produces: 'Each draft marked ready, or blocked with the reason and the rule it rests on.',

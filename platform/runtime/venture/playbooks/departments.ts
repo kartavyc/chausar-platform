@@ -65,7 +65,7 @@ export function departmentOfRole(delivery: Pick<FlagshipDelivery, 'id' | 'roles'
   const department = map[delivery.id]?.[roleId] ?? delivery.roles.find(role => role.id === roleId)?.department;
   if (isDepartment(department)) return department;
   const name = delivery.roles.find(role => role.id === roleId)?.name ?? roleId;
-  throw new ChausarError('DEPARTMENT_MISSING', `${name} has no department. Every role in the ${delivery.id} playbook needs one of the five.`);
+  throw new ChausarError('DEPARTMENT_MISSING', `${name} has no department. Every role in the ${delivery.id} work plan needs one of the five.`);
 }
 
 /**

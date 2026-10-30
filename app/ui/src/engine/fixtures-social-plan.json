@@ -593,7 +593,7 @@
     {
       "id": "video-ads",
       "name": "Short video ads",
-      "description": "Real product photos, a category-based style and approved storyboard stills before a code-built provider quote. Generation is a manual handoff.",
+      "description": "Real product photos, a category-based style and approved storyboard stills before a code-built provider quote. You generate the media yourself in the provider’s app.",
       "charge": "project",
       "price": "owner-sets",
       "steps": [
@@ -931,7 +931,7 @@
       "id": "check",
       "kind": "verify",
       "role": "checker",
-      "title": "Run the code checks, then the yes or no judge",
+      "title": "Run the code checks, then the yes or no quality check",
       "tier": "code",
       "model": null,
       "doneBy": "agent",

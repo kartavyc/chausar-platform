@@ -62,7 +62,7 @@ it('records a change request without claiming a model already made it', async ()
 
 it('runs speaking-time checks and exposes local tools as unavailable without fake measurements', async () => {
   const { client } = start(); await prepare();
-  fireEvent.click(screen.getByText('Checks and editor handoff'));
+  fireEvent.click(screen.getByText('Checks and editor copy'));
   fireEvent.click(screen.getByText('Speaking beats'));
   fireEvent.change(screen.getByLabelText('One spoken line per row'), { target: { value: 'Make this today.\nTry a simple step.' } });
   fireEvent.change(screen.getByLabelText('Loop back to this opening line'), { target: { value: 'Make this today.' } });

@@ -15,7 +15,7 @@ import { clientNameFor, short } from '../views/shared.ts';
 
 /** The kinds the chief may propose itself. start-work (4B1's floor requests) and next-step (4E3) come from elsewhere. */
 export const CHIEF_KINDS: readonly ProposalKind[] = Object.freeze(['brief-agent', 'start-run', 'draft-invoice', 'draft-reminder', 'quote', 'outreach-draft']);
-export const NOT_ALLOWED_LINE = 'Chausar never changes your keys, money rules, posture or storage. You change those yourself.';
+export const NOT_ALLOWED_LINE = 'Chausar never changes your keys, money rules, approval setting or storage. You change those yourself.';
 export const UNKNOWN_KIND_LINE = 'Chausar cannot propose that.';
 /** Under a drafted proposal in the chief's answer. */
 export const TODAY_LINE = 'This becomes a card on Today for your approval.';

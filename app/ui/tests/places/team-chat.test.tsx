@@ -297,9 +297,9 @@ describe('The Instructions tab', () => {
     const shorts = within(how).getByRole('heading', { level: 4, name: 'Cut shorts from the episode' }).closest('li')!;
     expect(shorts.textContent).toContain('Pick moments that make sense without the episode.');
     expect(shorts.textContent).toContain("Done when these checks pass: the length is within limits, it claims no work it didn't do.");
-    expect(within(panel).getByText('Posture set for the whole business')).toBeTruthy();
+    expect(within(panel).getByText('How much it asks, set for the whole business')).toBeTruthy();
     // What Steps held before stays: the posture and when each step asks the owner.
-    expect(within(panel).getByRole('group', { name: 'Posture' })).toBeTruthy();
+    expect(within(panel).getByRole('group', { name: 'How much it asks you' })).toBeTruthy();
     expect(within(panel).getByRole('list', { name: 'Steps' })).toBeTruthy();
     assertInkRules(document.body);
   });

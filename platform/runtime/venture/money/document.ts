@@ -62,7 +62,6 @@ export function documentText(input: InvoiceDocumentInput): string {
   if (BigInt(input.creditedMinor ?? '0') > 0n) lines.push(`Credited  ${money(input.creditedMinor as string)}`);
   lines.push(`Balance  ${money(invoice.balanceMinor)}`);
   lines.push(RULE_LINE);
-  lines.push(`Every number on this invoice has a receipt in Chausar: ${invoice.priceReceiptId}`);
   if (input.experimental) lines.push(EXPERIMENTAL_DOCUMENT_LINE);
   return lines.join('\n');
 }

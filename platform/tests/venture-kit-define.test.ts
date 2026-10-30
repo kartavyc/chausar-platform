@@ -14,7 +14,7 @@ const code = (expected: string, words?: RegExp) => (error: any) => { assert.equa
 function refused(definition: PlaybookDefinition, field: string, words?: RegExp) {
   assert.throws(() => definePlaybook(definition), (error: any) => {
     assert.equal(error?.code, 'PLAYBOOK_DEFINITION_INVALID', error?.message);
-    assert.match(error.message, new RegExp(`^The kit-fixture playbook's ${field}: `), error.message);
+    assert.match(error.message, new RegExp(`^The kit-fixture work plan's ${field}: `), error.message);
     if (words) assert.match(error.message, words);
     return true;
   });

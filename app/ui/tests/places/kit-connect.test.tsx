@@ -92,8 +92,8 @@ describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => 
   it('the webhook address is kept like a key, and the test item is shown exactly as it is sent', async () => {
     const { spy } = await start();
     const card = await tile('Your n8n or Make');
-    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Set a webhook' })); });
-    const field = within(card).getByLabelText('Webhook address') as HTMLInputElement;
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Send to n8n or Make' })); });
+    const field = within(card).getByLabelText('Receiving address') as HTMLInputElement;
     expect(field.type).toBe('password');
     expect(field.getAttribute('autocomplete')).toBe('off');
     expect(field.closest('form')).toBeNull();
@@ -104,7 +104,7 @@ describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => 
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Save and send the test' })); });
     await settle();
     expect(calls(spy, 'venture.webhook.set')[0]![1]).toEqual({ kind: 'make', url: 'https://hook.example.com/abc', test: true });
-    expect(card.textContent).toContain('The test item reached your Make webhook.');
+    expect(card.textContent).toContain('The test item reached your Make connection.');
     expect(card.textContent).not.toContain('/abc');
     assertInkRules(document.body);
   });

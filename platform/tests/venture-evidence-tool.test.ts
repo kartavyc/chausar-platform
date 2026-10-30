@@ -437,7 +437,7 @@ test('taint latch: evidence.record is an internal suggestion the latch lets thro
 // 6. Grants: every playbook's gather steps and the eight fixed steps' work step
 // ---------------------------------------------------------------------------
 
-test('grants: the fixed gather and work steps and every flagship playbook\'s gather steps hold evidence.record', async () => {
+test('grants: the fixed gather and work steps and every flagship work plan\'s gather steps hold evidence.record', async () => {
   const env = await setup();
   const fixed = await call<{ steps: { id: string; kind: string; tools?: ToolName[] }[] }>(env, 'venture.delivery.playbook');
   for (const id of ['gather', 'work']) assert.ok(fixed.steps.find(step => step.id === id)!.tools!.includes('evidence.record'), id);

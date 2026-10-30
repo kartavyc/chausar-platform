@@ -2,7 +2,7 @@
   "pb-books-setup.heading": "Create client setup",
   "pb-books-setup.boundary": "Review every source mapping. Creating masters and opening balances asks separately. Existing records are never changed.",
   "pb-books-setup.demo": "Demo only: no provider access. Use sample inputs, never a real token.",
-  "pb-books-setup.tally": "Tally setup writes are planned until a real installation is qualified. Use the reviewed bookkeeper handoff meanwhile.",
+  "pb-books-setup.tally": "Tally setup writes are planned until a real installation is qualified. Give the reviewed copy to your bookkeeper meanwhile.",
   "pb-books-setup.error": "The setup could not be confirmed. Check the source, connection and exact mappings. Nothing is retried automatically.",
   "pb-books-setup.stale": "The source changed. Prepare a new setup from current client files.",
   "pb-books-setup.connect": "Connect for setup",

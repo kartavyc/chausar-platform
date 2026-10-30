@@ -375,7 +375,7 @@ test('a social agency draft is checked against channel limits, disclosure and th
   assert.equal(clean.canAccept, true, clean.acceptBlocked ?? '');
 });
 
-test('rehearsal: each practice draft carries the playbook checks, and the judge asks the playbook\'s own rules', async () => {
+test('rehearsal: each practice draft carries the playbook checks, and the judge asks the work plan\'s own rules', async () => {
   const env = await business(YOUTUBE_IDEA);
   env.models.fastIsTemplate = true;
   env.models.drafts.push(PACKAGE, PACKAGE, PACKAGE, PACKAGE, PACKAGE, PACKAGE);
@@ -395,10 +395,10 @@ test('rehearsal: each practice draft carries the playbook checks, and the judge 
   await judgeDraftRules(async (task: ModelTask<any>) => { asked = task; throw new ChausarError('MODEL_OUTPUT_REJECTED', 'Stop here.'); }, {
     draft: 'A draft.', clientRequest: 'A request.', context: 'A practice client.', containsClientData: false, rules: YOUTUBE_DRAFT_RULES,
   });
-  assert.ok(JSON.stringify(asked.input).includes('faithful-to-source'), 'the rules judge is asked the playbook\'s rules');
+  assert.ok(JSON.stringify(asked.input).includes('faithful-to-source'), 'the rules judge is asked the work plan\'s rules');
 });
 
-test('the team shows the playbook\'s roles as the agents; a gate set on a role\'s step is the one the policy reads', async () => {
+test('the team shows the work plan\'s roles as the agents; a gate set on a role\'s step is the one the policy reads', async () => {
   const env = await business(YOUTUBE_IDEA);
   await env.call('venture.delivery.playbook');
   const { agents } = await env.call('venture.team.list');
@@ -440,7 +440,7 @@ test('transcripts: an SRT or VTT file joins an order as a transcript, and one wi
   assert.deepEqual(listed.map((file: any) => file.format), ['transcript', 'transcript']);
 });
 
-test('the plan read from Today says how the work is done with the playbook\'s own steps and who does each', async () => {
+test('the plan read from Today says how the work is done with the work plan\'s own steps and who does each', async () => {
   const env = await business(YOUTUBE_IDEA);
   const plan = (await env.call('venture.blueprint.get')).blueprint;
   const item = await env.call('venture.queue.view', { id: plan.id, kind: 'plan' });

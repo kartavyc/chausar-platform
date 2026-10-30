@@ -79,7 +79,7 @@ export function validateRules(rules: readonly DatedRule[], owner: RuleOwner, tod
     if (rule.value !== undefined) refuse(words(rule.value) && words(rule.unit), 'has an empty value or unit');
     refuse(Array.isArray(rule.usedBy) && rule.usedBy.length > 0, 'needs the steps or checks that use it');
     const unknown = rule.usedBy.filter(id => !targets.has(id));
-    refuse(!unknown.length, `is used by ${unknown.join(', ')}, which the playbook has no step or check for`);
+    refuse(!unknown.length, `is used by ${unknown.join(', ')}, which the work plan has no step or check for`);
     refuse(words(rule.limitations), 'needs a line on what it does not cover');
     refuse(rule.recheckAfterDays === undefined || (Number.isInteger(rule.recheckAfterDays) && rule.recheckAfterDays >= 1 && rule.recheckAfterDays <= RULE_RECHECK_MAX_DAYS),
       `has a recheck window that is not a whole number of days from 1 to ${RULE_RECHECK_MAX_DAYS}`);

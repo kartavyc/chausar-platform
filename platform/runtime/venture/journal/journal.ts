@@ -245,7 +245,7 @@ export function approveIn(tx: VentureTx, ctx: Context, store: object, input: App
   // standing setting; everything else has a person.
   check(!input.standing || (record.kind === 'venture-journal-entry' && ((record.action === 'delivery.send' && record.subject.includes(':judge:'))
     || (STANDING_ALERTS.has(record.action) && record.subject.startsWith(record.action === 'notify.push' ? 'notify-push:' : 'notify-relay:')))),
-    'INVALID_VENTURE_REQUEST', 'Only the judge and phone alerts go under a standing setting; a person approves everything else.');
+    'INVALID_VENTURE_REQUEST', 'Only the quality check and phone alerts go under a standing setting; a person approves everything else.');
   if (record.state !== 'described') throw decidedRefusal(record);
   check(digestOf(record) === input.digest, 'APPROVAL_STALE', 'This changed since you opened it.');
   const nowMs = Date.parse(tx.now);

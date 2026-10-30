@@ -175,7 +175,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     id: 'yt-title-100', scope: 'youtube-shorts', topic: 'limit', value: 100, read: 'unconfirmed', how: NOT_CONFIRMED,
     title: 'YouTube title length',
     usedBy: ['channel-length'],
-    limitations: [UNCONFIRMED_LIMIT, "The YouTube playbook's own register reads the same limit from YouTube's API page."],
+    limitations: [UNCONFIRMED_LIMIT, "The YouTube work plan's own register reads the same limit from YouTube's API page."],
     rule: 'A YouTube title holds up to 100 characters.',
     sources: [{ title: 'YouTube Help', url: 'https://support.google.com/youtube/' }],
   }),
@@ -322,7 +322,7 @@ export const SOCIAL_RULES_REGISTER: readonly PlatformRule[] = Object.freeze([
     id: 'yt-synthetic-disclosure', scope: 'youtube-shorts', topic: 'disclosure', value: null, read: 'secondary', how: SEARCH,
     title: 'YouTube synthetic content',
     usedBy: ['disclosure-ai', 'publish'],
-    limitations: ["Read from a creator's blog; the YouTube playbook's own register reads YouTube's help page.", LABEL_LIMIT],
+    limitations: ["Read from a creator's blog; the YouTube work plan's own register reads YouTube's help page.", LABEL_LIMIT],
     rule: 'Realistic altered or synthetic content on YouTube is disclosed with the label chosen at upload.',
     sources: [{ title: 'Lindsey Gamble: YouTube requirements for AI-generated content', url: 'https://www.lindseygamble.com/blog/youtube-introduces-requirements-for-ai-generated-content' }],
   }),
@@ -465,9 +465,9 @@ export function validateRulesRegister(rules: readonly PlatformRule[] = SOCIAL_RU
     check(['ca','lawyer',null].includes(rule.needs), 'INVALID_VENTURE_REQUEST', `The rule ${rule.id} must say who needs to confirm it.`);
     check(rule.needs === null || rule.confirmedBy === null || !!rule.confirmedBy?.name && !!rule.confirmedBy?.on, 'INVALID_VENTURE_REQUEST', `The rule ${rule.id} needs its professional confirmation state.`);
     check(Array.isArray(rule.usedBy) && rule.usedBy.length > 0 && rule.usedBy.every(id => typeof id === 'string'),
-      'INVALID_VENTURE_REQUEST', `The rule ${rule.id} needs the steps or checks of the playbook that use it.`);
+      'INVALID_VENTURE_REQUEST', `The rule ${rule.id} needs the steps or checks of the work plan that use it.`);
     const unknown = rule.usedBy.filter(id => !targets.has(id));
-    check(!unknown.length, 'INVALID_VENTURE_REQUEST', `The rule ${rule.id} is used by ${unknown.join(', ')}, which the social playbook has no step or check for.`);
+    check(!unknown.length, 'INVALID_VENTURE_REQUEST', `The rule ${rule.id} is used by ${unknown.join(', ')}, which the social work plan has no step or check for.`);
     check(Array.isArray(rule.limitations) && rule.limitations.length > 0 && rule.limitations.every(line => typeof line === 'string' && line.trim().length > 0),
       'INVALID_VENTURE_REQUEST', `The rule ${rule.id} needs at least one line on what it does not cover.`);
     check(rule.title === undefined || (typeof rule.title === 'string' && rule.title.trim().length > 0 && rule.title.length <= 40),

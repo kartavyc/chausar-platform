@@ -309,7 +309,7 @@ test('an edit keeps the files a reopen named; a draft the judge is reading says 
   });
   const refusal = await edit(judged.env, await draftRow(judged.env), 'My own words.');
   assert.equal(refusal.reason, 'NOT_OFFERED');
-  assert.equal(refusal.line, 'The judge is reading this draft. Accept it once its answer is in.');
+  assert.equal(refusal.line, 'The quality check is reading this draft. Accept it once its answer is in.');
 });
 
 // ---------------------------------------------------------------------------

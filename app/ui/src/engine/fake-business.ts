@@ -179,7 +179,7 @@ export class FakeBusinessDesk {
       case 'venture.build.handoff': return this.handoff(biz, p.builder);
       case 'venture.build.handoffOpened': {
         const handoff = this.buildOf(biz).handoffs.find((h) => h.id === p.handoffId);
-        if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This handoff is not on this computer.');
+        if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This copy is not on this computer.');
         handoff.openedAt ??= this.host.now();
         return clone(handoff);
       }

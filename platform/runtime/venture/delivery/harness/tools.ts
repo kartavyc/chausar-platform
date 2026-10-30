@@ -138,7 +138,7 @@ export type ToolEnv = {
 export type EvidenceNote = { subject: 'client' | 'business'; field: string; value: string; type: EvidenceType; backedBy: string | null; source: string | null };
 
 const OUTBOX_TARGETS: Readonly<Record<string, string>> = Object.freeze({ 'mail-app': 'Your mail app', 'payment-link': 'A payment link' });
-const SHADOW_NOTE = 'Shadow: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
+const SHADOW_NOTE = 'Practice on real orders: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
 
 /**
  * At shadow (the business, the agent and this real order tightened together), an outside write is journalled as a

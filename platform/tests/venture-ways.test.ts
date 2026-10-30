@@ -69,7 +69,7 @@ test('ways: venture.playbooks.list answers before any vault, with no write and n
   assert.throws(() => listWays(null), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('ways: each way has its category, hours a week, the playbook\'s own AI team and pay as a model estimate with its basis', () => {
+test('ways: each way has its category, hours a week, the work plan\'s own AI team and pay as a model estimate with its basis', () => {
   const view = listWays({});
   for (const way of view.ways) {
     const registration = findPlaybook(way.playbook);
@@ -186,7 +186,7 @@ test('ways: every way names a registered playbook that runs today; a way for an 
   validateWays();
   const [first] = WAYS;
   const broken = (change: (way: WayData) => WayData) => [...WAYS.slice(1), change(structuredClone(first) as WayData)];
-  assert.throws(() => validateWays([...WAYS, { ...structuredClone(first), playbook: 'space-tourism' } as WayData]), /space-tourism is not a registered playbook/);
+  assert.throws(() => validateWays([...WAYS, { ...structuredClone(first), playbook: 'space-tourism' } as WayData]), /space-tourism is not a registered work plan/);
   assert.throws(() => validateWays([...WAYS, structuredClone(first) as WayData]), /twice/);
   assert.throws(() => validateWays(broken(way => ({ ...way, hours: { min: 9, max: 4 } }))), /hours/);
   assert.throws(() => validateWays(broken(way => ({ ...way, hours: { min: 4, max: 61 } }))), /hours/);

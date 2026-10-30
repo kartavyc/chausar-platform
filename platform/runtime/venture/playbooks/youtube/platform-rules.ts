@@ -84,7 +84,7 @@ const RULES: PlatformRule[] = [
     usedBy: ['publish'],
     limitations: ['Read on the API reference page only; the API terms of service were not read again.', 'No YouTube upload API client ships in this build. Public read requests cannot upload a video.'],
     rule: "Google's page says videos uploaded from unverified API projects are not restricted to private viewing mode. Some uploads can still default to private because of the creator's account settings.",
-    effect: 'Upload stays a handoff in this playbook because no YouTube API client ships in this build, and the owner publishes every video.',
+    effect: 'Upload stays a copy you send in this work plan because no YouTube API client ships in this build, and the owner publishes every video.',
     limits: {}, sourceTitle: 'Videos: insert, YouTube Data API', sourceUrl: 'https://developers.google.com/youtube/v3/docs/videos/insert',
     sourceUpdated: '2026-10-15', effectiveFrom: null, checkedOn: CHECKED_ON, recheckAfterDays: RECHECK_DAYS,
     previously: {
@@ -95,9 +95,9 @@ const RULES: PlatformRule[] = [
   {
     id: 'altered-synthetic-disclosure', needs: null, platform: 'youtube', title: 'Disclosing AI-generated or altered content',
     usedBy: ['ai-disclosure', 'publish'],
-    limitations: ["The help page gives examples, not a full list; the playbook discloses any AI voice or presenter so edge cases don't decide.", 'You choose the setting in YouTube Studio; Chausar cannot see whether it is on.'],
+    limitations: ["The help page gives examples, not a full list; the work plan discloses any AI voice or presenter so edge cases don't decide.", 'You choose the setting in YouTube Studio; Chausar cannot see whether it is on.'],
     rule: 'Creators must disclose AI-generated or altered content that seems realistic, with the AI use setting in YouTube Studio at upload. Making a real person appear to say or do something they did not needs disclosure; cloning your own voice for voice overs does not.',
-    effect: 'This playbook goes further: any AI voice or AI presenter is disclosed, realistic or not, with a line in the description and the AI use setting at upload.',
+    effect: 'This work plan goes further: any AI voice or AI presenter is disclosed, realistic or not, with a line in the description and the AI use setting at upload.',
     limits: {}, sourceTitle: 'Disclosing use of GenAI content, YouTube Help', sourceUrl: 'https://support.google.com/youtube/answer/14328491',
     sourceUpdated: null, effectiveFrom: null, checkedOn: CHECKED_ON, recheckAfterDays: RECHECK_DAYS,
   },
@@ -113,7 +113,7 @@ const RULES: PlatformRule[] = [
   {
     id: 'inauthentic-content', needs: null, platform: 'youtube', title: 'Inauthentic content, formerly repetitious content',
     usedBy: ['publish'],
-    limitations: ['The page names no threshold for mass-produced; the playbook keeps a person approving every video instead.'],
+    limitations: ['The page names no threshold for mass-produced; the work plan keeps a person approving every video instead.'],
     rule: 'On 15 July 2025 YouTube renamed the repetitious content policy to inauthentic content and said it covers content that is repetitive or mass-produced, which has never been able to earn money.',
     effect: 'No offer here makes videos in bulk from a template, and nothing is posted on a schedule without the owner.',
     limits: {}, sourceTitle: 'YouTube channel monetization policies, YouTube Help', sourceUrl: 'https://support.google.com/youtube/answer/1311392',
@@ -178,7 +178,7 @@ export function validatePlatformRules(rules: readonly PlatformRule[], targets: R
     seen.add(rule.id);
     if (!Array.isArray(rule.usedBy) || !rule.usedBy.length) throw new Error(`The platform rule ${rule.id} needs the steps or checks it is used by.`);
     const unknown = rule.usedBy.filter(id => !targets.has(id));
-    if (unknown.length) throw new Error(`The platform rule ${rule.id} is used by ${unknown.join(', ')}, which the YouTube playbook has no step or check for.`);
+    if (unknown.length) throw new Error(`The platform rule ${rule.id} is used by ${unknown.join(', ')}, which the YouTube work plan has no step or check for.`);
     if (!Array.isArray(rule.limitations) || !rule.limitations.length || !rule.limitations.every(line => typeof line === 'string' && line.trim().length > 0)) {
       throw new Error(`The platform rule ${rule.id} needs its limitations: at least one line on what it does not cover.`);
     }

@@ -36,7 +36,7 @@ test('manual path: every planned connector names one, with who it waits on; a st
   for (const label of ['planned: write', 'planned: handoff'] as const) assert.throws(() => validateManualPaths(without({ label, manualPath: undefined })), code('MANUAL_PATH_MISSING'));
   validateManualPaths(without({ label: 'read', manualPath: undefined, waitsOn: undefined }));
   const lost = fixtureDefinition({ steps: [{ ...FIXTURE_STEPS[0], connector: 'shopify' }] });
-  assert.throws(() => validateManualPaths(lost), code('MANUAL_PATH_MISSING', /The step gather needs the connector shopify, which the playbook does not list/));
+  assert.throws(() => validateManualPaths(lost), code('MANUAL_PATH_MISSING', /The step gather needs the connector shopify, which the work plan does not list/));
 });
 
 test('manual path: the line reads "Until then: ..." and only a planned connector has one', () => {
@@ -131,7 +131,7 @@ test('Plan and playbook: venture.rules.list hands over the recipes and the bound
 function refusedDefinition(definition: PlaybookDefinition, field: string, words: RegExp) {
   assert.throws(() => definePlaybook(definition, '2026-10-27'), (error: any) => {
     assert.equal(error?.code, 'PLAYBOOK_DEFINITION_INVALID', error?.message);
-    assert.match(error.message, new RegExp(`^The kit-fixture playbook's ${field}: `), error.message);
+    assert.match(error.message, new RegExp(`^The kit-fixture work plan's ${field}: `), error.message);
     assert.match(error.message, words);
     return true;
   });
@@ -163,5 +163,5 @@ test('definePlaybook: a planned connector without its manual path is MANUAL_PATH
   const waiting = kitFixture({ connectors: [base.connectors[0], noWait] });
   assert.throws(() => definePlaybook(waiting, '2026-10-27'), code('MANUAL_PATH_MISSING', /who it waits on/));
   const twice = kitFixture({ judgeRules: [...base.judgeRules, { id: 'voice-first-mistake-1', question: 'Is the voice first?', text: 'The voice comes first.', floor: { kind: 'required-yes' } }] });
-  refusedDefinition(twice, 'judgeRules', /voice-first-mistake-1 is also a recipe's judge rule/);
+  refusedDefinition(twice, 'judgeRules', /voice-first-mistake-1 is also a recipe's quality check rule/);
 });

@@ -54,26 +54,26 @@ import { scanRun } from './trace-scan.ts';
 
 /** Why the judge did not run on its own near the month's limit (Ink v2 wave 4, 4F2, M5). */
 export const JUDGE_PRESSURE_LINE = "Not checked: this month's limit is nearly used.";
-export const JUDGE_FAILED_CHECK = 'Fix the failed check first; the judge reads only drafts that pass the code checks.';
-const NOT_READY = 'The judge reads a draft once it is ready for your review.';
-const TEMPLATE_OUTLINE = 'The judge reads drafts an agent wrote; this is a template outline.';
-const NO_JUDGE_AI = 'Connect an AI for quick work first; the judge runs on your own AI.';
-const ALREADY = 'The judge already read this draft.';
-const NOT_WAITING = 'Ask the judge first, then send it.';
-const CHANGED = 'The draft changed since you asked the judge. Ask again.';
-const EXPIRED = 'Ask the judge again; the call you read is no longer available.';
-const RECHECK_FAILED = 'The check before the judge ran could not finish, so it was stopped. Nothing was sent.';
-const CAP_LINE = 'The judge did not run on its own: this run is at its spend cap. Send it yourself with the cost shown.';
-const STANDING_OFF = 'The judge setting is off, or its standing consent is not recorded, so the judge did not run on its own.';
+export const JUDGE_FAILED_CHECK = 'Fix the failed check first; the quality check reads only drafts that pass the code checks.';
+const NOT_READY = 'The quality check reads a draft once it is ready for your review.';
+const TEMPLATE_OUTLINE = 'The quality check reads drafts an agent wrote; this is a template outline.';
+const NO_JUDGE_AI = 'Connect an AI for quick work first; the quality check runs on your own AI.';
+const ALREADY = 'The quality check already read this draft.';
+const NOT_WAITING = 'Ask the quality check first, then send it.';
+const CHANGED = 'The draft changed since you asked the quality check. Ask again.';
+const EXPIRED = 'Ask the quality check again; the call you read is no longer available.';
+const RECHECK_FAILED = 'The check before the quality check ran could not finish, so it was stopped. Nothing was sent.';
+const CAP_LINE = 'The quality check did not run automatically: this run is at its spend cap. Start the check yourself with the cost shown.';
+const STANDING_OFF = 'The quality check setting is off, or its standing consent is not recorded, so the quality check did not run on its own.';
 /** The journal's approval line for a judge call that went on its own: no person approved it. */
-const STANDING_LINE = 'Sent under your standing judge setting.';
-const DECIDED = 'The draft was decided while the judge read it, so its answer is not kept.';
-const NOT_READ = 'The judge has not read this draft.';
-const NEVER_READ = 'The judge never read this draft before you accepted it.';
+const STANDING_LINE = 'Sent under your standing quality check setting.';
+const DECIDED = 'The draft was decided while the quality check read it, so its answer is not kept.';
+const NOT_READ = 'The quality check has not read this draft.';
+const NEVER_READ = 'The quality check never read this draft before you accepted it.';
 /** A judge call whose cost was not shown before the write turn was approved, or came out dearer than shown. */
-export const JUDGE_UNSHOWN_LINE = 'The judge did not run on its own: its cost was not shown before you approved this draft. Send it yourself with the cost shown.';
-export const JUDGE_AUTO_ON_LINE = "The judge reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.";
-export const JUDGE_AUTO_OFF_LINE = 'The judge reads a draft only when you ask it to, from the draft in Work.';
+export const JUDGE_UNSHOWN_LINE = 'The quality check did not run on its own: its cost was not shown before you approved this draft. Send it yourself with the cost shown.';
+export const JUDGE_AUTO_ON_LINE = "The quality check reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.";
+export const JUDGE_AUTO_OFF_LINE = 'The quality check reads a draft only when you ask, from the draft in Work.';
 const DIGEST = /^[a-f0-9]{64}$/;
 /** Room for what wraps a judge call's text on the way to the provider (model, limits, the answer's schema). */
 const ENVELOPE_CHARS = 4000;
@@ -152,7 +152,7 @@ function judgeInput(state: State, venture: VentureRecord, run: DeliveryRunRecord
   const order = findRecord(state, 'venture-order', run.orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   const playbook = playbookForRun(state, run);
-  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  check(playbook, 'PLAYBOOK_NOT_FOUND', 'The work instructions for this draft were not found.');
   const made = run.harness ? madeSoFar(state, run.harness) : { tables: [], receipts: [] };
   const receipts = [...ventureReceipts(state, venture.id), ...made.receipts];
   const client = findRecord(state, 'venture-client', order.clientId);
@@ -215,13 +215,13 @@ export function judgeNotice(deps: VentureDeps, ctx: Context, state: State, ventu
     const cost = bound.display;
     if (setting.consent) {
       return {
-        line: `Once this draft is ready, the judge reads it on your AI; that check could cost up to ${cost}.`,
-        short: `Then the judge reads the ready draft on your AI, for up to ${cost}.`, consented: true, cost, boundMicros: bound.micros,
+        line: `Once this draft is ready, the quality check reads it on your AI; that check could cost up to ${cost}.`,
+        short: `Then the quality check reads the ready draft on your AI, for up to ${cost}.`, consented: true, cost, boundMicros: bound.micros,
       };
     }
     return {
-      line: `${JUDGE_AUTO_ON_LINE} Once this draft is ready, the judge's check could cost up to ${cost}.`,
-      short: `Then the judge reads the ready draft on your AI, with your client's words, for up to ${cost}.`, consented: false, cost, boundMicros: bound.micros,
+      line: `${JUDGE_AUTO_ON_LINE} Once this draft is ready, the quality check could cost up to ${cost}.`,
+      short: `Then the quality check reads the ready draft on your AI, with your client's words, for up to ${cost}.`, consented: false, cost, boundMicros: bound.micros,
     };
   } catch {
     return null;
@@ -253,8 +253,8 @@ export function withJudgeNotices<V extends DeliveryRunView>(deps: VentureDeps, c
  */
 export function judgeStateLine(state: State, venture: VentureRecord, run: DeliveryRunRecord, nowMs: number): string | null {
   const result = run.checks.find(item => item.check === 'rules-judge');
-  if (result) return result.notChecked ? 'Not checked by the judge.' : null;
-  if (judgeReading(run, nowMs)) return 'The judge is reading this draft.';
+  if (result) return result.notChecked ? 'Not checked by the quality check.' : null;
+  if (judgeReading(run, nowMs)) return 'The quality check is reading this draft.';
   const judge = run.judge;
   if (run.status === 'accepted') return judge || run.judgePending ? NEVER_READ : null;
   if (judge) return judge.line ? `${NOT_READ} ${judge.line}` : NOT_READ;
@@ -324,7 +324,7 @@ export async function deliveryJudgeSendHandler(deps: VentureDeps, ctx: Context, 
   requireAppChannel(ctx, 'venture.delivery.judgeSend');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Draft reply');
-  check(typeof body.digest === 'string' && DIGEST.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the judge call you read.');
+  check(typeof body.digest === 'string' && DIGEST.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the quality check call you read.');
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRun(state, venture, runId);
   const held = run.judge;
@@ -383,7 +383,7 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
 async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureRecord; run: DeliveryRunRecord; preview: ModelPreview; standing: boolean }): Promise<DeliveryRunView> {
   const { asked, client } = judgeInput(deps.store.read(), a.venture, a.run);
   const runId = a.run.id, callId = a.preview.callId;
-  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding&&!a.run.appTestingBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');testingJudgeCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
+  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding&&!a.run.appTestingBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the quality check could read it.');testingJudgeCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
   const send = async (entryId: string): Promise<DeliveryRunView> => {
     recheckJudgeSend(deps, a.venture.id, runId, a.preview, a.standing);
     let verdict: RulesVerdict;
@@ -404,10 +404,10 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
       check(current && current.judge?.status === 'waiting' && current.judge.callId === callId, 'JUDGE_NOT_WAITING', NOT_WAITING);
       // A draft decided while the judge read it (rejected, edited) keeps no verdict: nothing lands on a decided draft.
       check(current.status === 'ready-for-review', 'JUDGE_NOT_READY', DECIDED);
-      if(a.run.appTestingBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The reviewed report changed while the judge read it.');testingJudgeCurrent(tx.state,a.venture.id,current,tx.now);}
-      if(a.run.careerPackBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The career draft changed while the judge read it.');careerRunCurrent(tx.state,a.venture.id,current,tx.now);}
-      if(a.run.formsSourceBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The source artifact changed while the judge read it.');formsRunCurrent(tx.state,a.venture.id,current);}
-      if(a.run.vaBriefBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed while the judge read it.');vaRunCurrent(tx.state,a.venture.id,current);formsRunCurrent(tx.state,a.venture.id,current);}
+      if(a.run.appTestingBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The reviewed report changed while the quality check read it.');testingJudgeCurrent(tx.state,a.venture.id,current,tx.now);}
+      if(a.run.careerPackBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The career draft changed while the quality check read it.');careerRunCurrent(tx.state,a.venture.id,current,tx.now);}
+      if(a.run.formsSourceBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The source artifact changed while the quality check read it.');formsRunCurrent(tx.state,a.venture.id,current);}
+      if(a.run.vaBriefBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed while the quality check read it.');vaRunCurrent(tx.state,a.venture.id,current);formsRunCurrent(tx.state,a.venture.id,current);}
       const harness = a.standing && costMicros !== null && current.harness ? withCost(current.harness, costMicros) : current.harness;
       const next: DeliveryRunRecord = {
         ...current, checks: [...current.checks.filter(item => item.check !== 'rules-judge'), result],
@@ -427,10 +427,10 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
   try {
     const sent = await journalled(deps, ctx, {
       action: 'delivery.send', subject: `${runId}:judge:${callId}`, target: client, actionDigest: a.preview.digest,
-      line: a.standing ? `Send the draft for ${client} to the judge on your AI, under your standing consent.` : `Send the draft for ${client} to the judge on your AI.`,
+      line: a.standing ? `Send the draft for ${client} to the quality check on your AI, under your standing consent.` : `Send the draft for ${client} to the quality check on your AI.`,
       notAfter: a.preview.expiresAt, quote: { figure: a.preview.estimatedMaxCostMicros, payer: a.preview.presetId },
       descriptionComplete: previewShownWhole(a.preview),
-    }, async handle => ({ outcome: 'applied', line: 'Sent to your AI. The judge answered.', value: await send(handle.entry.id) }),
+    }, async handle => ({ outcome: 'applied', line: 'Sent to your AI. The quality check answered.', value: await send(handle.entry.id) }),
     a.standing ? { standing: { line: STANDING_LINE } } : {});
     return sent.value!;
   } catch (error) {
@@ -479,7 +479,7 @@ async function markJudgeFailed(deps: VentureDeps, ctx: Context, runId: string, c
       const harness = billed !== null && current.harness ? withCost(current.harness, billed) : current.harness;
       // On a draft decided while the judge read it, asking again makes no sense: an edit keeps its own line.
       const decided = current.status !== 'ready-for-review';
-      const line = decided ? (current.judge.line === JUDGE_EDIT_LINE ? JUDGE_EDIT_LINE : DECIDED) : `The judge did not finish: ${quote(said, 200)} Ask the judge again.`;
+      const line = decided ? (current.judge.line === JUDGE_EDIT_LINE ? JUDGE_EDIT_LINE : DECIDED) : `The quality check did not finish: ${quote(said, 200)} Ask the quality check again.`;
       tx.replace({ ...current, ...(harness ? { harness } : {}), judge: { ...current.judge, status: 'failed', preview: null, at: tx.now, line } });
       tx.emit('run.step', { runId });
     });
@@ -535,7 +535,7 @@ async function askOnItsOwn(deps: VentureDeps, ctx: Context, runId: string): Prom
   try {
     preview = await deps.models.preview(ctx, rulesTask(judgeInput(state, venture, run).asked));
   } catch (error) {
-    await noteNotRun(deps, ctx, run.id, draftDigest, `The judge did not run: ${quote(error instanceof Error ? error.message : 'no reason given', 200)} Ask the judge to try again.`);
+    await noteNotRun(deps, ctx, run.id, draftDigest, `The quality check did not run: ${quote(error instanceof Error ? error.message : 'no reason given', 200)} Ask the quality check to try again.`);
     return;
   }
   if (!preview) return;
@@ -588,7 +588,7 @@ async function noteRefused(deps: VentureDeps, ctx: Context, runId: string, callI
     await ventureAction(deps, ctx, 'approve', 'delivery.judgeAuto', tx => {
       const current = tx.find('venture-delivery-run', runId);
       if (!current?.judge || current.judge.status !== 'waiting' || current.judge.callId !== callId) return;
-      tx.replace({ ...current, judge: { ...current.judge, line: `The judge did not run on its own: ${quote(said, 200)} Send it yourself when you are ready.` } });
+      tx.replace({ ...current, judge: { ...current.judge, line: `The quality check did not run on its own: ${quote(said, 200)} Send it yourself when you are ready.` } });
       tx.emit('run.step', { runId });
     });
   } catch {
@@ -669,7 +669,7 @@ export async function judgeAutoGetHandler(deps: VentureDeps, ctx: Context, paylo
  */
 export async function judgeAutoSetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<JudgeAutoView> {
   requireAppChannel(ctx, 'venture.judge.auto.set');
-  check(ctx.role === 'owner' || ctx.role === 'cofounder', 'APP_APPROVAL_REQUIRED', 'Only you change when the judge runs, inside the Chausar app.');
+  check(ctx.role === 'owner' || ctx.role === 'cofounder', 'APP_APPROVAL_REQUIRED', 'Only you change when the quality check runs, inside the Chausar app.');
   const body = exactPayload(payload, ['auto'], ['auto']);
   check(typeof body.auto === 'boolean', 'INVALID_VENTURE_REQUEST', 'auto must be true or false.');
   const auto = body.auto;

@@ -74,7 +74,7 @@ test('flagshipDelivery gives the steps, roles, roleOf, floor and draft step; val
   assert.equal(flagshipDelivery('kit-fixture'), null);
 });
 
-test("toolCeiling grants a kit playbook its own tool, and a patch granting another kit playbook's tool is refused", () => {
+test("toolCeiling grants a kit playbook its own tool, and a patch granting another kit work plan's tool is refused", () => {
   assert.ok(toolCeiling('consulting', 'kit-fixture', DEFINITIONS).includes('media.clean'));
   assert.ok(!toolCeiling('consulting', 'kit-fixture', DEFINITIONS).includes('assets.record'));
   assert.ok(!toolCeiling('consulting', null, DEFINITIONS).includes('media.clean'), 'a plain business holds no kit tool');
@@ -164,7 +164,7 @@ test("departments: venture.team.list gives each kit agent its role's department;
   assert.ok(team.agents.filter((agent: any) => agent.kind === 'agent').every((agent: any) => ['researcher', 'writer'].includes(agent.id)), 'no code role is shown as an AI agent');
 });
 
-test("practice: venture.simulation.scenarios lists the kit playbook's three practice clients; a run goes through the kit checks", async t => {
+test("practice: venture.simulation.scenarios lists the kit work plan's three practice clients; a run goes through the kit checks", async t => {
   t.after(installKitFixture());
   const env = await kitBusiness();
   await env.call('venture.delivery.playbook');
@@ -182,7 +182,7 @@ test("practice: venture.simulation.scenarios lists the kit playbook's three prac
   assert.deepEqual(episode.playbookChecks.map((item: any) => [item.check, item.outcome]), [['playbook-checks', 'not-run']]);
 });
 
-test("practice with an AI judge on: the kit checks run on the practice draft, then the playbook's own rules", async t => {
+test("practice with an AI judge on: the kit checks run on the practice draft, then the work plan's own rules", async t => {
   t.after(installKitFixture());
   const env = await kitBusiness();
   await env.call('venture.delivery.playbook');
@@ -214,7 +214,7 @@ test("practice with an AI judge on: the kit checks run on the practice draft, th
   assert.deepEqual((judged[0].input as any).rules.map((rule: any) => rule.id), ['on-brief', 'voice-first-mistake-1'], "its own rule and its recipe's judge mistake");
 });
 
-test("judge on real orders: a client or public kit draft gets the automatic judge with the playbook's rules; an internal one gets none", async t => {
+test("judge on real orders: a client or public kit draft gets the automatic judge with the work plan's rules; an internal one gets none", async t => {
   t.after(installKitFixture());
   const env = await kitBusiness();
   const pack = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A voice sheet for Sunrise Bakery.', intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });

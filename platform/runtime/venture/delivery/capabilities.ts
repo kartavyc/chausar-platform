@@ -72,7 +72,7 @@ export function capabilityList(platform: string, modelStatus?: ModelStatusView, 
       : row('hosted-actors', 'runtime', 'Hosted business actors', 'planned', 'The hosted web tier is written but not deployed; Rivet Actors are the candidate runtime.'),
     row('tier-code', 'runtime', 'Code steps', 'available', 'The calculator, the checks and the agent loop run inside Chausar. Not a sandbox.'),
     row('tier-actor', 'runtime', 'Agent turns', 'available', 'Agents call tools in a loop with limits on turns, tool calls and spend. On a real order each turn waits for you to approve its exact text. Not a sandbox.'),
-    row('improvement-loop', 'runtime', 'Improvement loop', 'available', 'Tries one playbook change at a time on your held-back cases and practice clients, and keeps it only if it wins. You adopt each change.'),
+    row('improvement-loop', 'runtime', 'Improvement loop', 'available', 'Tries one change to the work instructions at a time on your held-back cases and practice clients, and keeps it only if it wins. You adopt each change.'),
     storage === 'experimental-file'
       ? row('durable-storage', 'storage', 'Durable storage', 'planned', EXPERIMENTAL_STORAGE_NOTICE)
       : hosted

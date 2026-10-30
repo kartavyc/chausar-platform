@@ -242,7 +242,7 @@ const OPENED: Case[] = [
   { name: 'Business, staging a website edit', hash: '#/business/build', press: ['Stage an edit'] },
   { name: 'Business, practice: rehearsed, a version kept and its second ask, the judge turned off then asked on', hash: '#/business/practice', press: ['Rehearse now', 'Run the improvement loop', 'Use this version', 'Turn off', 'Turn on'] },
   {
-    name: 'Work, the judge asked about a ready draft', hash: '#/work?order=o-boat-14', press: ['Ask the judge'],
+    name: 'Work, the judge asked about a ready draft', hash: '#/work?order=o-boat-14', press: ['Check quality'],
     before: (engine) => engine.request('venture.models.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: 'consent-anthropic', apiKey: 'a-test-key-for-the-fake' }),
   },
   // 4Z2: Lumen's episode 12 is delivered; Ledgerline's September books are done and not delivered yet.

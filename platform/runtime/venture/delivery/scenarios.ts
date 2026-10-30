@@ -233,7 +233,7 @@ function focusChecks(reason: SignalRecord['reason']): readonly CheckId[] {
 function reasonWords(reason: SignalRecord['reason']): string {
   if (reason === null) return 'a problem you flagged';
   if ((CHECK_IDS as readonly string[]).includes(reason)) return `the ${reason} check`;
-  if (isJudgeRule(reason)) return `the judge's rule ${reason}`;
+  if (isJudgeRule(reason)) return `the quality check's rule ${reason}`;
   return REASON_WORDS[reason as DeliveryReason] ?? 'a problem you flagged';
 }
 

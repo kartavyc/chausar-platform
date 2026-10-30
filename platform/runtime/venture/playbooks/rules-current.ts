@@ -127,7 +127,7 @@ export function playbookRules(flagship: string | null | undefined, today: IsoDat
  * source counted apart. The three counts never overlap: a stale rule counts once, as one to recheck.
  */
 export function rulesSummary(rules: readonly DatedRule[]): string {
-  if (!rules.length) return 'This playbook rests on no dated platform rules.';
+  if (!rules.length) return 'These work instructions have no dated platform rules.';
   const stale = rules.filter(rule => rule.stale).length;
   const unsure = rules.filter(rule => !rule.stale && rule.unconfirmed).length;
   return `${rules.length - stale - unsure} current, ${stale} to recheck${unsure ? `, ${unsure} not confirmed against a source yet` : ''}.`;

@@ -61,7 +61,7 @@ const bad = (message: string): never => { throw new ChausarError('INVALID_VENTUR
 
 /** Rule ids are unique and short, every rule has its words, and a share floor is a whole percent from 1 to 100. */
 export function validateRules(rules: readonly JudgeRule[]): JudgeRule[] {
-  check(Array.isArray(rules) && rules.length >= 1 && rules.length <= MAX_RULES, 'INVALID_VENTURE_REQUEST', `A judge needs between one and ${MAX_RULES} rules.`);
+  check(Array.isArray(rules) && rules.length >= 1 && rules.length <= MAX_RULES, 'INVALID_VENTURE_REQUEST', `A quality check needs between one and ${MAX_RULES} rules.`);
   const seen = new Set<string>();
   for (const rule of rules) {
     if (!RULE_ID.test(rule.id)) bad(`The rule id ${JSON.stringify(rule.id)} is not a short lowercase name.`);
@@ -170,23 +170,23 @@ function modelText(value: unknown, field: string, max: number): string {
  */
 export function validateBallot(raw: unknown, rules: readonly JudgeRule[]): Ballot {
   check(raw !== null && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 1 && Array.isArray((raw as { votes?: unknown }).votes),
-    'MODEL_OUTPUT_REJECTED', 'The judge did not answer in the expected shape.');
+    'MODEL_OUTPUT_REJECTED', 'The quality check did not answer in the expected shape.');
   const votes = (raw as { votes: unknown[] }).votes;
-  check(votes.length === rules.length, 'MODEL_OUTPUT_REJECTED', 'The judge must vote on every rule once.');
+  check(votes.length === rules.length, 'MODEL_OUTPUT_REJECTED', 'The quality check must vote on every rule once.');
   const byRule = new Map<string, RuleVote>();
   for (const item of votes) {
-    check(item !== null && typeof item === 'object' && !Array.isArray(item), 'MODEL_OUTPUT_REJECTED', 'A judge vote was not an object.');
+    check(item !== null && typeof item === 'object' && !Array.isArray(item), 'MODEL_OUTPUT_REJECTED', 'A quality check vote was not an object.');
     const record = item as Record<string, unknown>;
     check(Object.keys(record).length === 5 && ['rule', 'answer', 'cites', 'quote', 'reason'].every(key => Object.hasOwn(record, key)),
-      'MODEL_OUTPUT_REJECTED', 'A judge vote did not have the expected fields.');
+      'MODEL_OUTPUT_REJECTED', 'A quality check vote did not have the expected fields.');
     const rule = record.rule;
-    check(typeof rule === 'string' && rules.some(item => item.id === rule) && !byRule.has(rule), 'MODEL_OUTPUT_REJECTED', 'The judge must vote on every rule once.');
-    check(record.answer === 'yes' || record.answer === 'no', 'MODEL_OUTPUT_REJECTED', 'A judge vote must be yes or no.');
+    check(typeof rule === 'string' && rules.some(item => item.id === rule) && !byRule.has(rule), 'MODEL_OUTPUT_REJECTED', 'The quality check must vote on every rule once.');
+    check(record.answer === 'yes' || record.answer === 'no', 'MODEL_OUTPUT_REJECTED', 'A quality check vote must be yes or no.');
     check(Array.isArray(record.cites) && record.cites.length <= MAX_CITES && record.cites.every(id => typeof id === 'string' && id.length >= 1 && id.length <= 80),
-      'MODEL_OUTPUT_REJECTED', `A judge vote cites at most ${MAX_CITES} event ids, each as text.`);
+      'MODEL_OUTPUT_REJECTED', `A quality check vote cites at most ${MAX_CITES} event ids, each as text.`);
     byRule.set(rule, {
       rule, answer: record.answer, cites: (record.cites as string[]).map(id => id.trim()),
-      quote: modelText(record.quote, 'judge quote', 400), reason: modelText(record.reason, 'judge reason', 300),
+      quote: modelText(record.quote, 'quality check quote', 400), reason: modelText(record.reason, 'quality check reason', 300),
     });
   }
   return rules.map(rule => byRule.get(rule.id)!);
@@ -231,7 +231,7 @@ export type RulesAsk = (task: ModelTask<Ballot>) => Promise<{ value: Ballot; cal
 
 /** Asks the judge once per sample, one after another, and lets code count. More samples make a share floor meaningful. */
 export async function judgeByRules(ask: RulesAsk, input: RulesInput, samples = 1): Promise<RulesVerdict & { callIds: (string | null)[] }> {
-  check(Number.isInteger(samples) && samples >= 1 && samples <= MAX_SAMPLES, 'INVALID_VENTURE_REQUEST', `Ask the judge between one and ${MAX_SAMPLES} times.`);
+  check(Number.isInteger(samples) && samples >= 1 && samples <= MAX_SAMPLES, 'INVALID_VENTURE_REQUEST', `Ask the quality check between one and ${MAX_SAMPLES} times.`);
   const task = rulesTask(input);
   const ballots: Ballot[] = [];
   const callIds: (string | null)[] = [];

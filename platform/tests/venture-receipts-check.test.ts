@@ -358,7 +358,7 @@ test('prompt-leak: every draft without a flagship playbook is linted for words m
 // Wired in: real orders, rehearsal, the playbooks and the runs view
 // ---------------------------------------------------------------------------
 
-test("check lists: rehearsal cases and the social playbook's verify step run the receipts check; rehearsal lints for prompt leaks", () => {
+test("check lists: rehearsal cases and the social work plan's verify step run the receipts check; rehearsal lints for prompt leaks", () => {
   for (const scenario of scenariosFor('bookkeeping')) {
     assert.ok(scenario.checks.includes('receipts'), scenario.id);
     assert.ok(scenario.checks.includes('prompt-leak'), scenario.id);

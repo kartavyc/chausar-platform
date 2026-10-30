@@ -49,7 +49,7 @@ const FORGET_LINE = "Forget erases these words. You can't undo it.";
 const FORGET_FINAL = "Forget erased this note's words, so it can't be undone.";
 const NOTE_CHANGED_LINE = 'This note changed since you opened it. Your draft is still here.';
 const ERASED_MESSAGE = 'Erased: you asked me to forget these words.';
-const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, at every posture. Chat does not change that.';
+const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, with every approval setting. Chat does not change that.';
 const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Business, not by an agent's instructions.";
 const CONTROLS_REASON = 'Tools, checks and limits are not changed from chat.';
 const ALWAYS_LIMIT = 2000;
@@ -454,7 +454,7 @@ export class FakeAgentsDesk {
     if (kind === 'standing') {
       const control = CONTROL.find((item) => item.pattern.test(words))?.reason ?? null;
       const current = this.current(book);
-      if (!control && !current) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept a plan first. The playbook is made from it.');
+      if (!control && !current) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept a plan first. The work plan is made from it.');
       const said = this.put(book, agent.id, 'owner', words);
       if (control) return { added: [this.asItem(said), this.asItem(this.put(book, agent.id, 'agent', `I can't take that as an instruction: ${control}`))], line: null };
       const prop = this.storeInstruction(book, agent, current!, said, words);

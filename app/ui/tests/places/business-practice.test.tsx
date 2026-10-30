@@ -12,10 +12,10 @@ type Call = { method: string; params: unknown };
 interface StartOptions { language?: 'en'; engine?: FakeEngine; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 const NOW = '2026-10-23T10:00:00.000Z';
-const ENOUGH = 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.';
-const JUDGE_ON = "The judge reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.";
-const JUDGE_OFF = 'The judge reads a draft only when you ask it to, from the draft in Work.';
-const OWN_AI = 'This runs on your own AI, or on built-in templates when none is connected. The cost shows when it finishes.';
+const ENOUGH = 'There are enough reviewed drafts to improve the work plan. The improvement loop tries one change and keeps it only if it wins.';
+const JUDGE_ON = "The quality check reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.";
+const JUDGE_OFF = 'The quality check reads a draft only when you ask, from the draft in Work.';
+const OWN_AI = 'Uses your AI, or built-in templates if none is connected. Cost appears after completion.';
 
 function start(options: StartOptions = {}) {
   window.location.hash = '#/business/practice';
@@ -104,7 +104,7 @@ describe('Business: practice clients', () => {
 describe('Business: improving the playbook', () => {
   it("reads the readiness in the engine's words; before anything failed the engine refuses the loop and says why", async () => {
     const { calls } = start();
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     expect(await within(improve).findByText(ENOUGH)).toBeTruthy();
     expect(within(improve).getByText('Version in use: 4, from your plan')).toBeTruthy();
     expect(within(improve).getByText(OWN_AI)).toBeTruthy();
@@ -118,7 +118,7 @@ describe('Business: improving the playbook', () => {
     const engine = new FakeEngine({ now: () => NOW });
     const real = (await engine.request('venture.improve.status', {})) as Record<string, unknown> & { readiness: Record<string, unknown> };
     start({ engine, intercept: { 'venture.improve.status': () => ({ ...real, readiness: { ...real.readiness, status: 'planned' } }) } });
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     await within(improve).findByText(ENOUGH);
     expect((within(improve).getByRole('button', { name: 'Run the improvement loop' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -128,7 +128,7 @@ describe('Business: improving the playbook', () => {
     const practice = await region('Practice clients');
     await press(practice, 'Rehearse now');
     await within(practice).findByText('2 of 3 passed');
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     await press(improve, 'Run the improvement loop');
     await within(improve).findByText('The last run found a better version.');
     expect(within(improve).getByText('Adds to "Draft the reply": Keep the plan price from Chausar and offer no free work.')).toBeTruthy();
@@ -169,7 +169,7 @@ describe('Business: improving the playbook', () => {
         'venture.improve.adopt': () => { throw new EngineError('CANDIDATE_STALE', 'Your plan changed since this run. Run the loop again.'); },
       },
     });
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     await press(improve, 'Use this version');
     await act(async () => { fireEvent.click(within(improve).getAllByRole('button', { name: 'Use this version' }).at(-1)!); });
     await waitFor(() => expect(within(improve).getByRole('alert').textContent).toBe("Couldn't switch: Your plan changed since this run. Run the loop again."));
@@ -186,7 +186,7 @@ describe('Business: improving the playbook', () => {
         'venture.improve.rollback': () => { throw new EngineError('ROLLBACK_STALE', 'Your plan changed since that version, so it no longer fits. Run the loop again instead.'); },
       },
     });
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     await press(improve, 'Go back to version 4');
     await act(async () => { fireEvent.click(within(improve).getAllByRole('button', { name: 'Go back to version 4' }).at(-1)!); });
     await waitFor(() => expect(within(improve).getByRole('alert').textContent).toBe("Couldn't go back: Your plan changed since that version, so it no longer fits. Run the loop again instead."));
@@ -196,7 +196,7 @@ describe('Business: improving the playbook', () => {
 describe('Business: the judge setting', () => {
   it("is on by default with the engine's line; turning it off is one press, turning it on asks first and records the consent", async () => {
     const { calls } = start();
-    const judge = await region('The judge');
+    const judge = await region('Quality check');
     expect(await within(judge).findByText(JUDGE_ON)).toBeTruthy();
     expect(within(judge).getByText('On')).toBeTruthy();
     const reads = () => calls.filter((c) => c.method === 'venture.judge.auto.get').length;
@@ -217,11 +217,11 @@ describe('Business: the judge setting', () => {
   });
 
   it("a refusal to change it is said in the engine's words", async () => {
-    start({ intercept: { 'venture.judge.auto.set': () => { throw new EngineError('APP_APPROVAL_REQUIRED', 'Only you change when the judge runs, inside the Chausar app.'); } } });
-    const judge = await region('The judge');
+    start({ intercept: { 'venture.judge.auto.set': () => { throw new EngineError('APP_APPROVAL_REQUIRED', 'Only you change when the quality check runs, inside the Chausar app.'); } } });
+    const judge = await region('Quality check');
     await within(judge).findByText(JUDGE_ON);
     await press(judge, 'Turn off');
-    await waitFor(() => expect(within(judge).getByRole('alert').textContent).toBe("Couldn't change this: Only you change when the judge runs, inside the Chausar app."));
+    await waitFor(() => expect(within(judge).getByRole('alert').textContent).toBe("Couldn't change this: Only you change when the quality check runs, inside the Chausar app."));
   });
 
 

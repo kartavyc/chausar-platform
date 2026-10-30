@@ -19,7 +19,7 @@ const ID = /^[a-z][a-z0-9-]{0,59}$/;
 /** A baseline file, checked against its playbook: version 1, its id, unique cases, and a rate that counts exactly them. */
 export function validateKitBaseline(definition: Pick<PlaybookDefinition, 'registration'>, raw: unknown): KitBaselineFile {
   const id = definition.registration.id;
-  const bad = (why: string): never => { throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} playbook's baseline: ${why}`); };
+  const bad = (why: string): never => { throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} work plan's baseline: ${why}`); };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('the file is not an object.');
   const file = raw as Partial<KitBaselineFile>;
   if (file.version !== 1) bad('the file must be version 1.');

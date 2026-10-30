@@ -290,7 +290,7 @@ function checkFindings(state: State, run: DeliveryRunRecord, post: DraftPost): C
     const failed = run.checks.find(item => !item.passed && !item.notChecked); // an unsettled judge is no failure
     if (failed) found.push({ kind: 'failed', line: `The draft failed a check: ${failed.detail}` });
     if (flagship) {
-      if (!run.playbookChecks?.length) found.push({ kind: 'not-run', line: "The playbook's checks have not run on this draft." });
+      if (!run.playbookChecks?.length) found.push({ kind: 'not-run', line: "The work plan's checks have not run on this draft." });
       const own = run.playbookChecks?.find(item => item.outcome === 'fail');
       if (own) found.push({ kind: 'failed', line: `The draft failed a check: ${own.detail}` });
     }

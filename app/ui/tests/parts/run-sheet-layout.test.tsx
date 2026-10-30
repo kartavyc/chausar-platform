@@ -41,7 +41,7 @@ it('lets the run contract wrap its complete multi-amount rate while keeping figu
   } finally { style.remove(); }
 }, 30000);
 
-const postureWords: Record<Posture,string> = {rehearsal:'in rehearsal',shadow:'in shadow','approve-each':'at approve each','auto-spot-check':'at auto with spot checks'};
+const postureWords: Record<Posture,string> = {rehearsal:'in rehearsal',shadow:'in practice on real orders','approve-each':'at approve each','auto-spot-check':'at auto with spot checks'};
 function scoped(posture:Posture,tools:number,actions:number):RunDetail {
  const run=structuredClone(RUNS.find(row=>row.runId==='31')!);
  run.scope={tools:Array(tools).fill('An engine tool'),actions:Array(actions).fill('An engine action'),posture,cap:'$0.40',capReceiptId:'fig:scope:31',capRupees:'₹33.40',capRate:'₹83.50 per $1 (your rate, set 15 Oct 2026)',line:`Set when it started: ${tools} ${tools===1?'tool':'tools'}, ${actions} ${actions===1?'outside action':'outside actions'} it may propose for your approval, a spend cap of $0.40, ${postureWords[posture]}.`};return run;

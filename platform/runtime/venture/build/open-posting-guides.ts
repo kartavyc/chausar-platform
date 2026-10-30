@@ -36,11 +36,11 @@ export const OPEN_POSTING_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'cha
   },
   "discord": {
     "steps": [
-      "Create an incoming webhook in the exact Discord server channel that you own or may manage.",
+      "Create an incoming message address in the exact Discord server channel that you own or may manage.",
       "In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
       "Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
     ],
-    "skipped": "Use the incoming webhook address for that channel. Chausar disables automatic mentions and waits for a returned message.",
+    "skipped": "Use the incoming message address for that channel. Chausar disables automatic mentions and waits for a returned message.",
     "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
     "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
     "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval."

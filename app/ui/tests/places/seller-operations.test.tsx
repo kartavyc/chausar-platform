@@ -15,10 +15,10 @@ it('prepares an exact price handoff through two visible owner approvals with rec
  fireEvent.change(within(region).getByLabelText('Maximum price change (%)'),{target:{value:'25'}});fireEvent.change(within(region).getByLabelText('Maximum promotion (%)'),{target:{value:'20'}});
  fireEvent.click(within(region).getByRole('button',{name:'Read products'}));await within(region).findByRole('option',{name:'shopify / A: Cotton bag'});
  fireEvent.change(within(region).getByLabelText('New price (rupees)'),{target:{value:'90.25'}});fireEvent.click(within(region).getByRole('button',{name:'Preview change'}));
- expect(await within(region).findByText('INR 90.25')).toBeTruthy();expect(within(region).queryByRole('button',{name:'Download handoff'})).toBeNull();
+ expect(await within(region).findByText('INR 90.25')).toBeTruthy();expect(within(region).queryByRole('button',{name:'Download your copy'})).toBeNull();
  fireEvent.change(within(region).getByLabelText('New price (rupees)'),{target:{value:'89'}});expect(within(region).queryByRole('button',{name:'Approve this change'})).toBeNull();fireEvent.click(within(region).getByRole('button',{name:'Preview change'}));await within(region).findByText('INR 89.00');
- fireEvent.click(within(region).getByRole('button',{name:'Approve this change'}));fireEvent.click(await within(region).findByRole('button',{name:'Confirm and prepare handoff'}));
- expect(await within(region).findByRole('button',{name:'Download handoff'})).toBeTruthy();expect(within(region).getByText('No marketplace change was made. You upload the file.')).toBeTruthy();
+ fireEvent.click(within(region).getByRole('button',{name:'Approve this change'}));fireEvent.click(await within(region).findByRole('button',{name:'Confirm and prepare your copy'}));
+ expect(await within(region).findByRole('button',{name:'Download your copy'})).toBeTruthy();expect(within(region).getByText('No marketplace change was made. You upload the file.')).toBeTruthy();
 });
 it('shows sourced shortlist risks without hiding rejected products',async()=>{
  await setup();fireEvent.click(await screen.findByRole('button',{name:'Seller operations'}));const region=await screen.findByRole('region',{name:'Seller operations'});

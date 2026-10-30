@@ -40,9 +40,9 @@ async function region(title: string): Promise<HTMLElement> {
 afterEach(() => { delete (window as Bridged).chausar; vi.unstubAllGlobals(); });
 
 describe('Business: plan and playbook', () => {
-  it("shows the plan with the playbook's kind, offers priced only by receipt, steps and what you approve", async () => {
+  it("shows the plan with the work plan's kind, offers priced only by receipt, steps and what you approve", async () => {
     start('#/business/plan');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Plan and playbook' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'How the work is done' })).toBeTruthy();
     await waitFor(() => expect(within(screen.getByRole('main')).getByText(/YouTube channel/)).toBeTruthy());
     expect(screen.getByText(/Version 2, accepted/)).toBeTruthy();
     expect(screen.getByText('Weekly audio gear reviews on YouTube, cut into shorts, with sponsor slots.')).toBeTruthy();
@@ -56,10 +56,10 @@ describe('Business: plan and playbook', () => {
     expect(screen.getByText('Anything posted in your name')).toBeTruthy();
     expect(screen.getAllByText('assumption').length).toBeGreaterThan(0);
     const nav = screen.getByRole('navigation', { name: 'Business pages' });
-    expect(within(nav).getByRole('link', { name: 'Plan and playbook' }).getAttribute('aria-current')).toBe('page');
+    expect(within(nav).getByRole('link', { name: 'How the work is done' }).getAttribute('aria-current')).toBe('page');
   });
 
-  it("lists a flagship playbook's own steps with who does each, in place of the template steps", async () => {
+  it("lists a flagship work plan's own steps with who does each, in place of the template steps", async () => {
     const engine = new FakeEngine();
     const view = await plan(engine);
     const step = (id: string, title: string, doneBy: 'you' | 'agent' | 'code' | 'person', who: string) => ({ id, title: { value: title, label: 'assumption' as const, by: 'engine' as const }, doneBy, who });
@@ -90,7 +90,7 @@ describe('Business: plan and playbook', () => {
 
   it('the bare business address shows the plan', async () => {
     start('#/business');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Plan and playbook' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'How the work is done' })).toBeTruthy();
   });
 
   it("accepts a draft plan through its row on Today's queue", async () => {
@@ -152,7 +152,7 @@ describe('Business: platform rules (2H)', () => {
     for (const id of ['social-agency', 'youtube']) expect(rulesListFor({ id, label: id }, '2026-10-23').summary).not.toMatch(/rests on no dated platform rules/);
   });
 
-  it("shows the playbook's dated rules: how many to recheck, each stale rule's line and its source link", async () => {
+  it("shows the work plan's dated rules: how many to recheck, each stale rule's line and its source link", async () => {
     start('#/business/plan', new FakeEngine({ now: () => '2027-01-25T09:00:00.000Z' }));
     const rules = await screen.findByRole('region', { name: 'Platform rules' });
     await waitFor(() => expect(within(rules).getByText('10 current, 8 to recheck.')).toBeTruthy());
@@ -183,7 +183,7 @@ describe('Business: platform rules (2H)', () => {
     const client = createFakeClient(engine);
     const request = client.request.bind(client);
     let asked = 0;
-    let answer: () => Promise<RulesListView> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.', recipes: [], boundaries: [] });
+    let answer: () => Promise<RulesListView> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business has no work instructions with dated platform rules.', recipes: [], boundaries: [] });
     client.request = ((method: string, params?: unknown) => {
       if (method !== 'venture.rules.list') return request(method as never, params as never);
       asked += 1;
@@ -195,7 +195,7 @@ describe('Business: platform rules (2H)', () => {
     await waitFor(() => expect(asked).toBeGreaterThan(0));
     await act(async () => { await Promise.resolve(); });
     expect(screen.queryByRole('region', { name: 'Platform rules' })).toBeNull();
-    expect(screen.queryByText('This business follows no playbook with dated platform rules.')).toBeNull();
+    expect(screen.queryByText('This business has no work instructions with dated platform rules.')).toBeNull();
     unmount();
 
     answer = () => Promise.reject(new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'));
@@ -304,7 +304,7 @@ describe('Business: website build', () => {
 
 describe('Business: the addresses other places link to', () => {
   // Today's setup rows lead to #/business/prices ("Set prices") and #/business/keep ("Keep it"); Team's empty state to #/business/plan.
-  for (const [hash, title] of [['#/business/prices', 'Prices'], ['#/business/keep', 'Keep this business'], ['#/business/plan', 'Plan and playbook']] as const) {
+  for (const [hash, title] of [['#/business/prices', 'Prices'], ['#/business/keep', 'Keep this business'], ['#/business/plan', 'How the work is done']] as const) {
     it(`${hash} opens ${title}`, async () => {
       start(hash);
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
@@ -314,7 +314,7 @@ describe('Business: the addresses other places link to', () => {
   }
   it('an address it does not know shows the plan', async () => {
     start('#/business/nowhere');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Plan and playbook' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'How the work is done' })).toBeTruthy();
   });
 });
 
@@ -389,7 +389,7 @@ describe('Business: keep this business', () => {
 });
 
 describe('Business menu: the playbook label', () => {
-  it("shows the playbook's own label under the business name, in the rail button and in the menu", async () => {
+  it("shows the work plan's own label under the business name, in the rail button and in the menu", async () => {
     start('#/today');
     const rail = screen.getByRole('navigation', { name: 'Places' });
     const button = await within(rail).findByRole('button', { name: /Lumen Studio/ });
@@ -464,7 +464,7 @@ describe('Business menu', () => {
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
     // W5 5A2: Go or no go, after Goals.
-    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
     expect(hrefs).toHaveLength(11);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });

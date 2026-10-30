@@ -23,11 +23,11 @@ export const TEST_ITEM: Readonly<Record<string, Json>> = Object.freeze({ from: '
 export const WEBHOOK_TIMEOUT_MS = 15_000;
 
 export const WEBHOOK_WORDS = Object.freeze({
-  kept: (kind: WebhookKind, host: string) => `Your ${WEBHOOK_NAMES[kind]} webhook at ${host} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`,
-  answered: (kind: WebhookKind) => `The test item reached your ${WEBHOOK_NAMES[kind]} webhook.`,
-  unknown: (kind: WebhookKind) => `The test item may or may not have reached your ${WEBHOOK_NAMES[kind]} webhook. Check it there; Chausar will not send it again.`,
-  cleared: (kind: WebhookKind) => `No ${WEBHOOK_NAMES[kind]} webhook is set. Chausar sends nothing there.`,
-  notSet: (kind: WebhookKind) => `No ${WEBHOOK_NAMES[kind]} webhook is set. Set its address under Connections first.`,
+  kept: (kind: WebhookKind, host: string) => `Your ${WEBHOOK_NAMES[kind]} connection at ${host} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`,
+  answered: (kind: WebhookKind) => `The test item reached your ${WEBHOOK_NAMES[kind]} connection.`,
+  unknown: (kind: WebhookKind) => `The test item may or may not have reached your ${WEBHOOK_NAMES[kind]} connection. Check it there; Chausar will not send it again.`,
+  cleared: (kind: WebhookKind) => `No ${WEBHOOK_NAMES[kind]} connection is set. Chausar sends nothing there.`,
+  notSet: (kind: WebhookKind) => `No ${WEBHOOK_NAMES[kind]} connection is set. Set its address under Connections first.`,
 });
 
 const secretOf = (kind: WebhookKind): SecretName => `webhook:${kind}`;
@@ -52,9 +52,9 @@ function kindOf(value: unknown): WebhookKind {
 
 /** The address as the guard checks it: https, public, no name or password in it. */
 async function checkedAddress(deps: VentureDeps, raw: unknown): Promise<URL> {
-  check(typeof raw === 'string' && raw.length <= 2000, 'INVALID_VENTURE_REQUEST', 'Paste the webhook address from n8n or Make.');
+  check(typeof raw === 'string' && raw.length <= 2000, 'INVALID_VENTURE_REQUEST', 'Paste the receiving address from n8n or Make.');
   const url = checkUrl(raw);
-  check(url.protocol === 'https:', 'INVALID_VENTURE_REQUEST', 'Use the https address n8n or Make gives the webhook.');
+  check(url.protocol === 'https:', 'INVALID_VENTURE_REQUEST', 'Use the https receiving address n8n or Make gives you.');
   await resolvePublic(url.hostname.replace(/\.$/, ''), deps.net?.resolve);
   return url;
 }
@@ -72,9 +72,9 @@ export async function sendToWebhook(deps: VentureDeps, ctx: Context, input: { ki
   const url = new URL(address);
   const body = webhookPayloadText(input.payload);
   const name = WEBHOOK_NAMES[kind];
-  const line = `Send to your ${name} webhook at ${url.hostname}: ${body}`;
+  const line = `Send to your ${name} connection at ${url.hostname}: ${body}`;
   return journalled<number | null>(deps, ctx, {
-    action: 'connector.write', operation: 'webhook-send', subject: `webhook:${kind}:${input.subject}`, target: `${name} webhook at ${url.hostname}`,
+    action: 'connector.write', operation: 'webhook-send', subject: `webhook:${kind}:${input.subject}`, target: `${name} connection at ${url.hostname}`,
     actionDigest: digest(`${kind}\n${body}`), line: line.slice(0, 300), descriptionComplete: line.length <= 300,
   }, async (): Promise<ApplyResult<number | null>> => {
     try {
@@ -82,15 +82,15 @@ export async function sendToWebhook(deps: VentureDeps, ctx: Context, input: { ki
         url: url.href, method: 'POST', body, maxRedirects: 0, timeoutMs: WEBHOOK_TIMEOUT_MS, maxBytes: 64 * 1024,
         headers: { 'content-type': 'application/json', 'user-agent': CHAUSAR_USER_AGENT },
       }, deps.net ?? {});
-      if (answer.status >= 200 && answer.status <= 299) return { outcome: 'applied', line: `Your ${name} webhook took it (${answer.status}).`, value: answer.status, by: 'platform' };
-      if (answer.status >= 400 && answer.status <= 499) return { outcome: 'not-sent', line: `Your ${name} webhook refused it (${answer.status}). Nothing ran there.`, value: answer.status, by: 'platform' };
-      return { outcome: 'unknown', line: `Your ${name} webhook answered ${answer.status}: part of its workflow may have run.`, value: answer.status };
+      if (answer.status >= 200 && answer.status <= 299) return { outcome: 'applied', line: `Your ${name} connection took it (${answer.status}).`, value: answer.status, by: 'platform' };
+      if (answer.status >= 400 && answer.status <= 499) return { outcome: 'not-sent', line: `Your ${name} connection refused it (${answer.status}). Nothing ran there.`, value: answer.status, by: 'platform' };
+      return { outcome: 'unknown', line: `Your ${name} connection answered ${answer.status}: part of its workflow may have run.`, value: answer.status };
     } catch (error) {
       const code = (error as { code?: string }).code ?? '';
       // Refused before anything left (the guard, the lookup): not sent. Anything else may have reached the workflow:
       // unknown, never sent again on its own.
       if (error instanceof ChausarError && BEFORE_SENDING.has(code)) return { outcome: 'not-sent', line: `${error.message} Nothing was sent.`, value: null };
-      return { outcome: 'unknown', line: `Your ${name} webhook did not answer as expected.`, value: null };
+      return { outcome: 'unknown', line: `Your ${name} connection did not answer as expected.`, value: null };
     }
   });
 }
@@ -123,7 +123,7 @@ export async function webhookSet(deps: VentureDeps, ctx: Context, payload: unkno
   }
   if (done.entry.state === 'rejected') {
     if (before !== null) deps.secrets.set(secretOf(kind), before); else deps.secrets.delete(secretOf(kind));
-    throw new ChausarError('WEBHOOK_REFUSED', `${done.entry.journal.at(-1)?.line ?? 'The webhook refused the test item.'} The address was not kept.`);
+    throw new ChausarError('WEBHOOK_REFUSED', `${done.entry.journal.at(-1)?.line ?? 'n8n or Make refused the test item.'} The address was not kept.`);
   }
   const answered = done.entry.state === 'applied';
   return {

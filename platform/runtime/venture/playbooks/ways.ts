@@ -199,10 +199,10 @@ export function validateWays(ways: readonly WayData[] = WAYS, registry: readonly
   const seen = new Set<string>();
   for (const way of ways) {
     const id = String(way?.playbook);
-    if (!registry.some(entry => entry.id === way.playbook)) fail(`${id} is not a registered playbook, so it has no way to earn.`);
+    if (!registry.some(entry => entry.id === way.playbook)) fail(`${id} is not a registered work plan, so it has no way to earn.`);
     if (seen.has(id)) fail(`The way ${id} is listed twice.`);
     seen.add(id);
-    const delivery = flagshipDelivery(id) ?? fail(`The playbook ${id} does not deliver yet, so it has no way to earn.`);
+    const delivery = flagshipDelivery(id) ?? fail(`The work plan ${id} does not deliver yet, so it has no way to earn.`);
     if (!WAY_CATEGORIES.some(category => category.id === way.category)) fail(`The way ${id} needs a category: content, marketing, money and tax, or shops and firms.`);
     const { min, max } = way.hours ?? { min: NaN, max: NaN };
     if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || min > max || max > 60) fail(`The way ${id} needs whole hours a week from 1 to 60, the fewest first.`);
@@ -210,10 +210,10 @@ export function validateWays(ways: readonly WayData[] = WAYS, registry: readonly
     if (!Number.isSafeInteger(minRupees) || !Number.isSafeInteger(maxRupees) || minRupees < 1 || minRupees > maxRupees) fail(`The way ${id} needs a pay range in whole rupees above zero, the lowest first.`);
     for (const [language, words] of [['en', way.en]] as const) {
       for (const field of Object.keys(LIMITS) as (keyof WayLanguage)[]) checkWords(id, `${language} ${field}`, words?.[field], LIMITS[field]);
-      if (pickPlaybook(words.starter, registry)?.id !== id) fail(`The way ${id}'s ${language} starter must pick the ${id} playbook.`);
+      if (pickPlaybook(words.starter, registry)?.id !== id) fail(`The way ${id}'s ${language} starter must pick the ${id} work plan.`);
     }
     if (!Array.isArray(way.uses) || !way.uses.length) fail(`The way ${id} needs the connections it uses.`);
-    for (const connector of way.uses) if (!connectorWorks(id, connector)) fail(`${connector} is not a connection that works today in the ${id} playbook.`);
+    for (const connector of way.uses) if (!connectorWorks(id, connector)) fail(`${connector} is not a connection that works today in the ${id} work plan.`);
 
   }
 }

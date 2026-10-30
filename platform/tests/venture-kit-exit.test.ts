@@ -18,7 +18,7 @@ import { owner, seedBlueprint, setup, type Env } from './venture-views-env.ts';
 const hi = (en: string) => FIXTURE_HI[en] ?? null;
 const OUTSIDE_REPLY = 'This is outside what we do. We can help with bookkeeping, bank reconciliation and gst returns. For website, a web designer or a lawyer near you can help.';
 
-test('code decides in, partly or outside from the playbook\'s own phrases, in English and Hindi; no phrase leaves it to the owner', () => {
+test('code decides in, partly or outside from the work plan\'s own phrases, in English and Hindi; no phrase leaves it to the owner', () => {
   assert.deepEqual(scopeOf(FIXTURE, 'Please do my bookkeeping and bank reconciliation for October.'), {
     verdict: 'in', inPart: ['bookkeeping', 'bank reconciliation'], rest: [], reply: null, by: 'code',
   });

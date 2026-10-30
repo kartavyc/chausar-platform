@@ -18,7 +18,7 @@ import { stepTo, type Journalled } from './journal.ts';
 // ---------------------------------------------------------------------------
 
 /** What a proposal that would outlive the session is told. */
-export const ACTION_DENY_LINE = 'Chausar does not do this: it would keep working after you close the app, such as a new key or token, a webhook that keeps sending, or a batch that hides what it does. Do it yourself where you can see it.';
+export const ACTION_DENY_LINE = 'Chausar does not do this: it would keep working after you close the app, such as a new key or token, a connection that keeps sending, or a batch that hides what it does. Do it yourself where you can see it.';
 
 /** Action names Chausar never journals: each makes something that keeps acting after the session. */
 const DENIED_ACTION = /^(credentials?|tokens?|api[-_]?keys?|secrets?|webhooks?|bulk|batch)([._-]|$)/i;
@@ -58,7 +58,7 @@ export const CONNECTOR_WRITE_OPERATIONS: readonly string[] = Object.freeze(['sen
   'shopify-price', 'shopify-title', 'shopify-stock',
   // Ink v2 wave 5 (5A6): one approved item to the owner's own n8n or Make webhook, and one approved command of an app they installed.
   'webhook-send', 'local-app-run', 'happenstance-search', 'wordpress-draft', 'books-draft', 'books-issue', 'books-settlement', 'books-setup-master', 'books-setup-opening', 'forms-submit', 'forms-sign-in']);
-export const OPERATION_UNKNOWN_LINE = 'Chausar writes to a connected service only in the ways it knows: sending a deliverable by mail, making a payment link, sending an item you approved to your webhook, or running a command you approved in your own app. This is not one of them.';
+export const OPERATION_UNKNOWN_LINE = 'Chausar writes to a connected service only in the ways it knows: sending a deliverable by mail, making a payment link, sending an item you approved to your connection, or running a command you approved in your own app. This is not one of them.';
 
 // ---------------------------------------------------------------------------
 // reject() cleanup

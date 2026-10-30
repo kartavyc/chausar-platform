@@ -16,7 +16,7 @@ import { recipeViews } from './kit/recipes.ts';
 import { boundaryViews } from './kit/boundaries.ts';
 import { kitDefinitions } from './kit/installed.ts';
 
-const NO_PLAYBOOK = 'This business follows no playbook with dated platform rules.';
+const NO_PLAYBOOK = 'This business has no work instructions with dated platform rules.';
 
 /**
  * The flagship playbook the business runs: the playbook in use's, else the accepted plan's (as delivery picks it),

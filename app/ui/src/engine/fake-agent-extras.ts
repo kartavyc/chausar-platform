@@ -111,7 +111,7 @@ const OFF_WORDS = {
   write: "Can't change your records, files or connected services.",
 } as const;
 const WRITE_TAIL = 'You check the draft before anything leaves Chausar.';
-const JUDGE_ON = 'Code runs the checks, then an AI judge reads the draft on your own AI.';
+const JUDGE_ON = 'Code runs the checks, then an AI quality check reads the draft on your own AI.';
 
 /** What each sample step is, as the playbook's step kinds say (the fake's agents carry only id and purpose). */
 const STEP_KIND: Readonly<Record<string, 'gather' | 'work' | 'write' | 'verify' | 'floor'>> = {
@@ -524,7 +524,7 @@ export class FakeAgentExtras {
     try { raw = JSON.parse(body.text); } catch { throw invalid(NOT_A_FILE); }
     const file = raw as { format?: unknown; version?: unknown; agent?: { id?: unknown }; steps?: unknown; persona?: unknown; standingOrders?: unknown } | null;
     if (!file || typeof file !== 'object' || file.format !== 'chausar-agent' || file.version !== 1) throw invalid(NOT_A_FILE);
-    if (Object.keys(file).some((key) => !['format', 'version', 'agent', 'flagship', 'steps', 'persona', 'standingOrders'].includes(key))) throw invalid(`${NOT_A_FILE} It holds fields an agent file never has, such as tools, limits or a posture.`);
+    if (Object.keys(file).some((key) => !['format', 'version', 'agent', 'flagship', 'steps', 'persona', 'standingOrders'].includes(key))) throw invalid(`${NOT_A_FILE} It holds fields an agent file never has, such as tools, limits or an approval setting.`);
     if (!file.agent || typeof file.agent.id !== 'string' || !Array.isArray(file.standingOrders)) throw invalid(NOT_A_FILE);
     const screened = (text: string, field: string) => {
       if (INJECTION.test(text) || CHECKER.test(text)) throw new EngineError('UNTRUSTED_HELD', `The ${field} in this file has words aimed at an agent or a checker, or hidden characters, so nothing from it was imported.`);

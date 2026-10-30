@@ -651,7 +651,7 @@
         "minHours": 5,
         "maxHours": 10,
         "hoursEstimate": true,
-        "youDo": "Meet clients and approve each handoff.",
+        "youDo": "Meet clients and approve each file you send.",
         "team": [
           {
             "role": "Assistant",
@@ -754,7 +754,7 @@
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
-          "connections": "Works with Your stock speech voice and Reviewed file handoff."
+          "connections": "Works with Your stock speech voice and Reviewed files you send."
         },
         "starter": "App testing service: Emulator test rounds for small app makers, and recorded software demos.",
         "yours": []
@@ -853,7 +853,7 @@
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
-          "connections": "Works with Approved reply handoff."
+          "connections": "Works with Approved reply you send."
         },
         "starter": "It support desk: Help-channel triage summaries for small teams, every reply approved.",
         "yours": []

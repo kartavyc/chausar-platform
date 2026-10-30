@@ -41,7 +41,7 @@ const OUTSIDE_LATCH: ReadonlySet<string> = new Set(['mail', 'post', 'web-page'])
 
 /** The agent's steps: the playbook in use, else the accepted plan's steps (as the team view reads them). */
 function agentSteps(state: State, venture: VentureRecord, agentId: string): PlaybookStep[] {
-  check(agentId !== KEEPER, 'AGENT_IS_CODE', 'Keeper is code, not AI. It never works at auto or any other posture.');
+  check(agentId !== KEEPER, 'AGENT_IS_CODE', 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.');
   const playbook = currentPlaybook(state, venture);
   const plan = acceptedBlueprintOrNull(state, venture);
   let steps: PlaybookStep[] | null = playbook?.steps ?? null;
@@ -88,10 +88,10 @@ export function autoReadiness(state: State, venture: VentureRecord, agentId: str
   const lastTwo = sinceChange.slice(0, CLEAN_DRILL_RUNS);
   const freshDrill = lastTwo.length === CLEAN_DRILL_RUNS && lastTwo.every(run => run.passed && within(run.at, DRILL_DAYS));
   const drillLine = !drills.length ? 'Run the drills twice and have every drill pass both times.'
-    : !sinceChange.length ? 'No drill run since the playbook last changed. Run the drills twice again.'
-      : freshDrill ? 'The last two drill runs on the current playbook passed, within the last 30 days.'
+    : !sinceChange.length ? 'No drill run since the work instructions last changed. Run the drills twice again.'
+      : freshDrill ? 'The last two drill runs on the current work instructions passed, within the last 30 days.'
         : lastTwo.some(run => !run.passed) ? 'A drill failed in one of the last two runs. Fix it, then run the drills twice clean.'
-          : lastTwo.length < CLEAN_DRILL_RUNS ? `${lastTwo.length} clean drill run on the current playbook. It needs two in a row.`
+          : lastTwo.length < CLEAN_DRILL_RUNS ? `${lastTwo.length} clean drill run on the current work plan. It needs two in a row.`
             : 'A clean drill run is older than 30 days. Run the drills twice again.';
   const latched = real.filter(run => within(run.at, TAINT_DAYS) && run.harness
     && ((run.harness.taint && OUTSIDE_LATCH.has(run.harness.taint.source)) || run.harness.toolCalls.some(call => call.screen?.status === 'quarantined' || call.screen?.status === 'flagged'))).length;
@@ -100,7 +100,7 @@ export function autoReadiness(state: State, venture: VentureRecord, agentId: str
       passedRecently ? 'A real order this agent worked passed its checks and you accepted it in the last 14 days.' : 'No real order passed in the last 14 days with every check passing and your Accept.'),
     met('spend-log', 'The spend log is complete', held === 0,
       held === 0 ? 'Every paid call is settled in the spend log.' : `${held} paid ${held === 1 ? 'call is' : 'calls are'} still held or unknown in the spend log.`),
-    met('drills', 'Two clean drill runs within 30 days and since the last playbook change', freshDrill, drillLine),
+    met('drills', 'Two clean drill runs within 30 days and since the work instructions last changed', freshDrill, drillLine),
     met('no-taint', 'No run was latched by outside content', latched === 0,
       latched === 0 ? 'No real run in the last 14 days read mail, a post or a web page, or had content held by the screen.' : `${latched} real ${latched === 1 ? 'run' : 'runs'} in the last 14 days read outside content beyond the order, or had content held by the screen.`),
   ];
@@ -136,7 +136,7 @@ export async function autoReadinessHandler(deps: VentureDeps, ctx: Context, payl
   authorize(deps.store, ctx);
   const state = deps.store.read();
   const venture = currentVenture(state);
-  check(agent !== KEEPER, 'AGENT_IS_CODE', 'Keeper is code, not AI. It never works at auto or any other posture.');
+  check(agent !== KEEPER, 'AGENT_IS_CODE', 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.');
   check(venture, 'AGENT_NOT_FOUND', 'That agent was not found.');
   return autoReadiness(state, venture, agent, deps.clock());
 }

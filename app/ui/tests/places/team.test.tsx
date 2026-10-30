@@ -113,16 +113,16 @@ describe('Team: the agent sheet', () => {
     // Ink v2 (3D): the agent panel's close button says whose panel it closes.
     await click(screen.getByRole('button', { name: 'Close Editor' }));
     const researcher = await openAgent('Researcher');
-    expect(within(researcher).getByText('Shadow')).toBeTruthy();
+    expect(within(researcher).getByText('Practice on real orders')).toBeTruthy();
     expect(within(researcher).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
   });
 
   it('offers the four postures, the current one chosen', async () => {
     start();
     const sheet = await openAgent('Editor');
-    const group = within(sheet).getByRole('group', { name: 'Posture' });
+    const group = within(sheet).getByRole('group', { name: 'How much it asks you' });
     const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
-    expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(['Rehearsal', 'Shadow', 'Approve each', 'Auto with spot checks']);
+    expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(['Rehearsal', 'Practice on real orders', 'Approve each', 'Auto with spot checks']);
     expect(radios.filter((r) => r.checked).map((r) => r.value)).toEqual(['approve-each']);
   });
 
@@ -133,13 +133,13 @@ describe('Team: the agent sheet', () => {
         ? new Promise((resolve) => { answer = resolve; }).then(() => base.request('venture.team.posture', params as never)) : undefined,
     });
     const sheet = await openAgent('Editor');
-    const group = within(sheet).getByRole('group', { name: 'Posture' }) as HTMLFieldSetElement;
-    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Shadow' })); });
-    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(true);
+    const group = within(sheet).getByRole('group', { name: 'How much it asks you' }) as HTMLFieldSetElement;
+    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Practice on real orders' })); });
+    expect((within(group).getByRole('radio', { name: 'Practice on real orders' }) as HTMLInputElement).checked).toBe(true);
     expect(group.disabled).toBe(true);
     await act(async () => { answer(undefined); });
     await waitFor(() => expect(group.disabled).toBe(false));
-    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(true);
+    expect((within(group).getByRole('radio', { name: 'Practice on real orders' }) as HTMLInputElement).checked).toBe(true);
     expect(within(sheet).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
     const stored = (await base.request('venture.team.list', {})).agents.find((a) => a.id === 'editor')!;
     expect(stored.posture).toBe('shadow');
@@ -153,11 +153,11 @@ describe('Team: the agent sheet', () => {
       intercept: (method) => (method === 'venture.team.posture' ? Promise.reject(new EngineError('POSTURE_ABOVE_STAGE', line)) : undefined),
     });
     const sheet = await openAgent('Editor');
-    const group = within(sheet).getByRole('group', { name: 'Posture' });
-    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Shadow' })); });
+    const group = within(sheet).getByRole('group', { name: 'How much it asks you' });
+    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Practice on real orders' })); });
     await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe(line));
     expect((within(group).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
-    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(false);
+    expect((within(group).getByRole('radio', { name: 'Practice on real orders' }) as HTMLInputElement).checked).toBe(false);
   });
 
   it('any other posture refusal says what the engine said', async () => {
@@ -166,11 +166,11 @@ describe('Team: the agent sheet', () => {
     });
     const sheet = await openAgent('Editor');
     await act(async () => { fireEvent.click(within(sheet).getByRole('radio', { name: 'Rehearsal' })); });
-    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe("Couldn't change the posture: The engine is not answering."));
+    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe("Couldn't change how much it asks: The engine is not answering."));
     expect((within(sheet).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('lists only its assigned playbook steps, each with a gate', async () => {
+  it('lists only its assigned work steps, each with a gate', async () => {
     start();
     const sheet = await openAgent('Editor');
     const steps = within(sheet).getByRole('list', { name: 'Steps' });

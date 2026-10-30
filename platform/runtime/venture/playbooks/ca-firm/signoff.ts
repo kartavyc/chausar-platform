@@ -119,7 +119,7 @@ export async function requestCaSignoff(deps: VentureDeps, ctx: Context, payload:
   check(typeof body.workingDigest === 'string' && /^[a-f0-9]{64}$/.test(body.workingDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the papers.');
   check(Array.isArray(body.receiptIds) && body.receiptIds.length >= 1 && body.receiptIds.length <= 50
     && body.receiptIds.every(id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{3,80}$/.test(id)), 'INVALID_VENTURE_REQUEST', 'Send the receipts the papers rest on.');
-  check(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && /^[a-f0-9]{64}$/.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The playbook hash is a digest.');
+  check(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && /^[a-f0-9]{64}$/.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The work plan hash is a digest.');
   return ventureAction(deps, ctx, 'prepare', 'ca-firm.signoff-request', tx => {
     requireCa(tx.state, tx.venture!.id);
     const asked = deliveryId

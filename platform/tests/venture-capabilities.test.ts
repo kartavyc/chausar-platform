@@ -118,9 +118,9 @@ test('a code role reads the files by code (never "can\'t open" them); a floor th
   assert.equal(item(view, 'step:score').line, 'Score the hooks and keep the best two. Code does this, with no AI.');
   const assemble = item(view, 'step:assemble');
   assert.equal(assemble.state, 'planned');
-  assert.equal(assemble.line, "Build the edit list from the chosen segments, with any paid voice quoted first. Code does this, with no AI. Paid generation spends money, so it asks you first at every posture. Paying for it is planned: Chausar can't buy it yet, so nothing is spent.");
+  assert.equal(assemble.line, "Build the edit list from the chosen segments, with any paid voice quoted first. Code does this, with no AI. Paid generation spends money, so it asks you first with every approval setting. Paying for it is planned: Chausar can't buy it yet, so nothing is spent.");
   assert.ok(!keys(view, 'off').includes('effect:money'), 'a step that spends counts money as reached');
-  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks, then an AI judge reads the draft on your own AI.');
+  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks, then an AI quality check reads the draft on your own AI.');
   assert.equal(view.line, `Chausar is code, not AI: it does the same steps the same way every time. ${APPROVAL}`);
 });
 
@@ -129,16 +129,16 @@ test('the social checker: code checks, then the AI judge, or only code when the 
   const own = (role: string) => delivery.steps.filter(entry => delivery.roleOf[entry.id] === role);
   const team = teamOf([...delivery.steps], { floor: delivery.floor, spends: new Set(['creative-briefs']) });
   const on = capabilityPage({ id: 'checker', name: 'Checker', kind: 'agent', steps: own('checker') }, team, desktop);
-  assert.equal(item(on, 'step:check').line, 'Run the code checks, then the yes or no judge. Code runs the checks, then an AI judge reads the draft on your own AI.');
+  assert.equal(item(on, 'step:check').line, 'Run the code checks, then the yes or no quality check. Code runs the checks, then an AI quality check reads the draft on your own AI.');
   const off = capabilityPage({ id: 'checker', name: 'Checker', kind: 'agent', steps: own('checker') }, team, { ...desktop, judge: false });
-  assert.equal(item(off, 'step:check').line, 'Run the code checks, then the yes or no judge. Code runs the checks. The AI judge is off for this business.');
+  assert.equal(item(off, 'step:check').line, 'Run the code checks, then the yes or no quality check. Code runs the checks. The AI quality check is off for this business.');
   assert.ok(!on.items.some(entry => /with no AI/.test(entry.line)));
   const creative = capabilityPage({ id: 'creative', name: 'Creative', kind: 'agent', steps: own('creative') }, team, desktop);
   assert.equal(item(creative, 'step:creative-briefs').state, 'planned');
   assert.ok(!keys(creative, 'off').includes('effect:money'));
 });
 
-test('the business\'s own team says which steps spend, from the playbook\'s own data', async () => {
+test('the business\'s own team says which steps spend, from the work plan\'s own data', async () => {
   const env = await agentBusiness();
   const state = env.store.read();
   const team = capabilityTeam(state, listRecords(state, 'venture-record')[0])!;
@@ -198,12 +198,12 @@ test('the judge setting of the business is read: turned off, the check step says
   const env = await agentBusiness();
   await ventureAction(env.deps, owner, 'admin', 'seed.judge', tx => tx.put({ ...tx.base('venture-judge-setting'), auto: false, consent: null } as any));
   const view = await page(env, 'chausar');
-  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks. The AI judge is off for this business.');
+  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks. The AI quality check is off for this business.');
 });
 
 test('the CA firm\'s check step never says the AI judge reads its papers: only a draft for a client goes to the judge', () => {
   const delivery = flagshipDelivery('ca-firm')!;
   const own = delivery.steps.filter(entry => delivery.roleOf[entry.id] === 'checker');
   const view = capabilityPage({ id: 'checker', name: 'Checks', kind: 'code', steps: own }, teamOf([...delivery.steps], { floor: delivery.floor, flagshipId: 'ca-firm' }), desktop);
-  assert.equal(item(view, 'step:verify').line, 'Check the papers against the receipts and the rules. Code runs the checks. Papers for your CA of record never go to the AI judge; only a draft that goes to a client does, on your own AI.');
+  assert.equal(item(view, 'step:verify').line, 'Check the papers against the receipts and the rules. Code runs the checks. Papers for your CA of record never go to the AI quality check; only a draft that goes to a client does, on your own AI.');
 });

@@ -122,12 +122,12 @@ describe('Money: spend', () => {
     expect(refused.textContent).toContain('No price');
     expect(refused.textContent).toContain('refused');
     expect(refused.textContent).toContain('Instagram has no price on your rate card, so the call was refused.');
-    expect(screen.queryByText(/never counted as free/)).toBeNull();
+    expect(screen.queryByText(/Calls without prices are refused, never free/)).toBeNull();
   });
 
   it('a refused call the engine gave no reason for falls back to the plain note', async () => {
     start('#/money/spend', { 'venture.spend.list': () => ({ rows: [{ id: 'sp9', connector: 'Instagram', label: 'Paid boost', reserved: 'No price', kind: 'refused' }], total: '₹0.00 this month' }) });
-    expect((await screen.findByText(/never counted as free/)).textContent).toContain('Limits and rates');
+    expect((await screen.findByText(/Calls without prices are refused, never free/)).textContent).toContain('Limits and rates');
   });
 
   it('shows each figure and the month in rupees beside the dollars when the engine gives them, with the owner\'s rate', async () => {
@@ -155,7 +155,7 @@ describe('Money: spend', () => {
   it('says so when there are no paid calls', async () => {
     start('#/money/spend', { 'venture.spend.list': () => ({ rows: [], total: '₹0.00 this month' }) });
     expect(await screen.findByText('No paid calls yet.')).toBeTruthy();
-    expect(screen.queryByText(/never counted as free/)).toBeNull();
+    expect(screen.queryByText(/Calls without prices are refused, never free/)).toBeNull();
   });
 });
 

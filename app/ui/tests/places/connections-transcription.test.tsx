@@ -37,7 +37,7 @@ describe('Connections > Your AI: transcription on this computer', () => {
     start(engine);
     const box = await part();
     expect(await within(box).findByText('No whisper.cpp is set up on this computer.')).toBeTruthy();
-    expect(within(box).getByText('Uses a whisper.cpp already on this computer. Chausar never installs it or downloads a model.')).toBeTruthy();
+    expect(within(box).getByText('Uses installed whisper.cpp. Chausar never installs it or downloads models.')).toBeTruthy();
     expect(within(box).queryByRole('button', { name: 'Remove' })).toBeNull();
     fireEvent.change(within(box).getByLabelText('whisper-cli program'), { target: { value: CLI } });
     fireEvent.change(within(box).getByLabelText('Model file'), { target: { value: MODEL } });

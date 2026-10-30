@@ -536,7 +536,7 @@ test('template rehearsal: three practice clients pass their checks, not judged, 
   for (const episode of run.episodes) {
     assert.equal(episode.passed, true, `${episode.scenarioId}: ${episode.firstFailure}`);
     assert.equal(episode.firstFailure, null);
-    assert.deepEqual(episode.judge.map(answer => [answer.question, answer.answer, answer.reason]), JUDGE_QUESTIONS.map(question => [question, 'not-judged', 'No AI judge connected.']));
+    assert.deepEqual(episode.judge.map(answer => [answer.question, answer.answer, answer.reason]), JUDGE_QUESTIONS.map(question => [question, 'not-judged', 'No AI quality check connected.']));
     assert.equal(episode.mocks.length, 1);
     assert.equal(episode.mocks[0].connector, 'mail-app');
     assert.equal(episode.mocks[0].payloadDigest, digest(episode.renderedText));
@@ -706,7 +706,7 @@ test('launch ladder: template rehearsal cannot unlock shadow; judged model runs 
   ]);
   assert.deepEqual([stage(status, 'approve-sample'), stage(status, 'auto-spot-check')].map(item => [item.allowed, item.status, item.reason]), [
     // 4J15: auto with spot checks is built but locked (the founder's decision), not planned.
-    [false, 'planned', 'Planned. Needs a sampling rule first.'], [false, 'available', "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes."],
+    [false, 'planned', 'Planned. Needs a sampling rule first.'], [false, 'available', "Routine-step approval is not available yet."],
   ]);
   assert.equal(status.improvement.status, 'available');
   assert.equal(status.improvement.due, false);
@@ -839,7 +839,7 @@ test('real runs: a template outline at any stage; a model draft waits for approv
 
   await queueModel(env, { delivery: ['draft-order'] });
   const before = JSON.stringify(env.store.read().conversations);
-  await assert.rejects(call(env, 'venture.delivery.run', { orderId: order.id }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === 'Rehearse with your AI first, then move to shadow.');
+  await assert.rejects(call(env, 'venture.delivery.run', { orderId: order.id }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === 'Practise with your AI first, then practise on real orders.');
   assert.equal(JSON.stringify(env.store.read().conversations), before);
   assert.equal(env.models.previewed.length, 0);
   // useTemplate still gives an outline at the rehearsal stage, with a model connected.
@@ -1439,7 +1439,7 @@ test('rehearsal: a trace the scan finds a secret in is judged by no judge, and t
   const run = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
   const [episode] = run.episodes;
   assert.equal(episode.passed, false);
-  assert.match(episode.firstFailure ?? '', /^Before any judge reads this run, code scanned it and found something that looks like a key or a password/);
+  assert.match(episode.firstFailure ?? '', /^Before any quality check reads this run, code scanned it and found something that looks like a key or a password/);
   assert.ok(episode.judge.every(answer => answer.answer === 'not-judged'));
   assert.equal(env.models.generated.filter(task => task.schemaName === 'venture-judge-rules' || task.purpose === 'judge').length, before, 'no judge was asked');
   assert.ok(!JSON.stringify(run).includes(key));

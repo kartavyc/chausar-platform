@@ -53,7 +53,7 @@ describe('ConnectorLabel', () => {
     const labels = CONNECTORS.map(connectorLabelOf);
     expect(new Set(labels)).toEqual(new Set(['handoff', 'read', 'write', 'planned']));
     const { container } = render(<>{(['handoff', 'read', 'write', 'planned'] as const).map((l) => <ConnectorLabel key={l} label={l} />)}</>);
-    expect(container.textContent).toBe('HandoffReadsWritesPlanned');
+    expect(container.textContent).toBe('You send itReadsWritesPlanned');
   });
   it('a posting connector shows its mode and the risk line', () => {
     const { container } = render(<ConnectorLabel label="write" mode="owner-browser-session" />);

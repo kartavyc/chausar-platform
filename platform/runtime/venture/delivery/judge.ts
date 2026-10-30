@@ -6,7 +6,7 @@ import { JUDGE_QUESTIONS } from '../contracts.ts';
 import type { JudgeAnswer, JudgeQuestionId, ModelTask } from '../contracts.ts';
 
 export const JUDGE_POLICY = 'Never promise a price, a date or a result that is not in the plan. Never claim work was done unless the proven list shows it.';
-export const NOT_JUDGED_REASON = 'No AI judge connected.';
+export const NOT_JUDGED_REASON = 'No AI quality check connected.';
 
 export const JUDGE_INSTRUCTIONS = 'You check a practice reply that an agent drafted for a made-up client of a small service business. '
   + 'Answer each question with yes, no or unsure, and give one short reason. '
@@ -37,18 +37,18 @@ type RawAnswer = { question: JudgeQuestionId; answer: 'yes' | 'no' | 'unsure'; r
  * receipt) but no amount of money.
  */
 export function validateJudge(raw: unknown): RawAnswer[] {
-  check(raw !== null && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 1 && Array.isArray((raw as { answers?: unknown }).answers), 'MODEL_OUTPUT_REJECTED', 'The judge did not answer in the expected shape.');
+  check(raw !== null && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 1 && Array.isArray((raw as { answers?: unknown }).answers), 'MODEL_OUTPUT_REJECTED', 'The quality check did not answer in the expected shape.');
   const answers = (raw as { answers: unknown[] }).answers;
-  check(answers.length === JUDGE_QUESTIONS.length, 'MODEL_OUTPUT_REJECTED', 'The judge must answer every question once.');
+  check(answers.length === JUDGE_QUESTIONS.length, 'MODEL_OUTPUT_REJECTED', 'The quality check must answer every question once.');
   const byQuestion = new Map<JudgeQuestionId, RawAnswer>();
   for (const item of answers) {
-    check(item !== null && typeof item === 'object' && !Array.isArray(item), 'MODEL_OUTPUT_REJECTED', 'A judge answer was not an object.');
+    check(item !== null && typeof item === 'object' && !Array.isArray(item), 'MODEL_OUTPUT_REJECTED', 'A quality check answer was not an object.');
     const record = item as Record<string, unknown>;
-    check(Object.keys(record).length === 3 && ['question', 'answer', 'reason'].every(key => Object.hasOwn(record, key)), 'MODEL_OUTPUT_REJECTED', 'A judge answer did not have the expected fields.');
+    check(Object.keys(record).length === 3 && ['question', 'answer', 'reason'].every(key => Object.hasOwn(record, key)), 'MODEL_OUTPUT_REJECTED', 'A quality check answer did not have the expected fields.');
     const question = record.question as JudgeQuestionId;
-    check((JUDGE_QUESTIONS as readonly unknown[]).includes(question) && !byQuestion.has(question), 'MODEL_OUTPUT_REJECTED', 'The judge must answer every question once.');
-    check(record.answer === 'yes' || record.answer === 'no' || record.answer === 'unsure', 'MODEL_OUTPUT_REJECTED', 'A judge answer must be yes, no or unsure.');
-    const reason = modelWords(record.reason, 'judge reason', 200);
+    check((JUDGE_QUESTIONS as readonly unknown[]).includes(question) && !byQuestion.has(question), 'MODEL_OUTPUT_REJECTED', 'The quality check must answer every question once.');
+    check(record.answer === 'yes' || record.answer === 'no' || record.answer === 'unsure', 'MODEL_OUTPUT_REJECTED', 'A quality check answer must be yes, no or unsure.');
+    const reason = modelWords(record.reason, 'quality check reason', 200);
     byQuestion.set(question, modelNumbers(reason) ? { question, answer: record.answer, reason, estimate: true } : { question, answer: record.answer, reason });
   }
   return JUDGE_QUESTIONS.map(question => byQuestion.get(question)!);

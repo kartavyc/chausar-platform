@@ -186,7 +186,7 @@ test('venture.order.chain refuses an order whose offer runs no kit stages', asyn
   const order = await plain.call('venture.order.create', { clientId: plain.client.id, offerId: plain.offers[0].id, request: 'Close my books for October.' });
   await assert.rejects(plain.call('venture.order.chain', { orderId: order.id }), (error: any) => {
     assert.equal(error?.code, 'INVALID_VENTURE_REQUEST');
-    assert.equal(error.message, "This order's offer runs no stages of a playbook.");
+    assert.equal(error.message, "This order's offer runs no stages of a work plan.");
     return true;
   });
   await assert.rejects(plain.call('venture.order.chain', { orderId: 'order_missing' }), code('ORDER_NOT_FOUND'));

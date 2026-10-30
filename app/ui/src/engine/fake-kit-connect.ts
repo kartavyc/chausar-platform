@@ -49,7 +49,7 @@ const WORDS = {
   apps: 'Apps on your computer run only in the desktop app.',
   install: 'Install it yourself; Chausar never installs it.',
   choose: 'Choose n8n or Make.',
-  https: 'Use the https address n8n or Make gives the webhook.',
+  https: 'Use the https receiving address n8n or Make gives you.',
   speech: "Add your Google Cloud key in the narration desk. Other providers remain planned; make audio in their own site meanwhile.",
 } as const;
 const MAX_MAIL_FILE_BYTES = 25 * 1024 * 1024;
@@ -368,15 +368,15 @@ export class FakeKitConnectDesk {
     const book = this.book();
     if (p.url === null) {
       delete book.webhooks[kind];
-      return { kind, set: false, host: null, line: `No ${NAMES[kind]} webhook is set. Chausar sends nothing there.`, test: null };
+      return { kind, set: false, host: null, line: `No ${NAMES[kind]} connection is set. Chausar sends nothing there.`, test: null };
     }
-    if (typeof p.url !== 'string' || p.url.length > 2000) throw invalid('Paste the webhook address from n8n or Make.');
+    if (typeof p.url !== 'string' || p.url.length > 2000) throw invalid('Paste the receiving address from n8n or Make.');
     const url = checkedUrl(p.url, false);
     if (url.protocol !== 'https:') throw invalid(WORDS.https);
     book.webhooks[kind] = url.href;
-    const kept = `Your ${NAMES[kind]} webhook at ${url.hostname} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`;
+    const kept = `Your ${NAMES[kind]} connection at ${url.hostname} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`;
     if (p.test !== true) return { kind, set: true, host: url.hostname, line: kept, test: null };
-    return { kind, set: true, host: url.hostname, line: `The test item reached your ${NAMES[kind]} webhook. ${kept}`, test: 'answered' };
+    return { kind, set: true, host: url.hostname, line: `The test item reached your ${NAMES[kind]} connection. ${kept}`, test: 'answered' };
   }
 }
 

@@ -134,7 +134,7 @@ test('degraded: more than half of at least four reviewed outputs sent back or ed
   await reviewed('accepted');
   assert.equal((await health(env)).status, 'healthy', 'two of four is not more than half');
   await reviewed('rejected');
-  assert.deepEqual(await health(env).then(item => [item.status, item.reason]), ['degraded', "The playbook is producing work people don't want. Revise it."]);
+  assert.deepEqual(await health(env).then(item => [item.status, item.reason]), ['degraded', "The work plan is producing work people don't want. Revise it."]);
 });
 
 test('degraded: more than ten things waiting on the agent, or one waiting longer than seven days', async () => {

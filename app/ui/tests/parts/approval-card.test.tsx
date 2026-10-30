@@ -414,7 +414,7 @@ describe('Change, in its three sizes', () => {
 
 // The review of 3B5a (23 Oct): what the engine says is never cut, a refresh closes an open ask, nothing is sent twice.
 
-const LONG_NOTICE = 'Read it, then approve it. You send it yourself. The judge is reading this draft on your own AI; each check costs up to ₹4.20 and Accept waits until it has read it. The platform may restrict this account.';
+const LONG_NOTICE = 'Read it, then approve it. Handoff yourself. Quality check is reading this draft on your own AI; each check costs up to ₹4.20 and Accept waits until it has read it. The platform may restrict this account.';
 const judged: QueueRow = { ...draft, id: 'q-judged', line: LONG_NOTICE, actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Approve', primary: true, requiresView: true }] };
 /** Phone width, as the app's useNarrow reads it. */
 const phone = () => vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
@@ -601,7 +601,7 @@ describe('Review of 3B5a', () => {
 // amount the engine composed in code. Until W4 4J1 moves those amounts into receipted row meta, the line is marked
 // `data-engine-line` and its money text passes the money rule; a number shown as a figure inside it is still checked.
 describe('Engine lines, until W4 4J1 gives their amounts receipts', () => {
-  const COST = 'The judge reads it on your own AI; each check costs up to ₹2.10.';
+  const COST = 'Quality check reads it on your own AI; each check costs up to ₹2.10.';
 
   it('money text inside an engine line passes; the same text in a place\'s own heading still fails', () => {
     const { unmount } = render(<p data-engine-line="">{COST}</p>);
