@@ -460,5 +460,13 @@
   "clients.limits.week": "Week {week} (%)",
   "clients.limits.save": "Save limits",
   "clients.limits.saving": "Saving",
-  "clients.limits.saved": "Saved. New sends use these limits."
+  "clients.limits.saved": "Saved. New sends use these limits.",
+  "clients.ai.title": "AI permission",
+  "clients.ai.required": "Needed",
+  "clients.ai.agreed": "Allowed",
+  "clients.ai.withdrawn": "Withdrawn",
+  "clients.ai.allow": "Allow AI access",
+  "clients.ai.withdraw": "Withdraw permission",
+  "clients.ai.retry": "Try again",
+  "clients.ai.review": "Review AI permission"
 }

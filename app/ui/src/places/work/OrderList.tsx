@@ -10,7 +10,7 @@ import { Figure, proofOf } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import { Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
-import type { ClientLite } from '../../engine/types';
+import { EngineError, type ClientLite } from '../../engine/types';
 import type { OrderAction, OrderView } from './orders';
 import { refusalWords } from '../../parts/custody';
 // W4 4J19: the order's stage steps and what waits on the owner.
@@ -91,6 +91,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
   const titleId = useId();
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'busy'>('idle');
   const [problem, setProblem] = useState<string>();
+  const [needsConsent, setNeedsConsent] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { order, state, action, invoice } = view;
   const run = view.run && !view.run.practice ? view.run : undefined;
@@ -102,12 +103,14 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
   async function act(kind: OrderAction) {
     setPhase('busy');
     setProblem(undefined);
+    setNeedsConsent(false);
     try {
       if (kind === 'deliver') await client.request('venture.order.deliver', { orderId: order.id, deliveredOn: todayOf(now()) });
       else await client.request('venture.delivery.run', { orderId: order.id });
       onChanged();
     } catch (error) {
       setProblem(t(ACTION_FAILED[kind], { message: refusalWords(error, t) }));
+      setNeedsConsent(error instanceof EngineError && ['CLIENT_AI_CONSENT_REQUIRED','CLIENT_AI_CONSENT_CHANGED'].includes(error.code));
     } finally {
       setPhase('idle');
     }
@@ -172,6 +175,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
         </div>
       )}
       {problem && <p className={s.problem} role="status">{problem}</p>}
+      {needsConsent && <Button variant="quiet" onClick={event=>openSheet('client',order.clientId,event.currentTarget)}>{t('clients.ai.review')}</Button>}
     </li>
   );
 }

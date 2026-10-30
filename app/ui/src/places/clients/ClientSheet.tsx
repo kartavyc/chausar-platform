@@ -20,6 +20,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { Fields, MoreDetails } from './Fields';
 // W5 5A4: the client's brand kit, read by every creative step.
 import { BrandKit } from './BrandKit';
+import { AiConsent } from './AiConsent';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
@@ -99,6 +100,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       {client && (
         <>
           <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
+          <AiConsent key={client.id} clientId={client.id} />
 
           <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
 

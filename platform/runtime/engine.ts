@@ -1676,6 +1676,10 @@ export class Engine {
       case 'venture.receipt.get':
       case 'venture.client.add':
       case 'venture.client.list':
+      case 'venture.client.aiConsent.get':
+      case 'venture.client.aiConsent.agree':
+      case 'venture.client.aiConsent.withdraw':
+      case 'venture.agentApproval.decide':
       case 'venture.order.create':
       case 'venture.order.list':
       case 'venture.order.deliver':

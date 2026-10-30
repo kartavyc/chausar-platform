@@ -658,7 +658,7 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
    * 'owner-file-drop' (4J8): a call that carried a file the owner dropped beside their own words (core/attachment.ts),
    * sent because they asked with it; no approval of the call is recorded, as nobody gave one (approvedBy stays null).
    */
-  consent: 'standing' | 'approved-preview' | 'standing-judge' | 'owner-file-drop';
+  consent: 'standing' | 'approved-preview' | 'standing-judge' | 'owner-file-drop' | 'client-ai';
   endpoint: string; // 'https://api.anthropic.com/v1/messages', 'cli://claude', 'cli://codex'
   payloadText: string; // exact request body or stdin sent; never a key
   payloadDigest: string;
@@ -749,7 +749,7 @@ export interface ModelPort {
    * recorded as that and never as the owner's approval of the call. 'owner-file-drop' (4J8): a call that carries a file
    * the owner dropped with their own words, recorded as that, again never as an approval.
    */
-  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }): Promise<ModelOutcome<T>>;
+  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' | 'client-ai'; clientAi?: { clientId: string; consentId: string; consentRevision: number }; beforeDispatch?: () => void }): Promise<ModelOutcome<T>>;
   /**
    * Ink v2 wave 4 (4H1): looks at the owner's Claude Code or Codex on this computer through the transport (version,
    * help and, when its help lists one, its own sign-in status command) and keeps what it found for availability. Never
@@ -911,7 +911,24 @@ export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
   stale: boolean; // true when the offer price or tax setting changed later
 };
 
+export type ClientAiConsent = {
+  id: string;
+  revision: number;
+  disclosureDigest: string;
+  grantedAt: IsoTime;
+  grantedBy: string;
+  withdrawnAt: IsoTime | null;
+};
+export type ClientAiConsentView = {
+  clientId: string;
+  clientName: string;
+  status: 'required' | 'agreed' | 'withdrawn';
+  disclosure: string;
+  disclosureDigest: string;
+  consent: ClientAiConsent | null;
+};
 export type ClientRecord = RecordBase<'venture-client'> & {
+  aiConsent?: ClientAiConsent;
   /** The one owner shop identity; never a paying customer. */
   self?: true;
   name: string; // one line
@@ -5324,6 +5341,7 @@ export const W5_METHODS = [
 export type W5Method = typeof W5_METHODS[number];
 
 export const VENTURE_METHODS = [
+  'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.agentApproval.decide',
   // P1 core (venture.countries and venture.preview are answered before a vault is open)
   'venture.countries', 'venture.preview', 'venture.create', 'venture.get', 'venture.events',
   'venture.interview.next', 'venture.interview.answer',
@@ -5411,6 +5429,10 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
  */
 export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery' | 'views' | 'agents' | 'chief' | 'network' | 'notify' | 'playbooks';
 export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = Object.freeze({
+  'venture.client.aiConsent.get': 'money',
+  'venture.client.aiConsent.agree': 'money',
+  'venture.client.aiConsent.withdraw': 'money',
+  'venture.agentApproval.decide': 'delivery',
   'venture.countries': 'core', 'venture.preview': 'core', 'venture.create': 'core', 'venture.get': 'core', 'venture.events': 'core',
   'venture.interview.next': 'core', 'venture.interview.answer': 'core',
   'venture.blueprint.draft': 'core', 'venture.blueprint.get': 'core', 'venture.blueprint.update': 'core', 'venture.blueprint.accept': 'core',
@@ -5507,6 +5529,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
+  'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.agentApproval.decide',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
   'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
@@ -5636,6 +5659,10 @@ export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
 type Empty = Record<string, never>;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 export type VenturePayloads = {
+  'venture.client.aiConsent.get': { clientId: string };
+  'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
+  'venture.client.aiConsent.withdraw': { clientId: string };
+  'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny' };
   'venture.countries': Empty;
   'venture.preview': { idea: string; countryCode: CountryCode; pricingModel?: PricingModel };
   /** composeId and composedDigest are sent together or not at all; the engine holds the plan itself. */
@@ -6026,6 +6053,10 @@ export type VenturePayloads = {
   'venture.compose.update': OnboardingPayloads['venture.compose.update'];
 };
 export type VentureResults = {
+  'venture.client.aiConsent.get': ClientAiConsentView;
+  'venture.client.aiConsent.agree': ClientAiConsentView;
+  'venture.client.aiConsent.withdraw': ClientAiConsentView;
+  'venture.agentApproval.decide': { runId: string; decision: 'approve' | 'deny' };
   'venture.countries': CountryProfile[];
   'venture.preview': PlanPreview;
   'venture.create': VentureView;
@@ -6365,6 +6396,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED', 'JOB_BUSY',
   // Wave 6 job-scoped toolbox.
   'DRAFT_CHECK_FAILED', 'INVALID_JOB_FILE', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED', 'MCP_RESULT_TOO_LARGE',
   'CALL_LOG_NOT_FOUND',

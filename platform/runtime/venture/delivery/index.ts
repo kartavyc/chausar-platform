@@ -1,3 +1,4 @@
+import { decideAgentApproval } from '../agent-runtime/approvals.ts';
 // Chausar venture launcher, delivery package (P5): playbook, draft replies, rehearsal, launch ladder,
 // real delivery runs and the capability list. The host loads this file on first use of a method it owns.
 import { ChausarError } from '../../contracts.ts';
@@ -25,6 +26,7 @@ const noticed = <M extends RunMethod>(handler: VentureHandler<M>): VentureHandle
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
+  'venture.agentApproval.decide': decideAgentApproval,
   'venture.delivery.playbook': playbookHandler,
   'venture.simulation.scenarios': simulationScenariosHandler,
   'venture.simulation.run': simulationRunHandler,

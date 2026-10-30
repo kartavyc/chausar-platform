@@ -21,11 +21,11 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 304 venture methods, 292 reached through the hosted host', () => {
-  // 5-0 added the 34 wave 5 methods (contracts.ts W5_METHODS), 5A2 venture.goNoGo.list, 5A5 venture.report.list; all reach the hosted host.
-  assert.equal(VENTURE_METHODS.length, 304);
+test('the pinned counts: 309 venture methods, 296 reached through the hosted host', () => {
+  // 6B5 adds recorded client consent and exact native approval decisions.
+  assert.equal(VENTURE_METHODS.length, 309);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 292);
+  assert.equal(hosted.length, 296);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

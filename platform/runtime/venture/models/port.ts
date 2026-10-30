@@ -1,3 +1,4 @@
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
 // Chausar venture launcher, package P2 (models): the model port.
 // Every call is recorded before it is sent, with the exact text and a cost worked out by code. The workspace
 // send setting rules every send. Client data leaves only after one approval of its exact text (preview, then
@@ -654,7 +655,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       };
     },
 
-    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }): Promise<ModelOutcome<T>> {
+    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' | 'client-ai'; clientAi?: { clientId: string; consentId: string; consentRevision: number }; beforeDispatch?: () => void }): Promise<ModelOutcome<T>> {
       check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
       check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
       // The rules judge's call going on its own (delivery/judge-run.ts) is recorded under the business's standing
@@ -663,6 +664,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       // Ink v2 wave 4 (4J8): a call carrying a file the owner dropped with their own words is sent because they asked
       // with it, recorded as 'owner-file-drop', never as an approval nobody gave. Only those calls go that way.
       const fileDrop = options?.consent === 'owner-file-drop';
+      const clientAi = options?.consent === 'client-ai';
+      check(!clientAi || options?.clientAi && typeof options.beforeDispatch === 'function', 'INVALID_VENTURE_REQUEST', 'The client AI grant and current source check are required.');
       // The claim is the first await: two approvals of one preview send at most once.
       const claimed: { held?: Pending; table?: ModelPriceTable | null; metered?: boolean } = {};
       const call = await ventureAction(actionDeps, ctx, 'approve', 'models.approve', tx => {
@@ -673,6 +676,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const stale = new ChausarError('APPROVAL_STALE', MESSAGES.approvalStale);
         if (!current || current.status !== 'preview' || current.approvedDigest !== null || current.payloadDigest !== approvedDigest || !held) throw stale;
         if (nowMs > Date.parse(current.at) + PREVIEW_TTL_MS) throw stale;
+        if (clientAi) {
+          check(current.purpose === 'judge', 'INVALID_VENTURE_REQUEST', 'Only the quality check uses this client AI grant.');
+          requireClientAiConsent(tx.state, current.ventureId, options!.clientAi!.clientId, options!.clientAi);
+        }
         check(!standing || current.purpose === 'judge', 'INVALID_VENTURE_REQUEST', 'Only the quality check goes on standing consent.');
         check(!fileDrop || (FILE_DROP_PURPOSES.has(current.purpose) && current.containsClientData), 'INVALID_VENTURE_REQUEST', 'Only a call that carries a file the owner dropped goes that way.');
         if (standing) {
@@ -705,15 +712,21 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         if (rate) reserveSpend(tx, { ...subject, rate, estimateMicros: current.estimatedMaxCostMicros });
         const approved = replaceRecord(tx, {
           ...current, status: 'dispatching' as const, approvedDigest, approvedAt: tx.now,
-          approvedBy: standing || fileDrop ? null : ctx.memberId, ...(fileDrop ? { approvedAt: null } : {}),
-          consent: standing ? 'standing-judge' as const : fileDrop ? 'owner-file-drop' as const : 'approved-preview' as const,
+          approvedBy: standing || fileDrop || clientAi ? null : ctx.memberId, ...(fileDrop || clientAi ? { approvedAt: null } : {}),
+          consent: clientAi ? 'client-ai' as const : standing ? 'standing-judge' as const : fileDrop ? 'owner-file-drop' as const : 'approved-preview' as const,
         });
         pending.delete(callId);
         claimed.held = held;
         return approved;
       }).catch(error => spendRefused(actionDeps, ctx, error));
       check(claimed.held, 'APPROVAL_STALE', MESSAGES.approvalStale);
-      return send(ctx, 'approve', call, claimed.held.prepared, presetSpec(call.presetId), validate, claimed.table ?? null, claimed.metered === true, options?.beforeDispatch);
+      const beforeDispatch = clientAi ? () => {
+        requireClientAiConsent(store.read(), call.ventureId, options!.clientAi!.clientId, options!.clientAi);
+        const result = options!.beforeDispatch!();
+        requireClientAiConsent(store.read(), call.ventureId, options!.clientAi!.clientId, options!.clientAi);
+        return result;
+      } : options?.beforeDispatch;
+      return send(ctx, 'approve', call, claimed.held.prepared, presetSpec(call.presetId), validate, claimed.table ?? null, claimed.metered === true, beforeDispatch);
     },
   };
 }

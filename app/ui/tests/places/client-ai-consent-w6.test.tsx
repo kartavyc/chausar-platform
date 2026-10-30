@@ -1,0 +1,63 @@
+import {describe,it,expect,vi} from 'vitest';
+import {act,fireEvent,render,screen,waitFor,within} from '@testing-library/react';
+import {App} from '../../src/shell/App';
+import {FakeEngine,createFakeClient} from '../../src/engine/fake';
+import {EngineError,type EngineClient} from '../../src/engine/types';
+import {digest} from '../../../../platform/runtime/portable';
+import {clientAiConsentView} from '../../../../platform/runtime/venture/clients/ai-consent-core';
+
+describe('per-client AI permission',()=>{
+ it('fake binds the exact disclosure to this client and revision, supports withdrawal and fresh consent',async()=>{
+  const engine=new FakeEngine();const clients=await engine.request('venture.client.list') as {id:string;name:string;email:string|null}[];const client=clients[0]!;
+  const view=await engine.request('venture.client.aiConsent.get',{clientId:client.id}) as any;
+  const venture=await engine.request('venture.get') as any;
+  expect(view.status).toBe('required');expect(view.consent).toBeNull();
+  expect(view).toEqual(clientAiConsentView({...client,ventureId:venture.venture.id}));
+  expect(view.disclosureDigest).toBe(digest({clientId:client.id,ventureId:venture.venture.id,name:client.name,email:client.email,revision:0,disclosure:view.disclosure}));
+  await expect(engine.request('venture.client.aiConsent.agree',{clientId:client.id,disclosureDigest:'old'})).rejects.toMatchObject({code:'CLIENT_AI_CONSENT_CHANGED'});
+  const agreed=await engine.request('venture.client.aiConsent.agree',{clientId:client.id,disclosureDigest:view.disclosureDigest}) as any;
+  expect(agreed.status).toBe('agreed');expect(agreed.consent.revision).toBe(1);
+  expect(agreed).toEqual(clientAiConsentView({...client,ventureId:venture.venture.id,aiConsent:agreed.consent}));
+  const withdrawn=await engine.request('venture.client.aiConsent.withdraw',{clientId:client.id}) as any;
+  expect(withdrawn.status).toBe('withdrawn');expect(withdrawn.consent.revision).toBe(2);
+  await expect(engine.request('venture.client.aiConsent.agree',{clientId:client.id,disclosureDigest:view.disclosureDigest})).rejects.toMatchObject({code:'CLIENT_AI_CONSENT_CHANGED'});
+  const fresh=await engine.request('venture.client.aiConsent.agree',{clientId:client.id,disclosureDigest:withdrawn.disclosureDigest}) as any;
+  expect(fresh.consent.revision).toBe(3);expect(fresh.consent.id).not.toBe(agreed.consent.id);
+  expect((await engine.request('venture.client.aiConsent.get',{clientId:clients[1]!.id}) as any).status).toBe('required');
+  await expect(engine.request('venture.client.aiConsent.get',{clientId:client.id,allow:true})).rejects.toMatchObject({code:'INVALID_VENTURE_REQUEST'});
+  await expect(engine.request('venture.client.aiConsent.get',{clientId:'missing'})).rejects.toMatchObject({code:'CLIENT_NOT_FOUND'});
+ });
+ it('an internal agent-facing fake call cannot grant or withdraw client permission',async()=>{
+  const engine=new FakeEngine();const view=await engine.request('venture.client.aiConsent.get',{clientId:'c-boat'}) as any;
+  const internal=engine as unknown as {answerNow:(method:string,params:Record<string,unknown>)=>unknown};
+  expect(()=>internal.answerNow('venture.client.aiConsent.agree',{clientId:'c-boat',disclosureDigest:view.disclosureDigest})).toThrowError(expect.objectContaining({code:'APP_APPROVAL_REQUIRED'}));
+  expect(()=>internal.answerNow('venture.client.aiConsent.withdraw',{clientId:'c-boat'})).toThrowError(expect.objectContaining({code:'APP_APPROVAL_REQUIRED'}));
+ });
+ it('client sheet reads permission without granting and sends the exact displayed consent only on a tap',async()=>{
+  window.location.hash='#/clients?sheet=client%3Ac-boat';const client=createFakeClient(new FakeEngine());const spy=vi.spyOn(client,'request');render(<App client={client} language="en"/>);
+  const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});const summary=await within(sheet).findByText('AI permission');
+  expect(spy.mock.calls.some(([method])=>method==='venture.client.aiConsent.agree')).toBe(false);
+  fireEvent.click(summary);const allow=await within(sheet).findByRole('button',{name:'Allow AI access'});
+  expect(sheet.textContent).toContain('Withdrawal stops future sharing');await act(async()=>fireEvent.click(allow));
+  await within(sheet).findByRole('button',{name:'Withdraw permission'});
+  const grant=spy.mock.calls.find(([method])=>method==='venture.client.aiConsent.agree');expect(grant?.[1]).toMatchObject({clientId:'c-boat',disclosureDigest:expect.any(String)});
+  await act(async()=>fireEvent.click(within(sheet).getByRole('button',{name:'Withdraw permission'})));
+  await within(sheet).findByRole('button',{name:'Allow AI access'});expect(sheet.textContent).toContain('Withdrawn');
+ });
+ it('permission read failures stay visible and cannot enable an accidental grant',async()=>{
+  window.location.hash='#/clients?sheet=client%3Ac-boat';const client=createFakeClient(new FakeEngine());const base=client.request.bind(client);
+  client.request=((method,params)=>method==='venture.client.aiConsent.get'?Promise.reject(new EngineError('READ_FAILED','Permission is unavailable.')):base(method as never,params as never)) as EngineClient['request'];
+  render(<App client={client} language="en"/>);const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});fireEvent.click(await within(sheet).findByText('AI permission'));
+  await within(sheet).findByText('Permission is unavailable.');expect(within(sheet).queryByRole('button',{name:'Allow AI access'})).toBeNull();
+ });
+ it('Work links a missing-permission refusal to the exact client without granting it',async()=>{
+  const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
+  client.request=((method,params)=>method==='venture.delivery.run'?Promise.reject(new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.')):base(method as never,params as never)) as EngineClient['request'];
+  const spy=vi.spyOn(client,'request');window.location.hash='#/work';render(<App client={client} language="en"/>);
+  const row=(await screen.findByText('Monthly books from October')).closest('li')!;await act(async()=>fireEvent.click(within(row).getByRole('button',{name:'Start'})));
+  const review=await within(row).findByRole('button',{name:'Review AI permission'});
+  await act(async()=>{fireEvent.click(review);window.dispatchEvent(new HashChangeEvent('hashchange'));});
+  const sheet=await screen.findByRole('complementary',{name:'Iyer & Co'});await within(sheet).findByText('AI permission');
+  expect(spy.mock.calls.some(([method])=>method==='venture.client.aiConsent.agree')).toBe(false);
+ });
+});

@@ -1,3 +1,5 @@
+export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 /**
  * The engine contract the UI builds to. The first block is the shared contract from
  * docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md ("Shared contract"), verbatim; the engine side lives in
@@ -642,6 +644,7 @@ export interface Deleted { deleted: true; copiesRemoved?: unknown; externalCopie
  * nothing owed; the UI never adds up invoices itself.
  */
 export interface ClientLite {
+  aiConsent?: ClientAiConsent;
   self?: true;
   id: string; at: string; name: string; email: string | null; countryCode: string | null; taxId: string | null; stateCode: string | null; note: string | null;
   owed?: { display: Display; receiptId: string };
@@ -1614,6 +1617,10 @@ export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string;
 // ---------------------------------------------------------------------------------------------------------------
 
 export interface EngineMethods {
+  'venture.client.aiConsent.get': { params: {clientId:string}; result: ClientAiConsentView };
+  'venture.client.aiConsent.agree': { params: {clientId:string;disclosureDigest:string}; result: ClientAiConsentView };
+  'venture.client.aiConsent.withdraw': { params: {clientId:string}; result: ClientAiConsentView };
+  'venture.agentApproval.decide': { params: {runId:string;digest:string;decision:'approve'|'deny'}; result: {runId:string;decision:'approve'|'deny'} };
   'venture.queue.list': { params: { scope?: 'current' | 'all' }; result: QueueList };
   'venture.queue.decide': { params: { id: string; digest: string; action: QueueActionId; answer?: string; viewed?: boolean }; result: QueueDecision };
   // 4J19: opened only when the owner explicitly opened the item; a card drawing its preview sends none (no view mark).

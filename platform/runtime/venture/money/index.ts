@@ -1,3 +1,4 @@
+import { getClientAiConsent, agreeClientAiConsent, withdrawClientAiConsent } from '../clients/ai-consent.ts';
 // P3 money: price receipts, tax treatment, clients, orders, invoices, payments and the books.
 // Every money number comes from BigInt code with a receipt; the existing calculator proves billed,
 // received and earned from the facts written here. Loaded by the venture host on first use.
@@ -35,6 +36,9 @@ export { taxTreatmentFor } from './tax.ts';
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
+  'venture.client.aiConsent.get': getClientAiConsent,
+  'venture.client.aiConsent.agree': agreeClientAiConsent,
+  'venture.client.aiConsent.withdraw': withdrawClientAiConsent,
   'venture.price.quote': quotePrice,
   'venture.receipt.get': getReceipt,
   'venture.client.add': addClient,

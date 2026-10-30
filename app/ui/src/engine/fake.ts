@@ -1,3 +1,5 @@
+import { fakeClientAiConsent } from './fake-client-ai-consent';
+import { rejectFakeAgentApproval } from './fake-agent-approval';
 import {withSellerCards} from './fake-seller-cards';
 import {percentBps} from '../../../../platform/runtime/venture/money/rate-core';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
@@ -402,6 +404,8 @@ export class FakeEngine {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
+    if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
     this.guardInternalShare(method, p);
     const started = this.onboarding(method, p);
     if (started !== NOT_ONBOARDING) return started;
@@ -560,7 +564,14 @@ export class FakeEngine {
 
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
 
+  private clientAiConsent(method:string, payload:unknown) {
+    return fakeClientAiConsent(method,payload,{clients:this.clients[this.current]??[],ventureId:"venture_"+this.current,now:()=>this.now(),changed:()=>{this.emit({type:'queue.changed',businessId:this.current,at:this.now()});}});
+  }
+
   private answerNow(method: string, p: Record<string, unknown>): unknown {
+    if (method === 'venture.agentApproval.decide') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
+    if (method === 'venture.client.aiConsent.agree' || method === 'venture.client.aiConsent.withdraw') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
+    if (method === 'venture.client.aiConsent.get') return this.clientAiConsent(method,p);
     if (method === 'venture.books.summary') return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
     if(method==='venture.share.list')return this.shareView(p);
     if (method === 'venture.get') return this.ventureView();

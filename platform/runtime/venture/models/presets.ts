@@ -13,11 +13,11 @@ function priceTable(input: string, output: string, source: string, confirmed: bo
 }
 
 export function apiConsentText(provider: 'Anthropic' | 'OpenAI' | 'OpenRouter and its selected model provider'): string {
-  return `Chausar will send your idea, your answers, your plan's words and practice-client conversations to ${provider} with your key, so the model can write questions, plans, briefs and practice drafts. It never sends your books, receipts, keys or real client details under this consent. Real client work is shown to you first and sent only after you approve it. Every call is listed under What was sent, with its cost. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every call.`;
+  return `Chausar will send your idea, your answers, your plan's words and practice-client conversations to ${provider} with your key, so the model can write questions, plans, briefs and practice drafts. It never sends your books, receipts, keys or real client details under this consent. Client data needs separate permission for each client. Withdraw anytime. Outside actions still need approval. Every call is listed under What was sent, with its cost. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every call.`;
 }
 
 export function cliConsentText(tool: 'Claude Code' | 'Codex'): string {
-  return `Chausar will run ${tool} on this computer, signed in with your own account, and give it your idea, your answers, your plan's words and practice-client conversations. It never passes your books, receipts, keys or real client details under this consent. Real client work is shown to you first and sent only after you approve it. Every run is listed under What was sent. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every run.`;
+  return `Chausar will run ${tool} on this computer, signed in with your own account, and give it your idea, your answers, your plan's words and practice-client conversations. It never passes your books, receipts, keys or real client details under this consent. Client data needs separate permission for each client. Withdraw anytime. Outside actions still need approval. Every run is listed under What was sent. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every run.`;
 }
 
 export const TEMPLATE_CONSENT_TEXT = 'Chausar will use its built-in templates. Nothing is sent to any AI service.';
