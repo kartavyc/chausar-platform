@@ -561,7 +561,7 @@ export const STARTER_CONNECTORS = Object.freeze(['lovable', 'github', '<payment-
 // 5. Models (P2): presets, connections, calls, the model port
 // ---------------------------------------------------------------------------
 
-export const MODEL_PRESET_IDS = ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5', 'openai-gpt-6-luna', 'claude-code-cli', 'codex-cli', 'built-in-templates'] as const;
+export const MODEL_PRESET_IDS = ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5', 'openai-gpt-6-luna', 'openrouter', 'claude-code-cli', 'codex-cli', 'built-in-templates'] as const;
 export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
 export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
 export type ModelTier = 'fast' | 'main';
@@ -645,6 +645,8 @@ export type ModelStatusView = {
 };
 
 export type ModelCallRecord = RecordBase<'venture-model-call'> & {
+  agentId?: string; // trusted task role for owner-set spending limits
+  agentJobId?: string; // exact native job receiving this quality charge
   purpose: ModelPurpose;
   tier: ModelTier;
   presetId: ModelPresetId;
@@ -684,6 +686,8 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
 
 /** One unit of model work. Built by P1, P4 and P5; executed by P2. */
 export type ModelTask<T> = {
+  agentId?: string; // set by trusted job composition, never model input
+  agentJobId?: string; // stable job identity across repeated quality checks
   purpose: ModelPurpose;
   instructions: string; // system text
   input: Json; // user content, serialized as JSON text
@@ -2507,6 +2511,8 @@ export type Display = string;
  */
 export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
 export type SpendRate = {
+  /** Exact provider model this token price covers; required for gateways and model overrides. */
+  model?: string;
   item: string; // 'model:<preset id>', 'delegate:<tool>' or 'connector:<id>'
   unit: SpendRateUnit;
   inputMicrosPerMillion: MicroString | null;
@@ -2523,6 +2529,7 @@ export type SpendRate = {
 /** reserved: the charge record, written before the call. unknown: the answer never came, so it stays held. */
 export type SpendPhase = 'reserved' | 'settled' | 'unknown' | 'released' | 'refused';
 export type SpendRecord = RecordBase<'venture-spend'> & {
+  agentUsage?: { provider: 'codex' | 'claude'; model: string; usage: import('./agent-runtime/driver-types.ts').AgentUsage };
   /** SEO4: the delivery article whose atomic cost reservation this charge shares. */
   articleOrderId?: string;
   key: string; // the idempotency key: one per thing asked for, so a retry never pays twice
@@ -2610,6 +2617,7 @@ export interface SpendRow {
  * Each figure comes once: in US dollars as typed (up to six decimals; the engine converts) or in micro units.
  */
 export type SpendRateInput = {
+  model?: string;
   item: string; unit: SpendRateUnit; inputMicrosPerMillion?: MicroString | null; outputMicrosPerMillion?: MicroString | null; microsPerCall?: MicroString | null;
   inputUsdPerMillion?: string | null; outputUsdPerMillion?: string | null; usdPerCall?: string | null;
   source: string; checkedOn: IsoDate;
@@ -3086,6 +3094,8 @@ export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: stri
  * it beside price receipts. unit 'micros' is micro-USD (spend); 'minor' is the venture currency's minor unit.
  */
 export type SumReceiptSubject =
+  | { type: 'agent-cost'; spendId: string }
+  | { type: 'agent-job-cost'; runId: string }
   | { type: 'tax-total'; from: IsoDate; to: IsoDate; currency: string; taxLabel: string }
   | { type: 'owed'; clientId: string | null }
   | { type: 'received'; from: IsoDate; to: IsoDate }
@@ -6401,6 +6411,7 @@ export const VENTURE_ERRORS = [
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',
   'BLUEPRINT_NOT_FOUND', 'BLUEPRINT_NOT_ACCEPTED',
+  'CREDENTIAL_INVALID', 'CREDENTIAL_UNAVAILABLE',
   'NO_MODEL_CONNECTED', 'MODEL_CONSENT_REQUIRED', 'MODEL_KEY_MISSING', 'MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE',
   'MODEL_FAILED', 'MODEL_TIMEOUT', 'BUDGET_REACHED', 'CLIENT_DATA_NEEDS_APPROVAL', 'SEND_DISABLED', 'FIXTURE_MISSING', 'CLI_UNAVAILABLE', 'PRESET_UNAVAILABLE',
   'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
@@ -6602,6 +6613,8 @@ export function experimentalStorage(deps: { storage: VentureStorage; host: Ventu
   return deps.host === 'hosted-web' || (deps.storage === 'experimental-file' && deps.host !== 'desktop');
 }
 export type VentureDeps = {
+  /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
+  credentials?: import('./models/credential-port.ts').HostCredentialPort;
   store: StateStore;
   clock: () => Date;
   models: ModelPort;
@@ -6711,6 +6724,7 @@ export type ModelPortOptions = {
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */
 export type VentureHostOptions = {
+  credentials?: import('./models/credential-port.ts').HostCredentialPort;
   modelTransport?: ModelTransport;
   /** A transport, or a factory the host calls once with its store (fixtures use it to fill {{briefId}}). */
   githubTransport?: GitHubTransport | ((store: StateStore) => GitHubTransport);

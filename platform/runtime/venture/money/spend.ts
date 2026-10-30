@@ -38,11 +38,12 @@ import { articleReservation } from '../playbooks/seo-visibility/article-budget.t
 import type { ModelPresetId, ModelTier, RateCardLine } from '../contracts.ts';
 // 4Z3: which currency leads spend.
 import type { CountryProfile, CurrencyLead, SpendLead } from '../contracts.ts';
+import { nativeJobSpends } from '../agent-runtime/job-spend.ts';
 
 const MICROS = /^(0|[1-9][0-9]{0,14})$/;
 const ITEM = /^(model|delegate|connector):[A-Za-z0-9_.-]{1,120}$/;
 const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-run-cap'];
-const RATE_KEYS = ['item', 'unit', 'inputMicrosPerMillion', 'outputMicrosPerMillion', 'microsPerCall', 'source', 'checkedOn', 'confirmed', 'by',
+const RATE_KEYS = ['item', 'model', 'unit', 'inputMicrosPerMillion', 'outputMicrosPerMillion', 'microsPerCall', 'source', 'checkedOn', 'confirmed', 'by',
   // Ink v2 wave 4 (4F2, M6): the prompt-cache read and write prices, each a line of its own on the card.
   'cacheReadMicrosPerMillion', 'cacheWriteMicrosPerMillion'] as const;
 const MAX_RATES = 100;
@@ -373,11 +374,12 @@ function rateLine(value: unknown): SpendRate {
   check(UNITS.includes(body.unit as SpendRateUnit), 'INVALID_VENTURE_REQUEST', 'A rate is per million tokens, per call, or a run cap.');
   check(body.by === undefined || body.by === 'owner', 'INVALID_VENTURE_REQUEST', 'Lines on your rate card are your own.');
   check(body.confirmed === undefined || typeof body.confirmed === 'boolean', 'INVALID_VENTURE_REQUEST', 'Say whether this rate is confirmed.');
+  check(body.model === undefined || (typeof body.model === 'string' && /^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$/.test(body.model) && body.item.startsWith('model:') && body.unit === 'per-million-tokens'), 'INVALID_VENTURE_REQUEST', 'Use the exact model id for a model token price.');
   const field = (name: 'inputMicrosPerMillion' | 'outputMicrosPerMillion' | 'microsPerCall') => (body[name] === undefined ? null : microsOrNull(body[name], 'A rate'));
   const rate: SpendRate = {
     item: body.item, unit: body.unit as SpendRateUnit, inputMicrosPerMillion: field('inputMicrosPerMillion'), outputMicrosPerMillion: field('outputMicrosPerMillion'),
     microsPerCall: field('microsPerCall'), source: plainText(body.source, 'Where the rate comes from', { max: 200 }), checkedOn: isoDate(body.checkedOn, 'The date checked'),
-    confirmed: body.confirmed !== false, by: 'owner',
+    confirmed: body.confirmed !== false, by: 'owner', ...(typeof body.model === 'string' ? { model: body.model } : {}),
   };
   check(complete(rate), 'INVALID_VENTURE_REQUEST', 'A rate per million tokens needs both its input and output figures; a rate per call or a run cap needs its figure.');
   // Ink v2 wave 4 (4F2, M6): prompt-cache prices go only on a rate per million tokens, and only when given.
@@ -930,6 +932,11 @@ function draftCosts(state: State, ventureId: string): { runId: string; micros: b
   return listRecords(state, 'venture-delivery-run', ventureId)
     .filter(run => run.servedBy === 'model' && run.deliverable !== null)
     .map(run => {
+      if(run.agentJob){
+        const charges=nativeJobSpends(state,run).filter(row=>row.phase!=='released');
+        const settled=charges.length>0&&charges.every(row=>row.phase==='settled'&&row.settledBy==='usage'&&row.settledMicros!==null);
+        return {runId:run.id,at:run.at,micros:settled?charges.reduce((sum,row)=>sum+BigInt(row.settledMicros!),0n):0n};
+      }
       const cost = run.harness ? run.harness.used.costMicros : run.callId ? (calls.get(run.callId) as { costMicros?: unknown } | undefined)?.costMicros : null;
       return { runId: run.id, at: run.at, micros: typeof cost === 'string' && MICROS.test(cost) ? BigInt(cost) : 0n };
     })

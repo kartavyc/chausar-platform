@@ -23,6 +23,7 @@ import {
 } from '../money/spend.ts';
 import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
 import {modelBudgetUsed} from './budget.ts';
+import { exactModelRate } from './exact-rate.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
@@ -33,7 +34,7 @@ import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
 import {
-  AVAILABILITY_REASONS, PRESETS, availabilityOf, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, type PresetSpec,
+  AVAILABILITY_REASONS, PRESETS, availabilityOf, endpointFor, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, type PresetSpec,
 } from './presets.ts';
 import { CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
 import { assertSchemaSafe } from './schema.ts';
@@ -44,7 +45,7 @@ import {
 } from './types.ts';
 
 export const MESSAGES = Object.freeze({
-  keyMissing: 'Enter your key again. Chausar keeps keys in memory only.',
+  keyMissing: 'The saved key is unavailable. Reconnect this AI.',
   sendDisabled: 'Your privacy setting sends nothing to models. Change it on Trust & access, or use built-in templates.',
   templatesServe: 'No AI connected; using built-in templates',
   noModel: 'Connect an AI, or use the built-in templates for this step.',
@@ -139,13 +140,13 @@ function sweep(tx: VentureTx) {
 const spendKey = (callId: string) => `model:${callId}`;
 
 /** A model call on the spend ledger: its words, who pays (the connection's key) and the exact text paid for. */
-function callSpend(call: Pick<CallRecord, 'id' | 'purpose' | 'connectionId' | 'payloadDigest'>, spec: PresetSpec): SpendSubject {
+function callSpend(call: Pick<CallRecord, 'id' | 'purpose' | 'connectionId' | 'payloadDigest' | 'agentId'>, spec: PresetSpec): SpendSubject {
   return {
     key: spendKey(call.id), item: `model:${spec.id}`, label: `${spec.label}, ${call.purpose}`, payer: `connection:${call.connectionId}`,
     draftDigest: call.payloadDigest, connector: spec.id, ref: call.id,
     // Ink v2 wave 4 (4F2): the team agent the call works for, from its purpose, so the agent's own limit holds even
     // where the charge is written before the call record (generate, a rehearsal's turns on standing consent).
-    agent: AGENT_PURPOSES.includes(call.purpose) ? AGENT_ID : null,
+    agent: call.agentId ?? (AGENT_PURPOSES.includes(call.purpose) ? AGENT_ID : null),
   };
 }
 
@@ -154,9 +155,10 @@ function callSpend(call: Pick<CallRecord, 'id' | 'purpose' | 'connectionId' | 'p
  * refusal (never a free call). Command-line tools run on the owner's own plan and replays spend nothing, so neither
  * is metered: null, and their cost stays as the preset says.
  */
-function meteredRate(state: State, ventureId: string, spec: PresetSpec, replay: boolean, subject: SpendSubject): SpendRate | null {
+function meteredRate(state: State, ventureId: string, spec: PresetSpec, model: string | null, replay: boolean, subject: SpendSubject): SpendRate | null {
   if (!spec.needsKey || replay) return null;
-  return resolveRate({ item: `model:${spec.id}`, list: listRateOfTable(`model:${spec.id}`, spec.priceTable), owner: spendRatesOf(state, ventureId), subject });
+  check(model, 'SPEND_UNPRICED', 'Select the exact model before pricing this call.');
+  return exactModelRate(state, ventureId, spec.id, model, subject);
 }
 
 /** How a sent call settles: by the provider's usage, at the estimate when it answered without usage, held when no answer came. */
@@ -171,6 +173,7 @@ function spendOutcome(sent: boolean, usage: boolean, failed: boolean, costMicros
  * estimate, must stay within the connection's monthly limit (months in UTC).
  */
 function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: PresetSpec, estimate: string, month: string, tx:VentureTx) {
+  if (!spec.needsKey) return;
   const total = BigInt(estimate)+modelBudgetUsed(calls,tx.list('venture-spend'),connection.presetId,month);
   check(total <= BigInt(connection.monthlyCapMicros), 'BUDGET_REACHED',
     `This call could take ${spec.label} past your monthly limit of ${formatMicros(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
@@ -184,6 +187,8 @@ function checkTask(task: ModelTask<unknown>) {
   const malformed = (why: string) => new ChausarError('INVALID_VENTURE_REQUEST', `The model task is malformed: ${why}.`);
   if (!isPlainRecord(task)) throw malformed('it is not an object');
   if (!(MODEL_PURPOSES as readonly unknown[]).includes(task.purpose)) throw malformed('unknown purpose');
+  if (task.agentId !== undefined && (typeof task.agentId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(task.agentId))) throw malformed('invalid agent role');
+  if (task.agentJobId !== undefined && (typeof task.agentJobId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(task.agentJobId) || !task.agentId || task.purpose!=='judge')) throw malformed('invalid quality job');
   if (typeof task.instructions !== 'string' || task.instructions.length < 1 || task.instructions.length > 20000) throw malformed('instructions must be text');
   if (typeof task.schemaName !== 'string' || !/^[a-z][a-z0-9-]{0,40}$/.test(task.schemaName)) throw malformed('schemaName must be lower-case words joined by dashes');
   if (!Number.isInteger(task.maxOutputTokens) || task.maxOutputTokens < 256 || task.maxOutputTokens > 8192) throw malformed('maxOutputTokens must be from 256 to 8192');
@@ -364,7 +369,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     }
     if (spec.kind === 'openai-responses') {
       const body = openaiBody(model, task);
-      return { transport: 'http', routeKind: spec.kind, url: OPENAI_URL, body, payloadText: body };
+      return { transport: 'http', routeKind: spec.kind, url: endpointFor(spec), body, payloadText: body };
     }
     if (spec.kind === 'claude-cli') {
       const plan = claudePlan(model, task);
@@ -444,13 +449,16 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         failure = failureOf(error, { code: 'MODEL_OUTPUT_REJECTED', message: "The model answer did not pass Chausar's checks." });
       }
     }
-    const costMicros = parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
+    const unpricedNativeModel=!!call.agentJobId && metered && !call.replay && (!parsed.answeredBy || parsed.answeredBy!==call.model);
+    if(unpricedNativeModel)failure={code:'SPEND_UNPRICED',message:'The quality check did not report the exact model priced for this job. Its cost remains held.'};
+    const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
     // H36: the model the answer named, else 'not reported'. Kept on the call, so its spend row and run lines can say it.
     const answeredBy = parsed.answeredBy ?? NOT_REPORTED;
     await ventureAction(actionDeps, ctx, level, 'models.result', tx => {
       const current = tx.find('venture-model-call', call.id);
       check(current, 'INVALID_VENTURE_REQUEST', 'This model call record no longer exists.');
+      if(current.erasedAt && failure) failure={code:failure.code,message:'This call text was forgotten.'};
       replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure, answeredBy });
       if (metered) settleSpend(tx, spendKey(call.id), spendOutcome(sent, parsed.usage !== null, failure !== null, costMicros));
     });
@@ -473,7 +481,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const newCall = (tx: VentureTx, route: Extract<Route, { kind: 'model' }>, tier: ModelTier, task: ModelTask<unknown>, prepared: Prepared, estimate: string, consent: CallRecord['consent'], table: ModelPriceTable | null): CallRecord => {
     const { connection, spec } = route;
     return {
-      ...tx.base('venture-model-call'), purpose: task.purpose, tier, presetId: spec.id, connectionId: connection.id, routeKind: spec.kind,
+      ...tx.base('venture-model-call'), purpose: task.purpose, ...(task.agentId ? {agentId:task.agentId} : {}), ...(task.agentJobId ? {agentJobId:task.agentJobId} : {}), tier, presetId: spec.id, connectionId: connection.id, routeKind: spec.kind,
       model: connection.model, consent, endpoint: connection.endpoint,
       payloadText: prepared.payloadText.slice(0, MAX_STORED_PAYLOAD), payloadDigest: digest(prepared.payloadText),
       payloadTruncated: prepared.payloadText.length > MAX_STORED_PAYLOAD, containsClientData: task.containsClientData,
@@ -489,9 +497,9 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
    */
   const priceOf = async (ctx: Context, state: State, route: Extract<Route, { kind: 'model' }>, task: ModelTask<unknown>, prepared: Prepared): Promise<{ rate: SpendRate | null; table: ModelPriceTable | null }> => {
     const payloadDigest = digest(prepared.payloadText);
-    const subject = callSpend({ id: `unsent-${payloadDigest.slice(0, 16)}`, purpose: task.purpose, connectionId: route.connection.id, payloadDigest }, route.spec);
+    const subject = callSpend({ id: `unsent-${payloadDigest.slice(0, 16)}`, purpose: task.purpose, agentId:task.agentId, connectionId: route.connection.id, payloadDigest }, route.spec);
     try {
-      const rate = meteredRate(state, route.connection.ventureId, route.spec, transport.replay === true, subject);
+      const rate = meteredRate(state, route.connection.ventureId, route.spec, route.connection.model, transport.replay === true, subject);
       return { rate, table: rate ? modelTableOf(rate, subject) : route.spec.priceTable };
     } catch (error) {
       return spendRefused(actionDeps, ctx, error);
@@ -691,7 +699,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         }
         // The charge record is written at approval, in the same commit that lets the one send go.
         const subject = callSpend(current, spec);
-        const rate = meteredRate(tx.state, current.ventureId, spec, transport.replay === true, subject);
+        const rate = meteredRate(tx.state, current.ventureId, spec, current.model, transport.replay === true, subject);
         claimed.table = rate ? modelTableOf(rate, subject) : spec.priceTable;
         claimed.metered = rate !== null;
         if (rate) reserveSpend(tx, { ...subject, rate, estimateMicros: current.estimatedMaxCostMicros });

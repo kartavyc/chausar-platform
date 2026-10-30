@@ -301,15 +301,21 @@ export class FakeExtrasDesk {
       policy.rates = (p.rates as SpendRateInput[]).map((line) => {
         if (!line || !/^(model|delegate|connector):[a-z0-9._-]{1,80}$/.test(String(line.item))) throw invalid('A rate card line names a model, a heavy-work tool or a connector.');
         if (!['per-million-tokens', 'per-call', 'per-run-cap'].includes(line.unit)) throw invalid('A rate is per million tokens, per call, or a run cap.');
+        if (line.model !== undefined && (typeof line.model !== 'string' || !/^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$/.test(line.model) || !line.item.startsWith('model:') || line.unit !== 'per-million-tokens')) throw invalid('Use the exact model id for a model token price.');
         const input = line.inputUsdPerMillion == null ? null : figure(line.inputUsdPerMillion, 'A rate');
         const output = line.outputUsdPerMillion == null ? null : figure(line.outputUsdPerMillion, 'A rate');
         const perCall = line.usdPerCall == null ? null : figure(line.usdPerCall, 'A rate');
+        const cacheRead = line.cacheReadUsdPerMillion == null ? null : figure(line.cacheReadUsdPerMillion, 'A rate');
+        const cacheWrite = line.cacheWriteUsdPerMillion == null ? null : figure(line.cacheWriteUsdPerMillion, 'A rate');
         if (line.unit === 'per-million-tokens' ? input === null || output === null : perCall === null) throw invalid('A rate per million tokens needs both its input and output figures; a rate per call or a run cap needs its figure.');
         if (!text(line.source)) throw invalid('Say where the rate comes from.');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(line.checkedOn))) throw invalid('The date checked must be a date like 2026-10-21.');
         const price = line.unit === 'per-million-tokens' ? `${usd(input!)} in and ${usd(output!)} out, per million tokens` : line.unit === 'per-call' ? `${usd(perCall!)} per call` : `Up to ${usd(perCall!)} a run`;
         return {
           item: line.item, unit: line.unit, inputMicrosPerMillion: input, outputMicrosPerMillion: output, microsPerCall: perCall,
+          ...(line.model === undefined ? {} : { model: line.model }),
+          ...(line.cacheReadUsdPerMillion === undefined ? {} : { cacheReadMicrosPerMillion: cacheRead, cacheReadUsdPerMillion: asUsd(cacheRead) }),
+          ...(line.cacheWriteUsdPerMillion === undefined ? {} : { cacheWriteMicrosPerMillion: cacheWrite, cacheWriteUsdPerMillion: asUsd(cacheWrite) }),
           inputUsdPerMillion: asUsd(input), outputUsdPerMillion: asUsd(output), usdPerCall: asUsd(perCall),
           source: text(line.source), checkedOn: line.checkedOn, confirmed: true, by: 'owner' as const, price,
         };

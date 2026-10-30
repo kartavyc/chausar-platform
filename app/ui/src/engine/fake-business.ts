@@ -248,11 +248,14 @@ export class FakeBusinessDesk {
     let model = preset.model;
     if (p.model !== undefined) {
       if (!preset.modelEditable) throw invalid('This option has a fixed model.');
-      if (typeof p.model !== 'string' || !/^[a-z0-9][a-z0-9.-]{1,63}$/.test(p.model)) throw invalid('Type the model id your account shows, in lower case, like gpt-6-luna.');
+      if (typeof p.model !== 'string' || !(preset.id === 'openrouter' ? /^~?[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-z0-9._:-]{0,127}$/ : /^[a-z0-9][a-z0-9.-]{1,63}$/).test(p.model)) throw invalid('Type the model id your account shows, in lower case, like gpt-6-luna.');
       model = p.model;
     }
     if (preset.availability === 'unavailable' || preset.availability === 'needs-setup') throw new EngineError('PRESET_UNAVAILABLE', preset.availabilityReason);
-    if (p.monthlyCapUsd !== undefined && !/^\d{1,6}(\.\d{1,2})?$/.test(String(p.monthlyCapUsd))) throw new EngineError('INVALID_AMOUNT', 'Type the monthly limit in US dollars, like 20 or 12.50.');
+    if (p.monthlyCapUsd !== undefined) {
+      const cap = typeof p.monthlyCapUsd === 'string' ? /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(p.monthlyCapUsd.trim()) : null;
+      if (!cap || BigInt(cap[1]!) * 100n + BigInt((cap[2] ?? '').padEnd(2, '0')) < 1n) throw new EngineError('INVALID_AMOUNT', 'Monthly limit must be an amount in US dollars with at most two decimals, like 20 or 12.50.');
+    }
     const asked = Array.isArray(p.tiers) ? (p.tiers as unknown[]).filter((t): t is ModelTier => t === 'fast' || t === 'main') : [];
     const tiers = asked.length > 0 ? asked : [...preset.tiers];
     // The key is checked and dropped: the sample keeps only that one is loaded, never the key itself.

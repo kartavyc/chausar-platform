@@ -12,7 +12,7 @@ function priceTable(input: string, output: string, source: string, confirmed: bo
   return { currency: 'USD', inputMicrosPerMillion: input, outputMicrosPerMillion: output, source, checkedOn: PRICES_CHECKED_ON, confirmed };
 }
 
-export function apiConsentText(provider: 'Anthropic' | 'OpenAI'): string {
+export function apiConsentText(provider: 'Anthropic' | 'OpenAI' | 'OpenRouter and its selected model provider'): string {
   return `Chausar will send your idea, your answers, your plan's words and practice-client conversations to ${provider} with your key, so the model can write questions, plans, briefs and practice drafts. It never sends your books, receipts, keys or real client details under this consent. Real client work is shown to you first and sent only after you approve it. Every call is listed under What was sent, with its cost. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every call.`;
 }
 
@@ -62,6 +62,11 @@ export const PRESETS: readonly PresetSpec[] = Object.freeze([
     tiers: ['fast', 'main'], needsKey: true, keyHint: 'Create a key at platform.openai.com', runsOn: 'provider-api',
     priceTable: priceTable('100000', '500000', 'Third-party tracker, not confirmed by OpenAI', false),
     consentText: apiConsentText('OpenAI'), verification: 'not-live-verified',
+  }),
+  spec({
+    id: 'openrouter', label: 'OpenRouter', kind: 'openai-responses', model: 'openai/gpt-6-luna', modelEditable: true,
+    tiers: ['fast', 'main'], needsKey: true, keyHint: 'Create a key at openrouter.ai/keys', runsOn: 'provider-api', priceTable: null,
+    consentText: apiConsentText('OpenRouter and its selected model provider'), verification: 'not-live-verified',
   }),
   spec({
     id: 'claude-code-cli', label: 'Claude Code on this computer', kind: 'claude-cli', model: 'claude-sonnet-5-5', modelEditable: false,
@@ -169,6 +174,8 @@ export function availabilityOf(id: ModelPresetId, live: {
     case 'anthropic-haiku-5-5':
     case 'anthropic-sonnet-5-5':
       return { availability: 'ready', availabilityReason: AVAILABILITY_REASONS.anthropic };
+    case 'openrouter':
+      return { availability: 'unverified', availabilityReason: 'Uses your OpenRouter key and chosen model. Add its exact model price first. Not yet checked with a live key.' };
     case 'openai-gpt-6-luna':
       return { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.luna };
     case 'claude-code-cli': {
@@ -194,5 +201,5 @@ export function availabilityOf(id: ModelPresetId, live: {
 }
 
 export function endpointFor(spec: PresetSpec): string {
-  return ENDPOINTS[spec.kind];
+  return spec.id === 'openrouter' ? 'https://openrouter.ai/api/v1/responses' : ENDPOINTS[spec.kind];
 }

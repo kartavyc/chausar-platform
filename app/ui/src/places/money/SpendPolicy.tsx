@@ -31,18 +31,20 @@ const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-
 const LEADS: readonly CurrencyLead[] = ['auto', 'inr', 'usd'];
 
 /** One rate card line as the owner edits it: every figure is the text in its field. */
-interface RateDraft { key: string; item: string; unit: SpendRateUnit; input: string; output: string; perCall: string; source: string; checkedOn: string }
+interface RateDraft { key: string; item: string; model: string; unit: SpendRateUnit; input: string; output: string; cacheRead: string; cacheWrite: string; perCall: string; source: string; checkedOn: string }
 
 const draftOf = (line: SpendRateLine): RateDraft => ({
   key: `held:${line.item}`, item: line.item, unit: line.unit, input: line.inputUsdPerMillion ?? '', output: line.outputUsdPerMillion ?? '',
   perCall: line.usdPerCall ?? '', source: line.source, checkedOn: line.checkedOn,
+  model: line.model ?? '', cacheRead: line.cacheReadUsdPerMillion ?? '', cacheWrite: line.cacheWriteUsdPerMillion ?? '',
 });
 
 /** The line as the engine takes it: the figures the unit needs, each in US dollars as typed. */
 function inputOf(draft: RateDraft): SpendRateInput {
   const shared = { item: draft.item.trim(), unit: draft.unit, source: draft.source.trim(), checkedOn: draft.checkedOn.trim() };
   return draft.unit === 'per-million-tokens'
-    ? { ...shared, inputUsdPerMillion: draft.input.trim(), outputUsdPerMillion: draft.output.trim() }
+    ? { ...shared, ...(draft.model.trim() ? { model: draft.model.trim() } : {}), inputUsdPerMillion: draft.input.trim(), outputUsdPerMillion: draft.output.trim(),
+      ...(draft.cacheRead.trim() ? { cacheReadUsdPerMillion: draft.cacheRead.trim() } : {}), ...(draft.cacheWrite.trim() ? { cacheWriteUsdPerMillion: draft.cacheWrite.trim() } : {}) }
     : { ...shared, usdPerCall: draft.perCall.trim() };
 }
 
@@ -105,6 +107,7 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
     setRates(kept.rates.map((rate, index) => ({
       key: `kept:${index}`, item: rate.item, unit: rate.unit, input: rate.inputUsdPerMillion ?? '', output: rate.outputUsdPerMillion ?? '',
       perCall: rate.usdPerCall ?? '', source: rate.source, checkedOn: rate.checkedOn,
+      model: rate.model ?? '', cacheRead: rate.cacheReadUsdPerMillion ?? '', cacheWrite: rate.cacheWriteUsdPerMillion ?? '',
     })));
     setTouched(true);
     draft.taken();
@@ -180,6 +183,7 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
                     <span className={`${s.label} mono`}>{rate.item}</span>
                     <span className={s.value}>
                       <EngineWords>{rate.price}</EngineWords>
+                      {rate.model && <span className={s.note} data-content="">{rate.model}</span>}
                       <span className={s.note}>{t('money.policy.rateSource', { source: rate.source, date: day(rate.checkedOn) })}</span>
                     </span>
                   </li>
@@ -230,7 +234,7 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
             <p className={s.sheetLine}>
               <Button
                 variant="quiet" disabled={sending}
-                onClick={() => setRates((lines) => [...lines, { key: `new:${Date.now()}:${lines.length}`, item: '', unit: 'per-million-tokens', input: '', output: '', perCall: '', source: '', checkedOn: today() }])}
+                onClick={() => setRates((lines) => [...lines, { key: `new:${Date.now()}:${lines.length}`, item: '', model: '', unit: 'per-million-tokens', input: '', output: '', cacheRead: '', cacheWrite: '', perCall: '', source: '', checkedOn: today() }])}
               >
                 {t('money.policy.addRate')}
               </Button>
@@ -274,8 +278,11 @@ function RateEditor({ rate, disabled, onChange, onRemove }: { rate: RateDraft; d
       </div>
       {rate.unit === 'per-million-tokens' ? (
         <>
+          <Field label={t('money.policy.model')} value={rate.model} autoComplete="off" disabled={disabled} onChange={(event) => onChange({ model: event.currentTarget.value })} />
           <Field label={t('money.policy.input')} hint={t('money.policy.usdHint')} value={rate.input} inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ input: event.currentTarget.value })} />
           <Field label={t('money.policy.output')} value={rate.output} inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ output: event.currentTarget.value })} />
+          <Field label={t('money.policy.cacheRead')} value={rate.cacheRead} inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ cacheRead: event.currentTarget.value })} />
+          <Field label={t('money.policy.cacheWrite')} value={rate.cacheWrite} inputMode="decimal" autoComplete="off" disabled={disabled} onChange={(event) => onChange({ cacheWrite: event.currentTarget.value })} />
         </>
       ) : (
         <Field

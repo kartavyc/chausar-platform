@@ -4,6 +4,7 @@ const { randomUUID } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
 const { createFormsRelay } = require('./owner-browser-relay.cjs');
+const { createCredentialRelay } = require('./credential-relay.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 /**
@@ -45,6 +46,8 @@ class EngineHarness extends EventEmitter {
         const child = this.options.forkProcess(this.options.workerPath, [], { execPath: this.options.execPath, execArgv: ['--experimental-strip-types'], windowsHide: true, shell: false, env: { ...this.options.environment, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
         this.worker = child;
         const forms = createFormsRelay(this, child);
+        const credentials = createCredentialRelay(this, child);
+        child.once('disconnect', () => credentials.close()); child.once('exit', () => credentials.close());
         child.once('disconnect', () => forms.close()); child.once('exit', () => forms.close());
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
@@ -53,6 +56,7 @@ class EngineHarness extends EventEmitter {
           if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
           // Ink v2 wave 5 (5A5): the engine asks main to print a report's HTML to PDF (report-print.cjs); answered once.
           if (message.kind === 'host-print' && message.id === undefined) { printRelay(this, child, message); return; }
+          if (message.kind === 'host-credential' && message.id === undefined) { credentials.receive(message); return; }
           if ((message.kind === 'host-forms' || message.kind === 'host-forms-verified') && message.id === undefined) { forms.receive(message); return; }
           if (typeof message.id !== 'string') return;
           const pending = this.waiting.get(message.id); if (!pending) return;

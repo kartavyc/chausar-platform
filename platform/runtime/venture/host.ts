@@ -19,6 +19,7 @@ import type {
 import { requireAppChannel } from './records.ts';
 import { endSessionAllowances } from './policy/allow-session.ts';
 import {clearSessionMemory} from './core/session-cleanup.ts';
+import { closeCredentialSession } from './models/credential-state.ts';
 
 const NOT_BUILT_MESSAGE = 'This part of Chausar is not built yet.';
 const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YET', message);
@@ -174,6 +175,7 @@ export class VentureHost {
       services,
       github: this.#githubProxy(),
       secrets: this.#secrets,
+      ...(options.credentials && options.host !== 'hosted-web' ? { credentials: options.credentials } : {}),
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
@@ -248,6 +250,7 @@ export class VentureHost {
     if (!ownsHandler(module.handlers, name)) throw notBuilt();
     const handler = (module.handlers as Record<string, Handler>)[name];
     await this.#modelsReady();
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
     try {
       const answer = await handler(this.#deps, ctx, payload ?? {});
       // 4J2 (O22): a settings form's autosaved draft is cleared once its real method succeeded with the same values.
@@ -416,6 +419,7 @@ export class VentureHost {
     endSessionAllowances(this.#store);
     clearSessionMemory(this.#secrets);
     this.#closed = true;
+    closeCredentialSession(this.#secrets);
     this.#secrets.clear();
     this.#port = null;
     this.#portPending = null;
@@ -466,6 +470,18 @@ export class VentureHost {
     }
     const create = models.createModelPort;
     if (typeof create !== 'function') throw notBuilt();
+    if (this.#deps.credentials) {
+      const state = this.#store.read(), presets = models.PRESETS as readonly ModelPreset[];
+      const ids = new Set(state.conversations.filter(row => row?.kind === 'venture-model-connection' && row.status === 'connected').map(row => row.presetId));
+      for (const id of ids) {
+        if (!presets?.find(preset => preset.id === id)?.needsKey) continue;
+        const name = `model:${id}` as SecretName;
+        let key: string | null = null;
+        try { key = await this.#deps.credentials.get(state.workspace.id, name); } catch { /* Missing protection leaves the connection visibly without a key. */ }
+        if (this.#closed) return;
+        if (key !== null) this.#secrets.set(name, key);
+      }
+    }
     const portOptions: ModelPortOptions = {
       store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),

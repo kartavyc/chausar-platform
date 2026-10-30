@@ -1,3 +1,5 @@
+import { credentialChange, assertCredentialSession } from '../models/credential-state.ts';
+import { prepareAdoptedCredentials } from '../models/credential-adoption.ts';
 // Chausar venture launcher, core (P1): venture.create and venture.get.
 // One business per vault. Create sets the books up for the country (retention, dictionary currency) in their own
 // writes first, then makes the venture record and its empty interview in one venture action. Never nested.
@@ -123,7 +125,10 @@ function rebased<R extends ModelConnectionRecord | ModelCallRecord>(record: R, t
 }
 
 /** venture.create { idea, countryCode, workingName?, composeId?, composedDigest? } (admin, inside the app). */
-export async function createVenture(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
+export function createVenture(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
+  return credentialChange(deps, () => createVentureUnlocked(deps, ctx, payload));
+}
+async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
   requireAppChannel(ctx, 'venture.create');
   const body = exactPayload(payload, ['idea', 'countryCode', 'workingName', 'composeId', 'composedDigest'], ['idea', 'countryCode']);
   const idea = plainText(body.idea, 'Your idea', { min: 10, max: 2000 });
@@ -158,7 +163,10 @@ export async function createVenture(deps: VentureDeps, ctx: Context, payload: un
   // 5. The venture record and its interview, in one action; with a composed plan also the composition and blueprint
   // version 1; with an AI connected before the vault also its connections and calls (they count toward the cap).
   const connections = ai ? ai.connections.filter(connection => connection.status === 'connected') : [];
-  const view = await ventureAction(deps, ctx, 'admin', 'create', tx => {
+  const keys = await prepareAdoptedCredentials(deps, ctx, connections);
+  let view: VentureView;
+  try { view = await ventureAction(deps, ctx, 'admin', 'create', tx => {
+    assertCredentialSession(deps, ctx);
     check(!tx.venture, 'VENTURE_EXISTS', 'This workspace already has a business. Chausar keeps one business per workspace.');
     const record: VentureRecord = {
       ...tx.base('venture-record'),
@@ -230,10 +238,11 @@ export async function createVenture(deps: VentureDeps, ctx: Context, payload: un
     check(view, 'VENTURE_NOT_FOUND', 'Start a business first.');
     return view;
   }, { create: true });
+  } catch (error) { await keys.rollback(); throw error; }
+  keys.commit();
 
   // 6. After the commit, never inside it: the keys move to the vault's shelf, then the draft is wiped.
   if (deps.draft) {
-    if (connections.length) deps.draft.moveKeys(deps.secrets);
     deps.draft.settle();
   }
   // Connecting changes send nothing to send question shapes, as the consent text says (venture.models.connect does the same).

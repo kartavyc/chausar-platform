@@ -236,6 +236,7 @@ export interface SpendLead { currency: 'INR' | 'USD'; figure: Display; beside?: 
  */
 export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
 export interface SpendRateLine {
+  model?: string;
   item: string; unit: SpendRateUnit; inputMicrosPerMillion: string | null; outputMicrosPerMillion: string | null; microsPerCall: string | null;
   inputUsdPerMillion: string | null; outputUsdPerMillion: string | null; usdPerCall: string | null;
   source: string; checkedOn: string; confirmed: boolean; by: 'list' | 'owner'; price: Display;
@@ -243,6 +244,7 @@ export interface SpendRateLine {
   cacheReadMicrosPerMillion?: string | null; cacheWriteMicrosPerMillion?: string | null; cacheReadUsdPerMillion?: string | null; cacheWriteUsdPerMillion?: string | null;
 }
 export interface SpendRateInput {
+  model?: string;
   item: string; unit: SpendRateUnit; inputUsdPerMillion?: string | null; outputUsdPerMillion?: string | null; usdPerCall?: string | null; source: string; checkedOn: string;
   /** 4F2 (M6): the prompt-cache prices in US dollars, each optional. */
   cacheReadUsdPerMillion?: string | null; cacheWriteUsdPerMillion?: string | null;
