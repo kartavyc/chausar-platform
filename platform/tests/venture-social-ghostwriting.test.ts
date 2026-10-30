@@ -44,10 +44,11 @@ import { findRecord, listRecords, ventureAction } from '../runtime/venture/recor
 import { SOCIAL_REVISION_DESK } from '../runtime/venture/playbooks/social/revision-desk.ts';
 import { renderDeliverable } from '../runtime/venture/delivery/deliverable.ts';
 import { undoRevision } from '../runtime/venture/delivery/revise.ts';
+import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 async function fixture(count = 8) {
     const env = await kitBusiness({ now: new Date('2026-10-27T10:00:00Z') }, { idea: 'A social media agency for small shops' });
     const offer = env.offers.find(o => o.playbookOffer === 'linkedin-ghostwriting')!;
-    const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Write grounded LinkedIn posts for the client.', intake: { fields: { postCount: String(count) }, moneyRupees: { extraRoundPrice: '250' } } });
+    const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Write grounded LinkedIn posts for the client.', intake: { fields: { postCount: String(count) }, moneyAmounts: { extraRoundPrice: '250' } } });
     const started = await env.call('venture.delivery.run', { orderId: order.id });
     const run = await ventureAction(env.deps, owner, 'prepare', 'fixture.social', tx => { const original = tx.find('venture-delivery-run', started.id)!; const orderNow = tx.find('venture-order', order.id)!; tx.replace({ ...orderNow, chainStage: 3 }); return tx.replace({ ...original, chainStage: 3, status: 'ready-for-review', servedBy: 'model', practice: false, callId: null, preview: null, deliverable: packDraft(count), renderedText: renderDeliverable(packDraft(count), [], tx.venture!.country), checks: [], verdict: null, editedText: null }); });
     env.models.previewed.length = 0;
@@ -82,6 +83,19 @@ test('real revision previews count per post, Undo restores only an unsent round,
     await ventureAction(f.env.deps,owner,'approve','fixture.new-price',tx=>{const order=tx.find('venture-order',f.order.id)!;tx.replace({...order,intake:{...order.intake!,fields:{...order.intake!.fields,extraRoundPrice:'30000'}}});});
     assert.equal((await f.env.call('venture.receipt.get',{id:quote.receiptId})).figures[0]?.display,quote.display);
     await assert.rejects(f.env.call('venture.receipt.get',{id:quote.receiptId.replace(':25000:',':1:')}),{code:'RECEIPT_NOT_FOUND'});
+});
+test('w6 an old social order keeps its quoted revision price and currency after a move', async () => {
+    const f = await fixture();
+    await ventureAction(f.env.deps, owner, 'prepare', 'fixture.rounds', tx => { const order = tx.find('venture-order', f.order.id)!; tx.replace({ ...order, socialGhostwriting: { rounds: { 'post-1': 2 }, decisions: {}, charges: [] } }); });
+    const before = (await f.act('quote')).result as any;
+    const draft = await blueprintUpdate(f.env.deps, owner, { patch: { countryCode: 'US' } });
+    await blueprintAccept(f.env.deps, owner, { digest: draft.blueprint.digest });
+    const after = (await f.act('quote')).result as any;
+    assert.equal(after.currency, 'INR');
+    assert.equal(after.display, before.display);
+    assert.equal(after.receiptId, before.receiptId);
+    const receipt = await f.env.call('venture.receipt.get', { id: before.receiptId });
+    assert.equal(receipt.figures[0]?.display, before.display);
 });
 import { draftApprovalsOfRun } from '../runtime/venture/playbooks/social/run-approvals.ts';
 test('an owner-recorded client answer approves only its exact post and a changed post loses that answer', async () => {
@@ -180,4 +194,16 @@ test('one-post landing maps actual line ordinals and preserves companion section
  const candidate=structuredClone(original);candidate.sections[1]!.parts[0]!.text='LinkedIn: First changed.\nLinkedIn: Second changed.';
  const run={deliverable:original,revision:{socialPost:{n:2,posts:[{channel:'linkedin',text:'First original.'},{channel:'linkedin',text:'Second original.'}]}}} as any;
  const kept=preserveOtherPosts(run,candidate as any);assert.equal(textOf(kept.sections[1]!.parts[0]!), '  LinkedIn: First original.  \r\n LinkedIn :   Second changed.  ');assert.deepEqual(kept.sections[0],original.sections[0]);assert.deepEqual(kept.sections.slice(2),original.sections.slice(2));assert.equal(kept.title,original.title);assert.deepEqual(kept.questionsForClient,original.questionsForClient);
+});
+
+test('new Japanese social orders parse an owner extra-round amount in yen', async()=>{
+ const env=await kitBusiness(undefined,{idea:'A social media agency for small shops'});
+ const offer=env.offers.find(o=>o.playbookOffer==='linkedin-ghostwriting')!;
+ const plan=await blueprintUpdate(env.deps,owner,{patch:{countryCode:'JP',offers:[{id:offer.id,unitPrice:'2500'}]}});
+ await blueprintAccept(env.deps,owner,{digest:plan.blueprint.digest});
+ const input={clientId:env.client.id,offerId:offer.id,request:'Write grounded LinkedIn posts.',intake:{fields:{postCount:'8'},moneyAmounts:{extraRoundPrice:'250'}}};
+ const order=await env.call('venture.order.create',input);
+ assert.equal(order.intake.fields.extraRoundPrice,'250');
+ const receipt=await env.call('venture.receipt.get',{id:order.priceReceiptId});assert.equal(receipt.figures.find((figure:any)=>figure.key==='total')?.display,'JPY 2,500');
+ await assert.rejects(env.call('venture.order.create',{...input,intake:{...input.intake,moneyAmounts:{extraRoundPrice:'250.50'}}}),{code:'INVALID_AMOUNT'});
 });

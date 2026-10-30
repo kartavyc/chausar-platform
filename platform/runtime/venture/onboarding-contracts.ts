@@ -10,11 +10,12 @@ import type {
 
 export const ONBOARDING_CONTRACT_VERSION = 'chausar.dev/venture-onboarding/v1alpha2' as const;
 
-/** The nine new methods. All are answered before the vault check by the engine's draft desk. contracts.ts lists them
+/** The onboarding methods. All are answered before the vault check by the engine's draft desk. contracts.ts lists them
  *  again as DRAFT_METHODS (a test pins the two lists equal); they are not PRE_VAULT_METHODS. */
 export const ONBOARDING_METHODS = [
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
 ] as const;
 export type OnboardingMethod = typeof ONBOARDING_METHODS[number];
 
@@ -337,7 +338,10 @@ export interface DraftHandoverPort {
 // 8. Payloads and results of the nine methods (contracts.ts copies them into VenturePayloads and VentureResults)
 // ---------------------------------------------------------------------------
 
+export type CountrySuggestion = { country: Pick<CountryProfile, 'code' | 'name' | 'currency'> | null; evidence: string | null; source: 'ai' | 'not-connected' };
+
 export type OnboardingPayloads = {
+  'venture.country.suggest': { text: string };
   'venture.ai.options': Record<string, never>;
   'venture.ai.connect': { presetId: ModelPresetId; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string };
   'venture.ai.disconnect': { connectionId: string };
@@ -349,6 +353,7 @@ export type OnboardingPayloads = {
   'venture.compose.update': { composeId: string; patch: ComposePatch };
 };
 export type OnboardingResults = {
+  'venture.country.suggest': CountrySuggestion;
   'venture.ai.options': AiOptionsView;
   'venture.ai.connect': AiStatusView;
   'venture.ai.disconnect': AiStatusView;

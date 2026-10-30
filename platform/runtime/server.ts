@@ -16,6 +16,7 @@ import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
   ...CUSTODY_METHODS]);
 
 /** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */

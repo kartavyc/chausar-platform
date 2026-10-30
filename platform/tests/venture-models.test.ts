@@ -13,7 +13,7 @@ import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
 import { DRAFT_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
-  ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelTask, ModelTransport,
+  ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
 } from '../runtime/venture/contracts.ts';
 import { digest, formatMicros, houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
@@ -175,6 +175,24 @@ function codexProfile(executable: string) {
   };
 }
 
+test('Codex keeps its default but an owner can explicitly choose an available model without fallback', async () => {
+  const { deps, port, rec } = await setup({ codexCli: codexProfile(join(tmpdir(), 'codex.exe')) });
+  const preset = port.presets().find(item => item.id === 'codex-cli')!;
+  assert.equal(preset.model, 'gpt-6-luna');
+  assert.equal(preset.modelEditable, true);
+  const payload = { presetId: preset.id, consentDigest: preset.consentDigest, model: 'synthetic-owner-model' };
+  await assert.rejects(call(deps, 'venture.models.connect', payload, phone), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(call(deps, 'venture.models.connect', payload, { ...owner, role: 'viewer' }), code('ACCESS_REVOKED'));
+  for (const model of [null, 123, '', 'spaces are invalid']) await assert.rejects(call(deps, 'venture.models.connect', { ...payload, model }), code('INVALID_VENTURE_REQUEST'));
+  const connected = await call(deps, 'venture.models.connect', payload) as ModelStatusView;
+  assert.equal(connected.tiers.fast.model, 'synthetic-owner-model');
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
+  const tasks = rec.process.filter(request => request.purpose !== 'version-check');
+  assert.equal(tasks.length, 1, 'Failed selection never silently falls back.');
+  assert.equal(tasks[0].args[tasks[0].args.indexOf('--model') + 1], 'synthetic-owner-model');
+  assert.equal(port.presets().find(item => item.id === 'codex-cli')!.model, 'gpt-6-luna');
+});
+
 // ---------------------------------------------------------------------------
 // 1. Presets
 // ---------------------------------------------------------------------------
@@ -186,7 +204,7 @@ test('presets: six presets, consent digests, Luna unverified, CLI checks change 
   for (const item of presets) {
     assert.equal(item.consentDigest, digest(item.consentText), item.id);
     assert.equal(item.verification, item.id === 'built-in-templates' ? 'built-in' : 'not-live-verified');
-    assert.equal(item.modelEditable, item.id === 'openai-gpt-6-luna');
+    assert.equal(item.modelEditable, item.id === 'openai-gpt-6-luna' || item.id === 'codex-cli');
   }
   const byId = Object.fromEntries(presets.map(item => [item.id, item]));
   assert.equal(byId['openai-gpt-6-luna'].availability, 'unverified');

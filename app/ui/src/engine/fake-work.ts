@@ -113,6 +113,8 @@ export class FakeWorkDesk {
   readonly youtubeServices: FakeYoutubeServiceRun;
   private orders: Record<string, OrderLite[]>;
   private orderPrices=new Map<string,{price:RoomPrice;receipt:ReceiptLite}>();
+  private invoiceSnapshots = new Map<string, { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[] }>();
+  invoiceSnapshot(biz: string, id: string) { return clone(this.invoiceSnapshots.get(biz + ':' + id)); }
   roomPrice(biz:string,id:string){const kept=this.orderPrices.get(biz+':'+id);return kept?clone(kept.price):undefined;}
   orderReceipt(biz:string,id:string){return clone([...this.orderPrices.entries()].find(([key,value])=>key.startsWith(biz+':')&&value.receipt.id===id)?.[1].receipt);}
   private narrationPrices=new Map<string,{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}>();
@@ -257,7 +259,7 @@ export class FakeWorkDesk {
       }
       rawIntake = { ...body, fields };
     }
-    const keptIntake = ask?.kit && plan.playbook?.id==='youtube' && offer.playbookOffer==='screencast-tutorial' ? fakeYoutubeMediaIntake(rawIntake,ask,{by:'owner',at:this.host.now(),today:new Date(Date.parse(this.host.now())+19800000).toISOString().slice(0,10),hosted:this.host.hosted?.()},()=>this.host.ask?.('venture.voiceConsent.list',{}) as import('./types').VoiceConsentsView??{consents:[],line:''}) : ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
+    const keptIntake = ask?.kit && plan.playbook?.id==='youtube' && offer.playbookOffer==='screencast-tutorial' ? fakeYoutubeMediaIntake(rawIntake,ask,{currency:this.host.country().currency,by:'owner',at:this.host.now(),today:new Date(Date.parse(this.host.now())+19800000).toISOString().slice(0,10),hosted:this.host.hosted?.()},()=>this.host.ask?.('venture.voiceConsent.list',{}) as import('./types').VoiceConsentsView??{consents:[],line:''}) : ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { currency: this.host.country().currency, by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { currency: this.host.country().currency, by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
     if(plan.playbook?.id==='youtube'&&isYoutubeService(offer.playbookOffer))validateYoutubeServiceIntake((keptIntake as OrderLite['intake'])?.fields,offer.playbookOffer!);
     if (ask?.kit && keptIntake && typeof keptIntake === 'object') {
       const values = (keptIntake as NonNullable<OrderLite['intake']>).fields;
@@ -281,12 +283,17 @@ export class FakeWorkDesk {
       ...(keptIntake && typeof keptIntake === 'object' ? { intake: clone(keptIntake) as OrderLite['intake'] } : {}),
     };
     let roomPrice:{price:RoomPrice;receipt:ReceiptLite};
+    let invoiceSnapshot: { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[] };
     {
       const office=plan.blueprint.backOffice,country=this.host.country(),currency=office.currency;
       if(currency!==country.currency)throw new EngineError('CURRENCY_CONFLICT',`This business keeps its books in ${country.currency}.`);
       const decision=taxDecision({taxRegistered:office.taxRegistered,taxRateBps:office.taxRateBps??'0',taxState:office.taxState??null,lutConfirmed:office.lutConfirmed??false},{countryCode:client.countryCode??null,stateCode:client.stateCode??null},country.code),input={unitPriceMinor:offer.pricing.unitPriceMinor,quantity:order.quantity,discountBps:'0',taxRateBps:decision.rateBps,currency,taxTreatment:decision.treatment},computed=p.taxInclusive===true&&splitsInclusive(decision.treatment)?computeInclusivePrice(input):computePrice(input),id=order.priceReceiptId;
       const display=formatMinor(computed.amounts.total,currency),receipt:ReceiptLite={id,at:order.at,stale:false,totalMinor:computed.amounts.total,figures:[{key:'unit',label:'Price per '+offer.pricing.quantityUnit,display:formatMinor(computed.amounts.unit,currency)},{key:'subtotal',label:'Subtotal',display:formatMinor(computed.amounts.subtotal,currency)},...(['taxable','tax','cgst','sgst','igst'] as const).flatMap(key=>computed.amounts[key]===null?[]:[{key,label:key.toUpperCase(),display:formatMinor(computed.amounts[key]!,currency)}]),{key:'total',label:'Total',display}],explanation:computed.steps.map(step=>step.rule+'; inputs: '+step.inputs.join(', ')+'; result: '+step.resultMinor+' minor units').join('. ')};
       roomPrice={price:{offerId:offer.id,minor:computed.amounts.total,currency,receiptId:id,priceDigest:priceDigest({orderId:order.id,input,computed}),display},receipt};order.priceReceiptId=id;
+      const split = computed.amounts.cgst !== null || computed.amounts.sgst !== null || computed.amounts.igst !== null;
+      invoiceSnapshot = { countryCode: country.code, currency, subtotal: computed.amounts.subtotal,
+        taxes: (split ? ['cgst', 'sgst', 'igst'] as const : ['tax'] as const).flatMap(key => computed.amounts[key] === null || computed.amounts[key] === '0' ? [] : [{ key, label: key.toUpperCase(), minor: computed.amounts[key]! }]),
+      };
     }
     const previousOrders = [...(this.orders[biz] ?? [])];
     const previousUploads = [...(this.uploads[biz] ?? [])];
@@ -300,6 +307,7 @@ export class FakeWorkDesk {
       throw error;
     }
     this.orderPrices.set(biz+':'+order.id,roomPrice);
+    this.invoiceSnapshots.set(biz + ':' + order.id, invoiceSnapshot);
     if(plan.playbook?.id==='narration-studio')this.narrationPrices.set(biz+':'+order.id,{id:order.priceReceiptId,currency:plan.blueprint.backOffice.currency,hourlyMinor:offer.pricing.unitPriceMinor,ownerSet:offer.pricing.unitPriceLabel==='told-by-you',stale:false});
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
     return clone(order);

@@ -6,6 +6,7 @@ import type { State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
+import { invoiceCountry } from '../core/country-history.ts';
 import { creditedOn, issuedCredits, METHOD_WORDS, paymentState } from './ledger.ts';
 import { reminderStep, remindersOf } from './reminders.ts';
 import type { InvoiceNext, InvoiceRecord, InvoiceTimelineEntry, IsoDate, PaymentRecord, VentureRecord } from '../contracts.ts';
@@ -56,6 +57,7 @@ function viewedOn(state: State, venture: VentureRecord, invoice: InvoiceRecord):
 
 /** The invoice's short timeline: events by date (issued, viewed, payments, credit notes, reminders), then where it stands. */
 export function invoiceTimeline(state: State, venture: VentureRecord, invoice: InvoiceRecord, _today: IsoDate): InvoiceTimelineEntry[] {
+  venture = { ...venture, country: invoiceCountry(state, venture, invoice) };
   if (invoice.status === 'draft' || invoice.issueDate === null) return [];
   const date = (iso: IsoDate) => formatVentureDate(iso, venture.country.dateOrder);
   const money = (minor: string | bigint) => formatMinor(minor, invoice.currency);

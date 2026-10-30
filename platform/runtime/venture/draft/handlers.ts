@@ -19,6 +19,7 @@ import type {
 } from '../onboarding-contracts.ts';
 import { applyComposePatch, assembleComposed, composeTask, decideTask, makeDecision, withRepair } from '../core/compose.ts';
 import { countryProfile } from '../core/countries.ts';
+import { countrySuggest } from '../core/country-suggestion.ts';
 import { calls as modelCalls, connectModel, disconnect as modelDisconnect } from '../models/handlers.ts';
 import { droppedFile, screenedFile, sendFileDropTask, withFile, type DroppedFile } from '../core/attachment.ts';
 import { DESK_CONTEXT } from './store.ts';
@@ -206,6 +207,7 @@ export async function composeUpdate(desk: DeskHandle, payload: unknown): Promise
 }
 
 export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload: unknown) => Promise<unknown>>> = Object.freeze({
+  'venture.country.suggest': (desk, payload) => countrySuggest(desk.deps, DESK_CONTEXT, payload),
   'venture.ai.options': aiOptions,
   'venture.ai.connect': aiConnect,
   'venture.ai.disconnect': aiDisconnect,

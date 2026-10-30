@@ -264,8 +264,8 @@ export async function pipelineList(deps: VentureDeps, ctx: Context, payload: unk
   } else {
     const plan = funnelCountPlan(state, venture, { type: 'count', what: 'funnel', scope: 'forecast', from, to: today });
     forecast = plan.addends.length
-      ? { value: planDisplay(plan), label: 'forecast from your last 90 days', receiptId: (await sumReceipt(deps, ctx, venture.id, plan)).id }
-      : { line: 'No open card has a quote yet, so there is nothing to forecast.' };
+      ? { value: planDisplay(plan), label: `forecast in ${venture.country.currency} only, from your last 90 days`, receiptId: (await sumReceipt(deps, ctx, venture.id, plan)).id }
+      : { line: plan.words!.none! };
   }
   return { columns, tiles, funnel, forecast, quotes: quotesOf(state, venture) };
 }

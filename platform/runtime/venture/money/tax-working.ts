@@ -25,6 +25,8 @@ import type { CaReceipt } from '../playbooks/ca-firm/receipt.ts';
 import { BOOKS_TAX_NOTE } from './books.ts';
 import { calendarMonth, todayLocal } from './dates.ts';
 import { latestBlueprint } from './shared.ts';
+import { invoiceTaxLabel, taxTotalPlan } from './tax-total.ts';
+import { sumReceipt } from './sums.ts';
 
 const ISSUED: readonly InvoiceRecord['status'][] = ['issued', 'part-paid', 'paid'];
 const PERIOD_WORDS = "Choose a month like 2026-10, or a financial year like FY 2025-26 or AY 2026-27.";
@@ -80,7 +82,7 @@ function invoiceLine(invoice: InvoiceRecord, clients: Map<string, string>, taxLa
 // Every other business: the plan's tax setting and the tax on each invoice
 // ---------------------------------------------------------------------------
 
-function plainWorking(state: State, venture: VentureRecord, plan: BlueprintRecord | null, period: Period): TaxWorkingView {
+async function plainWorking(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, plan: BlueprintRecord | null, period: Period): Promise<TaxWorkingView> {
   const taxLabel = plan?.backOffice.taxLabel ?? venture.country.tax.label;
   const lines: TaxWorkingLine[] = [];
   if (plan) {
@@ -93,15 +95,22 @@ function plainWorking(state: State, venture: VentureRecord, plan: BlueprintRecor
   }
   const invoices = issuedIn(state, venture, period);
   const clients = clientNames(state, venture);
-  for (const invoice of invoices) lines.push(invoiceLine(invoice, clients, taxLabel));
-  const currencies = new Set(invoices.map(invoice => invoice.currency));
-  if (invoices.length && currencies.size === 1) {
-    const total = invoices.reduce((sum, invoice) => sum + BigInt(invoice.taxMinor), 0n);
-    lines.push({ label: `${taxLabel} on invoices issued in ${period.display}`, value: formatMinor(String(total), invoices[0].currency) });
-  } else if (!invoices.length) {
+  const totals = new Map<string, { label: string; currency: string }>();
+  for (const invoice of invoices) {
+    const label = invoiceTaxLabel(state, venture, invoice);
+    lines.push(invoiceLine(invoice, clients, label));
+    const key = JSON.stringify([invoice.currency, label]);
+    totals.set(key, { label, currency: invoice.currency });
+  }
+  for (const total of totals.values()) {
+    const receipt = await sumReceipt(deps, ctx, venture.id, taxTotalPlan(state, venture, { type: 'tax-total', from: period.from, to: period.to, currency: total.currency, taxLabel: total.label }));
+    lines.push({ label: `${total.label} on invoices issued in ${period.display}`, value: formatMinor(receipt.totalMinor, receipt.currency), receiptId: receipt.id });
+  }
+  if (!invoices.length) {
     lines.push({ label: `${taxLabel} on invoices issued in ${period.display}`, value: 'No invoices issued' });
   }
-  return { period: period.display, sections: [{ id: 'tax', title: taxLabel, lines, note: BOOKS_TAX_NOTE }], needsCaConfirmation: false };
+  const title = totals.size > 1 ? 'Tax by currency' : [...totals.values()].some(total => total.label !== taxLabel) ? 'Tax' : taxLabel;
+  return { period: period.display, sections: [{ id: 'tax', title, lines, note: BOOKS_TAX_NOTE + (totals.size > 1 ? ' Each currency and tax is totalled separately; no conversion was made.' : '') }], needsCaConfirmation: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +131,7 @@ function saleLines(state: State, venture: VentureRecord, invoices: InvoiceRecord
   const built: Built = { lines: [], counted: [], left: [] };
   for (const invoice of invoices) {
     const leave = (reason: string) => built.left.push({ label: invoice.number as string, value: reason });
+    if (invoice.currency !== 'INR') { leave(`This invoice is in ${invoice.currency}; GST working counts INR only, with no conversion.`); continue; }
     if (invoice.taxTreatment === 'zero-rated-lut') { leave('Export under a Letter of Undertaking: zero-rated, for your CA to report.'); continue; }
     if (invoice.taxTreatment !== 'cgst-sgst' && invoice.taxTreatment !== 'igst') { leave('No GST was charged on this invoice.'); continue; }
     if (!invoice.sacCode) { leave('The invoice has no SAC code.'); continue; }
@@ -231,7 +241,8 @@ async function caWorking(deps: VentureDeps, ctx: Context, state: State, venture:
     while (month <= period.to.slice(0, 7) && `${month}-01` <= today) {
       const invoices = issuedIn(state, venture, monthPeriod(month));
       if (invoices.length) {
-        const { receipt, failure } = runGst(month, invoices);
+        const { receipt, built, failure } = runGst(month, invoices);
+        for (const left of built.left) failures.push(`${left.label}: ${left.value}`);
         if (receipt) lines.push({ label: monthPeriod(month).display, value: figure(receipt, 'net-payable') });
         else failures.push(`${monthPeriod(month).display}: ${failure}`);
       }
@@ -245,7 +256,8 @@ async function caWorking(deps: VentureDeps, ctx: Context, state: State, venture:
   }
 
   if (period.kind === 'year') {
-    const invoices = issuedIn(state, venture, period).filter(invoice => invoice.currency === 'INR');
+    const allInvoices = issuedIn(state, venture, period);
+    const invoices = allInvoices.filter(invoice => invoice.currency === 'INR');
     const billed = invoices.reduce((sum, invoice) => sum + taxableOf(invoice), 0n);
     const before = tableNotes.length;
     try { engines.incomeTax.incomeTaxTable(period.ay); tableOn('income-tax', period.from); } catch (error) { unconfirmed = true; tableNotes.push(errorMessage(error)); }
@@ -253,6 +265,7 @@ async function caWorking(deps: VentureDeps, ctx: Context, state: State, venture:
       id: 'income-tax', title: `Income tax for ${period.display}`,
       lines: [{ label: 'Billed in the year, without tax', value: formatMinor(String(billed), 'INR') }],
       note: ['The computation needs your whole income for the year, your regime and your deductions, which Chausar does not hold. The income tax return offer works it from Form 16, AIS and 26AS, and your CA signs it off.',
+        ...(allInvoices.length > invoices.length ? ['This total is in INR. Invoices in other currencies are excluded; no conversion was made.'] : []),
         ...tableNotes.slice(before)].join(' '),
     });
   }
@@ -264,7 +277,8 @@ export async function taxWorking(deps: VentureDeps, ctx: Context, payload: unkno
   const body = exactPayload(payload ?? {}, ['period']);
   const { state, venture } = readVenture(deps, ctx);
   const period = parsePeriod(body.period, todayLocal(deps.clock, venture.country));
-  const plan = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
+  const blueprints = listRecords(state, 'venture-blueprint', venture.id);
+  const plan = latestBlueprint(blueprints.filter(row => row.status === 'accepted')) ?? latestBlueprint(blueprints);
   if (pickPlaybook(venture.idea)?.id === CA_FIRM_ID && venture.country.code === 'IN') return caWorking(deps, ctx, state, venture, plan, period);
-  return plainWorking(state, venture, plan, period);
+  return plainWorking(deps, ctx, state, venture, plan, period);
 }

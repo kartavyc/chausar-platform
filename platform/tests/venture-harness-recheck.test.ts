@@ -15,6 +15,7 @@ import { recheckBeforeApply, recheckRun, recheckSend, type ApplyFacts } from '..
 import { buildToolEnv } from '../runtime/venture/delivery/harness/env.ts';
 import { setSpendPolicy } from '../runtime/venture/money/spend.ts';
 import { HOLD_APPROVE_ANSWER } from '../runtime/venture/policy/holds.ts';
+import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 import type { PolicyContext } from '../runtime/venture/policy/ladder.ts';
 import { approve, code, decideBrief, installFakeClaude, owner, realOrder, startRun, turnOf, type RealOrderEnv } from './venture-real-order-env.ts';
 
@@ -39,6 +40,20 @@ function toolEnv(over: Partial<PolicyContext> = {}, recheck?: ToolEnv['recheck']
 }
 const error = (outcome: Awaited<ReturnType<typeof callTool>>) => outcome.record.envelope.ok ? null : outcome.record.envelope.error;
 const CANCELLED = { code: 'ORDER_NOT_ACTIVE', reason: 'The order was cancelled after you approved this.' };
+
+test('w6 an existing order keeps its original tool currency after the business moves', async () => {
+  const env = await realOrder();
+  const run = await startRun(env);
+  const changed = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'US' } });
+  await blueprintAccept(env.deps, owner, { digest: changed.blueprint.digest });
+  const state = env.store.read();
+  const venture = listRecords(state, 'venture-record')[0];
+  const playbook = listRecords(state, 'venture-playbook')[0];
+  assert.equal(venture.country.currency, 'USD');
+  const built = buildToolEnv({ deps: env.deps, ctx: owner, state, venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files: [], allowed: [] });
+  assert.equal(built.currency, 'INR');
+  assert.equal(built.dateOrder, 'day-month-year');
+});
 
 // ---------------------------------------------------------------------------
 // 1. The gate again, as a pure check

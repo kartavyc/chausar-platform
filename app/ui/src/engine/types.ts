@@ -383,7 +383,7 @@ export interface BusinessList { businesses: BusinessOnComputer[]; complete: bool
 /** `venture.get` (VentureView), only the fields the shell reads. */
 export interface VentureViewLite {
   /** country (4J20): the business's country, its code and currency; null while it is still in its interview. */
-  venture: { id: string; workingName: string; serviceType: ServiceType | null; country?: { code: string; currency: string } | null };
+  venture: { id: string; workingName: string; serviceType: ServiceType | null; originalCountry?: CountryLite; country?: { code: string; currency: string } | null };
   done: number; total: number;
   /** The flagship playbook the idea picks, for example { id: 'youtube', label: 'YouTube channel' }; absent when the plain service type serves. */
   playbook?: PlaybookPick;
@@ -546,6 +546,7 @@ export interface BlueprintStepLite { id: string; title: LabelledLite<string>; do
  */
 export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
 export interface BlueprintLite {
+  country?: CountryLite;
   id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template'; digest: string; serviceType: ServiceType;
   name: LabelledLite<string>; oneLiner: LabelledLite<string>; customer: LabelledLite<string>;
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
@@ -576,6 +577,7 @@ export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string
 /** intake: by offer id, worked out by the engine; absent when no offer asks anything at intake. */
 export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite> }
 export interface BlueprintPatchLite {
+  countryCode?: string;
   name?: string; oneLiner?: string; customer?: string;
   /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
   offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
@@ -764,6 +766,7 @@ export interface InvoiceTimelineEntry {
   what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled'; on: string; line: Display;
 }
 export interface InvoiceViewLite {
+  country?: CountryLite;
   invoice: InvoiceLite & {
     currency: string; dueInDays: number; digest: string; documentTitle: string;
     priceReceiptId: string; booksReceiptId: string | null; booksNote: string | null;
@@ -1745,7 +1748,7 @@ export interface EngineMethods {
         calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite;
         /** Kit answers; rupee inputs are parsed only by the engine. */
         fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null>;
-        moneyRupees?: Record<string, string>;
+        moneyAmounts?: Record<string, string>;
       };
       /** 4J5 (M15): the price includes the tax. */
       taxInclusive?: boolean;
@@ -1970,6 +1973,7 @@ export interface EngineMethods {
   'venture.delivery.delegate': { params: { runId: string; digest: string; decision: 'approve' | 'decline' }; result: DeliveryLite };
   'venture.delegate.get': { params: { id: string }; result: unknown };
   'venture.ai.calls': { params: { limit?: number }; result: unknown[] };
+  'venture.country.suggest': { params: { text: string }; result: { country: CountryLite | null; evidence: string | null; source: 'ai' | 'not-connected' } };
   'venture.compose.decide': { params: { text: string; countryCode: string }; result: unknown };
   'venture.compose.fill': { params: { composeId: string }; result: unknown };
   'venture.compose.get': { params: Record<string, never>; result: unknown };

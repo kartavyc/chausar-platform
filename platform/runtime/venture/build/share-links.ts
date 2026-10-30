@@ -185,6 +185,7 @@ const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 export function statementText(statement: ClientStatement, venture: VentureRecord): string {
   const date = (iso: string | null) => (iso ? formatVentureDate(iso, venture.country.dateOrder) : 'no date');
   const lines = [`For ${statement.client.name}, as of ${date(statement.asOf)}.`, ''];
+  if (statement.scopeNote) lines.push(statement.scopeNote, '');
   lines.push(statement.open.length ? 'Open invoices:' : 'No invoice is open.');
   for (const open of statement.open) {
     lines.push(`${open.number}, issued ${date(open.issueDate)}, due ${date(open.dueDate)}: total ${open.total}, paid ${open.paid}, credited ${open.credited}, left to pay ${open.balance}${open.late ? `, ${open.late}` : ''}.`);

@@ -21,6 +21,9 @@ import type { PipelineSettingsView, OutreachLane } from './types';
 import { effectiveLaneLimits, LANE_WORDS, limitsObject, pipelineCapsInput } from '../../../../platform/runtime/venture/network/limit-settings';
 import { DEFAULT_PIPELINE_SETTINGS, nextAllowedDay, weekStart } from '../../../../platform/runtime/venture/network/followups';
 import { checkScoreRules } from '../../../../platform/runtime/venture/network/score';
+import { formatMinor } from '../../../../platform/runtime/currency';
+
+export type HeldPipelineQuote = PipelineQuoteView & { explanation: string; currency: string; beforeTaxMinor: string };
 
 export const FAKE_4E4_METHODS: readonly string[] = [
   'venture.pipeline.list', 'venture.pipeline.followups', 'venture.pipeline.setNext', 'venture.pipeline.move', 'venture.pipeline.settings',
@@ -167,7 +170,7 @@ interface Desk {
   /** The desk's blocklist (customers/leads.ts Blocklist): addresses and whole domains no draft, handoff or new card reaches. */
   blocklist: { emails: Set<string>; domains: Set<string> };
   /** The business's quotes (price receipts on an offer), oldest first; the board lists them newest first. */
-  quotes: (PipelineQuoteView & { explanation: string })[];
+  quotes: HeldPipelineQuote[];
 }
 
 type Card = { view: PipelineCardView; state: CardState; lead: LeadView | null };
@@ -191,6 +194,9 @@ export class FakePipelineDesk {
   private readonly meetings: MeetingDrafts;
   private readonly desks = new Map<string, Desk>();
   private seq = 0;
+  private forecasts = new Map<string, { businessId: string; receipt: ReceiptLite }>();
+
+  rememberQuote(quote: HeldPipelineQuote): void { this.desk().quotes.push(structuredClone(quote)); }
 
   constructor(host: W4DeskHost, people: PipelinePeople, meetings: MeetingDrafts, options: { fresh?: boolean; due?: boolean } = {}) {
     this.host = host;
@@ -267,8 +273,8 @@ export class FakePipelineDesk {
     });
     // Two quotes made from the price list: Leela's monthly edits, and a set of short reels nobody is on yet.
     desk.quotes.push(
-      { receiptId: QUOTE_RECEIPT, offer: 'Monthly edits', quantity: '1', value: '₹18,000', at: at(addDays(today, -3)), explanation: 'The quote for monthly edits, worked out from your price list.' },
-      { receiptId: 'R-pipe-quote-reel', offer: 'Short reel', quantity: '4', value: '₹9,600', at: at(addDays(today, -1)), explanation: 'The quote for four short reels, worked out from your price list.' },
+      { receiptId: QUOTE_RECEIPT, offer: 'Monthly edits', quantity: '1', value: '₹18,000', currency: 'INR', beforeTaxMinor: '1800000', at: at(addDays(today, -3)), explanation: 'The quote for monthly edits, worked out from your price list.' },
+      { receiptId: 'R-pipe-quote-reel', offer: 'Short reel', quantity: '4', value: '₹9,600', currency: 'INR', beforeTaxMinor: '960000', at: at(addDays(today, -1)), explanation: 'The quote for four short reels, worked out from your price list.' },
     );
     const leela = addDays(today, -12);
     add('person_leela', {
@@ -596,13 +602,38 @@ export class FakePipelineDesk {
     });
     const most = Math.max(0, ...funnel.map((item) => item.reached));
     for (const item of funnel) item.reachedPermille = most ? Math.floor((item.reached * 1000) / most) : 0;
-    const closed = cards.filter((card) => CLOSED.has(card.state.stage) && card.state.history.some((move) => CLOSED.has(move.to) && localDay(move.at) >= from)).length;
-    const quotes = [...this.desk().quotes].reverse().map(({ explanation: _, ...quote }) => quote);
-    return { columns, tiles, funnel, forecast: { line: `Not enough history yet: ${plural(closed, 'card', 'cards')} closed in the last 90 days, and a forecast needs 10.` }, quotes };
+    const closed = cards.filter((card) => CLOSED.has(card.state.stage) && card.state.history.some((move) => CLOSED.has(move.to) && localDay(move.at) >= from && localDay(move.at) <= today)).length;
+    const quotes = [...this.desk().quotes].reverse().map(({ explanation: _, currency: _currency, beforeTaxMinor: _minor, ...quote }) => quote);
+    let forecast: PipelineView['forecast'] = { line: `Not enough history yet: ${plural(closed, 'card', 'cards')} closed in the last 90 days, and a forecast needs 10.` };
+    if (closed >= 10) {
+      const business = this.host.ask('venture.get', {}) as { venture?: { country?: { currency?: string } } } | null;
+      const currency = business?.venture?.country?.currency ?? 'INR';
+      const history = cards.filter(card => CLOSED.has(card.state.stage) && card.state.history.some(move => CLOSED.has(move.to) && localDay(move.at) >= from && localDay(move.at) <= today));
+      const values = open.flatMap(card => {
+        const quote = this.desk().quotes.find(item => item.receiptId === card.state.quote?.receiptId && item.currency === currency);
+        if (!quote) return [];
+        const reached = history.filter(item => item.state.history.some(move => move.to === card.state.stage));
+        const share = reached.length ? Math.floor(reached.filter(item => item.state.stage === 'won').length * 1000 / reached.length) : 0;
+        return [{ id: card.view.id, amount: (BigInt(quote.beforeTaxMinor) * BigInt(share) + 500n) / 1000n, quote: quote.receiptId, share }];
+      });
+      if (!values.length) forecast = { line: `No open card has a quote in ${currency}. Other currencies are excluded.` };
+      else {
+        const total = values.reduce((sum, item) => sum + item.amount, 0n);
+        const value = formatMinor(total, currency);
+        const receiptId = 'R-pipe-forecast-' + this.host.digest({ business: this.host.current(), currency, from, today, values: values.map(item => ({ ...item, amount: String(item.amount) })) });
+        this.forecasts.set(receiptId, { businessId: this.host.current(), receipt: { id: receiptId, at: this.host.now(), stale: false, totalMinor: String(total), figures: [{ key: 'total', label: `Forecast in ${currency} only, from your last 90 days`, display: value }], explanation: `Each amount is a forecast in ${currency}, not money anyone owes. Other currencies are excluded. ` + values.map(item => `${item.quote}: before-tax amount times ${item.share} in 1,000, rounded to ${item.amount} minor units.`).join(' ') } });
+        forecast = { value, label: `forecast in ${currency} only, from your last 90 days`, receiptId };
+      }
+    }
+    return { columns, tiles, funnel, forecast, quotes };
   }
 
   /** The count receipts the board's tiles and "How people moved" stand on. */
   receipt(id: string): ReceiptLite | undefined {
+    if (id.startsWith('R-pipe-forecast-')) {
+      const saved = this.forecasts.get(id);
+      return saved?.businessId === this.host.current() ? structuredClone(saved.receipt) : undefined;
+    }
     const quote = this.desk().quotes.find((item) => item.receiptId === id);
     if (quote) return { id, at: quote.at, stale: false, figures: [{ key: 'taxable', label: 'Before tax', display: quote.value }], explanation: quote.explanation };
     if (!id.startsWith('R-pipe-')) return undefined;

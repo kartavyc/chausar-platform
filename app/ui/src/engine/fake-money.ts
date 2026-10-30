@@ -19,6 +19,8 @@
  * view carries its next step, its timeline and its credit notes, as the engine's does.
  */
 
+import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
 import { BUSINESSES, RECEIPTS } from './fixtures';
 import { FakeBills, FAKE_4J5_BILL_METHODS } from './fake-bills';
 import { FakeMoneyViews, FAKE_4J20_METHODS } from './fake-money-views';
@@ -29,9 +31,10 @@ import {
 } from './types';
 
 /** Amounts are whole paise. The samples stay far below the largest safe integer; a typed amount past it is refused. */
-interface TaxLine { key: 'cgst' | 'sgst'; label: string; minor: number }
+interface TaxLine { key: string; label: string; minor: number }
 interface Price { subtotal: number; taxes: TaxLine[] }
 interface HeldInvoice {
+  countryCode?: string;
   id: string; at: string; businessId: string; orderId: string; clientId: string; number: string | null;
   status: InvoiceLite['status']; issueDate: string | null; dueDate: string | null; dueInDays: number;
   currency: string; documentTitle: string; priceReceiptId: string; booksReceiptId: string | null; booksNote: string | null;
@@ -45,6 +48,7 @@ interface HeldSchedule extends RecurringInvoiceView { businessId: string }
 
 /** What the fake needs from the engine around it. */
 export interface MoneyHost {
+  orderSnapshot?: (id: string) => { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[] } | undefined;
   now: () => string;
   business: () => string;
   clients: () => readonly ClientLite[];
@@ -64,7 +68,7 @@ export interface MoneyHost {
  * in paise. The fake's only; no screen sees it.
  */
 export interface MoneyLedger {
-  invoices: { id: string; number: string | null; clientId: string; client: string; status: InvoiceLite['status']; issueDate: string | null; dueDate: string | null; currency: string; subtotal: number; tax: number; total: number; balance: number; priceReceiptId: string; description: string; dueInDays: number }[];
+  invoices: { id: string; number: string | null; clientId: string; client: string; status: InvoiceLite['status']; issueDate: string | null; dueDate: string | null; currency: string; countryCode: string; subtotal: number; tax: number; total: number; balance: number; priceReceiptId: string; description: string; dueInDays: number }[];
   payments: { id: string; at: string; invoiceId: string; receivedOn: string; method: PaymentMethod; amount: number; state: 'pending' | 'cleared'; tds: { section: string; amount: number } | null; booksReceiptId: string | null }[];
   credits: { id: string; invoiceId: string; amount: number; status: 'waiting' | 'issued' | 'cancelled'; number: string | null; at: string; reason: string }[];
   bills: ReturnType<FakeBills['ledger']>;
@@ -150,13 +154,14 @@ const FAKE_4J5_MONEY_METHODS: readonly string[] = ['venture.payment.clear', 'ven
 const DAY_MS = 86_400_000;
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / DAY_MS);
 /** "300000" or "3000.00" as paise, or null when it is not an amount. */
-const paiseOf = (value: unknown): number | null => {
+const paiseOf = (value: unknown, currency = 'INR'): number | null => {
   const typed = typeof value === 'string' && value.length <= 40 ? value.replace(/[\s,]/g, '') : '';
   if (!/^\d+(?:\.\d+)?$/.test(typed)) return null;
   const [whole = '0', fraction = ''] = typed.split('.');
   const digits = fraction.replace(/0+$/, '');
-  if (digits.length > 2 || whole.length > 13) return null;
-  return Number.parseInt(whole, 10) * 100 + Number.parseInt(digits.padEnd(2, '0'), 10);
+  if (digits.length > currencyMinorDigits(currency) || whole.length > 13) return null;
+  const amount = Number(decimalMinor(typed, currency));
+  return Number.isSafeInteger(amount) ? amount : null;
 };
 
 export class FakeMoney {
@@ -185,7 +190,7 @@ export class FakeMoney {
     this.invoices = SEED.map((seed) => this.sealed({ ...seed, price: { ...seed.price, taxes: seed.price.taxes.map((line) => ({ ...line })) }, notes: [...seed.notes], digest: '' }));
     this.payments = PAYMENT_SEED.map((payment) => ({ ...payment }));
     this.receipts = OWN_RECEIPTS.map((receipt) => structuredClone(receipt));
-    this.bills = new FakeBills({ now: () => host.now(), business: () => host.business() });
+    this.bills = new FakeBills({ now: () => host.now(), business: () => host.business(), currency: () => (host.ask?.('venture.get', {}) as { venture?: { country?: { currency?: string } } } | null)?.venture?.country?.currency ?? 'INR' });
   }
 
   static answers(method: string): boolean {
@@ -227,9 +232,9 @@ export class FakeMoney {
     const waiting = credit.status === 'waiting';
     const after = waiting ? balance - credit.amount : balance;
     const explanation = waiting
-      ? `Left to pay on ${invoice.number} now: ${inr(balance)}, its total less what was paid and credited. Less this credit note of ${inr(credit.amount)}: ${inr(after)} left after it.`
-      : `Left to pay on ${invoice.number} now: ${inr(balance)}, its total less what was paid and credited, this credit note ${credit.number} of ${inr(credit.amount)} among the credits.`;
-    return { id, at: credit.at, explanation, stale: credit.status === 'cancelled', figures: [{ key: 'total', label: waiting ? 'Left to pay after this credit note' : `Left to pay on ${invoice.number} now`, display: inr(after) }] };
+      ? `Left to pay on ${invoice.number} now: ${this.show(invoice, balance)}, its total less what was paid and credited. Less this credit note of ${this.show(invoice, credit.amount)}: ${this.show(invoice, after)} left after it.`
+      : `Left to pay on ${invoice.number} now: ${this.show(invoice, balance)}, its total less what was paid and credited, this credit note ${credit.number} of ${this.show(invoice, credit.amount)} among the credits.`;
+    return { id, at: credit.at, explanation, stale: credit.status === 'cancelled', figures: [{ key: 'total', label: waiting ? 'Left to pay after this credit note' : `Left to pay on ${invoice.number} now`, display: this.show(invoice, after) }] };
   }
 
   /** 4J20: the open business's money in paise, for the views desk (fake-money-views.ts). */
@@ -237,7 +242,7 @@ export class FakeMoney {
     const mine = this.host.business();
     return {
       invoices: this.mine().map((i) => ({
-        id: i.id, number: i.number, clientId: i.clientId, client: this.clientName(i.clientId), status: i.status, issueDate: i.issueDate, dueDate: i.dueDate, currency: i.currency,
+        id: i.id, number: i.number, clientId: i.clientId, client: this.clientName(i.clientId), status: i.status, issueDate: i.issueDate, dueDate: i.dueDate, currency: i.currency, countryCode: i.countryCode ?? 'IN',
         subtotal: i.price.subtotal, tax: i.price.taxes.reduce((sum, line) => sum + line.minor, 0), total: totalOf(i.price), balance: this.balance(i),
         priceReceiptId: i.priceReceiptId, description: i.description, dueInDays: i.dueInDays,
       })),
@@ -255,11 +260,17 @@ export class FakeMoney {
 
   /** The books summary with this desk's open invoices and the period choices, for the period asked. */
   books(base: BooksSummaryLite, period: unknown): BooksSummaryLite {
+    const venture = (this.host.ask?.('venture.get', {}) as { venture?: { originalCountry?: unknown; country?: { currency: string } } } | null)?.venture;
+    const currency = venture?.country?.currency ?? 'INR';
+    const scoped = !!venture?.originalCountry || currency !== 'INR';
+    const scopeNotes = (from: string, to: string) => (this.mine().some(invoice => invoice.currency !== currency && invoice.issueDate !== null && invoice.issueDate >= from && invoice.issueDate <= to)
+      || this.payments.some(payment => payment.businessId === this.host.business() && payment.state !== 'pending' && payment.receivedOn >= from && payment.receivedOn <= to && this.mine().some(invoice => invoice.id === payment.invoiceId && invoice.currency !== currency)))
+      ? [...base.notes, `Totals are in ${currency}. Other currencies are excluded; no conversion was made.`] : base.notes;
     // 4J4: a month like 2026-09 is a period too; its figures come from this desk's records (fake-money-views.ts).
     if (typeof period === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
       const month = this.views.booksMonth(period);
       return {
-        ...base, period: month.period, figures: month.figures, periodKey: 'custom', periods: structuredClone(BOOK_PERIODS), today: this.today(), openInvoices: this.openInvoices(),
+        ...base, currency, notes: scopeNotes(`${month.before}-01`, month.period.to), period: month.period, figures: month.figures, periodKey: 'custom', periods: structuredClone(BOOK_PERIODS), today: this.today(), openInvoices: this.openInvoices(),
         month: period, previous: this.views.booksMonth(month.before).asPrevious,
       };
     }
@@ -269,7 +280,7 @@ export class FakeMoney {
     const whole = key === 'this-month' || key === 'last-month';
     const month = whole ? this.views.booksMonth(chosen.from.slice(0, 7)) : null;
     return {
-      ...base, period: { from: chosen.from, to: chosen.to }, periodKey: key, periods: structuredClone(BOOK_PERIODS), today: this.today(), openInvoices: this.openInvoices(),
+      ...base, currency, ...(scoped ? { figures: month?.figures ?? this.views.booksPeriod(chosen) } : {}), notes: scopeNotes(month ? `${month.before}-01` : chosen.from, chosen.to), period: { from: chosen.from, to: chosen.to }, periodKey: key, periods: structuredClone(BOOK_PERIODS), today: this.today(), openInvoices: this.openInvoices(),
       ...(month ? { month: chosen.from.slice(0, 7) } : {}), previous: month ? this.views.booksMonth(month.before).asPrevious : null,
     };
   }
@@ -304,7 +315,7 @@ export class FakeMoney {
 
   /** A list row: the record plus its total, price receipt and next step, formatted here as the engine formats them. */
   private listed(invoice: HeldInvoice): InvoiceLite {
-    return { ...this.lite(invoice), total: inr(totalOf(invoice.price)), receiptId: invoice.priceReceiptId, next: this.next(invoice), ...this.late(invoice) };
+    return { ...this.lite(invoice), total: this.show(invoice, totalOf(invoice.price)), receiptId: invoice.priceReceiptId, next: this.next(invoice), ...this.late(invoice) };
   }
 
   /** 4J4: an open invoice past its due day says how late it is (money/aging.ts lateOf), on list rows only. */
@@ -316,9 +327,10 @@ export class FakeMoney {
 
   /** "Clients owe you" for Money at a glance: the open balances of this business, added up here as the engine does. */
   owed(): { value: string; receiptId: string } {
-    const open = this.mine().filter((i) => (i.status === 'issued' || i.status === 'part-paid') && this.balance(i) > 0);
+    const currency = (this.host.ask?.('venture.get', {}) as { venture?: { country?: { currency?: string } } } | null)?.venture?.country?.currency ?? 'INR';
+    const open = this.mine().filter((i) => i.currency === currency && (i.status === 'issued' || i.status === 'part-paid') && this.balance(i) > 0);
     // The engine proves this figure with its "owed" sum receipt, as money/overview.ts does.
-    return { value: inr(open.reduce((sum, i) => sum + this.balance(i), 0)), receiptId: 'R-0430' };
+    return { value: this.show({ currency }, open.reduce((sum, i) => sum + this.balance(i), 0)), receiptId: currency === 'INR' ? 'R-0430' : this.newReceipt('Clients owe you', open.reduce((sum, i) => sum + this.balance(i), 0), `Open invoices in ${currency}; other currencies are excluded. No conversion was made.`, currency) };
   }
 
   /** What is left to pay: the total less what was paid and what credit notes took off. */
@@ -333,12 +345,12 @@ export class FakeMoney {
   private figures(invoice: HeldInvoice): PriceFigureLite[] {
     const total = totalOf(invoice.price);
     return [
-      { key: 'subtotal', label: 'Subtotal', display: inr(invoice.price.subtotal) },
-      ...invoice.price.taxes.map((line) => ({ key: line.key, label: line.label, display: inr(line.minor) })),
-      { key: 'total', label: 'Total', display: inr(total) },
-      { key: 'paid', label: 'Paid', display: inr(invoice.paid) },
-      ...((invoice.credited ?? 0) > 0 ? [{ key: 'credited', label: 'Credited', display: inr(invoice.credited ?? 0) }] : []),
-      { key: 'balance', label: 'Balance', display: inr(this.balance(invoice)) },
+      { key: 'subtotal', label: 'Subtotal', display: this.show(invoice, invoice.price.subtotal) },
+      ...invoice.price.taxes.map((line) => ({ key: line.key, label: line.label, display: this.show(invoice, line.minor) })),
+      { key: 'total', label: 'Total', display: this.show(invoice, total) },
+      { key: 'paid', label: 'Paid', display: this.show(invoice, invoice.paid) },
+      ...((invoice.credited ?? 0) > 0 ? [{ key: 'credited', label: 'Credited', display: this.show(invoice, invoice.credited ?? 0) }] : []),
+      { key: 'balance', label: 'Balance', display: this.show(invoice, this.balance(invoice)) },
     ];
   }
 
@@ -349,8 +361,8 @@ export class FakeMoney {
     if (this.balance(invoice) <= 0) return { action: 'none', line: (invoice.credited ?? 0) > 0 ? (invoice.paid > 0 ? 'Settled: paid and credited.' : 'Settled by credit notes.') : 'Paid in full.' };
     const waiting = this.payments.filter((p) => p.invoiceId === invoice.id && p.state === 'pending');
     if (waiting.length) {
-      const tds = waiting.length === 1 && waiting[0]!.tds ? `, with TDS ${inr(waiting[0]!.tdsAmount ?? 0)} under ${waiting[0]!.tds.section}` : '';
-      const amount = inr(waiting.reduce((sum, p) => sum + p.amount, 0));
+      const tds = waiting.length === 1 && waiting[0]!.tds ? `, with TDS ${this.show(invoice, waiting[0]!.tdsAmount ?? 0)} under ${waiting[0]!.tds.section}` : '';
+      const amount = this.show(invoice, waiting.reduce((sum, p) => sum + p.amount, 0));
       return waiting.length === 1
         ? { action: 'clear', line: `A cheque for ${amount} is waiting to clear${tds}. Mark it cleared once it is in your bank.` }
         : { action: 'clear', line: `${waiting.length} cheques for ${amount} are waiting to clear. Mark each cleared once it is in your bank.` };
@@ -373,27 +385,29 @@ export class FakeMoney {
     if (invoice.status === 'draft' || !invoice.issueDate) return [];
     const events: InvoiceTimelineEntry[] = [{ what: 'issued', on: invoice.issueDate, line: `Issued on ${invoice.issueDate}` }];
     for (const p of this.payments.filter((item) => item.invoiceId === invoice.id)) {
-      const tds = p.tds ? `, and TDS ${inr(p.tdsAmount ?? 0)} under ${p.tds.section}` : '';
+      const tds = p.tds ? `, and TDS ${this.show(invoice, p.tdsAmount ?? 0)} under ${p.tds.section}` : '';
       events.push(p.state === 'pending'
-        ? { what: 'cheque', on: p.receivedOn, line: `Cheque for ${inr(p.amount)} received on ${p.receivedOn}, waiting to clear${tds}` }
-        : { what: 'paid', on: p.receivedOn, line: `Paid ${inr(p.amount)} by ${METHOD_WORDS[p.method]} on ${p.receivedOn}${p.tds ? `, and TDS ${inr(p.tdsAmount ?? 0)} under ${p.tds.section} to be shown on the client's TDS certificate` : ''}` });
+        ? { what: 'cheque', on: p.receivedOn, line: `Cheque for ${this.show(invoice, p.amount)} received on ${p.receivedOn}, waiting to clear${tds}` }
+        : { what: 'paid', on: p.receivedOn, line: `Paid ${this.show(invoice, p.amount)} by ${METHOD_WORDS[p.method]} on ${p.receivedOn}${p.tds ? `, and TDS ${this.show(invoice, p.tdsAmount ?? 0)} under ${p.tds.section} to be shown on the client's TDS certificate` : ''}` });
     }
-    for (const c of this.credits.filter((item) => item.invoiceId === invoice.id && item.status === 'issued')) events.push({ what: 'credited', on: c.at.slice(0, 10), line: `Credit note ${c.number} for ${inr(c.amount)} on ${c.at.slice(0, 10)}` });
+    for (const c of this.credits.filter((item) => item.invoiceId === invoice.id && item.status === 'issued')) events.push({ what: 'credited', on: c.at.slice(0, 10), line: `Credit note ${c.number} for ${this.show(invoice, c.amount)} on ${c.at.slice(0, 10)}` });
     for (const r of this.reminders.filter((item) => item.invoiceId === invoice.id)) events.push({ what: 'reminder', on: r.at.slice(0, 10), line: `Reminder drafted on ${r.at.slice(0, 10)}, not sent yet` });
     events.sort((a, b) => a.on.localeCompare(b.on));
     if (this.balance(invoice) <= 0) return [...events, { what: 'settled', on: events.at(-1)!.on, line: (invoice.credited ?? 0) > 0 ? 'Settled: paid and credited' : 'Paid in full' }];
     const due = invoice.dueDate ?? invoice.issueDate;
-    return [...events, { what: 'awaiting', on: due, line: invoice.paid > 0 || (invoice.credited ?? 0) > 0 ? `Awaiting ${inr(this.balance(invoice))}, due ${due}` : `Awaiting payment, due ${due}` }];
+    return [...events, { what: 'awaiting', on: due, line: invoice.paid > 0 || (invoice.credited ?? 0) > 0 ? `Awaiting ${this.show(invoice, this.balance(invoice))}, due ${due}` : `Awaiting payment, due ${due}` }];
   }
 
   private creditView(credit: HeldCredit): CreditNoteView {
     const invoice = this.invoices.find((i) => i.id === credit.invoiceId);
     const line = credit.status === 'waiting' ? 'Waiting on Today for you to issue it.' : credit.status === 'cancelled' ? 'Cancelled. Nothing changed.'
-      : `Issued on ${credit.at.slice(0, 10)}. Takes ${inr(credit.amount)} off ${invoice?.number ?? 'its invoice'}.`;
+      : `Issued on ${credit.at.slice(0, 10)}. Takes ${this.show(invoice ?? { currency: 'INR' }, credit.amount)} off ${invoice?.number ?? 'its invoice'}.`;
     // 4J20: the receipt that names the note's amount (credits.ts creditNoteReceipt), while it waits or once issued.
     const receiptId = credit.status === 'cancelled' ? null : `credit-note:${credit.id}`;
-    return { id: credit.id, invoiceId: credit.invoiceId, amount: inr(credit.amount), reason: credit.reason, state: credit.status, number: credit.number, rowId: credit.status === 'waiting' ? `credit:${credit.id}:open` : null, line, receiptId };
+    return { id: credit.id, invoiceId: credit.invoiceId, amount: this.show(invoice ?? { currency: 'INR' }, credit.amount), reason: credit.reason, state: credit.status, number: credit.number, rowId: credit.status === 'waiting' ? `credit:${credit.id}:open` : null, line, receiptId };
   }
+
+  private show(invoice: { currency: string }, amount: number): string { return invoice.currency === 'INR' ? inr(amount) : formatMinor(BigInt(amount), invoice.currency); }
 
   private view(invoice: HeldInvoice): InvoiceViewLite {
     const name = this.clientName(invoice.clientId);
@@ -407,6 +421,7 @@ export class FakeMoney {
     const stale = (RECEIPTS.find((r) => r.id === priceReceiptId) ?? this.receipts.find((r) => r.id === priceReceiptId))?.stale ?? false;
     return {
       invoice: { ...this.lite(invoice), currency, dueInDays, digest: invoiceDigest, documentTitle, priceReceiptId, booksReceiptId, booksNote },
+      country: countryProfile(invoice.countryCode ?? 'IN'),
       client: { id: invoice.clientId, name },
       receipt: { id: priceReceiptId, stale },
       payments: this.payments.filter((p) => p.invoiceId === invoice.id).map(({ businessId: _b, amount: _a, ...payment }) => ({ ...payment })),
@@ -424,24 +439,24 @@ export class FakeMoney {
     return this.mine()
       .filter((i) => (i.status === 'issued' || i.status === 'part-paid') && i.number !== null && i.dueDate !== null && this.balance(i) > 0)
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-      .map((i) => ({ invoiceId: i.id, number: i.number!, clientName: this.clientName(i.clientId), balanceDisplay: inr(this.balance(i)), dueDate: i.dueDate! }));
+      .map((i) => ({ invoiceId: i.id, number: i.number!, clientName: this.clientName(i.clientId), balanceDisplay: this.show(i, this.balance(i)), dueDate: i.dueDate! }));
   }
 
-  private newReceipt(label: string, minor: number, explanation: string): string {
+  private newReceipt(label: string, minor: number, explanation: string, currency = 'INR'): string {
     const id = `R-0${this.receiptSeq++}`;
-    this.receipts.push({ id, at: this.host.now(), explanation, stale: false, figures: [{ key: 'total', label, display: inr(minor) }] });
+    this.receipts.push({ id, at: this.host.now(), explanation, stale: false, figures: [{ key: 'total', label, display: this.show({ currency }, minor) }] });
     return id;
   }
 
   /** The order's price receipt when it still holds; a fresh one when the price changed since (the engine re-prices). */
-  private priceReceipt(order: OrderLite, price: Price): string {
+  private priceReceipt(order: OrderLite, price: Price, currency = 'INR'): string {
     const held = RECEIPTS.find((r) => r.id === order.priceReceiptId) ?? this.receipts.find((r) => r.id === order.priceReceiptId);
     if (held && !held.stale) return held.id;
     const id = `R-0${this.receiptSeq++}`;
     const figures: PriceFigureLite[] = [
-      { key: 'subtotal', label: 'Subtotal', display: inr(price.subtotal) },
-      ...price.taxes.map((line) => ({ key: line.key, label: line.label, display: inr(line.minor) })),
-      { key: 'total', label: 'Total', display: inr(totalOf(price)) },
+      { key: 'subtotal', label: 'Subtotal', display: this.show({ currency }, price.subtotal) },
+      ...price.taxes.map((line) => ({ key: line.key, label: line.label, display: this.show({ currency }, line.minor) })),
+      { key: 'total', label: 'Total', display: this.show({ currency }, totalOf(price)) },
     ];
     this.receipts.push({ id, at: this.host.now(), explanation: `Priced again for this invoice: ${order.request}.`, stale: false, figures });
     return id;
@@ -455,14 +470,16 @@ export class FakeMoney {
     const existing = this.mine().filter((i) => i.orderId === order.id && i.status !== 'void');
     // 4J5 (M11): an order's quote becomes one invoice, once.
     if (existing.some((i) => i.status !== 'draft')) throw new EngineError('QUOTE_ALREADY_INVOICED', "This order's quote is on an issued invoice already. One order becomes one invoice, once.");
-    const priced = ORDER_PRICES[order.id];
+    const snapshot = this.host.orderSnapshot?.(order.id);
+    const priced = snapshot ? { price: { subtotal: Number(snapshot.subtotal), taxes: snapshot.taxes.map(tax => ({ ...tax, minor: Number(tax.minor) })) }, title: snapshot.taxes.length ? 'TAX INVOICE' : NOT_TAX, notes: [] } : ORDER_PRICES[order.id];
+    const currency = snapshot?.currency ?? 'INR';
     if (!priced) throw new EngineError('ORDER_NOT_PRICED', 'The sample engine has no price for this order.');
     const dueInDays = p.dueInDays === undefined ? 15 : p.dueInDays;
     if (typeof dueInDays !== 'number' || !Number.isInteger(dueInDays) || dueInDays < 0 || dueInDays > 90) throw new EngineError('INVALID_VENTURE_REQUEST', 'Payment terms are 0 to 90 days.');
     this.invoices = this.invoices.filter((i) => !existing.includes(i));
     const invoice = this.sealed({
       id: `inv-draft-${this.draftSeq++}`, at: this.host.now(), businessId: this.host.business(), orderId: order.id, clientId: order.clientId, number: null, status: 'draft',
-      issueDate: null, dueDate: null, dueInDays, currency: 'INR', documentTitle: priced.title, priceReceiptId: this.priceReceipt(order, priced.price),
+      issueDate: null, dueDate: null, dueInDays, currency, countryCode: snapshot?.countryCode ?? 'IN', documentTitle: priced.title, priceReceiptId: this.priceReceipt(order, priced.price, currency),
       booksReceiptId: null, booksNote: null, description: order.request, price: { subtotal: priced.price.subtotal, taxes: priced.price.taxes.map((line) => ({ ...line })) },
       paid: 0, notes: [...priced.notes], digest: '',
     });
@@ -481,7 +498,7 @@ export class FakeMoney {
     invoice.status = 'issued';
     invoice.issueDate = today;
     invoice.dueDate = addDays(today, invoice.dueInDays);
-    invoice.booksReceiptId = this.newReceipt('Billed', invoice.price.subtotal, `Invoice ${invoice.number} for ${this.clientName(invoice.clientId)}, before tax.`);
+    invoice.booksReceiptId = this.newReceipt('Billed', invoice.price.subtotal, `Invoice ${invoice.number} for ${this.clientName(invoice.clientId)}, before tax.`, invoice.currency);
     this.sealed(invoice);
     this.host.changed();
     return this.view(invoice);
@@ -495,22 +512,25 @@ export class FakeMoney {
     if ((p.invoiceId === undefined) === (p.allocations === undefined)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Name one invoice, or split the payment across invoices, not both.');
     if (p.tds !== undefined && p.allocations !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'TDS goes on a payment of one invoice.');
     if (p.allocations === undefined) return this.recordOne(p, p.invoiceId, null);
-    const total = paiseOf(p.amount);
+    const allocations = Array.isArray(p.allocations) ? p.allocations as Record<string, unknown>[] : [];
+    const currency = allocations.length ? this.find(allocations[0]!.invoiceId).currency : 'INR';
+    if (allocations.some(part => this.find(part.invoiceId).currency !== currency)) throw new EngineError('CURRENCY_CONFLICT', 'Split a payment only across invoices in the same currency.');
+    const total = paiseOf(p.amount, currency);
     if (total === null) throw new EngineError('INVALID_AMOUNT', 'Amount must be a positive amount like 2499 or 2499.50.');
     const parts = Array.isArray(p.allocations) ? (p.allocations as Record<string, unknown>[]) : [];
     if (!parts.length || parts.length > 20) throw new EngineError('INVALID_VENTURE_REQUEST', 'Split a payment across 1 to 20 invoices.');
     if (new Set(parts.map((part) => part.invoiceId)).size !== parts.length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Name each invoice once.');
-    const minors = parts.map((part) => paiseOf(part.amount));
+    const minors = parts.map((part) => paiseOf(part.amount, currency));
     if (minors.some((minor) => minor === null)) throw new EngineError('INVALID_AMOUNT', 'Each part must be a positive amount like 2499 or 2499.50.');
     const sum = minors.reduce((added: number, minor) => added + (minor ?? 0), 0);
-    if (sum > total) throw new EngineError('PAYMENT_TOO_LARGE', `The parts add up to ${inr(sum)}, more than the payment of ${inr(total)}.`);
-    if (sum < total) throw new EngineError('INVALID_AMOUNT', `The parts add up to ${inr(sum)}; the payment is ${inr(total)}. Give every part of it an invoice.`);
+    if (sum > total) throw new EngineError('PAYMENT_TOO_LARGE', `The parts add up to ${this.show({ currency }, sum)}, more than the payment of ${this.show({ currency }, total)}.`);
+    if (sum < total) throw new EngineError('INVALID_AMOUNT', `The parts add up to ${this.show({ currency }, sum)}; the payment is ${this.show({ currency }, total)}. Give every part of it an invoice.`);
     for (const [index, part] of parts.entries()) {
       const invoice = this.find(part.invoiceId);
-      if (minors[index]! > this.free(invoice)) throw new EngineError('PAYMENT_TOO_LARGE', `This is more than the balance of ${inr(this.balance(invoice))}.`);
+      if (minors[index]! > this.free(invoice)) throw new EngineError('PAYMENT_TOO_LARGE', `This is more than the balance of ${this.show({ currency }, this.balance(invoice))}.`);
     }
     const groupId = `split-${this.paymentSeq}`;
-    const typed = (minor: number) => `${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, '0')}`;
+    const typed = (minor: number) => { const digits = currencyMinorDigits(currency), scale = 10 ** digits; return `${Math.floor(minor / scale)}${digits ? '.' + String(minor % scale).padStart(digits, '0') : ''}`; };
     const views = parts.map((part, index) => this.recordOne({ ...p, amount: typed(minors[index]!) }, part.invoiceId, groupId));
     return views[0]!;
   }
@@ -524,14 +544,12 @@ export class FakeMoney {
     if (invoice.status === 'draft') throw new EngineError('INVALID_VENTURE_REQUEST', 'Issue this invoice before you record a payment.');
     if (invoice.status === 'void') throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice was cancelled.');
     if (invoice.status === 'paid') throw new EngineError('PAYMENT_TOO_LARGE', 'This invoice is already paid in full.');
-    const [whole = '0', fraction = ''] = typed.split('.');
-    const digits = fraction.replace(/0+$/, '');
-    if (digits.length > 2) throw new EngineError('INVALID_AMOUNT', 'The amount contains a fractional minor unit for its currency.');
-    if (whole.length > 13) throw new EngineError('INVALID_AMOUNT', 'That amount is too large for one payment.');
-    const amount = Number.parseInt(whole, 10) * 100 + Number.parseInt(digits.padEnd(2, '0'), 10);
+    const amount = paiseOf(typed, invoice.currency);
+    if (amount === null) throw new EngineError('INVALID_AMOUNT', 'The amount contains a fractional minor unit for its currency.');
     if (amount <= 0) throw new EngineError('INVALID_AMOUNT', 'The amount must be above zero.');
     let tds: { section: string; amount: number } | null = null;
     if (p.tds !== undefined) {
+      if ((invoice.countryCode ?? 'IN') !== 'IN') throw new EngineError('INVALID_VENTURE_REQUEST', 'TDS applies only to an Indian invoice.');
       const given = (p.tds ?? {}) as Record<string, unknown>;
       const section = typeof given.section === 'string' ? given.section.trim() : '';
       if (!/^[A-Za-z0-9][A-Za-z0-9 ().,/-]{0,39}$/.test(section)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Give the TDS section as the client wrote it, like 194J.');
@@ -541,13 +559,13 @@ export class FakeMoney {
     }
     const balance = this.balance(invoice);
     const free = this.free(invoice);
-    if (amount + (tds?.amount ?? 0) > free) throw new EngineError('PAYMENT_TOO_LARGE', free === balance ? `This is more than the balance of ${inr(balance)}.` : `This is more than the ${inr(free)} free to pay: a cheque or a credit note waiting holds the rest of the ${inr(balance)} balance.`);
+    if (amount + (tds?.amount ?? 0) > free) throw new EngineError('PAYMENT_TOO_LARGE', free === balance ? `This is more than the balance of ${this.show(invoice, balance)}.` : `This is more than the ${this.show(invoice, free)} free to pay: a cheque or a credit note waiting holds the rest of the ${this.show(invoice, balance)} balance.`);
     const method = p.method as PaymentMethod;
     const pending = method === 'cheque';
     if (!pending) this.settle(invoice, amount + (tds?.amount ?? 0));
     this.payments.push({
       id: `pay-new-${this.paymentSeq++}`, at: this.host.now(), businessId: invoice.businessId, invoiceId: invoice.id, receivedOn: p.receivedOn, method,
-      booksReceiptId: pending ? null : this.newReceipt('Received', amount, `Payment for ${invoice.number ?? 'the invoice'} by ${METHOD_WORDS[method]}, received on ${p.receivedOn}.`), booksNote: null, amount,
+      booksReceiptId: pending ? null : this.newReceipt('Received', amount, `Payment for ${invoice.number ?? 'the invoice'} by ${METHOD_WORDS[method]}, received on ${p.receivedOn}.`, invoice.currency), booksNote: null, amount,
       ...(pending ? { state: 'pending' as const } : {}), ...(groupId ? { split: { groupId } } : {}), ...(tds ? { tds: { section: tds.section }, tdsAmount: tds.amount } : {}),
     });
     this.sealed(invoice);
@@ -570,7 +588,7 @@ export class FakeMoney {
     for (const part of group) {
       const invoice = this.find(part.invoiceId);
       this.settle(invoice, part.amount + (part.tdsAmount ?? 0));
-      Object.assign(part, { state: 'cleared' as const, chequeOn: part.receivedOn, receivedOn: this.today(), booksReceiptId: this.newReceipt('Received', part.amount, `A cheque for ${invoice.number ?? 'the invoice'}, cleared on ${this.today()}.`) });
+      Object.assign(part, { state: 'cleared' as const, chequeOn: part.receivedOn, receivedOn: this.today(), booksReceiptId: this.newReceipt('Received', part.amount, `A cheque for ${invoice.number ?? 'the invoice'}, cleared on ${this.today()}.`, invoice.currency) });
       this.sealed(invoice);
     }
     this.host.changed();
@@ -582,7 +600,7 @@ export class FakeMoney {
     const invoice = this.find(p.invoiceId);
     // 4J20: the amount as typed (amount) or in minor units (amountMinor), one of them, as the engine's typedOrMinor.
     if ((p.amount === undefined) === (p.amountMinor === undefined)) throw new EngineError('INVALID_AMOUNT', 'Give the credit once, as you would type it, like 1500 or 1500.50.');
-    const typed = p.amount === undefined ? null : paiseOf(p.amount);
+    const typed = p.amount === undefined ? null : paiseOf(p.amount, invoice.currency);
     if (p.amount !== undefined && (typed === null || typed <= 0)) throw new EngineError('INVALID_AMOUNT', 'The credit must be a positive amount like 2499 or 2499.50.');
     if (p.amountMinor !== undefined && (typeof p.amountMinor !== 'string' || !/^(0|[1-9]\d{0,13})$/.test(p.amountMinor) || p.amountMinor === '0')) throw new EngineError('INVALID_AMOUNT', 'The credit must be a whole amount in minor units, above zero.');
     const reason = typeof p.reason === 'string' ? p.reason.trim().replace(/\s+/g, ' ') : '';
@@ -592,7 +610,7 @@ export class FakeMoney {
     if (invoice.digest !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again.');
     const amount = typed ?? Number.parseInt(p.amountMinor as string, 10);
     const free = this.free(invoice);
-    if (amount > free) throw new EngineError('CREDIT_TOO_LARGE', free <= 0 ? `Nothing is left to credit on ${invoice.number}.` : `A credit note can be at most ${inr(free)} on ${invoice.number}: what is owed and not held by a cheque or another credit note.`);
+    if (amount > free) throw new EngineError('CREDIT_TOO_LARGE', free <= 0 ? `Nothing is left to credit on ${invoice.number}.` : `A credit note can be at most ${this.show(invoice, free)} on ${invoice.number}: what is owed and not held by a cheque or another credit note.`);
     const credit: HeldCredit = { id: `cn-${this.creditSeq++}`, at: this.host.now(), businessId: invoice.businessId, invoiceId: invoice.id, amount, reason, status: 'waiting', number: null };
     this.credits.push(credit);
     if (this.host.rows && this.host.setRows && this.host.digest) {
@@ -600,8 +618,8 @@ export class FakeMoney {
       const balance = this.balance(invoice);
       const seed: Omit<QueueRow, 'digest'> = {
         id: `credit:${credit.id}:open`, businessId: invoice.businessId, businessName: invoice.businessId, kind: 'invoice', createdAt: credit.at,
-        title: `Credit note for ${name} on ${invoice.number}`, line: `Takes ${inr(amount)} off what ${name} owes. Reason: ${reason}`,
-        change: { label: `Left to pay on ${invoice.number}`, before: inr(balance), after: inr(balance - amount) }, viewRef: { kind: 'file', id: invoice.id },
+        title: `Credit note for ${name} on ${invoice.number}`, line: `Takes ${this.show(invoice, amount)} off what ${name} owes. Reason: ${reason}`,
+        change: { label: `Left to pay on ${invoice.number}`, before: this.show(invoice, balance), after: this.show(invoice, balance - amount) }, viewRef: { kind: 'file', id: invoice.id },
         actions: [{ id: 'deny', label: 'Cancel it', primary: false }, { id: 'issue', label: 'Issue credit note', primary: true, secondAsk: true }],
       };
       this.host.setRows([...this.host.rows(), { ...seed, digest: this.host.digest(seed) } as QueueRow]);
@@ -626,7 +644,7 @@ export class FakeMoney {
     this.sealed(invoice);
     this.host.changed();
     return this.balance(invoice) <= 0 ? `Issued credit note ${credit.number}. ${invoice.number} is settled.`
-      : `Issued credit note ${credit.number}. ${this.clientName(invoice.clientId)} now owes ${inr(this.balance(invoice))} on ${invoice.number}.`;
+      : `Issued credit note ${credit.number}. ${this.clientName(invoice.clientId)} now owes ${this.show(invoice, this.balance(invoice))} on ${invoice.number}.`;
   }
 
   /** venture.invoice.remind: a draft the owner sends from their own app; nothing is sent. */
@@ -640,12 +658,12 @@ export class FakeMoney {
     const late = invoice.dueDate !== null && invoice.dueDate < this.today();
     const text = [
       `Hello ${name},`, '',
-      `This is a reminder that invoice ${invoice.number}, dated ${invoice.issueDate}, ${late ? 'was' : 'is'} due on ${invoice.dueDate}. ${inr(this.balance(invoice))} is still to pay.`, '',
+      `This is a reminder that invoice ${invoice.number}, dated ${invoice.issueDate}, ${late ? 'was' : 'is'} due on ${invoice.dueDate}. ${this.show(invoice, this.balance(invoice))} is still to pay.`, '',
       'If you have already paid, thank you, and please ignore this note.',
     ].join('\n');
     const id = `reminder-${this.reminders.length + 1}`;
     this.reminders.push({ id, invoiceId: invoice.id, at: this.host.now() });
-    const receiptId = this.newReceipt(`Left to pay on ${invoice.number}`, this.balance(invoice), `${invoice.number}: its total less what was paid and credited.`);
+    const receiptId = this.newReceipt(`Left to pay on ${invoice.number}`, this.balance(invoice), `${invoice.number}: its total less what was paid and credited.`, invoice.currency);
     this.host.changed();
     return {
       draft: { id, opportunityId: null, kind: 'reminder', channel: 'email', to: email, subject: `Payment reminder: ${invoice.number}`, text, blurb: null, footer: null, lints: [], counter: null, sent: null, digest: digest(text) },

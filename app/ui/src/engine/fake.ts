@@ -10,9 +10,12 @@ import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
  */
 
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
+import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
+import { fakeCountrySuggestion } from './fake-country';
+import type { ModelStatusLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
@@ -92,10 +95,11 @@ export interface FakeOptions {
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
 interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made'; passphrase?: string | undefined }
-interface HeldVenture { workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number }
+interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number }
 /** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
 const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
+  'venture.country.suggest',
   'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
   // Ink v2 wave 4 (4J8): the Start gallery's ways to earn, a pre-vault method on the engine too.
   'venture.playbooks.list',
@@ -214,6 +218,15 @@ export class FakeEngine {
     this.trial = options.trial ?? (devAsks('trial-ending') ? 'ending' : devAsks('trial') ? 'temporary' : null);
     this.hosted = (options.hosted ?? false) || this.trial !== null;
     this.desk = new FakeBusinessDesk({
+      quote: quote => this.network.rememberQuote(quote),
+      country: id => countryProfile(this.ventures.get(id)?.countryCode ?? 'IN'),
+      acceptCountry: (id, code) => {
+        const venture = this.ventures.get(id);
+        if (venture && venture.countryCode !== code) {
+          venture.originalCountry ??= countryProfile(venture.countryCode);
+          venture.countryCode = code;
+        }
+      },
       orders:()=>this.work.request('venture.order.list',{}) as OrderLite[],
       current: () => this.current, now: () => this.now(), receiptId: () => `R-0${this.receiptSeq++}`,
       businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
@@ -243,6 +256,7 @@ export class FakeEngine {
       ask: (method, params) => this.answerNow(method, params),
     }, { fresh });
     this.money = new FakeMoney({
+      orderSnapshot: id => this.work.invoiceSnapshot(this.current, id),
       now: () => this.now(), business: () => this.current, clients: () => this.clients[this.current] ?? [],
       orders: () => this.work.request('venture.order.list', {}) as OrderLite[],
       changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }),
@@ -252,6 +266,8 @@ export class FakeEngine {
       ask: (method, p) => this.answerNow(method, p),
     });
     this.extras = new FakeExtrasDesk({
+      ledger: () => this.money.ledger(), ask: (method, params) => this.answerNow(method, params),
+      plan: () => this.desk.acceptedPlanFor(this.current) ?? this.desk.blueprintFor(this.current),
       draftText: id=>{const run=(this.work.request('venture.delivery.list',{}) as DeliveryLite[]).find(item=>item.id===id);return run?.editedText??run?.renderedText??null;},
       digest: digestOf,
       current: () => this.current, now: () => this.now(), businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
@@ -490,7 +506,7 @@ export class FakeEngine {
   /** A stored receipt by id, from whichever desk made it (venture.receipt.get, and 4J22a's verify). */
   private findReceipt(id: string): ReceiptLite | undefined {
     return this.work.orderReceipt(this.current,id) ?? this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.receipt(id) ?? RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
-      ?? this.kitSales()?.receipt(id); // 5A2: a GO card's maximum loss
+      ?? this.extras.receipt(id) ?? this.kitSales()?.receipt(id); // 5A2: a GO card's maximum loss
   }
 
   /**
@@ -539,12 +555,13 @@ export class FakeEngine {
         const playbook = this.desk.playbook(this.current);
         // 4J8: the checklist item by item, with names and links, as the engine's venture.get carries it.
         // 4J20: the business's country (its code and currency), as the engine's venture record carries it.
-        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage:'rehearsal' as const, country: venture.countryCode ? { code: venture.countryCode, currency: COUNTRIES.find(country=>country.code===venture.countryCode)?.currency??'INR' } : null }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
+        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage:'rehearsal' as const, country: venture.countryCode ? countryProfile(venture.countryCode) : null, ...(venture.originalCountry ? { originalCountry: clone(venture.originalCountry) } : {}) }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
         }
 
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
 
   private answerNow(method: string, p: Record<string, unknown>): unknown {
+    if (method === 'venture.books.summary') return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
     if(method==='venture.share.list')return this.shareView(p);
     if (method === 'venture.get') return this.ventureView();
     this.guardInternalShare(method, p);
@@ -831,6 +848,7 @@ export class FakeEngine {
       case 'workspace.transfer.import': return this.moveHere(p);
       case 'workspace.delete': return this.deleteBusiness(p);
       case 'venture.countries': return clone(COUNTRIES);
+      case 'venture.country.suggest': return fakeCountrySuggestion(p, this.desk.request(this.open && this.ventures.has(this.current) ? 'venture.models.status' : 'venture.ai.status', {}) as ModelStatusLite, this.hosted, COUNTRIES);
       case 'venture.preview': {
         const idea = this.idea(p.idea);
         const type = classify(idea);

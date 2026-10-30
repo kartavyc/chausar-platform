@@ -10,12 +10,14 @@ import { ownerGet, ownerSet } from './owner.ts';
 import { settingsDraftHandler, settingsDraftsHandler } from './settings-drafts.ts';
 import { blueprintSuggest } from './suggest.ts';
 import { createVenture, getVenture } from './venture.ts';
+import { countrySuggest } from './country-suggestion.ts';
 import { evidenceApply, evidenceDismiss, evidenceList } from '../evidence/ledger.ts';
 
 /** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
+  'venture.country.suggest': countrySuggest,
   'venture.create': createVenture,
   'venture.get': getVenture,
   'venture.events': ventureEvents,

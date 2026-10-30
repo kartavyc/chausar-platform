@@ -54,7 +54,7 @@ export async function connectModel(deps: VentureDeps, ctx: Context, payload: unk
   }
   let model = spec.model;
   if (input.model !== undefined) {
-    check(spec.modelEditable, 'INVALID_VENTURE_REQUEST', 'Only GPT-6 Luna takes a typed model id.');
+    check(spec.modelEditable, 'INVALID_VENTURE_REQUEST', 'This option has a fixed model.');
     check(typeof input.model === 'string' && MODEL_ID.test(input.model), 'INVALID_VENTURE_REQUEST', 'Type the model id your account shows, in lower case, like gpt-6-luna.');
     model = input.model;
   }

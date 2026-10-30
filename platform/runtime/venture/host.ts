@@ -59,8 +59,9 @@ function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMeth
   return !!table && typeof table === 'object' && Object.hasOwn(table, method) && typeof (table as Record<string, unknown>)[method] === 'function';
 }
 
-/** Answered outside the package tables: the pre-vault methods, and the nine draft methods the engine's draft desk answers. */
+/** Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. */
 export function outsideTables(method: string): boolean {
+  if (method === 'venture.country.suggest') return false;
   return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
 }
 

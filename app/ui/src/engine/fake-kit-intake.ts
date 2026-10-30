@@ -1,4 +1,5 @@
 // Chausar fake kit intake (5M). Browser-only mirror of kit/intake.ts, preserving its field-exact refusals.
+import { decimalMinor } from '../../../../platform/runtime/currency';
 import { EngineError, type OfferIntakeLite, type OrderLite, type VoiceConsentsView } from './types';
 type Fields = NonNullable<NonNullable<OrderLite['intake']>['fields']>;
 const invalid = (line: string): never => { throw new EngineError('INVALID_VENTURE_REQUEST', line); };
@@ -16,23 +17,18 @@ function words(value: unknown, max: number): string | null {
   return clean.length > 0 && clean.length <= max && !HIDDEN.test(clean) ? clean : null;
 }
 /** Validate and normalize only the selected kit offer's answers, before any order is kept. */
-export function fakeKitIntake(raw: unknown, ask: OfferIntakeLite, consents: () => VoiceConsentsView, meta: { by: string; at: string; today: string }): NonNullable<OrderLite['intake']> | null {
+export function fakeKitIntake(raw: unknown, ask: OfferIntakeLite, consents: () => VoiceConsentsView, meta: { by: string; at: string; today: string; currency?: string }): NonNullable<OrderLite['intake']> | null {
   const body = raw === undefined ? {} : object(raw, 'Send the intake as named fields.');
-  const extra = Object.keys(body).find(key => !['rights', 'fields', 'moneyRupees'].includes(key));
+  const extra = Object.keys(body).find(key => !['rights', 'fields', 'moneyAmounts'].includes(key));
   if (extra) invalid(`The intake has no field called ${extra}.`);
   const values = { ...object(body.fields ?? {}, 'Send the intake fields as named fields.') };
-  if (body.moneyRupees !== undefined) {
-    for (const [id, rawAmount] of Object.entries(object(body.moneyRupees, 'Send rupee amounts as named fields.'))) {
-      if (!ask.kit?.some(field => field.id === id && field.kind === 'money') || Object.hasOwn(values, id)) invalid('Name each money field once, in rupees or paise.');
-      if (typeof rawAmount !== 'string' || rawAmount.length > 30) throw new EngineError('INVALID_AMOUNT', 'Give the rupee amount as exact decimal text.');
-      const amount = (rawAmount as string).trim().replace(/[, ]/g, '');
-      if (!/^-?\d+(?:\.\d+)?$/.test(amount)) throw new EngineError('INVALID_AMOUNT', 'Use exact decimal text without exponents.');
-      const negative = amount.startsWith('-');
-      const [whole = '0', rawFraction = ''] = amount.replace(/^-/, '').split('.');
-      const fraction = rawFraction.replace(/0+$/, '');
-      if (fraction.length > 2) throw new EngineError('INVALID_AMOUNT', 'The amount contains a fractional minor unit for its currency.');
-      const minor = String((negative ? -1n : 1n) * (BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0') || '0')));
-      if (!/^\d{1,15}$/.test(minor)) throw new EngineError('INVALID_AMOUNT', 'Give a non-negative amount of at most fifteen paise digits.');
+  if (body.moneyAmounts !== undefined) {
+    for (const [id, rawAmount] of Object.entries(object(body.moneyAmounts, 'Send currency amounts as named fields.'))) {
+      if (!ask.kit?.some(field => field.id === id && field.kind === 'money') || Object.hasOwn(values, id)) invalid('Name each money field once, as decimal text or minor units.');
+      if (typeof rawAmount !== 'string' || rawAmount.length > 30) throw new EngineError('INVALID_AMOUNT', 'Give the currency amount as exact decimal text.');
+      let minor: string;
+      try { minor=decimalMinor((rawAmount as string).trim().replace(/[, ]/g, ''),meta.currency??'INR'); } catch(error) { throw new EngineError('INVALID_AMOUNT', error instanceof Error ? error.message : 'Use an exact amount.'); }
+      if (!/^\d{1,15}$/.test(minor)) throw new EngineError('INVALID_AMOUNT', 'Give a non-negative amount of at most fifteen minor-unit digits.');
       values[id] = minor;
     }
   }
@@ -70,7 +66,7 @@ export function fakeKitIntake(raw: unknown, ask: OfferIntakeLite, consents: () =
         const day = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null;
         fields[field.id] = day && Number.isFinite(day.getTime()) && day.toISOString().slice(0, 10) === value ? value as string : bad('give a day like 2026-11-01.'); break;
       }
-      case 'money': fields[field.id] = typeof value === 'string' && /^\d{1,15}$/.test(value) ? value : bad('give the amount in whole paise, as digits.'); break;
+      case 'money': fields[field.id] = typeof value === 'string' && /^\d{1,15}$/.test(value) ? value : bad('give the amount in whole minor units, as digits.'); break;
       case 'file': fields[field.id] = typeof value === 'string' && ID.test(value) ? value : bad('add the file to the order first, then name it.'); break;
       case 'list': {
         if (!Array.isArray(value) || value.length > 50) bad('send a list of at most 50 entries.');

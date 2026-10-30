@@ -88,6 +88,13 @@ test('synthetic missing flags, configuration keys, stdin or read-only support re
   for (const profile of [{ ...syntheticProfile, flags: CODEX_CLI_FLAGS.filter(flag => flag !== '--output-schema') }, { ...syntheticProfile, configKeys: [] }, { ...syntheticProfile, stdinPrompt: false }, { ...syntheticProfile, sandboxModes: ['workspace-write'] }]) assert.throws(() => buildCodexCliArguments('synthetic-model', resolve('schema.json'), profile), refuses('CLI_CAPABILITY_UNSUPPORTED'));
   assert.throws(() => buildCodexCliArguments('synthetic-model', resolve('schema.json'), { ...syntheticProfile, evidence: { kind: 'synthetic-fixture', label: '' } }), refuses('CLI_CAPABILITY_REQUIRED'));
 });
+
+test('Codex model arguments use the unelevated Windows sandbox only on Windows', () => {
+  const args = buildCodexCliArguments('synthetic-model', resolve('schema.json'), syntheticProfile);
+  assert.equal(args.includes('windows.sandbox=unelevated'), process.platform === 'win32');
+  assert.equal(syntheticProfile.configKeys.includes('windows.sandbox'), process.platform === 'win32');
+  assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only');
+});
 test('synthetic fixtures and official documentation cannot qualify a live native process', () => {
   const process = async () => ({ exitCode: 0, stdout: successful() });
   for (const profile of [syntheticProfile, { ...syntheticProfile, evidence: { kind: 'official-docs' as const, checkedAt: '2026-10-01' } }]) assert.throws(() => createCodexCliProcessAdapter({ capabilities: profile, process, mode: 'local-cli' }), refuses('CLI_CAPABILITY_REQUIRED'));

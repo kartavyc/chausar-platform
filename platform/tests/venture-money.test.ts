@@ -17,6 +17,7 @@ import { computePrice, handlers, taxTreatmentFor } from '../runtime/venture/mone
 import { booksPeriods } from '../runtime/venture/money/dates.ts';
 import { localDayAt, ventureTimeZone } from '../runtime/venture/local-day.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 
 // Rule 23: the fixed clock is at or before real time; business dates are passed explicitly.
 const NOW = '2026-10-15T10:00:00.000Z';
@@ -184,6 +185,68 @@ async function seedTerms(env: Env) {
 }
 
 const INDIA_READY: BlueprintOptions = { status: 'accepted', registered: true, rateBps: '1800', taxId: GSTIN_27, taxState: '27', sacCode: '998222' };
+
+test('w6 country changes require exact plan acceptance, clear future prices and preserve historical invoices', async () => {
+  const env = await setup();
+  const original = await seedBlueprint(env, INDIA_READY);
+  const { client, order } = await orderFor(env, { name: 'Synthetic Cafe', countryCode: 'IN', stateCode: '27' });
+  const before = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+  const changed = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'US' }, basedOn: { blueprintId: original.id, digest: original.digest } });
+  assert.equal(listRecords(env.store.read(), 'venture-record')[0].country.code, 'IN');
+  assert.equal(changed.blueprint.backOffice.currency, 'USD');
+  assert.ok(changed.blueprint.offers.every(item => item.pricing.unitPriceMinor === null));
+  assert.equal(changed.blueprint.backOffice.taxRegistered.value, false);
+  assert.equal(changed.blueprint.backOffice.taxId, null);
+  await assert.rejects(blueprintAccept(env.deps, { ...owner, channel: 'phone' }, { digest: changed.blueprint.digest }), code('APP_APPROVAL_REQUIRED'));
+  await blueprintAccept(env.deps, owner, { digest: changed.blueprint.digest });
+  assert.equal(listRecords(env.store.read(), 'venture-record')[0].country.code, 'US');
+  assert.deepEqual(listRecords(env.store.read(), 'venture-blueprint').find(item => item.id === original.id), original);
+  await assert.rejects(call(env, 'venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'New monthly books please.' }), code('PRICE_REQUIRED'));
+  const after = await call(env, 'venture.invoice.get', { invoiceId: before.invoice.id });
+  assert.equal(after.documentText, before.documentText);
+  assert.deepEqual(after.receipt, before.receipt);
+  const redrafted = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+  assert.equal(redrafted.invoice.totalMinor, '294882');
+  assert.equal(redrafted.invoice.currency, 'INR');
+  assert.equal(redrafted.invoice.supplierTaxId, GSTIN_27);
+  assert.equal(redrafted.documentText, before.documentText);
+  const priced = await blueprintUpdate(env.deps, owner, { patch: { offers: [{ id: 'offer_1', unitPrice: '125' }] } });
+  await blueprintAccept(env.deps, owner, { digest: priced.blueprint.digest });
+  const next = await call(env, 'venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'New monthly books please.' });
+  const receipt = listRecords(env.store.read(), 'venture-price-receipt').find(item => item.id === next.priceReceiptId)!;
+  assert.equal(receipt.currency, 'USD');
+  assert.equal(receipt.totalMinor, '12500');
+  const dollars = await call(env, 'venture.invoice.prepare', { orderId: next.id, issueDate: '2026-10-02' });
+  const japan = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'JP' } });
+  await blueprintAccept(env.deps, owner, { digest: japan.blueprint.digest });
+  assert.equal(listRecords(env.store.read(), 'venture-record')[0].originalCountry?.code, 'IN');
+  const dollarHistory = await call(env, 'venture.invoice.get', { invoiceId: dollars.invoice.id });
+  assert.equal(dollarHistory.documentText, dollars.documentText);
+  assert.equal(dollarHistory.country?.code, 'US');
+  const dollarAgain = await call(env, 'venture.invoice.prepare', { orderId: next.id, issueDate: '2026-10-02' });
+  assert.equal(dollarAgain.invoice.currency, 'USD');
+  assert.equal(dollarAgain.invoice.totalMinor, '12500');
+  const oldIssued = await call(env, 'venture.invoice.issue', { invoiceId: redrafted.invoice.id, digest: redrafted.invoice.digest });
+  assert.equal(oldIssued.invoice.currency, 'INR');
+  const paid = await call(env, 'venture.payment.record', { invoiceId: oldIssued.invoice.id, amount: '100', receivedOn: '2026-10-04', method: 'bank-transfer', tds: { section: '194J', amount: '10' } });
+  assert.equal(paid.payments[0].currency, 'INR');
+  assert.equal(paid.payments[0].tds?.amountMinor, '1000');
+  assert.equal(paid.country?.code, 'IN');
+  const delivered = await call(env, 'venture.order.deliver', { orderId: order.id, deliveredOn: '2026-10-04' });
+  const sale = env.store.read().facts.find(item => item.id === delivered.saleFactId)!;
+  assert.equal(sale.fields.currency, 'INR');
+  assert.equal(sale.fields.amountMinor, '249900');
+});
+
+test('w6 selecting the same country preserves prices and invalid country changes make no draft', async () => {
+  const env = await setup();
+  const original = await seedBlueprint(env, INDIA_READY);
+  await assert.rejects(blueprintUpdate(env.deps, owner, { patch: { countryCode: 'ZZ' } }), code('UNKNOWN_COUNTRY'));
+  assert.equal(listRecords(env.store.read(), 'venture-blueprint').length, 1);
+  const same = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'IN' } });
+  assert.deepEqual(same.blueprint.offers, original.offers);
+  assert.deepEqual(same.blueprint.backOffice, original.backOffice);
+});
 
 async function orderFor(env: Env, client: Record<string, unknown>, order: Record<string, unknown> = {}) {
   const added = await call(env, 'venture.client.add', client);

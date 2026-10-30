@@ -26,6 +26,7 @@ import { ChausarError, check, newId, type Context, type State } from '../../cont
 import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
 import { writtenByLine } from '../models/written-by.ts';
+import { blueprintCountry } from '../core/country-history.ts';
 import type {
   BlueprintRecord, CheckId, CheckResult, ClaimProof, DelegateFigure, DelegateRunRecord, DelegationRequest, Deliverable, DeliveryReason, DeliveryRunRecord,
   DeliveryRunView, HarnessState, ModelPreview, ModelTask, OrderRecord, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, RecordBase, SignalRecord, ToolEnvelope,
@@ -132,9 +133,15 @@ type OrderContext = {
 function orderContext(state: State, venture: VentureRecord, orderId: string): OrderContext {
   const order = findRecord(state, 'venture-order', orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
-  const blueprint = acceptedBlueprint(state, venture);
+  let blueprint = acceptedBlueprint(state, venture);
   const receipt = findRecord(state, 'venture-price-receipt', order.priceReceiptId);
   check(receipt && receipt.ventureId === venture.id, 'RECEIPT_NOT_FOUND', 'The price receipt for this order was not found.');
+  if (venture.originalCountry) {
+    const priced = listRecords(state, 'venture-blueprint', venture.id).find(item => item.digest === receipt.inputs.blueprintDigest);
+    check(priced, 'RECEIPT_NOT_FOUND', 'The plan that priced this order was not found.');
+    blueprint = priced;
+    venture = { ...venture, country: blueprintCountry(venture, priced) };
+  }
   const client = findRecord(state, 'venture-client', order.clientId);
   const known = knownNames(client?.ventureId === venture.id ? client.name : null, venture.workingName, blueprint.name.value, venture.country.name, ...blueprint.offers.map(offer => offer.name.value));
   // A CA firm offer an older plan kept no playbook id for is read from its own words, so its checks still apply.
@@ -1159,7 +1166,7 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
   const began = deps.clock().getTime();
   let result: DelegationResult;
   try {
-    result = await runDelegation(ports!, request, delegateFiles, { currency: venture.country.currency, dateOrder: venture.country.dateOrder, runRef: { kind: 'delivery', runId } }, releaseSlot);
+    result = await runDelegation(ports!, request, delegateFiles, { currency: context.venture.country.currency, dateOrder: context.venture.country.dateOrder, runRef: { kind: 'delivery', runId } }, releaseSlot);
   } catch (error) {
     // The tool may have run and spent: the reservation stays held and is never retried on its own.
     await settleSpendAction(deps, ctx, spend.key, { kind: 'unknown' }).catch(() => null);

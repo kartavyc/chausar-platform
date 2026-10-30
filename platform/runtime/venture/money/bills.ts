@@ -170,10 +170,10 @@ function costFactOf(bill: BillRecord, entityId: string, cost: bigint, tax: bigin
 }
 
 /** The calculator's costs receipt for one day, kept only when its total is exactly this cost. A failure never undoes the payment. */
-async function costReceipt(deps: VentureDeps, ctx: Context, date: IsoDate, minor: string): Promise<string | null> {
+async function costReceipt(deps: VentureDeps, ctx: Context, date: IsoDate, minor: string, currency: string): Promise<string | null> {
   try {
-    const receipt = await deps.services.calculator.calculate(ctx, { operation: 'costs', period: { from: date, to: date } });
-    return typeof receipt?.id === 'string' && receipt.totalMinor === minor ? receipt.id : null;
+    const receipt = await deps.services.calculator.calculate(ctx, { operation: 'costs', period: { from: date, to: date }, currency });
+    return typeof receipt?.id === 'string' && receipt.currency === currency && receipt.totalMinor === minor ? receipt.id : null;
   } catch {
     return null;
   }
@@ -259,7 +259,7 @@ export async function billsPay(deps: VentureDeps, ctx: Context, payload: unknown
     });
     return { bill: next, cost, banked: banked !== undefined, today: localDayAt(tx.now, venture.country) };
   });
-  const receiptId = done.banked ? null : await costReceipt(deps, ctx, paidOn, String(done.cost));
+  const receiptId = done.banked ? null : await costReceipt(deps, ctx, paidOn, String(done.cost), done.bill.currency);
   return { bill: billView(done.bill, done.today), ...(receiptId ? { receiptId } : {}) };
 }
 

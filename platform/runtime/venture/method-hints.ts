@@ -67,6 +67,7 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.ai.options': ['read', 'rui'], 'venture.ai.connect': ['approve', 'uio'], 'venture.ai.disconnect': ['approve', 'ui'], 'venture.ai.status': ['read', 'rui'],
   'venture.ai.calls': ['read', 'rui'], 'venture.compose.decide': ['approve', 'u'], 'venture.compose.fill': ['prepare', 'uo'], 'venture.compose.get': ['read', 'rui'],
   'venture.compose.update': ['prepare', 'u'],
+  'venture.country.suggest': ['approve', 'u'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */

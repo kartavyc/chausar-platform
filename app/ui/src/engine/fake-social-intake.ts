@@ -31,10 +31,10 @@ function calendarOf(value: unknown, key: string, today: string): CalendarIntakeL
  if (past.length) invalid(`The calendar for ${month} has posts on days before today, from ${past[0]}. Pick a later month.`);
  return { month: month as string, channels: [...channels], postsPerChannel: postsPerChannel as number, weekdays: [...weekdays] };
 }
-export function fakeSocialIntake(raw: unknown, ask: OfferIntakeLite, key: string, meta: { by: string; at: string; today: string; hosted?: boolean }, consents: () => import('./types').VoiceConsentsView = () => ({consents:[],line:''})): NonNullable<OrderLite['intake']> {
+export function fakeSocialIntake(raw: unknown, ask: OfferIntakeLite, key: string, meta: { by: string; at: string; today: string; currency?: string; hosted?: boolean }, consents: () => import('./types').VoiceConsentsView = () => ({consents:[],line:''})): NonNullable<OrderLite['intake']> {
  const body = raw === undefined ? {} : object(raw, 'Send the intake as named fields.');
- const { fields, moneyRupees, ...base } = body;
- const own = fakeKitIntake({ fields, ...(ask.rights.length ? {rights:base.rights} : {}), ...(moneyRupees === undefined ? {} : { moneyRupees }) }, ask, consents, meta)!;
+ const { fields, moneyAmounts, ...base } = body;
+ const own = fakeKitIntake({ fields, ...(ask.rights.length ? {rights:base.rights} : {}), ...(moneyAmounts === undefined ? {} : { moneyAmounts }) }, ask, consents, meta)!;
  const extra = Object.keys(base).find(name => !['rights','format','aiVoice','aiPresenter','paidPromotion','cutFile','calendar','clientRules'].includes(name));
  if (extra) invalid(`The intake has no field called ${extra}.`);
  if (!ask.rights.length && base.rights !== undefined && base.rights !== null) invalid('This offer cuts no footage, so it records no rights.');

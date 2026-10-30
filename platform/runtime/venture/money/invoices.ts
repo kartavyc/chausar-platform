@@ -26,6 +26,7 @@ import { halfRateBps, stateName, taxDecision } from './tax.ts';
 import { newestFirst, oneLine, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
 import { digestOf, journalled, type ApplyHandle } from '../journal/journal.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
+import { blueprintCountry, invoiceCountry } from '../core/country-history.ts';
 import {
   experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceLine, type InvoiceListRow, type InvoiceRecord,
   type InvoiceView, type IsoDate, type MinorString, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
@@ -131,9 +132,11 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
   check(receipt, 'RECEIPT_NOT_FOUND', 'The price receipt of this invoice was not found.');
   const payments = listRecords(state, 'venture-payment', venture.id).filter(p => p.invoiceId === invoice.id);
   const blueprint = pricedBlueprint(state, venture, receipt);
+  const country = blueprintCountry(venture, blueprint);
+  const historicalVenture = { ...venture, country };
   const notes: string[] = [];
   if (invoice.documentTitle === 'INVOICE (not a tax invoice)') {
-    const missing = blueprint ? taxInvoiceMissing(blueprint.backOffice, venture.country) : [];
+    const missing = blueprint ? taxInvoiceMissing(blueprint.backOffice, country) : [];
     notes.push(`To make this a tax invoice, add: ${missing.length ? missing.join(', ') : 'the registration details your country needs'}.`);
   }
   if (invoice.booksNote !== null) notes.push(invoice.booksNote);
@@ -146,14 +149,15 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
   const credited = creditedOn(invoice.id, listRecords(state, 'venture-credit-note', venture.id));
   return {
     invoice,
+    country,
     client,
     receipt,
     payments,
-    documentText: documentText({ invoice, client, sellerName: blueprint?.name.value ?? venture.workingName, country: venture.country, experimental, creditedMinor: String(credited) }),
+    documentText: documentText({ invoice, client, sellerName: blueprint?.name.value ?? venture.workingName, country, experimental, creditedMinor: String(credited) }),
     figures: invoiceFigures(invoice, receipt, credited),
     notes,
-    next: invoiceNext(state, venture, invoice, today),
-    timeline: invoiceTimeline(state, venture, invoice, today),
+    next: invoiceNext(state, historicalVenture, invoice, today),
+    timeline: invoiceTimeline(state, historicalVenture, invoice, today),
     ...(rateChange ? { rateChange } : {}),
     credits: creditViewsOn(state, venture, invoice.id),
     // 4J20: how late an open invoice is, as its list row says it.
@@ -173,9 +177,14 @@ export type InvoiceDraftInput = { orderId: string; dueInDays: number; issueDate:
 export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): InvoiceRecord {
   const venture = tx.venture;
   check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
-  const blueprint = requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
+  const accepted = requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
   const order = tx.find('venture-order', input.orderId);
   check(order, 'ORDER_NOT_FOUND', 'This order was not found.');
+  const originalReceipt = tx.find('venture-price-receipt', order.priceReceiptId);
+  const originalPlan = originalReceipt && tx.list('venture-blueprint').find(item => item.digest === originalReceipt.inputs.blueprintDigest);
+  // Once a business has moved, existing orders keep their approved price and tax profile.
+  check(!venture.originalCountry || originalPlan, 'RECEIPT_NOT_FOUND', 'The plan that priced this order was not found.');
+  const blueprint = venture.originalCountry ? originalPlan! : accepted;
   check(!order.internal, 'INTERNAL_ORDER', 'Your own shop work has no customer invoice.');
   check(order.status !== 'cancelled', 'INVALID_VENTURE_REQUEST', 'This order was cancelled.');
   const existing = tx.list('venture-invoice').filter(i => i.orderId === order.id);
@@ -190,7 +199,7 @@ export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): Invoice
   const invoiceId = draft?.id ?? base.id;
   const receipt = buildPriceReceipt(tx, { type: 'invoice', invoiceId }, { quantity: order.quantity, taxInclusive: order.taxInclusive === true }, blueprint, offer, client);
   const backOffice = blueprint.backOffice;
-  const country = venture.country;
+  const country = blueprintCountry(venture, blueprint);
   // An issue date the owner leaves out is today on their own calendar, not the UTC day.
   const issueDate = input.issueDate ?? localDayAt(tx.now, country);
   const dueDate = addDaysUtc(issueDate, input.dueInDays);
@@ -309,7 +318,7 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
     activateTerm(tx, 'invoice', { recordId: next.id, kind: 'venture-invoice' });
     tx.emit('invoice-issued', { invoiceId: next.id, number });
     handle.settleIn(tx, `Issued ${number}.`, invoice.priceReceiptId);
-    return { issueDate: next.issueDate as string, orderId: next.orderId, taxable, number, priceReceiptId: invoice.priceReceiptId };
+    return { issueDate: next.issueDate as string, orderId: next.orderId, taxable, number, priceReceiptId: invoice.priceReceiptId, currency: next.currency };
   });
 
   const journal = await journalled(deps, ctx, {
@@ -323,7 +332,7 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
   });
   const issued = journal.value!;
 
-  const books = await booksReceiptFor(deps, ctx, 'billed', issued.issueDate, issued.orderId, issued.taxable, BILLED_COVERS_MORE);
+  const books = await booksReceiptFor(deps, ctx, 'billed', issued.issueDate, issued.orderId, issued.taxable, BILLED_COVERS_MORE, issued.currency);
   return ventureAction(deps, ctx, 'approve', 'invoice.books', tx => {
     const venture = tx.venture;
     check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
@@ -358,6 +367,6 @@ export async function listInvoices(deps: VentureDeps, ctx: Context, payload: unk
     .map(invoice => {
       // 4J4 (M9): an open invoice past its due day says how late it is, on the owner's calendar.
       const late = lateOf(invoice, today);
-      return { ...invoice, total: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, next: invoiceNext(state, venture, invoice, today), ...(late ? { late } : {}) };
+      return { ...invoice, total: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, next: invoiceNext(state, { ...venture, country: invoiceCountry(state, venture, invoice) }, invoice, today), ...(late ? { late } : {}) };
     });
 }

@@ -1,5 +1,6 @@
 // Fake bookkeeping privacy and refusal behavior, after finance-skills (MIT ideas).
 import { expect, it } from 'vitest';
+import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { fakeBookkeepingCfoDesk } from '../../src/engine/fake-bookkeeping-cfo';
 import type { W4DeskHost } from '../../src/engine/fake-w4';
 
@@ -16,7 +17,6 @@ it('Forget physically erases client-source promise words even if a client is add
   expect((desk.kinds.promise!.list!({ playbook: 'bookkeeping-cfo', kind: 'promise' }) as any).rows).toHaveLength(0);
 });
 it('public fake collections uses only source debtor payments, including later same-name snapshots', async () => {
-  const { FakeEngine, createFakeClient } = await import('../../src/engine/fake');
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-27T10:00:00Z' }));
   const order = (await client.request('venture.order.list', {}))[0]!;
   const upload = (text: string) => client.request('venture.files.add', { orderId: order.id, name: 'collections.csv', contentBase64: btoa(text) });
@@ -43,7 +43,6 @@ it('internal order files keep source bytes scoped, with no content in public met
 });
 
 it('broken promises from separate debtors do not escalate each other in the fake desk', async () => {
-  const { FakeEngine, createFakeClient } = await import('../../src/engine/fake');
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-15T10:00:00Z' }));
   const order = (await client.request('venture.order.list', {}))[0]!;
   const source = 'kind,id,invoice,debtor,on,dueOn,amount,state\ninvoice,a,INV-A,Buyer A,2026-10-01,2026-10-14,100,open\ninvoice,b,INV-B,Buyer B,2026-10-01,2026-10-14,100,open';
@@ -51,4 +50,14 @@ it('broken promises from separate debtors do not escalate each other in the fake
   for (const invoiceId of ['a', 'b']) await client.request('venture.desk.act', { playbook: 'bookkeeping-cfo', kind: 'promise', id: 'new', action: 'record', payload: { clientId: order.clientId, serviceOrderId: order.id, sourceName: 'collections.csv', invoiceIds: [invoiceId], amountRupees: '100', promisedOn: '2026-10-14', method: 'UPI', statedBy: 'Client contact' } });
   const rows = (await client.request('venture.desk.list', { playbook: 'bookkeeping-cfo', kind: 'promise' })).rows as any[];
   expect(rows.map(row => row.stage)).toEqual(['reminder', 'reminder']);
+});
+
+it('client debtor promises use the original order currency including zero-decimal amounts', () => {
+  let text = csv;
+  const host: W4DeskHost = { current: () => 'one', hosted: () => false, now: () => '2026-10-27T10:00:00Z', emit() {}, rows: () => [], setRows() {}, digest: value => JSON.stringify(value), roomPrice: () => ({ offerId: 'sample', minor: '100', currency: 'JPY', receiptId: 'price', priceDigest: 'digest', display: 'JPY 100' }), ask: method => method === 'venture.client.list' ? [{ id: 'client_a', name: 'Client A' }] : method === 'venture.order.list' ? [{ id: 'order_a', clientId: 'client_a', status: 'open' }] : { venture: { country: { code: 'IN', currency: 'INR' } } }, orderFiles: () => [{ id: 'file_a', name: 'collections.csv', format: 'csv', digest: text, contentBase64: btoa(text) }] };
+  const desk = fakeBookkeepingCfoDesk(host);
+  const payload = { clientId: 'client_a', serviceOrderId: 'order_a', sourceName: 'collections.csv', invoiceIds: ['buyer-a'], amountRupees: '100.50', promisedOn: '2026-11-01', method: 'bank-transfer', statedBy: 'Client contact' };
+  expect(() => desk.kinds.promise!.act!({ playbook: 'bookkeeping-cfo', kind: 'promise', id: 'new', action: 'record', payload })).toThrowError(expect.objectContaining({ code: 'INVALID_AMOUNT' }));
+  text = csv.replace(',100,open', ',100.50,open');
+  expect(() => desk.kinds.promise!.act!({ playbook: 'bookkeeping-cfo', kind: 'promise', id: 'new', action: 'record', payload: { ...payload, amountRupees: '100' } })).toThrowError(expect.objectContaining({ code: 'CLIENT_LEDGER_INVALID' }));
 });

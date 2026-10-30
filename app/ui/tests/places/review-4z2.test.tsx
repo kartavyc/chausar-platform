@@ -81,10 +81,10 @@ describe('3. Money: cash ahead names no lowest week above the bank balance', () 
 });
 
 describe('4. Start: the country, the hours and Start', () => {
-  it('starts from the open business\'s country, so an Indian owner on an en-US browser reads "Based in India"', async () => {
+  it('starts from the open business\'s country, so an Indian owner on an en-US browser reads "India · INR"', async () => {
     expect(navigator.language).toBe('en-US');
     start('#/onboarding');
-    expect(await screen.findByText('Based in India')).toBeTruthy();
+    expect(await screen.findByText('India · INR')).toBeTruthy();
   });
 
 

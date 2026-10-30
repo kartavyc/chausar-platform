@@ -6,6 +6,12 @@ import { createStatusStore } from '../../src/engine/client';
 import { EngineError, type EngineClient, type Transport } from '../../src/engine/types';
 
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
+function timeZone(zone: string) {
+  const original = Intl.DateTimeFormat.prototype.resolvedOptions;
+  vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (this: Intl.DateTimeFormat) {
+    return { ...original.call(this), timeZone: zone };
+  });
+}
 
 /** The fake engine behind a client that writes down every request, and can refuse the next call of a method once. */
 function start(options: FakeOptions = { fresh: true }, { hash = '#/today', language = 'en', transport }: { hash?: string; language?: 'en'; transport?: Transport } = {}) {
@@ -46,12 +52,12 @@ function inOrder(nodes: HTMLElement[]) {
 }
 
 describe('onboarding: first run', () => {
-  it('shows only the name, one box, the country from the browser and Start', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-IN');
+  it('shows only the name, one box, the country and currency from the time zone and Start', async () => {
+    timeZone('Asia/Kolkata');
     start();
     expect(await box()).toBeTruthy();
     expect(screen.getByText('Chausar')).toBeTruthy();
-    expect(await screen.findByText('Based in India')).toBeTruthy();
+    expect(await screen.findByText('India · INR')).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();
     const main = screen.getByRole('main');
     // A computer with no business yet also offers one quiet way to a business that exists elsewhere (moved, restored).
@@ -59,10 +65,10 @@ describe('onboarding: first run', () => {
     expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What do you want to start?');
   });
 
-  it('lets the owner change the country, and uses "another country" when the browser is somewhere Chausar has no table for', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValue('pt-BR');
+  it('lets the owner change the country, and uses "another country" for an unsupported time zone', async () => {
+    timeZone('America/Sao_Paulo');
     const { flow } = start();
-    expect(await screen.findByText('Based in Another country (prices in US dollars)')).toBeTruthy();
+    expect(await screen.findByText('Another country (prices in US dollars) · USD')).toBeTruthy();
     await press('Change');
     const country = screen.getByRole('combobox', { name: 'Country' }) as HTMLSelectElement;
     expect(country.value).toBe('XX');
@@ -74,9 +80,9 @@ describe('onboarding: first run', () => {
   });
 
   it('on Start: preview, the vault, create, the template interview and the plan, in the engine order; then Today with the plan first', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-IN');
+    timeZone('Asia/Kolkata');
     const { flow } = start();
-    await screen.findByText('Based in India');
+    await screen.findByText('India · INR');
     await type(`  ${IDEA}  `);
     await press('Start');
     await screen.findByRole('navigation', { name: 'Places' });

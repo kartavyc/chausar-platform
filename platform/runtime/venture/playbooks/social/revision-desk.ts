@@ -11,6 +11,7 @@ import type { DeskHandlers } from '../desk-types.ts';
 import { draftPostsOf, parsePostId, draftApprovalsOfRun } from './run-approvals.ts';
 import { emptyGhostwriting, draftDigest } from './approvals.ts';
 import { ghostwritingOffer, socialRevisionOffer } from './ghostwriting.ts';
+import { invoiceCountry } from '../../core/country-history.ts';
 
 
 export type SocialRevisionDeskTypes = {
@@ -68,7 +69,7 @@ function row(state: State, ventureId: string, runId: string, postId: string, wor
     const stored = order.socialGhostwriting ?? emptyGhostwriting();
     const used = stored.rounds[key(postId)] ?? 0;
     const venture = findRecord(state, 'venture-record', ventureId)!;
-    const currency = venture.country.currency;
+    const currency = invoiceCountry(state, venture, order).currency;
     const raw = order.intake?.fields?.extraRoundPrice;
     const amount = typeof raw === 'string' && /^\d{1,30}$/.test(raw) ? raw : null;
     const exact = digest({ runId, postId, text: post.text, pack: run.editedText ?? run.renderedText, used, price: amount, currency, status: run.status });

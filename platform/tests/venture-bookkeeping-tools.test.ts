@@ -3,14 +3,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BOOKKEEPING_CFO_TOOLS } from '../runtime/venture/delivery/harness/tools-bookkeeping-cfo.ts';
 import type { ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';
-import { setup } from './venture-views-env.ts';
-import { digest, BOOKS_SOURCE_ID } from '../runtime/venture/records.ts';
+import { setup, seedBlueprint, seedOrder, owner } from './venture-views-env.ts';
+import { digest, BOOKS_SOURCE_ID, ventureAction } from '../runtime/venture/records.ts';
+import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 
 async function env(content: string): Promise<ToolEnv> {
   const base = await setup();
   const contentBase64 = Buffer.from(content).toString('base64');
   return { deps: base.deps, ventureId: base.venture.id, memberId: 'owner', epoch: 1, currency: 'INR', dateOrder: 'day-month-year', runRef: { kind: 'rehearsal', scenarioId: 'bookkeeping-cfo-clean', episode: 1 }, files: [{ id: 'upload_ledger', name: 'ledger.csv', format: 'csv', bytes: Buffer.byteLength(content), digest: digest(contentBase64), contentBase64, clientData: false }], tables: [], receipts: [], dictionary: [], sandbox: undefined, now: base.now, allowed: [] };
 }
+
+test('w6 old client ledger projections keep their original country after the service owner moves', async () => {
+  const base = await setup();
+  const {order} = await seedOrder(base, await seedBlueprint(base));
+  const toolEnv = await env('kind,amount\nreceivables,3000\npayables,1000\nrevenue,9000\ncosts,6000\ninventory,2000\ncash,12000\nnet-cash,-2000');
+  const run = await ventureAction(base.deps, owner, 'prepare', 'test.run', tx => tx.put({...tx.base('venture-delivery-run'),orderId:order.id} as any));
+  toolEnv.deps=base.deps;toolEnv.ventureId=base.venture.id;toolEnv.runRef={kind:'delivery',runId:run.id};
+  const csv='kind,on,amount\nreceivable,2026-10-01,3000\nreceipt,2026-10-12,9000\npayment,2026-10-15,11000\nbalance,2026-10-27,12000';
+  const contentBase64=Buffer.from(csv).toString('base64');
+  toolEnv.files.push({id:'upload_client_source',name:'client-ledger.csv',format:'csv',bytes:Buffer.byteLength(csv),digest:digest(contentBase64),contentBase64,clientData:false});
+  const before=await BOOKKEEPING_CFO_TOOLS['cfo.ratios'].run(toolEnv,{table:'f1',ledger:'f2',asOf:'2026-10-27',days:'30'});
+  const changed=await blueprintUpdate(base.deps,owner,{patch:{countryCode:'JP'}});await blueprintAccept(base.deps,owner,{digest:changed.blueprint.digest});
+  const after=await BOOKKEEPING_CFO_TOOLS['cfo.ratios'].run(toolEnv,{table:'f1',ledger:'f2',asOf:'2026-10-27',days:'30'});
+  assert.deepEqual((after.result as any).data.clientLedger,(before.result as any).data.clientLedger);
+});
 
 test('voucher tool drafts exact paired entries from uploaded rupee rows, with receipts and no posting',async()=>{
  const toolEnv=await env('id,on,description,debitAccount,creditAccount,amount\nrent,2026-10-28,Rent receipt,rent,bank,100.25');

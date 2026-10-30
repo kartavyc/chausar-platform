@@ -17,6 +17,20 @@ const section = (view: TaxWorkingView, id: string) => view.sections.find(item =>
 
 type InvoiceSeed = { number: string; issueDate: string; client: ClientRecord; treatment?: InvoiceRecord['taxTreatment']; cgst?: string; sgst?: string; igst?: string; sac?: string | null; status?: InvoiceRecord['status'] };
 
+test('CA tax working excludes other currencies from GST and discloses yearly INR-only totals', async () => {
+  const env = await setup();
+  await caFirm(env);
+  const buyer = await client(env, 'Synthetic client', '27');
+  const issued = await invoice(env, { number: 'USD-1', issueDate: '2026-10-05', client: buyer });
+  await ventureAction(env.deps, owner, 'admin', 'test.currency', tx => { tx.replace({ ...issued, currency: 'USD' }); });
+  const month = await working(env, { period: '2026-10' });
+  assert.equal(section(month, 'gst-invoices').lines.length, 0);
+  assert.match(section(month, 'gst-left-out').lines[0].value, /USD.*INR.*no conversion/i);
+  const year = await working(env, { period: 'FY 2026-27' });
+  assert.match(section(year, 'income-tax').note!, /other currencies.*excluded/i);
+  assert.match(section(year, 'gst').note!, /USD.*INR.*no conversion/i);
+});
+
 async function client(env: Env, name: string, stateCode: string | null, countryCode = 'IN'): Promise<ClientRecord> {
   return ventureAction(env.deps, owner, 'prepare', 'seed.client', tx => tx.put<ClientRecord>({ ...tx.base('venture-client'), name, email: null, countryCode, taxId: null, stateCode, note: null }));
 }
@@ -70,7 +84,7 @@ test('any other business: the plan says what it charges, each issued invoice wit
   assert.deepEqual(tax.lines, [
     { label: 'What your plan says', value: 'You charge GST at 18%' },
     { label: 'INV-0001, Cafe Aroma Demo', value: 'GST INR 449.82 on INR 2,499.00', receiptId: issued.priceReceiptId },
-    { label: 'GST on invoices issued in October 2026', value: 'INR 449.82' },
+    { label: 'GST on invoices issued in October 2026', value: 'INR 449.82', receiptId: tax.lines[2].receiptId },
   ]);
   const assumed = await setup();
   await seedBlueprint(assumed, { taxAssumed: true });

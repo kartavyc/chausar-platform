@@ -9,7 +9,7 @@ import type { OfferIntakeLite } from '../../engine/types';
 import { KIT_FILE_ACCEPT, isKitFile, kitFileProblem, type KitAnswers, type KitPerson } from './kit-intake';
 import s from './Work.module.css';
 /** The selected service alone supplies the questions. Every value remains owner input, with no UI money arithmetic. */
-export function KitIntakeFields({ ask, answers, onChange }: { ask: OfferIntakeLite | null; answers: KitAnswers; onChange: (answers: KitAnswers) => void }) {
+export function KitIntakeFields({ ask, answers, onChange, currency = null }: { ask: OfferIntakeLite | null; currency?: string | null; answers: KitAnswers; onChange: (answers: KitAnswers) => void }) {
   const t = useT();
   const id = useId();
   const consents = useResource('venture.voiceConsent.list', {}, { skip: !ask?.kit?.some(field => field.kind === 'people') });
@@ -59,7 +59,7 @@ export function KitIntakeFields({ ask, answers, onChange }: { ask: OfferIntakeLi
         {problem && <p className={s.problem} role="status">{t('kit-intake.fileError')}</p>}
       </div>;
     }
-    const hint = field.kind === 'money' ? `${help} ${t('kit-intake.rupees')}` : help;
+    const hint = field.kind === 'money' && currency ? `${help} ${t('kit-intake.amount', { currency })}` : help;
     return field.kind === 'list'
       ? <Field key={field.id} multiline label={label} hint={hint} value={typeof value === 'string' ? value : ''} maxLength={10000} onChange={event => put(field.id, event.currentTarget.value)} />
       : <Field key={field.id} label={label} hint={hint} type={field.kind === 'date' ? 'date' : 'text'} inputMode={field.kind === 'money' ? 'decimal' : 'text'} value={typeof value === 'string' ? value : ''} maxLength={2000} onChange={event => put(field.id, event.currentTarget.value)} />;

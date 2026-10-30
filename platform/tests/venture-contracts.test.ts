@@ -46,14 +46,14 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 304 unique valid names with owners and well-formed subsets', () => {
+test('VENTURE_METHODS: 305 unique valid names with owners and well-formed subsets', () => {
   // 126 through wave 2, the 138 wave 4 names package 4-0 added (W4_METHODS), 4J8's venture.blueprint.suggest and 4J5's
   // venture.bills.stop; and the 34 wave 5 names package 5-0 added (W5_METHODS: venture.order.chain, salesProposal.draft
   // and .get, goNoGo.card, ideas.add, .move and .grade, brandKit.get and .set, assets.list, .rerun and .reuse,
   // voiceConsent.record, .revoke and .list, report.render, .share, .shareRotate and .shareDisable, monitors.list, .add
   // and .remove, mail.import and .threads, localApps.list, webhook.set, speechOut.providers, ca.confirmCitations,
   // ca.signoff.get, ca.differential.add, ca.dataPack.export, desk.list, .get and .act); 5A2 added goNoGo.list, 5A5 report.list.
-  assert.equal(VENTURE_METHODS.length, 304);
+  assert.equal(VENTURE_METHODS.length, 305); // 6A3 adds the owner-country suggestion.
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);
@@ -61,12 +61,12 @@ test('VENTURE_METHODS: 304 unique valid names with owners and well-formed subset
   assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list']);
 });
 
-test('DRAFT_METHODS: the nine onboarding methods, apart from the pre-vault two, with app-only connect, decide and fill', () => {
-  assert.equal(DRAFT_METHODS.length, 9);
+test('DRAFT_METHODS: onboarding methods with app-only model calls and country suggestion', () => {
+  assert.equal(DRAFT_METHODS.length, 10);
   assert.deepEqual([...DRAFT_METHODS], [...ONBOARDING_METHODS]);
   for (const method of DRAFT_METHODS) assert.equal(PRE_VAULT_METHODS.includes(method), false, method);
   for (const method of DRAFT_METHODS) assert.equal(METHOD_OWNERS[method], method.startsWith('venture.ai.') ? 'models' : 'core', method);
-  assert.deepEqual(DRAFT_METHODS.filter(method => APP_ONLY_METHODS.includes(method)), ['venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill']);
+  assert.deepEqual(DRAFT_METHODS.filter(method => APP_ONLY_METHODS.includes(method)), ['venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill', 'venture.country.suggest']);
   for (const code of ['COMPOSE_NOT_FOUND', 'COMPOSE_REFUSED', 'COMPOSE_NOT_A_SERVICE']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(code), code);
   assert.ok((VENTURE_RECORD_KINDS as readonly string[]).includes('venture-composition'));
   assert.ok((VENTURE_EVENTS as readonly string[]).includes('plan-composed'));

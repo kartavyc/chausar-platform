@@ -16,6 +16,7 @@ import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { stageListFor, type StageRule } from '../playbooks/order-stages.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { latestBlueprint } from './shared.ts';
+import { invoiceCountry } from '../core/country-history.ts';
 
 type SignoffRequest = Extract<CaFirmRecord, { entry: 'signoff-request' }>;
 type Signoff = Extract<CaFirmRecord, { entry: 'signoff' }>;
@@ -205,7 +206,7 @@ function paidReading(context: StageContext): StageReading {
   if (!invoice) return NOT_YET;
   if (invoice.status === 'paid') return DONE;
   const due = invoice.dueDate;
-  const country = context.index.venture.country;
+  const country = invoiceCountry(context.index.state, context.index.venture, invoice);
   // A business still in its interview has no country yet: the day is written as the engine stores it.
   const when = due ? `due ${country ? formatVentureDate(due, country.dateOrder) : due}` : null;
   if (invoice.status === 'part-paid') return notYet(when ? `part paid, ${when}` : 'part paid', 'part-paid', due ? { due } : {});

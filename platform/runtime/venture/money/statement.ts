@@ -8,6 +8,7 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { currentVenture, formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
+import { invoiceCountry } from '../core/country-history.ts';
 import { creditedOn, daysFrom, issuedCredits, lateWords, METHOD_WORDS, paymentState } from './ledger.ts';
 import { owedPlan, sumReceipt, type Addend, type SumPlan } from './sums.ts';
 import type { Display, InvoiceRecord, IsoDate, MinorString, SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
@@ -19,6 +20,7 @@ export type StatementMoney = { minor: MinorString; display: Display };
 export type ClientStatement = {
   client: { id: string; name: string };
   currency: string;
+  scopeNote: Display | null;
   asOf: IsoDate;
   open: { invoiceId: string; number: string; issueDate: IsoDate | null; dueDate: IsoDate | null; total: Display; paid: Display; credited: Display; balance: Display; late: Display | null; receiptId: string }[];
   paid: { paymentId: string; invoiceId: string; number: string; receivedOn: IsoDate; amount: Display; method: Display; tds: Display | null; receiptId: string | null }[];
@@ -35,9 +37,9 @@ const money = (minor: bigint, currency: string): StatementMoney => ({ minor: Str
 const planSum = (plan: SumPlan) => plan.addends.reduce((total, addend) => total + BigInt(addend.amount), 0n);
 
 /** The client's numbered invoices the statement can show, oldest first. */
-function shownInvoices(state: State, venture: VentureRecord, clientId: string): InvoiceRecord[] {
+function shownInvoices(state: State, venture: VentureRecord, clientId: string, currency = venture.country.currency): InvoiceRecord[] {
   return listRecords(state, 'venture-invoice', venture.id)
-    .filter(invoice => invoice.clientId === clientId && invoice.number !== null && SHOWN.includes(invoice.status) && invoice.currency === venture.country.currency)
+    .filter(invoice => invoice.clientId === clientId && invoice.number !== null && SHOWN.includes(invoice.status) && invoice.currency === currency)
     .sort((a, b) => (a.issueDate ?? '').localeCompare(b.issueDate ?? '') || (a.number as string).localeCompare(b.number as string));
 }
 
@@ -46,8 +48,11 @@ function shownInvoices(state: State, venture: VentureRecord, clientId: string): 
  * line), the credit notes issued on their invoices, or one invoice's balance (its total, less each payment and credit).
  */
 export function statementPlan(state: State, venture: VentureRecord, subject: Extract<SumReceiptSubject, { type: 'statement' }>): SumPlan {
-  const currency = venture.country.currency;
-  const invoices = shownInvoices(state, venture, subject.clientId).filter(invoice => subject.invoiceId === null || invoice.id === subject.invoiceId);
+  const scoped = subject.invoiceId === null ? null : listRecords(state, 'venture-invoice', venture.id).find(invoice => invoice.id === subject.invoiceId && invoice.clientId === subject.clientId);
+  check(subject.invoiceId === null || scoped, 'RECEIPT_NOT_FOUND', 'The invoice behind this receipt was not found.');
+  const currency = scoped?.currency ?? venture.country.currency;
+  const country = scoped ? invoiceCountry(state, venture, scoped) : venture.country;
+  const invoices = shownInvoices(state, venture, subject.clientId, currency).filter(invoice => subject.invoiceId === null || invoice.id === subject.invoiceId);
   const ids = new Set(invoices.map(invoice => invoice.id));
   const numbers = new Map(invoices.map(invoice => [invoice.id, invoice.number as string]));
   const payments = listRecords(state, 'venture-payment', venture.id)
@@ -57,12 +62,16 @@ export function statementPlan(state: State, venture: VentureRecord, subject: Ext
   const line = (recordId: string, label: string, amount: bigint): Addend => ({ recordId, label, amount: String(amount), display: formatMinor(amount, currency), estimate: false });
   const paidLines = (sign: bigint): Addend[] => payments.flatMap(payment => {
     const number = numbers.get(payment.invoiceId) as string;
-    const when = formatVentureDate(payment.receivedOn, venture.country.dateOrder);
+    check(payment.currency === currency, 'CURRENCY_CONFLICT', 'A payment must use its invoice currency.');
+    const when = formatVentureDate(payment.receivedOn, country.dateOrder);
     const cash = line(payment.id, `${sign < 0n ? 'Less paid on ' : ''}${number}, ${when}`, sign * BigInt(payment.amountMinor));
     return payment.tds ? [cash, line(payment.id, `${sign < 0n ? 'Less TDS' : 'TDS'} on ${number} under ${payment.tds.section}`, sign * BigInt(payment.tds.amountMinor))] : [cash];
   });
   const creditLines = (sign: bigint): Addend[] => invoices.flatMap(invoice => issuedCredits(invoice.id, credits)
-    .map(note => line(note.id, `${sign < 0n ? 'Less credit' : 'Credit'} note ${note.number} on ${invoice.number}`, sign * BigInt(note.amountMinor))));
+    .map(note => {
+      check(note.currency === currency, 'CURRENCY_CONFLICT', 'A credit note must use its invoice currency.');
+      return line(note.id, `${sign < 0n ? 'Less credit' : 'Credit'} note ${note.number} on ${invoice.number}`, sign * BigInt(note.amountMinor));
+    }));
   const subjectCopy = { ...subject };
   if (subject.part === 'paid') {
     return { subject: subjectCopy, currency, unit: 'minor', addends: paidLines(1n), words: { label: 'Paid so far', one: 'payment', many: 'payments', none: 'Nothing was paid yet.' } };
@@ -125,6 +134,8 @@ export function clientStatement(state: State, clientId: string, asOf: IsoDate): 
   };
   return {
     client: { id: client.id, name: client.name }, currency, asOf, open, paid, waiting, credits: notes,
+    scopeNote: listRecords(state, 'venture-invoice', venture.id).some(invoice => invoice.clientId === client.id && invoice.number !== null && SHOWN.includes(invoice.status) && invoice.currency !== currency)
+      ? `This statement is in ${currency}. Invoices in other currencies are excluded; no conversion was made.` : null,
     owed: money(planSum(plans.owed), currency), paidTotal: money(planSum(plans.paid), currency), creditedTotal: money(planSum(plans.credited), currency), plans,
   };
 }

@@ -329,6 +329,13 @@
   color: var(--fg2);
 }
 
+.countryEvidence {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
 .fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

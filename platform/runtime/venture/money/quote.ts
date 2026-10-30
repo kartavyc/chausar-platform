@@ -14,6 +14,7 @@ import { TIE_SUPERSEDED, tieReceipt } from '../network/strength.ts';
 import { ownerToday } from '../local-day.ts';
 import type { RowFigureReceipt, TieReceipt } from '../contracts.ts';
 import { receiptSignature } from '../journal/signing.ts';
+import { blueprintCountry } from '../core/country-history.ts';
 
 export type PriceSubject = PriceReceiptRecord['subject'];
 
@@ -122,9 +123,10 @@ export function buildPriceReceipt(
   check(tx.venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
   const backOffice = blueprint.backOffice;
   const currency = backOffice.currency;
-  check(currency === tx.venture.country.currency, 'CURRENCY_CONFLICT', `This business keeps its books in ${tx.venture.country.currency}.`);
+  const country = blueprintCountry(tx.venture, blueprint);
+  check(currency === country.currency, 'CURRENCY_CONFLICT', 'This price does not match its saved country.');
   const unitPriceMinor = requirePrice(offer);
-  const decision = taxDecision(backOffice, client, tx.venture.country);
+  const decision = taxDecision(backOffice, client, country);
   const inclusive = inputs.taxInclusive === true && splitsInclusive(decision.treatment);
   const priceInput = { unitPriceMinor, quantity: inputs.quantity, discountBps: '0', taxRateBps: decision.rateBps, currency, taxTreatment: decision.treatment };
   const priced = inclusive ? computeInclusivePrice(priceInput) : computePrice(priceInput);

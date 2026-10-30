@@ -122,7 +122,7 @@ describe('Start: the one-sentence tile', () => {
   it('an example fills the box with its sentence and asks the engine nothing', async () => {
     const { calls } = start();
     const box = await screen.findByRole('textbox', { name: 'What do you want to start?' }) as HTMLTextAreaElement;
-    await screen.findByText(/^Based in /);
+    await screen.findByText(/ · (INR|USD|GBP|CAD)$/);
     await screen.findByRole('link', { name: 'Resume setup' });
     fireEvent.change(box, { target: { value: 'Something I typed first' } });
     const before = calls.length;

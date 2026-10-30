@@ -42,7 +42,7 @@ export function rateChangeOf(state: State, venture: VentureRecord, invoice: Invo
   if (invoice.status !== 'draft') return undefined;
   const plan = listRecords(state, 'venture-blueprint', venture.id).find(item => item.id === venture.acceptedBlueprintId && item.status === 'accepted');
   const client = listRecords(state, 'venture-client', venture.id).find(item => item.id === invoice.clientId);
-  if (!plan || !client) return undefined;
+  if (!plan || !client || venture.originalCountry) return undefined;
   const now = taxDecision(plan.backOffice, client, venture.country).rateBps;
   const charged = invoice.taxRateBps;
   if (now === charged) return undefined;

@@ -1,3 +1,6 @@
+import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { resetCountry } from './fake-country-plan';
 import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
 import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
@@ -20,6 +23,9 @@ import {
 const clone = <T>(value: T): T => structuredClone(value);
 
 export interface DeskHost {
+  quote?(quote: import('./fake-pipeline').HeldPipelineQuote): void;
+  country?(id: string): { code: string; currency: string };
+  acceptCountry?(id: string, code: string): void;
   current(): string;
   orders?(): {offerId:string;status:string}[];
   businessName(id: string): string;
@@ -129,6 +135,20 @@ export class FakeBusinessDesk {
       view.offerReceipts={...view.offerReceipts,...Object.fromEntries(kept.map(offer=>[offer.id,null]))};
       view.blueprint.digest=this.host.digest({...view.blueprint,digest:''});
     }
+    const country = prior?.blueprint.country;
+    if (country) {
+      // A rewritten plan keeps the owner's prices and tax choices from its latest country draft.
+      view.blueprint.country = clone(country);
+      view.blueprint.backOffice = clone(prior.blueprint.backOffice);
+      view.blueprint.starterConnectorIds = clone(prior.blueprint.starterConnectorIds);
+      for (const offer of view.blueprint.offers) {
+        const before = prior.blueprint.offers.find(item => item.id === offer.id);
+        if (before) offer.pricing = clone(before.pricing);
+        else offer.pricing = { model: offer.pricing.model, quantityUnit: offer.pricing.quantityUnit, unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' };
+      }
+      view.offerReceipts = Object.fromEntries(view.blueprint.offers.map(offer => [offer.id, null]));
+      view.blueprint.digest = this.host.digest({ ...view.blueprint, digest: '' });
+    }
     this.blueprints[businessId] = clone(view);
   }
 
@@ -137,6 +157,7 @@ export class FakeBusinessDesk {
     const view = this.blueprints[businessId];
     if (!view || view.blueprint.id !== blueprintId) return;
     view.blueprint.status = 'accepted';
+    if (view.blueprint.country) this.host.acceptCountry?.(businessId, view.blueprint.country.code);
     this.keepAccepted(businessId, view);
   }
 
@@ -221,15 +242,16 @@ export class FakeBusinessDesk {
     const preset = MODEL_PRESETS.find((x) => x.id === p.presetId);
     if (!preset) throw invalid('Choose one of the listed AI options.');
     if (p.consentDigest !== preset.consentDigest) throw new EngineError('MODEL_CONSENT_REQUIRED', 'Read what is sent and agree to it first.');
-    if (preset.availability === 'unavailable' || preset.availability === 'needs-setup') throw new EngineError('PRESET_UNAVAILABLE', preset.availabilityReason);
     const key = typeof p.apiKey === 'string' ? p.apiKey.trim() : '';
     if (preset.needsKey && !key) throw new EngineError('MODEL_KEY_MISSING', 'Paste your key first.');
     if (!preset.needsKey && p.apiKey !== undefined) throw invalid('This option takes no key.');
     let model = preset.model;
-    if (typeof p.model === 'string' && p.model.trim()) {
+    if (p.model !== undefined) {
       if (!preset.modelEditable) throw invalid('This option has a fixed model.');
-      model = p.model.trim();
+      if (typeof p.model !== 'string' || !/^[a-z0-9][a-z0-9.-]{1,63}$/.test(p.model)) throw invalid('Type the model id your account shows, in lower case, like gpt-6-luna.');
+      model = p.model;
     }
+    if (preset.availability === 'unavailable' || preset.availability === 'needs-setup') throw new EngineError('PRESET_UNAVAILABLE', preset.availabilityReason);
     if (p.monthlyCapUsd !== undefined && !/^\d{1,6}(\.\d{1,2})?$/.test(String(p.monthlyCapUsd))) throw new EngineError('INVALID_AMOUNT', 'Type the monthly limit in US dollars, like 20 or 12.50.');
     const asked = Array.isArray(p.tiers) ? (p.tiers as unknown[]).filter((t): t is ModelTier => t === 'fast' || t === 'main') : [];
     const tiers = asked.length > 0 ? asked : [...preset.tiers];
@@ -295,6 +317,12 @@ export class FakeBusinessDesk {
     next.id = `bp-${biz}-${next.version}`;
     next.at = this.host.now();
     next.status = 'draft';
+    const beforeCountry = next.country ?? countryProfile(this.host.country?.(biz).code ?? 'IN');
+    const country = patch.countryCode === undefined ? beforeCountry : countryProfile(patch.countryCode);
+    if (country.code !== beforeCountry.code) {
+      resetCountry(next, country.code, beforeCountry.code);
+    }
+    next.country = country;
     if (patch.name !== undefined) next.name = told(text(patch.name, 60, 'The name'));
     if (patch.oneLiner !== undefined) next.oneLiner = told(text(patch.oneLiner, 160, 'The one line'));
     if (patch.customer !== undefined) next.customer = told(text(patch.customer, 200, "Who it's for"));
@@ -315,11 +343,11 @@ export class FakeBusinessDesk {
         offer.pricing.unitPriceLabel = 'not-set';
       } else if (change.unitPrice !== undefined) {
         const typed = String(change.unitPrice).replace(/[,\s₹]/g, '');
-        if (!/^\d{1,9}(\.\d{1,2})?$/.test(typed) || /^0+(\.0+)?$/.test(typed)) throw new EngineError('INVALID_AMOUNT', 'Type the price as a number, like 15000 or 15000.50.');
-        const [whole = '0', fraction = ''] = typed.split('.');
-        offer.pricing.unitPriceMinor = `${whole.replace(/^0+(?=\d)/, '')}${`${fraction}00`.slice(0, 2)}`;
+        const digits = currencyMinorDigits(country.currency);
+        if (!new RegExp('^\\d{1,9}' + (digits ? '(\\.\\d{1,' + digits + '})?' : '') + '$').test(typed) || /^0+(\.0+)?$/.test(typed)) throw new EngineError('INVALID_AMOUNT', 'Type a positive price using the currency’s decimal places.');
+        offer.pricing.unitPriceMinor = decimalMinor(typed, country.currency);
         offer.pricing.unitPriceLabel = 'told-by-you';
-        typedPrices[offer.id] = rupees(typed);
+        typedPrices[offer.id] = country.currency === 'INR' ? rupees(typed) : formatMinor(offer.pricing.unitPriceMinor, country.currency);
       }
       // 5A2 (money/share-price.ts applyShareChange): a share in place of a fixed price; a fixed price takes it away.
       if (change.share !== undefined) {
@@ -365,6 +393,7 @@ export class FakeBusinessDesk {
       });
     }
     next.digest = this.host.digest({ ...next, digest: '' });
+    if (country.code !== beforeCountry.code) for (const offer of next.offers) delete this.prices[`${biz}:${offer.id}`];
     for (const [offerId, display] of Object.entries(typedPrices)) this.prices[`${biz}:${offerId}`] = display;
     // Receipts belong to a version: a new version has none until it is priced again.
     this.blueprints[biz] = {
@@ -425,7 +454,7 @@ export class FakeBusinessDesk {
     const quantity = BigInt(quantityText);
     // The fake computes paise here, where the engine computes them, and sends both the raw total and its display.
     // Tax follows the existing sample receipt only; other tax settings retain the explicit manual limitation below.
-    const showMinor = (minor: bigint) => rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`);
+    const showMinor = (minor: bigint) => view.blueprint.backOffice.currency === 'INR' ? rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`) : formatMinor(minor, view.blueprint.backOffice.currency);
     const readSampleMinor = (display: string) => BigInt(display.replace(/[^0-9]/g, ''));
     const unit = BigInt(offer.pricing.unitPriceMinor);
     const display = this.prices[`${biz}:${offer.id}`] ?? showMinor(unit);
@@ -442,6 +471,7 @@ export class FakeBusinessDesk {
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);
+    this.host.quote?.({ receiptId: receipt.id, at: receipt.at, offer: offer.name.value, quantity: quantityText, value: showMinor(unit * quantity), currency: view.blueprint.backOffice.currency, beforeTaxMinor: String(unit * quantity), explanation: receipt.explanation });
     view.offerReceipts[offer.id] = receipt;
     return clone(receipt);
   }

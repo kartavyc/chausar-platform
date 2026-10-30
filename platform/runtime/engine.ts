@@ -990,6 +990,9 @@ export class Engine {
       ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
+    if (method === 'venture.country.suggest' && !this.vault?.read().conversations.some(record => record?.kind === 'venture-record')) {
+      return (await this.#draftDesk()).request(this.context, method, payload);
+    }
     // The ways to earn (4J8); while a vault is open its state is read (never written) so its business says "You run this".
     // The other businesses here say it from what Chausar saved when each was last open (4J6), never their vaults.
     if (method === 'venture.playbooks.list') return (await this.#ventureModule()).venturePlaybooks(payload, this.vault ? { state: this.vault.read(), businessId: (this.options.venture?.workspace ?? this.#ventureWorkspace).current().id } : null,
@@ -1655,6 +1658,7 @@ export class Engine {
       }
       case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       case 'venture.create':
+      case 'venture.country.suggest':
       case 'venture.get':
       case 'venture.events':
       case 'venture.interview.next':

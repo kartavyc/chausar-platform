@@ -1,14 +1,14 @@
 import { authorize, audit, check, hash, newId, now, type Context, type Fact, type StateStore } from './contracts.ts';
 import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type FactFilter, type Period } from './memory.ts';
 import { OntologyService, type Definition } from './ontology.ts';
-import { formatMinor } from './currency.ts';
+import { currencyMinorDigits, formatMinor } from './currency.ts';
 import { assertCompiledSingleSum, compileSingleSum, type CompiledCalculationBinding, type CompiledSingleSum } from './compiled-calculation.ts';
 import { assertSourceAccess } from './trust.ts';
 
-export type CalculationRequest = FactFilter & { operation: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
+export type CalculationRequest = FactFilter & { operation: string; currency?: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
-export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
-export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown; restatement?: ReceiptRestatement };
+export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; currency?: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
+export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; requestedCurrency?: string; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown; restatement?: ReceiptRestatement };
 export type CalculatorOptions = {
   /** Trusted publication context only, never a caller-authored calculation parameter. */
   restatement?: ReceiptRestatement;
@@ -65,8 +65,9 @@ export class CalculatorService {
   }
   async calculate(ctx: Context, request: CalculationRequest): Promise<CalculationReceipt> {
     authorize(this.store, ctx);
-    check(request && typeof request === 'object' && !Array.isArray(request) && Object.keys(request).every(k => ['operation', 'sourceIds', 'period', 'asOf', 'branch', 'customerId', 'orderId', 'comparePeriod', 'onDate', 'assumptions', 'kinds'].includes(k)), 'INVALID_CALCULATION', 'Only declared calculation parameters are accepted.');
+    check(request && typeof request === 'object' && !Array.isArray(request) && Object.keys(request).every(k => ['operation', 'currency', 'sourceIds', 'period', 'asOf', 'branch', 'customerId', 'orderId', 'comparePeriod', 'onDate', 'assumptions', 'kinds'].includes(k)), 'INVALID_CALCULATION', 'Only declared calculation parameters are accepted.');
     request = structuredClone(request);
+    if (request.currency !== undefined) currencyMinorDigits(request.currency);
     currentAccess(this.store, ctx, request.branch);
     if (request.sourceIds !== undefined) check(Array.isArray(request.sourceIds) && request.sourceIds.length <= 64 && Array.from(request.sourceIds).every(id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(id)) && new Set(request.sourceIds).size === request.sourceIds.length, 'INVALID_SOURCE_SCOPE', 'Choose at most sixty-four distinct plain source identifiers.');
     const requestedSourceIds = request.sourceIds, selectedSources = requestedSourceIds === undefined ? undefined : new Set(requestedSourceIds);
@@ -80,6 +81,7 @@ export class CalculatorService {
     validatePeriod(request.period); validatePeriod(request.comparePeriod);
     this.consumerGuard?.(ctx, structuredClone(request));
     const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before calculating.');
+    const currency = request.currency ?? dictionary.currency;
     const sourceSnapshot = () => { const s = this.store.read(); return hash({ facts: s.facts, sourceRules: s.sourceRules, merges: s.merges, tombstones: s.tombstones }); }; const factsSnapshotHash = sourceSnapshot();
     const operation = dictionary.operations.find(o => o.id === request.operation); check(operation, 'UNKNOWN_CALCULATION', 'No published calculation fits this request.');
     check(!request.kinds, 'INVALID_CALCULATION', 'The published definition determines which record kinds are counted.');
@@ -101,18 +103,25 @@ export class CalculatorService {
     // aging invoices, payments and credits. The observation date is a separate
     // upper bound; omitting period explicitly selects all event dates.
     const selection = selectFacts(selectionStore, ctx, { period: request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
+    const currencyExcluded = new Set<string>();
     const excluded = [...selection.excluded]; const counted = new Map<string, Fact>(); const missingMeasures = new Set<string>();
     const selectedFactIds = new Set(selection.facts.map(f => f.id));
     const conflictIds = new Set(selection.conflicts.map(c => JSON.stringify([c.kind, c.entityId])));
     const metric = (name: string, selected: Fact[] = selection.facts): bigint => {
       const d = definitions.find(def => def.name === name); check(d, 'MISSING_DEFINITION', 'A calculation refers to an unpublished definition.'); let total = 0n;
       for (const row of selected.filter(f => f.kind === d.kind)) {
+        if (request.currency !== undefined && row.fields.currency !== request.currency) {
+          currencyMinorDigits(row.fields.currency as string);
+          currencyExcluded.add(row.id);
+          excluded.push({ rowId: row.id, reason: `Outside the requested ${request.currency} currency scope; no conversion was made.` });
+          continue;
+        }
         const status = String(row.fields.status ?? '');
         if (['cancelled', 'void', 'draft', 'bounced'].includes(status)) { excluded.push({ rowId: row.id, reason: `Status ${status} is excluded by the published counting rule.` }); continue; }
         const value = row.fields[d.field];
         if (value === undefined || value === null) { check(d.nulls !== 'reject', 'MISSING_MEASURE_VALUE', `A ${d.name} fact is missing its required amount.`); missingMeasures.add(row.id); excluded.push({ rowId: row.id, reason: 'A null amount is explicitly excluded by the dictionary.' }); continue; }
         check(typeof value === 'string' && /^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Financial calculations require exact integer minor-unit strings.');
-        check(row.fields.currency === d.currency, 'CURRENCY_MISMATCH', 'Unconverted currencies cannot be added.');
+        check(row.fields.currency === (request.currency ?? d.currency), 'CURRENCY_MISMATCH', 'Unconverted currencies cannot be added.');
         const amount = BigInt(value); check(!['refunds', 'costs'].includes(d.name) || amount >= 0n, 'INVALID_EVENT_SIGN', 'Refunds and costs must be positive event values; corrections are separate versions.');
         total += amount * BigInt(d.sign ?? 1); counted.set(row.id, row);
       }
@@ -121,10 +130,10 @@ export class CalculatorService {
     const figures: Figure[] = []; let result = 0n; const assumptions: Record<string, unknown> = {};
     if (operation.type === 'sum') {
       result = metric(operation.definitions[0]); if (request.operation === 'net_sales' && !compiledSum) result -= metric('refunds');
-      figures.push(moneyFigure('total', operation.label, result, dictionary.currency));
+      figures.push(moneyFigure('total', operation.label, result, currency));
     } else if (operation.type === 'margin') {
       const earned = metric('earned'), refunds = metric('refunds'), costs = metric('costs'); const net = earned - refunds; result = net - costs;
-      figures.push(moneyFigure('earned', 'Earned', earned, dictionary.currency), moneyFigure('refunds', 'Refunds', refunds, dictionary.currency), moneyFigure('netSales', 'Net sales', net, dictionary.currency), moneyFigure('costs', 'Imported costs', costs, dictionary.currency), moneyFigure('contribution', 'Contribution', result, dictionary.currency));
+      figures.push(moneyFigure('earned', 'Earned', earned, currency), moneyFigure('refunds', 'Refunds', refunds, currency), moneyFigure('netSales', 'Net sales', net, currency), moneyFigure('costs', 'Imported costs', costs, currency), moneyFigure('contribution', 'Contribution', result, currency));
       const ratio = bps(result, net); if (ratio !== null) figures.push({ key: 'marginBps', label: 'Margin in basis points (truncated)', minor: String(ratio), display: `${ratio} bps`, unit: 'basis-points' });
     } else if (operation.type === 'change') {
       check(request.period && request.comparePeriod, 'COMPARISON_REQUIRED', 'Give both current and comparison periods.');
@@ -132,14 +141,14 @@ export class CalculatorService {
       for (const fact of prior.facts) selectedFactIds.add(fact.id);
       for (const conflict of prior.conflicts) conflictIds.add(JSON.stringify([conflict.kind, conflict.entityId]));
       const current = metric('earned'), previous = metric('earned', prior.facts); result = current - previous; excluded.push(...prior.excluded);
-      figures.push(moneyFigure('current', 'Current earned revenue', current, dictionary.currency), moneyFigure('previous', 'Prior earned revenue', previous, dictionary.currency), moneyFigure('change', 'Measured change', result, dictionary.currency));
+      figures.push(moneyFigure('current', 'Current earned revenue', current, currency), moneyFigure('previous', 'Prior earned revenue', previous, currency), moneyFigure('change', 'Measured change', result, currency));
       const ratio = bps(result, previous); if (ratio !== null) figures.push({ key: 'changeBps', label: 'Change in basis points (truncated)', minor: String(ratio), display: `${ratio} bps`, unit: 'basis-points' });
       assumptions.causalStatus = 'Measured change is not a causal explanation. Causes require separate evidence; no hypothesis is asserted as a fact.';
     } else if (operation.type === 'scenario') {
       check(request.assumptions && Object.keys(request.assumptions).length === 1 && /^-?\d+$/.test(request.assumptions.priceChangeBps), 'SCENARIO_REQUIRED', 'Give an integer price change in basis points.');
       const priceChange = BigInt(request.assumptions.priceChangeBps); check(priceChange >= -10000n && priceChange <= 100000n, 'SCENARIO_LIMIT', 'The price scenario is outside the declared range.');
       const baseline = metric('earned'); const numerator = baseline * (10000n + priceChange); result = numerator / 10000n;
-      figures.push(moneyFigure('baseline', 'Measured baseline', baseline, dictionary.currency), moneyFigure('scenario', 'Scenario revenue', result, dictionary.currency), moneyFigure('change', 'Scenario change', result - baseline, dictionary.currency), { key: 'priceChangeBps', label: 'Assumed price change', minor: String(priceChange), display: `${priceChange} bps`, unit: 'basis-points' });
+      figures.push(moneyFigure('baseline', 'Measured baseline', baseline, currency), moneyFigure('scenario', 'Scenario revenue', result, currency), moneyFigure('change', 'Scenario change', result - baseline, currency), { key: 'priceChangeBps', label: 'Assumed price change', minor: String(priceChange), display: `${priceChange} bps`, unit: 'basis-points' });
       assumptions.priceChangeBps = String(priceChange); assumptions.volume = 'Held constant'; assumptions.rounding = 'Truncate fractional minor units toward zero'; assumptions.status = 'Scenario only. Source facts are unchanged.';
     } else if (operation.type === 'aging') {
       const onDate = request.onDate ?? selection.asOf.slice(0, 10); check(validDate(onDate), 'INVALID_AGING_DATE', 'Give a valid aging date.');
@@ -168,8 +177,8 @@ export class CalculatorService {
         let outstanding = BigInt(String(invoice.fields.amountMinor)) - (credits.get(key) ?? 0n); if (outstanding < 0n) { unallocated += -outstanding; outstanding = 0n; }
         const days = Math.floor((Date.parse(onDate) - Date.parse(String(invoice.fields.dueDate))) / 86_400_000); const bucket = days <= 0 ? 'notDue' : days <= 30 ? 'days1to30' : days <= 60 ? 'days31to60' : days <= 90 ? 'days61to90' : 'over90'; buckets[bucket] += outstanding; result += outstanding;
       }
-      for (const [key, value] of Object.entries(buckets)) figures.push(moneyFigure(key, { notDue: 'Not yet due', days1to30: 'Overdue one to thirty days', days31to60: 'Overdue thirty-one to sixty days', days61to90: 'Overdue sixty-one to ninety days', over90: 'Overdue more than ninety days' }[key]!, value, dictionary.currency));
-      figures.push(moneyFigure('outstanding', 'Outstanding receivables', result, dictionary.currency), moneyFigure('unallocated', 'Unallocated receipts or credits', unallocated, dictionary.currency)); assumptions.onDate = onDate;
+      for (const [key, value] of Object.entries(buckets)) figures.push(moneyFigure(key, { notDue: 'Not yet due', days1to30: 'Overdue one to thirty days', days31to60: 'Overdue thirty-one to sixty days', days61to90: 'Overdue sixty-one to ninety days', over90: 'Overdue more than ninety days' }[key]!, value, currency));
+      figures.push(moneyFigure('outstanding', 'Outstanding receivables', result, currency), moneyFigure('unallocated', 'Unallocated receipts or credits', unallocated, currency)); assumptions.onDate = onDate;
     }
     const state = this.store.read(); const rows = [...counted.values()];
     const importIds = state.imports.filter(i => i.rowIds?.some((id: string) => counted.has(id))).map(i => i.id);
@@ -179,19 +188,21 @@ export class CalculatorService {
     if (missingMeasures.size) gaps.push('Some selected amounts are unknown and were excluded by the dictionary. This total is partial; missing amounts are not zero.');
     if (!rows.length) gaps.push('No visible facts were counted. An empty selection is not proof that the business activity was zero.');
     if (operation.type === 'margin') gaps.push('Contribution includes imported costs only. Missing freight, fees, advertising, overhead or tax treatment can change the economic result.');
+    if (currencyExcluded.size) gaps.push('Other currencies were excluded; no conversion was made.');
     const effectiveExcluded = excluded.filter(e => !counted.has(e.rowId) || e.reason !== 'Outside the requested event period.');
     const receipt: CalculationReceipt = {
       id: newId('receipt'), memberId: ctx.memberId, epoch: ctx.epoch, sourceIds: [...new Set(rows.map(r => r.sourceId))], operation: request.operation, createdAt: now(), asOf: selection.asOf,
       ...(requestedSourceIds === undefined ? {} : { requestedSourceIds: [...requestedSourceIds] }),
-      period: request.period ?? null, comparePeriod: request.comparePeriod ?? null, branch: request.branch ?? null, currency: dictionary.currency,
+      ...(request.currency === undefined ? {} : { requestedCurrency: request.currency }),
+      period: request.period ?? null, comparePeriod: request.comparePeriod ?? null, branch: request.branch ?? null, currency,
       ontologyVersion: dictionary.version, dictionaryHash: dictionary.hash, definitionHash: hash(definitions), definitions, figures, valueMinor: String(result), totalMinor: String(result), rowIds: rows.map(f => f.id),
       ...(compiledSum ? { compiledCalculation: { dictionaryHash: dictionary.hash, sum: structuredClone(compiledSum) } } : {}),
-      rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, amountMinor: String(f.fields[compiledSum?.moneyField ?? 'amountMinor']), ...(compiledSum ? { measureField: compiledSum.moneyField } : {}), validFrom: f.validFrom, branch: f.branch })),
+      rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, ...(request.currency === undefined ? {} : { currency: String(f.fields.currency) }), amountMinor: String(f.fields[compiledSum?.moneyField ?? 'amountMinor']), ...(compiledSum ? { measureField: compiledSum.moneyField } : {}), validFrom: f.validFrom, branch: f.branch })),
       exclusions: [...new Map(effectiveExcluded.map(e => [`${e.rowId}:${e.reason}`, e])).values()],
       coverage: { selectedRows: selectedFactIds.size, countedRows: rows.length, excludedRows: new Set(effectiveExcluded.map(e => e.rowId)).size, unresolvedConflicts: conflictIds.size, importIds, completeness: conflictIds.size || missingMeasures.size ? 'partial' : !rows.length ? 'empty' : allReconciled ? 'reconciled-imports' : 'unreconciled-facts', gaps },
       assumptions, explanation: figures.map(f => `${f.label}: ${f.display}.`).join(' ') + (gaps.length ? ` Coverage: ${gaps.join(' ')}` : ''), stale: false, allowedNumbers: [],
     };
-    for (const row of receipt.rows) { const fact = counted.get(row.factId)!; if (fact.fields._fx && (!row.measureField || row.measureField === 'amountMinor')) row.normalization = { sourceCurrency: String(fact.fields._sourceCurrency), targetCurrency: dictionary.currency, rate: structuredClone(fact.fields._fx) }; }
+    for (const row of receipt.rows) { const fact = counted.get(row.factId)!; if (fact.fields._fx && (!row.measureField || row.measureField === 'amountMinor')) row.normalization = { sourceCurrency: String(fact.fields._sourceCurrency), targetCurrency: currency, rate: structuredClone(fact.fields._fx) }; }
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; row.validFrom = fact.validFrom; for (const field of ['dueDate', 'invoiceId', 'customerId', 'orderId', 'status'] as const) if (typeof fact.fields[field] === 'string') row[field] = fact.fields[field]; }
     receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);

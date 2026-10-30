@@ -10,6 +10,7 @@
 
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
 import { FAKE_CA_RULES } from './fake-ca-rules';
 import type { SignoffCheckView } from './types';
 import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
@@ -26,7 +27,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
-export interface ExtrasHost {
+export interface ExtrasHost extends CountryMoneyHost {
   draftText?(id:string):string|null;
   digest(value: unknown): string;
   current(): string;
@@ -123,9 +124,11 @@ export class FakeExtrasDesk {
   private edits: Record<string, SiteEditLite[]> = {};
   private shares: HeldShare[] = [];
   private seq = 0;
+  private countryMoney: FakeCountryMoney;
 
   constructor(host: ExtrasHost, options: { fresh?: boolean } = {}) {
     this.host = host;
+    this.countryMoney = new FakeCountryMoney(host);
     this.policies = options.fresh ? {} : clone(SPEND_POLICIES);
     // 4Z3: the sample's own rupee rate, as its policies say it (set 15 Oct 2026), so every spend view agrees with them.
     if (!options.fresh) for (const [biz, policy] of Object.entries(this.policies)) if (policy.inrPerUsd) this.rupees[biz] = { perUsd: rupeeRate(policy.inrPerUsd), setOn: '2026-10-15' };
@@ -144,7 +147,7 @@ export class FakeExtrasDesk {
     const biz = this.host.current();
     switch (method) {
       case 'venture.money.overview': return this.overview(biz);
-      case 'venture.tax.working': return this.taxWorking(biz);
+      case 'venture.tax.working': return this.taxWorking(biz, p.period);
       case 'venture.spend.policy.get': return this.withLead(biz, this.withMeter(biz, clone(this.policyOf(biz))));
       case 'venture.spend.policy.set': return this.withLead(biz, this.withMeter(biz, this.setPolicy(biz, p)));
       case 'venture.ca.confirmCitations': return this.confirmCitations(biz,p);
@@ -203,6 +206,7 @@ export class FakeExtrasDesk {
         lead: spendLead(month.micros, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto'), line.estimate ? ', includes estimates' : ''),
       };
     });
+    if (this.countryMoney.dynamic(!!OVERVIEW[biz])) return this.countryMoney.overview(lines.find(line => line.id === 'spent'));
     return { lines: [{ id: 'owed', label: 'Clients owe you', value: owed.value, ...(owed.receiptId ? { receiptId: owed.receiptId } : {}) }, ...lines] };
   }
 
@@ -220,8 +224,11 @@ export class FakeExtrasDesk {
     };
   }
 
-  private taxWorking(biz: string) {
+  receipt(id: string) { return this.countryMoney.receipt(id); }
+
+  private taxWorking(biz: string, period?: unknown) {
     const working = TAX_WORKINGS[biz];
+    if (this.host.ledger && this.host.ask && (this.countryMoney.dynamic(!!working) || !working || (period !== undefined && !this.countryMoney.matchesPeriod(period, working.period)))) return this.countryMoney.tax(period, this.host.playbook(biz)?.id === 'ca-firm');
     if (!working) throw new EngineError('BLUEPRINT_NOT_FOUND', 'Make your plan first. The tax working follows its tax settings.');
     return clone(working);
   }

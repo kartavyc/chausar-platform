@@ -562,5 +562,7 @@
   "business.routines.nextRun": "Next run {day}, {time}",
   "business.routines.offLine": "Off. Nothing runs.",
   "business.routines.noMore": "No more times to run.",
-  "business.routines.delivered": "{word}, {day}"
+  "business.routines.delivered": "{word}, {day}",
+  "business.country": "Business country",
+  "business.countryChange": "Changing country clears prices and tax settings. Set new prices before taking orders. Earlier orders and invoices keep their original currency."
 }

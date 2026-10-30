@@ -26,6 +26,7 @@ export const CODEX_CLI_FLAGS = Object.freeze([
 export const CODEX_CLI_CONFIG = Object.freeze([
   'approval_policy="never"', 'forced_login_method="chatgpt"', 'model_provider="openai"',
   'web_search="disabled"', 'project_doc_max_bytes=0', 'history.persistence="none"',
+  ...(process.platform === 'win32' ? ['windows.sandbox=unelevated'] : []),
   'features.view_image=false', 'features.image_generation=false', 'features.sleep_tool=false',
   'features.tool_suggest=false', 'features.request_permissions_tool=false',
   'features.shell_tool=false', 'features.apps=false', 'features.multi_agent=false',

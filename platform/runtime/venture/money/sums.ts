@@ -19,6 +19,7 @@ import { cashPlan } from './cash.ts';
 import { marginPlan } from './margins.ts';
 import { billsPlan } from './bills.ts';
 import { statementPlan } from './statement.ts';
+import { taxTotalPlan } from './tax-total.ts';
 import { acrossPlan } from './across-plan.ts';
 import { setPlan } from './set-plan.ts';
 import { paymentState } from './ledger.ts';
@@ -44,7 +45,7 @@ const OPEN: readonly InvoiceRecord['status'][] = ['issued', 'part-paid'];
 const NAMED = 12;
 
 const LABELS: Readonly<Record<SumReceiptSubject['type'], string>> = Object.freeze({
-  owed: 'Owed on open invoices', received: 'Received', spent: 'AI and tools',
+  owed: 'Owed on open invoices', received: 'Received', spent: 'AI and tools', 'tax-total': 'Tax on issued invoices',
   'spent-department': 'AI and tools by department', invoiced: 'Invoiced', goal: 'Toward the goal', aging: 'Owed by age',
   flow: 'In and out', cash: 'Cash ahead', margin: 'Margin', count: 'Counted', held: 'Held for running work',
   bills: 'Owed on bills', statement: 'Statement', across: 'Across your businesses', set: 'What this set can cost',
@@ -102,6 +103,7 @@ export function spentPlan(state: State, venture: VentureRecord, month: string): 
 
 /** The plan for a stored receipt's subject as of now, so a receipt can say whether it is still the current sum. */
 export function currentPlan(state: State, venture: VentureRecord, subject: SumReceiptSubject): SumPlan {
+  if (subject.type === 'tax-total') return taxTotalPlan(state, venture, subject);
   if (subject.type === 'owed') return owedPlan(state, venture, subject.clientId);
   if (subject.type === 'received') return receivedPlan(state, venture, subject.from, subject.to);
   if (subject.type === 'spent') return spentPlan(state, venture, subject.month);

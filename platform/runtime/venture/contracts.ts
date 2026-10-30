@@ -87,29 +87,8 @@ export type Labelled<T> = { value: T; label: LineLabel; by: LineAuthor; estimate
 // 2. Countries (data owned by P1, copied into the venture record at create)
 // ---------------------------------------------------------------------------
 
-export type CountryCode = string; // ISO 3166-1 alpha-2, upper case; 'XX' is "another country"
-export type TaxMode = 'gst' | 'vat' | 'sales-tax' | 'none';
-export type DateOrder = 'day-month-year' | 'month-day-year' | 'year-month-day';
-export type CountryProfile = {
-  code: CountryCode;
-  name: string;
-  currency: string; // ISO 4217
-  minorDigits: number; // from currencyMinorDigits(currency)
-  region: 'india' | 'global';
-  tax: {
-    mode: TaxMode;
-    label: string; // 'GST', 'VAT', 'Sales tax', 'Consumption tax', 'Tax'
-    standardRateBps: BpsString; // prefill for the owner's rate; '0' when it varies by place or is unknown
-    registrationNote: string; // plain sentence, never advice
-    idLabel: string; // 'GSTIN', 'VAT number', 'ABN' ...; '' when invoiceKind is 'invoice'
-    idPattern: string | null; // RegExp source for the registration number; null for IN (GSTIN checksum) and when idLabel is ''
-    invoiceKind: 'tax-invoice' | 'invoice'; // 'tax-invoice' for gst and vat countries
-    checkedOn: IsoDate;
-  };
-  paymentRails: string[]; // connector ids, first is the default
-  dateOrder: DateOrder;
-  complianceNotes: string[];
-};
+import type { CountryCode, TaxMode, DateOrder, CountryProfile } from './core/country-types.ts';
+export type { CountryCode, TaxMode, DateOrder, CountryProfile } from './core/country-types.ts';
 
 /** India GST state codes (first two digits of a GSTIN) and their names. Used for place of supply. */
 export const INDIA_STATES: Readonly<Record<string, string>> = Object.freeze({
@@ -282,6 +261,8 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   ideaDigest: string;
   workingName: string;
   country: CountryProfile;
+  /** Profile for immutable plans made before the first owner-approved country change. */
+  originalCountry?: CountryProfile;
   serviceType: ServiceType | null;
   status: VentureStatus;
   launchStage: LaunchStage;
@@ -457,6 +438,8 @@ export type BackOffice = {
   invoicePrefix: string; // 'INV'
 };
 export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
+  /** Frozen profile used by this plan's prices, tax rules and historical documents. */
+  country?: CountryProfile;
   version: number;
   status: 'draft' | 'accepted';
   source: 'model' | 'template';
@@ -487,6 +470,7 @@ export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
 
 /** Owner edits. Every field optional; at least one required. Creates a new draft version. */
 export type BlueprintPatch = {
+  countryCode?: CountryCode;
   name?: string;
   oneLiner?: string;
   customer?: string;
@@ -615,7 +599,7 @@ export type ModelPreset = {
   label: string;
   kind: ModelRouteKind;
   model: string | null; // provider model id; null for templates
-  modelEditable: boolean; // true only for GPT-6 Luna: the owner types the model id
+  modelEditable: boolean; // OpenAI key and Codex options let the owner type an available model id
   tiers: ModelTier[]; // which jobs it is suggested for
   needsKey: boolean;
   keyHint: string | null; // where to create a key, plain words
@@ -1083,6 +1067,8 @@ export type InvoiceTimelineEntry = {
   line: Display;
 };
 export type InvoiceView = {
+  /** Profile saved with this invoice's price, even if the owner later moves. */
+  country?: CountryProfile;
   invoice: InvoiceRecord;
   client: ClientRecord;
   receipt: PriceReceiptRecord;
@@ -3077,6 +3063,7 @@ export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: stri
  * it beside price receipts. unit 'micros' is micro-USD (spend); 'minor' is the venture currency's minor unit.
  */
 export type SumReceiptSubject =
+  | { type: 'tax-total'; from: IsoDate; to: IsoDate; currency: string; taxLabel: string }
   | { type: 'owed'; clientId: string | null }
   | { type: 'received'; from: IsoDate; to: IsoDate }
   | { type: 'spent'; month: string }
@@ -5367,6 +5354,7 @@ export const VENTURE_METHODS = [
   // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -5381,6 +5369,7 @@ export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['ventu
 export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
 ] as const);
 
 /**
@@ -5481,6 +5470,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
+  'venture.country.suggest': 'core',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -5488,6 +5478,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
   'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
   'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
+  'venture.country.suggest',
   'venture.queue.decide', 'venture.team.gate',
   'venture.evidence.apply',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.apply', 'venture.site.revert', 'venture.leads.recordSend',
@@ -5638,7 +5629,7 @@ export type VenturePayloads = {
   'venture.order.create': {
     clientId?: string; offerId: string; quantity?: string; request: string;
     intakeFiles?: Record<string, { name: string; contentBase64: string }>;
-    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyRupees?: Record<string, string> };
+    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyAmounts?: Record<string, string> };
     /** 4J5 (M15): the price includes the tax. */
     taxInclusive?: boolean;
   };
@@ -5995,6 +5986,7 @@ export type VenturePayloads = {
   'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
   'venture.ai.status': OnboardingPayloads['venture.ai.status'];
   'venture.ai.calls': OnboardingPayloads['venture.ai.calls'];
+  'venture.country.suggest': OnboardingPayloads['venture.country.suggest'];
   'venture.compose.decide': OnboardingPayloads['venture.compose.decide'];
   'venture.compose.fill': OnboardingPayloads['venture.compose.fill'];
   'venture.compose.get': OnboardingPayloads['venture.compose.get'];
@@ -6322,6 +6314,7 @@ export type VentureResults = {
   'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
   'venture.ai.status': OnboardingResults['venture.ai.status'];
   'venture.ai.calls': OnboardingResults['venture.ai.calls'];
+  'venture.country.suggest': OnboardingResults['venture.country.suggest'];
   'venture.compose.decide': OnboardingResults['venture.compose.decide'];
   'venture.compose.fill': OnboardingResults['venture.compose.fill'];
   'venture.compose.get': OnboardingResults['venture.compose.get'];

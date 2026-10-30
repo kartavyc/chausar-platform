@@ -28,6 +28,8 @@ import type { OwnerOfferRecord } from '../contracts.ts';
 import { addOwnerOffer, liveOwnerOffers, ownerOfferInput, removeOwnerOffer, syncOwnerOffers } from './owner-offers.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import { applyShareChange } from '../money/share-price.ts';
+import { countryProfile } from './countries.ts';
+import { blueprintCountry } from './country-history.ts';
 
 // ---------------------------------------------------------------------------
 // Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
@@ -573,6 +575,7 @@ function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords
   const blocks = structure.blocks;
   const record: BlueprintRecord = {
     ...tx.base('venture-blueprint'),
+    ...(tx.venture ? { country: structuredClone(previous ? blueprintCountry(tx.venture, previous) : tx.venture.country) } : {}),
     version,
     status: 'draft',
     source,
@@ -619,6 +622,7 @@ export function assembleComposedBlueprint(tx: VentureTx, structure: BlueprintStr
   const flagship = structureFlagship(structure, { idea: composition.text });
   const record: BlueprintRecord = {
     ...tx.base('venture-blueprint'),
+    ...(tx.venture ? { country: structuredClone(tx.venture.country) } : {}),
     version: 1,
     status: 'draft',
     source: 'model',
@@ -685,7 +689,7 @@ function ensureTerms(tx: VentureTx, blueprint: BlueprintRecord): void {
 // Owner edits
 // ---------------------------------------------------------------------------
 
-const PATCH_KEYS = ['name', 'oneLiner', 'customer', 'taxRegistered', 'taxRate', 'taxId', 'taxState', 'sacCode', 'lutConfirmed', 'offers', 'addOffer', 'removeOffer'] as const;
+const PATCH_KEYS = ['countryCode', 'name', 'oneLiner', 'customer', 'taxRegistered', 'taxRate', 'taxId', 'taxState', 'sacCode', 'lutConfirmed', 'offers', 'addOffer', 'removeOffer'] as const;
 const DIGEST_TEXT = /^[a-f0-9]{64}$/;
 const STALE_SUGGESTION = 'Your plan changed since this was suggested. Ask again, then apply it.';
 
@@ -839,7 +843,9 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
   const useTemplate = optionalFlag(body, 'useTemplate');
   authorize(deps.store, ctx, 'prepare');
   const state = deps.store.read();
-  const venture = requireVenture(state);
+  const savedVenture = requireVenture(state);
+  const latestPlan = latestBlueprint(state, savedVenture.id);
+  const venture = { ...savedVenture, country: latestPlan ? blueprintCountry(savedVenture, latestPlan) : savedVenture.country };
   const composition = compositionOf(state, venture.id);
   // A composed plan has no built-in words that fit it: refuse before any work.
   check(!(composition && useTemplate), 'INVALID_VENTURE_REQUEST', COMPOSED_TEMPLATE_REFUSED);
@@ -848,7 +854,7 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
   // 4J8: the offers the owner added stay on every rewrite, with their words and prices.
   const owned = liveOwnerOffers(state, venture.id);
   const fromInterview = digest(structureOf(venture, interview, composition, owned));
-  const planned = carryOver(structureOf(venture, interview, composition, owned), latestBlueprint(state, venture.id), venture.acceptedBlueprintId !== null, venture.country);
+  const planned = carryOver(structureOf(venture, interview, composition, owned), latestPlan, venture.acceptedBlueprintId !== null || venture.country.code !== savedVenture.country.code, venture.country);
   const plannedHash = digest(planned);
 
   // With no AI serving the main tier the port takes the template route; for a composed plan that is a clear refusal,
@@ -871,15 +877,16 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
   }
 
   return ventureAction(deps, ctx, 'prepare', 'blueprint.draft', tx => {
-    const current = tx.venture as VentureRecord;
+    const savedCurrent = tx.venture as VentureRecord;
+    const previous = latestBlueprint(tx.state, savedCurrent.id);
+    const current = { ...savedCurrent, country: previous ? blueprintCountry(savedCurrent, previous) : savedCurrent.country };
     const currentInterview = interviewOf(tx.state, current.id);
     check(interviewDone(currentInterview), 'INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
     const ownedNow = liveOwnerOffers(tx.state, current.id);
     const structureNow = structureOf(current, currentInterview, compositionOf(tx.state, current.id), ownedNow);
     const stale = 'Your plan changed while its words were being written. Write it again.';
     check(digest(structureNow) === fromInterview, 'APPROVAL_STALE', stale);
-    const previous = latestBlueprint(tx.state, current.id);
-    const structure = carryOver(structureNow, previous, current.acceptedBlueprintId !== null, current.country);
+    const structure = carryOver(structureNow, previous, current.acceptedBlueprintId !== null || current.country.code !== savedCurrent.country.code, current.country);
     check(digest(structure) === plannedHash, 'APPROVAL_STALE', stale);
     const words = labelWords(output, by, current, currentInterview, structure, ownedNow);
     const record = assemble(tx, structure, words, by, callIds, nextBlueprintVersion(tx.state, current.id), previous);
@@ -908,16 +915,24 @@ export async function blueprintGet(deps: VentureDeps, ctx: Context, payload: unk
 export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
   const body = exactPayload(payload, ['patch', 'basedOn'], ['patch']);
   const patch = exactPayload(body.patch, PATCH_KEYS);
+  const chosenCountry = has(patch, 'countryCode') ? countryProfile(patch.countryCode) : null;
+  if (chosenCountry) requireAppChannel(ctx, 'venture.blueprint.update');
   check(Object.keys(patch).length > 0, 'INVALID_VENTURE_REQUEST', 'Send at least one change.');
   const basedOn = Object.hasOwn(body, 'basedOn') ? basedOnOf(body.basedOn) : null;
   const adding = has(patch, 'addOffer') ? ownerOfferInput(patch.addOffer) : null;
   return ventureAction(deps, ctx, 'prepare', 'blueprint.update', tx => {
     const venture = tx.venture as VentureRecord;
-    const country = venture.country;
     const latest = latestBlueprint(tx.state, venture.id);
     check(latest, 'BLUEPRINT_NOT_FOUND', 'Write your plan first.');
+    const beforeCountry = blueprintCountry(venture, latest);
+    const country = chosenCountry ?? beforeCountry;
     if (basedOn) check(latest.id === basedOn.blueprintId && latest.digest === basedOn.digest && latest.ventureId === venture.id, 'APPROVAL_STALE', STALE_SUGGESTION);
-    const next: BlueprintRecord = { ...structuredClone(latest), ...tx.base('venture-blueprint'), version: nextBlueprintVersion(tx.state, venture.id), status: 'draft' };
+    const next: BlueprintRecord = { ...structuredClone(latest), ...tx.base('venture-blueprint'), country: structuredClone(country), version: nextBlueprintVersion(tx.state, venture.id), status: 'draft' };
+    if (country.code !== beforeCountry.code) {
+      next.backOffice = { ...previewBackOffice(country), invoicePrefix: latest.backOffice.invoicePrefix };
+      next.offers = next.offers.map(offer => ({ ...offer, pricing: offerPricing(offer.pricing.model, null) }));
+      next.starterConnectorIds = [...new Set(latest.starterConnectorIds.map(id => beforeCountry.paymentRails.includes(id) ? country.paymentRails[0] : id))];
+    }
     const mirror: InterviewMirror = {};
     if (has(patch, 'name')) next.name = toldByYou(singleLine(patch.name, 'The business name', { min: 2, max: 60 }));
     if (has(patch, 'oneLiner')) next.oneLiner = toldByYou(singleLine(patch.oneLiner, 'The one line summary', { min: 2, max: 160 }));
@@ -948,7 +963,10 @@ export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: 
     check(latest, 'BLUEPRINT_NOT_FOUND', 'Write your plan first.');
     check(latest.status === 'draft' && latest.digest === body.digest && blueprintDigest(latest) === latest.digest, 'APPROVAL_STALE', 'Your plan changed since you read it. Read it again, then accept.');
     const accepted = tx.replace<BlueprintRecord>({ ...latest, status: 'accepted' });
-    tx.touch({ acceptedBlueprintId: accepted.id, status: statusAtLeast(venture.status, 'build') });
+    const country = blueprintCountry(venture, accepted);
+    tx.touch({ acceptedBlueprintId: accepted.id, status: statusAtLeast(venture.status, 'build'),
+      ...(country.code !== venture.country.code ? { country: structuredClone(country), originalCountry: structuredClone(venture.originalCountry ?? venture.country) } : {}),
+    });
     ensureTerms(tx, accepted);
     activateTerm(tx, 'offer', { recordId: accepted.id, kind: 'venture-blueprint' });
     // 4J1 (O17): who accepted the plan and when, wherever they did (journal/decisions.ts).

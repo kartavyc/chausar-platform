@@ -114,7 +114,7 @@ test('live clean and adversarial ledger drafts stay subject to source validation
   await env.call('venture.judge.auto.set', { auto: false });
   const offer = env.offers.find(row => row.playbookOffer === 'money-checkup')!;
   for (const practice of BOOKKEEPING_CFO_DEFINITION.practice.filter(row => row.kind !== 'pushy')) for (const format of ['csv', 'padded-csv', 'xlsx']) {
-    const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Review the client spending ledger.', intake: { fields: { 'data-consent': true, period: 'October' }, moneyRupees: { 'large-payment-threshold': '1000' } } });
+    const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Review the client spending ledger.', intake: { fields: { 'data-consent': true, period: 'October' }, moneyAmounts: { 'large-payment-threshold': '1000' } } });
     for (const file of practice.files) {
       const cells = file.text.split('\n').map(line => line.split(','));
       const bytes = format === 'xlsx' ? writeXlsx({ sheets: [{ name: 'Ledger', rows: cells }] }) : Buffer.from(format === 'padded-csv' ? cells.map(row => row.map(cell => ` ${cell} `).join(',')).join('\n') : file.text);

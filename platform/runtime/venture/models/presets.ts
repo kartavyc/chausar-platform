@@ -69,7 +69,7 @@ export const PRESETS: readonly PresetSpec[] = Object.freeze([
     consentText: cliConsentText('Claude Code'), verification: 'not-live-verified',
   }),
   spec({
-    id: 'codex-cli', label: 'Codex on this computer', kind: 'codex-cli', model: 'gpt-6-luna', modelEditable: false,
+    id: 'codex-cli', label: 'Codex on this computer', kind: 'codex-cli', model: 'gpt-6-luna', modelEditable: true,
     tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'this-computer', priceTable: null,
     consentText: cliConsentText('Codex'), verification: 'not-live-verified',
   }),

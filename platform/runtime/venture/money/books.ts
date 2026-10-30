@@ -34,11 +34,12 @@ function errorCode(error: unknown): string {
  */
 export async function booksReceiptFor(
   deps: VentureDeps, ctx: Context, operation: 'billed' | 'received', date: IsoDate, orderId: string,
-  expectedMinor: MinorString, coversMore: string,
+  expectedMinor: MinorString, coversMore: string, currency: string,
 ): Promise<{ receiptId: string | null; note: string | null }> {
   try {
-    const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from: date, to: date }, orderId });
+    const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from: date, to: date }, orderId, currency });
     const total = receipt?.totalMinor;
+    if (receipt?.currency !== currency) return { receiptId: null, note: 'The books receipt does not match this currency.' };
     if (typeof receipt?.id === 'string' && typeof total === 'string' && total === expectedMinor) return { receiptId: receipt.id, note: null };
     if (typeof total === 'string' && /^-?\d+$/.test(total) && BigInt(total) > BigInt(expectedMinor)) return { receiptId: null, note: coversMore };
     return { receiptId: null, note: 'The books receipt does not match this amount.' };
@@ -57,13 +58,15 @@ function entryDates(state: State, ventureId: string): IsoDate[] {
 }
 
 /** billed, received and earned from one day to another, each with its calculator receipt. */
-async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRecord, from: IsoDate, to: IsoDate): Promise<BooksFigure[]> {
+async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRecord, from: IsoDate, to: IsoDate, notes: Set<string>): Promise<BooksFigure[]> {
   const figures: BooksFigure[] = [];
   for (const { operation, label } of BOOKS_OPERATIONS) {
-    const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from, to } });
+    const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from, to }, currency: venture.country.currency });
     check(typeof receipt?.id === 'string' && typeof receipt.totalMinor === 'string' && /^-?\d+$/.test(receipt.totalMinor),
       'INVALID_VENTURE_REQUEST', 'The books gave an answer Chausar could not read.');
-    const currency = typeof receipt.currency === 'string' ? receipt.currency : venture.country.currency;
+    check(receipt.currency === venture.country.currency, 'CURRENCY_CONFLICT', 'The books receipt must use this business currency.');
+    const currency = receipt.currency;
+    if (receipt.exclusions?.some((row: { reason: string }) => row.reason.includes('currency scope'))) notes.add(`Totals are in ${currency}. Other currencies are excluded; no conversion was made.`);
     figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMinor(receipt.totalMinor, currency), stale: receipt.stale === true });
   }
   return figures;
@@ -95,10 +98,11 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
   const to = body.to === undefined ? chosen.to : isoDate(body.to, 'To');
   check(from <= to, 'INVALID_VENTURE_REQUEST', 'The start date must be on or before the end date.');
 
-  const figures = await booksFigures(deps, ctx, venture, from, to);
+  const currencyNotes = new Set<string>();
+  const figures = await booksFigures(deps, ctx, venture, from, to, currencyNotes);
   const whole = from.slice(0, 7) === to.slice(0, 7) && calendarMonth(from.slice(0, 7)).from === from && calendarMonth(from.slice(0, 7)).to === to;
   const before = whole ? calendarMonth(previousMonth(from.slice(0, 7))) : null;
-  const previous = before ? { month: before.month, label: before.display, period: { from: before.from, to: before.to }, figures: await booksFigures(deps, ctx, venture, before.from, before.to) } : null;
+  const previous = before ? { month: before.month, label: before.display, period: { from: before.from, to: before.to }, figures: await booksFigures(deps, ctx, venture, before.from, before.to, currencyNotes) } : null;
 
   const clients = listRecords(state, 'venture-client', venture.id);
   const openInvoices = newestFirst(listRecords(state, 'venture-invoice', venture.id))
@@ -114,7 +118,7 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
       dueDate: invoice.dueDate as IsoDate,
     }));
 
-  const notes = [BOOKS_TAX_NOTE, BOOKS_AGING_NOTE];
+  const notes = [BOOKS_TAX_NOTE, BOOKS_AGING_NOTE, ...currencyNotes];
   if (experimentalStorage(deps)) notes.push(EXPERIMENTAL_NOTE);
   return {
     period: { from, to }, periodKey: custom || month !== null ? 'custom' : periodKey, periods, today, timeZone: ventureTimeZone(venture.country),

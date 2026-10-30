@@ -72,7 +72,7 @@ it('rejects unsupported source content and invalid channel routing with engine c
 });
 it('keeps ghostwriting price in paise and refuses a selling cap outside the range before a run', () => {
  const { create, start, runs } = desk('linkedin-ghostwriting');
- const order = create({ fields: { postCount: '8', sellingCap: '101' }, moneyRupees: { extraRoundPrice: '125.50' }, clientRules: {} });
+ const order = create({ fields: { postCount: '8', sellingCap: '101' }, moneyAmounts: { extraRoundPrice: '125.50' }, clientRules: {} });
  expect(order.intake?.fields?.extraRoundPrice).toBe('12550');
  expect(() => start(order)).toThrowError(expect.objectContaining({ code: 'SOCIAL_INPUT_INVALID' }));
  expect(runs).toHaveLength(0);

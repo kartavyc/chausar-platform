@@ -8,10 +8,11 @@ import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import type { BankAlertsView, BankImportResult, JournalRecord, QueueList, VentureDeps } from '../runtime/venture/contracts.ts';
 import type { PinnedAnswer, PinnedTarget } from '../runtime/venture/core/net-guard.ts';
-import { listRecords } from '../runtime/venture/records.ts';
+import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as buildHandlers } from '../runtime/venture/build/index.ts';
 import { handlers as viewHandlers } from '../runtime/venture/views/index.ts';
 import { code, owner, phone, setup, type Env } from './venture-views-env.ts';
+import { countryProfile } from '../runtime/venture/core/countries.ts';
 
 type Handler = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>;
 const TABLES = [buildHandlers, viewHandlers] as Record<string, Handler | undefined>[];
@@ -39,6 +40,15 @@ function wire(env: Env, answer: (target: PinnedTarget) => PinnedAnswer | Promise
 }
 const alertEntries = (env: Env) => listRecords(env.store.read(), 'venture-journal-entry').filter((entry: JournalRecord) => entry.action === 'bank.alert');
 const bankRows = async (env: Env, ctx: Context = owner) => (await run<QueueList>(env, 'venture.queue.list', {}, ctx)).rows.filter(row => row.kind === 'bank');
+
+test('w6 bank alert thresholds keep the account currency after the business moves', async () => {
+  const env = await setup();
+  await run(env, 'venture.bank.alerts.set', { account: ACCOUNT, rules: [] });
+  await ventureAction(env.deps, owner, 'admin', 'test.move', tx => tx.touch({ originalCountry: tx.venture!.country, country: countryProfile('JP') }));
+  const view = await run<BankAlertsView>(env, 'venture.bank.alerts.set', { account: ACCOUNT, rules: [{ kind: 'balance-below', amount: '125.50' }] });
+  assert.deepEqual(view.accounts[0].rules[0], { kind: 'balance-below', minor: '12550' });
+  assert.match(view.accounts[0].ruleLines[0], /INR 125\.50/);
+});
 
 test('venture.bank.alerts.set keeps the rules and the address the owner set; get shows the rules and never the address', async () => {
   const env = await setup();

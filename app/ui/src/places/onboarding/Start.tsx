@@ -11,7 +11,7 @@ import { goTo } from '../../shell/navigation';
 import { BusinessPick, Suggestion, type Target } from './BusinessPick';
 import { Examples } from './Examples';
 import { FileDrop, type DroppedFile } from './FileDrop';
-import { browserRegion, cleanSentence, countryWords, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
+import { computerCountry, cleanSentence, countryWords, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
 import s from './Onboarding.module.css';
 
 type Step = 'read' | 'vault' | 'plan' | 'suggest';
@@ -42,7 +42,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   fill?: { text: string; n: number } | undefined;
   /** W4 4J21: the business open now, so the sentence can be added to it instead (the business picker). */
   business?: string | undefined;
-  /** 4Z2: the open business's country code: a new business starts there, ahead of the browser's region. */
+  /** The open business's confirmed country: a new business starts there until the owner chooses another. */
   home?: string | undefined;
 }) {
   const t = useT();
@@ -60,6 +60,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   const [countries, setCountries] = useState<CountryLite[] | null>(null);
   const [countriesFailed, setCountriesFailed] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState<string | null>(null);
+  const [countryCheck, setCountryCheck] = useState<{ idea: string; country: CountryLite; evidence: string | null } | null>(null);
   const [choosing, setChoosing] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -80,7 +81,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     client.request('venture.countries', {}).then(
       (list) => {
         setCountries(list);
-        setCountryCode((code) => code ?? pickCountry(list.map((c) => c.code), browserRegion(typeof navigator === 'undefined' ? undefined : navigator.language)));
+        setCountryCode((code) => code ?? pickCountry(list.map((c) => c.code), computerCountry()));
       },
       (error: unknown) => setCountriesFailed(messageOf(error)),
     );
@@ -98,7 +99,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   }, []);
 
   const busy = stage.kind === 'working';
-  const begun = stage.kind !== 'idle' || asking !== null || kept !== null;
+  const begun = stage.kind !== 'idle' || asking !== null || kept !== null || countryCheck !== null;
   const told = useRef(onBegin);
   told.current = onBegin;
   useEffect(() => { told.current?.(begun); }, [begun]);
@@ -157,6 +158,20 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     }
   }
 
+  async function begin(idea: string, code: string) {
+    setCountryCheck(null);
+    setStage({ kind: 'working', step: 'read' });
+    const preview = await client.request('venture.preview', { idea, countryCode: code });
+    await keep({ idea, countryCode: code, name: preview.serviceLabel.trim() || DEFAULT_NAME });
+  }
+
+  function confirmCountry(code: string) {
+    if (!countryCheck || busy) return;
+    picked.current = true;
+    setCountryCode(code);
+    void act(() => begin(countryCheck.idea, code));
+  }
+
   function submit(event?: FormEvent) {
     event?.preventDefault();
     if (busy || stage.kind === 'code') return;
@@ -173,11 +188,19 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     const wrong = sentenceProblem(idea);
     if (wrong) { setProblem({ text: t(wrong), on: 'box' }); box.current?.focus(); return; }
     if (adding) { suggest(idea); return; }
+    if (countryCheck) return;
     const country = countryCode ?? 'XX';
     void act(async () => {
       setStage({ kind: 'working', step: 'read' });
-      const preview = await client.request('venture.preview', { idea, countryCode: country });
-      await keep({ idea, countryCode: country, name: preview.serviceLabel.trim() || DEFAULT_NAME });
+      if (!picked.current && client.transport !== 'hosted') {
+        const answer = await client.request('venture.country.suggest', { text: idea });
+        if (answer.country && answer.country.code !== country) {
+          setCountryCheck({ idea, country: answer.country, evidence: answer.evidence });
+          setStage({ kind: 'idle' });
+          return;
+        }
+      }
+      await begin(idea, country);
     });
   }
 
@@ -194,6 +217,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   /** The sentence changed, typed or from an example: a passphrase asked for the old one is dropped. */
   function changeText(value: string) {
     setText(value);
+    setCountryCheck(null);
     setSuggestion(null);
     if (asking) { setAsking(null); clearPassphrase(); }
     if (problem?.on !== 'engine') setProblem(null);
@@ -237,13 +261,13 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
       ) : choosing && countries ? (
         <>
           <label htmlFor={countryId}>{t('onboarding.country')}</label>
-          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCode(event.target.value); }}>
+          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCheck(null); setCountryCode(event.target.value); }}>
             {countries.map((c) => <option key={c.code} value={c.code}>{countryWords(c, language, t)}</option>)}
           </select>
         </>
       ) : country ? (
         <>
-          <span>{t('onboarding.basedIn', { country: countryWords(country, language, t) })}</span>
+          <span>{t('onboarding.basedIn', { country: countryWords(country, language, t), currency: country.currency })}</span>
           {kept === null && (
             <>
               <span aria-hidden="true"> · </span>
@@ -289,7 +313,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
         {(editable || inBar) && (
           <div className={s.boxBar}>
             {editable && <Hint />}
-            {inBar && submitButton}
+          {inBar && !countryCheck && submitButton}
           </div>
         )}
       </div>
@@ -314,6 +338,15 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
           </div>
         </div>
       )}
+
+      {countryCheck && <div className={s.step}>
+        <p className={s.sentence}>{t('onboarding.countrySuggestion', { country: countryCheck.country.name, currency: countryCheck.country.currency })}</p>
+        {countryCheck.evidence && <blockquote className={s.countryEvidence} data-content="" aria-label={t('onboarding.countryEvidence')}>{countryCheck.evidence}</blockquote>}
+        <div className={s.actions}>
+          <Button type="button" variant="primary" onClick={() => confirmCountry(countryCheck.country.code)}>{t('onboarding.countryUse', { country: countryCheck.country.name })}</Button>
+          <Button type="button" variant="quiet" onClick={() => confirmCountry(countryCode ?? 'XX')}>{t('onboarding.countryKeep', { country: country?.name ?? 'Another country' })}</Button>
+        </div>
+      </div>}
 
       {stage.kind === 'code' ? (
         <div className={s.step}>
