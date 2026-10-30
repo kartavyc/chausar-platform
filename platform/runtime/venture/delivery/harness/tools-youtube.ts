@@ -16,8 +16,11 @@ import type { Cue } from '../../playbooks/youtube/transcript.ts';
 import { transcriptCues, type FileLike } from './files.ts';
 import type { WorkedForWriter } from './loop.ts';
 import { computedTable, fail, fileOf, text, type Spec, type ToolEnv } from './tools.ts';
+import { YOUTUBE_B2_TOOLS } from './tools-youtube-board.ts';
+import { YOUTUBE_EDIT_TOOLS } from './tools-youtube-edit.ts';
+import {YOUTUBE_RESEARCH_TOOLS,YOUTUBE_PUBLIC_TOOL} from './tools-youtube-research.ts';
 
-type YoutubeToolName = Extract<ToolName, 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
+type YoutubeToolName = Extract<ToolName, 'youtube.editOps' | 'youtube.clean' | 'youtube.captions' | 'youtube.coverage' | 'youtube.dictionary' | 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
 
 /** How many hooks the scorer keeps for the package. */
 const KEEP_HOOKS = 2;
@@ -57,6 +60,7 @@ function runDay(env: ToolEnv): IsoDate {
 const hookRow = (score: HookScore) => ({ Hook: score.hook, Score: String(score.verdict), Band: score.band, Weakest: score.weakest, Fix: score.fix });
 
 export const YOUTUBE_TOOLS: Readonly<Record<YoutubeToolName, Spec>> = Object.freeze({
+  ...YOUTUBE_EDIT_TOOLS,
   'youtube.hooks': {
     name: 'youtube.hooks', effect: 'compute', tier: 'code', endsTurn: false,
     summary: 'Scores the opening hooks you wrote and keeps the best two in a table. Write two to eight, in words; the package uses the kept two word for word.',
@@ -185,7 +189,7 @@ function rowsOf(value: unknown, fields: Readonly<Record<string, string>>): Row[]
 }
 
 /**
- * What the write step uses as given: the hooks the scorer kept and the drafted chapters, and nothing else a tool made
+ * What the write step uses as given: the hooks the scorer kept and the drafted chapters, and the screened source analyses and their receipt references, excluding other media intermediates
  * (no edit list frames, retention drops or transcript text). Their words come from the results the run stored, which
  * passed the untrusted screen before the agent read them, so a result the screen held gives nothing and a cleaned one
  * stays cleaned. The time codes come from the run's own chapters table, which only code wrote, and are allowed only
@@ -200,7 +204,26 @@ export function youtubeWorked(calls: readonly ToolCallRecord[], tables: readonly
   const drafted = newestResult(calls, 'youtube.chapters');
   const chapterRows = rowsOf(drafted?.chapters, { At: 'at', Label: 'label', Length: 'length' });
   if (drafted && chapterRows) out.push({ table: String(drafted.table ?? ''), name: chapters.name, columns: [...chapters.columns], rows: chapterRows });
+  for(const name of ['youtube.afterPublish','youtube.outliers','youtube.niche','youtube.comments','youtube.archive','youtube.publicStats'] as const){
+    const call=[...calls].reverse().find(item=>item.tool===name);
+    if(!call||call.outcome!=='succeeded'||!call.envelope.ok)continue;
+    const result=call.envelope.result;
+    if(!result||typeof result!=='object'||Array.isArray(result)||!Object.hasOwn(result,'analysis')||!Object.hasOwn(result,'figures'))continue;
+    out.push({name:'YouTube source analysis',tool:name,...result});
+  }
   const codes = chapterTimesOf(tables);
   const heading = PACKAGE_SECTIONS.find(section => /chapters/i.test(section)) ?? null;
   return { tables: out, times: codes.length && heading ? { heading, codes } : null };
 }
+
+/**
+ * Ink v2 wave 5: package 5-0's stubs for the YouTube tools wave 5 builds, each answering NOT_BUILT_YET. A package moves its
+ * tool into the table above (and its name into that table's type) and deletes its stub line here
+ * (delivery/harness/tools-playbooks.ts spreads this table).
+ */
+type YoutubeW5ToolName = Extract<ToolName, 'youtube.style' | 'youtube.clips' | 'youtube.broll' | 'youtube.beats' | 'youtube.export' | 'youtube.afterPublish' | 'youtube.outliers' | 'youtube.niche' | 'youtube.comments' | 'youtube.publicStats' | 'youtube.archive'>;
+export const YOUTUBE_W5_TOOLS: Readonly<Record<YoutubeW5ToolName, Spec>> = Object.freeze({
+  ...YOUTUBE_B2_TOOLS,
+  ...YOUTUBE_RESEARCH_TOOLS,
+  'youtube.publicStats': YOUTUBE_PUBLIC_TOOL,
+});

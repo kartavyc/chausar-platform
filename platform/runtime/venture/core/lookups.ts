@@ -6,6 +6,7 @@ import type { CompositionRecord } from '../onboarding-contracts.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { offerIntakeAsk } from '../playbooks/intake.ts';
+import {youtubeServiceOffer} from '../playbooks/youtube/service-offer.ts';
 
 /**
  * The flagship playbook an idea picks, as the screens show it. An empty object when none fits, so a view spreads it
@@ -69,7 +70,7 @@ export function intakeField(idea: string, blueprint: Pick<BlueprintRecord, 'offe
   const plan = flagshipPlan(idea);
   const asks: Record<string, OfferIntakeAsk> = {};
   for (const offer of blueprint.offers) {
-    const own = flagshipOffer(plan, offer);
+    const own = youtubeServiceOffer(plan,offer)??flagshipOffer(plan, offer);
     const ask = plan && own ? offerIntakeAsk(plan.id, own, host) : null;
     if (ask) asks[offer.id] = ask;
   }

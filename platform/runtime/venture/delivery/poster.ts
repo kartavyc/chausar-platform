@@ -6,6 +6,7 @@
 // tool, run file list or order file count reads it as a file the client sent. One poster per order: a new still
 // replaces the old one. Nothing is installed; without ffmpeg there is no still, and the hosted server never reads a cut.
 // A playlist or a concat list named as the cut is refused before ffmpeg starts, and ffmpeg opens plain files only.
+import { playbookForRun } from './workflow.ts';
 import { mkdtemp, open, readFile, rm, stat, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
@@ -73,7 +74,7 @@ export function posterSrc(record: UploadRecord): string | null {
 
 /** Whether a run worked on the YouTube channel playbook, by the playbook it names: only those runs have a cut. */
 export function youtubeRun(state: State, venture: VentureRecord, run: DeliveryRunRecord): boolean {
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   return !!playbook && playbook.ventureId === venture.id && playbook.flagship === YOUTUBE_ID;
 }
 

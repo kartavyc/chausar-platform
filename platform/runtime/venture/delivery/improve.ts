@@ -22,7 +22,7 @@ import { dictionaryEntries } from './harness/dictionary.ts';
 import { applyPatch, describePatch, toolCeiling, type PlaybookBody } from './harness/patches.ts';
 import { computeLaunchStatus } from './launch.ts';
 import { currentPlaybook, ensurePlaybook, fits, validatePlaybook } from './playbook.ts';
-import { scenariosFor, signalScenario } from './scenarios.ts';
+import { businessScenarios, scenariosFor, signalScenario } from './scenarios.ts';
 import { acceptedBlueprint, newestFirst, optionalFlag, readAs, ventureReceipts } from './shared.ts';
 import { refuseNewWork } from './run-guards.ts';
 import { rehearse, spendSummary, type RehearsalOutcome } from './simulate.ts';
@@ -48,6 +48,7 @@ const ASK_RULE: Rule = { level: 'harness', op: 'guidance.add', stepId: 'clarify'
  * and a wrong fact at the dictionary; neither is ever fixed in a prompt, so those reasons get no patch.
  */
 export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
+  'mapping-faithful': { level: 'dictionary', why: 'Correct the current source, mapping or saved response evidence in the data-entry desk. Never rewrite an uncertain result as success or try to repair it with a prompt.' },
   'missing-fact': ASK_RULE, 'questions-raised': ASK_RULE,
   'missing-section': SECTIONS_RULE, 'required-sections': SECTIONS_RULE, format: SECTIONS_RULE,
   'off-brief': { level: 'harness', op: 'guidance.add', stepId: 'gather', value: 'Restate what the client asked for in one sentence before you plan the work.' },
@@ -79,6 +80,12 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'ca-only-to-ca': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Hand audits, notices and anything not modelled to the CA, and never promise a reply.' },
   'no-filing-claims': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Never say a return was filed, signed or verified; the CA or the client does that on the portal.' },
   // The social agency's judge rules (playbooks/social/judge.ts): its posts are written on the drafts step.
+  'fair-price-receipted': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Use the current creator price receipt within the owner cap and label forecasts model estimate until actual results exist.' },
+  'ad-disclosed': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Disclose every ad upfront and label any synthetic presenter Made with AI.' },
+  'reply-in-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Answer the specific comment in the client approved voice.' },
+  'no-customer-pretence': { level: 'harness', op: 'guidance.add', stepId: 'creative-briefs', value: 'Never let a synthetic presenter claim to be a customer or claim personal product experience.' },
+  'source-faithful': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'For a repurposed post use only facts from its bound source, even if other proof files contain more.' },
+  'one-goal': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Give each post one clear goal and one audience action.' },
   'on-brand-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write each post in the voice sheet the owner approved, in its words and its rhythm.' },
   'fits-pillar': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Tie each post to one of the approved content pillars.' },
   'claims-backed': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: "Make only claims the client's proof files or brand sheet back, in any wording." },
@@ -88,6 +95,13 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'client-comfortable': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write only what the client would be comfortable seeing under their name.' },
   // The YouTube playbook's judge rules (playbooks/youtube/judge.ts): the package is written on the package step, and
   // the moments are picked on the find step.
+  'audit-one-fix': { level: 'harness', op: 'guidance.add', stepId: 'channel-audit', value: 'Keep the audit to one source backed fix, three things to keep and one thing not to do yet.' },
+  'plan-fits-hours': { level: 'harness', op: 'guidance.add', stepId: 'weekly-plan', value: 'Fit every planned piece within the owner hours and name the exact piece to drop first.' },
+  'reply-not-bait': { level: 'harness', op: 'guidance.add', stepId: 'comment-triage', value: 'Keep source linked replies within thirty words, never answer held bait and leave posting to the owner.' },
+  'clip-stands-alone': { level: 'harness', op: 'guidance.add', stepId: 'find', value: 'Choose a complete thought that makes sense without the full video.' },
+  'broll-fits-claim': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Use added images only to support what the speaker actually said, without implying a new claim.' },
+  'meaning-kept': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Keep the speaker meaning and every qualifier when proposing a cut.' },
+  'no-new-words': { level: 'harness', op: 'guidance.add', stepId: 'edit', value: 'Use only the supplied spoken word ids and never invent speech.' },
   'faithful-to-source': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Say only what the footage, the transcript and the brief show.' },
   'self-contained': { level: 'harness', op: 'guidance.add', stepId: 'find', value: 'Pick moments that make sense to a viewer who has not seen the rest.' },
   'opening-has-context': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Open by telling a new viewer what this is about.' },
@@ -160,14 +174,14 @@ function validateImprove(raw: unknown): ImproveModelOutput {
 type Frozen = { pool: SignalRecord[]; reserve: SignalRecord[]; cases: { pool: ImprovementCase[]; reserve: ImprovementCase[]; rehearsal: ImprovementCase[] } };
 
 /** Signals in time order: the latest thirty percent (at least one once there are two) are held back for the gate. */
-export function freeze(signals: readonly SignalRecord[], serviceType: Scenario['serviceType']): Frozen {
+export function freeze(signals: readonly SignalRecord[], serviceType: Scenario['serviceType'], rehearsal: readonly Scenario[] = scenariosFor(serviceType)): Frozen {
   const ordered = [...signals].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   const held = ordered.length >= 2 ? Math.max(1, Math.floor(ordered.length * 0.3)) : 0;
   const pool = ordered.slice(0, ordered.length - held), reserve = ordered.slice(ordered.length - held);
   const toCase = (signal: SignalRecord, set: 'pool' | 'reserve'): ImprovementCase => ({ scenarioId: signalScenario(signal, serviceType).id, set, signalId: signal.id });
   return {
     pool, reserve,
-    cases: { pool: pool.map(signal => toCase(signal, 'pool')), reserve: reserve.map(signal => toCase(signal, 'reserve')), rehearsal: scenariosFor(serviceType).map(scenario => ({ scenarioId: scenario.id, set: 'rehearsal' as const, signalId: null })) },
+    cases: { pool: pool.map(signal => toCase(signal, 'pool')), reserve: reserve.map(signal => toCase(signal, 'reserve')), rehearsal: rehearsal.map(scenario => ({ scenarioId: scenario.id, set: 'rehearsal' as const, signalId: null })) },
   };
 }
 
@@ -259,7 +273,8 @@ function candidateRecord(parent: PlaybookRecord, body: PlaybookBody, patches: Pl
 }
 
 function scenarioOf(state: State, venture: VentureRecord, item: ImprovementCase, serviceType: Scenario['serviceType']): Scenario {
-  if (item.signalId === null) return scenariosFor(serviceType).find(scenario => scenario.id === item.scenarioId)!;
+  // Ink v2 wave 5 (5A1): the business's own practice clients (a kit playbook's, else the service type's).
+  if (item.signalId === null) return businessScenarios(state, venture.id, serviceType).find(scenario => scenario.id === item.scenarioId)!;
   const signal = findRecord(state, 'venture-signal', item.signalId)!;
   // Ink v2 4J16 (Q15): the reserve's cases carry the owner's corrections as expectations, so the gate checks them too.
   return signalScenario(signal, serviceType, state);
@@ -330,7 +345,7 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
   check(signals.length > 0 || latestEpisodes.some(episode => !episode.passed), 'IMPROVEMENT_NOT_READY',
     'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.');
 
-  const frozen = freeze(signals, type);
+  const frozen = freeze(signals, type, businessScenarios(state, venture.id, type));
   const gateCases = [...frozen.cases.reserve, ...frozen.cases.rehearsal];
   const scenarios = gateCases.map(item => scenarioOf(state, venture, item, type));
   const entryIds = dictionaryEntries(state, venture).map(entry => entry.id);

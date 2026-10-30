@@ -1,0 +1,4 @@
+// SEO8 industry working templates. beyondseo MIT ideas; no copied source or numeric traffic forecasts.
+import {seoText} from './content-core.ts';
+/** Four editable planning documents describe movement in words, without invented traffic figures. */
+export function localTemplates(industry:string){seoText(industry,80);return [{kind:'proposal',text:'For '+industry+': check local information, draft useful pages, review evidence with the client. Expected movement: clearer business details.'},{kind:'roadmap',text:'Ninety-day roadmap: audit first, correct approved details, then compare observed evidence. Expected movement: fewer inconsistent listings.'},{kind:'keyword-map',text:'Map each real service and service area to a useful page. Expected movement: clearer answers to local questions.'},{kind:'issue-log',text:'Record the issue, source, owner, approved fix and dated acceptance check. Expected movement: fewer open evidence-backed issues.'}];}

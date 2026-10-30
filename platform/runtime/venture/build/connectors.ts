@@ -1,3 +1,4 @@
+import {appTestingModes} from './app-testing-modes.ts';
 // Chausar venture launcher: connector cards with honest modes (package P4).
 // A mode is 'available' only where this build's code really does it. Everything else is 'planned'.
 // Ink v2 wave 4 (4J7): each card carries its setup guide (guides.ts) and, in venture.connectors.list, each mode's rung
@@ -16,11 +17,21 @@ import { youtubeConnectors } from '../playbooks/youtube/playbook.ts';
 import { localTranscription, transcriptionNote } from '../playbooks/youtube/transcribe.ts';
 import { NO_EVIDENCE, connectorEvidence, withTruth } from './connector-truth.ts';
 import { guideOf, halfConfigured } from './guides.ts';
+import {SELLER_HANDOFF_MODES,SELLER_READ_MODES,SELLER_WRITE_MODES} from './seller-connector-modes.ts';
 
 const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read', 'write']);
 
 /** Handoffs Chausar really prepares in this build. */
 const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'source-export': {qualification:'fixture-tested',what:'Downloads exact observed values and code receipts as CSV or XLSX. The owner shares the file.'},
+  'triage-copy': {qualification:'fixture-tested',what:'Downloads the exact approved help-channel excerpts for manual sending. No reply or repair is performed.'},
+  ...Object.fromEntries(['career-pinloop','career-linkedin','career-naukri'].map(id=>[id,{qualification:'built-in' as const,what:'Prepares source-backed drafts and files for manual review. The client uses their own account, sends messages and applies themselves.'}])),
+  ...SELLER_HANDOFF_MODES,
+  'app-testing-delivery': {qualification:'fixture-tested',what:'Exports actual source-bound reports and owner-reviewed demo files after named permission review. The owner delivers manually.'},
+  'narration-distribution': {qualification:'fixture-tested',what:'Exports exact approved audio with AI narration disclosure after named legal review. The owner uploads manually; acceptance is not guaranteed.'},
+  'tender-submission': {qualification:'fixture-tested',what:'Exports an exact owner-approved response pack. The owner submits manually; no portal login or submission is performed.'},
+  'newsletter-owner-tool': {qualification:'fixture-tested',what:'Prepares exact approved issue HTML, plain text and recipient CSV for owner sending. Live list import and export wait for named consent review.'},
+  'article-publishing': {qualification:'fixture-tested',what:'Prepares the exact approved article and companion text for the owner to copy and publish manually.'},
   lovable: { qualification: 'fixture-tested', what: 'Opens Lovable with your brief filled in. You press send there.' },
   replit: { qualification: 'fixture-tested', what: 'Opens Replit with your brief filled in. You press send there.' },
   bolt: { qualification: 'built-in', what: 'Copies your brief. Paste it into Bolt.' },
@@ -28,8 +39,28 @@ const AVAILABLE_HANDOFF: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 's
   'mail-app': { qualification: 'built-in', what: 'Chausar drafts a reply or an invoice; you send it from your own mail app.' },
 });
 const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  'page-monitors': {qualification:'fixture-tested',what:'Reads owner-approved static public pages with robots, source policy and exact element checks. Standing reads ask separately.'},
+  'career-links':{qualification:'fixture-tested',what:'Reads one approved public static listing with policy, robots and complete-revision checks. LinkedIn and Naukri use pasted text only.'},
+  'career-boards':{qualification:'fixture-tested',what:'Reads a bounded public Greenhouse, Lever or Ashby index. An index is not a complete captured listing.'},
+  ...SELLER_READ_MODES,
+  'narration-files': {qualification:'fixture-tested',what:'Reads the current client manuscript bytes and rights from TXT, Markdown or bounded DOCX.'},
+  'narration-local-checks': {qualification:'fixture-tested',what:'Desktop ffmpeg and whisper.cpp measure and transcribe actual audio. The owner installs them; missing tools never pass.'},
+  'website-public-site': {qualification:'fixture-tested',what:'Reads a client public page with robots and network guards. Runtime evidence needs an owner-installed checker or an uploaded report.'},
+  'tender-documents': {qualification:'fixture-tested',what:'Reads current order RFP and separate client documents, preserving an explicit issuer spreadsheet column map. PDFs need the desktop reader.'},
+  'article-transcript': {qualification:'fixture-tested',what:'Reads owner-supplied SRT, VTT or TXT and reuses transcripts only within the same client.'},
+  'article-local-transcription': {qualification:'fixture-tested',what:'Desktop only, with owner-installed ffmpeg and whisper.cpp. Copies approved local video or audio up to 50 MB before transcription; otherwise add a transcript.'},
+  'recruit-greenhouse': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Greenhouse board and filters.'},
+  'recruit-lever': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Lever board and filters.'},
+  'recruit-ashby': {qualification:'fixture-tested',what:'Reads published jobs from the exact owner-approved Ashby board and filters.'},
+  'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Reads the existing client override key before a reviewed change.'},
+  // 5M: bounded, policy-checked lead research and one exact-approved paid network search.
+  overpass: { qualification: 'fixture-tested', what: 'Reads bounded city prospects with OpenStreetMap attribution.' },
+  nominatim: { qualification: 'fixture-tested', what: 'Looks up a city once, cached and serialised under its usage policy.' },
+  'own-site': { qualification: 'fixture-tested', what: 'Reads a business own homepage and limited contact pages, obeying robots.' },
+  happenstance: { qualification: 'fixture-tested', what: 'Uses your own key in the lead desk; each paid search shows credits and asks for exact approval.' },
   github: { qualification: 'fixture-tested', what: 'Reads commits, files and checks of one repo. Never writes.' },
   tally: { qualification: 'fixture-tested', what: 'Reads into the back office, under Sources. Needs TallyPrime running on this computer.' },
+  'zoho-books': {qualification:'fixture-tested',what:'Reads exact accounting references through the owner self client, scoped to the selected client organisation.'},
   'chausar-crm': { qualification: 'built-in', what: 'Shows your clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Shows invoices, payments and the books inside Chausar, each number with a receipt.' },
   // venture.bank.import reads a statement file the owner downloaded; venture.bank.consent keeps consent for a provider not yet wired.
@@ -50,19 +81,38 @@ const AVAILABLE_READ: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'stat
     qualification: 'fixture-tested',
     what: 'Reads your calendar from the private address you paste, in the desktop app, each morning: past calls with people in your network. Never writes to it.',
   },
+  // Ink v2 wave 5 (5A6): .eml and .mbox files the owner imports (build/mail-in.ts).
+  'mail-import': { qualification: 'fixture-tested', what: 'Reads the .eml or .mbox files you import, each message screened first. Nothing is sent.' },
 });
 const AVAILABLE_WRITE: Readonly<Record<string, Omit<ConnectorMode, 'mode' | 'status'>>> = Object.freeze({
+  ...SELLER_WRITE_MODES,
+  'local-live-captions':{qualification:'fixture-tested',what:'Captures only an owner-started desktop microphone session and transcribes with installed local whisper.cpp. Saving is off by default; there is no cloud fallback.'},
+  ...Object.fromEntries(['bluesky','mastodon','telegram','discord'].map(id=>[id,{qualification:'fixture-tested' as const,what:'Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection.'}])),
+  'google-tts': {qualification:'fixture-tested',what:'Makes one exact approved stock voice request on the owner Google key. Current rights, private-source refusal, quoted cost and named legal confirmation are required.'},
+  'website-cloudflare': {qualification:'fixture-tested',what:'Deploys only an exact approved immutable Direct Upload manifest. Preview, production and rollback each ask separately; asset uploading stays manual.'},
+  'zoho-books': {qualification:'fixture-tested',what:'Creates exact-approved drafts, masters, opening balances and received settlements, then verifies readback. Invoice issue asks separately. No email or automatic retry.'},
+  'seo-wordpress': {qualification:'fixture-tested',what:'Creates only the exact owner and client approved article draft. The owner publishes it in WordPress.'},
+  'seo-cloudflare-kv': {qualification:'fixture-tested',what:'Writes an exact reviewed existing key, journals the result and keeps its previous value for undo.'},
+  // Ink v2 wave 5 (5A6, K24): one item you approve, exactly as shown, to your own webhook (build/webhook-handoff.ts).
+  'n8n-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own n8n webhook. In this build that is the test item.' },
+  'make-webhook': { qualification: 'fixture-tested', what: 'Sends only an item you approve, exactly as shown, to your own Make webhook. In this build that is the test item.' },
   'chausar-crm': { qualification: 'built-in', what: 'Adds clients and orders inside Chausar.' },
   'chausar-books': { qualification: 'built-in', what: 'Issues invoices and records payments inside Chausar, each number with a receipt.' },
 });
 const PLANNED_HANDOFF_WHAT = 'Planned: Chausar will prepare what to paste there. For now, Visit site opens it.';
 const PLANNED_WHAT_OVERRIDE: Readonly<Record<string, Partial<Record<ConnectorModeName, string>>>> = Object.freeze({
-  'zoho-books': { read: 'Needs a Zoho sign-in. Not in this build.' },
+  'android-local':{write:'Planned until owner SDK setup and a named lawyer permission review. Test the client build manually meanwhile.'},
+  'docker-local':{write:'Planned until owner image qualification and a named lawyer permission review. Prepare the demo script meanwhile.'},
+  'shopify-store-assistant':{write:'Planned for buyers until named lawyer confirmation of notice, consent and provider handling. Link to the shop meanwhile. Every later AI question needs its own exact owner approval.'},
+  tally: {write:'Planned: local optional voucher writes need a reviewed native installation profile. Enter reviewed vouchers in Tally manually meanwhile; automatic issue is not qualified.'},
   // Staged edits (venture.site.stage) read the followed repo; applying them needs a write grant and a writer, and this
   // build has neither, so the write mode stays planned.
   github: { write: 'Planned: edits you review, applied to your repo only after you grant write access. Chausar only reads today. You can stage an edit from it and review it now.' },
   'google-workspace': { write: 'Planned: sending from Gmail would need a Google review first. Chausar only reads your inbox today.' },
   'google-calendar': { write: 'Planned: adding calls to your calendar. Chausar only reads it today.' },
+  // 5A6: speech out waits for a place to add your own key.
+  'sarvam-tts': { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
+  elevenlabs: { write: 'Planned: speech on your own key, after a quote. Chausar has no place to take the key yet.' },
 });
 
 function planned(mode: ConnectorModeName, what: string): ConnectorMode {
@@ -166,6 +216,7 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   const state = deps.store.read();
   const starters = new Set(starterIds(state, currentVenture(state)));
   const env = await postingEnvironment(deps);
+  const testingAvailable = await appTestingModes(deps);
   const venture = currentVenture(state);
   // 4J7 (K6, K11): each card's truth from this business's records, and a half-configured connection's missing setting.
   const evidence = venture ? connectorEvidence(state, venture.id) : NO_EVIDENCE;
@@ -173,7 +224,8 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   const cards = CONNECTOR_CATALOGUE
     .filter(item => body.category === undefined || item.category === body.category)
     .map(item => {
-      const card = connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId));
+      let card = connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId));
+      if(testingAvailable.has(item.id)){const modes:ConnectorMode[]=card.modes.map(m=>m.mode==='write'?{...m,status:'available',qualification:'fixture-tested',what:item.id==='android-local'?'Installed Android SDK tools support exact approved emulator operations. Every device, source and screen is checked before execution.':'The selected installed Chausar image supports exact approved private desktop operations. No image is pulled or built.'}:m);card={...card,modes,chips:connectorChips(modes),guide:card.guide?{...card.guide,checks:'Checks current installed tools and selected image identity. Every client operation still needs its exact owner approval.'}:card.guide};}
       const missing = venture ? halfConfigured(deps, state, venture.id, item.id) : null;
       return withTruth(missing ? { ...card, guide: guideOf(item, missing) } : card, evidence, hosted);
     })

@@ -1,0 +1,11 @@
+// Original Chausar model boundary. Saved source and code checks govern every model proposal.
+import {check,digest} from '../../../portable.ts';
+import {checkTranslation} from './core.ts';
+import {exactTranslation,translationText,translationApproval,type TranslationState} from './state.ts';
+export type TranslationAiPreview={callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;expiresAt:string};
+export type TranslationAiAnswer={segments:{id:string;target:string;explanation:string}[]};
+export const translationAiBinding=(job:TranslationState)=>digest({approval:translationApproval(job),notes:job.notes,provider:job.provider});
+/** IDs and all protected source checks are local authority; meaning still needs human review. */
+export function translationAiAnswer(job:TranslationState,raw:unknown):TranslationAiAnswer{const body=exactTranslation(raw,['segments']);check(Array.isArray(body.segments)&&body.segments.length===job.segments.length,'TRANSLATION_REPAIR_LOSS','Keep a translation for every source block.');const segments=body.segments.map((row,i)=>{const p=exactTranslation(row,['id','target','explanation']);check(p.id===job.segments[i]!.id,'TRANSLATION_REPAIR_LOSS','Keep every source ID in reading order.');return {id:String(p.id),target:translationText(p.target),explanation:translationText(p.explanation,5000,true)};});const candidate=job.segments.map((s,i)=>({...s,target:s.ownerHash?s.target:segments[i]!.target}));check(checkTranslation(job.segments,candidate,job.glossary.terms,job.sourceLocale,job.targetLocale).pass,'TRANSLATION_CHECK_FAILED','Fix the marked source or translation checks first.');return {segments};}
+/** Applies only unedited paragraphs and keeps explanations strictly in the margin. */
+export function applyTranslationAi(job:TranslationState,answer:TranslationAiAnswer):TranslationState{const next=structuredClone(job);for(const [i,s]of next.segments.entries())if(!s.ownerHash){s.target=answer.segments[i]!.target;next.notes[s.id]={owner:next.notes[s.id]?.owner??'',ai:answer.segments[i]!.explanation};}next.aiRequest=null;next.ownerApproval=null;next.clientApproval=null;return next;}

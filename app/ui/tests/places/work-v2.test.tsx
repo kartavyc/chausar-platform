@@ -101,7 +101,8 @@ describe('Work v2: the filter chips', () => {
     await start('#/work?state=failed');
     const show = screen.getByRole('group', { name: 'Show' });
     // An engine-failed run is "Failed"; "Stopped" is kept for the owner's own Stop (W4 4F).
-    expect(within(show).getAllByRole('button').map((b) => b.textContent)).toEqual(['All', 'Needs you', 'Running', 'Failed', 'Done']);
+    // Ink v2 wave 5 (5A3): Ideas, the idea pipeline, after D's chips.
+    expect(within(show).getAllByRole('button').map((b) => b.textContent)).toEqual(['All', 'Needs you', 'Running', 'Failed', 'Done', 'Ideas']);
     expect(pressed(show)).toEqual(['Failed']);
     await click(within(show).getByRole('button', { name: 'Running' }));
     expect(window.location.hash).toBe('#/work?state=active');
@@ -463,4 +464,13 @@ describe('Work v2: Hindi', () => {
     expect(keys).toEqual([]);
     expect(screen.getByRole('group', { name: 'दिखाएँ' })).toBeTruthy();
   });
+});
+
+it('localizes the known run-again control and its confirmation in Hindi', async () => {
+ await start('#/work', { language: 'hi', intercept: { 'venture.queue.list': withAgain({ secondAsk: true }) } });
+ const stopped = await tileOf('Rendering the thumbnail set');
+ const again = await within(stopped).findByRole('button', { name: 'फिर से चलाएँ' });
+ await click(again);
+ expect(within(stopped).getByRole('button', { name: 'फिर से चलाएँ' })).toBeTruthy();
+ expect(within(stopped).queryByRole('button', { name: 'Run again' })).toBeNull();
 });

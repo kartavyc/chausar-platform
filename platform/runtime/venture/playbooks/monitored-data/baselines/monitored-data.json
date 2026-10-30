@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "playbook": "monitored-data",
+  "recordedAt": "2026-10-29",
+  "baseline": {
+    "passed": 2,
+    "of": 2
+  },
+  "cases": [
+    {
+      "id": "terms-not-ticked",
+      "request": "Refuse unapproved source terms.",
+      "draft": "WATCH_TERMS_REQUIRED",
+      "meta": {
+        "source": "{\"url\": \"https://shop.example/prices\", \"terms\": {\"url\": \"https://shop.example/terms\", \"allowed\": false, \"checkedOn\": \"2026-10-29\"}, \"at\": \"2026-10-29T10:00:00Z\", \"html\": \"<span data-testid=\\\"price\\\">99</span>\", \"fields\": [{\"id\": \"price\", \"label\": \"Price\", \"kind\": \"price\", \"selector\": {\"kind\": \"test-id\", \"value\": \"price\", \"checkedOn\": \"2026-10-29\"}}]}"
+      }
+    },
+    {
+      "id": "selector-drifted",
+      "request": "Refuse a changed source selector.",
+      "draft": "WATCH_SELECTOR_DRIFT",
+      "meta": {
+        "source": "{\"url\": \"https://shop.example/prices\", \"terms\": {\"url\": \"https://shop.example/terms\", \"allowed\": true, \"checkedOn\": \"2026-10-29\"}, \"at\": \"2026-10-29T10:00:00Z\", \"html\": \"<p>No selected field</p>\", \"fields\": [{\"id\": \"price\", \"label\": \"Price\", \"kind\": \"price\", \"selector\": {\"kind\": \"test-id\", \"value\": \"price\", \"checkedOn\": \"2026-10-29\"}}]}"
+      }
+    }
+  ]
+}

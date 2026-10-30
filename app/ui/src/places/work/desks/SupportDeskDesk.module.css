@@ -1,0 +1,15 @@
+/* Support desk, original Chausar layout. Uses Ink tokens only. */
+.desk { display: grid; gap: var(--sp-4); min-width: 0; }
+.form { display: grid; gap: var(--sp-3); min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-block: var(--sp-3); }
+.note { color: var(--mute); font-size: var(--text-read); overflow-wrap: anywhere; }
+.list { display: grid; gap: var(--sp-2); list-style: none; margin: 0; padding: 0; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding-block: var(--sp-2); border-top: var(--hair) solid var(--line); min-width: 0; overflow-wrap: anywhere; }
+.row > button { max-width: 100%; text-align: start; white-space: normal; }
+.row > span { font-size: var(--text-read); color: var(--fg2); }
+.due { color: var(--wait); }
+.quote { white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--sp-3); background: var(--inner); border-radius: var(--r-card); }
+.label { display: grid; gap: var(--sp-2); }
+.label select { min-height: var(--control); font: inherit; color: var(--fg); background: var(--surface); border: var(--hair) solid var(--btn-line); border-radius: var(--r-button); padding: var(--sp-2); }
+.readiness { padding: var(--pad-card); border: var(--hair) solid var(--line); border-radius: var(--r-card); }
+.readiness summary { cursor: pointer; margin-bottom: var(--sp-3); }

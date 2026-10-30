@@ -9,7 +9,7 @@
 import type { Deliverable, IsoDate, OrderIntake } from '../../contracts.ts';
 import { planCalendar, type CalendarSlot } from './calendar.ts';
 import { channelCapability, type SocialChannel } from './channels.ts';
-import { postOfLine } from './post-lines.ts';
+import { actualSocialPosts } from './post-label.ts';
 
 /** The section a drafting step writes its posts under (playbook.ts, the drafts step). */
 export const DRAFTS_SECTION = 'Drafts';
@@ -29,14 +29,7 @@ export type SlotAssignment = {
  * takes no number). Lines that name no channel are not posts.
  */
 export function socialDraftPosts(deliverable: Pick<Deliverable, 'sections'>): SocialDraftPost[] {
-  const posts: SocialDraftPost[] = [];
-  for (const section of deliverable.sections) {
-    for (const part of section.parts) {
-      const post = part.kind === 'text' ? postOfLine(part.text) : null;
-      if (post) posts.push({ id: `post-${posts.length + 1}`, section: section.heading, channel: post.channel, text: post.text });
-    }
-  }
-  return posts;
+  return actualSocialPosts(deliverable.sections.map(section => '## '+section.heading+'\n'+section.parts.filter(part => part.kind === 'text').map(part => part.text).join('\n')).join('\n'));
 }
 
 /** The order's calendar slots, planned by code, or null when the order has no calendar. */
@@ -54,8 +47,7 @@ export function calendarSlotsOrNone(intake: OrderIntake | null | undefined): Cal
  * with a channel's name is not a post for a slot), else every post.
  */
 export function calendarPosts(deliverable: Pick<Deliverable, 'sections'>): SocialDraftPost[] {
-  const posts = socialDraftPosts(deliverable);
-  return deliverable.sections.some(section => section.heading === DRAFTS_SECTION) ? posts.filter(post => post.section === DRAFTS_SECTION) : posts;
+  return socialDraftPosts(deliverable);
 }
 
 /**

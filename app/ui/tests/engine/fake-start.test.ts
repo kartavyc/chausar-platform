@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeEngine } from '../../src/engine/fake';
 import { EngineError, type VentureViewLite, type WaysView } from '../../src/engine/types';
+import PICKS from '../../src/engine/fixtures-playbook-picks.json';
 
 const ROUTE = /^#\/(?:today|team|work|clients|money|connections|business|onboarding)(?:\/[a-z0-9][a-z0-9-]{0,47})*$/;
 
@@ -8,7 +9,7 @@ describe('fake engine: the Start gallery and the setup checklist (4J8)', () => {
   it('answers venture.playbooks.list with the engine\'s ways, the open sample business on its own way', async () => {
     const engine = new FakeEngine();
     const view = (await engine.request('venture.playbooks.list', {})) as WaysView;
-    expect(view.ways.map((way) => way.playbook)).toEqual(['ca-firm', 'youtube', 'social-agency']);
+    expect(view.ways.map((way) => way.playbook)).toEqual(PICKS.map(entry=>entry.id));
     for (const way of view.ways) {
       expect(way.hoursEstimate).toBe(true);
       expect(way.clientsPay.estimate).toBe(true);
@@ -20,7 +21,7 @@ describe('fake engine: the Start gallery and the setup checklist (4J8)', () => {
     // Lumen Studio (a YouTube channel) is open in the sample.
     expect(view.ways.find((way) => way.playbook === 'youtube')!.yours).toEqual([{ businessId: 'lumen', name: 'Lumen Studio' }]);
     expect(view.ways.filter((way) => way.playbook !== 'youtube').flatMap((way) => way.yours)).toEqual([]);
-    expect(view.upTo).toEqual({ maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: 0 });
+    expect(view.upTo).toEqual({ maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: view.ways.filter(way=>way.maxHours<=5).length });
     const refused = await engine.request('venture.playbooks.list', { sort: 'name' }).catch((error: unknown) => error);
     expect((refused as EngineError).code).toBe('INVALID_VENTURE_REQUEST');
   });

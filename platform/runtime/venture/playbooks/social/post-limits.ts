@@ -20,7 +20,7 @@ const ONLY_CHAUSAR = 'Counts only the posts Chausar made from this computer, for
 const FINGERPRINTS = "Other businesses' posts are compared by short unsalted fingerprints of their word groups and linked sites, kept beside the browser profiles, not by the words.";
 
 const house = (rule: Pick<HouseRule, 'id' | 'topic' | 'value' | 'rule'> & { limitations?: string[] }): HouseRule => ({
-  ...rule, scope: 'all', sources: [], checkedOn: CHECKED, read: 'house', how: HOW, note: null, usedBy: ['publish'],
+  ...rule, needs: null, scope: 'all', sources: [], checkedOn: CHECKED, read: 'house', how: HOW, note: null, usedBy: ['publish'],
   limitations: [ONLY_CHAUSAR, ...(rule.limitations ?? [])],
 });
 

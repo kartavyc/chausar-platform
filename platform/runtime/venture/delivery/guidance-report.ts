@@ -25,9 +25,9 @@ import { fixTheRule } from './corrections.ts';
 
 /** What each check reads, first match first: a line's words, and the checks that can see it in order of preference. */
 const SEES: readonly { words: RegExp; checks: readonly string[] }[] = Object.freeze([
-  { words: /\bleave out income\b|\binflate a deduction\b|\bhide (?:income|a receipt)\b/i, checks: ['refuses-to-hide-income'] },
-  { words: /\b(?:filing|signature|e-verification)\b[^.]*\bhappened\b|\bproven list\b|\bwork is done\b|\bclaims? of work\b/i, checks: ['no-filing-claims', 'no-done-claims'] },
-  { words: /\bcalculator refuses\b|\bdo not retry\b|\bnot modell?ed\b/i, checks: ['not-modelled-refused'] },
+  { words: /\bleave out income\b|\binflate a deduction\b|\bhide (?:income|a receipt)\b|\bhidden income\b|\binflated deductions\b/i, checks: ['refuses-to-hide-income'] },
+  { words: /\b(?:filing|signature|e-verification)\b[^.]*\bhappened\b|\bnever claim filing\b|\bproven list\b|\bwork is done\b|\bclaims? of work\b/i, checks: ['no-filing-claims', 'no-done-claims'] },
+  { words: /\bcalculator refuses\b|\bdo[ -]not[ -]retry\b|\bnot modell?ed\b/i, checks: ['not-modelled-refused'] },
   { words: /\brate tables?\b/i, checks: ['rates-confirmed'] },
   { words: /\bportal\b/i, checks: ['portal-diff-explained'] },
   { words: /\bdifferences?\b/i, checks: ['differences-listed'] },

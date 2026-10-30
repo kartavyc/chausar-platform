@@ -1,0 +1,6 @@
+// Public rehearsal state matches the native create route. No client permission or outside effect is granted.
+import {it,expect} from 'vitest';import {FakeEngine} from '../../src/engine/fake';
+it('a newly created browser business exposes the native initial rehearsal stage',async()=>{const engine=new FakeEngine({fresh:true});await engine.request('workspace.create',{name:'Career practice',pack:'services'});await engine.request('venture.create',{idea:'career coach',countryCode:'IN'});const view=await engine.request('venture.get',{}) as {venture:{launchStage?:string}};expect(view.venture.launchStage).toBe('rehearsal');});
+
+import {careerEvidenceClient} from '../helpers/career-client';
+it('public Forget cancels the evidence order and removes its intake and request',async()=>{const f=await careerEvidenceClient();await f.client.request('venture.network.import',{kind:'contacts-csv',name:'fictional.csv',text:'Name,E-mail 1 - Value\nInterviewed customers,practice@example.org'});const people=await f.client.request('venture.network.people',{query:'Interviewed customers'});await f.client.request('venture.network.forget',{id:people.people[0]!.id});const order=(await f.client.request('venture.order.list',{})).find(o=>o.id===f.order.id)!;expect(order.status).toBe('cancelled');expect(order.intake).toBeUndefined();expect(order.request).toBe('Client data deleted.');});

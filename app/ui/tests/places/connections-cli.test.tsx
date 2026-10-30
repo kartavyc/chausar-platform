@@ -378,12 +378,12 @@ describe('Team: which AI serves each role', () => {
 });
 
 describe('in Hindi', () => {
-  it('the CLI tile and the agent panel speak Hindi, with the engine words kept as they are', async () => {
+  it('the CLI tile localizes exact static setup evidence in Hindi', async () => {
     start({ language: 'hi' });
     const section = await region('आपके AI ऐप');
     await within(section).findByText('Claude Code', { selector: 'h3' });
     expect(within(section).getByRole('button', { name: 'फिर से जाँचें' })).toBeTruthy();
-    expect(section.textContent).toContain("Chausar hasn't yet accepted Anthropic's terms for running Claude Code.");
+    expect(section.textContent).toContain('Chausar ने Anthropic की शर्तें अभी मंज़ूर नहीं की हैं।');
     expect(section.textContent).not.toMatch(/connections\.cli\./);
   });
 });

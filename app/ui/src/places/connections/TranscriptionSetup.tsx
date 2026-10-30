@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
+import { connectionWords } from './ConnectionWords';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -58,7 +59,7 @@ export function TranscriptionSetup() {
       <form className={s.form} onSubmit={save}>
         <fieldset className={s.rule}>
           <legend className={s.title}>{t('connections.transcribe.title')}</legend>
-          {shown && <p className={shown.status === 'set-up' ? s.line : s.note} role="status">{shown.line}</p>}
+          {shown && <p className={shown.status === 'set-up' ? s.line : s.note} role="status">{connectionWords(t, shown.line)}</p>}
           {setup.error && <p className={s.problem} role="alert">{t('connections.transcribe.loadFailed', { message: setup.error.message })}</p>}
           <p className={s.note}>{t('connections.transcribe.hint')}</p>
           <Field label={t('connections.transcribe.command')} hint={t('connections.transcribe.commandHint')} value={command} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setCommand(event.currentTarget.value)} />

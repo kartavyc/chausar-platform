@@ -1,0 +1,6 @@
+// House rights boundary, pending professional confirmation. Original Chausar policy, not a legal conclusion.
+import {requireArticle} from './core.ts';
+export const ARTICLE_QUOTE_RULE={id:'guest-quotation-rights',scope:'house',topic:'Guest quotation permission',rule:'Record the show rights and guest permission before quoting. A lawyer confirms the client use.',sources:[{title:'Podcast article evidence workflow',url:'https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md'}],checkedOn:'2026-10-28',read:'house' as const,how:'Chausar permission boundary; this is not a statement of copyright exceptions.',usedBy:['approve','handoff'],limitations:'Live client use waits for professional review. Prepare and deliver the client work manually meanwhile.',needs:'lawyer' as const,confirmedBy:null as {name:string;on:string}|null};
+export function articleLegalReady(stage:unknown){requireArticle(stage==='rehearsal'||stage==='shadow'||!!ARTICLE_QUOTE_RULE.confirmedBy,'RULE_UNCONFIRMED','A lawyer must confirm the quotation permission rule before live client delivery. Use fictional practice evidence or prepare the client work manually meanwhile.');}
+/** A saved client order is not fictional evidence, regardless of the workspace posture. */
+export function requireArticleClientRule(){articleLegalReady('client');}

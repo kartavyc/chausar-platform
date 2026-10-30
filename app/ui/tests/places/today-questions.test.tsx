@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { serialize, deserialize } from 'node:v8';
 import { pathToFileURL } from 'node:url';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
@@ -136,21 +138,23 @@ describe('Today: question cards in rounds (W4 4J22b, from 4J17)', () => {
 });
 
 /**
- * The engine's own reader, loaded from platform/ at run time and run beside the screen's on the same replies (a
- * differential test, not a copy). Loaded by address, not by a static import, so the UI's typecheck does not take in the
- * whole engine (the UI's stricter settings refuse engine files); the two functions are typed here as the engine has them.
+ * The engine's own reader runs in native Node on the same cards and replies as the screen. This avoids transforming
+ * the native runtime graph in jsdom, while preserving exact values with v8 serialization. Both answers and send words
+ * are derived from the real functions, never copied into a fixture.
  */
-type EngineReader = {
-  parseReply: (card: QuestionCard, reply: string) => { answers: { number: number; answer: string; by: string }[]; free: string | null };
-  submitLabel: (card: QuestionCard, reply: string) => string;
+type EngineResult = {
+  parsed: { answers: { number: number; answer: string; by: string }[]; free: string | null };
+  label: string;
 };
 const QUESTIONS_TS = pathToFileURL(join(import.meta.dirname, '../../../../platform/runtime/venture/agents/questions.ts')).href;
 
 describe('the reply reader, run beside the engine\'s own (agents/questions.ts parseReply and submitLabel)', () => {
-  let parseReply: EngineReader['parseReply'];
-  let submitLabel: EngineReader['submitLabel'];
-  beforeAll(async () => {
-    ({ parseReply, submitLabel } = (await import(/* @vite-ignore */ QUESTIONS_TS)) as EngineReader);
+  let expected: EngineResult[][];
+  beforeAll(() => {
+    const script = `import {readFileSync} from 'node:fs';import {serialize,deserialize} from 'node:v8';import {parseReply,submitLabel} from ${JSON.stringify(QUESTIONS_TS)};const {cards,replies}=deserialize(readFileSync(0));process.stdout.write(serialize(cards.map(card=>replies.map(reply=>({parsed:parseReply(card,reply),label:submitLabel(card,reply)})))));`;
+    expected = deserialize(execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+      input: serialize({ cards: [round, single], replies: REPLIES }), timeout: 10_000,
+    })) as EngineResult[][];
   });
   const round = (ROUND.preview as Extract<QueueRow['preview'], { kind: 'choice' }>).card!;
   const single: QuestionCard = { ...round, items: [round.items[0]!], lead: '', example: '1 A' };
@@ -170,12 +174,12 @@ describe('the reply reader, run beside the engine\'s own (agents/questions.ts pa
       : format(CATALOGUES.en, 'en', 'today.questions.sendOwn');
   };
 
-  for (const [name, card] of [['a round of two', round], ['one question', single]] as const) {
+  for (const [cardIndex, [name, card]] of ([['a round of two', round], ['one question', single]] as const).entries()) {
     it(`gives the engine's answers and the engine's send words for every reply, on ${name}`, () => {
-      for (const reply of REPLIES) {
-        const engine = parseReply(card, reply);
+      for (const [replyIndex, reply] of REPLIES.entries()) {
+        const { parsed: engine, label } = expected[cardIndex]![replyIndex]!;
         expect(readReply(card, reply), JSON.stringify(reply)).toEqual({ answers: engine.answers.map(({ number, answer }) => ({ number, answer })), free: engine.free });
-        expect(screenWords(card, reply), JSON.stringify(reply)).toBe(submitLabel(card, reply));
+        expect(screenWords(card, reply), JSON.stringify(reply)).toBe(label);
       }
     });
   }

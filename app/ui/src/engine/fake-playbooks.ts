@@ -1,0 +1,150 @@
+import {fakeClientRooms} from './fake-client-room';
+import {fakeKitMetadata} from './fake-kit-plans';
+/**
+ * The fake engine's playbook desks (Ink v2 wave 5, package 5-0): one fake per playbook, each in its own file, joined
+ * here. Never edited after 5-0: a package fills only its own fake-<id>.ts. venture.desk.list, .get and .act find the
+ * playbook's desk and the record kind's handler; with none, they answer NOT_BUILT_YET as the engine does. A handler
+ * gets the whole request and checks the rest itself (fields, app channel, digest), in the engine's codes and words. A
+ * desk may also answer methods of its own (the CA firm's venture.ca.* of 5C1 and 5C2).
+ */
+
+import { EngineError, type ReceiptLite,type WorkReceiptLite } from './types';
+import type { W4DeskHost, SupportImportedMail } from './fake-w4';
+import { fakeYoutubeDesk } from './fake-youtube';
+import { fakeCaFirmDesk } from './fake-ca-firm';
+import { fakeSocialAgencyDesk } from './fake-social';
+import { fakeSeoVisibilityDesk } from './fake-seo-visibility';
+import { fakeOnlineSellerDesk } from './fake-online-seller';
+import { fakeSupportDeskDesk } from './fake-support-desk';
+import { fakeRecruitingDeskDesk } from './fake-recruiting-desk';
+import { fakeJobSearchDeskDesk } from './fake-job-search-desk';
+import { fakeTranslationStudioDesk } from './fake-translation-studio';
+import { fakeBookkeepingCfoDesk } from './fake-bookkeeping-cfo';
+import { fakePodcastToArticleDesk } from './fake-podcast-to-article';
+import { fakeLeadGenerationDesk } from './fake-lead-generation';
+import { fakeNewsletterStudioDesk } from './fake-newsletter-studio';
+import { fakeTenderDeskDesk } from './fake-tender-desk';
+import { fakeWebsiteStudioDesk } from './fake-website-studio';
+import { fakeNarrationStudioDesk } from './fake-narration-studio';
+import { fakeVirtualAssistantDesk } from './fake-virtual-assistant';
+import { fakeDataEntryDeskDesk } from './fake-data-entry-desk';
+import { fakeAppTestingDesk } from './fake-app-testing';
+import { fakeDevAgencyDesk } from './fake-dev-agency';
+import { fakeMonitoredDataDesk } from './fake-monitored-data';
+import { fakeItTriageDesk } from './fake-it-triage';
+import { fakePhoneReceptionistDesk } from './fake-phone-receptionist';
+
+/** One record kind's fake handlers, each given the whole request. */
+export interface FakeDeskKind {
+  list?(p: Record<string, unknown>): unknown;
+  get?(p: Record<string, unknown>): unknown;
+  act?(p: Record<string, unknown>): unknown;
+}
+/** One playbook's fake desk: its record kinds, and any methods of its own. */
+/** Exact links known before a successful Forget or import Undo; internal to the fake engine. */
+export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
+export type TenderNoticeScope={businessId:string;orders:readonly import('./types').OrderLite[];files:(orderId:string)=>{id:string;name:string;format:string;contentBase64:string;digest:string}[]};
+export type TenderNotice={subject:string;version:string;createdAt:string;title:string;line:string;link:string};
+export interface FakePlaybookDesk {
+  testingSource?(orderId:string):void;
+  r5Report?(orderId:string):import('../../../../platform/runtime/venture/playbooks/monitored-data/report').WatchReport|import('../../../../platform/runtime/venture/playbooks/it-triage/report').TriageReport;
+  phoneReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/phone-receptionist/report').PhoneReport;
+  formsSource?(orderId:string):void;
+  devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
+  careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
+  watchNotices?(scope:{businessId:string;orders:readonly import('./types').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}):TenderNotice[];
+  tenderNotices?(scope?:TenderNoticeScope):Promise<TenderNotice[]>;
+  sharedLinks?(deliveryId?:string):import('./types').ShareLink[];
+  revokeShare?(id:string):import('./types').ShareLink|null;
+  endSession?(): void;
+  workReceipt?(id:string):WorkReceiptLite|undefined;
+  readonly playbook: string;
+  receipt?(id:string):ReceiptLite|undefined;
+  importSupportMail?(mail:SupportImportedMail):void;
+  forgetPeople?(people: readonly FakeForgottenPerson[], removeClient: boolean): void;
+  readonly kinds: Readonly<Record<string, FakeDeskKind>>;
+  readonly methods?: Readonly<Record<string, (p: Record<string, unknown>) => unknown>>;
+}
+
+const MAKERS: readonly ((host: W4DeskHost) => FakePlaybookDesk)[] = [
+  fakeYoutubeDesk,
+  fakeCaFirmDesk,
+  fakeSocialAgencyDesk,
+  fakeSeoVisibilityDesk,
+  fakeOnlineSellerDesk,
+  fakeSupportDeskDesk,
+  fakeRecruitingDeskDesk,
+  fakeJobSearchDeskDesk,
+  fakeTranslationStudioDesk,
+  fakeBookkeepingCfoDesk,
+  fakePodcastToArticleDesk,
+  fakeLeadGenerationDesk,
+  fakeNewsletterStudioDesk,
+  fakeTenderDeskDesk,
+  fakeWebsiteStudioDesk,
+  fakeNarrationStudioDesk,
+  fakeVirtualAssistantDesk,
+  fakeDataEntryDeskDesk,
+  fakeAppTestingDesk,
+  fakeDevAgencyDesk,
+  fakeMonitoredDataDesk,
+  fakeItTriageDesk,
+  fakePhoneReceptionistDesk,
+];
+const DESK_METHODS = new Set<string>(['venture.desk.list', 'venture.desk.get', 'venture.desk.act']);
+const NOT_BUILT = 'This part of Chausar is not built yet.';
+
+export class FakePlaybooksDesk {
+  private readonly desks: readonly FakePlaybookDesk[];
+  private readonly rooms:ReturnType<typeof fakeClientRooms>;
+
+  constructor(host: W4DeskHost) {
+    this.rooms=fakeClientRooms(host);
+    this.desks = MAKERS.map((make) => make(host));
+  }
+
+  /** Clear session-only credentials on vault lock or attachment; saved desk work remains. */
+  endSession(): void { for(const desk of this.desks)desk.endSession?.(); }
+  watchNotices(scope:{businessId:string;orders:readonly import('./types').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}){return this.desks.flatMap(desk=>desk.watchNotices?.(scope)??[]);}
+  async tenderNotices(scope:TenderNoticeScope):Promise<TenderNotice[]>{const found=await Promise.all(this.desks.map(desk=>desk.tenderNotices?.(scope)??[]));return found.flat();}
+
+  formsSource(orderId:string){return this.desks.find(d=>d.playbook==='data-entry-desk')!.formsSource!(orderId);}
+  testingSource(orderId:string){return this.desks.find(d=>d.playbook==='app-testing')!.testingSource!(orderId);}
+  r5Report(playbook:string,orderId:string){return this.desks.find(d=>d.playbook===playbook)!.r5Report!(orderId);}
+  phoneReport(orderId:string){return this.desks.find(d=>d.playbook==='phone-receptionist')!.phoneReport!(orderId);}
+  devReport(orderId:string){return this.desks.find(d=>d.playbook==='dev-agency')!.devReport!(orderId);}
+  careerSource(orderId:string){return this.desks.find(d=>d.playbook==='job-search-desk')!.careerSource!(orderId);}
+  vaBrief(orderId:string,expected?:string){return this.rooms.currentBrief(orderId,expected);}
+  receipt(id:string):ReceiptLite|undefined { for(const desk of this.desks){const receipt=desk.receipt?.(id);if(receipt)return receipt;}return undefined; }
+  workReceipt(id:string):WorkReceiptLite|undefined {for(const desk of this.desks){const receipt=desk.workReceipt?.(id);if(receipt)return receipt;}return undefined;}
+
+  /** Erase each desk-owned copy after the network change succeeds. */
+  sharedLinks(deliveryId?:string):import('./types').ShareLink[]{return [...this.rooms.sharedLinks(deliveryId),...this.desks.flatMap(d=>d.sharedLinks?.(deliveryId)??[])];}
+  revokeShare(id:string):import('./types').ShareLink|null{const room=this.rooms.revokeShare(id);if(room)return room;for(const desk of this.desks){const found=desk.revokeShare?.(id);if(found)return found;}return null;}
+
+  /** Erase each desk-owned copy after the network change succeeds. */
+  forgetPeople(people: readonly FakeForgottenPerson[], removeClient: boolean): void {
+    this.rooms.forgetPeople(people);
+    for (const desk of this.desks) desk.forgetPeople?.(people, removeClient);
+  }
+
+  /** Route imported mail to an existing desk record after the owner import succeeds. */
+  importSupportMail(mail:SupportImportedMail):void { for(const desk of this.desks)desk.importSupportMail?.(mail); }
+
+  handles(method: string): boolean {
+    return DESK_METHODS.has(method) || this.desks.some((desk) => desk.methods !== undefined && Object.hasOwn(desk.methods, method));
+  }
+
+  request(method: string, p: Record<string, unknown>): unknown {
+    if (DESK_METHODS.has(method)) {
+      const desk = this.desks.find((d) => d.playbook === p.playbook);
+      const kind = p.kind==='room'&&typeof p.playbook==='string'&&fakeKitMetadata(p.playbook)?.clientRoom ? this.rooms.kind : desk && typeof p.kind === 'string' && Object.hasOwn(desk.kinds, p.kind) ? desk.kinds[p.kind] : undefined;
+      const op = method.slice('venture.desk.'.length) as keyof FakeDeskKind;
+      const handler = kind?.[op];
+      if (!kind || !handler) throw new EngineError('NOT_BUILT_YET', NOT_BUILT);
+      return handler.call(kind, p);
+    }
+    for (const desk of this.desks) if (desk.methods && Object.hasOwn(desk.methods, method)) return desk.methods[method]!(p);
+    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+  }
+}

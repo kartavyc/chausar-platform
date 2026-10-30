@@ -69,7 +69,7 @@ test('the posting methods are build methods; sign-in is app-only and propose is 
 
 test("a post waits for the client's recorded answer, then goes to Today as one connector row with the text from the draft", async () => {
   const { env, deps, browser } = await posting();
-  const run = await socialDraft(env, ['LinkedIn: Our cafe opens at 8 every weekday.', 'X: Filter coffee all day.']);
+  const run = await socialDraft(env, ['X: Our cafe opens at 8 every weekday.', 'X: Filter coffee all day.']);
   await assert.rejects(propose(deps, `${run.id}.post-1`), refused('POST_CLIENT_NOT_APPROVED', /Your client has not approved this draft\./));
   await clientSays(env, run);
   await assert.rejects(method(deps, 'venture.posting.propose', { draftId: `${run.id}.post-1`, text: 'Anything else.' }, agent), code('INVALID_VENTURE_REQUEST'));
@@ -79,7 +79,7 @@ test("a post waits for the client's recorded answer, then goes to Today as one c
 
   const proposal = await propose(deps, `${run.id}.post-1`);
   assert.deepEqual({ ...proposal, postId: 'x' }, {
-    postId: 'x', connectorId: 'linkedin', draftId: `${run.id}.post-1`, part: 1, state: 'described', line: 'Waiting on Today for your approval.', warnings: [],
+    postId: 'x', connectorId: 'x', draftId: `${run.id}.post-1`, part: 1, state: 'described', line: 'Waiting on Today for your approval.', warnings: [],
   });
   const posts = listRecords(env.store.read(), 'venture-connector-post');
   assert.equal(posts.length, 1);
@@ -88,14 +88,14 @@ test("a post waits for the client's recorded answer, then goes to Today as one c
   const today = await view<QueueList>(env, 'venture.queue.list');
   const rows = today.rows.filter(row => row.kind === 'connector');
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].title, 'Post to LinkedIn');
+  assert.equal(rows[0].title, 'Post to X');
   assert.ok(rows[0].line?.startsWith(POSTING_CONSENT_LINE), rows[0].line);
   assert.match(rows[0].line ?? '', /The platform may restrict this account\.$/);
   assert.equal(browser.posts.length, 0, 'nothing is posted until the owner approves on Today');
 
-  // The X line is the second post of the draft, and the first for X.
+  // The second X line keeps its within-channel part number.
   const x = await propose(deps, `${run.id}.post-2`);
-  assert.deepEqual([x.connectorId, x.part], ['x', 1]);
+  assert.deepEqual([x.connectorId, x.part], ['x', 2]);
 });
 
 test('the consent line is task-scoped and plain', () => {
@@ -106,31 +106,31 @@ test('the consent line is task-scoped and plain', () => {
 test('every reason from the draft-before-schedule gate, each with its code', async () => {
   const { env, deps } = await posting();
   // Failed checks: the check's own words.
-  const failed = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.'], { checks: [{ check: 'house-style', passed: false, detail: 'The draft uses a long dash.' }] });
+  const failed = await socialDraft(env, ['X: Our cafe opens at 8.'], { checks: [{ check: 'house-style', passed: false, detail: 'The draft uses a long dash.' }] });
   await clientSays(env, failed);
   await assert.rejects(propose(deps, `${failed.id}.post-1`), refused('POST_DRAFT_UNCHECKED', /long dash/));
 
   // Not accepted by the owner.
-  const ready = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.'], { status: 'ready-for-review', verdict: null });
+  const ready = await socialDraft(env, ['X: Our cafe opens at 8.'], { status: 'ready-for-review', verdict: null });
   await assert.rejects(propose(deps, `${ready.id}.post-1`), refused('POST_NOT_APPROVED', /You have not approved this draft\./));
 
   // The client asked for changes.
-  const changes = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.']);
+  const changes = await socialDraft(env, ['X: Our cafe opens at 8.']);
   await clientSays(env, changes, 'changes');
   await assert.rejects(propose(deps, `${changes.id}.post-1`), refused('POST_CLIENT_NOT_APPROVED', /Your client asked for changes\./));
 
   // Edited after the client approved it: the approval is for other words.
-  const edited = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.']);
+  const edited = await socialDraft(env, ['X: Our cafe opens at 8.']);
   await clientSays(env, edited);
   await env.store.update(state => {
     const stored = state.conversations.find(item => item.id === edited.id) as DeliveryRunRecord;
     stored.status = 'edited';
-    stored.editedText = '# Posts for October\n\n## Posts\nLinkedIn: Our cafe opens at 7.';
+    stored.editedText = '# Posts for October\n\n## Posts\nX: Our cafe opens at 7.';
   });
   await assert.rejects(propose(deps, `${edited.id}.post-1`), refused('POST_DRAFT_CHANGED', /changed after it was approved/));
 
   // A practice draft never goes out (the posting gate's own reason).
-  const practice = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.'], { practice: true });
+  const practice = await socialDraft(env, ['X: Our cafe opens at 8.'], { practice: true });
   await clientSays(env, practice).catch(() => null);
   await assert.rejects(propose(deps, `${practice.id}.post-1`), refused('PRACTICE_DRAFT'));
   assert.equal(listRecords(env.store.read(), 'venture-connector-post').length, 0, 'a refused post leaves nothing behind');
@@ -139,7 +139,7 @@ test('every reason from the draft-before-schedule gate, each with its code', asy
 test('an id that names no post, a channel posting cannot reach, a picture post and a thread are refused', async () => {
   const { env, deps } = await posting();
   const run = await socialDraft(env, [
-    'LinkedIn: Our cafe opens at 8.', 'Instagram: Fresh pastries at 8. #PuneCafes', 'Threads: Filter coffee all day.', `X: ${'Filter coffee all day, every day, in Pune. '.repeat(10).trim()}`,
+    'X: Our cafe opens at 8.', 'Instagram: Fresh pastries at 8. #PuneCafes', 'Threads: Filter coffee all day.', `X: ${'Filter coffee all day, every day, in Pune. '.repeat(10).trim()}`,
   ]);
   await clientSays(env, run);
   for (const id of [`${run.id}.post-5`, `${run.id}.post-0`, run.id, `${run.id}.post-1x`, 'post-1', '']) {
@@ -149,7 +149,7 @@ test('an id that names no post, a channel posting cannot reach, a picture post a
   await assert.rejects(propose(deps, `${run.id}.post-2`), refused('NOT_BUILT_YET', /^Posting a picture or video through the browser is not built yet\.$/));
   await assert.rejects(propose(deps, `${run.id}.post-3`), refused('NOT_BUILT_YET', /no posting connector for Threads/));
   await assert.rejects(propose(deps, `${run.id}.post-4`), refused('POST_THREAD_NOT_BUILT', /^Post a thread by hand; Chausar posts single posts\.$/));
-  assert.equal((await propose(deps, `${run.id}.post-1`)).connectorId, 'linkedin');
+  assert.equal((await propose(deps, `${run.id}.post-1`)).connectorId, 'x');
 });
 
 test('the posts of a draft and their ids, for the screens and for posting, are read one way', async () => {
@@ -169,15 +169,16 @@ test('the posts of a draft and their ids, for the screens and for posting, are r
     [`${run.id}.post-3`, 1, 'passed', 'approved', null], [`${run.id}.post-4`, 2, 'passed', 'approved', null],
   ]);
   await clientSays(env, run);
-  const fourth = await propose(deps, `${run.id}.post-4`);
-  assert.equal(listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === fourth.postId)!.text, 'Sunday thali at noon.');
+  await assert.rejects(propose(deps, `${run.id}.post-4`), refused('NOT_BUILT_YET', /copy-and-open only/));
+  const third=await propose(deps, `${run.id}.post-3`);
+  assert.equal(listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === third.postId)!.text, 'Fresh pastries at 8.');
 });
 
 test('sign-in opens the window and does not wait for it; a failure is logged as an event, never thrown', async () => {
   const { env, deps, browser } = await posting();
-  const opened = await method<{ opened: true; line: string }>(deps, 'venture.posting.signIn', { connectorId: 'linkedin' });
+  const opened = await method<{ opened: true; line: string }>(deps, 'venture.posting.signIn', { connectorId: 'x' });
   assert.deepEqual(opened, { opened: true, line: 'A browser window opened. Sign in there, then close it.' });
-  assert.deepEqual(browser.signIns, ['linkedin'], 'the port was called once, and its window is still open');
+  assert.deepEqual(browser.signIns, ['x'], 'the port was called once, and its window is still open');
 
   const failing = await posting({ signIn: async () => { throw new Error('The browser could not start.'); } });
   assert.equal((await method<{ opened: true }>(failing.deps, 'venture.posting.signIn', { connectorId: 'x' })).opened, true);
@@ -196,10 +197,10 @@ test('sign-in opens the window and does not wait for it; a failure is logged as 
 test('sign-in is refused on the hosted server, for Instagram, from the phone, while a channel is frozen, and with no browser here', async () => {
   const { env, deps, browser } = await posting();
   const hosted = { ...deps, host: 'hosted-web' } as VentureDeps;
-  await assert.rejects(method(hosted, 'venture.posting.signIn', { connectorId: 'linkedin' }), refused('TIER_UNAVAILABLE', /^Posting through your own browser works only in the desktop app\.$/));
+  await assert.rejects(method(hosted, 'venture.posting.signIn', { connectorId: 'x' }), refused('TIER_UNAVAILABLE', /^Posting through your own browser works only in the desktop app\.$/));
   await assert.rejects(method(deps, 'venture.posting.signIn', { connectorId: 'instagram' }), refused('NOT_BUILT_YET', /picture or video/));
-  await assert.rejects(method(deps, 'venture.posting.signIn', { connectorId: 'linkedin' }, phone), code('APP_APPROVAL_REQUIRED'));
-  await assert.rejects(method(deps, 'venture.posting.signIn', { connectorId: 'linkedin' }, agent), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(method(deps, 'venture.posting.signIn', { connectorId: 'x' }, phone), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(method(deps, 'venture.posting.signIn', { connectorId: 'x' }, agent), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(method(deps, 'venture.posting.signIn', { connectorId: 'stripe' }), code('INVALID_VENTURE_REQUEST'));
   await ventureAction(deps, owner, 'approve', 'seed.hold', tx => tx.put({
     ...tx.base('venture-channel-hold'), connectorId: 'x', site: 'x.com', cause: 'blocked', line: 'X blocked this account. Do not sign in again or reconnect.',
@@ -209,13 +210,13 @@ test('sign-in is refused on the hosted server, for Instagram, from the phone, wh
   assert.deepEqual(browser.signIns, [], 'the port was never called');
 
   const absent = await posting({ present: false });
-  await assert.rejects(method(absent.deps, 'venture.posting.signIn', { connectorId: 'linkedin' }), refused('NOT_BUILT_YET', /Playwright was not found/));
+  await assert.rejects(method(absent.deps, 'venture.posting.signIn', { connectorId: 'x' }), refused('NOT_BUILT_YET', /Playwright was not found/));
   assert.deepEqual(absent.browser.signIns, []);
 });
 
 test('a connector row that is not decided keeps its consent line through a reload of Today', async () => {
   const { env, deps } = await posting();
-  const run = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.']);
+  const run = await socialDraft(env, ['X: Our cafe opens at 8.']);
   await clientSays(env, run);
   await propose(deps, `${run.id}.post-1`);
   const [row] = connectorQueueRows(env.store.read());
@@ -232,8 +233,8 @@ test("an owner-edited post is checked again against the client's own word lists 
     priceReceiptId: 'receipt_none', deliveredOn: null, saleFactId: null,
     intake: { rights: null, format: 'short', aiVoice: false, aiPresenter: false, paidPromotion: false, cutFile: null, clientRules },
   } as any));
-  const edited = (text: string) => socialDraft(env, ['LinkedIn: Morning yoga in Pune.'], {
-    orderId: order.id, status: 'edited', editedText: `# Posts for October\n\n## Posts\nLinkedIn: ${text}`,
+  const edited = (text: string) => socialDraft(env, ['X: Morning yoga in Pune.'], {
+    orderId: order.id, status: 'edited', editedText: `# Posts for October\n\n## Posts\nX: ${text}`,
   });
   for (const [text, words] of [['Cheap morning yoga in Pune.', /"cheap"/], ['Morning yoga in Pune, and some politics.', /"politics"/]] as const) {
     const run = await edited(text);
@@ -247,8 +248,8 @@ test("an owner-edited post is checked again against the client's own word lists 
 
 test('the share list says whether a draft needs the client to approve it before it goes out', async () => {
   const { env, deps } = await posting();
-  const social = await socialDraft(env, ['LinkedIn: Our cafe opens at 8.']);
-  const plain = await seedPostDraft(deps, ['LinkedIn: Our cafe opens at 8.']);
+  const social = await socialDraft(env, ['X: Our cafe opens at 8.']);
+  const plain = await seedPostDraft(deps, ['X: Our cafe opens at 8.']);
   assert.equal((await method<{ clientApproval?: boolean }>(deps, 'venture.share.list', { deliveryId: social.id })).clientApproval, true);
   assert.equal((await method<{ clientApproval?: boolean }>(deps, 'venture.share.list', { deliveryId: plain.id })).clientApproval, false);
   assert.equal('clientApproval' in await method<object>(deps, 'venture.share.list', {}), false);
@@ -258,13 +259,13 @@ test('the share list says whether a draft needs the client to approve it before 
 
 test('end to end through the methods: propose, then Today, then venture.queue.decide posts it once', async () => {
   const { env, deps, browser } = await posting();
-  const run = await socialDraft(env, ['LinkedIn: Our cafe opens at 8 every weekday.']);
+  const run = await socialDraft(env, ['X: Our cafe opens at 8 every weekday.']);
   await clientSays(env, run);
   const proposal = await propose(deps, `${run.id}.post-1`);
   const [row] = (await view<QueueList>(env, 'venture.queue.list')).rows.filter(item => item.kind === 'connector');
   const decided = await view<{ outcome: string; line: string }>(env, 'venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve', viewed: true });
   assert.equal(decided.outcome, 'done', decided.line);
-  assert.match(decided.line, /^Posted to LinkedIn\./);
+  assert.match(decided.line, /^Posted to X\./);
   assert.deepEqual(browser.posts, ['Our cafe opens at 8 every weekday.']);
   assert.equal(listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === proposal.postId)!.state, 'applied');
   assert.equal((await view<QueueList>(env, 'venture.queue.list')).rows.filter(item => item.kind === 'connector').length, 0);

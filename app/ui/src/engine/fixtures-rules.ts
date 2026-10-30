@@ -1,3 +1,8 @@
+import {r5Rules} from './r5-rules';
+import {landedKitRules} from './landed-kit-rules';
+import {devRules} from './dev-rules';
+import {phoneRules} from './phone-rules';
+import {formsRules} from './forms-rules';
 /**
  * The fake engine's answer for the dated platform rules (venture.rules.list, Ink v2 wave 2, package 2H). The rules and
  * the playbooks' risk levels are the engine's own (fixtures-rules-data.ts, made from its registers), and the words for
@@ -8,11 +13,15 @@
 
 import type { PlatformRuleView, RulesListView } from './types';
 import { PLAYBOOK_REVIEW, RULE_DATA } from './fixtures-rules-data';
+import { devAsksKitSample, kitSampleRules } from './fake-kit-rules';
 
 /** One rule as the engine's registers give it, with its line while inside its window. */
 export interface SampleRule {
   id: string; kind: 'social' | 'youtube'; platform: string; name: string; rule: string; checkedOn: string; windowDays: number;
-  unconfirmed: boolean; usedBy: string[]; limitations: string[]; source: { title: string; url: string } | null; freshLine: string;
+  unconfirmed: boolean; usedBy: string[]; limitations: string[]; source: { title: string; url: string } | null;
+  /** 5A3: every source the engine lists for the rule. */
+  sources: { title: string; url: string }[];
+  freshLine: string;
 }
 
 const dayNumber = (day: string) => Math.floor(Date.parse(`${day}T00:00:00.000Z`) / 86400000);
@@ -26,14 +35,23 @@ function viewOf(rule: SampleRule, today: string): PlatformRuleView {
   return {
     id: rule.id, platform: rule.platform, rule: rule.rule, checkedOn: rule.checkedOn, stale,
     usedBy: [...rule.usedBy], limitations: [...rule.limitations], source: rule.source ? { ...rule.source } : null,
+    sources: rule.sources.map((source) => ({ ...source })),
     line: stale ? staleLine : rule.freshLine,
   };
 }
 
 /** venture.rules.list for a business on a playbook (by id and label) on a day; a null playbook for a business on none. */
 export function rulesListFor(playbook: { id: string; label: string } | null | undefined, today: string): RulesListView {
+  if(playbook?.id==='monitored-data'||playbook?.id==='it-triage')return r5Rules(playbook.id,today);
+  if(playbook?.id==='dev-agency')return devRules(today) as RulesListView;
+  if(playbook?.id==='phone-receptionist')return phoneRules(today) as RulesListView;
+  if(playbook?.id==='data-entry-desk')return formsRules(today) as RulesListView;
+  const landed=playbook?landedKitRules(playbook.id,today):null;
+  if(landed)return landed;
   const review = playbook ? PLAYBOOK_REVIEW[playbook.id] : undefined;
-  if (!playbook || !review) return { playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.' };
+  // 5A3: the dev page's ?kit-sample shows a kit playbook's rules, recipes and boundaries (no kit playbook has landed yet).
+  if (devAsksKitSample()) return kitSampleRules(today);
+  if (!playbook || !review) return { playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.', recipes: [], boundaries: [] };
   const sample = RULE_DATA[playbook.id] ?? [];
   const rules = sample.map((rule) => viewOf(rule, today));
   const stale = rules.filter((rule) => rule.stale).length;
@@ -45,5 +63,7 @@ export function rulesListFor(playbook: { id: string; label: string } | null | un
     summary: rules.length
       ? `${rules.length - stale - unsure} current, ${stale} to recheck${unsure ? `, ${unsure} not confirmed against a source yet` : ''}.`
       : 'This playbook rests on no dated platform rules.',
+    // 5A3: recipes and boundaries come from a kit playbook's definition; the flagships have none.
+    recipes: [], boundaries: [],
   };
 }

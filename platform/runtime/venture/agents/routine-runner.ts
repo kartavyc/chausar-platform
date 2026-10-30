@@ -19,7 +19,8 @@
 // - A routine whose sweep fails gets one failed run with why; the other routines still run.
 // History says delivered, never done.
 import { check, type Context, type State } from '../../contracts.ts';
-import { currentVenture, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import { currentVenture, digest, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import {appendChiefMessage} from '../chief/store.ts';
 import { ROUTINE_ANSWER_MS } from '../contracts.ts';
 import type { ChiefThreadRecord, QueueAction, RoutineRecord, RoutineRunRecord, RoutineRunState, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../views/queue-w4.ts';
@@ -209,7 +210,7 @@ export function routineRows(deps: VentureDeps, _ctx: Context, state: State, vent
     const who = askedName(state, venture, routine.agent);
     const approve: QueueAction = { id: 'approve', label: 'Run it', primary: true, secondAsk: true };
     rows.push({
-      kind: 'proposal', subject: `routine:${run.id}`, version: run.id, createdAt: run.at, title: `${routine.name} is due`, agent: who,
+      kind: 'proposal', subject: `routine:${run.id}`, version: routine.recordReport?digest({run:run.id,routine}):run.id, createdAt: run.at, title: `${routine.name} is due`, agent: who,
       line: `It asks ${who}: "${short(routine.prompt, 240)}" The answer goes to ${whereWords(state, venture, routine)}. Nothing changes until you approve.`,
       actions: [{ id: 'deny', label: 'Not now', primary: false }, approve],
     });
@@ -246,7 +247,8 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
   const before = deps.store.read();
   const venture = currentVenture(before);
   const route = chatRoute(deps.models.status(ctx));
-  if (venture && route) requireConnectorChecked(before, venture.id, `model:${route.presetId}`);
+  const pending=listRecords(before,'venture-routine-run',venture?.id).find(r=>r.id===runId),routine=pending?listRecords(before,'venture-routine',venture?.id).find(r=>r.id===pending.routineId):null;
+  if (venture && route&&!routine?.recordReport) requireConnectorChecked(before, venture.id, `model:${route.presetId}`);
   // Marked as this process's own before the claim commits, so a sweep in between never takes it for a crash.
   MAKING.add(runId);
   try {
@@ -264,7 +266,18 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
       if (run?.state === 'running') tx.replace<RoutineRunRecord>({ ...run, state, line });
     });
     try {
-      if (claimed.threadId) {
+      if(claimed.routine.recordReport){
+        const {vaRecordReport}=await import('../playbooks/virtual-assistant/routines.ts');
+        const report=await vaRecordReport(deps,ctx,claimed.routine.recordReport==='va-morning'?'morning':'weekly');
+        await ventureAction(deps,ctx,'approve','routines.recordReport',tx=>{
+          const current=tx.find('venture-routine',claimed.routine.id),run=tx.find('venture-routine-run',runId);
+          check(current?.on&&current.removedAt===null&&digest(current)===digest(claimed.routine)&&run?.state==='running'&&tx.state.revision===report.revision,'APPROVAL_STALE','The routine or source records changed. Review it again.');
+          check(claimed.threadId,'INVALID_VENTURE_REQUEST','A private report needs its owner chat.');
+          const message=appendChiefMessage(tx,{threadId:claimed.threadId,from:'chief',author:'engine',text:report.text||'No saved records in this report window.',receiptIds:[...new Set(report.lines.flatMap(line=>line.receiptIds))]});
+          tx.replace({...message,recordReport:true});
+          tx.emit('chief.message',{threadId:claimed.threadId,messageId:message.id});
+        });
+      }else if (claimed.threadId) {
         const { threadSendHandler } = await import('../chief/threads.ts');
         await threadSendHandler(deps, ctx, { threadId: claimed.threadId, text: claimed.routine.prompt }, { routine: true });
       } else {

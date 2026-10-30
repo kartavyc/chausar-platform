@@ -11,6 +11,9 @@ import { digest } from '../../records.ts';
 import { monthlyReport, type ExportPlatform, type ReportReceipt } from '../../playbooks/social/report.ts';
 import type { WorkReceiptDraft } from './work.ts';
 import { fail, fileOf, receiptOut, text, type Spec, type ToolEnv } from './tools.ts';
+import {SOCIAL_INFLUENCER_TOOLS} from './tools-social-influencer.ts';
+import { SOCIAL_CONTENT_TOOLS } from './tools-social-content.ts';
+import { SOCIAL_PRODUCTION_TOOLS } from './tools-social-production.ts';
 
 type SocialToolName = Extract<ToolName, 'social.report'>;
 
@@ -110,3 +113,22 @@ const socialReport: Spec = {
 };
 
 export const SOCIAL_TOOLS: Readonly<Record<SocialToolName, Spec>> = Object.freeze({ 'social.report': socialReport });
+
+/**
+ * Ink v2 wave 5: package 5-0's stubs for the social agency's tools wave 5 builds, each answering NOT_BUILT_YET. A package moves its
+ * tool into the table above (and its name into that table's type) and deletes its stub line here
+ * (delivery/harness/tools-playbooks.ts spreads this table).
+ */
+type SocialW5ToolName = Extract<ToolName, 'social.formats' | 'social.inventory' | 'social.slots' | 'social.montage' | 'social.inbox' | 'social.diagnose' | 'social.health' | 'social.adStyle' | 'social.fairPrice' | 'social.keywords'>;
+export const SOCIAL_W5_TOOLS: Readonly<Record<SocialW5ToolName, Spec>> = Object.freeze({
+  'social.formats': SOCIAL_CONTENT_TOOLS['social.formats'],
+  'social.inventory': SOCIAL_CONTENT_TOOLS['social.inventory'],
+  'social.slots': SOCIAL_CONTENT_TOOLS['social.slots'],
+  'social.montage': SOCIAL_PRODUCTION_TOOLS['social.montage'],
+  'social.inbox': SOCIAL_PRODUCTION_TOOLS['social.inbox'],
+  'social.diagnose': SOCIAL_PRODUCTION_TOOLS['social.diagnose'],
+  'social.health': SOCIAL_PRODUCTION_TOOLS['social.health'],
+  'social.adStyle': SOCIAL_PRODUCTION_TOOLS['social.adStyle'],
+  'social.fairPrice': SOCIAL_INFLUENCER_TOOLS['social.fairPrice'],
+  'social.keywords': SOCIAL_INFLUENCER_TOOLS['social.keywords'],
+});

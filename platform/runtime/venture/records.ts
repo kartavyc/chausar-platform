@@ -30,7 +30,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-delegate-run': 'delegaterun',
   'venture-spend': 'spend', 'venture-spend-quote': 'spendquote', 'venture-spend-policy': 'spendpolicy',
   'venture-composition': 'composition',
-  'venture-connector-post': 'post', 'venture-site-edit': 'siteedit',
+  'venture-open-posting-account': 'openaccount', 'venture-connector-post': 'post', 'venture-site-edit': 'siteedit',
   'venture-queue-decision': 'qdecision', 'venture-team-gate': 'teamgate',
   'venture-evidence': 'evidence',
   'venture-journal-entry': 'journal',
@@ -71,6 +71,21 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-voice': 'voice', 'venture-persona': 'persona',
   'venture-knowledge': 'knowledge', 'venture-idea': 'idea',
   'venture-owner-offer': 'owneroffer',
+  // Ink v2 wave 5 (package 5-0; contracts.ts section 9f)
+  'venture-go-no-go': 'gonogo', 'venture-sales-proposal': 'salesprop', 'venture-brand-kit': 'brandkit', 'venture-asset': 'asset', 'venture-voice-consent': 'voiceconsent',
+  'venture-report': 'report', 'venture-report-share': 'reportshare', 'venture-monitor': 'monitor', 'venture-local-app': 'localapp', 'venture-youtube-edit': 'ytedit',
+  'venture-youtube-dictionary': 'ytdict', 'venture-youtube-style': 'ytstyle', 'venture-ca-citations': 'cacite', 'venture-ca-differential': 'cadiff',
+  'venture-ca-data-pack': 'cadatapack', 'venture-ca-working':'cawork', 'venture-social-inbox-item': 'inboxitem', 'venture-social-scheduled': 'socialslot', 'venture-ad-ledger-entry': 'adledger', 'venture-influencer-case': 'influencer',
+  'venture-seo-panel': 'seopanel', 'venture-seo-observation': 'seoobs', 'venture-seo-finding': 'seofinding', 'venture-seller-sku': 'sku',
+  'venture-seller-feecard': 'feecard', 'venture-seller-stage': 'sellerstage', 'venture-seller-movement': 'movement', 'venture-seller-case': 'sellercase',
+  'venture-support-ticket': 'ticket', 'venture-support-message': 'supportmsg', 'venture-support-request': 'supportreq', 'venture-support-rating': 'rating',
+  'venture-recruit-role': 'recruitrole', 'venture-recruit-candidate': 'candidate', 'venture-recruit-touch': 'recruittouch', 'venture-recruit-interview': 'recruitinterview',
+  'venture-career-fact': 'careerfact', 'venture-career-listing': 'listing', 'venture-career-thread': 'careerthread', 'venture-translation-job': 'tjob',
+  'venture-translation-segment': 'tsegment', 'venture-glossary': 'glossary', 'venture-promise-to-pay': 'ptp', 'venture-collection-stage': 'collstage',
+  'venture-books-posting': 'booksposting', 'venture-article-ledger': 'articleledger', 'venture-lead-source': 'leadsource', 'venture-newsletter-issue': 'nlissue',
+  'venture-newsletter-contact': 'nlcontact', 'venture-tender-question': 'tenderq', 'venture-site-requirement': 'sitereq', 'venture-site-release': 'siterelease',
+  'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding', 'venture-demo-project': 'demoproject',
+  'venture-dev-permission': 'devperm', 'venture-triage-channel': 'triage', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
@@ -144,7 +159,7 @@ export function trialRefusal(record: AnyVentureRecord): string | null {
     case 'venture-payment': return TRIAL_MONEY_LINE;
     case 'venture-credit-note': return value.status === 'issued' ? TRIAL_MONEY_LINE : null;
     case 'venture-bill': return (Array.isArray(value.payments) && value.payments.length > 0) || (value.paidMinor !== undefined && value.paidMinor !== '0') ? TRIAL_MONEY_LINE : null;
-    case 'venture-share-link': case 'venture-file-request': return TRIAL_SEND_LINE;
+    case 'venture-share-link': case 'venture-file-request': case 'venture-report-share': return TRIAL_SEND_LINE;
     case 'venture-bank-account': return value.alertAddress ? TRIAL_SEND_LINE : null;
     default: return null;
   }
@@ -323,31 +338,15 @@ export function amountText(value: unknown, field: string): string {
 }
 
 /** Owner-typed percent text ('18', '8.25', '0.25 %') to basis points text. BigInt only; 0 to 100, at most two decimals. */
-export function percentBps(value: unknown, field: string): string {
-  check(typeof value === 'string' && value.length <= 12, 'INVALID_TAX_RATE', `${field} must be a rate like 18 or 8.25.`);
-  const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(value.replace(/[\s%]/g, ''));
-  check(match, 'INVALID_TAX_RATE', `${field} must be a rate like 18 or 8.25.`);
-  const bps = BigInt(match[1]) * 100n + BigInt((match[2] ?? '').padEnd(2, '0'));
-  check(bps <= 10000n, 'INVALID_TAX_RATE', `${field} must be 100 or less.`);
-  return String(bps);
-}
-
-/** Basis points text to percent text for display and prefills: '1800' is '18', '825' is '8.25', '25' is '0.25'. */
-export function bpsPercent(bps: string): string {
-  check(/^\d{1,5}$/.test(bps), 'INVALID_TAX_RATE', 'A tax rate must be whole basis points.');
-  const value = BigInt(bps), whole = value / 100n, fraction = value % 100n;
-  if (fraction === 0n) return String(whole);
-  const digits = String(fraction).padStart(2, '0');
-  return `${whole}.${digits.endsWith('0') ? digits.slice(0, 1) : digits}`;
-}
+export {percentBps,bpsPercent} from './money/rate-core.ts';
+import {percentBps,bpsPercent} from './money/rate-core.ts';
 
 /**
  * Inside the app: the desktop window or the paired local browser (both 'desktop'), or a signed-in owner on the hosted
  * web app ('web'). Never phone or MCP, and never a request whose source text is tainted.
  */
-export function isAppChannel(ctx: Context | undefined): boolean {
-  return (ctx?.channel === 'desktop' || ctx?.channel === 'web') && !ctx.sourceTainted;
-}
+import {isAppChannel} from '../portable.ts';
+export {isAppChannel} from '../portable.ts';
 
 /** Owner approvals happen inside the app, never phone or MCP. */
 export function requireAppChannel(ctx: Context, method: VentureMethod) {

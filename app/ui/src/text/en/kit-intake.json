@@ -1,0 +1,13 @@
+{
+  "kit-intake.fileError": "Choose a supported file smaller than the intake limit.",
+  "kit-intake.choose": "Choose an answer",
+  "kit-intake.yes": "Yes",
+  "kit-intake.no": "No",
+  "kit-intake.rupees": "Enter rupees. Chausar converts the amount when you add the order.",
+  "kit-intake.fileHint": "Choose the file supplied by your client. Intake files together must stay below 1.3 MB.",
+  "kit-intake.person": "Person's name",
+  "kit-intake.consent": "Recorded consent",
+  "kit-intake.consentHint": "Record their consent in Connections first. A new consent needs a new recording.",
+  "kit-intake.addPerson": "Add a person",
+  "kit-intake.remove": "Remove this person"
+}

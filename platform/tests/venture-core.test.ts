@@ -1004,3 +1004,16 @@ test('a tax answer the owner did not give is kept as an assumption until the own
   const plan = (await told.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
   assert.deepEqual(plan.backOffice.taxRegistered, { value: false, label: 'told-by-you', by: 'owner' });
 });
+
+test('5A2: a share on the first offer clears the interview\'s price, and a rewrite keeps every share, not the old fixed price', async () => {
+  const h = setup();
+  await interviewed(h);
+  await h.call('venture.blueprint.draft', { useTemplate: true });
+  const shared = (await h.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', share: { percent: '8.33' } }, { id: 'offer_2', share: { percent: '12' } }] } })).blueprint;
+  assert.equal(shared.offers[0].pricing.share.bps, '833');
+  const interview = h.store.read().conversations.find((r: any) => r.kind === 'venture-interview');
+  const price = interview.questions.find((q: any) => q.id === 'q_price');
+  assert.equal(price.answerMinor, null, 'the interview no longer holds the old fixed price');
+  const rewritten = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(rewritten.offers.map((offer: any) => [offer.pricing.share?.bps ?? null, offer.pricing.unitPriceMinor]), [['833', null], ['1200', null]]);
+});

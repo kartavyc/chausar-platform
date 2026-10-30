@@ -9,8 +9,8 @@ import { exactPayload, readVenture, requireAppChannel, ventureAction } from '../
 import { HOUSE_LIMITS, MIN_LINK_STREAK, OWNER_LIMIT_KEYS, gateUnits, looserKeys, ownerUnits, tightenedLimits } from '../playbooks/social/post-limits.ts';
 import { ownerPostingLimits, postingName } from './posting.ts';
 
-/** The channels whose text posts Chausar makes from the owner's browser, so the ones whose limits the owner sets. */
-const LIMIT_CHANNELS: readonly string[] = Object.freeze(['linkedin', 'x']);
+/** Text channels with owner limits: manual LinkedIn, browser X and the four supported official APIs. */
+const LIMIT_CHANNELS: readonly string[] = Object.freeze(['linkedin', 'x', 'bluesky', 'mastodon', 'telegram', 'discord']);
 const LINE = "Chausar's own posting limits are the loosest it posts at. You can only make them stricter, per channel, for this business; posts from every business on this computer count toward them.";
 const WORDS: Readonly<Record<keyof OwnerPostingLimitsView, string>> = Object.freeze({
   capPer24h: 'posts in 24 hours', minGapMinutes: 'minutes between posts', warmUpDays: 'warm-up days',
@@ -44,7 +44,7 @@ export async function postingLimitsSet(deps: VentureDeps, ctx: Context, payload:
   requireAppChannel(ctx, 'venture.posting.limits.set');
   const body = exactPayload(payload, ['connectorId', 'limits'], ['connectorId', 'limits']);
   const connectorId = typeof body.connectorId === 'string' && LIMIT_CHANNELS.includes(body.connectorId) ? body.connectorId : null;
-  check(connectorId, 'INVALID_VENTURE_REQUEST', 'Posting limits are set for LinkedIn and X.');
+  check(connectorId, 'INVALID_VENTURE_REQUEST', `Posting limits are set for ${LIMIT_CHANNELS.map(postingName).join(', ')}.`);
   check(body.limits !== null && typeof body.limits === 'object' && !Array.isArray(body.limits), 'INVALID_VENTURE_REQUEST', 'Send the limits as numbers.');
   const given = exactPayload(body.limits, OWNER_LIMIT_KEYS);
   const limits: Partial<OwnerPostingLimitsView> = {};

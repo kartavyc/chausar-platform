@@ -8,6 +8,8 @@ const VENTURE_EVENT_TYPES = Object.freeze([
   'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES): ids only; notify.new also carries a count.
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed; ids only.
+  'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
 ]);
 // Ink v2 wave 4 channel (package 4-0 named it): the desktop reads one of the owner's network files on this computer in a
 // worker and hands the window only what Chausar keeps (4D1, network-files.cjs). The count of things that need the owner
@@ -16,6 +18,9 @@ const PICK_FILE_CHANNEL = 'chausar:network:pickFile';
 // 4J4 (P12): the desktop asks the engine for one month's CSV for the owner's CA and saves it where the owner picks
 // (money-export.cjs); the window names only the month. Chausar never sends the file.
 const MONEY_EXPORT_CHANNEL = 'chausar:money:saveExport';
+// Ink v2 wave 5 (5A5, P11): the desktop makes a client report and saves its files where the owner picks (report-save.cjs);
+// the window names only the draft. Chausar never sends the files.
+const REPORT_SAVE_CHANNEL = 'chausar:report:save';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -121,6 +126,17 @@ const METHODS = Object.freeze([
   'venture.agents.export', 'venture.agents.import',
   'venture.knowledge.list', 'venture.knowledge.add', 'venture.knowledge.remove', 'venture.knowledge.test',
   'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
+  // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
+  'venture.order.chain',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
+  'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
+  'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
+  'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
+  'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable', 'venture.report.list',
+  'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
+  'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
+  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
+  'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
@@ -138,6 +154,28 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com', 'https://www.mca.gov.in', 'https://www.gst.gov.in',
   'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io', 'https://posthog.com', 'https://plausible.io',
   'https://analytics.google.com', 'https://tally.so', 'https://www.typeform.com', 'https://console.anthropic.com', 'https://platform.openai.com',
+  'https://wordpress.org', 'https://dash.cloudflare.com', 'https://search.google.com',
+  'https://boards.greenhouse.io', 'https://jobs.lever.co', 'https://jobs.ashbyhq.com',
+  'https://overpass-api.de', 'https://operations.osmfoundation.org', 'https://developers.google.com',
+  'https://redditinc.com', 'https://developer.happenstance.ai',
+  // Exact catalogue Visit site origins only; no API permission or wildcard access.
+  'https://bsky.app',
+  'https://joinmastodon.org',
+  'https://developer-docs.amazon.com',
+  'https://advertising.amazon.com',
+  'https://seller.flipkart.com',
+  'https://supplier.meesho.com',
+  'https://partners.myntrainfo.com',
+  'https://seller.ajio.com',
+  'https://seller.nykaa.com',
+  'https://seller.jiomart.com',
+  'https://apidocs.shiprocket.in',
+  'https://help.delhivery.com',
+  'https://www.whatsapp.com',
+  'https://sorftime.com',
+  'https://shopify.dev',
+  'https://developer.android.com',
+  'https://docs.docker.com',
 ]);
 const MAX_EXTERNAL_URL = 30_000;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);
@@ -236,12 +274,12 @@ function validateVentureEvent(input) {
   if (!isRecord(input) || !VENTURE_EVENT_TYPES.includes(input.type)) return null;
   const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
   const whole = value => Number.isSafeInteger(value) && value >= 0;
-  if (!id(input.businessId) || (input.runId !== undefined && !id(input.runId))) return null;
+  if (!id(input.businessId) || (input.type !== 'privacy.forgotten' && input.runId !== undefined && !id(input.runId))) return null;
   if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
   if ((input.seq !== undefined && !whole(input.seq)) || (input.count !== undefined && (input.type !== 'notify.new' || !whole(input.count)))) return null;
   return Object.freeze({
-    type: input.type, businessId: input.businessId, ...(input.runId !== undefined ? { runId: input.runId } : {}), at: input.at,
+    type: input.type, businessId: input.businessId, ...(input.type !== 'privacy.forgotten' && input.runId !== undefined ? { runId: input.runId } : {}), at: input.at,
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

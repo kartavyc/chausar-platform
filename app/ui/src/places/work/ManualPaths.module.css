@@ -1,0 +1,35 @@
+/* The order card's manual paths (Ink v2 wave 5, 5A3): each planned stage with what a person does meanwhile. */
+
+.list {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.title {
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.line {
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.waits {
+  font-size: var(--text-label);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}

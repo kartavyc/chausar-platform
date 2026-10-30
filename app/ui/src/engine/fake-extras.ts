@@ -9,6 +9,9 @@
  */
 
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
+import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { FAKE_CA_RULES } from './fake-ca-rules';
+import type { SignoffCheckView } from './types';
 import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
 import {
   EngineError, type BankConsentView, type BankImportResult, type CaReceiptView, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
@@ -16,12 +19,15 @@ import {
 } from './types';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
+import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
 export interface ExtrasHost {
+  draftText?(id:string):string|null;
+  digest(value: unknown): string;
   current(): string;
   now(): string;
   businessName(id: string): string;
@@ -35,7 +41,7 @@ export interface ExtrasHost {
 
 const EXTRA_METHODS = new Set([
   'venture.money.overview', 'venture.tax.working', 'venture.spend.policy.get', 'venture.spend.policy.set',
-  'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates', 'venture.ca.receipt', 'venture.ca.explainDiff',
+  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates', 'venture.ca.receipt', 'venture.ca.explainDiff',
   'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend', 'venture.leads.block',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
   'venture.share.create', 'venture.share.list', 'venture.share.revoke',
@@ -97,7 +103,7 @@ const MAIL_DOMAINS = new Set(['pocketaudio.in', 'boataudio.in', 'mehtatraders.in
 /** The engine's lead stage ranks: open stages move up only; won and lost close a lead; blocked comes from anywhere. */
 const STAGE_RANK: Partial<Record<LeadView['status'], number>> = { new: 0, drafted: 1, contacted: 2, replied: 3, won: 4, lost: 4 };
 
-interface HeldShare extends ShareLink { businessId: string; deliveryId: string }
+interface HeldShare extends ShareLink { businessId: string; deliveryId: string; draftDigest?:string }
 
 export class FakeExtrasDesk {
   private readonly host: ExtrasHost;
@@ -140,6 +146,8 @@ export class FakeExtrasDesk {
       case 'venture.tax.working': return this.taxWorking(biz);
       case 'venture.spend.policy.get': return this.withLead(biz, this.withMeter(biz, clone(this.policyOf(biz))));
       case 'venture.spend.policy.set': return this.withLead(biz, this.withMeter(biz, this.setPolicy(biz, p)));
+      case 'venture.ca.confirmCitations': return this.confirmCitations(biz,p);
+      case 'venture.ca.signoff.get': return this.storedSignoff(biz,p);
       case 'venture.ca.get': return clone(this.caOf(biz));
       case 'venture.ca.setOfRecord': return this.setCa(biz, p);
       case 'venture.ca.recordSignoff': return this.signoff(biz, p);
@@ -304,9 +312,28 @@ export class FakeExtrasDesk {
   // The CA firm
   // ---------------------------------------------------------------------------------------------------------------
 
+  private caSignatures: Record<string, Record<string, SignoffCheckView>> = {};
+  private confirmCitations(biz: string, p: Record<string, unknown>) {
+    if (Object.keys(p).some(key => !['version','membershipNo'].includes(key)) || p.version === undefined || p.membershipNo === undefined) throw invalid('Send only the version and CA membership number.');
+    if (p.version !== FAKE_CA_RULES.version) throw new EngineError('CITATIONS_STALE','Review the current citations table before confirming it.');
+    const view = this.caOf(biz);
+    if (!view.ca) throw new EngineError('CA_OF_RECORD_REQUIRED','Name your CA of record first.');
+    if (typeof p.membershipNo !== 'string' || p.membershipNo.replace(/\s+/g,'') !== view.ca.membershipNo) throw new EngineError('CA_NOT_OF_RECORD','Only your CA of record confirms this table.');
+    const confirmedBy={name:view.ca.name,membershipNumber:view.ca.membershipNo,at:this.host.now()};
+    view.citations={...clone(FAKE_CA_RULES),confirmedBy};
+    return {version:FAKE_CA_RULES.version,tableHash:FAKE_CA_RULES.tableHash,confirmedBy};
+  }
+  private storedSignoff(biz:string,p:Record<string,unknown>) {
+    if(Object.keys(p).some(key=>key!=='id') || (typeof p.id!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(p.id)))throw invalid('Send the stored sign-off id.');
+    const signed=this.caSignatures[biz]?.[p.id];
+    if(!signed)throw new EngineError('SIGNOFF_NOT_FOUND','That stored CA sign-off was not found.');
+    const differs=signed.receipts.map(snapshot=>{const current=this.caReceipts[biz]?.[snapshot.id];return !current||!snapshot.digest||this.host.digest(current)!==snapshot.digest?{key:snapshot.id,line:'This receipt is missing, changed or has no digest captured at signing.'}:current.rederived!=='same'?{key:snapshot.id,line:current.differs?.line??'This calculator receipt could not be re-derived.'}:null;}).find(Boolean)??null;
+    return clone({...signed,rederived:differs?'differs':'same',differs});
+  }
   private caOf(biz: string): CaView {
     if (this.host.playbook(biz)?.id !== 'ca-firm') return { ca: null, pendingRates: [], requests: [] };
-    this.ca[biz] ??= { ca: null, pendingRates: [], requests: [] };
+    this.ca[biz] ??= { ca: null, pendingRates: RATE_TABLES.map(table=>({tableId:table.id,title:table.title,version:String(table.version),validFrom:table.validFrom,validTo:table.validTo,citations:table.citations.map(c=>[c.source,c.part,c.url].filter(Boolean).join(', '))})), requests: [] };
+    this.ca[biz].citations ??= clone(FAKE_CA_RULES);
     return this.ca[biz];
   }
 
@@ -346,6 +373,10 @@ export class FakeExtrasDesk {
     if (note.length > 500) throw invalid('A note is up to 500 characters.');
     request.state = 'signed';
     request.at = this.host.now();
+    request.signoffId = request.id + '_signed';
+    this.caSignatures[biz] ??= {};
+    const receiptIds=view.latestPapers?.deliveryId===request.deliveryId?view.latestPapers.receiptIds:[];
+    this.caSignatures[biz][request.signoffId] = {id:request.signoffId,ca:{name:view.ca!.name,membershipNumber:view.ca!.membershipNo},at:request.at,decision:'signed',playbookHash:null,workingDigest:this.host.digest(request),receipts:receiptIds.map(id=>({id,digest:this.caReceipts[biz]?.[id]?this.host.digest(this.caReceipts[biz][id]):null})),rederived:'same',differs:null};
     this.host.emit({ type: 'queue.changed', businessId: biz, at: request.at });
     return { request: clone(request) };
   }
@@ -385,14 +416,11 @@ export class FakeExtrasDesk {
   }
 
   private confirmRates(biz: string, p: Record<string, unknown>) {
-    const view = this.mustBeCaFirm(biz);
-    const ids = Array.isArray(p.tableIds) ? p.tableIds.filter((id): id is string => typeof id === 'string') : [];
-    if (ids.length === 0) throw invalid('Choose at least one rate table.');
-    const unknown = ids.find((id) => !view.pendingRates.some((r) => r.tableId === id));
-    if (unknown) throw new EngineError('RATE_TABLE_NOT_FOUND', 'That rate table is not waiting for your CA.');
-    this.ofRecord(view, p.membershipNo);
-    view.pendingRates = view.pendingRates.filter((r) => !ids.includes(r.tableId));
-    return clone(view);
+    const view=this.mustBeCaFirm(biz),refs=p.tableIds,pattern=/^(in-[a-z0-9-]{1,60})(?:@(\d{1,4}))?$/;
+    if(Object.keys(p).some(key=>!['tableIds','membershipNo'].includes(key))||!Array.isArray(refs)||refs.length<1||refs.length>20||!refs.every(id=>typeof id==='string'&&pattern.test(id)))throw invalid('Choose the rate tables to confirm.');
+    const number=this.membership(p.membershipNo);if(!view.ca)throw new EngineError('CA_OF_RECORD_REQUIRED','Name your CA of record, with their ICAI membership number, first.');if(number!==view.ca.membershipNo)throw new EngineError('CA_MEMBERSHIP_MISMATCH',`That is not the ICAI membership number of ${view.ca.name}, your CA of record.`);
+    for(const ref of refs){const [,id,version]=pattern.exec(ref)!;if(!RATE_TABLES.some(t=>t.id===id&&(version===undefined||t.version===Number(version))))throw new EngineError('SIGNOFF_NOT_FOUND','That rate table version is not one Chausar keeps.');}
+    view.pendingRates=view.pendingRates.filter(row=>!refs.some(ref=>{const [,id,version]=pattern.exec(ref)!;return row.tableId===id&&(version===undefined||row.version===version);}));return clone(view);
   }
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -405,12 +433,26 @@ export class FakeExtrasDesk {
     return lead;
   }
 
-  private isBlocked(biz: string, email: string | null): boolean {
+  isBlocked(biz: string, email: string | null): boolean {
     if (!email) return false;
     const list = this.blocked[biz] ?? [];
     const domain = email.split('@')[1] ?? '';
     return list.includes(email) || list.includes(domain);
   }
+
+  /** S10 uses the same lead store, with an atomic exact creator draft and no fake send. */
+  influencerOutreach(biz:string,input:{name:string;email:string;sourceUrl:string;creatorId:string;subject:string;body:string;postalAddress:string}):{leadId:string;draftId:string}{
+    const p=influencerOutreachInput({creatorId:input.creatorId,subject:input.subject,body:input.body,postalAddress:input.postalAddress});
+    if(this.isBlocked(biz,input.email))throw new EngineError('LEADS_BLOCKED','This creator asked not to be contacted.');
+    const domain=input.email.split('@')[1]!;
+    if(!MAIL_DOMAINS.has(domain))throw new EngineError('LEADS_EMAIL_UNVERIFIED','Check the email first. Only an email with a working mail server gets a draft.');
+    if(!input.name.trim()||input.name.trim().length>120)throw invalid('name must be one line of text.');
+    const at=this.host.now(),id=`lead-new-${++this.seq}`,draftId=`draft-lead-${++this.seq}`,words=influencerEmailText(p.body,this.host.businessName(biz),p.postalAddress);
+    const draft:OutreachDraftView={id:draftId,leadId:id,to:input.email,subject:p.subject,text:words.text,footer:words.footer,sourceUrl:input.sourceUrl,by:'owner',at,digest:this.host.digest({id:draftId,to:input.email,subject:p.subject,text:words.text})};
+    const lead:LeadView={id,name:input.name,company:null,email:input.email,emailDomain:domain,sourceUrl:input.sourceUrl,emailCheck:{status:'verified',at,line:`A mail server answers for ${domain}.`},status:'drafted',drafts:[draft],sends:[],moves:[{from:'new',to:'drafted',at,by:'owner',evidence:{kind:'draft',id:draftId}}],addedBy:'owner',addedAt:at};
+    (this.leads[biz]??=[]).unshift(lead);return{leadId:id,draftId};
+  }
+  eraseInfluencerLeads(biz:string,ids:readonly string[]):void{this.leads[biz]=(this.leads[biz]??[]).filter(lead=>!ids.includes(lead.id));}
 
   /**
    * The engine's stage rule: forward only, won and lost stay, blocked (an opt-out) from any stage and never left.
@@ -619,6 +661,9 @@ export class FakeExtrasDesk {
     return { ...this.link(held), url: null, ...(reason ? { reason } : {}) };
   }
 
+  sharedDraftDigest(biz:string,id:string):string|null { return this.shares.find(share=>share.businessId===biz&&share.deliveryId===id)?.draftDigest??null; }
+  eraseRecruitingCopies(biz:string,runIds:readonly string[]):void {this.shares=this.shares.filter(s=>s.businessId!==biz||!runIds.includes(s.deliveryId));}
+
   private share(biz: string, p: Record<string, unknown>): ShareLink {
     // 4J20: a month of books for the owner's accountant (build/share-links.ts kind 'books'): read only, revocable.
     const books = p.kind === 'books';
@@ -635,6 +680,7 @@ export class FakeExtrasDesk {
       ? { id, businessId: biz, deliveryId, url: `https://share.chausar.test/s/${id}`, expiresAt, ...kind }
       : { id, businessId: biz, deliveryId, url: null, reason: 'Share links open only on the hosted Chausar with a public address. Send your client the draft yourself and record their answer.', expiresAt, ...kind };
     // Kept with or without an address, as the engine keeps a link it does not serve: the owner records the answer on it.
+    if(!books&&this.host.draftText){const text=this.host.draftText(deliveryId);if(text!==null)held.draftDigest=this.host.digest(text);}
     this.shares.unshift(held);
     return this.link(held);
   }

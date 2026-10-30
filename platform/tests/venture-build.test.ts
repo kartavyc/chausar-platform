@@ -1,6 +1,7 @@
 // P4 tests for the venture launcher's build package: the brief, its lint, builder handoff links and the
 // GitHub reader. No network: the model is a stub port and GitHub is a synthetic recording or a stub fetch.
 import test from 'node:test';
+import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
@@ -939,19 +940,23 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal(recorder.requests.length, 0);
   const view = await handlers['venture.build.status']!(deps, viewer, {});
   assert.equal(view.follow?.repo.name, 'ledger-cafe-books');
-  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 66);
+  assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
-test('handlers are exactly the thirty-three owned methods, and every code the package throws is a declared venture or engine code', async () => {
-  // Thirty-one, and the two Ink v2 wave 4 added (connectors.check and share.request, 4J7).
+test('handlers are exactly the forty-one owned methods, and every code the package throws is a declared venture or engine code', async () => {
+  // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
+  // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
+  // speechOut.providers).
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
     'venture.connectors.check', 'venture.connectors.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
+    'venture.localApps.list', 'venture.mail.import', 'venture.mail.threads', 'venture.monitors.add', 'venture.monitors.list', 'venture.monitors.remove',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
     'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
-    'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar',
+    'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar', 'venture.speechOut.providers',
+    'venture.webhook.set',
   ]);
   const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts', 'bank-methods.ts', 'site-methods.ts']
     .map(file => readFile(new URL(`../runtime/venture/build/${file}`, import.meta.url), 'utf8')));
@@ -962,7 +967,7 @@ test('handlers are exactly the thirty-three owned methods, and every code the pa
   const engineCodes = ['INVALID_VENTURE_REQUEST'];
   for (const thrownCode of thrown) assert.ok((VENTURE_ERRORS as readonly string[]).includes(thrownCode) || engineCodes.includes(thrownCode), thrownCode);
   assert.ok(thrown.has('GITHUB_READ_FAILED') && thrown.has('BRIEF_LINT_FAILED') && thrown.has('PRICE_REQUIRED'));
-  assert.equal(CONNECTOR_CATALOGUE.length, 66);
+  assert.equal(CONNECTOR_CATALOGUE.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
 // ---------------------------------------------------------------------------
@@ -981,7 +986,7 @@ async function composedBrief(t: any, output: typeof CAFE_COMPOSE): Promise<Brief
   await engine.request('venture.blueprint.accept', { digest: draft.digest });
   return await engine.request('venture.build.brief', { useTemplate: true }) as BriefRecord;
 }
-const pageTitles = (markdown: string) => sectionLines(markdown, BRIEF_HEADINGS[3]).map(line => line.replace(/^\d+\. /, '').split(':')[0]);
+const pageTitles = (markdown: string) => sectionLines(markdown, BRIEF_HEADINGS[3]).filter(line => /^\d+\. /.test(line)).map(line => line.replace(/^\d+\. /, '').split(':')[0]);
 
 test('composed brief without a client area: the plan pages in order, the Razorpay line, no sign-in or private-upload lines, and a clean lint', async t => {
   const brief = await composedBrief(t, CAFE_COMPOSE);

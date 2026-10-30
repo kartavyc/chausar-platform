@@ -450,6 +450,7 @@ export class FakeMoney {
   private prepare(p: Record<string, unknown>): InvoiceViewLite {
     const order = this.host.orders().find((o) => o.id === p.orderId);
     if (!order) throw new EngineError('ORDER_NOT_FOUND', 'This order was not found.');
+    if (order.internal) throw new EngineError('INTERNAL_ORDER', 'Your own shop work has no customer invoice.');
     if (order.status === 'cancelled') throw new EngineError('INVALID_VENTURE_REQUEST', 'This order was cancelled.');
     const existing = this.mine().filter((i) => i.orderId === order.id && i.status !== 'void');
     // 4J5 (M11): an order's quote becomes one invoice, once.

@@ -1,0 +1,205 @@
+/* Work > Ideas (Ink v2 wave 5, 5A3): the idea pipeline as columns of small inner cards, Inbox to Published, with the
+   add form above and the dropped ideas folded at the end. On a phone the columns stack. */
+
+.ideas {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.said {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.add {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--pad-tile-compact);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+@container (max-width: 759px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.column {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  color: var(--mute);
+}
+
+.none {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.cards {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.by {
+  color: var(--fg2);
+}
+
+.grade {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.ask {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--fg2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.more > summary,
+.fold > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--control-sm);
+  font-size: var(--text-label);
+  color: var(--fg2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.more > summary::-webkit-details-marker,
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more[open] > summary svg,
+.fold[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.moreBody {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  margin-top: var(--sp-2);
+}
+
+.drop {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  width: 100%;
+}
+
+.drop > div {
+  width: 100%;
+}
+
+.fold {
+  padding: var(--pad-tile-compact);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+}
+
+.fold > summary {
+  font-size: var(--text-read);
+}
+
+.droppedList {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.droppedList > li {
+  display: grid;
+  gap: var(--sp-1);
+}

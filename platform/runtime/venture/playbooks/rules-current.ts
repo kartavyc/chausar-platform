@@ -1,6 +1,6 @@
 // Chausar flagship playbooks: the dated platform rules a playbook's checks rest on, and how fresh they are on a day
 // (Ink v2 wave 2, package 2H; catalogue P1). One shape over the two registers, social/register.ts and
-// youtube/platform-rules.ts, read by venture.rules.list (rules-view.ts) and by the rules-current result on a draft's
+// youtube/platform-rules.ts, and every kit playbook's rules (Ink v2 wave 5, 5A3: kit/rules.ts), read by venture.rules.list (rules-view.ts) and by the rules-current result on a draft's
 // checks (draft-checks.ts). Code only, no model, no clock inside: the caller passes the owner's day.
 //
 // rules-current names the rules a finding quoted, then the rules whose usedBy holds a check that ran on the draft (a
@@ -12,11 +12,18 @@
 //
 // Idea taken, code written here: xjli360/sealeap-ecommerce-skills (MIT), whose rule refresh lists, per rule, the
 // skills it is used by and its limitations, and whose catalogue gives each skill a risk level and a last review date.
+import {caDatedRules} from './ca-firm/register.ts';
 import type { IsoDate, PlaybookCheckResult } from '../contracts.ts';
 import { RULE_STALE_AFTER_DAYS, SOCIAL_RULES_REGISTER, daysBetween, rulesFreshness } from './social/register.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { PLATFORM_RULES, ruleFreshness } from './youtube/platform-rules.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';
+// Ink v2 wave 5 (5A3): a kit playbook keeps its rules in its definition (kit/rules.ts). The list is read only inside
+// the functions below (kit/installed.ts kitDefinitions: the landed ones and any a test installed), never at load, so a
+// definition that loads this module makes no cycle.
+import type { PlaybookDefinition } from './kit/define.ts';
+import { HOUSE_SOURCE, ruleFreshness as kitRuleFreshness } from './kit/rules.ts';
+import { kitDefinitions } from './kit/installed.ts';
 
 export const RULES_CURRENT_CHECK = 'rules-current';
 /** The longest rules-current line: the run view's 160-character label less its "Not checked: " prefix. */
@@ -43,6 +50,8 @@ export type DatedRule = {
   usedBy: readonly string[];
   limitations: readonly string[];
   source: { title: string; url: string } | null;
+  /** Every source it was read from (5A3); a house rule's is Chausar's own rule, with no page to open. */
+  sources: readonly { title: string; url: string }[];
   /** One plain sentence on the rule's freshness. */
   line: string;
 };
@@ -66,6 +75,7 @@ function socialRules(today: IsoDate): DatedRule[] {
       windowDays: RULE_STALE_AFTER_DAYS, stale: ageDays > RULE_STALE_AFTER_DAYS, unconfirmed: rule.read === 'unconfirmed',
       usedBy: rule.usedBy, limitations: rule.limitations,
       source: rule.sources[0] ? { title: rule.sources[0].title, url: rule.sources[0].url } : null,
+      sources: rule.sources.map(source => ({ title: source.title, url: source.url })),
       line: freshness.get(rule.id)?.line || `Current. ${rule.how}`,
     };
   });
@@ -78,7 +88,7 @@ function youtubeRules(today: IsoDate): DatedRule[] {
     return {
       id: rule.id, platform: rule.platform, topic: null, name: rule.title, rule: `${rule.title}: ${rule.rule}`, checkedOn: rule.checkedOn, ageDays,
       windowDays: rule.recheckAfterDays, stale, unconfirmed: false, usedBy: rule.usedBy, limitations: rule.limitations,
-      source: { title: rule.sourceTitle, url: rule.sourceUrl },
+      source: { title: rule.sourceTitle, url: rule.sourceUrl }, sources: [{ title: rule.sourceTitle, url: rule.sourceUrl }],
       line: stale
         ? `${rule.title} was checked ${ageDays} days ago, on ${rule.checkedOn}. Check it again on its source page before relying on it.`
         : `Current. Read on ${rule.sourceTitle}, checked on ${rule.checkedOn}.`,
@@ -86,11 +96,30 @@ function youtubeRules(today: IsoDate): DatedRule[] {
   });
 }
 
-/** A flagship playbook's dated platform rules on a day, in register order. Empty for a playbook with none (the CA firm dates its rate tables instead). */
-export function playbookRules(flagship: string | null | undefined, today: IsoDate): DatedRule[] {
+/** A kit playbook's dated rules (5A3 kit/rules.ts) in this shape: named by topic, a house rule's source Chausar's own. */
+function kitRules(definition: PlaybookDefinition, today: IsoDate): DatedRule[] {
+  return definition.rules.map(rule => {
+    const fresh = kitRuleFreshness(rule, today);
+    const sources = rule.sources.length ? rule.sources.map(source => ({ title: source.title, url: source.url })) : [{ title: HOUSE_SOURCE, url: '' }];
+    return {
+      id: rule.id, platform: rule.scope, topic: rule.topic, name: rule.topic, rule: rule.rule, checkedOn: rule.checkedOn, ageDays: fresh.ageDays,
+      windowDays: fresh.windowDays, stale: fresh.stale, unconfirmed: fresh.unconfirmed, usedBy: rule.usedBy, limitations: [rule.limitations],
+      source: rule.sources[0] ? { title: rule.sources[0].title, url: rule.sources[0].url } : null, sources, line: fresh.line,
+    };
+  });
+}
+
+/**
+ * A playbook's dated platform rules on a day, in register order: the social or YouTube register, else the rules of the
+ * kit definition with that id (definitions: the wave 5 list, or a test's own). Empty for a playbook with none (the CA
+ * firm dates its rate tables instead).
+ */
+export function playbookRules(flagship: string | null | undefined, today: IsoDate, definitions: readonly PlaybookDefinition[] = kitDefinitions()): DatedRule[] {
+  if(flagship==='ca-firm')return caDatedRules(today);
   if (flagship === SOCIAL_AGENCY_ID) return socialRules(today);
   if (flagship === YOUTUBE_ID) return youtubeRules(today);
-  return [];
+  const kit = flagship ? definitions.find(definition => definition.registration.id === flagship) : undefined;
+  return kit ? kitRules(kit, today) : [];
 }
 
 /**
@@ -136,9 +165,11 @@ function fitNames(rules: readonly DatedRule[], room: number): string {
  * rules past their window; 'pass' counts the rules checked inside it and, apart, the ones not confirmed against a source
  * yet, naming those. scope narrows a social draft to its channels and puts the rules its findings quoted first.
  */
-export function rulesCurrentResult(flagship: string | null | undefined, today: IsoDate, ran: Iterable<string>, scope?: RuleScopeOfRun): Pick<PlaybookCheckResult, 'check' | 'outcome' | 'detail'> | null {
+export function rulesCurrentResult(
+  flagship: string | null | undefined, today: IsoDate, ran: Iterable<string>, scope?: RuleScopeOfRun, definitions?: readonly PlaybookDefinition[],
+): Pick<PlaybookCheckResult, 'check' | 'outcome' | 'detail'> | null {
   const checks = new Set(ran);
-  const all = playbookRules(flagship, today);
+  const all = playbookRules(flagship, today, definitions);
   const quoted = (scope?.quoted ?? []).flatMap(id => all.filter(rule => rule.id === id));
   const used = all.filter(rule => rule.usedBy.some(id => checks.has(id)) && (!scope || aboutThisDraft(rule, scope)));
   const rules = [...new Map([...quoted, ...used].map(rule => [rule.id, rule])).values()];

@@ -1,0 +1,3 @@
+// Narration previews contain the current stored bytes. Audio cannot require a remote origin.
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+test('built desktop and hosted policies allow stored audio bytes without remote media or executable relaxation',()=>{for(const path of ['app/ui/vite.config.ts','app/desktop/main.cjs','platform/runtime/hosted/server.ts','platform/runtime/server.ts']){const source=readFileSync(path,'utf8');assert.match(source,/media-src 'self' data:;/,path);assert.doesNotMatch(source,/media-src[^;]*(?:https?:|\*)/);assert.match(source,/script-src 'self'/);assert.doesNotMatch(source,/script-src[^;]*unsafe-inline/);}});

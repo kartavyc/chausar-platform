@@ -20,6 +20,8 @@ import { ventureTimeZone } from '../local-day.ts';
 import { ERASED_NAMED } from './notes.ts';
 import { chatRoute } from './consent.ts';
 import { requireConnectorChecked } from '../build/connector-check.ts';
+import {pickPlaybook} from '../playbooks/registry.ts';
+import {VA_REPORT_PROMPTS} from '../playbooks/virtual-assistant/routines.ts';
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -44,44 +46,8 @@ export function weeklyReview(venture: Pick<VentureRecord, 'country'>): RoutineIn
 // Time zones, by Intl only
 // ---------------------------------------------------------------------------
 
-const formats = new Map<string, Intl.DateTimeFormat>();
-function format(timeZone: string): Intl.DateTimeFormat {
-  let found = formats.get(timeZone);
-  if (!found) {
-    found = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    formats.set(timeZone, found);
-  }
-  return found;
-}
-
-/** True for a time zone this computer knows by its IANA name. */
-export function knownTimeZone(timeZone: string): boolean {
-  if (!/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(timeZone)) return false;
-  try { format(timeZone); return true; } catch { return false; }
-}
-
-/** The wall clock in a zone at an instant: year, month, day, hour, minute. */
-function wall(ms: number, timeZone: string): { y: number; m: number; d: number; h: number; min: number } {
-  const parts = Object.fromEntries(format(timeZone).formatToParts(new Date(ms)).map(part => [part.type, part.value]));
-  return { y: Number(parts.year), m: Number(parts.month), d: Number(parts.day), h: Number(parts.hour), min: Number(parts.minute) };
-}
-
-/**
- * The instant a wall-clock day and time in a zone names. One rule for clock changes: a time the clock skips (spring
- * forward: 02:30 in New York on the day it jumps from 02:00 to 03:00) runs when the clock has jumped by the same amount,
- * so at 03:30; a time that happens twice (fall back) runs once, at the first.
- */
-export function instantAt(y: number, m: number, d: number, h: number, min: number, timeZone: string): number {
-  const guess = Date.UTC(y, m - 1, d, h, min);
-  // The zone's offset from UTC at an instant, to the minute.
-  const offset = (ms: number) => { const w = wall(ms, timeZone); return Date.UTC(w.y, w.m - 1, w.d, w.h, w.min) - Math.floor(ms / MINUTE_MS) * MINUTE_MS; };
-  // The offsets on either side of any change that day: every reading of this wall time uses one of them.
-  const before = guess - offset(guess - DAY_MS / 2), after = guess - offset(guess + DAY_MS / 2);
-  const reads = (at: number) => { const w = wall(at, timeZone); return w.y === y && w.m === m && w.d === d && w.h === h && w.min === min; };
-  const real = [...new Set([before, after])].filter(reads).sort((a, b) => a - b);
-  // Doubled: the first. Skipped: neither reads it; the offset before the jump lands as far past it as it was skipped.
-  return real.length ? real[0] : before;
-}
+import {knownTimeZone,wall,instantAt,occurrencesBetween,nextOccurrence} from './routine-time.ts';
+export {knownTimeZone,instantAt,occurrencesBetween,nextOccurrence,type Occurrences} from './routine-time.ts';
 
 // ---------------------------------------------------------------------------
 // Schedules
@@ -121,70 +87,6 @@ export function checkSchedule(raw: unknown, nowMs: number = Number.NEGATIVE_INFI
     return { kind: 'calendar', weekdays: [...(days as number[])].sort((a, b) => a - b), time: clean.time, timeZone: clean.timeZone };
   }
   throw new ChausarError('INVALID_VENTURE_REQUEST', CRON_WORDS);
-}
-
-/** The ISO weekday (1 Monday to 7 Sunday) of a calendar day. */
-const isoWeekday = (y: number, m: number, d: number) => { const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); return day === 0 ? 7 : day; };
-
-/** The occurrences after one instant and up to another: how many, the newest, and the one before it. */
-export type Occurrences = { count: number; latest: IsoTime | null; previous: IsoTime | null };
-
-/** The schedule's occurrences in (afterMs, upToMs]. A calendar schedule looks back at most ten years. */
-export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, upToMs: number): Occurrences {
-  const none: Occurrences = { count: 0, latest: null, previous: null };
-  if (upToMs <= afterMs) return none;
-  const iso = (ms: number) => new Date(ms).toISOString();
-  if (schedule.kind === 'once') {
-    const at = Date.parse(schedule.at);
-    return at > afterMs && at <= upToMs ? { count: 1, latest: schedule.at, previous: null } : none;
-  }
-  if (schedule.kind === 'interval') {
-    const from = Date.parse(schedule.from), step = schedule.everyMinutes * MINUTE_MS;
-    if (upToMs < from) return none;
-    const first = afterMs < from ? 0 : Math.floor((afterMs - from) / step) + 1;
-    const last = Math.floor((upToMs - from) / step);
-    if (last < first) return none;
-    return { count: last - first + 1, latest: iso(from + last * step), previous: last > first ? iso(from + (last - 1) * step) : null };
-  }
-  const [hour, minute] = schedule.time.split(':').map(Number);
-  // Walk the local calendar day by day (never 24-hour steps, which slip across a clock change), from the day before
-  // the start to the day after the end, and read each day's time where it falls.
-  const first = wall(Math.max(afterMs, upToMs - 3660 * DAY_MS), schedule.timeZone);
-  const last = wall(upToMs, schedule.timeZone);
-  const days = Math.round((Date.UTC(last.y, last.m - 1, last.d) - Date.UTC(first.y, first.m - 1, first.d)) / DAY_MS);
-  const found: number[] = [];
-  let count = 0;
-  for (let i = -1; i <= days + 1; i += 1) {
-    const date = new Date(Date.UTC(first.y, first.m - 1, first.d + i));
-    const day = { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
-    if (!schedule.weekdays.includes(isoWeekday(day.y, day.m, day.d))) continue;
-    const at = instantAt(day.y, day.m, day.d, hour, minute, schedule.timeZone);
-    if (at <= afterMs || at > upToMs) continue;
-    count += 1;
-    found.push(at);
-    if (found.length > 2) found.shift();
-  }
-  return count ? { count, latest: iso(found.at(-1)!), previous: found.length > 1 ? iso(found[0]) : null } : none;
-}
-
-/** The schedule's next occurrence after an instant, or null when there is none (a once that has passed). */
-export function nextOccurrence(schedule: RoutineSchedule, afterMs: number): IsoTime | null {
-  if (schedule.kind === 'once') return Date.parse(schedule.at) > afterMs ? schedule.at : null;
-  if (schedule.kind === 'interval') {
-    const from = Date.parse(schedule.from), step = schedule.everyMinutes * MINUTE_MS;
-    const k = afterMs < from ? 0 : Math.floor((afterMs - from) / step) + 1;
-    return new Date(from + k * step).toISOString();
-  }
-  return firstOf(schedule, afterMs);
-}
-
-/** The first calendar occurrence after an instant, looked for a day further at a time, for eight days. */
-function firstOf(schedule: Extract<RoutineSchedule, { kind: 'calendar' }>, afterMs: number): IsoTime | null {
-  for (let span = DAY_MS; span <= 8 * DAY_MS; span += DAY_MS) {
-    const found = occurrencesBetween(schedule, afterMs, afterMs + span);
-    if (found.count) return found.count === 1 ? found.latest : found.previous;
-  }
-  return null;
 }
 
 /** A moment in a zone as the owner reads it: '27 Oct 2026, 09:00'. */
@@ -250,11 +152,13 @@ export function askedName(state: State, venture: VentureRecord, agent: string | 
 /** The input checked: the name, the agent (one on the team, or null for the chief), a standalone prompt and the schedule. */
 function checkInput(state: State, venture: VentureRecord, raw: unknown, nowMs: number): RoutineInput {
   check(raw !== null && typeof raw === 'object' && !Array.isArray(raw), 'INVALID_VENTURE_REQUEST', 'Send the routine.');
-  const body = exactPayload(raw, ['id', 'name', 'agent', 'prompt', 'schedule', 'on'], ['name', 'prompt', 'schedule', 'on']);
+  const body = exactPayload(raw, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport'], ['name', 'prompt', 'schedule', 'on']);
   const name = tidyWords(plainText(body.name, 'Name', { min: 1, max: MAX_NAME }));
   const agent = body.agent === undefined || body.agent === null ? null : identifier(body.agent, 'Agent');
   if (agent !== null) check(teamAgents(state, venture).some(item => item.id === agent), 'INVALID_VENTURE_REQUEST', 'That agent is not on this team.');
   const prompt = checkPrompt(plainText(body.prompt, 'Prompt', { min: 10, max: MAX_PROMPT }));
+  const report=body.recordReport;
+  if(report!==undefined)check((report==='va-morning'||report==='va-weekly')&&pickPlaybook(venture.idea)?.id==='virtual-assistant'&&agent===null&&prompt===VA_REPORT_PROMPTS[report==='va-morning'?'morning':'weekly'],'INVALID_VENTURE_REQUEST','Choose a built-in private assistant report with its exact source-only prompt.');
   check(typeof body.on === 'boolean', 'INVALID_VENTURE_REQUEST', 'on must be true or false.');
   const id = body.id === undefined ? undefined : identifier(body.id, 'Routine');
   // A time already past is refused only when it is new or changed: a once routine whose time has passed can still be
@@ -262,7 +166,7 @@ function checkInput(state: State, venture: VentureRecord, raw: unknown, nowMs: n
   const schedule = checkSchedule(body.schedule);
   const kept = id ? listRecords(state, 'venture-routine', venture.id).find(routine => routine.id === id)?.schedule : undefined;
   if (!kept || JSON.stringify(kept) !== JSON.stringify(schedule)) checkSchedule(body.schedule, nowMs);
-  return { ...(id ? { id } : {}), name, agent, prompt, schedule, on: body.on };
+  return { ...(id ? { id } : {}), name, agent, prompt, schedule, on: body.on,...(report?{recordReport:report as RoutineInput['recordReport']}:{}) };
 }
 
 const NOT_YOURS = "You set this routine yourself, so only you can change or remove it. An agent's routine never touches yours.";
@@ -273,12 +177,13 @@ const NOT_YOURS = "You set this routine yourself, so only you can change or remo
  */
 export function saveRoutine(tx: VentureTx, input: RoutineInput, setBy: RoutineRecord['setBy']): RoutineRecord {
   if (!input.id) {
-    return tx.put<RoutineRecord>({ ...tx.base('venture-routine'), name: input.name, agent: input.agent ?? null, setBy, prompt: input.prompt, schedule: input.schedule, on: input.on, removedAt: null });
+    return tx.put<RoutineRecord>({ ...tx.base('venture-routine'), name: input.name, agent: input.agent ?? null, setBy, prompt: input.prompt, schedule: input.schedule, on: input.on, removedAt: null,...(input.recordReport?{recordReport:input.recordReport}:{}) });
   }
   const existing = tx.find('venture-routine', input.id);
   check(existing && existing.removedAt === null, 'INVALID_VENTURE_REQUEST', 'That routine was not found.');
   check(existing.setBy !== 'owner' || setBy === 'owner', 'ROUTINE_NOT_YOURS', NOT_YOURS);
-  return tx.replace<RoutineRecord>({ ...existing, name: input.name, agent: input.agent ?? null, prompt: input.prompt, schedule: input.schedule, on: input.on, at: tx.now, setBy: existing.setBy === 'owner' ? 'owner' : setBy });
+  const {recordReport:_report,...prior}=existing;
+  return tx.replace<RoutineRecord>({ ...prior, name: input.name, agent: input.agent ?? null, prompt: input.prompt, schedule: input.schedule, on: input.on, at: tx.now, setBy: existing.setBy === 'owner' ? 'owner' : setBy,...(input.recordReport?{recordReport:input.recordReport}:{}) });
 }
 
 /** Removes a routine inside the caller's transaction; one the owner set only by the owner (ROUTINE_NOT_YOURS). */
@@ -300,11 +205,11 @@ export function routineView(state: State, venture: VentureRecord, routine: Routi
   const next = routine.on ? nextOccurrence(routine.schedule, nowMs) : null;
   const who = askedName(state, venture, routine.agent);
   const line = !routine.on ? 'Off. Nothing runs.'
-    : next ? `Next ${momentIn(next, zone, order)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.`
+    : next ? routine.recordReport?`Next ${momentIn(next,zone,order)}. A private report from saved records waits for your approval on Today. No model call.`:`Next ${momentIn(next, zone, order)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.`
       : 'No more times to run.';
   // 4J22a: the prompt too, so the owner turns a routine off, on or changes it by sending the same words back; a role
   // that may not change routines (an accountant, a viewer) reads the schedule without the words.
-  return { id: routine.id, name: routine.name, agent: routine.agent, ...(withPrompt ? { prompt: routine.prompt } : {}), schedule: structuredClone(routine.schedule), when: whenWords(routine.schedule, venture), on: routine.on, next, line };
+  return { id: routine.id, name: routine.name, agent: routine.agent, ...(withPrompt ? { prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}) } : {}), schedule: structuredClone(routine.schedule), when: whenWords(routine.schedule, venture), on: routine.on, next, line };
 }
 
 /** One run in the history. A finished run says delivered, never done. */
@@ -338,7 +243,7 @@ export async function routinesSetHandler(deps: VentureDeps, ctx: Context, payloa
   const input = checkInput(state, venture, body.routine, deps.clock().getTime());
   // 4J7 (K7): a routine is switched on only for an AI connection Check connections has looked at (its runs go to it).
   const route = chatRoute(deps.models.status(ctx));
-  if (input.on && route) requireConnectorChecked(state, venture.id, `model:${route.presetId}`);
+  if (input.on && route&&!input.recordReport) requireConnectorChecked(state, venture.id, `model:${route.presetId}`);
   return ventureAction(deps, ctx, 'approve', 'routines.set', tx => {
     const saved = saveRoutine(tx, input, 'owner');
     return { routine: routineView(tx.state, tx.venture!, saved, Date.parse(tx.now)) };

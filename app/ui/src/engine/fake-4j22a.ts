@@ -1,3 +1,6 @@
+import {occurrencesBetween,nextOccurrence} from '../../../../platform/runtime/venture/agents/routine-time';
+import {VA_REPORT_PROMPTS} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/routines-core';
+import {vaFakeReport} from './fake-va-report';
 /**
  * The fake engine's answers for W4 4J22a's screens, with the engine's codes, shapes, words and order:
  *   venture.journal.chain, .acceptBreak  whether the record of outside actions adds up (journal/chain.ts, 4J10); a break
@@ -80,32 +83,6 @@ function wall(ms: number, timeZone: string): Wall {
   return { y: Number(parts.year), m: Number(parts.month), d: Number(parts.day), h: Number(parts.hour), min: Number(parts.minute), weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(parts.weekday!) + 1 };
 }
 
-/** The instant of a wall time in a zone (the zone's offset read at that time). */
-function instantAt(y: number, m: number, d: number, h: number, min: number, timeZone: string): number {
-  const guess = Date.UTC(y, m - 1, d, h, min);
-  const seen = wall(guess, timeZone);
-  const offset = Date.UTC(seen.y, seen.m - 1, seen.d, seen.h, seen.min) - guess;
-  return guess - offset;
-}
-
-function nextOccurrence(schedule: RoutineSchedule, afterMs: number): string | null {
-  if (schedule.kind === 'once') return Date.parse(schedule.at) > afterMs ? schedule.at : null;
-  if (schedule.kind === 'interval') {
-    const from = Date.parse(schedule.from);
-    if (from > afterMs) return schedule.from;
-    const every = schedule.everyMinutes * 60_000;
-    return new Date(from + (Math.floor((afterMs - from) / every) + 1) * every).toISOString();
-  }
-  const [h, min] = schedule.time.split(':').map(Number) as [number, number];
-  for (let day = 0; day <= 7; day++) {
-    const at = wall(afterMs + day * 86_400_000, schedule.timeZone);
-    if (!schedule.weekdays.includes(at.weekday)) continue;
-    const ms = instantAt(at.y, at.m, at.d, h, min, schedule.timeZone);
-    if (ms > afterMs) return new Date(ms).toISOString();
-  }
-  return null;
-}
-
 const pad = (n: number) => String(n).padStart(2, '0');
 const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso), zone); return `${pad(w.d)} ${MONTHS[w.m - 1]} ${w.y}, ${pad(w.h)}:${pad(w.min)}`; };
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
@@ -146,8 +123,8 @@ function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
   throw invalid(cron);
 }
 
-interface Routine { id: string; name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; removed: boolean }
-interface RoutineRun { id: string; routineId: string; dueAt: string; state: RoutineRunState; line: string }
+interface Routine { recordReport?:'va-morning'|'va-weekly'; at?:string; id: string; name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; removed: boolean }
+interface RoutineRun { at?:string; routineDigest?:string; id: string; routineId: string; dueAt: string; state: RoutineRunState; line: string }
 
 // -------------------------------------------------------------------------------------------------------------------
 // Drills, readiness and the shadow summary (4J15)
@@ -427,19 +404,44 @@ export class FakeQualityDesk {
     return (this.host.ask('venture.team.list', {}) as TeamListView).agents;
   }
 
+  /** Browser rehearsal sweeps source-only VA routines through the existing Today approval rows. */
+  syncVaRows():void{
+    const biz=this.host.current(),now=Date.parse(this.host.now()),runs=this.routineRuns.get(biz)??[];this.routineRuns.set(biz,runs);
+    for(const run of runs)if(run.at&&run.state==='needs-input'&&Date.parse(run.at)+86400000<=now){run.state='skipped';run.line='Nobody approved it within 24 hours, so it counts as no. Nothing was sent.';}
+    const current=this.liveRoutines().filter(r=>r.recordReport);
+    for(const routine of current){if(!routine.on)continue;const after=runs.filter(r=>r.routineId===routine.id).reduce((last,r)=>Math.max(last,Date.parse(r.dueAt)),Date.parse(routine.at??this.host.now())),due=occurrencesBetween(routine.schedule,after,now);
+      if(!due.count||!due.latest)continue;const latest=due.latest,late=now-Date.parse(latest)>3600000,missed=late?due.count:due.count-1;
+      const put=(dueAt:string,state:RoutineRunState,line:string)=>runs.push({id:'va-run-'+(++this.seq),routineId:routine.id,dueAt,state,line,at:this.host.now(),routineDigest:this.host.digest(routine)});
+      if(missed)put(late?latest:due.previous!,'missed',missed===1?'Missed once while Chausar was closed.':`Missed ${missed} times while Chausar was closed.`);if(late)continue;
+      if((this.host.ask('venture.get',{}) as {paused?:{line:string}}|null)?.paused){put(latest,'skipped','Skipped: Paused by you.');continue;}
+      if(runs.some(r=>r.routineId===routine.id&&['queued','running','needs-input'].includes(r.state))){put(latest,'skipped','Skipped: the run before it was still waiting for you.');continue;}
+      put(latest,'needs-input','Waiting for you on Today. Nothing goes to your AI until you approve it.');
+    }
+    const rows=this.host.rows().filter(r=>!(r.businessId===biz&&r.id.startsWith('routine:va-run-')));
+    for(const run of runs){const routine=current.find(r=>r.id===run.routineId);if(!routine||run.state!=='needs-input')continue;const row:Omit<QueueRow,'digest'>={id:'routine:'+run.id,businessId:biz,businessName:this.host.businesses?.().find(b=>b.id===biz)?.name??'',kind:'proposal',createdAt:run.at??run.dueAt,title:routine.name+' is due',agent:'Chausar',line:`It asks Chausar: "${routine.prompt}" The answer goes to your ${routine.name} chat with Chausar. Nothing changes until you approve.`,actions:[{id:'deny',label:'Not now',primary:false},{id:'approve',label:'Run it',primary:true,secondAsk:true}]};rows.push({...row,digest:this.host.digest({row,routine})});}
+    this.host.setRows(rows);
+  }
+  decideVa(row:QueueRow,action:string):string|null{
+    if(!row.id.startsWith('routine:va-run-'))return null;const run=(this.routineRuns.get(row.businessId)??[]).find(r=>'routine:'+r.id===row.id),routine=(this.routines.get(row.businessId)??[]).find(r=>r.id===run?.routineId);
+    if(row.businessId!==this.host.current()||!run||!routine||!routine.recordReport||routine.removed||run.state!=='needs-input'||Date.parse(run.at??run.dueAt)+86400000<=Date.parse(this.host.now()))throw new EngineError('APPROVAL_STALE','This changed since you opened it.');
+    const {digest:_digest,...content}=row;if(row.digest!==this.host.digest({row:content,routine}))throw new EngineError('APPROVAL_STALE','This changed since you opened it.');
+    if(action==='deny'){run.state='skipped';run.line='You said not now. Nothing was sent.';return run.line;}
+    if(action!=='approve')throw invalid('This card does not offer that.');if(!routine.on)throw new EngineError('APPROVAL_STALE','The routine or source records changed. Review it again.');if((this.host.ask('venture.get',{}) as {paused?:unknown}|null)?.paused)throw new EngineError('BUSINESS_PAUSED','This business is paused.');
+    run.state='running';try{const report=vaFakeReport(this.host,routine.recordReport==='va-morning'?'morning':'weekly');this.host.keepVaReport?.(routine.id,routine.name,report);run.state='completed';run.line=`Delivered to your ${routine.name} chat with Chausar.`;return run.line;}catch(error){run.state='failed';run.line='Could not run: '+(error instanceof Error?error.message:'Chausar could not send it.');throw error;}
+  }
   private routineView(routine: Routine): RoutineView {
     const next = routine.on ? nextOccurrence(routine.schedule, Date.parse(this.host.now())) : null;
     const zone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : ZONE;
     const who = routine.agent === null ? 'Chausar' : this.agents().find((a) => a.id === routine.agent)?.name ?? routine.agent;
     const line = !routine.on ? 'Off. Nothing runs.'
-      : next ? `Next ${momentIn(next, zone)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.` : 'No more times to run.';
-    return { id: routine.id, name: routine.name, agent: routine.agent, prompt: routine.prompt, schedule: clone(routine.schedule), when: whenWords(routine.schedule), on: routine.on, next, line };
+      : next ? routine.recordReport?`Next ${momentIn(next,zone)}. A private report from saved records waits for your approval on Today. No model call.`:`Next ${momentIn(next, zone)}. It asks ${who}, and waits for your approval on Today before anything goes to your AI.` : 'No more times to run.';
+    return { id: routine.id, name: routine.name, agent: routine.agent, prompt: routine.prompt,...(routine.recordReport?{recordReport:routine.recordReport}:{}), schedule: clone(routine.schedule), when: whenWords(routine.schedule), on: routine.on, next, line };
   }
 
   private routineHistory(p: Record<string, unknown>) {
     exact(p, ['id'], ['id']);
     if (!(this.routines.get(this.host.current()) ?? []).some((r) => r.id === p.id)) throw invalid('That routine was not found.');
-    return { runs: clone((this.routineRuns.get(this.host.current()) ?? []).filter((run) => run.routineId === p.id).sort((a, b) => b.dueAt.localeCompare(a.dueAt)).map(({ routineId: _r, ...run }) => run)) };
+    return { runs: clone((this.routineRuns.get(this.host.current()) ?? []).filter((run) => run.routineId === p.id).sort((a, b) => b.dueAt.localeCompare(a.dueAt)).map(({ routineId: _r, at:_at,routineDigest:_binding,...run }) => run)) };
   }
 
   private routineSet(p: Record<string, unknown>): { routine: RoutineView } {
@@ -447,7 +449,7 @@ export class FakeQualityDesk {
     exact(p, ['routine'], ['routine']);
     const raw = p.routine as Partial<RoutineInput> | null;
     if (!raw || typeof raw !== 'object') throw invalid('Send the routine.');
-    exact(raw as Record<string, unknown>, ['id', 'name', 'agent', 'prompt', 'schedule', 'on'], ['name', 'prompt', 'schedule', 'on']);
+    exact(raw as Record<string, unknown>, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport'], ['name', 'prompt', 'schedule', 'on']);
     const name = typeof raw.name === 'string' ? raw.name.trim().replace(/\s+/g, ' ') : '';
     if (name.length < 1 || name.length > 80) throw invalid('Name must be between 1 and 80 characters.');
     const agent = raw.agent ?? null;
@@ -456,14 +458,17 @@ export class FakeQualityDesk {
     if (prompt.length < 10 || prompt.length > 2000) throw invalid('Prompt must be between 10 and 2000 characters.');
     const leans = LEANS.exec(prompt);
     if (leans) throw new EngineError('ROUTINE_NOT_STANDALONE', NOT_STANDALONE(leans[0]));
+    const report=raw.recordReport;
+    if(report!==undefined&&(!['va-morning','va-weekly'].includes(report)||(this.host.ask('venture.blueprint.get',{}) as import('./types').BlueprintViewLite|null)?.playbook?.id!=='virtual-assistant'||agent!==null||prompt!==VA_REPORT_PROMPTS[report==='va-morning'?'morning':'weekly']))throw invalid('Choose a built-in private assistant report with its exact source-only prompt.');
     if (typeof raw.on !== 'boolean') throw invalid('on must be true or false.');
     const list = this.routines.get(this.host.current()) ?? [];
     const existing = raw.id ? list.find((r) => r.id === raw.id && !r.removed) : undefined;
     if (raw.id && !existing) throw invalid('That routine was not found.');
     const schedule = existing && JSON.stringify(existing.schedule) === JSON.stringify(raw.schedule) ? existing.schedule : checkSchedule(raw.schedule, Date.parse(this.host.now()));
-    const saved: Routine = { id: existing?.id ?? `routine-${++this.seq}`, name, agent, prompt, schedule, on: raw.on, removed: false };
+    const saved: Routine = { id: existing?.id ?? `routine-${++this.seq}`, name, agent, prompt, schedule, on: raw.on, removed: false,at:this.host.now(),...(report?{recordReport:report}:{}) };
     this.routines.set(this.host.current(), existing ? list.map((r) => (r.id === saved.id ? saved : r)) : [...list, saved]);
-    return { routine: this.routineView(saved) };
+    this.host.emit({type:'desk.changed',businessId:this.host.current(),at:this.host.now()});
+    this.syncVaRows();return { routine: this.routineView(saved) };
   }
 
   private routineRemove(p: Record<string, unknown>): { removed: true; line: string } {

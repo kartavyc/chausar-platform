@@ -19,7 +19,7 @@ import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
 import { localDayAt } from '../local-day.ts';
 import {
-  currentVenture, exactPayload, formatMicros, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
+  currentVenture, digest, exactPayload, formatMicros, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
 } from '../records.ts';
 import { QUOTE_TTL_MS, checkQuoteBinding } from './quote.ts';
 import { newestFirst } from './shared.ts';
@@ -34,6 +34,7 @@ import { WRITE_CAP_KINDS, WRITE_CAPS, writeCapsToday } from '../delivery/harness
 import { resetDay, shortDay } from '../delivery/failure-words.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { presetSpec } from '../models/presets.ts';
+import { articleReservation } from '../playbooks/seo-visibility/article-budget.ts';
 import type { ModelPresetId, ModelTier, RateCardLine } from '../contracts.ts';
 // 4Z3: which currency leads spend.
 import type { CountryProfile, CurrencyLead, SpendLead } from '../contracts.ts';
@@ -226,6 +227,8 @@ export function reserveSpend(tx: VentureTx, request: SpendReservation): SpendRec
   check(!records.some(record => record.key === request.key && HOLDS_KEY.includes(record.phase)), 'SPEND_ALREADY_CHARGED', SPEND_WORDS.alreadyCharged);
   const policy = latestPolicy(tx.list('venture-spend-policy'));
   const estimate = BigInt(request.estimateMicros);
+  const article = articleReservation(tx, request.ref);
+  if (article && article.used + estimate > BigInt(article.cap)) throw new SpendRefusal('ARTICLE_SPEND_CAP', 'This call would pass the article AI limit. Review the article limit before starting more work.', subjectOf(request), request.estimateMicros);
   if (policy && policy.capMicros !== null) {
     const after = monthTotal(records, monthOf(tx.now)) + estimate;
     if (after > BigInt(policy.capMicros)) {
@@ -240,7 +243,7 @@ export function reserveSpend(tx: VentureTx, request: SpendReservation): SpendRec
     ? spendQuote(tx, request, policy.askAboveMicros, base.id) : null;
   const subject = subjectOf(request);
   return tx.put({
-    ...base, key: subject.key, item: subject.item, label: subject.label, agent: subject.agent ?? null, connector: subject.connector ?? null,
+    ...base, ...(article ? {articleOrderId:article.orderId} : {}), key: subject.key, item: subject.item, label: subject.label, agent: subject.agent ?? null, connector: subject.connector ?? null,
     payer: subject.payer, draftDigest: subject.draftDigest, rate: structuredClone(request.rate), reservedMicros: request.estimateMicros,
     settledMicros: null, settledBy: null, phase: 'reserved', quoteId, ref: subject.ref ?? null, refusal: null, settledAt: null,
   } satisfies SpendRecord);
@@ -309,7 +312,7 @@ export async function spendRefused(deps: VentureDeps, ctx: Context, error: unkno
 }
 
 /** A paid connector call: what it is, plus the list price Chausar knows for it (null when there is none). */
-export type PaidCallRequest = SpendSubject & { list: SpendRate | null };
+export type PaidCallRequest = SpendSubject & { list: SpendRate | null; approvedRateDigest?: string };
 
 /**
  * One paid connector call, start to finish: the charge record is committed before run() is called, run() makes the
@@ -320,6 +323,7 @@ export async function paidCall<T>(deps: VentureDeps, ctx: Context, request: Paid
   const subject = subjectOf(request);
   await ventureAction(deps, ctx, 'prepare', 'spend.reserve', tx => {
     const rate = resolveRate({ item: subject.item, list: request.list, owner: ownerRates(tx.list('venture-spend-policy')), subject });
+    check(request.approvedRateDigest===undefined||request.approvedRateDigest===digest(rate),'APPROVAL_STALE','The approved rate changed. Review a fresh quote before spending.');
     return reserveSpend(tx, { ...subject, rate, estimateMicros: fixedEstimate(rate, subject) });
   }).catch(error => spendRefused(deps, ctx, error));
   let answer: { value: T; billedMicros: MicroString | null };

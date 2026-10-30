@@ -111,10 +111,13 @@ type Call = { method: string; params: unknown };
 type Intercept = Partial<Record<MethodName, (params: unknown) => unknown>>;
 const FIELDS = ['format', 'aiVoice', 'aiPresenter', 'paidPromotion', 'cutFile'] as const;
 
-/** Lumen, with its shorts offer priced so it can be ordered. */
+/** Lumen, with the owner's shorts price accepted before a new order. */
 async function lumen() {
   const engine = new FakeEngine();
-  await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '8000' }] } });
+  const priced=await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '8000' }] } }) as BlueprintViewLite;
+  const queue=await engine.request('venture.queue.list', {}) as import('../../src/engine/types').QueueList;
+  const approval=queue.rows.find(row=>row.viewRef?.kind==='plan'&&row.viewRef.id===priced.blueprint.id)!;
+  await engine.request('venture.queue.decide',{id:approval.id,digest:approval.digest,action:'approve',viewed:true});
   return engine;
 }
 

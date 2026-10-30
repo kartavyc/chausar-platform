@@ -32,7 +32,7 @@ const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 const KEEPER_JOBS: readonly [KeeperJobId, string][] = [
   ['backups', 'Backups'], ['journal-sweep', 'Journal sweep'], ['connection-checks', 'Connection checks'], ['rule-freshness', 'Platform rule dates'],
   ['rate-tables', 'Tax rate tables'], ['posting-steps', 'Posting steps'], ['network-strength', 'Network strength'], ['probes', 'Needs-you checks'],
-  ['calendar-feed', 'Calendar feed'],
+  ['calendar-feed', 'Calendar feed'], ['monitors', 'Page monitors'],
 ];
 
 /** The settings in use: the newest record's, else the defaults. */

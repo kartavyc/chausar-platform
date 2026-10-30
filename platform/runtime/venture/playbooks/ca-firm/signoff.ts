@@ -13,6 +13,7 @@ import { caLabel, validateCaOfRecord, type CaOfRecord } from './playbook.ts';
 import type { PortalDiff } from './portal.ts';
 import { RATE_TABLES, rateTableHash, type RateConfirmation, type RateTable, type RateUse } from './rates.ts';
 import { portalDiffExplained } from './stored-receipt.ts';
+import { signoffReceiptSnapshots } from './stored-signoff.ts';
 
 type EntryName = CaFirmRecord['entry'];
 type Entry<E extends EntryName> = Extract<CaFirmRecord, { entry: E }>;
@@ -170,7 +171,7 @@ export async function recordCaSignoff(deps: VentureDeps, ctx: Context, payload: 
     if (payload.decision === 'signed') membership(payload.membershipNumber, { name: sent.caName, membershipNumber: sent.membershipNumber });
     const record = tx.put<CaFirmRecord>({
       ...tx.base('venture-ca-firm'), entry: 'signoff', requestId: request.id, decision: payload.decision, caName: sent.caName, membershipNumber: sent.membershipNumber,
-      workingDigest: request.workingDigest, receiptIds: [...request.receiptIds], playbookHash: request.playbookHash, note, recordedBy: ctx.memberId,
+      workingDigest: request.workingDigest, receiptIds: [...request.receiptIds], receiptDigests: signoffReceiptSnapshots(tx.state, ventureId, request.receiptIds), playbookHash: request.playbookHash, note, recordedBy: ctx.memberId,
     }) as SignoffRecord;
     tx.emit('queue.changed', { caFirm: 'signoff', requestId: request.id });
     return record;

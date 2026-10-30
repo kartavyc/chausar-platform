@@ -1,0 +1,26 @@
+import {priceAndAcceptPlan} from '../helpers/accepted-plan';
+import {expect,it} from 'vitest';
+import {FakeEngine} from '../../src/engine/fake';import type {BlueprintViewLite} from '../../src/engine/types';
+async function setup(){const engine=new FakeEngine({fresh:true});await engine.request('workspace.create',{name:'Own shop',pack:'services'});await engine.request('venture.create',{idea:'online seller',countryCode:'IN'});for(const [questionId,answer] of [['q_1',{skipped:true}],['q_pricing_model',{choiceId:'monthly'}],['q_price',{skipped:true}],['q_tax',{yes:false}]] as const)await engine.request('venture.interview.answer',{questionId,answer});const plan=await engine.request('venture.blueprint.draft',{useTemplate:true}) as BlueprintViewLite;const offer=plan.blueprint.offers.find(o=>o.playbookOffer==='own-shop-back-office')!;await priceAndAcceptPlan(engine,plan,'100');const order=await engine.request('venture.order.create',{offerId:offer.id,request:'Own seller operations.'}) as {id:string};return {engine,order};}
+const csv='sku,channel,priceMinor,breakEvenMinor,stock,title,currency\nA,shopify,10000,6000,8,Cotton bag,INR',caps={priceChangeBps:'2500',promotionBps:'2000'};
+const act=(env:Awaited<ReturnType<typeof setup>>,action:string,payload:unknown,id=env.order.id,digest?:string)=>env.engine.request('venture.desk.act',{playbook:'online-seller',kind:'operations',id,action,payload,...(digest?{digest}:{})}) as Promise<any>;
+it('matches real stage provenance, money approval, stale, tightened caps and stock compare-and-set',async()=>{
+ const env=await setup();const read=await act(env,'read',{orderId:env.order.id,name:'products.csv',contentBase64:btoa(csv),caps});
+ await expect(act(env,'stage',{readId:'invented',sku:'A',channel:'shopify',change:{field:'price',value:'9000'}})).rejects.toMatchObject({code:'SELLER_PROVENANCE_REQUIRED'});
+ const stage=await act(env,'stage',{readId:read.result.readId,sku:'A',channel:'shopify',change:{field:'price',value:'9000'}});await expect(act(env,'handoff',{},stage.id,stage.result.digest)).rejects.toMatchObject({code:'SELLER_APPROVAL_REQUIRED'});
+ const yes=await act(env,'confirm',{name:null},stage.id,stage.result.digest);const done=await act(env,'handoff',{},stage.id,yes.result.digest);expect(done.result.marketplaceApplied).toBe(false);expect(done.result.file.text).toContain('A');await expect(act(env,'handoff',{},stage.id,yes.result.digest)).rejects.toMatchObject({code:'SELLER_STAGE_STALE'});
+ const stock=await act(env,'stage',{readId:read.result.readId,sku:'A',channel:'shopify',change:{field:'stock',value:'9'}});const approved=await act(env,'confirm',{name:null},stock.id,stock.result.digest);await act(env,'read',{orderId:env.order.id,name:'products.csv',contentBase64:btoa(csv.replace(',8,',',7,')),caps});await expect(act(env,'handoff',{},stock.id,approved.result.digest)).rejects.toMatchObject({code:'SELLER_STOCK_CHANGED'});
+});
+it('records movements once and gives source-backed research without hiding a rejected candidate',async()=>{
+ const env=await setup();const movement={id:'import-1',sku:'A',counter:'onHand',delta:'10',authority:'warehouse',source:'Owner count',at:'2026-10-28T10:00:00Z'};const result=await act(env,'movement',{orderId:env.order.id,movement});expect(result.result.counters[0].onHand).toBe('10');await expect(act(env,'movement',{orderId:env.order.id,movement})).rejects.toMatchObject({code:'SELLER_MOVEMENT_DUPLICATE'});
+ const data='id,title,keyword,priceMinor,feeMinor,reviews,ratingBps,recentReviewSpike,seasonMonths,source\np1,Disney bag,bag,10000,2000,20,400,no,10,Owner export';const report=await act(env,'analyse',{orderId:env.order.id,mode:'research',name:'research.csv',contentBase64:btoa(data),options:{month:10,trademarks:['Disney'],profile:'beginner'}});expect(report.result.data[0].verdict).toBe('NO-GO');expect(report.result.receiptId).toBeTruthy();
+});
+it('parses owner rupees and supplies the same price preview receipt',async()=>{
+ const env=await setup();const read=await act(env,'read',{orderId:env.order.id,name:'products.csv',contentBase64:btoa(csv),caps:{priceChangePercent:'25',promotionPercent:'20'}});
+ const stage=await act(env,'stage',{readId:read.result.readId,sku:'A',channel:'shopify',change:{field:'price',rupees:'90.25'}});
+ expect(stage.result.proposal.change.value).toBe('9025');expect(stage.result.figures.find((f:any)=>f.key==='afterMinor').display).toBe('INR 90.25');
+});
+
+it('matches unknown actions and malformed confirmation before looking up an old stage',async()=>{const env=await setup();await expect(act(env,'invented',{},'missing')).rejects.toMatchObject({code:'SELLER_ACTION_INVALID'});await expect(act(env,'confirm',{extra:true},'missing')).rejects.toMatchObject({code:'INVALID_VENTURE_REQUEST'});});
+
+it('checks current photo rights before stage kind, digest and malformed payload',async()=>{const env=await setup();const read=await act(env,'read',{orderId:env.order.id,name:'products.csv',contentBase64:btoa(csv),caps});const staged=await act(env,'stage',{readId:read.result.readId,sku:'A',channel:'shopify',change:{field:'price',value:'9000'}});for(const action of ['photo-confirm','photo-import'])await expect(act(env,action,{unexpected:true},staged.id,'stale')).rejects.toMatchObject({code:'RIGHTS_REQUIRED'});});

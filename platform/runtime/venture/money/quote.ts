@@ -210,6 +210,8 @@ export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unkno
   // 4J5: a waiting credit note's card, its balance worked out again from the records (money/credits.ts), loaded on use.
   if (id.startsWith('credit-balance:')) return (await import('./credits.ts')).creditBalanceReceipt(state, venture, id);
   if (id.startsWith('credit-note:')) return (await import('./credits.ts')).creditNoteReceipt(state, venture, id); // 4J20
+  // 5A2: a GO card's maximum loss, worked out again from the stored card (playbooks/kit/go-no-go.ts), loaded on use.
+  if (id.startsWith('gonogo_')) return (await import('../playbooks/kit/go-no-go.ts')).goNoGoReceipt(state, venture, id);
   // 4J10 (H26): a stored receipt comes with the business's signature on it and the public half that checks it.
   const signed = <R extends object>(served: R): R => {
     const signature = receiptSignature(state, venture.id, id);
@@ -225,6 +227,23 @@ export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unkno
   if (receipt.subject.type !== 'offer') return signed(receipt);
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
   return signed({ ...receipt, stale: receipt.stale || latest === null || latest.digest !== receipt.inputs.blueprintDigest });
+}
+
+// ---------------------------------------------------------------------------
+// Ink v2 wave 5 (5A2): a share of a recorded amount
+// ---------------------------------------------------------------------------
+
+/**
+ * A share of a recorded amount in minor units: base times basis points over 10000, in BigInt, rounded half up to the
+ * minor unit ('833' of '120000000' is '9996000': 8.33% of 12,00,000.00 rupees is 99,960.00). Pure arithmetic; the
+ * base must be recorded (SHARE_BASE_MISSING), the share from 0.01% to 100% (INVALID_SHARE), the base whole and more
+ * than zero (INVALID_AMOUNT). money/share-price.ts checks the base's evidence before it calls this.
+ */
+export function quoteShare(input: { bps: string; baseMinor: string | null | undefined }): MinorString {
+  check(input.baseMinor !== null && input.baseMinor !== undefined, 'SHARE_BASE_MISSING', 'Record the amount this share is of first, with the file that shows it.');
+  check(typeof input.bps === 'string' && /^[1-9]\d{0,4}$/.test(input.bps) && BigInt(input.bps) <= 10000n, 'INVALID_SHARE', 'A share must be from 0.01% to 100%.');
+  check(typeof input.baseMinor === 'string' && /^[1-9]\d{0,19}$/.test(input.baseMinor), 'INVALID_AMOUNT', 'The amount must be a whole number of paise, more than zero.');
+  return String((BigInt(input.baseMinor) * BigInt(input.bps) + 5000n) / 10000n);
 }
 
 // ---------------------------------------------------------------------------

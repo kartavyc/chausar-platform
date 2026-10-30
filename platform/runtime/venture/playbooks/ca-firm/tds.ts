@@ -5,7 +5,7 @@
 // the catch-up on earlier bills onto the payment that crosses the threshold, and lists the challans by section and
 // month with the deposit due date. TDS is rounded to the nearest rupee. The CA
 // files the TDS returns (24Q, 26Q) on TRACES; agents never do.
-import { ChausarError } from '../../../contracts.ts';
+import { ChausarError } from '../../../portable.ts';
 import { bpsText, divRound, invalid, isoDate, maxBig, notModelled, paise, sumBig, type IsoDate } from './money.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type RateTable, type RateUse, type TdsPayload, type TdsSectionRate } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
@@ -45,7 +45,7 @@ export function tdsTable(financialYear: string): RateTable<TdsPayload> {
 
 /** The deposit due date for tax deducted in a month: the 7th of the next month, or 30 April for March. */
 export function depositDue(month: string, payload: TdsPayload): IsoDate {
-  const [y, m] = month.split('-').map(Number);
+  const [y, m] = month.split('-').map(Number) as [number,number];
   if (m === 3) return `${y}-${payload.marchDepositDue}`;
   const next = m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
   return `${next.y}-${String(next.m).padStart(2, '0')}-${String(payload.depositDayNextMonth).padStart(2, '0')}`;
@@ -111,7 +111,7 @@ export function tdsWorking(input: TdsWorkingInput, use: RateUse = REHEARSAL): Ca
     const noPan = pan === null || !PAN.test(pan);
     if (pan !== null && !noPan) {
       const expected = PAN_LETTER[payment.payeeKind];
-      if (expected && pan[3] !== expected) findings.push(`The PAN ${pan} of ${payment.payee}: the fourth letter ${pan[3]} means ${LETTER_WORDS[pan[3]] ?? 'another kind of payee'}, but the payee is recorded as a ${payment.payeeKind}. Check which rate applies.`);
+      if (expected && pan[3] !== expected) findings.push(`The PAN ${pan} of ${payment.payee}: the fourth letter ${pan[3]} means ${LETTER_WORDS[pan[3]!] ?? 'another kind of payee'}, but the payee is recorded as a ${payment.payeeKind}. Check which rate applies.`);
     }
     const base = BigInt(payment.payeeKind === 'individual' || payment.payeeKind === 'huf' ? section!.individualBps : section!.otherBps);
     const rate = noPan ? maxBig(base * BigInt(rates.noPanMultiplier), BigInt(rates.noPanFloorBps)) : base;

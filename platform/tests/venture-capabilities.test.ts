@@ -86,11 +86,13 @@ test('the Story editor: the team\'s tools, everything a turn carries, its step, 
   assert.equal(view.agent, 'story-editor');
   assert.deepEqual(keys(view, 'see'), [
     'tool:files.list', 'tool:files.read', 'tool:youtube.hooks', 'tool:youtube.editList', 'tool:youtube.chapters', 'tool:youtube.retention',
+    'tool:youtube.editOps', 'tool:youtube.clean', 'tool:youtube.captions', 'tool:youtube.coverage', 'tool:youtube.dictionary', 'tool:youtube.style', 'tool:youtube.clips', 'tool:youtube.broll', 'tool:youtube.beats',
+    'tool:youtube.afterPublish', 'tool:youtube.outliers', 'tool:youtube.niche', 'tool:youtube.comments', 'tool:youtube.publicStats', 'tool:youtube.archive',
     'input:request', 'input:files', 'input:dictionary', 'input:answers', 'input:notes', 'input:knowledge',
   ]);
   assert.ok(view.items.filter(entry => entry.list === 'see').every(entry => entry.state === 'reads'));
   assert.match(INPUT_WORDS.knowledge, /other clients/);
-  assert.deepEqual(keys(view, 'do'), ['step:find', 'tool:handoff.client', 'tool:handoff.owner', 'tool:evidence.record', 'model:provider']);
+  assert.deepEqual(keys(view, 'do'), ['step:find', 'tool:handoff.client', 'tool:handoff.owner', 'tool:evidence.record', 'tool:youtube.export', 'model:provider']);
   assert.equal(item(view, 'tool:handoff.client').state, 'hands-off');
   assert.equal(item(view, 'model:provider').line, 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.');
   assert.deepEqual(keys(view, 'off'), ['effect:send', 'effect:money'], 'it reads beyond the order (sources), notes evidence and sends to your AI, so only send and money are off');
@@ -103,7 +105,7 @@ test('the Packager writes with no tools: it sees what the team found and the sou
   const env = await agentBusiness();
   const view = await page(env, 'packager');
   assert.deepEqual(keys(view, 'see'), ['input:request', 'input:proven', 'input:answers', 'input:knowledge']);
-  assert.deepEqual(view.canDo, ['Draft the title, thumbnail text, description, chapters and pinned comment. You check the draft before anything leaves Chausar.', item(view, 'model:provider').line]);
+  assert.deepEqual(view.canDo, ['Draft the title, thumbnail text, description, chapters and pinned comment. You check the draft before anything leaves Chausar.', 'Packaging per video. You check the draft before anything leaves Chausar.', 'Screencast tutorial. You check the draft before anything leaves Chausar.', item(view, 'model:provider').line]);
   assert.deepEqual(keys(view, 'off'), ['effect:read', 'effect:write', 'effect:send', 'effect:money']);
   assert.equal(view.line, NO_TOOLS_LINE);
 });
@@ -171,11 +173,11 @@ test('outside actions it may propose are only recorded: the mail app records the
 });
 
 test('a step that needs a connector mode that is only planned is planned too, never shown as working', () => {
-  // 4J7: Zoho Mail's inbox is read now (4E3's IMAP), so a still-planned mode stands in: reading Zoho Books.
-  const inbox = step({ kind: 'work', title: 'Read the books', needs: [{ connector: 'zoho-books', mode: 'read' }] });
+  // Xero remains planned; Zoho Books now has a fixture-tested reader.
+  const inbox = step({ kind: 'work', title: 'Read the books', needs: [{ connector: 'xero', mode: 'read' }] });
   const view = capabilityPage({ id: 'x', name: 'Helper', kind: 'agent', steps: [inbox] }, teamOf([inbox]), desktop);
   assert.equal(item(view, 'step:one').state, 'planned');
-  assert.equal(item(view, 'step:one').line, 'Read the books. Planned: it needs Zoho Books to read, which this build does not do yet.');
+  assert.equal(item(view, 'step:one').line, 'Read the books. Planned: it needs Xero to read, which this build does not do yet.');
 });
 
 test('Claude Code or Codex: works only when one is set up here; on the hosted app the server\'s own reason', async () => {

@@ -1,0 +1,9 @@
+// Original code receipts for dated provider export arithmetic. No provider prices are bundled or guessed.
+import {digest} from '../../../portable.ts';
+import {formatMinor} from '../../../currency.ts';
+import type {priceCall} from './call-cost.ts';
+export function callCostReceipt(orderId:string,source:{id:string;digest:string},cost:ReturnType<typeof priceCall>,runRef:{kind:'delivery';runId:string}|{kind:'rehearsal';scenarioId:string;episode:number}|{kind:'improvement';runId:string;scenarioId:string}={kind:'delivery',runId:orderId}){
+ const figures=[...cost.receipt.lines.map(line=>({key:line.leg,label:line.leg,minor:line.minor,display:formatMinor(line.minor,cost.currency),currency:cost.currency,unit:'money' as const})),{key:'total',label:'Total call cost',minor:cost.totalMinor,display:formatMinor(cost.totalMinor,cost.currency),currency:cost.currency,unit:'money' as const}];
+ const receipt={operation:'work.totals' as const,runRef,currency:cost.currency,inputs:{tables:[{id:source.id,name:'Owner-imported call export',digest:source.digest}],columns:{quantity:'quantity',rateMinor:'rateMinor',perUnits:'perUnits'},rowIds:[cost.callId]},steps:[...cost.receipt.lines.map(line=>({op:'match' as const,inputs:[line.quantity,line.rateMinor,line.perUnits],result:line.minor,rule:line.leg+': '+line.rule+'; '+line.checkedOn+'; '+line.source})),{op:'add' as const,inputs:cost.receipt.lines.map(line=>line.minor),result:cost.totalMinor,rule:'Sum all priced call legs in integer minor units.'}],figures,reconciliation:null,allowedNumbers:figures.flatMap(f=>[f.minor,f.display]),explanation:'Owner-imported usage, priced by code from the dated rate table. Each leg rounds up to a minor unit. This is not a provider invoice. '+cost.receipt.lines[0]!.source,digest:''};
+ const {digest:_digest,...body}=receipt;return {...body,digest:digest(body)};
+}

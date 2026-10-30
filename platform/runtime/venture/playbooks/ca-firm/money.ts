@@ -1,7 +1,7 @@
 // AI-native CA firm: exact money for tax work. Amounts are BigInt paise, rates are whole basis points, and every
 // division names its rounding. Nothing here uses a float. Idea taken, code written here: Invaro/opentax-engine
 // (AGPL-3.0, ideas only), whose money module keeps cents as bigint and makes each division say how it rounds.
-import { ChausarError } from '../../../contracts.ts';
+import { ChausarError } from '../../../portable.ts';
 import { formatMinor } from '../../../currency.ts';
 
 export type Rounding = 'half-up' | 'half-even' | 'floor' | 'ceil';
@@ -78,7 +78,7 @@ export function inr(minor: bigint | string): string {
 /** A real calendar date written YYYY-MM-DD. */
 export function isoDate(value: unknown, field: string): IsoDate {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) invalid(`${field} must be a date written YYYY-MM-DD.`);
-  const [y, m, d] = (value as string).split('-').map(Number);
+  const [y, m, d] = (value as string).split('-').map(Number) as [number, number, number];
   const probe = new Date(Date.UTC(y, m - 1, d));
   if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) invalid(`${field} is not a real date.`);
   return value as string;
@@ -90,22 +90,22 @@ export function isoDate(value: unknown, field: string): IsoDate {
  */
 export function monthsOrPart(start: IsoDate, end: IsoDate): number {
   if (end < start) return 0;
-  const [sy, sm, sd] = start.split('-').map(Number);
-  const [ey, em, ed] = end.split('-').map(Number);
+  const [sy, sm, sd] = start.split('-').map(Number) as [number, number, number];
+  const [ey, em, ed] = end.split('-').map(Number) as [number, number, number];
   const whole = (ey - sy) * 12 + (em - sm);
   return ed >= sd ? whole + 1 : whole;
 }
 
 /** The day after a date, as YYYY-MM-DD. */
 export function nextDay(date: IsoDate): IsoDate {
-  const [y, m, d] = date.split('-').map(Number);
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
 /** '22 October 2025'. */
 export function longDate(date: IsoDate): string {
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const [y, m, d] = date.split('-').map(Number);
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
   return `${d} ${months[m - 1]} ${y}`;
 }
 

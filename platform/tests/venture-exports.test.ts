@@ -18,6 +18,8 @@ const REQUIRED_EXPORTS: Record<VenturePackageId, string[]> = {
   chief: ['handlers', 'appendChiefMessage', 'draftProposal'],
   network: ['handlers', 'personById', 'listPeople'],
   notify: ['handlers'],
+  // Ink v2 wave 5 (package 5-0): the playbooks package.
+  playbooks: ['handlers'],
 };
 
 async function loadAll(): Promise<Record<VenturePackageId, VenturePackageModule>> {

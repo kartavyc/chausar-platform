@@ -34,7 +34,31 @@ import { FAKE_4J2_METHODS, FakeSets, fakeDeliveryCopy } from './fake-4j2';
 // 4J19: send back, edit and undo, a fix, paragraph changes, the triage rule, the decision record and row meta (fake-4j19.ts).
 import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19';
 
+export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  eraseR5Copies?(orderIds:readonly string[]):void;
+  erasePhoneCopies?(orderIds:readonly string[]):void;
+  acceptedOffers?():readonly {id:string;playbookOffer?:string|null}[];
+  eraseFormsCopies?(orderIds:readonly string[]):void;
+  eraseDevCopies?(orderIds:readonly string[]):void;
+  keepVaReport?(routineId:string,title:string,text:string):void;
+  eraseVaReports?():void;
+  eraseVaCopies?(orderIds:readonly string[]):void;
+  roomPrice?(orderId:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomPrice|undefined;
+  keepTranslationFile?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string}):void;
+  keepNarrationFetched?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string},source:{fileId:string;url:string;finalUrl:string;digest:string}):void;
+  narrationPrice?(orderId:string):{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}|undefined;
+  workReceipt?(id:string):import('./types').WorkReceiptLite|undefined;
+  socialClientAnswer?(runId:string):{answer:import('./types').ShareAnswer;packDigest:string}|null;
+  socialChain?(orderId:string):import('./types').OrderChainView|null;
+  scheduledPost?(id:string):import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostSnapshot|null;
+  moveScheduledPost?(id:string,binding:import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostBinding):import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostSnapshot;
+  decideScheduledPost?(id:string,state:'approved'|'rejected'|'applied'):void;
+  scheduledSession?():number;
+  scheduledBusy?(exceptId:string):boolean;
+  eraseScheduledPost?(id:string):void;
+  /** Internal post-import hook: route only screened support evidence, never send. */
+  supportImported?(mail:SupportImportedMail):void;
   current(): string;
   now(): string;
   emit(event: VentureRunEvent): void;
@@ -46,6 +70,34 @@ export interface W4DeskHost {
   digest(value: unknown): string;
   /** Another desk's answer, for the records this desk reads. */
   ask(method: string, params: Record<string, unknown>): unknown;
+  /** 5K1 internal payment facts in whole paise, never passed to a screen. */
+  uploadFingerprint?(id: string): string | null;
+  keepSellerAsset?(asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>):void;
+  eraseSellerAssets?(ids:readonly string[]):void;
+  eraseSellerFiles?(ids:readonly string[]):void;
+  /** Recruiting expiry and Forget erase copied drafts and report/share authority together. */
+  eraseRecruitingCopies?(orderIds:readonly string[]):void;
+  /** Career Forget cancels client work and erases its copied inputs and delivery authority. */
+  eraseCareerCopies?(orderIds:readonly string[]):void;
+  /** App testing Forget cancels client work and removes local demo/report copies. */
+  eraseAppTestingCopies?(orderIds:readonly string[]):void;
+  /** Tender Forget also clears source questions kept in order intake. */
+  eraseTranslationCopies?(orderIds:readonly string[]):void;
+  eraseTenderIntake?(orderIds:readonly string[]):void;
+  /** YouTube source Forget erases local ideas copied from those exact source uploads. */
+  eraseYoutubeIdeaSources?(sources:readonly string[]):void;
+  recruitingBlocked?(email:string|null,personId:string|null):boolean;
+  influencerOutreach?(input:{name:string;email:string;sourceUrl:string;creatorId:string;subject:string;body:string;postalAddress:string}):{leadId:string;draftId:string};
+  eraseInfluencerCopies?(orderIds:readonly string[]):void;
+  eraseInfluencerLeads?(ids:readonly string[]):void;
+  recruitingReports?(orderId:string):{reports:unknown[];shares:unknown[]};
+  recruitingMail?(threadIds:readonly string[]):unknown[];
+  eraseRecruitingMail?(threadIds:readonly string[]):void;
+  siteCaptureClient?(name:string,email:string):{id:string;name:string;email:string|null};
+  orderFiles?(orderId: string): { id: string; name: string; format: string; contentBase64: string; digest: string }[];
+  paymentFacts?(): { id: string; invoiceId: string; amountMinor: string; receivedOn: string; state: 'pending' | 'cleared'; currency: string }[];
+  /** 5G internal screened mail words for an owner's support ticket; never a new public method. */
+  supportThread?(id: string): { held: boolean; messages: { messageId: string; references: string[]; from: string; subject: string; date: string; text: string | null; source: 'mailbox' | 'file-import' }[] } | null;
   /** The businesses on this computer and how each opens (4J6). */
   businesses?(): { id: string; name: string; opens: string }[];
   /** The fake's runs, which the run controls change as the engine's do (4F3). */

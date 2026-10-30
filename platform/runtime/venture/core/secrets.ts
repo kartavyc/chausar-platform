@@ -188,7 +188,7 @@ function screenParams(raw: string, found: Found): string | null {
 /** The last path part that is not empty: where Slack keeps a webhook's secret. */
 const lastPart = (segments: string[]) => {
   const filled = segments.flatMap((segment, index) => (segment ? [index] : []));
-  return filled.length >= 2 ? [filled[filled.length - 1]] : [];
+  return filled.length >= 2 ? [filled[filled.length - 1]!] : [];
 };
 /** The part two after "webhooks": where Discord keeps a webhook's token. */
 const afterWebhooks = (segments: string[]) => {
@@ -313,7 +313,7 @@ export function verhoeffValid(digits: string): boolean {
   if (!/^\d+$/.test(digits)) return false;
   let check = 0;
   for (let index = 0; index < digits.length; index += 1) {
-    check = VERHOEFF_D[check][VERHOEFF_P[index % 8][digits.charCodeAt(digits.length - 1 - index) - 48]];
+    check = VERHOEFF_D[check]![VERHOEFF_P[index % 8]![digits.charCodeAt(digits.length - 1 - index) - 48]!]!;
   }
   return check === 0;
 }
@@ -501,8 +501,8 @@ function secondLook(text: string, keep: ReadonlySet<ReadbackKind>, found: Set<Re
       }
     }
     for (const match of copy.matchAll(LABELLED_CARD)) {
-      const start = match.index + match[0].length - match[1].length;
-      hits.push({ start, end: start + match[1].length, kind: 'card' });
+      const start = match.index + match[0].length - match[1]!.length;
+      hits.push({ start, end: start + match[1]!.length, kind: 'card' });
     }
   }
   if (!keep.has('aadhaar')) {
@@ -525,19 +525,19 @@ function secondLook(text: string, keep: ReadonlySet<ReadbackKind>, found: Set<Re
   }
   if (!keep.has('otp')) {
     for (const match of copy.matchAll(LOOSE_OTP)) {
-      const code = match[3];
+      const code = match[3]!;
       if (match[1] && /^code is$/i.test(match[1]) && YEAR.test(digitsOf(code))) continue;
       const start = match.index + match[0].length - code.length;
       hits.push({ start, end: start + code.length, kind: 'otp' });
     }
-    for (const match of copy.matchAll(LOOSE_OTP_FIRST)) hits.push({ start: match.index, end: match.index + match[1].length, kind: 'otp' });
+    for (const match of copy.matchAll(LOOSE_OTP_FIRST)) hits.push({ start: match.index, end: match.index + match[1]!.length, kind: 'otp' });
   }
   if (!hits.length) return text;
   // Back to the text's own places; where two finds overlap they become one, named by the stronger evidence (an IFSC
   // beside it, then an Aadhaar label, then a card, then a one-time code). Replaced from the end so earlier places hold.
   const spans = hits.map(hit => {
-    const last = from[hit.end - 1];
-    return { start: from[hit.start], end: last + ((text.codePointAt(last) ?? 0) > 0xFFFF ? 2 : 1), kind: hit.kind };
+    const last = from[hit.end - 1]!;
+    return { start: from[hit.start]!, end: last + ((text.codePointAt(last) ?? 0) > 0xFFFF ? 2 : 1), kind: hit.kind };
   }).sort((a, b) => a.start - b.start || b.end - a.end);
   const kept: typeof spans = [];
   for (const span of spans) {

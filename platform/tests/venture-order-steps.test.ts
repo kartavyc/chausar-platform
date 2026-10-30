@@ -26,9 +26,15 @@ async function playbookFor(env: Env, flagship: string) {
 
 test('order steps: every flagship has a stage list, every stage a record rule, and the fixed steps cover the rest', () => {
   for (const entry of PLAYBOOK_REGISTRY) {
-    const stages = ORDER_STAGE_LISTS[entry.id];
+    const stages = stageListFor(entry.id);
     assert.ok(stages && stages.length >= 4, `${entry.id} has a stage list`);
     assert.equal(new Set(stages.map(stage => stage.id)).size, stages.length, `${entry.id} names each stage once`);
+    if (!Object.hasOwn(ORDER_STAGE_LISTS, entry.id)) assert.deepEqual(stages, stageListFor(null), `${entry.id} uses the fixed record-backed contract`);
+    for (const stage of stages) {
+      assert.ok((STAGE_RULES as readonly string[]).includes(stage.rule), `${entry.id}:${stage.id} names a rule`);
+      assert.equal(typeof STAGE_RULE_READERS[stage.rule], 'function');
+      assert.ok(stage.label.trim());
+    }
   }
   for (const [list, stages] of Object.entries(ORDER_STAGE_LISTS)) {
     for (const stage of stages) {

@@ -1,0 +1,3 @@
+// Original newsletter manual handoff catalogue. Direct provider APIs remain planned in the kit.
+import type {CatalogueEntry} from '../catalogue.ts';
+export const NEWSLETTER_STUDIO_CATALOGUE:readonly CatalogueEntry[]=Object.freeze([{id:'newsletter-owner-tool',name:'Newsletter tool handoff',category:'docs-ops',auth:'The owner uses their existing newsletter account',regions:['india','global'],regionNote:null,note:'Export exact approved HTML, plain text and recipient CSV. The owner sends through their tool. List import and export wait for named professional consent review; prepare the issue manually meanwhile.',vendorUrl:null,targets:['handoff']}]);

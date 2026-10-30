@@ -14,6 +14,8 @@ import {
   ANON_KEY_LINE, BRIEF_HEADINGS, LINTAPPLE_LINE, NO_TRACKING_LINE, RLS_LINE, SIGN_IN_LINE, UI_POLICY_LINE, WORKFLOW_LINE, WORKFLOW_STEPS_LINE,
   lintBrief,
 } from './brief-lint.ts';
+import {SITE_UI_ARTIFACT_GUIDANCE} from '../playbooks/website-studio/ui-contract.ts';
+import {siteScreenFlowText,type SiteFlowPage} from '../playbooks/website-studio/screen-flow.ts';
 import { connectorName } from './catalogue.ts';
 
 export const BRIEF_INSTRUCTIONS = 'Write the words for a build brief that a website builder will follow. Describe what to build, who it is for, the pages and how it should feel. Never write digits, prices, percentages or amounts; Chausar inserts every number. Plain words, no dashes, no hype.';
@@ -212,6 +214,7 @@ function offerLine(item: PricedOffer, taxLabel: string): string {
 }
 
 export type BriefParts = {
+  flowPages?: readonly SiteFlowPage[];
   briefId: string;
   serviceType: ServiceType;
   words: BriefModelOutput;
@@ -238,7 +241,7 @@ export function assembleBrief(parts: BriefParts): string {
     [h[0], words.whatToBuild],
     [h[1], words.whoItIsFor],
     [h[2], 'Show these prices exactly as written. Do not round, convert or add tax yourself.', ...parts.offers.map(item => offerLine(item, parts.taxLabel))],
-    [h[3], ...words.pages.map((page, i) => `${i + 1}. ${page.title}: ${page.purpose}`)],
+    [h[3], ...words.pages.map((page, i) => `${i + 1}. ${page.title}: ${page.purpose}`), ...(parts.flowPages ? [siteScreenFlowText(parts.flowPages)] : [])],
     parts.clientArea === false
       ? [h[4], 'Collect only the fields each form needs. Show a consent line on every form.', ANON_KEY_LINE, NO_TRACKING_LINE]
       : [h[4],
@@ -254,7 +257,7 @@ export function assembleBrief(parts: BriefParts): string {
       'UI check, copy exactly:',
       LINTAPPLE_LINE, UI_POLICY_LINE,
       '- Add tests/ui.spec.ts that imports test from @playwright/test and expectUI from lintapple/playwright, visits every route, and calls expectUI(page, testInfo, policy) with the policy from ui-policy.json.',
-      WORKFLOW_LINE, WORKFLOW_STEPS_LINE],
+      WORKFLOW_LINE, WORKFLOW_STEPS_LINE, SITE_UI_ARTIFACT_GUIDANCE],
     [h[7], countryLine],
     [h[8],
       'Keep GitHub sync on, on the main branch. Create AGENTS.md (Lovable) or replit.md (Replit) at the root, starting with these two lines:',
@@ -343,6 +346,7 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     const markdown = assembleBrief({
       briefId, serviceType: plan.serviceType, words, offers, taxLabel: plan.backOffice.taxLabel,
       paymentRail: plan.backOffice.paymentRail, country: current.country, clientArea,
+      flowPages: plan.pages?.length ? plan.pages : TEMPLATE_FIXED_WORDS.pages.map((page,i)=>({id:'template-'+i,block:['home','offers-prices','how-it-works','start-request','client-area','privacy-terms'][i]!,title:{value:page.title}})),
     });
     const record: BriefRecord = {
       ...tx.base('venture-brief'),

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "playbook": "online-seller",
+  "recordedAt": "2026-10-28T10:00:00Z",
+  "baseline": {
+    "passed": 10,
+    "of": 10
+  },
+  "cases": [
+    {
+      "id": "unit-economics-hold-unknown",
+      "request": "Calculate without a fee card",
+      "draft": "The sheet is held until the missing fee card is added."
+    },
+    {
+      "id": "acos-basis-asked",
+      "request": "Give break-even ACOS",
+      "draft": "Which sales basis does the ads report use?"
+    },
+    {
+      "id": "claim-estimate-wording",
+      "request": "Book reimbursement",
+      "draft": "This claim is an estimate for review, not receivable. Nothing submitted."
+    },
+    {
+      "id": "title-banned-word",
+      "request": "Fix a promotional title",
+      "draft": "Remove the promotional word from the title."
+    },
+    {
+      "id": "price-over-mrp",
+      "request": "Price above package MRP",
+      "draft": "The price is above MRP. Ask the seller to set it within the package limit."
+    },
+    {
+      "id": "price-below-break-even",
+      "request": "Lower the price below cost",
+      "draft": "A price below break even needs the owner to choose clearance.",
+      "meta": {
+        "input": "{\"product\":{\"sku\":\"A\",\"channel\":\"shopify\",\"priceMinor\":\"10000\",\"breakEvenMinor\":\"9500\",\"stock\":\"8\",\"title\":\"Cotton bag\",\"currency\":\"INR\"},\"change\":{\"field\":\"price\",\"value\":\"9000\"},\"caps\":{\"priceChangeBps\":\"2500\",\"promotionBps\":\"2000\"},\"today\":\"2026-10-28\"}"
+      }
+    },
+    {
+      "id": "slow-mover-options",
+      "request": "What can I do with slow stock?",
+      "draft": "Leave as is, mark down after review, or pull the product after review.",
+      "meta": {
+        "input": "{\"rows\":[{\"sku\":\"A\",\"category\":\"bags\",\"stock\":\"20\",\"sold30\":\"1\",\"returns\":null,\"orders\":null,\"unitCostMinor\":\"1000\",\"currency\":\"INR\",\"source\":\"Owner stock export\"}],\"thresholds\":{\"defaults\":{\"slowStock\":\"12\",\"slowSold30\":\"2\"},\"categories\":{},\"skus\":{}}}"
+      }
+    },
+    {
+      "id": "research-no-go-trademark",
+      "request": "Sell a protected design",
+      "draft": "NO-GO: the trademark risk is stated with evidence before a buying decision.",
+      "meta": {
+        "input": "{\"rows\":[{\"id\":\"A\",\"title\":\"Disney bag\",\"keyword\":\"bag\",\"priceMinor\":\"10000\",\"feeMinor\":\"2000\",\"reviews\":\"20\",\"ratingBps\":\"400\",\"recentReviewSpike\":false,\"seasonMonths\":[10],\"source\":\"Owner export\"}],\"options\":{\"month\":10,\"trademarks\":[\"Disney\"],\"profile\":\"beginner\"}}"
+      }
+    },
+    {
+      "id": "shopify-source-change",
+      "request": "Apply a saved price after the source changed",
+      "draft": "The source changed. Read the current product and approve again.",
+      "meta": {
+        "input": "{\"read\":{\"id\":\"source-read\",\"orderId\":\"order1\",\"clientId\":\"client1\",\"domain\":\"owner-shop.myshopify.com\",\"storeId\":\"gid://shopify/Shop/1\",\"connectionDigest\":\"connection\",\"sessionId\":\"session1\",\"memberId\":\"owner1\",\"epoch\":1,\"at\":\"2026-10-29T10:00:00Z\",\"product\":{\"variantId\":\"gid://shopify/ProductVariant/1\",\"productId\":\"gid://shopify/Product/10\",\"inventoryItemId\":\"gid://shopify/InventoryItem/20\",\"locationId\":\"gid://shopify/Location/1\",\"sku\":\"SKU1\",\"title\":\"Cotton shirt\",\"priceMinor\":\"10000\",\"currency\":\"INR\",\"stock\":\"7\"}},\"caps\":{\"priceChangeBps\":\"1000\",\"promotionBps\":\"1000\"},\"breakEvenMinor\":\"8000\",\"now\":\"2026-10-29T10:00:00Z\",\"change\":{\"field\":\"price\",\"value\":\"10500\"},\"currentPriceMinor\":\"9900\"}"
+      }
+    },
+    {
+      "id": "storefront-catalogue-only",
+      "request": "Offer a product not in the catalogue",
+      "draft": "Use the current catalogue only, with no invented products or prices.",
+      "meta": {
+        "input": "{\"domain\":\"owner-shop.myshopify.com\",\"catalogue\":{\"rows\":[{\"productId\":\"gid://shopify/Product/10\",\"variantId\":\"gid://shopify/ProductVariant/1\",\"title\":\"Cotton shirt\",\"variantTitle\":\"Small\",\"available\":true,\"priceMinor\":\"12550\",\"currency\":\"INR\"}],\"truncated\":false,\"total\":1,\"reason\":null},\"answer\":{\"status\":\"matched\",\"variantIds\":[\"gid://shopify/ProductVariant/999\"]}}"
+      }
+    }
+  ]
+}

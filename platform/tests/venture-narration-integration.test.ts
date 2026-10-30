@@ -1,0 +1,7 @@
+// Isolated narration integration: owner intake translations and exact connector guide parity.
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import {NARRATION_DATA} from '../runtime/venture/playbooks/narration-studio/definition-data.ts';
+import {CONNECTOR_CATALOGUE} from '../runtime/venture/build/catalogue.ts';import {guideOf} from '../runtime/venture/build/guides.ts';
+const json=(path:string)=>JSON.parse(readFileSync(new URL('../../'+path,import.meta.url),'utf8'));
+test('narration owner intake labels, help and choice words have Hindi display translations',()=>{const english=json('app/ui/src/text/en/kit-intake-words.json'),hindi=json('app/ui/src/text/hi/kit-intake-words.json'),review=json('app/ui/src/text/hi-review.json');for(const field of NARRATION_DATA.intakeFields??[]){for(const words of [field.label,field.help,...(field.options??[])]){const key=Object.keys(english).find(k=>english[k]===words);assert.ok(key,words);assert.ok(hindi[key]&&hindi[key]!==words,words);assert.ok(review.machineDrafted.includes(key),key);}}});
+test('narration connector fake guides equal current native contracts including charges',()=>{const fake=json('app/ui/src/engine/fixtures-guides.json');for(const id of ['google-tts','narration-files','narration-local-checks','narration-distribution']){const item=CONNECTOR_CATALOGUE.find(c=>c.id===id)!;assert.deepEqual(fake[id]?.guide,guideOf(item),id);}});

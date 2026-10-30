@@ -343,7 +343,10 @@
   "preview.watch": "{title} देखें",
   "preview.notWatched": "अभी देखा नहीं",
   "preview.length": "लंबाई",
-  "preview.chapters": { "one": "{count} अध्याय", "other": "{count} अध्याय" },
+  "preview.chapters": {
+    "one": "{count} अध्याय",
+    "other": "{count} अध्याय"
+  },
   "preview.total": "कुल",
   "preview.breakdown": "हिसाब कैसे बना",
   "preview.option": "विकल्प {letter}",
@@ -352,7 +355,10 @@
   "swipe.later": "बाद में",
   "swipe.locked": "पहले इसे खोलें, फिर मंज़ूर करें",
   "tabs.label": "जगहें",
-  "tabs.needYou": { "one": "{count} को आपकी ज़रूरत", "other": "{count} को आपकी ज़रूरत" },
+  "tabs.needYou": {
+    "one": "{count} को आपकी ज़रूरत",
+    "other": "{count} को आपकी ज़रूरत"
+  },
   "phone.more": "और",
   "more.title": "और",
   "more.places": "और जगहें",
@@ -362,7 +368,10 @@
   "gallery.youRunThis": "यह आप चलाते हैं",
   "gallery.youDo": "आप क्या करेंगे",
   "gallery.teamDoes": "आपकी AI टीम क्या करेगी",
-  "gallery.team": { "one": "{count} एजेंट: {names}", "other": "{count} एजेंट: {names}" },
+  "gallery.team": {
+    "one": "{count} एजेंट: {names}",
+    "other": "{count} एजेंट: {names}"
+  },
   "gallery.pay": "क्लाइंट आम तौर पर देते हैं",
   "gallery.payPer": "क्लाइंट आम तौर पर देते हैं, {per}",
   "gallery.start": "शुरू करें",
@@ -420,8 +429,14 @@
   "business.stopAll": "सब रोकें",
   "business.runControls.failed": "यह नहीं हो सका: {message}",
   "business.away": "छुट्टी",
-  "business.stopAll.ask": {"one": "सब रोकें? {count} रन रुकेगा, और जब तक आप फिर चालू न करें, कोई नया काम शुरू नहीं होगा। पूरे हुए कदम बने रहेंगे।", "other": "सब रोकें? {count} रन रुकेंगे, और जब तक आप फिर चालू न करें, कोई नया काम शुरू नहीं होगा। पूरे हुए कदम बने रहेंगे।"},
-  "business.stopAll.done": {"one": "थामा गया। {count} रन रुक रहा है या रुक गया है।", "other": "थामा गया। {count} रन रुक रहे हैं या रुक गए हैं।"},
+  "business.stopAll.ask": {
+    "one": "सब रोकें? {count} रन रुकेगा, और जब तक आप फिर चालू न करें, कोई नया काम शुरू नहीं होगा। पूरे हुए कदम बने रहेंगे।",
+    "other": "सब रोकें? {count} रन रुकेंगे, और जब तक आप फिर चालू न करें, कोई नया काम शुरू नहीं होगा। पूरे हुए कदम बने रहेंगे।"
+  },
+  "business.stopAll.done": {
+    "one": "थामा गया। {count} रन रुक रहा है या रुक गया है।",
+    "other": "थामा गया। {count} रन रुक रहे हैं या रुक गए हैं।"
+  },
   "business.pauseAll.done": "थामा गया। जब तक आप फिर चालू न करें, कोई नया काम शुरू नहीं होगा।",
   "business.unpause.done": "फिर चालू किया। रुके हुए रन तब तक रुके रहेंगे जब तक आप उन्हें फिर शुरू न करें।",
   "place.chats": "चैट",
@@ -454,7 +469,10 @@
   "approval.meta.expired": "समय निकल गया",
   "approval.meta.expiresMin": "{count} मिनट में ख़त्म",
   "approval.meta.expiresHours": "{count} घंटे में ख़त्म",
-  "approval.meta.expiresDays": {"one": "{count} दिन में ख़त्म", "other": "{count} दिन में ख़त्म"},
+  "approval.meta.expiresDays": {
+    "one": "{count} दिन में ख़त्म",
+    "other": "{count} दिन में ख़त्म"
+  },
   "approval.meta.sendsTo.client": "क्लाइंट को जाता है",
   "approval.meta.sendsTo.public": "सबके सामने जाता है",
   "approval.meta.sendsTo.bank": "आपके बैंक को जाता है",
@@ -560,5 +578,15 @@
   "runsheet.verb.matched": "मिलाए गए",
   "runsheet.verb.used": "इस्तेमाल हुए",
   "runsheet.whatOf": "{units} {verb}",
-  "runsheet.and": "{first} और {last}"
+  "runsheet.and": "{first} और {last}",
+  "runsheet.scope.line": "शुरू होते समय तय: {tools}, {actions} आपकी मंज़ूरी के लिए सुझा सकता है, ख़र्च की सीमा {cap}, {posture}।",
+  "runsheet.scope.toolCount": {
+    "one": "{count} टूल",
+    "other": "{count} टूल"
+  },
+  "runsheet.scope.actionCount": {
+    "one": "{count} बाहर का काम",
+    "other": "{count} बाहर के काम"
+  },
+  "runsheet.scope.rupeeRate": "{amount}, प्रति {unit} पर {rate} की दर से (आपकी दर, {date} को तय)"
 }

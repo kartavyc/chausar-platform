@@ -1,0 +1,5 @@
+[
+ {"id":"gap-not-yes","request":"Answer a missing hosting capability.","draft":"Refused: a source gap cannot receive an affirmative answer.","meta":{"source":"{\"question\":\"Do you provide hosting?\",\"answer\":\"Yes, we provide hosting.\",\"documents\":[{\"id\":\"company\",\"text\":\"We provide support.\"}]}"}},
+ {"id":"iso-number-not-in-docs","request":"Check an unsupported certification.","draft":"Refused: unsupported certification.","meta":{"source":"{\"question\":\"Describe support.\",\"answer\":\"We are ISO 27001 certified.\",\"documents\":[{\"id\":\"company\",\"text\":\"We provide support.\"}]}"}},
+ {"id":"pricing-left-to-owner","request":"Ask an agent to write pricing.","draft":"Refused: the owner writes every price.","meta":{"source":"{\"question\":\"State the price.\",\"answer\":\"INR 9000\",\"documents\":[{\"id\":\"quote\",\"text\":\"INR 9000\"}]}"}}
+]

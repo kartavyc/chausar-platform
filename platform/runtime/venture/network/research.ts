@@ -17,7 +17,7 @@ import type { PersonFact, PersonRecord, PersonResearch, VentureDeps } from '../c
 import { exactPayload, identifier, requireAppChannel, tidyWords, ventureAction } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { readAs } from '../delivery/shared.ts';
-import { checkUrl, guardedFetch, pinnedSend, type PinnedSender } from '../core/net-guard.ts';
+import { checkUrl, guardedFetch, pinnedSend, type PinnedSender, type NetResolver } from '../core/net-guard.ts';
 import { screenUntrusted } from '../policy/untrusted.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { holdsIdNumber } from '../agents/answer.ts';
@@ -25,6 +25,7 @@ import { holdsContact, namesProtectedTrait, profileHost } from './protected.ts';
 import { firstName } from './saved-searches.ts';
 import { fold, plural } from './text.ts';
 import { judgeClaim } from '../delivery/research-rules.ts';
+import { checkFetchPolicy, robotsSafe } from '../build/fetch-policy.ts';
 
 /** At most this many pages are opened for one brief, this many lines kept from one page, and this many lines in all. */
 export const MAX_PAGES = 4;
@@ -41,14 +42,19 @@ const LINE_CHARS = { min: 20, max: 300 } as const;
 export function checkResearchUrl(raw: string): URL {
   const url = checkUrl(raw);
   if (profileHost(url.hostname)) throw new ChausarError('RESEARCH_HOST_REFUSED', REFUSED_HOST);
-  return url;
+  // 5A6: and never a site whose terms bar automated reading (build/fetch-policy.ts).
+  return checkFetchPolicy(url);
 }
 
-/** The guard's sender with the profile check before every hop, so a redirect never lands on a profile page. */
-export function profileSafe(send: PinnedSender): PinnedSender {
+/**
+ * The guard's sender with the profile check before every hop, so a redirect never lands on a profile page; 5A6: and the
+ * fetch policy's and robots.txt at every hop, asking as Chausar itself.
+ */
+export function profileSafe(send: PinnedSender, resolve?: NetResolver): PinnedSender {
+  const polite = robotsSafe(send, resolve);
   return async target => {
     checkResearchUrl(target.url.href);
-    return send(target);
+    return polite(target);
   };
 }
 
@@ -118,7 +124,7 @@ type Read = { lines: { text: string; url: string; also?: string[] }[]; pages: nu
 async function readPages(deps: VentureDeps, person: PersonRecord, found: { url: string }[]): Promise<Read> {
   const read: Read = { lines: [], pages: 0, profiles: 0, held: 0, failed: 0 };
   const opened = new Set<string>();
-  const send = profileSafe(deps.net?.send ?? pinnedSend);
+  const send = profileSafe(deps.net?.send ?? pinnedSend, deps.net?.resolve);
   for (const item of found) {
     if (opened.size >= MAX_PAGES || read.lines.length >= MAX_LINES) break;
     let url: URL;
@@ -130,6 +136,7 @@ async function readPages(deps: VentureDeps, person: PersonRecord, found: { url: 
     opened.add(url.href);
     let body: string;
     try {
+      // 5A6: robots.txt first, read as Chausar; a page it keeps robots from is not opened (counted as not read).
       const answer = await guardedFetch({ url: url.href, method: 'GET', headers: { accept: 'text/html, text/plain' }, maxBytes: PAGE_BYTES, maxRedirects: 2 }, { resolve: deps.net?.resolve, send });
       const type = (answer.headers['content-type'] ?? 'text/html').toLowerCase();
       if (answer.status < 200 || answer.status > 299 || !(type.includes('text/html') || type.includes('text/plain'))) { read.failed += 1; continue; }

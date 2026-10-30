@@ -8,6 +8,7 @@ import { Figure } from '../../parts/Figure';
 import { Tile } from '../../parts/Tile';
 import type { OfferLite, ReceiptLite } from '../../engine/types';
 import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
+import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
 
 /**
@@ -16,7 +17,7 @@ import s from './Business.module.css';
  * how the price is worked out (every figure of the receipt, tax lines included, as the calculator wrote them) waits
  * one fold away. The typed price goes to the engine as typed; the engine checks it, writes a new plan version, and the
  * change waits on Today (it asks twice). Nothing is added up or formatted here. A price that is a share of an amount
- * the client confirms later joins the price editor as an advanced option when the engine offers it (W4/W5).
+ * the client confirms later is the price editor's advanced option, one fold away (W5 5A2, SharePrice.tsx).
  */
 export function PricesView() {
   const t = useT();
@@ -41,6 +42,8 @@ export function PricesView() {
             <OfferPrice key={offer.id} offer={offer} receipt={offerReceipts[offer.id] ?? null} currency={blueprint.backOffice.currency} onChanged={plan.reload} />
           ))}
         </ul>
+        {/* W5 5A2: a share of an amount the client confirms later, one step away (founder decision of 23 Oct). */}
+        <ShareFold offers={blueprint.offers} onChanged={plan.reload} />
       </section>
     </div>
   );
@@ -114,7 +117,8 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
         </div>
       ) : (
         <div className={s.price}>
-          <span className={s.quiet}>{priced ? t('business.notPriced') : t('business.priceNotSet')}</span>
+          {/* W5 5A2: an offer priced as a share reads as the owner set it (SharePrice.tsx). */}
+          {offer.pricing.share ? <ShareAtRest offer={offer} /> : <span className={s.quiet}>{priced ? t('business.notPriced') : t('business.priceNotSet')}</span>}
           {priced && <Button size="sm" disabled={busy} onClick={() => void workOut()}>{t('business.workOut')}</Button>}
         </div>
       )}

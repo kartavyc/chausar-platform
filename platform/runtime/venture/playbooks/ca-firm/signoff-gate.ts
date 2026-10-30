@@ -8,6 +8,7 @@
 //
 // Which offer an order is: the playbook offer id the plan keeps (playbooks/plan.ts), which survives the owner renaming
 // the offer, else the offer's own words (caOfferOf), which is how an older plan's offers are read.
+import {healthClientBlock} from './health-delivery.ts';
 import type { State } from '../../../contracts.ts';
 import type { DeliveryRunRecord, VentureRecord } from '../../contracts.ts';
 import { digest, findRecord, listRecords } from '../../records.ts';
@@ -18,6 +19,14 @@ import { caOfRecord, sentTo, signoffFor, signoffRequests, type SignoffSubject } 
 
 /** The words in an offer's name or description that make it one of the playbook's offers, in CA_OFFERS order. */
 const OFFER_WORDS: Readonly<Record<CaOfferId, RegExp>> = Object.freeze({
+  'itr-form-and-regime': /form and regime/i,
+  'itr-computation-only': /computation only/i,
+  'itr-check-draft': /check.*draft.*itr/i,
+  'itr-checklist': /itr checklist/i,
+  'check-return-elsewhere': /return prepared elsewhere/i,
+  'advance-tax-freelancer': /advance tax.*freelancer/i,
+  'tax-question-desk': /tax question/i,
+  'books-health-check': /books.*health|quarterly.*books/i,
   'monthly-books': /\b(books|bookkeeping|month close)\b/i,
   'gst-working': /\bgst(r)?\b/i,
   'itr-salaried': /\b(itr|income[ -]tax)\b/i,
@@ -28,11 +37,12 @@ const OFFER_WORDS: Readonly<Record<CaOfferId, RegExp>> = Object.freeze({
 });
 /** What each regulated offer's papers are, for the sign-off record. Every regulated offer has one. */
 const SUBJECT_OF: Partial<Record<CaOfferId, SignoffSubject>> = Object.freeze({
+  'itr-form-and-regime':'itr-data-pack', 'itr-computation-only':'itr-data-pack', 'itr-check-draft':'itr-data-pack', 'itr-checklist':'itr-data-pack', 'check-return-elsewhere':'itr-data-pack', 'advance-tax-freelancer':'itr-data-pack', 'tax-question-desk':'letter',
   'gst-working': 'gst-working', 'tds-working': 'tds-working', 'itr-salaried': 'itr-data-pack', 'itr-small-business': 'itr-data-pack',
-  'notice-replies': 'letter', 'audit-support': 'audit-papers',
+  'notice-replies': 'letter', 'audit-support': 'audit-papers', 'books-health-check':'audit-papers',
 });
 /** Which regulated offer wins when an offer's words match several: the CA's own work first, then the narrower one. */
-const PRIORITY: readonly CaOfferId[] = ['notice-replies', 'audit-support', 'tds-working', 'gst-working', 'itr-small-business', 'itr-salaried', 'monthly-books'];
+const PRIORITY: readonly CaOfferId[] = ['itr-form-and-regime', 'itr-computation-only', 'itr-check-draft', 'itr-checklist', 'check-return-elsewhere', 'advance-tax-freelancer', 'tax-question-desk', 'notice-replies', 'audit-support', 'tds-working', 'gst-working', 'itr-small-business', 'itr-salaried', 'books-health-check', 'monthly-books'];
 
 /** The CA firm offer an order's offer is, from its own words; null when none fits. */
 export function caOfferOf(offer: { name: string; description: string }): CaOffer | null {
@@ -64,8 +74,8 @@ export function regulatedPapersOf(state: State, venture: VentureRecord, orderId:
 
 type PapersRun = Pick<DeliveryRunRecord, 'id' | 'status' | 'renderedText' | 'deliverable' | 'editedText'>;
 
-/** The owner's own words for the papers, when the owner edited them. */
-const editOf = (run: Pick<DeliveryRunRecord, 'status' | 'editedText'>): string | null => (run.status === 'edited' && run.editedText ? run.editedText : null);
+/** The owner's paper edits, including those kept when Accept preserves their exact words (clientDraft). */
+const editOf = (run: Pick<DeliveryRunRecord, 'status' | 'editedText'>): string | null => ((run.status === 'edited' || run.status === 'accepted') && run.editedText ? run.editedText : null);
 
 /** The digest the CA signs: the run's papers as they would go out. The owner's edit has a digest of its own. */
 export function papersDigest(run: PapersRun): string {
@@ -111,6 +121,7 @@ export const SIGNOFF_WORDS = Object.freeze({
  * CA of record signed off exactly these papers.
  */
 export function caSignoffBlock(state: State, venture: VentureRecord, run: PapersRun & Pick<DeliveryRunRecord, 'orderId' | 'servedBy'>): string | null {
+  if(caOfferFor(state,venture,run.orderId)?.id==='books-health-check'){const block=healthClientBlock(state,venture.id,run);if(block)return block;}
   const stage = signoffStage(state, venture, run);
   const edited = editOf(run) !== null;
   switch (stage) {

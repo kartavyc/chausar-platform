@@ -10,7 +10,7 @@ import s from './Work.module.css';
 const never = () => false;
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 /** The connectors whose text posts Chausar can make from the owner's own browser (build/posting.ts). */
-const TEXT_POSTING = new Set(['linkedin', 'x']);
+const TEXT_POSTING = new Set(['linkedin', 'x', 'bluesky', 'mastodon', 'telegram', 'discord']);
 
 /** Whether the engine says this connector can post now, in any way it lists. */
 function canPost(cards: readonly ConnectorCardLite[], connectorId: string): boolean {
@@ -28,7 +28,7 @@ function canPost(cards: readonly ConnectorCardLite[], connectorId: string): bool
 export function PostButtons({ drafts, version = 0 }: { drafts: DeliveryLite[]; version?: number }) {
   const t = useT();
   const headingId = useId();
-  const cards = useResource('venture.connectors.list', {});
+  const cards = useResource('venture.connectors.list', {}, {refreshOn:event=>event.type==='desk.changed'});
   const accepted = drafts.filter((draft) => !draft.practice && (draft.status === 'accepted' || draft.status === 'edited'));
   if (accepted.length === 0) return null;
   return (

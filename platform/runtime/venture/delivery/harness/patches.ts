@@ -17,6 +17,8 @@ import { CA_FIRM_ID } from '../../playbooks/ca-firm/registration.ts';
 import { SOCIAL_AGENCY_ID } from '../../playbooks/social/registration.ts';
 import { YOUTUBE_ID } from '../../playbooks/youtube/registration.ts';
 import { toolSpec } from './tools.ts';
+import type { PlaybookDefinition } from '../../playbooks/kit/define.ts';
+import { kitDefinition, kitDefinitions } from '../../playbooks/kit/installed.ts';
 
 export const MAX_GUIDANCE_LINES = 6;
 export { TURN_CHOICES };
@@ -25,19 +27,21 @@ const SUMS = /\b(add(?:s|ed|ing)? up|sum(?:s|med|ming)?|totals?|totalling|totali
 
 /** A flagship playbook's own tools, by playbook id: only its agents may ever hold them. */
 export const FLAGSHIP_TOOLS: Readonly<Record<string, readonly ToolName[]>> = Object.freeze({
-  [CA_FIRM_ID]: Object.freeze(['tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.statements', 'tax.portal'] as const),
-  [YOUTUBE_ID]: Object.freeze(['youtube.hooks', 'youtube.editList', 'youtube.chapters', 'youtube.retention'] as const),
-  [SOCIAL_AGENCY_ID]: Object.freeze(['social.report'] as const),
+  [CA_FIRM_ID]: Object.freeze(['tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.statements', 'tax.portal', 'tax.citations', 'tax.formChooser', 'tax.advance', 'tax.whatIf', 'books.healthCheck', 'docs.entry'] as const),
+  [YOUTUBE_ID]: Object.freeze(['youtube.hooks', 'youtube.editList', 'youtube.chapters', 'youtube.retention', 'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary', 'youtube.style', 'youtube.clips', 'youtube.broll', 'youtube.beats', 'youtube.export', 'youtube.afterPublish', 'youtube.outliers', 'youtube.niche', 'youtube.comments', 'youtube.archive', 'youtube.publicStats'] as const),
+  [SOCIAL_AGENCY_ID]: Object.freeze(['social.report', 'social.inventory', 'social.formats', 'social.slots'] as const),
 });
 
 /**
  * The tools each service type's agents may ever hold. The bookkeeping tools stay with bookkeeping, and a flagship
- * playbook's own tools with that playbook (flagship: the playbook the business delivers with, or null). Every agent may
- * note where a fact came from (evidence.record).
+ * playbook's own tools with that playbook (flagship: the playbook the business delivers with, or null). A kit
+ * playbook's own tools are its definition's tools (Ink v2 wave 5, 5A1; definitions: default the landed ones), so no
+ * other playbook's agents ever hold them. Every agent may note where a fact came from (evidence.record).
  */
-export function toolCeiling(type: ServiceType, flagship: string | null = null): ToolName[] {
+export function toolCeiling(type: ServiceType, flagship: string | null = null, definitions: readonly PlaybookDefinition[] = kitDefinitions()): ToolName[] {
   const base: ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'calc.sum', 'calc.totals', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate', 'evidence.record'];
-  const own: readonly ToolName[] = flagship !== null && Object.hasOwn(FLAGSHIP_TOOLS, flagship) ? FLAGSHIP_TOOLS[flagship] : [];
+  const own: readonly ToolName[] = flagship !== null && Object.hasOwn(FLAGSHIP_TOOLS, flagship) ? FLAGSHIP_TOOLS[flagship]
+    : (kitDefinition(flagship, definitions)?.tools ?? []) as readonly ToolName[];
   return [...base, ...(type === 'bookkeeping' ? ['books.reconcile', 'bills.pick'] as const : []), ...own];
 }
 
@@ -208,7 +212,7 @@ function ownerRules(patch: PlaybookPatch, owner: { steps: readonly string[]; add
  * A patch proposedBy 'owner' (from chat, 4B1) is checked under the owner rules first (ownerRules); owner gives the
  * agent's steps and the owner's earlier lines when the caller knows them. Model and Chausar patches keep these rules.
  */
-export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { serviceType: ServiceType; entryIds: readonly string[]; flagship?: string | null; owner?: { steps: readonly string[]; added: readonly string[] } }): PlaybookBody {
+export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { serviceType: ServiceType; entryIds: readonly string[]; flagship?: string | null; owner?: { steps: readonly string[]; added: readonly string[] }; definitions?: readonly PlaybookDefinition[] }): PlaybookBody {
   check((PLAYBOOK_PATCH_OPS as readonly string[]).includes(patch.op), 'INVALID_VENTURE_REQUEST', 'The patch names an unknown change.');
   const quote = patch.proposedBy === 'owner' ? ownerRules(patch, context.owner) : null;
   const next: PlaybookBody = structuredClone(body);
@@ -240,7 +244,7 @@ export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { 
       const tool = patch.value as ToolName;
       if (!(TOOL_NAMES as readonly string[]).includes(tool)) refuse(`There is no tool called ${JSON.stringify(patch.value)}.`);
       if (toolSpec(tool)?.effect === 'outside-write') refuse('Outside actions wait for your approval; an agent step never holds them.');
-      if (!toolCeiling(context.serviceType, context.flagship ?? null).includes(tool)) refuse(`A ${context.serviceType} agent may not hold ${tool}.`);
+      if (!toolCeiling(context.serviceType, context.flagship ?? null, context.definitions).includes(tool)) refuse(`A ${context.serviceType} agent may not hold ${tool}.`);
       if ((step.tools ?? []).includes(tool)) refuse(`The step already holds ${tool}.`);
       step.tools = [...(step.tools ?? []), tool];
       break;

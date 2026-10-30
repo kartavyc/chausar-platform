@@ -1,4 +1,4 @@
-# The walk, board by board (waves 3 and 4)
+# The walk, board by board (waves 3, 4 and 5)
 
 Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk's report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes and in Hindi, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server's parts page: the app or its parts on other fake starts or with sample props, never built into the app.
 
@@ -8,7 +8,7 @@ Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from 
 | Today on a phone (`D-Phone-Today`) | `#/today at 390` | Top bar with the logo, the business button and the bell; bottom tabs Today (count badge), Chats, Team, Work, More, with Clients under More.<br>The dark goal card with its bar and the next step, stories and live tiles in sideways rows, filter chips in a sideways row.<br>The swipe tip with Hide; every card swipes, right through the card's own primary (the second ask holds), buttons xl. | No account button. |  |
 | Team (`D-Team`) | `#/team` | The department toggle (All departments, Sales and clients, Marketing, Production, Money, Operations) and Add an agent (W4 4A2).<br>Stat tiles: Working now with an avatar stack, Waiting on you in amber, Done this week with its bars, AI spend with its receipt and the held amount.<br>Five tinted department panels with their icon, jobs this week, spend with its receipt and agent cards (ring, role, now line, step bar, posture chip, Chat); Keeper as code, not AI, with its jobs; Jobs done this week by department. | Spend leads in rupees with the dollar line under it, as D drew: the business is in India and has a rupee rate (chosen by the founder on 27 October; Limits and rates changes it). A department with no own spend shows none.<br>Money has no agents on the sample, so its panel says so and offers "See ways to earn"; D drew Bookkeeper and Billing there (they are Ledgerline's).<br>The jobs chart is a bar list without the rupee column (the engine sends jobs per department, and spend separately). |  |
 | Team on a phone (`D-Phone-Team`) | `#/team at 390` | The department chips in a sideways row, stat tiles and full-width agent cards with rings, bars, posture chips and Chat. | Stat tiles stack one per row, where D has two by two: a long rupee figure must never share a row on a phone (3B1b rule). |  |
-| One department (`D-TeamDept`) | `#/team?dept=prod` | In the app now (W4 4A2): the toggle with Production chosen; the hero panel on the Production tint with icon, purpose, jobs this week, spend with its receipt and playbook steps.<br>"How Production runs" with its version: numbered steps with Auto and Hold, the publish step "Always asks you", and "A change makes version 5. You can undo it".<br>Agents in the department, Recent work as cards with state and progress, and Spend and jobs by week. | Steps carry the agent's name and one icon per kind, not D's per-step descriptions (the engine's steps carry none). No Edit steps link: steps change through the agent's chat ("from now on").<br>No live run checklist with frames on the agent card and no thumbnails in recent work: the run checklist is on the run sheet and Work.<br>Spend in the chart and hero leads in rupees, with dollars beneath (as on Team). |  |
+| One department (`D-TeamDept`) | `#/team?dept=prod` | In the app now (W4 4A2): the toggle with Production chosen; the hero panel on the Production tint with icon, purpose, jobs this week, spend with its receipt and playbook steps.<br>"How Production runs" with its version: assigned agent steps with Auto and Hold, and "A change makes version 5. You can undo it". Owner-only publication stays outside the agent assignments.<br>Agents in the department, Recent work as cards with state and progress, and Spend and jobs by week. | Steps carry the agent's name and one icon per kind, not D's per-step descriptions (the engine's steps carry none). No Edit steps link: steps change through the agent's chat ("from now on").<br>No live run checklist with frames on the agent card and no thumbnails in recent work: the run checklist is on the run sheet and Work.<br>Spend in the chart and hero leads in rupees, with dollars beneath (as on Team). |  |
 | The agent panel (`D-TeamChat`) | `#/team?sheet=agent:editor&tab=chat` | The 440 px panel beside the page; its head with avatar, name, role, the department chip, state in words ("Working, 3 of 5") and Close.<br>Tabs Chat, Instructions with its version, Runs with its count, Notes and Can do in one row; previous and next agent above the thread.<br>The thread: day lines, the owner's messages in ink, a note to save quoting the owner, runs folded to one row, the Recalled chip, the "from now on" change with Added in words, "Version 4 to 5, you can undo", Reject and Accept; the composer with suggestions and its hint. | The plan names the sample editor `story-editor` (the engine's role id); the fake engine names it `editor`, so the shots use `agent:editor`.<br>No video preview or run card with Run again inside the thread: the engine's thread items are messages, folded runs, notes and proposals; previews stay on Today, Work and the run sheet.<br>The open agent's card on the page behind is not outlined, and its Chat button is not filled as on the board. |  |
 | Work (`D-Work`) | `#/work` | Filter chips with business chips and New order; Running now tiles with avatar, ring, purpose, current step, "Run 31 · 4m" and Stop on each; the waiting tile in amber with the run's question, Stop and Answer.<br>The failed tile: "Failed at step 2 of 3", What went wrong in the engine's words, the steps, Run again and How to fix it (W4 4F3); a run the owner stopped has its own tile with why, Run again and Resume.<br>Orders by client with what they owe and the stage steps Agreed, Price, Episode, Publish, Invoice, Paid (W4 4J3), what waits on you, Open on Today and Mark delivered. | "Failed", not D's "Stopped": Stopped is kept for the owner's own Stop and the breaker.<br>No frames, A and B thumbnails or tool icons on the running tiles, so they are blank in the middle; Keeper's jobs are on Team, not here.<br>An order says "Priced on receipt" with its receipt where D drew the old and new price. | The filmstrip of browser posting runs (U7; needs W2 2B2's page model, listed in ink.md) |
 | Clients, pipeline (`D-Clients`) | `#/clients/pipeline` | Tabs Clients, Pipeline and Network with counts; Import contacts and Add a lead; stat tiles Next steps this week, Drafts to send, Moved forward this week and Won this month, each with its receipt (W4 4E4).<br>Filter chips (All, Due soon, Has a draft) and the path key; the board Found, Asked, Talking, Proposal, Won, with Not now folded; cards with strength dots, the path line ("possible path, not confirmed" dashed), the follow-up date and the draft state.<br>How people moved, folded under the board. | Column hints ("Not asked yet") are read out but not shown, to keep the board quiet; stat tiles carry a receipt where D drew avatar stacks and a sparkline.<br>No business chips: they show only when more than one business has cards. The sample has 9 cards, not 19. | Importing clients and their history (C22, W5) |
@@ -17,26 +17,28 @@ Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from 
 | Money (`D-Money`) | `#/money` | Sub-pages Overview, Invoices, Bills, Books, Margins, Spend, Journal, Businesses; business chips, the month and Export for your CA (W4 4J20).<br>Invoiced this month with the goal bar, days left and pace; Received; AI spend split by department with its receipt; Owed to you with the aging bar; Cash, next 13 weeks with the lowest week. | In and out by month and the next three weeks are folds below the tiles (a 4J20 ruling), where D drew them open.<br>Every amount carries a small receipt mark, not its code (chosen by the founder on 27 October); AI spend leads in rupees (as on Team). |  |
 | Start (`D-Start`) | `#/onboarding` | "Pick a way to earn" with the count; How starting works in three numbered steps; All ways to earn with category chips, Sort, and tiles with the category, "You run this", your time, what clients usually pay (model estimate), What it takes and Start (W4 4J21).<br>Or describe it in one sentence with the country line, Make my plan, Start a new business or Add this to the open business, and examples; Not sure which fits? with Ask Chausar; Resume setup with its bar. | Three ways, not twelve: the gallery shows only built playbooks (plan choice 10; W5 adds the rest).<br>No "Good fit for you": the engine suggests a fit only with the owner's AI connected, and the sample has none.<br>How starting works uses icons and words, not the miniature cards of D. | More ways to earn with W5's playbooks |
 
-## The real-browser checks
+## Current walk
 
-Last walk: 2026-10-26 18:20 UTC, headless Chrome on the fake engine of `npm run dev:ui`: 471 shots over 111 cases (every place, its main states, sheets and the forms and second asks inside them, at 1280 and 390, light and dark, and 29 in Hindi at 390).
+Last walk: 2026-10-29 13:03 UTC, headless Chrome on the fake engine of `npm run dev:ui`: 480 shots over 113 cases (every place, its main states, sheets and the forms and second asks inside them, at 1280 and 390, light and dark, and 30 in Hindi at 390).
 
 - axe-core (from node_modules) on the whole page with colour contrast on: 0 open violations; none listed as accepted; 0 colour-contrast violations in either theme.
 - Focus, pressed through with real keys and clicks: 8 of 8 pass (J and K move through Today's cards; Approve asks again and focus lands on "Not now", then back on Approve; a sheet takes focus on its title and Esc returns it to the button that opened it; the business menu takes focus and Esc returns it; on a phone, Tab never leaves a covering sheet).
-- No sideways scroll, no text key on screen, no em dash, no console error, and in Hindi every count in the body face: 471 of 471 shots clean.
-- axe could not decide the contrast of 450 text nodes (white text on the video previews, text over gradients, boxes that overlap): they were looked at in the shots; the preview text is white on the theme-invariant preview ground, over 10:1 by the token table.
+- No sideways scroll, no text key on screen, no em dash, no console error, and in Hindi every count in the body face: 480 of 480 shots clean.
+- axe could not decide the contrast of 470 text nodes. These undecided checks are neither recorded violations nor proof of sufficient contrast. Visual review is limited to the captured content inspected; see [the wave 5 handoff](../../plans/w5/HANDOFF.md) for the linked review evidence and coverage limits. This report does not claim that every undecided node was manually checked.
 
-## Wave 4
+Current report: 488 checks over 113 cases, 0 failed, 0 listed as accepted (480 shots, 30 of them in Hindi at 390 chosen by the computer's languages, and 8 focus checks). This automated report does not establish completion of the separate cold visual review; see the wave 5 handoff for that checkpoint.
 
-Package 4Z walked every wave 4 address and opened state with the rest. The first walk: 479 checks, 24 failed, 0 axe violations:
+## Historical wave 4 walk
+
+Package 4Z walked every wave 4 address and opened state with the rest. Its first walk: 479 checks, 24 failed, 0 axe violations:
 
 - 13 checks: the pipeline board widened its place (hidden column hints outside the scroller), at 390 and with a card sheet open at 1280; fixed.
 - 8 checks: steps the walk pressed by stale names ("Runs" now carries its count, "Draft it" is "Open the draft" once a draft exists); the cases were updated.
 - 3 checks: Hindi shots pressed English button names; Hindi steps now carry their Hindi name.
 
-The last walk: 479 checks over 111 cases, 0 failed, 0 listed as accepted (471 shots, 29 of them in Hindi at 390 chosen by the computer's languages, and 8 focus checks). Every wave 4 flow was also walked by hand in the running fake app; what that found is in "Fixed during the walk" and "Listed, not fixed" below, marked Wave 4.
+Every wave 4 flow was also walked by hand in the running fake app at that time. The historical findings below are marked Wave 3 or Wave 4; they are not a new assessment of the current captures.
 
-## Fixed during the walk
+## Historical fixes during waves 3 and 4
 
 - Wave 3: receipt sheets mark their root `data-receipt-sheet` through `<Sheet receipt>`, and the Ink rules helper lets money text sit there: the sheet is the proof (tests/shell/receipt-sheet.test.tsx).
 - Wave 3: Hindi step counts ("5 में से 3") are set in the body face (`:lang(hi) [data-count]` in base.css; tests/hindi-counts.test.tsx; the walk checks the computed face in Chrome).
@@ -51,9 +53,9 @@ The last walk: 479 checks over 111 cases, 0 failed, 0 listed as accepted (471 sh
 - Wave 4: a plan's title in Chats keeps its words on one line and the step count wraps under it; in Hindi at 390 the title broke one word per line (tests/walk-findings.test.tsx).
 - Wave 4: the walk itself: Hindi comes from the computer's languages (navigator.languages), as the app picks it, not `?lang=hi`; a case may start on a later day (`clock`), so Today's Ideas fold shows the sample idea after 28 Oct; Hindi steps press Hindi names; a test whose "Price" check met the new order stage named Price now skips the stage steps.
 
-## Listed, not fixed
+## Historical items listed, not fixed
 
-From the shots and an unprimed review of them (catalogue Q24: a fresh reviewer given only the shots and the boards).
+From the earlier shots and an unprimed review of them (catalogue Q24: a fresh reviewer given only the shots and the boards). Their current status is not inferred from this historical list.
 
 - Hindi: some words the engine writes stay English (row lines, some action labels, engine notes in chat), because the fake engine writes English; dates in mono read wide; every Hindi string is machine-drafted and waits for a native reviewer (src/text/hi-review.json, with the engine files that carry their own Hindi).
 - Connections: a connector with one mode that writes and one planned shows both labels on one card (LinkedIn: browser posting writes, API posting is planned).
@@ -67,7 +69,7 @@ From the shots and an unprimed review of them (catalogue Q24: a fresh reviewer g
 
 ## Word baselines, for the founder to confirm
 
-Words a reader sees in each place at rest, measured on the fake engine and rounded up to the next 10 (`app/ui/tests/baselines/words.json`, held by `app/ui/tests/budgets.test.tsx`; they may only shrink). Ink v1 kept every place to 35 to 45 words; direction D carries far more. Every page's sub line is at most 20 words and every approval card's own copy at most 12. The numbers below are the file as it stands; the integrator settles the wave 4 places from the measures before the wave 4 PR.
+Words a reader sees in each place at rest, measured on the fake engine and rounded up to the next 10 (`app/ui/tests/baselines/words.json`, held by `app/ui/tests/budgets.test.tsx`; they may only shrink). Ink v1 kept every place to 35 to 45 words; direction D carries far more. Every page's sub line is at most 20 words and every approval card's own copy at most 12. The numbers below are the current measured allowances from that file. The wave 5 PR lists every rise from wave 4 for founder confirmation.
 
 | Place | Words at rest |
 |---|---|
@@ -80,13 +82,13 @@ Words a reader sees in each place at rest, measured on the fake engine and round
 | money/books | 70 |
 | money/spend | 170 |
 | money/journal | 120 |
-| connections | 860 |
-| connections/ai | 860 |
+| connections | 1810 |
+| connections/ai | 1810 |
 | business/plan | 260 |
 | business/prices | 140 |
 | business/build | 140 |
 | business/keep | 160 |
-| onboarding | 340 |
+| onboarding | 1150 |
 | chats | 150 |
 | clients | 30 |
 | clients/network | 190 |

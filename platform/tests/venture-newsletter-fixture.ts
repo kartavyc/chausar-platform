@@ -1,0 +1,2 @@
+// Original bounded newsletter source fixture.
+export const goodIssue={subject:'October shop notes',preview:'Three changes from our shop.',body:'Hello {{first_name}},\nOur opening hours are in the attached source.',fromAddress:'editor@example.com',allowedFrom:'editor@example.com',postalAddress:'14 Market Road, Pune',unsubscribeUrl:'https://example.com/unsubscribe',tool:'Owner tool',planRemaining:1000,testSentAt:'2026-10-28T08:00:00Z',providerReady:true,sponsor:null};

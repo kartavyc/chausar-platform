@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "playbook": "app-testing",
+  "recordedAt": "2026-10-29",
+  "baseline": {
+    "passed": 3,
+    "of": 3
+  },
+  "cases": [
+    {
+      "id": "crash-found",
+      "request": "Parse the actual source log for the client package.",
+      "draft": "1",
+      "meta": {
+        "source": "{\"packageName\": \"org.example.demo\", \"log\": \"FATAL EXCEPTION: main\\nProcess: org.example.demo, PID: 12\\n at org.example.demo.Main.onCreate(Main.java:10)\"}"
+      }
+    },
+    {
+      "id": "real-device-refused",
+      "request": "Refuse a real phone identity.",
+      "draft": "REAL_DEVICE_REFUSED",
+      "meta": {
+        "source": "{\"serial\": \"personal-phone\"}"
+      }
+    },
+    {
+      "id": "demo-voice-labelled",
+      "request": "Validate a disclosed synthetic voice demo plan.",
+      "draft": "labelled",
+      "meta": {
+        "source": "{\"title\": \"Fictional home\", \"script\": \"Open Home.\", \"shots\": [{\"id\": \"home\", \"action\": \"Open Home\", \"seconds\": 3}], \"clientTestAccount\": true, \"aiVoice\": true, \"description\": \"This video uses an AI voice.\"}"
+      }
+    }
+  ]
+}

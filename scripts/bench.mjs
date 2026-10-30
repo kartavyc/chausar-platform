@@ -32,8 +32,8 @@ let selectedFiles = null; let plan = null;
 if (shard?.total === 5 || shard?.total === 6) {
   // The planned shards keep the long independent activation suite on its own shard and spread every other file
   // round-robin over the ordinary groups: four groups in the five-shard plan, five in the six-shard plan. The
-  // six-shard plan exists because the open suite grew (216 to 272 files in October 2026) and one of four groups
-  // reached the ten-minute deadline on Windows; a fifth group keeps every shard well inside it.
+  // six-shard plan keeps five ordinary groups plus the long activation suite. Wave 5 more than doubled the
+  // inventory again, so the bounded runner allows fifteen minutes while retaining one worker and all cases.
   const planned = shard.total === 5 ? 'Five' : 'Six';
   const ordinaryTotal = shard.total - 1;
   const dedicatedFile = 'platform/tests/workspace-activation-independent-public-acceptance.test.ts';
@@ -59,7 +59,7 @@ const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
   ...(plan ? { selectedFiles, plan } : {}) };
 const startedAt = new Date().toISOString();
 // Bound simultaneous vault/KDF fixtures consistently with local qualification.
-// Each shard retains the ten-minute deadline and single-worker resource bound.
+// Each shard has a fifteen-minute deadline and a single-worker resource bound.
 // Run every test in each selected file; no case filters or skip patterns.
 const command = ['--test', '--test-reporter=tap', '--test-concurrency=1',
   ...(selectedFiles ?? [...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), discoveryPattern])];
@@ -72,7 +72,7 @@ const outcome = await new Promise((fulfill) => {
   child.stdout.on('data', data => { stdout = capture(stdout, data.toString()); });
   child.stderr.on('data', data => { stderr = capture(stderr, data.toString()); });
   child.once('error', error => finish(null, null, error.message)); child.once('close', (code, signal) => finish(code, signal));
-  const deadline = setTimeout(() => { timeout = true; child.kill(); }, 10 * 60 * 1000);
+  const deadline = setTimeout(() => { timeout = true; child.kill(); }, 15 * 60 * 1000);
 });
 const counts = {};
 for (const name of ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']) { const matches = [...outcome.stdout.matchAll(new RegExp(`^# ${name} (\\d+)\\r?$`, 'gm'))]; counts[name] = matches.length ? Number(matches.at(-1)[1]) : null; }

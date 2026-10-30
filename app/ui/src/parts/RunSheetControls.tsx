@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
-import { useT } from '../text';
+import { useT, useLanguage } from '../text';
+import { runScopeWords } from './run-scope-words';
 import { refusalWords } from './custody';
 import { Button } from './Button';
 import { Field } from './Field';
@@ -19,23 +20,24 @@ const MAX_NOTE = 500;
  */
 
 /** The scope line with its spend cap as a figure with its receipt, cut once where the engine wrote the cap in it. */
-function withCap(scope: NonNullable<RunDetail['scope']>): ReactNode {
-  const at = scope.line.indexOf(scope.cap);
-  if (at < 0 || !scope.capReceiptId) return scope.line;
+function withCap(scope: NonNullable<RunDetail['scope']>, words: ReturnType<typeof runScopeWords>): ReactNode {
+  const at = words.line.indexOf(scope.cap);
+  if (at < 0 || !scope.capReceiptId) return words.line;
   // The cap in rupees at the owner's own rate, when the engine sends it, beside the cap and proved by the same receipt.
-  const rupees = scope.capRupees && scope.capRate
-    ? <> (<Figure value={`${scope.capRupees} at ${scope.capRate}`} receiptId={scope.capReceiptId} />)</> : null;
-  return <>{scope.line.slice(0, at)}<Figure value={scope.cap} receiptId={scope.capReceiptId} />{rupees}{scope.line.slice(at + scope.cap.length)}</>;
+  const rupees = words.rupees
+    ? <> (<Figure value={words.rupees} receiptId={scope.capReceiptId} />)</> : null;
+  return <>{words.line.slice(0, at)}<Figure value={scope.cap} receiptId={scope.capReceiptId} />{rupees}{words.line.slice(at + scope.cap.length)}</>;
 }
 
 /** The scope line under the run's title, and its tools and outside actions in a fold (O21). Nothing without a scope. */
 export function RunScope({ run }: { run: RunDetail }) {
   const t = useT();
+  const language = useLanguage();
   if (!run.scope) return null;
   const { scope } = run;
   return (
     <div className={s.scope}>
-      <p className={s.scopeLine}>{withCap(scope)}</p>
+      <p className={s.scopeLine}>{withCap(scope, runScopeWords(scope, language, t))}</p>
       <details className={s.fold} data-fold="scope">
         <summary>{t('runsheet.scope.more')}</summary>
         {scope.tools.length > 0 && (

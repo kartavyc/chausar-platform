@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { serialize, deserialize } from 'node:v8';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -43,15 +47,35 @@ describe('fake engine connectors match the engine', () => {
     expect(instagram.postingOptions.every((o) => o.status === 'planned')).toBe(true);
     expect(instagram.posting).toMatchObject({ mode: 'owner-browser-session', status: 'planned', risk: 'The platform may restrict this account.', reason: 'Posting a picture or video through the browser is not built yet.' });
     expect(instagram.modes.every((m) => m.status === 'planned')).toBe(true);
-    expect(cards.find((c) => c.id === 'linkedin')!.posting).toMatchObject({ mode: 'owner-browser-session', status: 'available', reason: null });
-    // W4 4J21: the list adds each connector's truth (4J7): the ladder on every mode, the capability set and the guide.
-    const plain = cards.map(({ guide: _g, capabilities: _c, ...card }) => ({
-      ...card,
-      modes: card.modes.map(({ ladder: _l, ...mode }) => mode),
-      postingOptions: card.postingOptions.map(({ ladder: _l, ...option }) => option),
-      ...(card.posting ? { posting: (({ ladder: _l, ...option }) => option)(card.posting) } : {}),
-    }));
-    expect(CONNECTORS).toEqual(plain);
+    expect(cards.find((c) => c.id === 'x')!.posting).toMatchObject({ mode: 'owner-browser-session', status: 'available', reason: null });
+    // The demo has a declared sample, plus seller and open-network cards. Compare that exact
+    // inventory and order against current native cards, not the pre-extension raw sample.
+    const native = (file: string) => JSON.stringify(pathToFileURL(resolve(process.cwd(), 'platform/runtime/venture/build', file)).href);
+    const script = `
+      import { readFileSync } from 'node:fs';
+      import { serialize, deserialize } from 'node:v8';
+      import { CONNECTOR_CATALOGUE } from ${native('catalogue.ts')};
+      import { ONLINE_SELLER_CATALOGUE } from ${native('catalogue/online-seller.ts')};
+      import { connectorCard } from ${native('connectors.ts')};
+      import { withTruth, NO_EVIDENCE } from ${native('connector-truth.ts')};
+      const sample = deserialize(readFileSync(0));
+      const openIds = ['bluesky', 'mastodon', 'telegram', 'discord'];
+      const sellerIds = ONLINE_SELLER_CATALOGUE.map(item => item.id);
+      const selected = [...sample.filter(item => !sellerIds.includes(item.id) && !openIds.includes(item.id)),
+        ...sellerIds.map(id => ({ id, starter: false })), ...openIds.map(id => ({ id, starter: false }))];
+      const env = { browser: { present: true, reason: null }, appReviewed: [], apiClients: [] };
+      const cards = selected.map(({ id, starter }) => {
+        const entry = CONNECTOR_CATALOGUE.find(item => item.id === id);
+        if (!entry) throw new Error('Missing native connector: ' + id);
+        const card = connectorCard(entry, starter, env);
+        return withTruth(card, NO_EVIDENCE, false);
+      });
+      process.stdout.write(serialize(cards));
+    `;
+    const nativeCards = deserialize(execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+      input: serialize(CONNECTORS.map(({ id, starter }) => ({ id, starter }))), timeout: 15000,
+    })) as ConnectorCardLite[];
+    expect(cards).toEqual(nativeCards);
   });
 });
 
@@ -70,7 +94,7 @@ describe('Connections', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Marketing and social' })).toBeTruthy();
   });
 
-  it('shows posting as the engine says it: Instagram planned with its risk and reason, LinkedIn through your browser', async () => {
+  it('shows posting as the engine says it: Instagram planned with its risk and reason, X through your browser', async () => {
     start();
     const instagram = await row('Instagram');
     const posting = instagram.querySelector('[data-posting]')!;
@@ -80,7 +104,7 @@ describe('Connections', () => {
     expect(posting.textContent).not.toContain('Through your own browser session');
     expect(posting.textContent).not.toContain('The platform may restrict this account.');
     expect(posting.textContent).toContain('Posting a picture or video through the browser is not built yet.');
-    const linkedin = (await row('LinkedIn')).querySelector('[data-posting]')!;
+    const linkedin = (await row('X')).querySelector('[data-posting]')!;
     expect(linkedin.querySelector('[data-label]')!.getAttribute('data-label')).toBe('write');
     expect(linkedin.textContent).toContain('The platform may restrict this account.');
     expect((await row('GitHub')).querySelector('[data-posting]')).toBeNull();

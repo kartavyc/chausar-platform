@@ -15,7 +15,7 @@ import {
 /** The methods this part of the fake answers (fake-w4.ts routes them here). */
 export const FAKE_4J3_METHODS: readonly string[] = ['venture.files.poster'];
 
-const LINKEDIN_TEXT = 'We tested five budget mics in one room. The ₹2,000 one surprised us. Full episode on the channel, link in the comments.';
+const X_TEXT = 'We tested five budget mics in one room. The ₹2,000 one surprised us. Full episode on the channel, link in the comments.';
 const price = { receiptId: 'R-0419', receiptKind: 'price' as const };
 const gst = { receiptId: 'w-gst-sep', receiptKind: 'ca' as const };
 
@@ -47,8 +47,8 @@ export const FAKE_PREVIEWS: Readonly<Record<string, QueuePreview>> = {
     ],
   },
   'post:linkedin-ep13:v1': {
-    kind: 'post', connectorId: 'linkedin', platform: 'LinkedIn', account: 'Lumen Studio', mode: 'owner-browser-session', text: LINKEDIN_TEXT, textEstimate: true,
-    counts: [{ label: 'characters', count: [...LINKEDIN_TEXT].length, limit: 3000 }],
+    kind: 'post', connectorId: 'x', platform: 'X', account: 'Lumen Studio', mode: 'owner-browser-session', text: X_TEXT, textEstimate: true,
+    counts: [{ label: 'characters', count: [...X_TEXT].length, limit: 280 }],
     short: { title: { text: 'The ₹2,000 one surprised us', estimate: true }, length: { seconds: 48, display: '48 s', clock: '0:48', from: 'edit-list' } },
   },
 };

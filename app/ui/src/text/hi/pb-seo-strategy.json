@@ -1,0 +1,16 @@
+{
+ "pb-seo-strategy.title":"मापे गए प्रयोग से सीखें",
+ "pb-seo-strategy.boundary":"एक ही ऑर्डर के जाँचे लेख के सबूत और तय पैनल चुनें। सीखने के लिए पब्लिश होने की पुष्टि, पूरी शुरुआती और बाद की तस्वीरें चाहिए। दो बार सुधार न दिखे तो प्रयोग रुकता है।",
+ "pb-seo-strategy.work":"जाँचे लेख के सबूत",
+ "pb-seo-strategy.panel":"तय उत्तर पैनल",
+ "pb-seo-strategy.panelNumber":"पैनल {number}: {questions} सवाल",
+ "pb-seo-strategy.start":"यह प्रयोग शुरू करें",
+ "pb-seo-strategy.experiment":"प्रयोग {number}",
+ "pb-seo-strategy.publication":"पुष्टि किया पब्लिश लेख",
+ "pb-seo-strategy.measure":"पूरी हुई अवधियों की जाँच करें",
+ "pb-seo-strategy.state.candidate":"प्रस्ताव सेव हुआ। इससे सीखने से पहले पब्लिश और अवलोकन के सबूत पूरे करें।",
+ "pb-seo-strategy.state.held":"पूरे, अपरिवर्तित सबूत से नतीजा मिलने तक रोका गया।",
+ "pb-seo-strategy.state.remembered":"मापे गए प्रयोग से याद रखा गया। यह सबूत है, रैंकिंग का वादा नहीं।",
+ "pb-seo-strategy.state.stopped":"दो अवधियों में सुधार न दिखने पर रोक दिया गया।",
+ "pb-seo-strategy.failed":"प्रयोग नहीं जुड़ा। लेख के स्रोत, उसी ऑर्डर के पैनल और पब्लिश होने की पुष्टि फिर जाँचें।"
+}

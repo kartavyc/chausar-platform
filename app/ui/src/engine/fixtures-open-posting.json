@@ -1,0 +1,386 @@
+[
+  {
+    "id": "bluesky",
+    "name": "Bluesky",
+    "category": "marketing",
+    "categoryLabel": "Marketing and social",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection."
+      }
+    ],
+    "chips": [
+      "write",
+      "planned: handoff"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "Your app password for the selected server and handle",
+    "vendorUrl": "https://bsky.app/",
+    "note": "Official plain-text API posts after exact approval. Credentials stay in the current session.",
+    "starter": false,
+    "posting": {
+      "mode": "owner-browser-session",
+      "what": "Posts approved text through your signed-in Bluesky browser. Not yet checked against the live site.",
+      "risk": "The platform may restrict this account.",
+      "requires": [
+        "Playwright with Chromium on this computer",
+        "You sign in to Bluesky yourself, once, in the Chausar browser window"
+      ],
+      "status": "planned",
+      "qualification": "unqualified",
+      "reason": "Use the official API connection. Browser posting is not offered for this network."
+    },
+    "postingOptions": [
+      {
+        "mode": "api",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Posts through the Bluesky API after you approve each post.",
+        "risk": null,
+        "requires": [
+          "Your own verified account or channel credential",
+          "Separate approval for each exact plain-text post"
+        ],
+        "reason": "Connect your own verified account in Open networks first."
+      },
+      {
+        "mode": "owner-browser-session",
+        "what": "Posts approved text through your signed-in Bluesky browser. Not yet checked against the live site.",
+        "risk": "The platform may restrict this account.",
+        "requires": [
+          "Playwright with Chromium on this computer",
+          "You sign in to Bluesky yourself, once, in the Chausar browser window"
+        ],
+        "status": "planned",
+        "qualification": "unqualified",
+        "reason": "Use the official API connection. Browser posting is not offered for this network."
+      },
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Copy approved text and publish it yourself.",
+        "risk": null,
+        "requires": [],
+        "reason": "The engine prepares it, but no screen opens it yet."
+      }
+    ],
+    "guide": {
+      "steps": [
+        "1. Create an app password in your own Bluesky account. Record the exact handle and public server.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Use an app password, not the account password. Plain text only, within three hundred graphemes.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    }
+  },
+  {
+    "id": "mastodon",
+    "name": "Mastodon",
+    "category": "marketing",
+    "categoryLabel": "Marketing and social",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection."
+      }
+    ],
+    "chips": [
+      "write",
+      "planned: handoff"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "Your instance token with write:statuses",
+    "vendorUrl": "https://joinmastodon.org/",
+    "note": "Public plain-text API posts after exact approval, within the lower of five hundred characters and the instance limit.",
+    "starter": false,
+    "posting": {
+      "mode": "owner-browser-session",
+      "what": "Posts approved text through your signed-in Mastodon browser. Not yet checked against the live site.",
+      "risk": "The platform may restrict this account.",
+      "requires": [
+        "Playwright with Chromium on this computer",
+        "You sign in to Mastodon yourself, once, in the Chausar browser window"
+      ],
+      "status": "planned",
+      "qualification": "unqualified",
+      "reason": "Use the official API connection. Browser posting is not offered for this network."
+    },
+    "postingOptions": [
+      {
+        "mode": "api",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Posts through the Mastodon API after you approve each post.",
+        "risk": null,
+        "requires": [
+          "Your own verified account or channel credential",
+          "Separate approval for each exact plain-text post"
+        ],
+        "reason": "Connect your own verified account in Open networks first."
+      },
+      {
+        "mode": "owner-browser-session",
+        "what": "Posts approved text through your signed-in Mastodon browser. Not yet checked against the live site.",
+        "risk": "The platform may restrict this account.",
+        "requires": [
+          "Playwright with Chromium on this computer",
+          "You sign in to Mastodon yourself, once, in the Chausar browser window"
+        ],
+        "status": "planned",
+        "qualification": "unqualified",
+        "reason": "Use the official API connection. Browser posting is not offered for this network."
+      },
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Copy approved text and publish it yourself.",
+        "risk": null,
+        "requires": [],
+        "reason": "The engine prepares it, but no screen opens it yet."
+      }
+    ],
+    "guide": {
+      "steps": [
+        "1. Create a token for your own Mastodon instance with permission to write statuses. Record its exact account.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Public visibility only. Chausar supports five hundred characters or the lower verified instance limit.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    }
+  },
+  {
+    "id": "telegram",
+    "name": "Telegram",
+    "category": "messaging",
+    "categoryLabel": "Messaging and support",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection."
+      }
+    ],
+    "chips": [
+      "write",
+      "planned: handoff"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "Bot token",
+    "vendorUrl": "https://telegram.org/",
+    "note": "Official channel posts through your own administrator bot, each separately approved. No direct messages.",
+    "starter": false,
+    "posting": {
+      "mode": "owner-browser-session",
+      "what": "Posts approved text through your signed-in Telegram browser. Not yet checked against the live site.",
+      "risk": "The platform may restrict this account.",
+      "requires": [
+        "Playwright with Chromium on this computer",
+        "You sign in to Telegram yourself, once, in the Chausar browser window"
+      ],
+      "status": "planned",
+      "qualification": "unqualified",
+      "reason": "Use the official API connection. Browser posting is not offered for this network."
+    },
+    "postingOptions": [
+      {
+        "mode": "api",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Posts through the Telegram API after you approve each post.",
+        "risk": null,
+        "requires": [
+          "Your own verified account or channel credential",
+          "Separate approval for each exact plain-text post"
+        ],
+        "reason": "Connect your own verified account in Open networks first."
+      },
+      {
+        "mode": "owner-browser-session",
+        "what": "Posts approved text through your signed-in Telegram browser. Not yet checked against the live site.",
+        "risk": "The platform may restrict this account.",
+        "requires": [
+          "Playwright with Chromium on this computer",
+          "You sign in to Telegram yourself, once, in the Chausar browser window"
+        ],
+        "status": "planned",
+        "qualification": "unqualified",
+        "reason": "Use the official API connection. Browser posting is not offered for this network."
+      },
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Copy approved text and publish it yourself.",
+        "risk": null,
+        "requires": [],
+        "reason": "The engine prepares it, but no screen opens it yet."
+      }
+    ],
+    "guide": {
+      "steps": [
+        "1. Create your own bot and make it an administrator of the exact channel with permission to post messages.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Channel posts only. The bot needs administrator posting permission; no direct messages or markup.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    }
+  },
+  {
+    "id": "discord",
+    "name": "Discord",
+    "category": "messaging",
+    "categoryLabel": "Messaging and support",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Posts exact approved plain text through the owner official API connection. Each destination has its own approval and recorded outcome; uncertain results require inspection."
+      }
+    ],
+    "chips": [
+      "write",
+      "planned: handoff"
+    ],
+    "regions": [
+      "global",
+      "india"
+    ],
+    "regionNote": null,
+    "auth": "Incoming server-channel webhook",
+    "vendorUrl": "https://discord.com/",
+    "note": "Official incoming webhook posts after exact approval. Automatic mentions are disabled and uncertain outcomes are never retried.",
+    "starter": false,
+    "posting": {
+      "mode": "owner-browser-session",
+      "what": "Posts approved text through your signed-in Discord browser. Not yet checked against the live site.",
+      "risk": "The platform may restrict this account.",
+      "requires": [
+        "Playwright with Chromium on this computer",
+        "You sign in to Discord yourself, once, in the Chausar browser window"
+      ],
+      "status": "planned",
+      "qualification": "unqualified",
+      "reason": "Use the official API connection. Browser posting is not offered for this network."
+    },
+    "postingOptions": [
+      {
+        "mode": "api",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Posts through the Discord API after you approve each post.",
+        "risk": null,
+        "requires": [
+          "Your own verified account or channel credential",
+          "Separate approval for each exact plain-text post"
+        ],
+        "reason": "Connect your own verified account in Open networks first."
+      },
+      {
+        "mode": "owner-browser-session",
+        "what": "Posts approved text through your signed-in Discord browser. Not yet checked against the live site.",
+        "risk": "The platform may restrict this account.",
+        "requires": [
+          "Playwright with Chromium on this computer",
+          "You sign in to Discord yourself, once, in the Chausar browser window"
+        ],
+        "status": "planned",
+        "qualification": "unqualified",
+        "reason": "Use the official API connection. Browser posting is not offered for this network."
+      },
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Copy approved text and publish it yourself.",
+        "risk": null,
+        "requires": [],
+        "reason": "The engine prepares it, but no screen opens it yet."
+      }
+    ],
+    "guide": {
+      "steps": [
+        "1. Create an incoming webhook in the exact Discord server channel that you own or may manage.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Use the incoming webhook address for that channel. Chausar disables automatic mentions and waits for a returned message.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    }
+  }
+]

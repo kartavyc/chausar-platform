@@ -101,9 +101,12 @@ function usdArgument(micros: string): string {
 /**
  * The fixed arguments. Claude Code: print mode, file tools only (no shell, no web, no MCP servers, no user settings),
  * edits accepted inside the folder, a turn cap and a spending cap. Codex: exec in its workspace-write sandbox with the
- * network off, the user's config ignored, no history, no hooks. Neither list has been run against an installed tool.
+ * network off, the user's config ignored, no history, no hooks. On Windows Codex turns workspace-write into read-only
+ * unless its own Windows sandbox is on, and the ignored user config cannot switch it on, so the unelevated mode (no
+ * admin rights) is passed here. The Codex list ran live on Windows on 30 Oct 2026 (codex-cli 0.154.0); the Claude Code
+ * list has not been run against an installed tool.
  */
-export function delegateArgs(cli: DelegateCli, limits: DelegateLimits): string[] {
+export function delegateArgs(cli: DelegateCli, limits: DelegateLimits, platform: NodeJS.Platform = process.platform): string[] {
   if (cli === 'claude-code') {
     return [
       '-p', '--output-format', 'json', '--max-turns', String(limits.maxTurns), '--permission-mode', 'acceptEdits',
@@ -116,7 +119,8 @@ export function delegateArgs(cli: DelegateCli, limits: DelegateLimits): string[]
     'exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--json',
     '--config', 'approval_policy=never', '--config', 'web_search=disabled', '--config', 'sandbox_workspace_write.network_access=false',
     '--config', 'history.persistence=none', '--config', 'features.hooks=false', '--config', 'features.apps=false',
-    '--config', 'features.multi_agent=false', '--config', 'features.memories=false', '-',
+    '--config', 'features.multi_agent=false', '--config', 'features.memories=false',
+    ...(platform === 'win32' ? ['--config', 'windows.sandbox=unelevated'] : []), '-',
   ];
 }
 
@@ -523,6 +527,33 @@ export function delegateSpendOutcome(result: Pick<DelegationResult, 'started' | 
   return micros === null ? { kind: 'reservation' } : { kind: 'billed', micros, by: 'tool-report' };
 }
 
+/**
+ * The tool's last message: Codex prints one JSON line per event and the last agent_message is its answer; Claude Code
+ * prints one JSON object whose result is its answer. Null when there is none.
+ */
+function finalMessage(cli: DelegateCli, stdout: string): string | null {
+  if (cli === 'claude-code') {
+    try { const data = JSON.parse(stdout) as Record<string, unknown>; return typeof data.result === 'string' ? data.result : null; } catch { return null; }
+  }
+  let last: string | null = null;
+  for (const line of stdout.split('\n')) {
+    try {
+      const event = JSON.parse(line) as { type?: unknown; item?: { type?: unknown; text?: unknown } };
+      if (event.type === 'item.completed' && event.item?.type === 'agent_message' && typeof event.item.text === 'string') last = event.item.text;
+    } catch { /* not a JSON line */ }
+  }
+  return last;
+}
+
+/** How each closing word the brief asks for reads when the tool stopped short of the job. */
+const STOPPED: Readonly<Record<string, string>> = { blocked: 'blocked', failed: 'unable to finish', needs_decision: 'waiting for a decision' };
+
+/** The closing word the brief asks the tool to end on, when it says the job stopped short; null for done or none. */
+function stoppedWord(cli: DelegateCli, stdout: string): string | null {
+  const word = finalMessage(cli, stdout)?.trim().split(/\s+/).at(-1)?.toLowerCase().replace(/[^a-z_]/g, '') ?? '';
+  return Object.hasOwn(STOPPED, word) ? word : null;
+}
+
 /** Every digit hidden: the agent may read what the tool says, never repeat its numbers. */
 export function maskNumbers(text: string): string {
   return text.replace(/\d/g, '#');
@@ -563,11 +594,17 @@ export async function runDelegation(ports: DelegatePorts, request: DelegationReq
     }
     const outputs = await readOutputs(join(folder, 'outputs'));
     const { cost, isError } = reportedCost(request.cli, answer.stdout);
-    const outcome: ExecutionOutcome = answer.timedOut ? 'timedOut' : answer.exitCode === 0 && !isError ? 'succeeded' : 'failed';
+    // A clean exit is not the job done: the tool may say it was blocked (the brief asks it to end on that word), or
+    // leave nothing behind. Either way nothing came back to build on.
+    const exitedCleanly = answer.exitCode === 0 && !isError;
+    const stopped = exitedCleanly ? stoppedWord(request.cli, answer.stdout) : null;
+    const outcome: ExecutionOutcome = answer.timedOut ? 'timedOut' : exitedCleanly && stopped === null && outputs.length > 0 ? 'succeeded' : 'failed';
     const left = `${outputs.length} ${outputs.length === 1 ? 'file' : 'files'}`;
     const reason = outcome === 'timedOut' ? `${label} ran past its ${request.limits.minutes} minute limit and was stopped. It left ${left}.`
       : outcome === 'succeeded' ? `${label} finished and left ${left}.`
-        : isError ? `${label} reported an error. It left ${left}.` : `${label} stopped with an error. It left ${left}.`;
+        : stopped !== null ? `${label} said it was ${STOPPED[stopped]}. It left ${left}.`
+          : exitedCleanly ? `${label} finished but left no files, so nothing came back.`
+            : isError ? `${label} reported an error. It left ${left}.` : `${label} stopped with an error. It left ${left}.`;
     const summary = textOf(outputs, 'summary.md');
     const figures = outcome === 'succeeded' ? recompute(outputs, files, names, env) : [];
     const log = `${answer.stderr}\n${answer.stdout}`.trim();

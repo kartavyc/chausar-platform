@@ -1,0 +1,777 @@
+[
+  {
+    "id": "amazon-sp-api",
+    "name": "Amazon.in Selling Partner API",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "read",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: reading from Amazon.in Selling Partner API. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: read"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Amazon developer registration and seller authorization; Chausar adapter and account verification.",
+    "vendorUrl": "https://developer-docs.amazon.com/sp-api/docs/sp-api-registration-overview",
+    "note": "Amazon developer registration and seller authorization; Chausar adapter and account verification. Download the reports in Seller Central and add them to the order.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Amazon.in Selling Partner API is planned.",
+        "2. When it is built, Chausar will ask for amazon developer registration and seller authorization; Chausar adapter and account verification., with read access only to what it needs, and no access to anything else.",
+        "3. Until then, use Amazon.in Selling Partner API on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Amazon.in Selling Partner API.",
+      "agentLimits": "Agents can't use Amazon.in Selling Partner API: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "amazon-ads",
+    "name": "Amazon Ads API",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "read",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: reading from Amazon Ads API. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: read"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Amazon Ads developer access and advertiser authorization; Chausar adapter.",
+    "vendorUrl": "https://advertising.amazon.com/API/docs/en-us/guides/get-started/overview",
+    "note": "Amazon Ads developer access and advertiser authorization; Chausar adapter. Download your ads reports in the Amazon Ads console.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Amazon Ads API is planned.",
+        "2. When it is built, Chausar will ask for amazon Ads developer access and advertiser authorization; Chausar adapter., with read access only to what it needs, and no access to anything else.",
+        "3. Until then, use Amazon Ads API on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Amazon Ads API.",
+      "agentLimits": "Agents can't use Amazon Ads API: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "flipkart-api",
+    "name": "Flipkart Seller API",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "read",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: reading from Flipkart Seller API. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: read"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Seller developer access and authorization; Chausar adapter.",
+    "vendorUrl": "https://seller.flipkart.com/api-docs/FMSAPI.html",
+    "note": "Seller developer access and authorization; Chausar adapter. Download the settlement report in Seller Hub and add it to the order.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Flipkart Seller API is planned.",
+        "2. When it is built, Chausar will ask for seller developer access and authorization; Chausar adapter., with read access only to what it needs, and no access to anything else.",
+        "3. Until then, use Flipkart Seller API on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Flipkart Seller API.",
+      "agentLimits": "Agents can't use Flipkart Seller API: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "meesho",
+    "name": "Meesho",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://supplier.meesho.com/how-it-works",
+    "note": "Use the current category template in the Supplier Panel. Review the prepared sheet and upload it yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own Meesho account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and Meesho. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "myntra",
+    "name": "Myntra",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://partners.myntrainfo.com/",
+    "note": "Get the current authorized seller template from your partner account. Review and upload the prepared sheet yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own Myntra account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and Myntra. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "ajio",
+    "name": "AJIO",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://seller.ajio.com/ajiocommerce/faq/",
+    "note": "Download the current category template in AJIO Commerce. Review the prepared sheet and upload it yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own AJIO account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and AJIO. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "nykaa",
+    "name": "Nykaa",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://seller.nykaa.com/",
+    "note": "Use the current template supplied by your authorized seller account. Review and upload the prepared sheet yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own Nykaa account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and Nykaa. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "jiomart",
+    "name": "JioMart",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://seller.jiomart.com/",
+    "note": "Use the current template supplied by your authorized seller account. Review and upload the prepared sheet yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own JioMart account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and JioMart. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "shiprocket",
+    "name": "Shiprocket",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: writing to Shiprocket. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: write"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner API user and scoped token; Chausar shipment adapter and verified read-back.",
+    "vendorUrl": "https://apidocs.shiprocket.in/",
+    "note": "Owner API user and scoped token; Chausar shipment adapter and verified read-back. Create and check the shipment in Shiprocket yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Shiprocket is planned.",
+        "2. When it is built, Chausar will ask for owner API user and scoped token; Chausar shipment adapter and verified read-back., with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Shiprocket on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Shiprocket.",
+      "agentLimits": "Agents can't use Shiprocket: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "delhivery",
+    "name": "Delhivery",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: writing to Delhivery. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: write"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner business account API token; Chausar shipment adapter and verified read-back.",
+    "vendorUrl": "https://help.delhivery.com/docs/api-token-generation",
+    "note": "Owner business account API token; Chausar shipment adapter and verified read-back. Create and check the shipment in Delhivery One yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Delhivery is planned.",
+        "2. When it is built, Chausar will ask for owner business account API token; Chausar shipment adapter and verified read-back., with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Delhivery on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Delhivery.",
+      "agentLimits": "Agents can't use Delhivery: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "instagram-shop",
+    "name": "Instagram shop",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://www.facebook.com/business/help/1275400645914358",
+    "note": "Review the prepared catalogue sheet and use your own Meta Commerce Manager. No automatic posting.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own Instagram shop account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and Instagram shop. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "whatsapp-business",
+    "name": "WhatsApp Business",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Prepares a bounded text-only catalogue sheet from the current template and column map you supply. You review and upload or copy it in your own account. No messages or uploads are sent."
+      }
+    ],
+    "chips": [
+      "handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner account and current template",
+    "vendorUrl": "https://www.whatsapp.com/business/",
+    "note": "Review the catalogue text and add it in your own WhatsApp Business app. No messages are sent.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Get the current permitted catalogue template from your own WhatsApp Business account. Do not infer its columns.",
+        "2. In Seller operations, choose Catalogue sheet and WhatsApp Business. Add the product CSV and a header-to-field map, template source and checked date.",
+        "3. Review the generated sheet, then upload or copy it yourself in the seller dashboard."
+      ],
+      "skipped": "A template older than ninety days, a missing field or duplicate column refuses. Formula-shaped input stays text; no vendor validation or acceptance is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the supplied mapping and bounded text rows locally. It does not sign in or test seller account access.",
+      "sends": "Sends: nothing. You upload or copy the reviewed sheet yourself.",
+      "agentLimits": "Agents cannot log in, upload a catalogue, change a price or send a message on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "sorftime",
+    "name": "Sorftime",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "read",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: reading from Sorftime. Not in this build."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: read"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner paid API key and current terms; API contract remains unverified.",
+    "vendorUrl": "https://sorftime.com/",
+    "note": "Owner paid API key and current terms; API contract remains unverified. Use your own Sorftime account and add the permitted export to the order.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Sorftime is planned.",
+        "2. When it is built, Chausar will ask for owner paid API key and current terms; API contract remains unverified., with read access only to what it needs, and no access to anything else.",
+        "3. Until then, use Sorftime on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Sorftime.",
+      "agentLimits": "Agents can't use Sorftime: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "shopify-admin",
+    "name": "Shopify Admin",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "read",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Reads the exact own-organization store, product and location after approval. Multi-page reads show incomplete coverage until all pages are read."
+      },
+      {
+        "mode": "write",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Stages one exact price, available-stock or title change under owner caps. Applies only after separate owner approval; acknowledgement and exact read-back are required. Unknown outcomes never retry."
+      }
+    ],
+    "chips": [
+      "read",
+      "write",
+      "planned: handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner-scoped credentials, kept only for the open session",
+    "vendorUrl": "https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant",
+    "note": "Desktop or hosted owner desk; your organisation's app. Exact approved price, stock and title edits need acknowledgement and readback. Live account unqualified. Otherwise edit in Shopify yourself.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. In the Shopify Dev Dashboard, create an app in the same organization as your own shop, request only the scopes used here and install it in that shop.",
+        "2. For catalogue and variant reads use read_products, read_inventory and read_locations. Price and title changes also need write_products; stock movement also needs write_inventory.",
+        "3. Open Seller connections in the desktop or hosted app. Enter the exact myshopify.com shop, app client ID and secret, owner caps and own-store confirmation. Approve connection, then read the exact product and location.",
+        "4. Prepare one exact change, read its source receipt and approve it separately. A new session requires connecting again."
+      ],
+      "skipped": "This client-credentials route only serves an app and shop in the same organization. Other merchants require a separately qualified authorization route. No public app review or live store qualification is claimed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "The connection checks the exact returned shop. A write is successful only after its response and exact read-back agree. Unknown outcomes require inspection in Shopify and cannot be resent.",
+      "sends": "Sends: the exact approved token, read or single product change request to your Shopify shop. Credentials stay in session memory.",
+      "agentLimits": "Agents cannot approve a write, exceed the owner caps, change the account or retry an uncertain write.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "shopify-storefront",
+    "name": "Shopify Storefront",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "read",
+        "status": "available",
+        "qualification": "fixture-tested",
+        "what": "Reads an approved bounded public catalogue using the owner public token. No buyer AI call occurs while connecting. Live buyer handling remains planned pending named legal confirmation."
+      }
+    ],
+    "chips": [
+      "read",
+      "planned: handoff"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Owner-scoped credentials, kept only for the open session",
+    "vendorUrl": "https://shopify.dev/docs/storefronts/headless/building-with-the-storefront-api/getting-started",
+    "note": "Owner-approved public catalogue reads only. The buyer assistant waits for named legal confirmation. Link customers to your Shopify shop meanwhile.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Create a public Storefront token in your own Shopify shop with public product listing access. Keep private Admin credentials out of this field.",
+        "2. Open Store assistant in Seller connections. Select a connected API model, a bounded page limit, buyer language and purpose notice. Approve that exact catalogue read.",
+        "3. Buyer access still waits for named legal confirmation. After it is confirmed, approve opening the hosted assistant. Approve each exact buyer question, model and maximum cost separately."
+      ],
+      "skipped": "A catalogue expires after fifteen minutes and needs a fresh approved read. A partial catalogue never yields a complete total. Desktop links to the shop; the buyer widget requires hosting.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar reads the actual public catalogue. It checks model output against current product IDs and code prices. No order is placed and no live account qualification is claimed.",
+      "sends": "Sends: only approved public reads, then separately approved buyer questions and public catalogue data to the chosen API model. Provider retention follows the owner account terms.",
+      "agentLimits": "Agents cannot blanket-approve future questions, retain buyer text beyond the session, invent a price, charge a buyer or place an order.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  {
+    "id": "shopify-store-assistant",
+    "name": "Shopify buyer assistant",
+    "category": "docs-ops",
+    "categoryLabel": "Docs and ops",
+    "modes": [
+      {
+        "mode": "handoff",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned: Chausar will prepare what to paste there. For now, Visit site opens it."
+      },
+      {
+        "mode": "write",
+        "status": "planned",
+        "qualification": "unqualified",
+        "what": "Planned for buyers until named lawyer confirmation of notice, consent and provider handling. Link to the shop meanwhile. Every later AI question needs its own exact owner approval."
+      }
+    ],
+    "chips": [
+      "planned: handoff",
+      "planned: write"
+    ],
+    "regions": [
+      "india",
+      "global"
+    ],
+    "regionNote": null,
+    "auth": "Hosted owner app, public Storefront token and exact model approvals",
+    "vendorUrl": "https://shopify.dev/docs/storefronts/headless/building-with-the-storefront-api/getting-started",
+    "note": "Planned for buyers until a named lawyer confirms the purpose notice and provider handling. Every buyer AI question asks separately. Open the Shopify shop meanwhile.",
+    "starter": false,
+    "postingOptions": [],
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Shopify buyer assistant is planned.",
+        "2. When it is built, Chausar will ask for hosted owner app, public Storefront token and exact model approvals, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Shopify buyer assistant on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Shopify buyer assistant.",
+      "agentLimits": "Agents can't use Shopify buyer assistant: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  }
+]

@@ -1,3 +1,5 @@
+import {youtubeServiceChecks} from './youtube/service-checks.ts';
+import {isYoutubeService} from './youtube/service-fields.ts';
 // Chausar flagship playbooks: their own checks on a draft (playbook wiring, design 7.5 and 7.8). Code only, no model.
 // The delivery run and the rehearsal run these after the harness checks (delivery/runs.ts, delivery/simulate.ts) and
 // keep the results on the run as playbookChecks; a failed one blocks Accept and fails a practice episode. A check that
@@ -28,7 +30,10 @@ import { transcriptCues, type FileLike } from '../delivery/harness/files.ts';
 import { deliverableWords } from '../delivery/judge/claim-check.ts';
 import type { JudgeRule } from '../delivery/judge/rules.ts';
 import { CA_DRAFT_SECTIONS, CA_OFFERS } from './ca-firm/playbook.ts';
-import { checkCaDraft, CA_JUDGE_RULES, type CalculatorRefusal } from './ca-firm/claims.ts';
+import { checkCitations, citationReferences, CITATION_TABLE, citationTableHash } from './ca-firm/citations.ts';
+import { questionNoteFromDraft } from './ca-firm/question-desk.ts';
+import {whatIfShown,healthReviewed} from './ca-firm/c2-checks.ts';
+import { checkCaDraft, citedSections, CA_JUDGE_RULES, type CalculatorRefusal } from './ca-firm/claims.ts';
 import type { CaReceipt } from './ca-firm/receipt.ts';
 import type { Difference, ReconcileWorking, Tie } from './ca-firm/reconcile.ts';
 import { portalDiffExplained } from './ca-firm/stored-receipt.ts';
@@ -46,6 +51,8 @@ import type { CalendarSlot } from './social/calendar.ts';
 import { assignSlots, calendarPosts, calendarSlots, socialDraftPosts } from './social/draft-posts.ts';
 import { checkReportNarrative, reportFiguresOf } from './social/report.ts';
 import { SOCIAL_JUDGE_RULES } from './social/judge.ts';
+import { socialContentChecks } from './social/content-checks.ts';
+import { ghostwritingChecks } from './social/structures.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { PROMPT_LEAK_CHECK, promptLeakLine, promptLeaks, type PromptLeak } from './prompt-leak.ts';
 import { rulesCurrentResult } from './rules-current.ts';
@@ -53,8 +60,30 @@ import { writingChecks } from './writing-checks.ts';
 import { draftQuotes, moveQuoteTimes, quoteCheck } from '../delivery/checks/quote-at.ts';
 import { rateFinding } from '../delivery/checks/rating.ts';
 import { factsWords, missingOf } from './ca-firm/needs-facts.ts';
+import type { PlaybookDefinition } from './kit/define.ts';
+import { kitDefinition, kitDefinitions } from './kit/installed.ts';
+import { runKitChecks } from './kit/checks.ts';
 
 export type FlagshipCheckInput = {
+  testingEvidence?: import('./app-testing/delivery-core.ts').TestingDeliveryEvidence | null;
+  formsEntries?: readonly import('./data-entry-desk/checks.ts').FormsReportRow[];
+  phoneReport?: import('./phone-receptionist/report.ts').PhoneReport | null;
+  watchReport?: import('./monitored-data/report.ts').WatchReport | null;
+  triageReport?: import('./it-triage/report.ts').TriageReport | null;
+  devReport?: import('./dev-agency/report.ts').DevReport | null;
+  roomBrief?: import('./kit/client-room-core.ts').RoomBrief | null;
+  /** Current engine-resolved episode evidence, including null after Forget. */
+  siteProject?: import('./website-studio/records.ts').SiteRequirementBody | null;
+  newsletterIssue?: import('./newsletter-studio/records.ts').NewsletterIssueBody | null;
+  careerPack?: import('./job-search-desk/checks.ts').CareerDraftEvidence;
+  tenderRows?: readonly import('./tender-desk/records.ts').TenderQuestionBody[];
+  narrationRows?: readonly import('./narration-studio/checks.ts').NarrationReportRow[];
+  articleRecord?: import('./podcast-to-article/records.ts').ArticleLedgerBody | null;
+  socialSlotContext?: import('./social/slots-live.ts').SocialSlotContext;
+  /** The engine-selected writing artifact, when an order runs a chain. */
+  stageId?: string;
+  /** Current engine-resolved brand rules, with per-field provenance. */
+  brandKit?: import('./kit/records-media.ts').ResolvedKit;
   flagship: string;
   /** The playbook offer the order is (Offer.playbookOffer), or null. */
   offerKey: string | null;
@@ -82,15 +111,20 @@ export type FlagshipCheckInput = {
   /** The run's tool calls with their envelopes, for checks that read what a tool refused (NOT_MODELLED). */
   toolCalls?: readonly ToolCallRecord[];
   /** The CA of record's explanations of portal differences so far (ca-firm/signoff.ts diffExplanations); none in rehearsal. */
+  caCitationUse?: import('./ca-firm/citations.ts').CitationUse;
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
+  caHealthReviews?: readonly Pick<import('./ca-firm/work-core.ts').CaWorkingBody,'receiptId'|'receiptDigest'|'decisions'>[];
 };
 
-/** The rules judge's rules for a flagship playbook's drafts, or null for any other playbook. */
-export function flagshipJudgeRules(flagship: string | null | undefined): readonly JudgeRule[] | null {
+/**
+ * The rules judge's rules for a flagship or kit playbook's drafts (a kit playbook's are its definition's judgeRules,
+ * Ink v2 wave 5, 5A1; definitions: default the landed ones), or null for any other playbook.
+ */
+export function flagshipJudgeRules(flagship: string | null | undefined, definitions: readonly PlaybookDefinition[] = kitDefinitions()): readonly JudgeRule[] | null {
   if (flagship === YOUTUBE_ID) return YOUTUBE_DRAFT_RULES;
   if (flagship === CA_FIRM_ID) return CA_JUDGE_RULES;
   if (flagship === SOCIAL_AGENCY_ID) return SOCIAL_JUDGE_RULES;
-  return null;
+  return kitDefinition(flagship, definitions)?.judgeRules ?? null;
 }
 
 /** The first failed playbook check, in the owner's words, or null. */
@@ -107,8 +141,11 @@ function textLines(deliverable: Deliverable): string[] {
  * The playbook's checks on a draft, then the prompt-leak lint on the agent's words (prompt-leak.ts). Template outlines
  * are not drafts these checks read, so nothing runs on them.
  */
-export async function runFlagshipChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
-  const own = await playbookOwnChecks(input);
+export async function runFlagshipChecks(input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Promise<PlaybookCheckResult[]> {
+  // Ink v2 wave 5 (5A1): a kit playbook's own checks and their coverage (playbooks/kit/checks.ts), then the same lint.
+  const kit = kitDefinition(input.flagship, definitions);
+  const own = kit ? (input.servedBy === 'template' && !(input.flagship==='data-entry-desk'&&input.formsEntries||input.flagship==='job-search-desk'&&input.careerPack||input.flagship==='virtual-assistant'&&input.roomBrief||input.flagship==='dev-agency'&&input.devReport||input.flagship==='phone-receptionist'&&input.phoneReport||input.flagship==='monitored-data'&&input.watchReport||input.flagship==='it-triage'&&input.triageReport||input.flagship==='app-testing'&&input.testingEvidence) ? [{ playbook: input.flagship, check: 'playbook-checks', outcome: 'not-run' as const, detail: TEMPLATE_NOT_RUN }] : kitChecks(kit, input, definitions))
+    : await playbookOwnChecks(input);
   if (!own.length || input.servedBy === 'template') return own;
   const line = promptLeakLine(draftLeaks(input));
   return [...own, { playbook: input.flagship, check: PROMPT_LEAK_CHECK, outcome: line ? 'fail' : 'pass', detail: line ?? 'No words meant for the AI and no template placeholders.' }];
@@ -120,10 +157,23 @@ function draftLeaks(input: FlagshipCheckInput): PromptLeak[] {
   return [...promptLeaks(deliverableWords(input.deliverable)), ...posts.flatMap(post => promptLeaks(post.text, 'post'))];
 }
 
+/**
+ * A kit playbook's checks with their coverage (kit/checks.ts), then rules-current on the dated rules the checks that ran
+ * rest on (5A3: not run once one is past its recheck window, which never blocks Accept).
+ */
+function kitChecks(kit: PlaybookDefinition, input: FlagshipCheckInput, definitions: readonly PlaybookDefinition[]): PlaybookCheckResult[] {
+  const results = runKitChecks(kit, input);
+  const ran = results.filter(item => item.outcome !== 'not-run').map(item => item.check);
+  const rules = rulesCurrentResult(kit.registration.id, input.today, ran, undefined, definitions);
+  return rules ? [...results, { playbook: input.flagship, check: rules.check, outcome: rules.outcome, detail: rules.detail }] : results;
+}
+
+const TEMPLATE_NOT_RUN = "not run: this playbook's checks read an agent's draft, and this is a template outline.";
+
 async function playbookOwnChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
   const as = (check: string, outcome: PlaybookCheckResult['outcome'], detail: string): PlaybookCheckResult => ({ playbook: input.flagship, check, outcome, detail });
   if (![YOUTUBE_ID, CA_FIRM_ID, SOCIAL_AGENCY_ID].includes(input.flagship)) return [];
-  if (input.servedBy === 'template') return [as('playbook-checks', 'not-run', "not run: this playbook's checks read an agent's draft, and this is a template outline.")];
+  if (input.servedBy === 'template') return [as('playbook-checks', 'not-run', TEMPLATE_NOT_RUN)];
   const scope = { channels: [] as string[], exports: [] as string[], quoted: [] as string[] };
   const own = input.flagship === YOUTUBE_ID ? (await youtubeChecks(input)).map(item => as(item.check, item.outcome, item.detail))
     : input.flagship === CA_FIRM_ID ? caChecks(input).map(item => as(item.check, item.outcome, item.detail))
@@ -257,6 +307,7 @@ async function finishing(input: FlagshipCheckInput, format: 'long' | 'short'): P
 }
 
 async function youtubeChecks(input: FlagshipCheckInput): Promise<YoutubeCheckResult[]> {
+  if(isYoutubeService(input.offerKey))return youtubeServiceChecks(input);
   const lines = textLines(input.deliverable);
   const parsed = parsePackageText(lines.join('\n'));
   const hooks = lines.flatMap(line => { const match = HOOK.exec(line); return match ? [match[1].trim()] : []; });
@@ -273,7 +324,25 @@ async function youtubeChecks(input: FlagshipCheckInput): Promise<YoutubeCheckRes
   // The upload settings are the owner's publishing checklist, made from the intake: the publish step ticks them. When
   // the scorer kept hooks in this run (youtube.hooks), the hook check judges the better kept one the package uses.
   const pkg = { ...parsed, hooks, keptHooks: keptHooksOf(input.tables ?? []), durationMs, uploadSettings: { aiUse, paidPromotion: !!intake?.paidPromotion } };
-  const results = runYoutubeChecks({ checks: VERIFY.youtubeChecks, order, pkg, transcript, today: input.today, finishing: await finishing(input, format) });
+  const measuredCalls = input.toolCalls ?? [];
+  const captionApplies = offer !== 'episode-package' || measuredCalls.some(call => call.tool === 'youtube.captions');
+  const scriptApplies = measuredCalls.some(call => call.tool === 'youtube.coverage') || input.files.some(file => /(?:^|[\s._-])script(?:[\s._-]|$)/i.test(file.name));
+  const checks = VERIFY.youtubeChecks.filter(id => (id !== 'caption-file' || captionApplies) && (id !== 'script-coverage' || scriptApplies));
+  const results = runYoutubeChecks({ checks, order, pkg, transcript, today: input.today, finishing: await finishing(input, format) });
+  // 5B1: applicable measured checks remain visibly not-run until a completed tool supplies evidence.
+  for (const [tool, checkId] of [['youtube.captions', 'caption-file'], ['youtube.coverage', 'script-coverage'], ['youtube.clean', 'cleanup']] as const) {
+    const call = [...(input.toolCalls ?? [])].reverse().find(call => call.tool === tool);
+    if (!call) continue; // The applicable check remains explicitly not-run from runYoutubeChecks.
+    const prior = results.findIndex(result => result.check === checkId);
+    if (prior >= 0) results.splice(prior, 1);
+    const output = call.envelope.ok && call.envelope.result && typeof call.envelope.result === 'object' && !Array.isArray(call.envelope.result) ? call.envelope.result as Record<string, unknown> : null;
+    if (!output || call.outcome !== 'succeeded') { results.push({ check: checkId, outcome: 'not-run', detail: 'The measured word-edit tool did not complete. Its output has not passed.', notes: [] }); continue; }
+    const invalid = checkId === 'caption-file' ? !Array.isArray(output.findings) || output.findings.length > 0
+      : checkId === 'script-coverage' ? !Array.isArray(output.missing) || output.missing.length > 0
+      : !Number.isSafeInteger(output.removedMs) || (output.removedMs as number) < 0 || typeof output.summary !== 'string';
+    results.push({ check: checkId, outcome: invalid ? 'fail' : 'pass', detail: invalid ? 'The measured word-edit output has findings to fix before this package goes out.' : 'The measured word-edit output passes its code checks.',
+      notes: checkId === 'caption-file' && Array.isArray(output.notRun) ? output.notRun.map(item => String((item as { check?: string }).check ?? 'unmeasured')) : [] });
+  }
   // Practice clients record no rights, so the rights and credit checks have nothing to read in rehearsal.
   return input.mode === 'rehearsal'
     ? results.map(item => (item.check === 'rights-recorded' || item.check === 'source-credit' ? { ...item, outcome: 'not-run' as const, detail: NO_FOOTAGE } : item))
@@ -394,6 +463,56 @@ function caChecks(input: FlagshipCheckInput): CaResult[] {
   const results: CaResult[] = findings.map(item => (!usesTables && (item.check === 'rates-confirmed' || item.check === 'rates-in-window')
     ? { check: item.check, outcome: 'not-run' as const, detail: 'not run: the draft rests on no tax working with a rate table.' }
     : { check: item.check, outcome: item.passed ? 'pass' as const : 'fail' as const, detail: item.detail }));
+  const words = caDraftWords(input);
+  if(receipts.some(receipt=>receipt.engine==='what-if'))results.push({check:'whatif-assumptions-shown',outcome:whatIfShown(receipts,words)?'pass':'fail',detail:'Every actual scenario assumption must appear in the papers.'});
+  if(input.offerKey==='books-health-check'){
+    const health=input.receipts.filter(receipt=>(receipt as any).ca?.engine==='books-health') as unknown as {id:string;digest:string;ca:{working:unknown}}[];
+    const passed=health.length>0&&health.every(receipt=>healthReviewed(receipt,input.caHealthReviews??[]));
+    results.push({check:'finding-has-evidence',outcome:passed?'pass':'fail',detail:passed?'Every supplied line was read and each finding has an evidence-backed CA decision.':'Run the source health tool and have the CA decide every finding with evidence before the client report.'});
+  }
+  const citationCall = [...(input.toolCalls ?? [])].reverse().find(call => call.tool === 'tax.citations' && call.envelope.ok);
+  const citationResult = citationCall?.envelope.ok ? citationCall.envelope.result as Record<string, unknown> : null;
+  const hasReferences = citationReferences(words).length > 0;
+  const incomeDate = typeof input.intake?.fields?.incomeDate === 'string' ? input.intake.fields.incomeDate : receipts.flatMap(receipt=>receipt.tables).find(table=>table.id.includes('income'))?.validFrom;
+  let citationPassed = !hasReferences;
+  let citationDetail = 'Check this exact draft against the current CA-confirmed citations table, including the dated renumbering note.';
+  if (hasReferences && incomeDate) try {
+    const checked=checkCitations({draft:words,incomeDate},input.caCitationUse??{mode:input.mode,confirmedBy:null});
+    citationPassed=checked.passed;citationDetail=checked.findings.filter(row=>!row.passed).map(row=>row.detail).join(' ');
+  } catch(error) { citationDetail=error instanceof Error?error.message:citationDetail; }
+  const previousSectionCheck = results.find(row=>row.check==='sections-flagged');
+  if(previousSectionCheck){previousSectionCheck.outcome=citationPassed?'pass':'fail';previousSectionCheck.detail=citationPassed?'Every section passed the dated citation register.':citationDetail;}
+  results.push({check:'citations-current',outcome:citationPassed?'pass':'fail',detail:citationPassed?'No unchecked section references remain.':citationDetail});
+  if(input.offerKey==='itr-form-and-regime'){
+    const call=[...(input.toolCalls??[])].reverse().find(row=>row.tool==='tax.formChooser'&&row.envelope.ok);
+    const choice=call?.envelope.ok?call.envelope.result as Record<string,any>:null;
+    const passed=!!choice&&typeof choice.form==='string'&&words.includes(choice.form)&&choice.regime?.allowed===true;
+    results.push({check:'form-choice',outcome:passed?'pass':'fail',detail:passed?'The draft uses the dated form choice and an allowed regime.':'Run the dated form chooser and show its form with an allowed regime.'});
+  }
+  if (input.offerKey === 'tax-question-desk') {
+    const sources = input.files.flatMap((file,index)=> /law|act|statute|notification/i.test(file.name) ? [file.id, 'f'+(index+1)] : []);
+    if (input.mode === 'rehearsal' || input.caCitationUse?.confirmedBy) sources.push(...CITATION_TABLE.rows.map(row=>row.id));
+    const note = questionNoteFromDraft(input.deliverable,sources);
+    results.push({check:'fact-check-form',outcome:note.passed?'pass':'fail',detail:note.passed?'Each claim has a source and all fact-check sections are present.':note.problems.join(' ')});
+  }
+  if (input.offerKey === 'advance-tax-freelancer' || receipts.some(receipt=>receipt.engine==='advance-tax')) {
+    const labelled = /client.?s? (?:own )?(?:tax )?estimate|client-estimate/i.test(words) && /assumption|based on/i.test(words);
+    results.push({check:'assumption-labelled',outcome:labelled?'pass':'fail',detail:labelled?'The client estimate is explicitly an assumption.':'Label these instalments as based on the client estimate, an assumption rather than a fact.'});
+  }
+  if (input.offerKey === 'check-return-elsewhere' || input.offerKey === 'itr-check-draft') {
+    const comparisons=input.receipts.filter(receipt=>(receipt as any).ca?.engine==='portal-diff');
+    const latest=comparisons.at(-1) as any;
+    const income=input.receipts.filter(receipt=>(receipt as any).ca?.engine==='income-tax');
+    const rows=(latest?.ca?.working?.rows??[]) as {key:string;state:string;oursMinor:string|null;portalMinor:string|null;receiptId:string|null;rule?:string}[];
+    const fresh=!!latest?.ca?.inputs?.includeBothSides&&income.some(receipt=>rows.some(row=>row.receiptId===receipt.id));
+    const absent=rows.filter(row=>row.state!=='same').filter(row=>!input.deliverable.sections.some(section=>{
+      const text=section.parts.filter(part=>part.kind==='text').map(part=>part.text).join(' ');
+      const quoted=(key:string)=>section.parts.some(part=>part.kind==='figure'&&part.receiptId===latest.id&&part.figureKey===key);
+      return text.includes(row.rule??'No matching computed line. Ask the CA to identify the applicable rule.')&&(row.oursMinor===null?/missing|no matching/i.test(text):quoted('ours.'+row.key))&&(row.portalMinor===null?/missing|not supplied/i.test(text):quoted('return.'+row.key));
+    }));
+    const check=results.find(row=>row.check==='differences-listed')!;
+    if(!fresh||absent.length){check.outcome='fail';check.detail=!fresh?'Run a fresh income-tax computation and compare every typed return line.':'Show both receipt figures and the calculator rule for each return difference: '+absent.map(row=>row.key).join(', ')+'.';}
+  }
   results.push(notModelledRefused(input), gapsTie(matches));
   // The portal's figures against the receipts (tax.portal), each key as its newest comparison left it, with the CA's
   // explanations recorded so far; venture.ca.explainDiff works this check again on the run (ca-firm/signoff.ts).
@@ -495,9 +614,18 @@ function companionLines(deliverable: Deliverable): string[] {
 function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; exports: string[]; quoted: string[] }): SocialResult[] {
   // The client's own word lists from intake (banned words and topics, competitors, phrases never flagged) join the proof.
   const client = socialRules({ ...input, clientRules: input.intake?.clientRules ?? null });
-  const paid = input.offerKey === 'ugc-ads' || !!input.intake?.paidPromotion;
+  const ownRules = input.intake?.clientRules;
+  const usesKit = input.brandKit && (!ownRules || ![ownRules.bannedWords, ownRules.bannedTopics, ownRules.competitors, ownRules.protectedPhrases].some(list => list.length));
+  const withOrigin = (result: SocialResult): SocialResult => usesKit ? { ...result, detail: result.detail + ' Rule source: ' + [...new Set([input.brandKit!.bannedWords.source, input.brandKit!.bannedTopics.source, input.brandKit!.competitors.source])].join(', ') + '.' } : result;
+  const paid = ['ugc-ads','video-ads'].includes(input.offerKey??'') || !!input.intake?.paidPromotion;
   const ai = { person: !!input.intake?.aiPresenter, voice: !!input.intake?.aiVoice };
-  const style = input.offerKey === 'community-replies' ? 'reply' as const : input.offerKey === 'ugc-ads' ? 'ugc-ad' as const : 'post' as const;
+  const style = ['community-replies','reply-inbox','local-instagram'].includes(input.offerKey??'') ? 'reply' as const : ['ugc-ads','video-ads'].includes(input.offerKey??'') ? 'ugc-ad' as const : 'post' as const;
+  if (input.stageId === 'voice' || input.stageId === 'calendar') {
+    const stageDraft: PostDraft = { id: input.stageId, channel: 'linkedin', text: deliverableWords(input.deliverable), style: 'post' };
+    const claims = checkDraftClaims(stageDraft, client).findings, words = checkWords(stageDraft, client);
+    if (scope) Object.assign(scope, { channels: [], exports: [], quoted: [...claims, ...words].flatMap(item => item.ruleId ?? []) });
+    return [grouped('claims', claims, GROUPS[1].pass), withOrigin(grouped('words', words, GROUPS[3].pass))];
+  }
   // The ids count the post lines (social/draft-posts.ts), the count posting and the calendar file use, so all name the same posts.
   const posts: PostDraft[] = socialDraftPosts(input.deliverable).map(post => {
     // A post longer than one on a channel with threads goes out as the thread code splits it (social/post-lines.ts).
@@ -506,7 +634,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
     return { id: post.id, channel: post.channel, text: post.text, paid, ai, style, platformLabels: { paidPartnership: paid, aiGenerated: ai.person || ai.voice }, ...(thread ? { thread } : {}) };
   });
   const media = { check: 'channel-media', outcome: 'not-run' as const, detail: 'not run: pictures and video come with the briefs; this draft holds text only.' };
-  const extra = [calendarResult(input), narrativeResult(input)].filter((item): item is SocialResult => item !== null);
+  const extra = [...socialContentChecks(input), ...ghostwritingChecks(input), ...[calendarResult(input), narrativeResult(input)].filter((item): item is SocialResult => item !== null)];
   const scoped = (found: readonly Finding[]) => {
     if (scope) Object.assign(scope, { channels: posts.map(post => post.channel), exports: reportPlatforms(input.receipts), quoted: found.flatMap(item => item.ruleId ?? []) });
   };
@@ -520,7 +648,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
       { check: 'channel-limits', outcome: 'not-run', detail: 'not run: the draft has no post that names its channel.' }, media,
       grouped('claims', claimFindings, GROUPS[1].pass),
       { check: 'disclosure', outcome: 'not-run', detail: 'not run: the draft has no post that names its channel.' },
-      grouped('words', wordFindings, GROUPS[3].pass),
+      withOrigin(grouped('words', wordFindings, GROUPS[3].pass)),
       ...extra,
     ];
   }
@@ -533,7 +661,7 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
   scoped(findings);
   const threads = posts.flatMap(post => threadNote(post) ?? []);
   const [limits, claims, disclosure, words] = GROUPS.map(group => grouped(group.id, findings.filter(item => group.checks.includes(item.check)), group.pass, group.id === 'channel-limits' ? threads : []));
-  return [limits, media, claims, disclosure, words, ...extra];
+  return [limits, media, claims, disclosure, withOrigin(words), ...extra];
 }
 
 // ---------------------------------------------------------------------------

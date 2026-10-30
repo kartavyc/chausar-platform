@@ -28,7 +28,7 @@ export const SHARED_NAME = 'Shared by the team';
  */
 export const ROLE_DEPARTMENTS: Readonly<Record<string, Readonly<Record<string, DepartmentId>>>> = Object.freeze({
   [YOUTUBE_ID]: Object.freeze({
-    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', packager: 'marketing',
+    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', cutter: 'production', packager: 'marketing', analyst:'marketing', 'community-helper':'sales',
   }),
   [CA_FIRM_ID]: Object.freeze({
     intake: 'sales', preparer: 'money', reconciler: 'money', writer: 'money', checker: 'operations', calculator: 'money',
@@ -57,9 +57,12 @@ export function departmentOfService(serviceType: ServiceType | null | undefined)
   return (serviceType && SERVICE_DEPARTMENTS[serviceType]) || 'production';
 }
 
-/** A flagship role's department, or DEPARTMENT_MISSING naming the role. */
+/**
+ * A flagship role's department, or DEPARTMENT_MISSING naming the role. A kit playbook's role carries its own (Ink v2
+ * wave 5, 5A1: the definition's role department, kept on the delivery's role by playbooks/steps.ts kitDelivery).
+ */
 export function departmentOfRole(delivery: Pick<FlagshipDelivery, 'id' | 'roles'>, roleId: string, map: Readonly<Record<string, Readonly<Record<string, string>>>> = ROLE_DEPARTMENTS): DepartmentId {
-  const department = map[delivery.id]?.[roleId];
+  const department = map[delivery.id]?.[roleId] ?? delivery.roles.find(role => role.id === roleId)?.department;
   if (isDepartment(department)) return department;
   const name = delivery.roles.find(role => role.id === roleId)?.name ?? roleId;
   throw new ChausarError('DEPARTMENT_MISSING', `${name} has no department. Every role in the ${delivery.id} playbook needs one of the five.`);

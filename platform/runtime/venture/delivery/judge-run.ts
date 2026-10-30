@@ -1,3 +1,7 @@
+import {testingJudgeCurrent} from '../playbooks/app-testing/run-source.ts';
+import {formsRunCurrent} from '../playbooks/data-entry-desk/run-source.ts';
+import {careerRunCurrent} from '../playbooks/job-search-desk/run-source.ts';
+import {vaRunCurrent} from '../playbooks/virtual-assistant/run-source.ts';
 // Chausar venture launcher, delivery package (Ink v2 wave 2, 2C1, catalogue Q1): the rules judge on real orders.
 // The judge reads a ready agent draft once its code checks and its playbook's own checks pass, votes on the playbook's
 // rules (or the draft rules) citing the run's trace, and code counts the votes (judge/rules.ts). Its call carries the
@@ -18,6 +22,7 @@
 // A checked no blocks Accept with the judge's reason (runs.ts failedCheckReason) and records the first failed rule as
 // a signal for the improvement loop; a vote code could not check settles nothing and blocks nothing; a refused answer
 // leaves every rule unsettled, never a pass.
+import { playbookForRun } from './workflow.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import type {
@@ -42,7 +47,9 @@ import { budgetPressure, listRateOfTable, modelTableOf, monthSpendNow, resolveRa
 import { flagshipJudgeRules } from '../playbooks/draft-checks.ts';
 import { caOfferFor } from '../playbooks/ca-firm/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
+import { boundSocialSource } from '../playbooks/social/bound-source.ts';
 import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
+import { kitDefinition } from '../playbooks/kit/installed.ts';
 import { scanRun } from './trace-scan.ts';
 
 /** Why the judge did not run on its own near the month's limit (Ink v2 wave 4, 4F2, M5). */
@@ -84,6 +91,13 @@ export type JudgeAudience = 'client' | 'public' | 'internal';
 export function judgeAudience(state: State, venture: VentureRecord, run: Pick<DeliveryRunRecord, 'orderId' | 'playbookId'>): JudgeAudience {
   if (caOfferFor(state, venture, run.orderId)?.caOnly) return 'internal';
   const flagship = findRecord(state, 'venture-playbook', run.playbookId)?.flagship ?? null;
+  // Ink v2 wave 5 (5A1): a kit playbook's offer says who its work is for; internal work gets no automatic judge.
+  const kit = kitDefinition(flagship);
+  if (kit) {
+    const order = findRecord(state, 'venture-order', run.orderId);
+    const key = order ? acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? null : null;
+    return kit.offers.find(offer => offer.id === key)?.audience ?? 'client';
+  }
   if (flagship !== YOUTUBE_ID && flagship !== SOCIAL_AGENCY_ID) return 'client';
   const order = findRecord(state, 'venture-order', run.orderId);
   const offerKey = order ? acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer ?? null : null;
@@ -116,8 +130,9 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
  * every code check and every playbook check passed; an earlier verdict of its own is left out of that.
  */
 function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunRecord, nowMs: number): ChausarError | null {
+  testingJudgeCurrent(state,venture.id,run,new Date(nowMs).toISOString());
   if (run.status !== 'ready-for-review') return new ChausarError('JUDGE_NOT_READY', NOT_READY);
-  if (run.servedBy !== 'model' || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
+  if (run.servedBy !== 'model' && !run.careerPackBinding&&!run.formsSourceBinding&&!run.appTestingBinding || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
   if (runView(run, venture, nowMs, state).practiceNow) return new ChausarError('PRACTICE_DRAFT', PRACTICE_REASON);
   if (failedCheckReason(run.checks.filter(result => result.check !== 'rules-judge'), run.playbookChecks) !== null) return new ChausarError('JUDGE_NOT_READY', JUDGE_FAILED_CHECK);
   // Ink v2 wave 4 (4J15, Q14): code scans the run's trace before any judge reads it (delivery/trace-scan.ts).
@@ -132,18 +147,22 @@ function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunReco
  * draft: the text in the draft's place; the run's own when absent.
  */
 function judgeInput(state: State, venture: VentureRecord, run: DeliveryRunRecord, draft?: string): { asked: RulesInput; client: string } {
+  careerRunCurrent(state,venture.id,run);
+  vaRunCurrent(state,venture.id,run);formsRunCurrent(state,venture.id,run);
   const order = findRecord(state, 'venture-order', run.orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
-  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  const playbook = playbookForRun(state, run);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
   const made = run.harness ? madeSoFar(state, run.harness) : { tables: [], receipts: [] };
   const receipts = [...ventureReceipts(state, venture.id), ...made.receipts];
   const client = findRecord(state, 'venture-client', order.clientId);
   const offer = acceptedBlueprintOrNull(state, venture)?.offers.find(item => item.id === order.offerId)?.name.value ?? 'a service';
   const goesTo = judgeAudience(state, venture, run) === 'public' ? 'It goes to the client, then out in public.' : 'It goes to the client.';
+  const offerKey = acceptedBlueprintOrNull(state, venture)?.offers.find(item => item.id === order.offerId)?.playbookOffer;
+  const socialEvidence = offerKey === 'repurpose-pack' ? '\nOnly this bound source can establish repurposed facts, including facts said in other words:\n' + boundSocialSource(state, venture, order) : offerKey === 'community-replies' ? '\nCommunity rules pasted by the owner:\n' + String(order.intake?.fields?.communityRules ?? '') : '';
   const asked = draftRulesInput({
     draft: draft ?? renderForJudge(run.deliverable!, receipts), clientRequest: order.request, harness: run.harness ?? null, receipts: made.receipts,
-    context: `A draft for a real client's order of ${quote(offer, 120)} from this business. ${goesTo}`,
+    context: `A draft for a real client's order of ${quote(offer, 120)} from this business. ${goesTo}${socialEvidence}`,
     containsClientData: true, rules: flagshipJudgeRules(playbook.flagship),
   });
   return { asked, client: client && client.ventureId === venture.id ? client.name : 'your client' };
@@ -284,6 +303,9 @@ export async function deliveryJudgeHandler(deps: VentureDeps, ctx: Context, payl
   await ventureAction(deps, ctx, 'prepare', 'delivery.judge', tx => {
     const current = tx.find('venture-delivery-run', runId);
     check(current && current.status === 'ready-for-review' && draftDigestOf(current) === draftDigest, 'JUDGE_NOT_READY', NOT_READY);
+    testingJudgeCurrent(tx.state,venture.id,current,tx.now);
+    careerRunCurrent(tx.state,venture.id,current,tx.now);
+    vaRunCurrent(tx.state,venture.id,current);formsRunCurrent(tx.state,venture.id,current);
     tx.replace({ ...current, judge: waitingJudge(preview, tx.now, draftDigest, false, null) });
     tx.emit('run.step', { runId });
   });
@@ -361,12 +383,13 @@ export function recheckJudgeSend(deps: VentureDeps, ventureId: string, runId: st
 async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureRecord; run: DeliveryRunRecord; preview: ModelPreview; standing: boolean }): Promise<DeliveryRunView> {
   const { asked, client } = judgeInput(deps.store.read(), a.venture, a.run);
   const runId = a.run.id, callId = a.preview.callId;
+  const careerDispatch=()=>{if(!a.run.careerPackBinding&&!a.run.vaBriefBinding&&!a.run.formsSourceBinding&&!a.run.appTestingBinding)return;recheckJudgeSend(deps,a.venture.id,runId,a.preview,a.standing);const state=deps.store.read(),current=findRecord(state,'venture-delivery-run',runId);check(current&&draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed before the judge could read it.');testingJudgeCurrent(state,a.venture.id,current,deps.clock().toISOString());careerRunCurrent(state,a.venture.id,current,deps.clock().toISOString());vaRunCurrent(state,a.venture.id,current);formsRunCurrent(state,a.venture.id,current);};
   const send = async (entryId: string): Promise<DeliveryRunView> => {
     recheckJudgeSend(deps, a.venture.id, runId, a.preview, a.standing);
     let verdict: RulesVerdict;
     let costMicros: string | null = null;
     try {
-      const outcome = await deps.models.runPreview(ctx, callId, a.preview.digest, raw => validateBallot(raw, asked.rules), a.standing ? { consent: 'standing-judge' } : undefined);
+      const outcome = await deps.models.runPreview(ctx, callId, a.preview.digest, raw => validateBallot(raw, asked.rules), {...(a.standing?{consent:'standing-judge' as const}:{}),beforeDispatch:careerDispatch});
       verdict = decideRules(asked.rules, [outcome.value], asked.trace);
       costMicros = outcome.costMicros;
     } catch (error) {
@@ -381,6 +404,10 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
       check(current && current.judge?.status === 'waiting' && current.judge.callId === callId, 'JUDGE_NOT_WAITING', NOT_WAITING);
       // A draft decided while the judge read it (rejected, edited) keeps no verdict: nothing lands on a decided draft.
       check(current.status === 'ready-for-review', 'JUDGE_NOT_READY', DECIDED);
+      if(a.run.appTestingBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The reviewed report changed while the judge read it.');testingJudgeCurrent(tx.state,a.venture.id,current,tx.now);}
+      if(a.run.careerPackBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The career draft changed while the judge read it.');careerRunCurrent(tx.state,a.venture.id,current,tx.now);}
+      if(a.run.formsSourceBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The source artifact changed while the judge read it.');formsRunCurrent(tx.state,a.venture.id,current);}
+      if(a.run.vaBriefBinding){check(draftDigestOf(current)===draftDigestOf(a.run),'APPROVAL_STALE','The approved draft changed while the judge read it.');vaRunCurrent(tx.state,a.venture.id,current);formsRunCurrent(tx.state,a.venture.id,current);}
       const harness = a.standing && costMicros !== null && current.harness ? withCost(current.harness, costMicros) : current.harness;
       const next: DeliveryRunRecord = {
         ...current, checks: [...current.checks.filter(item => item.check !== 'rules-judge'), result],

@@ -1,0 +1,15 @@
+// Original receptionist erasure follows explicit client identity plus contact handles in imported call evidence.
+import type {VentureTx} from '../../records.ts';import {removeRecords} from '../../network/people.ts';
+function modelLinks(value:unknown,ids=new Set<string>()):Set<string>{if(Array.isArray(value))for(const item of value)modelLinks(item,ids);else if(value&&typeof value==='object')for(const[key,item]of Object.entries(value)){if(['callId','modelCallId'].includes(key)&&typeof item==='string')ids.add(item);if(['callIds','modelCallIds'].includes(key)&&Array.isArray(item))for(const id of item)if(typeof id==='string')ids.add(id);modelLinks(item,ids);}return ids;}
+export function eraseReceptionist(tx:VentureTx,clientIds:ReadonlySet<string>,handles:ReadonlySet<string>,mentions:(value:unknown)=>boolean){
+ const named=(value:unknown)=>{const text=JSON.stringify(value)??'';return mentions(text)||[...handles].some(h=>h.length>=3&&text.toLowerCase().includes(h.toLowerCase()));};
+ const linked=tx.list('venture-call-log').filter(row=>clientIds.has(row.clientId)||named(row)),orders=new Set(linked.map(r=>r.orderId));
+ const blueprint=tx.venture?.acceptedBlueprintId?tx.find('venture-blueprint',tx.venture.acceptedBlueprintId):null,offers=new Set(blueprint?.offers.filter(o=>['receptionist-setup','receptionist-monthly'].includes(o.playbookOffer??'')).map(o=>o.id));
+ for(const order of tx.list('venture-order'))if(offers.has(order.offerId)&&(clientIds.has(order.clientId)||named(order)))orders.add(order.id);
+ const runs=tx.list('venture-delivery-run').filter(r=>orders.has(r.orderId)),runIds=new Set(runs.map(r=>r.id)),modelIds=modelLinks(runs),reports=new Set(tx.list('venture-report').filter(r=>runIds.has(r.runId)).map(r=>r.id));
+ for(const call of tx.list('venture-model-call'))if(modelIds.has(call.id))tx.replace({...call,payloadText:'',payloadTruncated:false,error:null,erasedAt:tx.now,...(call.status==='preview'?{status:'expired' as const}:{})});
+ for(const run of runs){const{judge:_judge,...rest}=run;tx.replace({...rest,status:'stopped',callId:null,preview:null,deliverable:null,renderedText:null,editedText:null,harness:null,checks:[],playbookChecks:[],verdict:null});tx.emit('run.stopped',{runId:run.id});}
+ for(const order of tx.list('venture-order'))if(orders.has(order.id)){const {intake:_intake,...rest}=order;tx.replace({...rest,request:'Client data deleted.',status:'cancelled'});}
+ removeRecords(tx,row=>row.kind==='venture-call-log'&&orders.has(String(row.orderId))||row.kind==='venture-upload'&&row.scope!==null&&typeof row.scope==='object'&&'orderId'in row.scope&&orders.has(String(row.scope.orderId))||row.kind==='venture-share-link'&&runIds.has(String(row.deliveryId))||row.kind==='venture-report'&&reports.has(String(row.id))||row.kind==='venture-report-share'&&reports.has(String(row.reportId))||(row.kind==='venture-work-receipt'||row.kind==='venture-work-table')&&row.runRef!==null&&typeof row.runRef==='object'&&'runId'in row.runRef&&(orders.has(String(row.runRef.runId))||runIds.has(String(row.runRef.runId))));
+ if(orders.size){tx.emit('desk.changed',{playbook:'phone-receptionist'});tx.emit('queue.changed',{});}
+}

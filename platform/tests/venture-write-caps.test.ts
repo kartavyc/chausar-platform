@@ -207,15 +207,17 @@ test('messages: a post an agent proposes past the cap is refused; the owner\'s o
   } as never), { create: true });
   await setSpendPolicy(deps, owner, { writeCaps: { messages: 1 } });
   const agentCtx: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
-  const draft = await seedPostDraft(deps, ['X: Fresh pastries at 8.', 'LinkedIn: Fresh pastries at 8.']);
+  const draft = await seedPostDraft(deps, ['X: Fresh pastries at 8.']);
   await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, agent: 'Social writer' });
-  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, agent: 'Social writer' }), (error: any) => {
+  await assert.rejects(proposePost(deps, owner, { connectorId: 'linkedin', draftId: draft.id }), code('NOT_BUILT_YET'));
+  const nextDraft = await seedPostDraft(deps, ['X: Fresh bread from the morning oven.']);
+  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'x', draftId: nextDraft.id, agent: 'Social writer' }), (error: any) => {
     assert.equal(error.code, 'WRITE_CAP_REACHED');
     assert.match(error.message, /^Chausar stops agents at 1 message for people a day so a stuck agent can't flood anyone\./);
     return true;
   });
   // A proposal from outside the app is an agent's, named or not.
-  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id }), code('WRITE_CAP_REACHED'));
-  const own = await proposePost(deps, owner, { connectorId: 'linkedin', draftId: draft.id });
+  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'x', draftId: nextDraft.id }), code('WRITE_CAP_REACHED'));
+  const own = await proposePost(deps, owner, { connectorId: 'x', draftId: nextDraft.id });
   assert.equal(own.agent, null);
 });

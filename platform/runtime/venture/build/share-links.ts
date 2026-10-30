@@ -1,3 +1,4 @@
+import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
 // Chausar venture launcher: read-only preview links for a client. venture.share.create, venture.share.list and
 // venture.share.revoke, plus the two trusted entry points the hosted web server's /share/<token> page uses
 // (sharePage and shareDecide), which no RPC reaches.
@@ -21,6 +22,7 @@
 //   live order's steps, page only), 'statement' ("What you owe us", money/statement.ts, its receipts sealed when the link
 //   is made, its view the invoices' Viewed line) and 'books' (one month's invoices and payments for the accountant).
 import { createHash } from 'node:crypto';
+import {roomLinkCurrent,roomClientText,appendRoomRequest} from '../playbooks/kit/client-room-state.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
@@ -43,6 +45,7 @@ import { createShareLink, recordClientDecision, type DraftApproval, type ShareLi
 import { draftApprovalsOfRun, draftPostViews, needsClientApproval, scheduleReasons } from '../playbooks/social/run-approvals.ts';
 import { clientDraft } from './draft-text.ts';
 import { checkManifest, refuseChangedFiles } from '../delivery/file-manifest.ts';
+import { translationLinkCurrent } from '../playbooks/translation-studio/share-current.ts';
 
 export const SHARE_DEFAULT_HOURS = 168;
 export const SHARE_WORDS = Object.freeze({
@@ -148,6 +151,7 @@ export async function shareCreate(deps: VentureDeps, ctx: Context, payload: unkn
     const venture = tx.venture!;
     const record = tx.find('venture-delivery-run', deliveryId);
     check(record, 'DELIVERY_NOT_FOUND', 'That draft was not found.');
+    check(!tx.find('venture-order', record.orderId)?.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
     checkManifest(tx.state, record);
     const run = runView(record, venture, Date.parse(tx.now));
     check(SHARABLE.has(run.status), 'DELIVERY_NOT_READY', SHARE_WORDS.notReady);
@@ -214,6 +218,7 @@ type OtherContent = { deliveryId: string; clientId: string | null; title: string
 function orderContent(state: State, venture: VentureRecord, orderId: string): OtherContent {
   const order = listRecords(state, 'venture-order', venture.id).find(item => item.id === orderId);
   check(order && order.status !== 'cancelled', 'ORDER_NOT_FOUND', 'That order was not found, or it was cancelled.');
+  check(!order.internal, 'INTERNAL_ORDER', 'Your own shop work has no client share link.');
   // The page works the steps out each time it opens; the record keeps no copy, so it never goes stale.
   return { deliveryId: order.id, clientId: order.clientId, title: `Your order with ${venture.workingName}`, text: '' };
 }
@@ -235,6 +240,7 @@ async function shareCreateOther(deps: VentureDeps, ctx: Context, kind: Exclude<S
     const clientId = identifier(subject, 'Client');
     const today = todayIso(deps, venture);
     content = tx => {
+      check(!tx.find('venture-client', clientId)?.self, 'INTERNAL_ORDER', 'Your own shop has no client statement link.');
       const now = clientStatement(tx.state, clientId, today);
       // The receipts behind the three totals: the owner's proof of what the client was shown.
       const receiptIds = [now.plans.owed, now.plans.paid, now.plans.credited].map(plan => sumReceiptIn(tx, plan).id);
@@ -374,6 +380,7 @@ export async function shareRevoke(deps: VentureDeps, ctx: Context, payload: unkn
  * holds, each a comment can name ('draft' names the whole). steps: an order status link's steps in the client's words.
  */
 export type SharePage = {
+  canRequest?: boolean;
   businessName: string; title: string; text: string; expires: Display; digest: string;
   decision: { decision: 'approved' | 'changes'; comment: string | null } | null;
   kind: ShareKind; canAnswer: boolean;
@@ -392,7 +399,8 @@ function linkOf(state: State, venture: VentureRecord, token: unknown, nowIso: st
   if (typeof token !== 'string' || !SHARE_TOKEN.test(token)) return null;
   const hash = sha256(token);
   const record = listRecords(state, 'venture-share-link', venture.id).find(item => item.tokenHash === hash);
-  if (!record || !record.served || record.state === 'revoked' || Date.parse(record.expiresAt) <= Date.parse(nowIso)) return null;
+  if(record?.roomId&&!roomLinkCurrent(state,venture,record))return null;
+  if (!record || !record.served || record.state === 'revoked' || Date.parse(record.expiresAt) <= Date.parse(nowIso) || !translationLinkCurrent(state,record,nowIso) || !careerLinkCurrent(state,record,nowIso)) return null;
   return record;
 }
 
@@ -408,7 +416,10 @@ function runOfLink(state: State, record: ShareLinkStoredRecord): DeliveryRunReco
  * nothing and leaves the draft pending. A draft with no order record (made before orders, or in tests) keeps the
  * client the link was made with, none.
  */
-function speakRefusal(state: State, record: ShareLinkStoredRecord): string | null {
+function speakRefusal(state: State, record: ShareLinkStoredRecord, nowIso:string): string | null {
+  if(record.roomId)return SHARE_WORDS.pageOnly;
+  if(record.career)return careerLinkCurrent(state,record,nowIso)?null:SHARE_WORDS.notTheClient;
+  if (record.translation) return translationLinkCurrent(state,record,nowIso) ? null : SHARE_WORDS.notTheClient;
   if ((record.shareKind ?? 'draft') !== 'draft') return SHARE_WORDS.pageOnly;
   const run = runOfLink(state, record);
   const order = run ? listRecords(state, 'venture-order', record.ventureId).find(item => item.id === run.orderId) : undefined;
@@ -424,6 +435,7 @@ function orderStepsOf(state: State, venture: VentureRecord, record: ShareLinkSto
 }
 
 function pageOf(state: State, record: ShareLinkStoredRecord, venture: VentureRecord, nowMs: number): SharePage {
+  if(record.roomId){const room=roomLinkCurrent(state,venture,record)!;return{businessName:venture.workingName,title:record.title,text:roomClientText(room),expires:formatVentureDate(record.expiresAt.slice(0,10),venture.country.dateOrder),digest:room.brief?.approved?.digest??record.draftDigest,decision:null,kind:'draft',canAnswer:false,canRequest:true,items:[],comments:room.requests.filter(r=>r.via==='client-page').map(r=>({item:r.id,text:r.text}))};}
   const made = record.decisions.at(-1);
   const kind = record.shareKind ?? 'draft';
   const run = runOfLink(state, record);
@@ -433,7 +445,7 @@ function pageOf(state: State, record: ShareLinkStoredRecord, venture: VentureRec
     text: steps ? steps.map(step => `${step.label}: ${step.state}`).join('\n') : record.text,
     expires: formatVentureDate(record.expiresAt.slice(0, 10), venture.country.dateOrder),
     decision: made ? { decision: made.decision, comment: made.comment } : null,
-    kind, canAnswer: !made && speakRefusal(state, record) === null,
+    kind, canAnswer: !made && speakRefusal(state, record, new Date(nowMs).toISOString()) === null,
     items: run ? draftPostViews(run).map(post => ({ id: post.draftId, name: post.name, text: post.text })) : [],
     comments: (record.comments ?? []).map(item => ({ item: item.item, text: item.text })),
     ...(steps ? { steps } : {}),
@@ -474,7 +486,7 @@ export async function shareDecide(deps: VentureDeps, ctx: Context, token: unknow
   return ventureAction(deps, ctx, 'prepare', 'share.decide', tx => {
     const record = linkOf(tx.state, tx.venture!, token, tx.now);
     if (!record) return null;
-    const refused = speakRefusal(tx.state, record);
+    const refused = speakRefusal(tx.state, record, tx.now);
     if (refused) throw new ChausarError('SHARE_LINK_REFUSED', refused);
     const decided = recordClientDecision(asApprovalLink(record), { via: 'share-link', token: token as string }, {
       draftId: record.deliveryId, digest: input.digest as string, decision: input.decision as 'approved' | 'changes',
@@ -509,10 +521,11 @@ export async function shareComment(deps: VentureDeps, ctx: Context, token: unkno
   return ventureAction(deps, ctx, 'prepare', 'share.comment', tx => {
     const record = linkOf(tx.state, tx.venture!, token, tx.now);
     if (!record) return null;
-    const refused = speakRefusal(tx.state, record);
+    if(record.roomId){check(input.item==='room-request','INVALID_VENTURE_REQUEST','Send a request from this room.');const room=roomLinkCurrent(tx.state,tx.venture!,record);if(!room)return null;appendRoomRequest(tx,room,input.text,'client-page');return pageOf(tx.state,record,tx.venture!,Date.parse(tx.now));}
+    const refused = speakRefusal(tx.state, record, tx.now);
     if (refused) throw new ChausarError('SHARE_LINK_REFUSED', refused);
     const run = runOfLink(tx.state, record)!;
-    const items = new Set(['draft', ...draftPostViews(run).map(post => post.draftId)]);
+    const items = new Set(['draft', ...(run ? draftPostViews(run).map(post => post.draftId) : [])]);
     check(items.has(input.item as string), 'INVALID_VENTURE_REQUEST', 'Choose one of the posts on this page, or the whole draft.');
     check((record.comments ?? []).length < SHARE_MAX_COMMENTS, 'INVALID_VENTURE_REQUEST', 'This link has taken as many comments as it can. Send the rest to whoever shared it.');
     const comment: ShareComment = { item: input.item as string, text: kept, at: tx.now, recordedFor: record.clientId };

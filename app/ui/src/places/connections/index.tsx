@@ -37,9 +37,12 @@ import { YourAi } from './YourAi';
 import { YourNetwork } from './YourNetwork';
 import { Mailbox } from './Mailbox';
 import { CalendarFeed } from './CalendarFeed';
+// W5 5A6: pages you watch, mail files, apps on this computer, your n8n or Make, speech from text.
+import { KitConnect } from './KitConnect';
 // W4 4J21: the setup guides, the truth ladder's words and Check connections (from 4J7).
 import { ChecksTile } from './ChecksTile';
 import { Guide, LadderWord } from './Guide';
+import { localizedConnectionCard } from './ConnectionWords';
 import s from './Connections.module.css';
 
 /** The engine's refusals that the Website build page resolves: no brief, a brief that failed its checks, no accepted plan. */
@@ -111,6 +114,7 @@ export function Place() {
         {venture.data && <YourNetwork />}
         {venture.data && <Mailbox />}
         {venture.data && <CalendarFeed />}
+        {venture.data && <KitConnect />}
       </div>
     </>
   );
@@ -136,8 +140,9 @@ function GroupSection({ group }: { group: Group }) {
   );
 }
 
-function ConnectorTile({ card }: { card: ConnectorCardLite }) {
+function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
   const t = useT();
+  const card=localizedConnectionCard(t,originalCard);
   const client = useEngine();
   const nameId = useId();
   const [said, setSaid] = useState<{ text: string; problem: boolean; toBuild: boolean } | null>(null);
@@ -187,7 +192,7 @@ function ConnectorTile({ card }: { card: ConnectorCardLite }) {
       )}
       {card.posting && (
         <p className={s.posting} data-posting="">
-          <span className={s.postingWord}>{t('connections.posting')}</span>
+          <span className={s.postingWord}>{t(`connections.posting.mode.${card.posting.mode}`)}</span>
           <PostingLabel option={card.posting} />
           {card.posting.status === 'planned' && card.posting.reason && <span className={s.reason}>{card.posting.reason}</span>}
         </p>
@@ -241,8 +246,9 @@ function ConnectorSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   );
 }
 
-function SheetBody({ card }: { card: ConnectorCardLite }) {
+function SheetBody({ card: originalCard }: { card: ConnectorCardLite }) {
   const t = useT();
+  const card=localizedConnectionCard(t,originalCard);
   return (
     <>
       <div className={s.sheetSection}>
@@ -267,7 +273,7 @@ function SheetBody({ card }: { card: ConnectorCardLite }) {
           ))}
         </ul>
       </section>
-      {card.guide && <Guide guide={card.guide} />}
+      {card.guide && <Guide connectorId={card.id} guide={card.guide} />}
       {card.postingOptions.length > 0 && (
         <section className={s.sheetSection}>
           <h3 className={s.sheetHeading}>{t('connections.sheet.posting')}</h3>

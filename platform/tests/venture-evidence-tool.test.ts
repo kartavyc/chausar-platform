@@ -401,7 +401,9 @@ test('evidence.record: only this order\'s client or the business, secrets screen
 // ---------------------------------------------------------------------------
 
 test('taint latch: evidence.record is an internal suggestion the latch lets through on a real order, while outbound calls stay held', async () => {
-  assert.deepEqual([...INTERNAL_SUGGESTIONS], ['evidence.record']);
+  // Ink v2 wave 5 (5A3): ideas.add, an idea in the owner's own ideas Inbox, is another internal suggestion; (5A4)
+  // assets.record, where a delivered file came from, the third.
+  assert.deepEqual([...INTERNAL_SUGGESTIONS], ['evidence.record', 'ideas.add', 'assets.record']);
   const taint = { turn: 1, source: 'client-request' as const, toolCallId: null, tool: null };
   const action = (name: string, effect: PolicyAction['effect'], input: Record<string, unknown> = {}): PolicyAction => ({ phase: 'tool-call', name, effect, inputDigest: 'd1', input });
   const input = { subject: 'client', field: 'email', value: 'asha@example.in', type: 'document', from: 'f1' };

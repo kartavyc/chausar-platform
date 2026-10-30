@@ -28,6 +28,9 @@ import { runFlagshipChecks, type FlagshipCheckInput } from '../runtime/venture/p
 import { SOCIAL_RUN_CHECK_IDS } from '../runtime/venture/playbooks/social/check-ids.ts';
 import { EXPORT_PROFILES } from '../runtime/venture/playbooks/social/report.ts';
 import { SOCIAL_STEPS } from '../runtime/venture/playbooks/social/playbook.ts';
+import {socialStages} from '../runtime/venture/playbooks/social/stages.ts';
+import {socialDraftPosts} from '../runtime/venture/playbooks/social/draft-posts.ts';
+import {HOOK_FORMULAS} from '../runtime/venture/playbooks/social/post-plan.ts';
 import { PLATFORM_RULES, platformRule as youtubeRule, validatePlatformRules } from '../runtime/venture/playbooks/youtube/platform-rules.ts';
 import { YOUTUBE_STEPS } from '../runtime/venture/playbooks/youtube/playbook.ts';
 import { VentureTestStore } from './venture-test-store.ts';
@@ -41,7 +44,7 @@ const PLAIN_IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
 const OWN_FOOTAGE = { basis: 'own-footage', holder: 'Asha Rao' };
 const CHECKED = '2026-10-21T10:00:00.000Z';
 /** More than ninety days after 21 October 2026, the day every shipped rule was checked. */
-const LATER = '2027-01-25T10:00:00.000Z';
+const LATER = '2027-02-01T10:00:00.000Z';
 
 // ---------------------------------------------------------------------------
 // The registers and the registry
@@ -100,7 +103,10 @@ test('social register: a rule a check quotes is used by that check, so a changed
 test('social register: the rules posting and the risk gate read name publish; the thread split names drafts; no empty claims', () => {
   const usedBy = (id: string) => socialRule(id).usedBy;
   // posting.ts holds each post to its channel's length (PROFILES maxChars) and refuses a thread on X by its weighted count.
-  const posting: Record<string, string> = { linkedin: 'linkedin-3000', x: 'x-weighted-280', instagram: 'ig-caption-2200', youtube: 'yt-description-5000' };
+  const posting: Record<string, string> = {
+    linkedin: 'linkedin-3000', x: 'x-weighted-280', instagram: 'ig-caption-2200', youtube: 'yt-description-5000',
+    bluesky: 'bluesky-text-300', mastodon: 'mastodon-text-house', telegram: 'telegram-text-4096', discord: 'discord-text-2000',
+  };
   assert.deepEqual(Object.keys(posting).sort(), [...POSTING_CONNECTORS].sort());
   for (const id of [...Object.values(posting), 'x-url-23']) assert.ok(usedBy(id).includes('publish'), id);
   // The risk gate blocks on the hashtag cap and engagement bait: every platform rule it quotes names publish.
@@ -268,14 +274,27 @@ async function business(idea: string) {
   await call('venture.blueprint.accept', { digest: priced.blueprint.digest });
   await ventureAction(deps, owner, 'approve', 'seed.stage', tx => { tx.touch({ launchStage: 'approve-each' }); });
   const client = await call('venture.client.add', { name: 'Asha Rao', email: 'asha@example.com', countryCode: 'IN' });
-  return { deps, call, models, client, clock };
+  return { deps, call, models, client, clock, idea, offers: priced.blueprint.offers as {id:string;playbookOffer?:string}[] };
 }
 
 /** One draft for one order: delivery.run previews, delivery.approve answers with the queued draft. */
 async function deliver(env: Awaited<ReturnType<typeof business>>, orderId: string, answer: Draft): Promise<DeliveryRunView> {
-  const waiting = await env.call('venture.delivery.run', { orderId });
+  let waiting = await env.call('venture.delivery.run', { orderId });
   assert.equal(waiting.status, 'waiting-for-you');
-  env.models.drafts.push(answer);
+  if(env.idea===SOCIAL_IDEA){
+    const order=(env.deps.store.read().conversations as any[]).find(row=>row.kind==='venture-order'&&row.id===orderId);
+    const stages=socialStages(env.offers.find(offer=>offer.id===order.offerId)?.playbookOffer);
+    while((waiting.chainStage??1)<stages.length){
+      const stage=waiting.chainStage??1;
+      env.models.drafts.push(draft(stage===1?'Voice sheet':'Calendar',Object.fromEntries((stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>[heading,['Clear, useful guidance for the studio.']]))));
+      const ready=await env.call('venture.delivery.approve',{runId:waiting.id,digest:waiting.preview.digest});
+      await env.call('venture.delivery.review',{runId:ready.id,verdict:'accepted'});
+      waiting=(env.deps.store.read().conversations.filter((row:any)=>row.kind==='venture-delivery-run'&&row.orderId===orderId) as any[]).at(-1)!;
+    }
+    const copy=structuredClone(answer),count=socialDraftPosts(copy as never).length;
+    copy.sections.push(...draft('Plan',{'Post plan':Array.from({length:count},(_,i)=>`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${HOOK_FORMULAS[i%HOOK_FORMULAS.length]}`)}).sections);
+    env.models.drafts.push(copy);
+  }else env.models.drafts.push(answer);
   return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
 }
 
@@ -291,7 +310,6 @@ test('venture.rules.list: a social business sees every rule with its date, fresh
   for (const rule of view.rules) {
     const source = socialRule(rule.id);
     // The platform rules were checked on 21 October 2026; Chausar's own posting limits (2B1) were set on 23 October.
-    assert.equal(rule.checkedOn, rule.id.startsWith('house-') ? '2026-10-23' : '2026-10-21', rule.id);
     assert.equal(rule.checkedOn, source.checkedOn, rule.id);
     assert.equal(rule.stale, false, rule.id);
     assert.equal(rule.platform, source.scope);
@@ -311,7 +329,7 @@ test('venture.rules.list: a social business sees every rule with its date, fresh
   env.clock.at = LATER;
   const later: RulesListView = await env.call('venture.rules.list', {});
   assert.ok(later.rules.every(rule => rule.stale), 'every rule was checked on 21 October 2026');
-  assert.match(later.rules[0].line, /96 days ago, on 2026-10-21/);
+  assert.match(later.rules.find(rule=>rule.id==='claims-house')!.line, /103 days ago, on 2026-10-21/);
   assert.equal(later.summary, `0 current, ${SOCIAL_RULES_REGISTER.length} to recheck.`, 'a stale rule counts once, as one to recheck');
   await assert.rejects(env.call('venture.rules.list', { playbook: 'youtube' }), code('INVALID_VENTURE_REQUEST'));
 });
@@ -331,7 +349,7 @@ test('venture.rules.list: a YouTube business sees its rules from the YouTube reg
   env.clock.at = LATER;
   const later: RulesListView = await env.call('venture.rules.list');
   assert.equal(later.rules.find(rule => rule.id === 'chapters')!.stale, true);
-  assert.match(later.rules.find(rule => rule.id === 'chapters')!.line, /^Video chapters added by hand was checked 96 days ago, on 2026-10-21\./);
+  assert.match(later.rules.find(rule => rule.id === 'chapters')!.line, /^Video chapters added by hand was checked 103 days ago, on 2026-10-21\./);
   assert.equal(later.summary, `0 current, ${PLATFORM_RULES.length} to recheck.`);
 
   const plain = await business(PLAIN_IDEA);
@@ -344,7 +362,8 @@ test('venture.rules.list: a YouTube business sees its rules from the YouTube reg
   const firm: RulesListView = await ca.call('venture.rules.list');
   assert.equal(firm.playbook!.id, 'ca-firm');
   assert.equal(firm.playbook!.riskLevel, 'high');
-  assert.deepEqual(firm.rules, [], 'the CA firm rests on rate tables, which Your CA dates');
+  assert.deepEqual(firm.rules.map(rule=>rule.id), ['ca-cash-payment','ca-cash-receipt','ca-gst-invoice','ca-tds-thresholds']);
+  assert.ok(firm.rules.every(rule=>rule.source&&rule.sources.length>0&&rule.line.includes('CA')&&rule.line.includes('confirms')),'client work still requires the CA to confirm each dated source');
 });
 
 // ---------------------------------------------------------------------------

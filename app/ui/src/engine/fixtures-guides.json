@@ -1,486 +1,1320 @@
 {
- "about": "The engine's own setup guides and capability sets (platform/runtime/venture/build/guides.ts guideOf, connector-truth.ts connectorCapabilities) for the fake's connectors, copied by W4 4J21.",
- "lovable": {
-  "guide": {
-   "steps": [
-    "1. Sign in to Lovable in your browser.",
-    "2. In Chausar, open the brief and choose Lovable.",
-    "3. Read the brief in Lovable and press send there yourself."
-   ],
-   "skipped": "Turn on GitHub sync in Lovable, so Chausar can follow the code.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "There is nothing to connect, so there is no access to check: you sign in to Lovable yourself.",
-   "sends": "Sends: nothing by itself. Chausar fills in or copies the brief; you press send in Lovable.",
-   "agentLimits": "Agents can't open Lovable or send anything to it.",
-   "missing": null
-  },
-  "capabilities": [
-   {
-    "operation": "open-with-brief",
-    "mode": "handoff",
-    "fields": [
-     "brief"
+  "about": "The engine's own setup guides and capability sets (platform/runtime/venture/build/guides.ts guideOf, connector-truth.ts connectorCapabilities) for the fake's connectors, copied by W4 4J21.",
+  "lovable": {
+    "guide": {
+      "steps": [
+        "1. Sign in to Lovable in your browser.",
+        "2. In Chausar, open the brief and choose Lovable.",
+        "3. Read the brief in Lovable and press send there yourself."
+      ],
+      "skipped": "Turn on GitHub sync in Lovable, so Chausar can follow the code.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "There is nothing to connect, so there is no access to check: you sign in to Lovable yourself.",
+      "sends": "Sends: nothing by itself. Chausar fills in or copies the brief; you press send in Lovable.",
+      "agentLimits": "Agents can't open Lovable or send anything to it.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "open-with-brief",
+        "mode": "handoff",
+        "fields": [
+          "brief"
+        ]
+      }
     ]
-   }
-  ]
- },
- "replit": {
-  "guide": {
-   "steps": [
-    "1. Sign in to Replit in your browser.",
-    "2. In Chausar, open the brief and choose Replit.",
-    "3. Read the brief in Replit and press send there yourself."
-   ],
-   "skipped": "Connect GitHub in Replit, so Chausar can follow the code.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "There is nothing to connect, so there is no access to check: you sign in to Replit yourself.",
-   "sends": "Sends: nothing by itself. Chausar fills in or copies the brief; you press send in Replit.",
-   "agentLimits": "Agents can't open Replit or send anything to it.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "open-with-brief",
-    "mode": "handoff",
-    "fields": [
-     "brief"
+  "replit": {
+    "guide": {
+      "steps": [
+        "1. Sign in to Replit in your browser.",
+        "2. In Chausar, open the brief and choose Replit.",
+        "3. Read the brief in Replit and press send there yourself."
+      ],
+      "skipped": "Connect GitHub in Replit, so Chausar can follow the code.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "There is nothing to connect, so there is no access to check: you sign in to Replit yourself.",
+      "sends": "Sends: nothing by itself. Chausar fills in or copies the brief; you press send in Replit.",
+      "agentLimits": "Agents can't open Replit or send anything to it.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "open-with-brief",
+        "mode": "handoff",
+        "fields": [
+          "brief"
+        ]
+      }
     ]
-   }
-  ]
- },
- "bolt": {
-  "guide": {
-   "steps": [
-    "1. Sign in to Bolt in your browser.",
-    "2. In Chausar, open the brief and choose Bolt.",
-    "3. Read the brief in Bolt and press send there yourself."
-   ],
-   "skipped": "Bolt keeps its own version when GitHub sync has a conflict. Check which version is live.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "There is nothing to connect, so there is no access to check: you sign in to Bolt yourself.",
-   "sends": "Sends: nothing by itself. Chausar fills in or copies the brief; you press send in Bolt.",
-   "agentLimits": "Agents can't open Bolt or send anything to it.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "copy-brief",
-    "mode": "handoff",
-    "fields": [
-     "brief"
+  "bolt": {
+    "guide": {
+      "steps": [
+        "1. Sign in to Bolt in your browser.",
+        "2. In Chausar, open the brief and choose Bolt.",
+        "3. Read the brief in Bolt and press send there yourself."
+      ],
+      "skipped": "Bolt keeps its own version when GitHub sync has a conflict. Check which version is live.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "There is nothing to connect, so there is no access to check: you sign in to Bolt yourself.",
+      "sends": "Sends: nothing by itself. Chausar fills in or copies the brief; you press send in Bolt.",
+      "agentLimits": "Agents can't open Bolt or send anything to it.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "copy-brief",
+        "mode": "handoff",
+        "fields": [
+          "brief"
+        ]
+      }
     ]
-   }
-  ]
- },
- "github": {
-  "guide": {
-   "steps": [
-    "1. On GitHub, make a fine-grained personal access token.",
-    "2. Under Repository access, choose Only select repositories and pick the one repo your builder uses.",
-    "3. Under Repository permissions, set Contents and Metadata to Read-only, and Actions and Deployments to Read-only for the build checks. Leave every other permission at No access.",
-    "4. Set an end date, then paste the token and the repo address in Chausar."
-   ],
-   "skipped": "Set an end date on the token, so a lost token stops working on its own.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Chausar does not read GitHub when you link the repo. It reads it when you press Check GitHub, and Check connections reads the repo page once.",
-   "sends": "Sends: nothing, so nothing here can change your repo. Chausar reads it and never pushes.",
-   "agentLimits": "Agents can't read or change the repo. Only the build page reads it.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "read-repo",
-    "mode": "read",
-    "fields": [
-     "repo",
-     "token"
+  "github": {
+    "guide": {
+      "steps": [
+        "1. On GitHub, make a fine-grained personal access token.",
+        "2. Under Repository access, choose Only select repositories and pick the one repo your builder uses.",
+        "3. Under Repository permissions, set Contents and Metadata to Read-only, and Actions and Deployments to Read-only for the build checks. Leave every other permission at No access.",
+        "4. Set an end date, then paste the token and the repo address in Chausar."
+      ],
+      "skipped": "Set an end date on the token, so a lost token stops working on its own.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar does not read GitHub when you link the repo. It reads it when you press Check GitHub, and Check connections reads the repo page once.",
+      "sends": "Sends: nothing, so nothing here can change your repo. Chausar reads it and never pushes.",
+      "agentLimits": "Agents can't read or change the repo. Only the build page reads it.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-repo",
+        "mode": "read",
+        "fields": [
+          "repo",
+          "token"
+        ]
+      }
     ]
-   }
-  ]
- },
- "vercel": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking Vercel is planned.",
-    "2. When it is built, Chausar will ask for sign-in or access token, with read access only to what it needs, and no access to anything else.",
-    "3. Until then, use Vercel on its own site."
-   ],
-   "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
-   "charges": {
-    "line": "The free Hobby plan is for personal, non-commercial sites, so a business site needs a paid plan.",
-    "checkedOn": "2026-10-16"
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change Vercel.",
-   "agentLimits": "Agents can't use Vercel: nothing connects to it in this build.",
-   "missing": null
   },
-  "capabilities": []
- },
- "razorpay": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking Razorpay is planned.",
-    "2. When it is built, Chausar will ask for key id and secret, with read access to what it needs and write access only for what you approve, and no access to anything else.",
-    "3. Until then, use Razorpay on its own site."
-   ],
-   "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change Razorpay.",
-   "agentLimits": "Agents can't use Razorpay: nothing connects to it in this build.",
-   "missing": null
+  "vercel": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Vercel is planned.",
+        "2. When it is built, Chausar will ask for sign-in or access token, with read access only to what it needs, and no access to anything else.",
+        "3. Until then, use Vercel on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "The free Hobby plan is for personal, non-commercial sites, so a business site needs a paid plan.",
+        "checkedOn": "2026-10-16"
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Vercel.",
+      "agentLimits": "Agents can't use Vercel: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
   },
-  "capabilities": []
- },
- "mail-app": {
-  "guide": {
-   "steps": [
-    "1. Nothing to connect.",
-    "2. Chausar drafts the message or the invoice email.",
-    "3. Open it in your own mail app and press send yourself."
-   ],
-   "skipped": "Read the draft before you send it: Chausar never sends it for you.",
-   "charges": {
-    "line": "No charge.",
-    "checkedOn": null
-   },
-   "checks": "There is nothing to connect, so there is no access to check.",
-   "sends": "Sends: nothing. You send each message yourself, from your own mailbox.",
-   "agentLimits": "Agents can only propose an email. It waits for your approval, and you send it yourself.",
-   "missing": null
+  "razorpay": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Razorpay is planned.",
+        "2. When it is built, Chausar will ask for key id and secret, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Razorpay on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Razorpay.",
+      "agentLimits": "Agents can't use Razorpay: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
   },
-  "capabilities": [
-   {
-    "operation": "draft-message",
-    "mode": "handoff",
-    "fields": [
-     "to",
-     "subject",
-     "body"
+  "mail-app": {
+    "guide": {
+      "steps": [
+        "1. Nothing to connect.",
+        "2. Chausar drafts the message or the invoice email.",
+        "3. Open it in your own mail app and press send yourself."
+      ],
+      "skipped": "Read the draft before you send it: Chausar never sends it for you.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "There is nothing to connect, so there is no access to check.",
+      "sends": "Sends: nothing. You send each message yourself, from your own mailbox.",
+      "agentLimits": "Agents can only propose an email. It waits for your approval, and you send it yourself.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "draft-message",
+        "mode": "handoff",
+        "fields": [
+          "to",
+          "subject",
+          "body"
+        ]
+      }
     ]
-   }
-  ]
- },
- "google-workspace": {
-  "guide": {
-   "steps": [
-    "1. Turn on 2-Step Verification for your Google account.",
-    "2. Under Security, then App passwords, make an app password for Chausar. A Workspace admin can block app passwords; then this does not work for that account.",
-    "3. Use the desktop app: under Connections, type imap.gmail.com, port 993, your address and that password.",
-    "4. Chausar keeps it only while the app is open, so type it again after Chausar restarts."
-   ],
-   "skipped": "Turn on 2-Step Verification first: without it Google offers no app passwords.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Chausar signs in and opens your inbox read only before it keeps anything, so a wrong password is refused at once. Check connections does the same again.",
-   "sends": "Sends: nothing, so nothing here can change your Gmail mail. Chausar reads read only and never marks a message read.",
-   "agentLimits": "Agents can't read your mailbox. Only replies from people in your network and pipeline reach Today, screened first.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "read-inbox",
-    "mode": "read",
-    "fields": [
-     "host",
-     "port",
-     "user",
-     "appPassword"
+  "google-workspace": {
+    "guide": {
+      "steps": [
+        "1. Turn on 2-Step Verification for your Google account.",
+        "2. Under Security, then App passwords, make an app password for Chausar. A Workspace admin can block app passwords; then this does not work for that account.",
+        "3. Use the desktop app: under Connections, type imap.gmail.com, port 993, your address and that password.",
+        "4. Chausar keeps it only while the app is open, so type it again after Chausar restarts."
+      ],
+      "skipped": "Turn on 2-Step Verification first: without it Google offers no app passwords.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar signs in and opens your inbox read only before it keeps anything, so a wrong password is refused at once. Check connections does the same again.",
+      "sends": "Sends: nothing, so nothing here can change your Gmail mail. Chausar reads read only and never marks a message read.",
+      "agentLimits": "Agents can't read your mailbox. Only replies from people in your network and pipeline reach Today, screened first.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-inbox",
+        "mode": "read",
+        "fields": [
+          "host",
+          "port",
+          "user",
+          "appPassword"
+        ]
+      }
     ]
-   }
-  ]
- },
- "zoho-mail": {
-  "guide": {
-   "steps": [
-    "1. In Zoho Mail, open Settings, then Mail Accounts, and check that IMAP Access is on.",
-    "2. In your Zoho account, open Security, then App Passwords, and make an app-specific password for Chausar.",
-    "3. Use the desktop app: under Connections, type the server (imap.zoho.com, or imap.zoho.in for an account in India), port 993, your address and that password.",
-    "4. Chausar keeps it only while the app is open, so type it again after Chausar restarts."
-   ],
-   "skipped": "Make an app-specific password: with two-factor sign-in on, your Zoho password itself does not work over IMAP.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Chausar signs in and opens your inbox read only before it keeps anything, so a wrong password is refused at once. Check connections does the same again.",
-   "sends": "Sends: nothing, so nothing here can change your Zoho mail. Chausar reads read only and never marks a message read.",
-   "agentLimits": "Agents can't read your mailbox. Only replies from people in your network and pipeline reach Today, screened first.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "read-inbox",
-    "mode": "read",
-    "fields": [
-     "host",
-     "port",
-     "user",
-     "appPassword"
+  "zoho-mail": {
+    "guide": {
+      "steps": [
+        "1. In Zoho Mail, open Settings, then Mail Accounts, and check that IMAP Access is on.",
+        "2. In your Zoho account, open Security, then App Passwords, and make an app-specific password for Chausar.",
+        "3. Use the desktop app: under Connections, type the server (imap.zoho.com, or imap.zoho.in for an account in India), port 993, your address and that password.",
+        "4. Chausar keeps it only while the app is open, so type it again after Chausar restarts."
+      ],
+      "skipped": "Make an app-specific password: with two-factor sign-in on, your Zoho password itself does not work over IMAP.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar signs in and opens your inbox read only before it keeps anything, so a wrong password is refused at once. Check connections does the same again.",
+      "sends": "Sends: nothing, so nothing here can change your Zoho mail. Chausar reads read only and never marks a message read.",
+      "agentLimits": "Agents can't read your mailbox. Only replies from people in your network and pipeline reach Today, screened first.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-inbox",
+        "mode": "read",
+        "fields": [
+          "host",
+          "port",
+          "user",
+          "appPassword"
+        ]
+      }
     ]
-   }
-  ]
- },
- "cal-com": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking Cal.com is planned.",
-    "2. When it is built, Chausar will ask for aPI key, with read access only to what it needs, and no access to anything else.",
-    "3. Until then, use Cal.com on its own site."
-   ],
-   "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change Cal.com.",
-   "agentLimits": "Agents can't use Cal.com: nothing connects to it in this build.",
-   "missing": null
   },
-  "capabilities": []
- },
- "chausar-crm": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up: it is inside Chausar.",
-    "2. Add clients and orders under Clients."
-   ],
-   "skipped": "Add each client's billing name once, so invoices and statements read right.",
-   "charges": {
-    "line": "No charge.",
-    "checkedOn": null
-   },
-   "checks": "Nothing to check: it is inside Chausar.",
-   "sends": "Sends: nothing outside Chausar. Clients and orders stay in your encrypted workspace.",
-   "agentLimits": "Agents see only the order they work on, never your other clients' records.",
-   "missing": null
+  "cal-com": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Cal.com is planned.",
+        "2. When it is built, Chausar will ask for aPI key, with read access only to what it needs, and no access to anything else.",
+        "3. Until then, use Cal.com on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Cal.com.",
+      "agentLimits": "Agents can't use Cal.com: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
   },
-  "capabilities": [
-   {
-    "operation": "list",
-    "mode": "read",
-    "fields": []
-   },
-   {
-    "operation": "add",
-    "mode": "write",
-    "fields": [
-     "client",
-     "order"
+  "chausar-crm": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up: it is inside Chausar.",
+        "2. Add clients and orders under Clients."
+      ],
+      "skipped": "Add each client's billing name once, so invoices and statements read right.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Nothing to check: it is inside Chausar.",
+      "sends": "Sends: nothing outside Chausar. Clients and orders stay in your encrypted workspace.",
+      "agentLimits": "Agents see only the order they work on, never your other clients' records.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "list",
+        "mode": "read",
+        "fields": []
+      },
+      {
+        "operation": "add",
+        "mode": "write",
+        "fields": [
+          "client",
+          "order"
+        ]
+      }
     ]
-   }
-  ]
- },
- "linkedin": {
-  "guide": {
-   "steps": [
-    "1. Use the desktop app: posting through your own browser works only there.",
-    "2. If Chausar says Playwright with Chromium is missing, install it first.",
-    "3. Press Sign in and sign in to LinkedIn yourself, in the Chausar browser window. Chausar never sees your password.",
-    "4. Run the posting steps check, then approve each post on Today."
-   ],
-   "skipped": "Run the posting steps check before the first post, so Chausar knows the page still works the way it expects.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Chausar never sees your LinkedIn sign-in. The posting steps check shows the day each step last worked on the live page, and Check connections reports it.",
-   "sends": "Sends: only the posts you approve, one at a time, from the LinkedIn account you signed in to. To post from another account, sign in to that one.",
-   "agentLimits": "Agents can only propose a post. Each one waits for your approval, and none goes out on its own.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "post",
-    "mode": "owner-browser-session",
-    "fields": [
-     "text"
+  "linkedin": {
+    "guide": {
+      "steps": [
+        "1. Read and approve the draft, then copy its text.",
+        "2. Open LinkedIn yourself and sign in to the account you want to use.",
+        "3. Paste the approved words and press Post or Send yourself. Chausar needs no LinkedIn password."
+      ],
+      "skipped": "LinkedIn is copy-and-open only. Do not set up browser automation or give Chausar your LinkedIn password.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar does not check LinkedIn access or verify that your manual post or message was sent.",
+      "sends": "Sends: nothing to LinkedIn. You post or send in the LinkedIn account you signed in to.",
+      "agentLimits": "A draft waits for your approval. Agents cannot post or message on LinkedIn or bypass its restrictions.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "copy-and-open",
+        "mode": "handoff",
+        "fields": [
+          "text"
+        ]
+      }
     ]
-   }
-  ]
- },
- "instagram": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking Instagram is planned.",
-    "2. When it is built, Chausar will ask for instagram sign-in, with read access to what it needs and write access only for what you approve, and no access to anything else.",
-    "3. Until then, use Instagram on its own site."
-   ],
-   "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change Instagram.",
-   "agentLimits": "Agents can't use Instagram: nothing connects to it in this build.",
-   "missing": null
   },
-  "capabilities": []
- },
- "youtube": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking YouTube is planned.",
-    "2. When it is built, Chausar will ask for google sign-in, with read access to what it needs and write access only for what you approve, and no access to anything else.",
-    "3. Until then, copy the title and description from the draft yourself and publish in YouTube Studio. It stays private until you choose."
-   ],
-   "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change YouTube.",
-   "agentLimits": "Agents can't use YouTube: nothing connects to it in this build.",
-   "missing": null
+  "instagram": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Instagram is planned.",
+        "2. When it is built, Chausar will ask for instagram sign-in, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Instagram on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Instagram.",
+      "agentLimits": "Agents can't use Instagram: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
   },
-  "capabilities": []
- },
- "chausar-books": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up: it is inside Chausar.",
-    "2. Issue invoices and record payments under Money."
-   ],
-   "skipped": "Check your tax number and rates in the plan before the first invoice.",
-   "charges": {
-    "line": "No charge.",
-    "checkedOn": null
-   },
-   "checks": "Nothing to check: it is inside Chausar.",
-   "sends": "Sends: nothing outside Chausar. Every number comes from the calculator with a receipt.",
-   "agentLimits": "Agents can't issue an invoice or record a payment. Each one waits for you.",
-   "missing": null
+  "youtube": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking YouTube is planned.",
+        "2. When it is built, Chausar will ask for google sign-in, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, copy the title and description from the draft yourself and publish in YouTube Studio. It stays private until you choose."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change YouTube.",
+      "agentLimits": "Agents can't use YouTube: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
   },
-  "capabilities": [
-   {
-    "operation": "list",
-    "mode": "read",
-    "fields": []
-   },
-   {
-    "operation": "issue",
-    "mode": "write",
-    "fields": [
-     "invoice",
-     "payment"
+  "chausar-books": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up: it is inside Chausar.",
+        "2. Issue invoices and record payments under Money."
+      ],
+      "skipped": "Check your tax number and rates in the plan before the first invoice.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Nothing to check: it is inside Chausar.",
+      "sends": "Sends: nothing outside Chausar. Every number comes from the calculator with a receipt.",
+      "agentLimits": "Agents can't issue an invoice or record a payment. Each one waits for you.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "list",
+        "mode": "read",
+        "fields": []
+      },
+      {
+        "operation": "issue",
+        "mode": "write",
+        "fields": [
+          "invoice",
+          "payment"
+        ]
+      }
     ]
-   }
-  ]
- },
- "tally": {
-  "guide": {
-   "steps": [
-    "1. Use the desktop app: TallyPrime is read on this computer.",
-    "2. Open TallyPrime with the company you want.",
-    "3. In Chausar, add it under Sources and choose that company.",
-    "4. Chausar reads the Day Book into the back office."
-   ],
-   "skipped": "Keep TallyPrime open while Chausar reads it: it reads only what TallyPrime serves on this computer.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Chausar reads TallyPrime only when you read it under Sources. Check connections says when that last happened and does not reach TallyPrime on its own.",
-   "sends": "Sends: nothing, so nothing here can change TallyPrime.",
-   "agentLimits": "Agents can't read TallyPrime. Its figures reach them only as the back office's receipts.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "read-day-book",
-    "mode": "read",
-    "fields": [
-     "company",
-     "endpoint"
+  "tally": {
+    "guide": {
+      "steps": [
+        "1. Use the desktop app: TallyPrime is read on this computer.",
+        "2. Open TallyPrime with the company you want.",
+        "3. In Chausar, add it under Sources and choose that company.",
+        "4. Chausar reads the Day Book into the back office."
+      ],
+      "skipped": "Keep TallyPrime open while Chausar reads it: it reads only what TallyPrime serves on this computer.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar reads TallyPrime only when you read it under Sources. Check connections says when that last happened and does not reach TallyPrime on its own.",
+      "sends": "Sends: nothing, so nothing here can change TallyPrime.",
+      "agentLimits": "Agents can't read TallyPrime. Its figures reach them only as the back office's receipts.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-day-book",
+        "mode": "read",
+        "fields": [
+          "company",
+          "endpoint"
+        ]
+      }
     ]
-   }
-  ]
- },
- "bank-account": {
-  "guide": {
-   "steps": [
-    "1. Download a statement from your bank's site as a CSV file.",
-    "2. In Chausar, import it under Connections, Bank, and name the account.",
-    "3. Chausar counts each row once, so importing the same file again adds nothing."
-   ],
-   "skipped": "Download the statement as CSV: Chausar reads CSV statements only.",
-   "charges": {
-    "line": "No charge.",
-    "checkedOn": null
-   },
-   "checks": "There is no bank sign-in to check: no bank provider is linked, and Chausar reads only the statement files you import.",
-   "sends": "Sends: nothing, so nothing here can move money or change your bank. Chausar never asks for your bank password.",
-   "agentLimits": "Agents can't read your bank rows or move money. Matching them to bills waits for you.",
-   "missing": null
   },
-  "capabilities": [
-   {
-    "operation": "import-statement",
-    "mode": "read",
-    "fields": [
-     "csv",
-     "account"
+  "bank-account": {
+    "guide": {
+      "steps": [
+        "1. Download a statement from your bank's site as a CSV file.",
+        "2. In Chausar, import it under Connections, Bank, and name the account.",
+        "3. Chausar counts each row once, so importing the same file again adds nothing."
+      ],
+      "skipped": "Download the statement as CSV: Chausar reads CSV statements only.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "There is no bank sign-in to check: no bank provider is linked, and Chausar reads only the statement files you import.",
+      "sends": "Sends: nothing, so nothing here can move money or change your bank. Chausar never asks for your bank password.",
+      "agentLimits": "Agents can't read your bank rows or move money. Matching them to bills waits for you.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "import-statement",
+        "mode": "read",
+        "fields": [
+          "csv",
+          "account"
+        ]
+      }
     ]
-   }
-  ]
- },
- "gst-einvoice": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking GST e-invoicing (IRP) is planned.",
-    "2. When it is built, Chausar will ask for through a GST suvidha provider, with read access to what it needs and write access only for what you approve, and no access to anything else.",
-    "3. Until then, use GST e-invoicing (IRP) on its own site."
-   ],
-   "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change GST e-invoicing (IRP).",
-   "agentLimits": "Agents can't use GST e-invoicing (IRP): nothing connects to it in this build.",
-   "missing": null
   },
-  "capabilities": []
- },
- "gst-registration": {
-  "guide": {
-   "steps": [
-    "1. Nothing to set up in Chausar yet: linking GST registration is planned.",
-    "2. When it is built, it needs no key or sign-in.",
-    "3. Until then, use GST registration on its own site."
-   ],
-   "skipped": "Nothing to make: it needs no key or sign-in.",
-   "charges": {
-    "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
-    "checkedOn": null
-   },
-   "checks": "Nothing connects to it in this build, so there is no access to check.",
-   "sends": "Sends: nothing, so nothing here can change GST registration.",
-   "agentLimits": "Agents can't use GST registration: nothing connects to it in this build.",
-   "missing": null
+  "gst-einvoice": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking GST e-invoicing (IRP) is planned.",
+        "2. When it is built, Chausar will ask for through a GST suvidha provider, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use GST e-invoicing (IRP) on its own site."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change GST e-invoicing (IRP).",
+      "agentLimits": "Agents can't use GST e-invoicing (IRP): nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
   },
-  "capabilities": []
- }
+  "gst-registration": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking GST registration is planned.",
+        "2. When it is built, it needs no key or sign-in.",
+        "3. Until then, use GST registration on its own site."
+      ],
+      "skipped": "Nothing to make: it needs no key or sign-in.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change GST registration.",
+      "agentLimits": "Agents can't use GST registration: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "seo-wordpress": {
+    "guide": {
+      "steps": [
+        "1. In the client WordPress profile, create a separate credential under Application Passwords for a user allowed to create drafts.",
+        "2. In the SEO desk, enter the HTTPS site address, username and application password for this session.",
+        "3. Review the current client-approved article, approve saving its exact draft, then publish it yourself in WordPress."
+      ],
+      "skipped": "Use a dedicated user with only the needed draft permissions. An application password inherits that user’s access; it is not a draft-only permission.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Saving settings does not test WordPress credentials. The approved draft request checks the response; the later public-page check verifies the approved article.",
+      "sends": "Sends: only the exact client and owner approved article as a draft. The owner publishes it.",
+      "agentLimits": "Agents cannot publish, email or retry an unknown result. Check WordPress yourself if the save is uncertain.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "seo-cloudflare-kv": {
+    "guide": {
+      "steps": [
+        "1. Ask the client developer for the existing Worker, namespace, account ID and exact override key.",
+        "2. Create an API token with Workers KV Storage Write access for only the chosen account, then enter its token, namespace ID and site in the SEO desk.",
+        "3. Review the existing value and client-approved replacement, then approve the exact change. Undo asks separately."
+      ],
+      "skipped": "The client must already have a Worker using this namespace. Chausar does not install one or create the namespace.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Saving settings checks their shape, not live access. Staging reads the existing key; applying checks the saved value. Changes can take time to appear elsewhere.",
+      "sends": "Sends: only an exact approved existing-key replacement or separately approved undo.",
+      "agentLimits": "Agents cannot provision Workers, change other keys or retry an unknown write. Inspect uncertain results manually.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "recruit-greenhouse": {
+    "guide": {
+      "steps": [
+        "1. Open the employer’s public Greenhouse jobs page and copy its board name. No API key is needed.",
+        "2. In the recruiting role, choose this provider and board, then set the exact job filters.",
+        "3. Read and approve the board and filters before installation. Read it again when you want fresh matches."
+      ],
+      "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
+      "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
+      "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "recruit-lever": {
+    "guide": {
+      "steps": [
+        "1. Open the employer’s public Lever jobs page and copy its board name. No API key is needed.",
+        "2. In the recruiting role, choose this provider and board, then set the exact job filters.",
+        "3. Read and approve the board and filters before installation. Read it again when you want fresh matches."
+      ],
+      "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
+      "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
+      "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "recruit-ashby": {
+    "guide": {
+      "steps": [
+        "1. Open the employer’s public Ashby jobs page and copy its board name. No API key is needed.",
+        "2. In the recruiting role, choose this provider and board, then set the exact job filters.",
+        "3. Read and approve the board and filters before installation. Read it again when you want fresh matches."
+      ],
+      "skipped": "Use the employer’s public board name, not an applicant profile or private hiring dashboard.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Installation reads the public board. The first read seeds current jobs without alerts; later reads compare new matching jobs.",
+      "sends": "Sends: a public jobs read only. No applications, candidate profiles or messages are sent.",
+      "agentLimits": "Agents cannot apply, contact candidates or change the approved board filters themselves.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "article-transcript": {
+    "guide": {
+      "steps": [
+        "1. Open the client article order and record your permission to use the episode.",
+        "2. Add the episode transcript as SRT, VTT or TXT, then choose it in the article desk.",
+        "3. Review the source and outline before drafting. Reuse a source only for the same client."
+      ],
+      "skipped": "Check that the file contains the episode words you may reuse, not unrelated private material.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar reads the selected file and binds drafts to its current source. There is no remote transcript account to check.",
+      "sends": "Sends: nothing for file import. Any later model request has its own preview and approval.",
+      "agentLimits": "Agents cannot borrow another client’s transcript or treat unsupported statements as source evidence.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "article-local-transcription": {
+    "guide": {
+      "steps": [
+        "1. Use the desktop app with ffmpeg and whisper.cpp already installed by you.",
+        "2. Record episode rights, select the local audio or video in the article desk and approve the source import.",
+        "3. Read the resulting transcript before drafting. If local tools are unavailable, add a transcript file instead."
+      ],
+      "skipped": "Local media is limited to 50 MB. For larger episodes, supply a transcript; Chausar does not install tools for you.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "The approved import copies the local source and checks the installed tools when transcription runs. Hosted web cannot run them.",
+      "sends": "Sends: no recording to a remote transcription service. Processing uses the installed tools on this computer.",
+      "agentLimits": "Agents cannot install software or claim a transcript exists when local processing fails.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "article-publishing": {
+    "guide": {
+      "steps": [
+        "1. Finish source review, the owner-approved outline and the article draft.",
+        "2. Complete the required client-use review and approve the exact final article and companion text.",
+        "3. Copy the approved handoff into the client publishing account and publish it yourself."
+      ],
+      "skipped": "A changed article needs fresh approval. No publishing password belongs in this handoff.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks the saved source and exact approval before preparing the handoff. It does not check a publishing account or prove publication.",
+      "sends": "Sends: nothing to a publisher. Copy and publish the approved article yourself.",
+      "agentLimits": "Agents cannot publish or mark a manual handoff as a confirmed live article.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "overpass": {
+    "guide": {
+      "steps": [
+        "1. In the lead desk, choose a city area and the kind of business you want to research.",
+        "2. Review the bounded area and run the one-off public map search. No key is needed.",
+        "3. Check the returned sources and keep OpenStreetMap attribution with any reused data."
+      ],
+      "skipped": "OpenStreetMap coverage can be incomplete. Keep attribution and the ODbL licence on derived databases.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "There is no sign-in check. The requested bounded Overpass query either returns public map records or a clear refusal.",
+      "sends": "Sends: only the chosen public map query. It does not contact businesses or change OpenStreetMap.",
+      "agentLimits": "Agents cannot turn missing map details into verified emails or run unrestricted scraping.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "nominatim": {
+    "guide": {
+      "steps": [
+        "1. Read https://operations.osmfoundation.org/policies/nominatim/ before using the public city lookup.",
+        "2. Enter a city name deliberately in the lead desk. Never send personal addresses or confidential text.",
+        "3. Check the returned city area. If lookup is unavailable, choose the city box manually."
+      ],
+      "skipped": "Use city lookups only. No autocomplete, repeated bulk geocoding, systematic area searches or resale of geocoding results.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "No key is checked. Deliberate lookups are cached and serialised with at most one request per second.",
+      "sends": "Sends: the requested city name to the public Nominatim service, not a customer address.",
+      "agentLimits": "Agents cannot use this as a general address service. Respect the linked policy and keep map attribution.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "own-site": {
+    "guide": {
+      "steps": [
+        "1. Choose the business’s own public website for a lead in the lead desk.",
+        "2. Request the limited contact-page read only where the site terms permit it.",
+        "3. Review each found contact and its source before keeping or using it."
+      ],
+      "skipped": "Chausar obeys robots and reads the homepage plus at most three same-host contact pages. A refusal is not bypassed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "There is no account check. Public page reads use the network and source-policy guards; missing details remain missing.",
+      "sends": "Sends: public page requests only. No forms, emails or messages are submitted.",
+      "agentLimits": "Agents cannot guess email addresses, enter private accounts or evade site restrictions.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "happenstance": {
+    "guide": {
+      "steps": [
+        "1. Use your own Happenstance account and API key from its developer settings.",
+        "2. In the lead desk, write the exact search and read the dated credit quote.",
+        "3. Enter your key for this search and approve the displayed query and credit cost together."
+      ],
+      "skipped": "The query can use your network. Check the exact text and current credit quote before approving; a key alone is not permission to spend.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "There is no separate key test. The exact approved search checks the provider response and records whether it was confirmed.",
+      "sends": "Sends: only the exact owner-approved paid search. Open the returned Happenstance result yourself.",
+      "agentLimits": "Agents cannot send outreach or retry an unknown search. Check your Happenstance account after an uncertain result.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "newsletter-owner-tool": {
+    "guide": {
+      "steps": [
+        "1. Prepare the issue from approved sources in the newsletter desk. No sending-service key is needed.",
+        "2. Before importing a recipient list or exporting, obtain the named lawyer’s consent confirmation. Draft preparation remains available meanwhile.",
+        "3. Approve the exact issue and recipients, export HTML, plain text and recipient CSV, then send through your existing tool yourself."
+      ],
+      "skipped": "Consent review is not yet confirmed. Keep list use and export blocked until that review is genuinely recorded.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks current consent, suppression and exact approval before export. It does not connect to or test your sending account.",
+      "sends": "Sends: nothing. You import the approved files and send with your own newsletter tool.",
+      "agentLimits": "Agents cannot send email, bypass opt-outs or claim a successful delivery from an export.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "tender-documents": {
+    "guide": {
+      "steps": [
+        "1. Attach client evidence separately from the RFP in the tender order.",
+        "2. Choose pasted questions or an RFP file. For a workbook, map the sheet, question column, answer column and row range.",
+        "3. Review every extracted question and its type before drafting. Write commercial answers yourself."
+      ],
+      "skipped": "The RFP is a request, not evidence that the client meets it. Do not use a copied RFP as client evidence.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar binds questions and answers to current source bytes. Changed sources require import and approval again.",
+      "sends": "Sends: nothing for local reading. A later AI request shows its exact source payload and asks separately.",
+      "agentLimits": "Agents cannot borrow documents from another client, invent certifications or write commercial answers.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "tender-submission": {
+    "guide": {
+      "steps": [
+        "1. Resolve source gaps and approve every answer by type.",
+        "2. Review the exact export pack, including the issuer workbook mapping and source amount receipts, then approve export.",
+        "3. Check the current issuer instructions and submit through your own portal or mail account."
+      ],
+      "skipped": "A downloaded pack does not prove submission or acceptance. Check the issuer deadline and current terms yourself.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar rechecks source bytes, exact answers and approvals before export. It does not test a portal account.",
+      "sends": "Sends: nothing to the issuer. You submit the approved files yourself.",
+      "agentLimits": "Agents cannot log in to a tender portal, submit a bid or claim the issuer accepted it.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "bluesky": {
+    "guide": {
+      "steps": [
+        "1. Create an app password in your own Bluesky account. Record the exact handle and public server.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Use an app password, not the account password. Plain text only, within three hundred graphemes.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "post",
+        "mode": "api",
+        "fields": [
+          "text"
+        ]
+      }
+    ]
+  },
+  "mastodon": {
+    "guide": {
+      "steps": [
+        "1. Create a token for your own Mastodon instance with permission to write statuses. Record its exact account.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Public visibility only. Chausar supports five hundred characters or the lower verified instance limit.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "post",
+        "mode": "api",
+        "fields": [
+          "text"
+        ]
+      }
+    ]
+  },
+  "telegram": {
+    "guide": {
+      "steps": [
+        "1. Create your own bot and make it an administrator of the exact channel with permission to post messages.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Channel posts only. The bot needs administrator posting permission; no direct messages or markup.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "post",
+        "mode": "api",
+        "fields": [
+          "text"
+        ]
+      }
+    ]
+  },
+  "discord": {
+    "guide": {
+      "steps": [
+        "1. Create an incoming webhook in the exact Discord server channel that you own or may manage.",
+        "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
+        "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
+      ],
+      "skipped": "Use the incoming webhook address for that channel. Chausar disables automatic mentions and waits for a returned message.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the account or channel through its official API. The credential stays in memory for this session.",
+      "sends": "Sends: only a separately approved exact plain-text post. A connection check never publishes a post.",
+      "agentLimits": "Agents cannot send direct messages, upload media, change the destination, retry an uncertain result or publish without owner approval.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "post",
+        "mode": "api",
+        "fields": [
+          "text"
+        ]
+      }
+    ]
+  },
+  "google-tts": {
+    "guide": {
+      "steps": [
+        "1. Use your own Google Cloud project with billing and Text-to-Speech enabled. Restrict its API key to that API.",
+        "2. Open the narration desk, choose the client order and save the project key. Saving does not make a test call.",
+        "3. Read the current text, licensed stock voice and exact computed cost. Approve that one request, then verify and listen to the actual audio."
+      ],
+      "skipped": "Client production waits for a named lawyer to confirm narration rights. Private manuscripts and cloning do not use this cloud route.",
+      "charges": {
+        "line": "Google charges your project for approved speech. The narration desk computes a dated quote before each request; no free allowance is assumed.",
+        "checkedOn": null
+      },
+      "checks": "Saving a key does not contact Google or prove access. An approved call checks the actual response; an uncertain outcome is never retried automatically.",
+      "sends": "Sends: only the exact approved text and stock voice to Google, paid on your own key.",
+      "agentLimits": "Agents cannot approve paid speech, switch the approved account, clone a voice or claim distributor acceptance.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "narration-files": {
+    "guide": {
+      "steps": [
+        "1. Attach a rights-cleared TXT, Markdown or DOCX manuscript to this client order.",
+        "2. In the narration desk, select that file and a licensed stock voice.",
+        "3. Review the exact source segments. After source changes, prepare them again before approval."
+      ],
+      "skipped": "A filename or cached digest is not evidence. Current stored bytes and current manuscript rights must agree.",
+      "charges": {
+        "line": "No charge for reading the local manuscript. Any later model or speech use has its own approval and quote.",
+        "checkedOn": null
+      },
+      "checks": "Chausar reads the actual bounded file and rechecks the current client and rights. Unreadable or unsupported files refuse.",
+      "sends": "Sends: nothing outside Chausar while importing the manuscript. Any later AI or speech call asks separately.",
+      "agentLimits": "Agents cannot borrow another client source, invent rights or send a private manuscript to the cloud.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "narration-local-checks": {
+    "guide": {
+      "steps": [
+        "1. Install ffmpeg and whisper.cpp yourself on the desktop computer.",
+        "2. Open a current narration segment with its actual audio. Choose Transcribe and measure.",
+        "3. Listen and approve the exact audio, master it, then listen again to the newly measured file."
+      ],
+      "skipped": "Missing tools or measurements never pass. Automatic word similarity cannot judge tone or natural pacing.",
+      "charges": {
+        "line": "No provider charge for these local checks. They use your computer.",
+        "checkedOn": null
+      },
+      "checks": "The desktop copies current audio bytes to local scratch, transcribes without an expected-text prompt, measures and removes scratch files afterward.",
+      "sends": "Sends: nothing to a speech-recognition provider. These installed tools run on the desktop.",
+      "agentLimits": "Agents cannot install tools, enter made-up measurements or replace owner listening approval.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "narration-distribution": {
+    "guide": {
+      "steps": [
+        "1. Master and listen to every current segment, then approve export with AI narration disclosure.",
+        "2. Read the target distributor current rules and check the exported audio and disclosure yourself.",
+        "3. Upload through your own distributor account. Check its actual acceptance response."
+      ],
+      "skipped": "A technical pass is not acceptance. ACX and unqualified external Google Play synthetic narration remain blocked.",
+      "charges": {
+        "line": "No charge for the local handoff. Check the distributor current terms before using its service.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks source, actual audio, owner listening and current rights before export. It does not check a distributor login.",
+      "sends": "Sends: nothing to a distributor. The owner downloads and submits the approved files manually.",
+      "agentLimits": "Agents cannot upload, submit, accept terms or promise distributor acceptance.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "career-links": {
+    "guide": {
+      "steps": [
+        "1. Choose a career order and paste the public job address.",
+        "2. Approve reading that exact address, or paste the complete job text yourself.",
+        "3. Review the saved complete revision before using its quotes in a pack."
+      ],
+      "skipped": "LinkedIn and Naukri are pasted-text only. Dynamic or changing pages never count as complete.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks site policy, robots, public network addresses and two matching complete revisions. A failed read saves no job.",
+      "sends": "Sends: a public page request to the approved site. No client fact or job-board password is sent.",
+      "agentLimits": "Agents cannot bypass site rules, sign in or apply. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-complete-listing",
+        "mode": "read",
+        "fields": [
+          "url"
+        ]
+      }
+    ]
+  },
+  "career-boards": {
+    "guide": {
+      "steps": [
+        "1. Choose Greenhouse, Lever or Ashby and the company board name.",
+        "2. Set the target role and location filters, then approve the public read.",
+        "3. Read or paste each complete listing before adding it to the reviewed shortlist."
+      ],
+      "skipped": "A public index is not the full job text. Coverage reports only the saved listings reviewed.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar validates the public provider and uses network and robots checks. No client account is used.",
+      "sends": "Sends: the exact public company board request. No resume, message or application is sent.",
+      "agentLimits": "Agents cannot sign in or apply. They cannot call a partial index a complete listing.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "read-public-index",
+        "mode": "read",
+        "fields": [
+          "provider",
+          "slug",
+          "gates"
+        ]
+      }
+    ]
+  },
+  "career-pinloop": {
+    "guide": {
+      "steps": [
+        "1. Prepare a source-backed pack in the career desk and review every claim.",
+        "2. Approve the exact rendered files, then ask the client to review that same version.",
+        "3. The client opens their own Pinloop account and sends or applies themselves."
+      ],
+      "skipped": "Never give Chausar a job-board password or set up automated applications.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
+      "sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
+      "agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "manual-client-handoff",
+        "mode": "handoff",
+        "fields": [
+          "approved-pack"
+        ]
+      }
+    ]
+  },
+  "career-linkedin": {
+    "guide": {
+      "steps": [
+        "1. Prepare a source-backed pack in the career desk and review every claim.",
+        "2. Approve the exact rendered files, then ask the client to review that same version.",
+        "3. The client opens their own LinkedIn account and sends or applies themselves."
+      ],
+      "skipped": "Never give Chausar a job-board password or set up automated applications.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
+      "sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
+      "agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "manual-client-handoff",
+        "mode": "handoff",
+        "fields": [
+          "approved-pack"
+        ]
+      }
+    ]
+  },
+  "career-naukri": {
+    "guide": {
+      "steps": [
+        "1. Prepare a source-backed pack in the career desk and review every claim.",
+        "2. Approve the exact rendered files, then ask the client to review that same version.",
+        "3. The client opens their own Naukri account and sends or applies themselves."
+      ],
+      "skipped": "Never give Chausar a job-board password or set up automated applications.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks saved facts and files, not the client account or a manual submission.",
+      "sends": "Sends: nothing to the job board. The client copies reviewed words and files themselves.",
+      "agentLimits": "Agents cannot sign in, send messages or apply for the client. Live client work waits for named privacy review.",
+      "missing": null
+    },
+    "capabilities": [
+      {
+        "operation": "manual-client-handoff",
+        "mode": "handoff",
+        "fields": [
+          "approved-pack"
+        ]
+      }
+    ]
+  },
+  "local-live-captions": {
+    "guide": {
+      "steps": [
+        "1. Install and configure local whisper.cpp in Connections, Your AI. Record the event host permission in a live-caption order.",
+        "2. Open Translation, choose that caption order and Start local captions. Only this desktop microphone is used.",
+        "3. Saving starts off. Enable Save future captions only when you want confirmed lines kept. Stop capture when the event ends."
+      ],
+      "skipped": "Local model speed and language accuracy vary. Speaker labels are owner supplied, not automatic identification. Turning saving off does not delete previously saved lines.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks local tool availability and current host permission before capture and after each recognition. Missing tools stop capture.",
+      "sends": "Sends: nothing over the network. Audio goes to installed local whisper.cpp; there is no cloud fallback.",
+      "agentLimits": "Agents cannot start the microphone, enable saving, install models or send event audio to a remote service.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "android-local": {
+    "guide": {
+      "steps": [
+        "1. Install Android SDK platform tools and build tools yourself, then start a clean emulator without personal accounts.",
+        "2. Choose the client order, select its original APK and approve the exact test plan. Client operations wait for a named lawyer permission review.",
+        "3. Read the current emulator screen and approve each operation separately. Review every finding and remove the exact installed client app when finished."
+      ],
+      "skipped": "Use client-owned builds and fictional data. Real phones, personal accounts and arbitrary shell commands are refused.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: only exact approved commands to the local emulator after setup and permission review. No app-store upload.",
+      "agentLimits": "Agents cannot install SDK tools, replace an existing app, bypass a sign-in or send the client report.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "docker-local": {
+    "guide": {
+      "steps": [
+        "1. Install Docker yourself and build the supplied Chausar demo image manually. Qualify its installed fingerprint before client use.",
+        "2. Prepare and approve the script, shot list and fictional client test account. Open only the separate private viewer and sign in yourself.",
+        "3. Approve recording and every input separately. Render, watch and listen to the entire video, then remove the owned desktop."
+      ],
+      "skipped": "Never record the owner desktop or enter personal account credentials. An unknown result needs manual inspection, never an automatic retry.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: only exact approved local Docker operations. Any website traffic stays inside the fictional client test session.",
+      "agentLimits": "Agents cannot pull or build images, mount owner files, control the owner desktop or approve their own recordings.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "app-testing-delivery": {
+    "guide": {
+      "steps": [
+        "1. Review all actual findings and their reproduced steps, or watch and listen to the exact rendered demo and every planned shot.",
+        "2. After named lawyer permission review, prepare the source-bound report or video downloads in the testing desk.",
+        "3. Open the actual files, check their disclosure and limitations, then deliver them yourself."
+      ],
+      "skipped": "A clean log does not prove the whole app is correct. Missing audio word timings remain unmeasured.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar rechecks the current client, source bytes, approvals and rendered file fingerprints before export.",
+      "sends": "Sends: nothing to the client. You download and deliver the reviewed files manually.",
+      "agentLimits": "Agents cannot invent a tested device, completed step, generated audio, delivered file or client acceptance.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "page-monitors": {
+    "guide": {
+      "steps": [
+        "1. In the monitored data desk, choose the client order and exact public page. Record its terms address and the day you checked permitted use.",
+        "2. Approve the page read, then select only the actual observed values your client needs. Check the exact selections.",
+        "3. Read each receipt and separately approve recurring reads. Keep the desktop app open; stop reads whenever permission changes."
+      ],
+      "skipped": "A terms tick cannot override robots or platform policy. A changed selector is held instead of guessed.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar checks current permission, public network destinations, robots rules and exact source elements before each read.",
+      "sends": "Sends: only approved public page reads. Client messages are not sent.",
+      "agentLimits": "Agents cannot choose new sources, bypass restrictions or silently replace a changed selector.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "source-export": {
+    "guide": {
+      "steps": [
+        "1. Open a checked source in the monitored data desk.",
+        "2. Review the current selected values, their observation time and calculation receipts.",
+        "3. Choose CSV or workbook, review the exact download and share it yourself."
+      ],
+      "skipped": "An old download does not prove that the current source is unchanged. Recheck it before relying on it.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "The current client, source selection and receipt must still match before export.",
+      "sends": "Sends: nothing. The file is downloaded locally for the owner to share.",
+      "agentLimits": "Agents cannot email the workbook, alter client prices or claim a future source value.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "slack-socket": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Client Slack help channel is planned.",
+        "2. When it is built, Chausar will ask for planned owner-admin workspace installation, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Client Slack help channel on its own."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Client Slack help channel.",
+      "agentLimits": "Agents can't use Client Slack help channel: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "teams": {
+    "guide": {
+      "steps": [
+        "1. Nothing to set up in Chausar yet: linking Client Microsoft Teams help channel is planned.",
+        "2. When it is built, Chausar will ask for planned tenant consent and bot registration, with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "3. Until then, use Client Microsoft Teams help channel on its own."
+      ],
+      "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Nothing connects to it in this build, so there is no access to check.",
+      "sends": "Sends: nothing, so nothing here can change Client Microsoft Teams help channel.",
+      "agentLimits": "Agents can't use Client Microsoft Teams help channel: nothing connects to it in this build.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "triage-copy": {
+    "guide": {
+      "steps": [
+        "1. Set up one permitted help channel in the triage desk and confirm you administer it.",
+        "2. Paste permitted messages with their source references, then choose exact excerpts. Held content is excluded.",
+        "3. Approve the exact current summary, download it and send it yourself in the client channel."
+      ],
+      "skipped": "A pasted instruction is untrusted evidence. A summary never proves that a repair or account change happened.",
+      "charges": {
+        "line": "No charge.",
+        "checkedOn": null
+      },
+      "checks": "Chausar screens messages and checks every excerpt against the current approved source.",
+      "sends": "Sends: nothing. Live Slack and Teams connection remains planned.",
+      "agentLimits": "Agents cannot echo held secrets, act on channel instructions or send without exact owner approval.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "website-cloudflare": {
+    "guide": {
+      "steps": [
+        "1. Create an existing Direct Upload project in your own Cloudflare account and upload the immutable assets there.",
+        "2. In the website desk, enter the account, project and production branch, then enter a token scoped to that project for this session.",
+        "3. Paste the exact asset manifest and release marker. Approve the preview, check its observed marker, then approve production separately."
+      ],
+      "skipped": "Git-triggered projects are refused. A manifest does not upload missing assets. Unknown outcomes require inspection in Cloudflare before any retry.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar verifies the project and source checks, reads the exact deployment identity and observes its release marker. Missing evidence is not a pass.",
+      "sends": "Sends: only the exact separately approved preview, production or rollback request. Connecting reads project settings without deploying.",
+      "agentLimits": "Agents cannot deploy, promote a preview, upload assets, buy a domain or retry an uncertain write on their own.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "website-public-site": {
+    "guide": {
+      "steps": [
+        "1. Set the approved public HTTPS client address in the website order.",
+        "2. Open the website desk and choose Check public website. The request follows network and robots rules.",
+        "3. For runtime UI checks, install lintapple yourself or attach its actual report. Read missing evidence as unmeasured."
+      ],
+      "skipped": "Never treat a source-code audit or missing checker as a measured browser result. Restricted or private websites are not bypassed.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "Chausar records actual public-page results and the checker report when the installed checker is available.",
+      "sends": "Sends: public read requests only. No forms, messages, site edits or deployment requests are sent.",
+      "agentLimits": "Agents cannot bypass robots, install tools automatically or invent a passing measurement.",
+      "missing": null
+    },
+    "capabilities": []
+  },
+  "zoho-books": {
+    "guide": {
+      "steps": [
+        "1. Open the bookkeeping desk and choose the client organisation and finance cycle.",
+        "2. Create an owner self-client access token in the matching Zoho account region, with only the read and write access needed for your chosen accounting operation.",
+        "3. Save the token for this open session. Setup needs no invented customer or item IDs; invoice and settlement work needs explicit mappings.",
+        "4. Read the exact proposal and approve it. Master creation, initial opening balances and invoice issue each ask separately."
+      ],
+      "skipped": "Choose the correct client organisation and region. Reconnect after locking or reopening the app; a saved token is not an approval.",
+      "charges": {
+        "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
+        "checkedOn": null
+      },
+      "checks": "This connector is fixture-tested. Preparation reads current provider identities and amounts; each approved write requires exact readback. Live account qualification is not claimed.",
+      "sends": "Sends: only an exact owner-approved supported invoice or credit-note draft, issue action, received settlement payment, missing master or initial organisation opening balance. No email, bank transfer, overwrite or silent retry.",
+      "agentLimits": "Agents can prepare source work but cannot send directly to Zoho. Unsupported tax, currency, inventory and setup profiles stay on the manual bookkeeper path.",
+      "missing": null
+    },
+    "capabilities": []
+  }
 }

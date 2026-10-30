@@ -4,6 +4,8 @@
 // `targets` lists the modes R6 aims for one day; connectors.ts decides which of them work in this build,
 // so a card never claims more than the code does today. A vendorUrl is a plain "Visit site" link, never a mode.
 import type { ConnectorCategory, ConnectorModeName } from '../contracts.ts';
+// Ink v2 wave 5 (package 5-0): each new playbook's own entries, in build/catalogue/<id>.ts.
+import { PLAYBOOK_CATALOGUE_ENTRIES } from './catalogue-playbooks.ts';
 
 export type CatalogueRegion = 'global' | 'india';
 export type CatalogueEntry = {
@@ -107,15 +109,20 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   entry('customers', 'attio', 'Attio', 'https://attio.com/', ['read'], GI, 'Workspace access token',
     'A flexible CRM. Linking it to Chausar is planned.'),
 
+  entry('marketing', 'bluesky', 'Bluesky', 'https://bsky.app/', ['write'], GI, 'Your app password for the selected server and handle',
+    'Official plain-text API posts after exact approval. Credentials stay in the current session.'),
+  entry('marketing', 'mastodon', 'Mastodon', 'https://joinmastodon.org/', ['write'], GI, 'Your instance token with write:statuses',
+    'Public plain-text API posts after exact approval, within the lower of five hundred characters and the instance limit.'),
+
   // Messaging and support
   entry('messaging', 'whatsapp', 'WhatsApp (Business Platform)', 'https://business.whatsapp.com/', ['write'], GI, 'Meta business sign-up',
     "WhatsApp's business rules limit AI-first chat services; read them before using WhatsApp for client support."),
   entry('messaging', 'telegram', 'Telegram', 'https://telegram.org/', ['write'], GI, 'Bot token',
-    'Alerts and quick approvals for you through a bot are planned.'),
+    'Official channel posts through your own administrator bot, each separately approved. No direct messages.'),
   entry('messaging', 'slack', 'Slack', 'https://slack.com/', ['write'], GI, 'Incoming webhook or bot token',
     'Posting updates to a channel is planned.'),
-  entry('messaging', 'discord', 'Discord', 'https://discord.com/', ['write'], GI, 'Bot token or channel webhook',
-    'Suits a community around your business, not support with promised reply times.'),
+  entry('messaging', 'discord', 'Discord', 'https://discord.com/', ['write'], GI, 'Incoming server-channel webhook',
+    'Official incoming webhook posts after exact approval. Automatic mentions are disabled and uncertain outcomes are never retried.'),
 
   // Docs and ops
   entry('docs-ops', 'notion', 'Notion', 'https://www.notion.com/', ['write'], GI, 'Notion sign-in',
@@ -146,9 +153,9 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
   // Books, tax and invoicing
   entry('books-tax', 'chausar-books', 'Chausar back office', null, ['read', 'write'], GI, 'None, it is inside Chausar',
     'Invoices, payments and books. Every number comes from Chausar\'s calculator with a receipt.'),
-  entry('books-tax', 'zoho-books', 'Zoho Books', 'https://www.zoho.com/books/', ['read', 'write'], GI, 'Zoho sign-in',
-    'Books and invoices in Zoho. Reading them into Chausar needs a sign-in path this build lacks.'),
-  entry('books-tax', 'tally', 'TallyPrime', 'https://tallysolutions.com/', ['read'], I, 'TallyPrime on this computer',
+  entry('books-tax', 'zoho-books', 'Zoho Books', 'https://www.zoho.com/books/', ['read', 'write'], GI, 'Owner-created self client and current access token',
+    'Connect the selected client organisation for the open session. Review exact supported drafts and approve issuing separately in the accounting desk.'),
+  entry('books-tax', 'tally', 'TallyPrime', 'https://tallysolutions.com/', ['read', 'write'], I, 'TallyPrime on this computer',
     "Reads TallyPrime's Day Book into the back office. Tested with a synthetic recording, not a real installation."),
   entry('books-tax', 'xero', 'Xero', 'https://www.xero.com/', ['read'], G, 'Xero sign-in',
     'Reading your Xero books is planned.'),
@@ -192,6 +199,21 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     'An intake form on your site, added through the brief, is planned.'),
   entry('analytics', 'typeform', 'Typeform', 'https://www.typeform.com/', [], GI, 'Sign-in or personal token',
     'Forms. Its free plan is small for real client intake. Planned.'),
+  // Ink v2 wave 5, 5A6: mail files the owner imports, the webhook handoff (K24) and speech out on the owner's key.
+  entry('email', 'mail-import', 'Mail files you import', null, ['read'], GI, 'None: a file you export from your mail app',
+    'Import .eml or .mbox files. Each message is screened first.'),
+  entry('docs-ops', 'n8n-webhook', 'n8n webhook', null, ['write'], GI, 'The webhook address n8n gives you',
+    'Sends only an item you approve, as shown.'),
+  entry('docs-ops', 'make-webhook', 'Make webhook', null, ['write'], GI, 'The webhook address Make gives you',
+    'Sends only an item you approve, as shown.'),
+  entry('docs-ops', 'google-tts', 'Google Cloud Text-to-Speech', null, ['write'], GI, 'API key',
+    'Exact approved stock speech on your own Google key. Add the key in the narration desk. Client production waits for named rights review.'),
+  entry('docs-ops', 'sarvam-tts', 'Sarvam AI (Bulbul)', null, ['write'], I, 'API key',
+    'Indian languages, made in India. Planned.'),
+  entry('docs-ops', 'elevenlabs', 'ElevenLabs', null, ['write'], GI, 'API key',
+    'Natural voices on your own key; a cloned voice needs the speaker\'s recorded consent. Planned.'),
+  // Ink v2 wave 5: each new playbook's own entries (build/catalogue-playbooks.ts; none until a package adds them)
+  ...PLAYBOOK_CATALOGUE_ENTRIES,
 ]);
 
 const BY_ID: ReadonlyMap<string, CatalogueEntry> = new Map(CONNECTOR_CATALOGUE.map(item => [item.id, item]));

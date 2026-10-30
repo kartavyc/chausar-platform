@@ -1,0 +1,2 @@
+.check { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control); font-size: var(--text-read); color: var(--fg2); }
+.check input { flex: none; width: var(--sp-4); height: var(--sp-4); accent-color: var(--link); }

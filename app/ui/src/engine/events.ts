@@ -20,7 +20,9 @@ import type { VentureEventsResult, VentureRunEvent, VentureRunEventType } from '
 
 const RUN_EVENT_TYPES: readonly VentureRunEventType[] = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES in the engine): ids only; notify.new also carries a count.
-  'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran'];
+  'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed.
+  'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten'];
 const whole = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 export const POLL_MS = 5000;
 /** How long a dropped stream waits before it opens again: the server's own `retry: 5000`. */
@@ -70,7 +72,7 @@ export function readRunEvent(value: unknown): VentureRunEvent | null {
   if (typeof v.type !== 'string' || !RUN_EVENT_TYPES.includes(v.type as VentureRunEventType)) return null;
   if (typeof v.businessId !== 'string' || typeof v.at !== 'string') return null;
   const event: VentureRunEvent = { type: v.type as VentureRunEventType, businessId: v.businessId, at: v.at };
-  if (typeof v.runId === 'string') event.runId = v.runId;
+  if (v.type !== 'privacy.forgotten' && typeof v.runId === 'string') event.runId = v.runId;
   if (whole(v.seq)) event.seq = v.seq;
   if (v.type === 'notify.new' && whole(v.count)) event.count = v.count;
   return event;
@@ -81,7 +83,7 @@ function fromVentureEvent(record: VentureEventsResult['events'][number]): Ventur
   const businessId = typeof data.businessId === 'string' ? data.businessId : '';
   if (RUN_EVENT_TYPES.includes(record.name as VentureRunEventType)) {
     const event: VentureRunEvent = { type: record.name as VentureRunEventType, businessId, at: record.at };
-    if (typeof data.runId === 'string') event.runId = data.runId;
+    if (record.name !== 'privacy.forgotten' && typeof data.runId === 'string') event.runId = data.runId;
     return event;
   }
   return { type: 'queue.changed', businessId, at: record.at };

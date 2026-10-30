@@ -13,6 +13,8 @@ import { checkResearchUrl } from '../runtime/venture/network/research.ts';
 import { net } from './venture-network-env.ts';
 import { code, owner, phone } from './venture-views-env.ts';
 import { importFile, pages, searchEnv, SKINCARE, skincarePeople, webSearch, type SearchEnv } from './venture-network-search-env.ts';
+/** 5A6: every self-made read asks robots.txt first; these checks are about the pages themselves. */
+const pagesOnly = (fetched: readonly string[]) => fetched.filter(url => !url.endsWith('/robots.txt'));
 
 const ABOUT = 'https://dewdrop.example/about';
 const PRESS = 'https://press.example/d2c-summit';
@@ -54,7 +56,7 @@ test('public pages only, through the network guard: each line a sentence that na
   env.deps.net = { resolve: site.resolve, send: site.send };
   const brief = await research(env, person.id);
   assert.deepEqual(web.asked, ['"Asha Rao" Dewdrop Naturals Pune'], 'her name and company, nothing else of hers');
-  assert.deepEqual(site.fetched, [ABOUT, PRESS], 'the LinkedIn page was never opened');
+  assert.deepEqual(pagesOnly(site.fetched), [ABOUT, PRESS], 'the LinkedIn page was never opened');
   assert.deepEqual(brief.lines, [
     { text: 'Asha Rao co-founded Dewdrop Naturals in 2019.', url: ABOUT },
     { text: 'Asha Rao now leads sales for the company from Pune.', url: ABOUT },
@@ -86,7 +88,7 @@ test('a LinkedIn or other profile address is refused at every hop, before anythi
   env.deps.webSearch = webSearch([{ url: ABOUT, title: 'About', snippet: '' }]);
   env.deps.net = { resolve: site.resolve, send: site.send };
   const brief = await research(env, person.id);
-  assert.deepEqual(site.fetched, [ABOUT], 'the redirect to LinkedIn was never followed');
+  assert.deepEqual(pagesOnly(site.fetched), [ABOUT], 'the redirect to LinkedIn was never followed');
   assert.deepEqual(brief.lines, []);
   assert.equal(brief.web, 'none');
 });
@@ -101,7 +103,7 @@ test('a page with words aimed at the agent is held and gives nothing; an address
   env.deps.net = { resolve: site.resolve, send: site.send };
   const brief = await research(env, person.id);
   assert.deepEqual(brief.lines, []);
-  assert.deepEqual(site.fetched, [ABOUT]);
+  assert.deepEqual(pagesOnly(site.fetched), [ABOUT]);
   assert.ok(brief.line.includes('held'), brief.line);
 });
 

@@ -1,0 +1,3 @@
+// Chausar leadgen gallery, original. Estimates are Chausar model estimates, never sourced prices.
+import type { StartTile } from '../kit/define.ts';
+export const LEAD_TILE: StartTile = { category: 'marketing', icon: 'users', line: 'Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.', youDo: { hoursMin: 4, hoursMax: 6, line: 'Send the messages, take the calls.' }, team: { roleIds: ['researcher', 'writer', 'producer', 'billing'], line: 'Finds leads with sources, drafts outreach, keeps follow-ups.' }, pay: { minRupees: 15000, maxRupees: 40000, per: 'a client a month' } };

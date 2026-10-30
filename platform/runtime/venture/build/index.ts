@@ -16,6 +16,12 @@ import { postingLimitsGet, postingLimitsSet } from './posting-limits.ts';
 import { socialCalendarHandler } from '../playbooks/social/calendar-export.ts';
 import { connectorsCheckHandler } from './connector-check.ts';
 import { shareRequestHandler } from './file-requests.ts';
+// Ink v2 wave 5, 5A6: monitors, mail in, local apps, the webhook handoff and speech out.
+import { monitorsAdd, monitorsList, monitorsRemove } from './monitors.ts';
+import { webhookSet } from './webhook-handoff.ts';
+import { localAppsList } from './local-apps.ts';
+import { mailImport, mailThreads } from './mail-in.ts';
+import { speechProviders } from './speech-out.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -66,6 +72,16 @@ export const handlers: VentureHandlerTable = Object.freeze({
   // Ink v2 wave 4 (package 4-0 registered these; 4J7 replaces them): connection checks and the client's file request.
   'venture.connectors.check': connectorsCheckHandler satisfies VentureHandler<'venture.connectors.check'>,
   'venture.share.request': shareRequestHandler satisfies VentureHandler<'venture.share.request'>,
+  // Ink v2 wave 5 (package 5-0 registered these; 5A6 replaces them): monitors, mail import, the owner's local apps, the
+  // webhook handoff and speech providers.
+  'venture.monitors.list': monitorsList satisfies VentureHandler<'venture.monitors.list'>,
+  'venture.monitors.add': monitorsAdd satisfies VentureHandler<'venture.monitors.add'>,
+  'venture.monitors.remove': monitorsRemove satisfies VentureHandler<'venture.monitors.remove'>,
+  'venture.mail.import': mailImport satisfies VentureHandler<'venture.mail.import'>,
+  'venture.mail.threads': mailThreads satisfies VentureHandler<'venture.mail.threads'>,
+  'venture.localApps.list': localAppsList satisfies VentureHandler<'venture.localApps.list'>,
+  'venture.webhook.set': webhookSet satisfies VentureHandler<'venture.webhook.set'>,
+  'venture.speechOut.providers': speechProviders satisfies VentureHandler<'venture.speechOut.providers'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';

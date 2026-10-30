@@ -1,0 +1,16 @@
+/* Ink tokens keep the channel canvas readable at phone widths. */
+.stack,.intro,.edit { display:grid;gap:var(--sp-3);min-width:0; }
+.stack { font-size:var(--text-read);overflow-wrap:anywhere; }
+.select { width:100%;min-width:0;min-height:var(--control);padding:var(--sp-2);background:var(--surface);color:var(--fg);border:var(--hair) solid var(--line);border-radius:var(--radius);font:inherit; }
+.counts { display:flex;flex-wrap:wrap;gap:var(--sp-4);margin:0; }
+.counts div { display:grid;gap:var(--sp-1); }
+.counts dt,.trace { color:var(--fg2); }
+.counts dd { margin:0;font-family:var(--font-mono); }
+.trace { padding-inline-start:var(--sp-4); }
+.post { border-top:var(--hair) solid var(--line-soft);padding-block:var(--sp-3);display:grid;gap:var(--sp-2); }
+.post p { white-space:pre-wrap; }
+.actions { display:flex;flex-wrap:wrap;gap:var(--sp-2); }
+
+.still { display:block;width:100%;height:auto;object-fit:contain;border-radius:var(--radius); }
+
+.receipt { white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;font-size:var(--text-read); }

@@ -18,6 +18,7 @@ import type {
 } from './contracts.ts';
 import { requireAppChannel } from './records.ts';
 import { endSessionAllowances } from './policy/allow-session.ts';
+import {clearSessionMemory} from './core/session-cleanup.ts';
 
 const NOT_BUILT_MESSAGE = 'This part of Chausar is not built yet.';
 const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YET', message);
@@ -50,6 +51,8 @@ export const PACKAGE_LOADERS: PackageLoaders = Object.freeze({
   chief: () => import('./chief/index.ts') as Promise<VenturePackageModule>,
   network: () => import('./network/index.ts') as Promise<VenturePackageModule>,
   notify: () => import('./notify/index.ts') as Promise<VenturePackageModule>,
+  // Ink v2 wave 5 (package 5-0): playbooks (the kit's methods, the CA firm's new ones and every business's desk).
+  playbooks: () => import('./playbooks/index.ts') as Promise<VenturePackageModule>,
 });
 
 function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMethod): boolean {
@@ -198,6 +201,9 @@ export class VentureHost {
       ...(options.net ? { net: options.net } : {}),
       // Ink v2 wave 4 (4J23): whether this business is temporary (no real money, nothing sent), only on the hosted web server.
       ...(options.trial && options.host === 'hosted-web' ? { trial: options.trial } : {}),
+      // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.
+      ...(options.print && options.host !== 'hosted-web' ? { print: options.print } : {}),
+      ...(options.formsBrowser && options.host === 'desktop' ? { formsBrowser: options.formsBrowser } : {}),
     });
   }
 
@@ -340,7 +346,24 @@ export class VentureHost {
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();
     const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     type Entry = (deps: VentureDeps, ctx: Context, token: string, input: Record<string, unknown>) => Promise<unknown>;
-    if (op === 'page') return (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
+    if(body.storefront===true){const entry=(await this.#load('playbooks')).storefrontEntry;const {storefront:_flag,...fields}=body;return typeof entry==='function'?(entry as Entry)(this.#deps,ctx,token,fields):null;}
+    if (body.siteForm === true) {
+      const capture = (await this.#load('playbooks')).siteFormEntry;
+      const {siteForm:_flag,...fields}=body;
+      return typeof capture === 'function' ? (capture as Entry)(this.#deps,ctx,token,fields) : null;
+    }
+    // 5G: a rating token never falls through to a client draft link, and carries no transcript.
+    if (body.supportRating === true) {
+      const rating = (await this.#load('playbooks')).supportRatingEntry;
+      return typeof rating === 'function' ? (rating as Entry)(this.#deps, ctx, token, { operation: op === 'page' ? 'page' : 'rate', score: body.score }) : null;
+    }
+    if (op === 'page') {
+      const found = await (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
+      if (found !== null) return found;
+      // Ink v2 wave 5 (5A5): a client report's link (playbooks/kit/report/share.ts), read only, opens on the same page.
+      const report = (await this.#load('playbooks')).reportSharePage;
+      return typeof report === 'function' ? (report as Entry)(this.#deps, ctx, token, { preview: body.preview === true }) : null;
+    }
     if (op === 'comment') return (comment as Entry)(this.#deps, ctx, token, body);
     if (op === 'upload') return (upload as Entry)(this.#deps, ctx, token, body);
     return (decide as Entry)(this.#deps, ctx, token, body);
@@ -390,6 +413,7 @@ export class VentureHost {
     // 4J1: this vault's "allow for this session" ends first, before anything that could throw; other businesses open in
     // this process keep theirs (policy/allow-session.ts).
     endSessionAllowances(this.#store);
+    clearSessionMemory(this.#secrets);
     this.#closed = true;
     this.#secrets.clear();
     this.#port = null;
@@ -469,7 +493,7 @@ export class VentureHost {
       },
       async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
       async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
-      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' }) {
+      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }) {
         return port().runPreview(ctx, callId, approvedDigest, validate, options);
       },
     });

@@ -227,7 +227,9 @@ export async function ideasListHandler(deps: VentureDeps, ctx: Context, payload:
   exactPayload(payload ?? {}, []);
   const { state, venture } = readAs(deps, ctx, 'read');
   const nowMs = deps.clock().getTime();
-  return { ideas: currentIdeas(state, venture, nowMs, await builtKinds()).map(ideaView), waiting: waitingOnYou(state, venture, nowMs) };
+  // Ink v2 wave 5 (5A3): the idea pipeline the owner and the agents add to, on the same records (playbooks/kit/ideas.ts).
+  const pipeline = (await import('../playbooks/kit/ideas.ts')).pipelineIdeas(state, venture, nowMs);
+  return { ideas: currentIdeas(state, venture, nowMs, await builtKinds()).map(ideaView), waiting: waitingOnYou(state, venture, nowMs), pipeline };
 }
 
 /**

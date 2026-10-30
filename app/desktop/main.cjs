@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
@@ -12,6 +12,9 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
 let hostAwake = false;
+const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;}});
+const formsBrowser = require('./owner-browser-host.cjs').createFormsHost({BrowserWindow,WebContentsView,session,window:()=>window,onClosed:()=>stopFormsBrowser()});
+function stopFormsBrowser() { void formsBrowser.close(); engine?.closeForms?.(); }
 const backgroundRequested = process.argv.includes('--background');
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
@@ -71,9 +74,12 @@ async function startEngine() {
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000 });
-  engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
+  engine.on('status', status => { if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
-  engine.on('venture-event', event => { if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
+  engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
+  // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
+  engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
+  engine.on('forms', (request, answer, verify) => formsBrowser.handle(request, answer, verify));
   await engine.start();
   await reportJobLifecycle();
 }
@@ -175,7 +181,7 @@ function createWindow(hash = '') {
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.once('ready-to-show', () => window.show());
   window.loadURL(TRUSTED_DOCUMENT + hash);
-  window.on('closed', () => { window = null; lifecycleChanged(); noteStillRunning(); });
+  window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
   // Notifications (Ink v2 wave 4, 4G1): the owner is watching only while this window is shown, not minimised and
   // focused; alerts outside the app wait while they are. Told to the engine on each change.
   // The tray's count was news since the owner last looked (4G3): looking clears it.
@@ -193,25 +199,28 @@ if (singleInstance) app.whenReady().then(async () => {
   try { inkFiles = await listInkFiles(); }
   catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); return; }
   hostAwake = true;
-  powerMonitor.on('suspend', () => { hostAwake = false; lifecycleChanged(); });
+  powerMonitor.on('suspend', () => { stopFormsBrowser(); hostAwake = false; lifecycleChanged(); });
   powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
-  // One permission is allowed: the app's own window may write text to the clipboard (Copy brief, Copy invoice). Everything else is refused.
+  // Clipboard stays unchanged. Microphone capture needs a fresh owner-started native caption session; camera stays refused.
   // The page may carry an Ink '#/' route; the rule is the IPC sender check's own, so the two never drift apart.
   const clipboardWrite = (contents, permission) => permission === 'clipboard-sanitized-write' && Boolean(window) && contents === window.webContents && isTrustedDocument(contents.mainFrame?.url);
-  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(clipboardWrite(contents, permission)));
-  session.defaultSession.setPermissionCheckHandler((contents, permission) => clipboardWrite(contents, permission));
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {if(clipboardWrite(contents,permission))callback(true);else void captionMicrophone.request(contents,permission,details).then(callback,()=>callback(false));});
+  session.defaultSession.setPermissionCheckHandler((contents, permission, origin, details) => clipboardWrite(contents, permission)||captionMicrophone.check(contents,permission,origin,details));
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
   protocol.handle('chausar', async request => {
     const url = new URL(request.url); const file = inkFiles.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(inkRoot, file));
-    return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
+    return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
   });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
-      return { ok: true, result: await engine.request(request.method, request.payload) };
+      if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
+      if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();
+      const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
+      return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
   ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (event, input) => {
@@ -222,6 +231,16 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
   ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
+  ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();
+  const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  ipcMain.handle('chausar:youtube:saveProject', (event, input) => youtubeProjects.save(event, input, youtubeProjectDeps()));
+  ipcMain.handle('chausar:youtube:openProject', (event, input) => youtubeProjects.open(event, input, youtubeProjectDeps()));
+  ipcMain.handle('chausar:apptest:pickApk', (event, input) => require('./app-test-apk.cjs').pickClientApk(event, input, youtubeProjectDeps()));
+  const socialProjects = require('./social-project.cjs').createSocialProject();
+  ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
+  ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

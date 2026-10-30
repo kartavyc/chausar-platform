@@ -22,12 +22,14 @@ import { owner, seedBlueprint, seedOrder, setup } from './venture-views-env.ts';
 
 const names = (env: { store: { read(): any } }) => listRecords(env.store.read(), 'venture-event').sort((a, b) => a.seq - b.seq).map(event => event.name);
 
-test('the run events join VENTURE_EVENTS, after every older event: the six of P1-A, then the eight of Ink v2 wave 4', () => {
+test('the run events join VENTURE_EVENTS, including the content-free wave five privacy signal', () => {
   assert.deepEqual([...VENTURE_RUN_EVENT_TYPES], [
     'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
     'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+    // 5-0 added chain.changed, desk.changed and idea.changed (Ink v2 wave 5).
+    'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
   ]);
-  assert.deepEqual(VENTURE_EVENTS.slice(-14), [...VENTURE_RUN_EVENT_TYPES]);
+  assert.deepEqual(VENTURE_EVENTS.slice(-18), [...VENTURE_RUN_EVENT_TYPES]);
 });
 
 test('a delivery run emits run.started and run.waiting, a review run.done, each followed by one queue.changed, published after the commit', async () => {
@@ -161,7 +163,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'onEvent', 'openExternal', 'pickNetworkFile', 'request', 'saveMoneyExport']);
+  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickNetworkFile', 'request', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });

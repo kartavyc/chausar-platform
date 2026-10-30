@@ -18,6 +18,8 @@ import { Sheet } from '../../parts/Sheet';
 import { EngineError, type ClientAddParams, type ClientLite, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Fields, MoreDetails } from './Fields';
+// W5 5A4: the client's brand kit, read by every creative step.
+import { BrandKit } from './BrandKit';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
@@ -98,6 +100,8 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
         <>
           <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
 
+          <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
+
           <section aria-labelledby={ordersId}>
             <h3 id={ordersId} className={s.heading}>{t('clients.orders')}</h3>
             {orders.data && mine.length === 0 && <p className={s.quiet}>{t('clients.order.none')}</p>}
@@ -112,6 +116,8 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
                 ))}
               </ul>
             )}
+            {/* W5 5A2: a sales proposal for this client, drafted from the records; it waits on Today, and the owner sends it. */}
+            <div className={s.formActions}><Button size="sm" onClick={(event) => openSheet('proposal', `client:${client.id}`, event.currentTarget)}>{t('kit-sales.proposal.open')}</Button></div>
           </section>
 
           {theirDrafts.length > 0 && (

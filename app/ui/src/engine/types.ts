@@ -52,7 +52,7 @@ export interface QueueRow {
    * 4G2: a needs-you probe's notice: which probe, how much it matters, the screen Open goes to (an address such as
    * #/connections), and each amount its line states, exactly as written there, with its receipt, in order.
    */
-  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
+  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
 }
 /**
  * The row kinds Ink v2 wave 4 adds on the engine (4C1 proposal, 4E1 followup, 4E3 reply, 4G2 notice). W3's states.ts
@@ -199,7 +199,8 @@ export interface AgentView {
   chat?: boolean;
 }
 export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed'
-  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran';
+  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
+  | 'chain.changed' | 'desk.changed' | 'idea.changed' | 'privacy.forgotten';
 /** seq: the event's place in the business's log, for replay after a reconnect (4G1); count: on notify.new only. */
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
 // phase 2 views
@@ -313,10 +314,10 @@ export interface TaxWorking { period: Display; sections: TaxWorkingSection[]; ne
 /** `venture.ca.get` (the CA firm playbook): the CA of record, rate tables waiting for the CA, and sign-off requests. */
 export interface CaOfRecord { name: string; membershipNo: string }
 export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
-export interface CaSignoffRequest { id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
+export interface CaSignoffRequest { signoffId?: string | null; id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
 /** The newest regulated draft with the calculator's receipts (Ink v2 2A2); Your CA works each receipt again. */
 export interface CaLatestPapers { deliveryId: string; title: Display; receiptIds: string[] }
-export interface CaView { ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
+export interface CaView { citations?: CaCitationsView; ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
 
 /** Leads (platform/runtime/venture/contracts.ts LeadView): agents draft, the owner sends from his own mailbox. */
 export interface LeadEmailCheck { status: 'unverified' | 'verified' | 'failed'; at: string | null; line: string }
@@ -408,6 +409,8 @@ export interface VentureEventsResult { events: VentureEventRecordLite[]; lastSeq
 export interface PriceFigureLite { key: string; label: string; display: Display }
 export interface ReceiptLite {
   id: string; at: string; figures: PriceFigureLite[]; explanation: string; stale: boolean;
+  /** Raw code-computed total on a price receipt; absent on other receipt kinds. */
+  totalMinor?: string;
   /** 4J10 (mirrored by 4J22a): a stored receipt's signature and the public half that checks it; absent when unsigned. */
   signature?: ReceiptSignatureLite;
 }
@@ -420,7 +423,8 @@ export interface ReceiptSignatureLite { algorithm: 'ed25519'; publicKey: string;
  */
 export interface WorkReceiptLite {
   id: string; at: string; operation: string; currency: string; explanation: string;
-  figures: { key: string; label: string; display: Display; unit: 'money' | 'count' | 'percent' | 'post' }[];
+  /** WorkFigure's exact source amount and denomination are required, even when only display is shown. */
+  figures: { key: string; label: string; minor: string; display: Display; currency: string; unit: 'money' | 'count' | 'percent' | 'post' }[];
   steps: { op: string; inputs: string[]; result: string; rule: string }[];
   coverage?: CoverageView;
 }
@@ -432,7 +436,7 @@ export interface RowFigure { key: string; label: string; amount: string; unit: '
 export interface RowFigureReceipt {
   id: string; kind: 'row-figure'; ventureId: string; at: string; operation: 'venture.row-figure';
   // 4F3: 'scope-cap', a run's spend cap as its scope froze it when it started.
-  subject: { type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap'; recordId: string };
+  subject: { type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap' | 'go-no-go'; recordId: string };
   figures: RowFigure[]; allowedNumbers: string[]; explanation: Display; digest: string; stale: boolean;
 }
 
@@ -529,7 +533,11 @@ export interface OfferLite {
   /** 4J8: an offer the owner added; its words are the owner's and the owner may take it out (patch.removeOffer). */
   addedByOwner?: true;
   /** unitPriceMinor is engine data the UI only tests for null ("Set your price"); it never formats it. */
-  pricing: { model: PricingModel; quantityUnit: 'month' | 'project' | 'hour'; unitPriceMinor: string | null; unitPriceLabel: 'told-by-you' | 'not-set'; defaultQuantity: string };
+  pricing: {
+    model: PricingModel; quantityUnit: 'month' | 'project' | 'hour'; unitPriceMinor: string | null; unitPriceLabel: 'told-by-you' | 'not-set'; defaultQuantity: string;
+    /** 5A2: priced as a share of an amount the client confirms later, in place of a fixed price; absent otherwise. */
+    share?: SharePrice;
+  };
 }
 export interface BlueprintStepLite { id: string; title: LabelledLite<string>; doneBy: 'agent' | 'you' | 'agent-then-you'; capability: 'drafts-now' | 'planned' | 'yours'; note: string }
 /**
@@ -542,6 +550,7 @@ export interface BlueprintLite {
   name: LabelledLite<string>; oneLiner: LabelledLite<string>; customer: LabelledLite<string>;
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
   backOffice: {
+    taxRateBps?:string;taxState?:string|null;lutConfirmed?:boolean;
     currency: string; taxLabel: string; taxRegistered: LabelledLite<boolean>; invoiceKind: 'tax-invoice' | 'invoice';
     taxInvoiceReady: boolean; taxInvoiceMissing: string[]; paymentRail: string;
   };
@@ -555,7 +564,11 @@ export type RightsBasisLite = 'own-footage' | 'licence' | 'creator-clip-programm
  * `OfferIntakeAsk`: what an order for a flagship offer asks. rights: the bases it accepts (empty: no footage is cut).
  * calendar: a social content calendar's month, channels, posts per channel and weekdays; clientRules: the client's word lists.
  */
-export interface OfferIntakeLite { rights: RightsBasisLite[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[] }
+export interface OfferIntakeLite {
+  rights: RightsBasisLite[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[];
+  /** 5A1: a kit offer's own intake fields (kept under the order's intake.fields); absent on the flagships. */
+  kit?: { id: string; label: string; help: string; kind: 'rights' | 'choice' | 'yes-no' | 'text' | 'list' | 'date' | 'money' | 'file' | 'consent' | 'people'; required: boolean; options?: string[] }[];
+}
 /** `OrderIntake.calendar`: weekdays are ISO numbers, 1 Monday to 7 Sunday. The engine plans the dated slots from it. */
 export interface CalendarIntakeLite { month: string; channels: string[]; postsPerChannel: number; weekdays: number[] }
 /** `OrderIntake.clientRules`: the client's own word lists; a missing list is empty. */
@@ -564,9 +577,10 @@ export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string
 export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite> }
 export interface BlueprintPatchLite {
   name?: string; oneLiner?: string; customer?: string;
-  offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel }[];
+  /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
+  offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
   /** 4J8: a new offer of the owner's, with no price yet; and taking out an offer the owner added. */
-  addOffer?: { name: string; description: string; pricingModel: PricingModel };
+  addOffer?: { name: string; description: string; pricingModel: PricingModel } | {youtubeService:string};
   removeOffer?: { id: string };
 }
 
@@ -624,6 +638,7 @@ export interface Deleted { deleted: true; copiesRemoved?: unknown; externalCopie
  * nothing owed; the UI never adds up invoices itself.
  */
 export interface ClientLite {
+  self?: true;
   id: string; at: string; name: string; email: string | null; countryCode: string | null; taxId: string | null; stateCode: string | null; note: string | null;
   owed?: { display: Display; receiptId: string };
 }
@@ -631,10 +646,12 @@ export interface ClientAddParams { name: string; email?: string; countryCode?: s
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
 export type OrderStatus = 'open' | 'invoiced' | 'delivered' | 'cancelled';
 export interface OrderLite {
+  narrationFetched?: {fileId:string;url:string;finalUrl:string;digest:string};
+  internal?: true;
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
   /** OrderRecord.intake, trimmed (a flagship offer's intake). cutFile: the finished cut on this computer, desktop only. */
-  intake?: { format?: 'long' | 'short'; cutFile?: string | null };
+  intake?: { calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite; rights?: { basis: RightsBasisLite; holder: string; reference: string | null; scope: string | null; expiresOn: string | null; recordedAt: string; recordedBy: string } | null; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; format?: 'long' | 'short'; cutFile?: string | null; fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null> };
   /** 4J3: the order's stage steps from the records, and what waits on the owner ("2 wait on you: ..."), or null. */
   stages?: OrderStageView[];
   waitsOnYou?: OrderWaitsOnYou | null;
@@ -658,8 +675,9 @@ export interface OrderWaitsOnYou { count: number; items: { stage: OrderStageId; 
 /** `venture.files.list` (UploadView), trimmed: a file a client sent, kept in the vault. */
 export interface UploadLite {
   /** transcript: an SRT or VTT file of what was said, with timings. image: an order's poster, a still from its cut (4J3). */
-  id: string; at: string; name: string; format: 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image'; bytes: number;
-  scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string } | { kind: 'poster'; orderId: string }; clientData: boolean;
+  id: string; at: string; name: string; format: 'docx' | 'csv' | 'xlsx' | 'pdf' | 'transcript' | 'image' | 'audio'; bytes: number;
+  /** media (5A4): an order's photos (cleaned of location data when added) and recordings, apart from the files agents read. */
+  scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string } | { kind: 'poster'; orderId: string } | { kind: 'media'; orderId: string }; clientData: boolean;
   /**
    * Where it came from: absent or 'client', a transcript made on this computer from the cut (venture.files.transcribe),
    * or a still from the cut (venture.files.poster, 4J3; never listed by venture.files.list).
@@ -964,9 +982,19 @@ export interface CaReceiptView {
 /** `venture.rules.list`: the dated platform rules a flagship playbook's checks rest on. */
 export interface PlatformRuleView {
   id: string; platform: string; rule: Display; checkedOn: string; stale: boolean; usedBy: string[]; limitations: string[];
-  source: { title: string; url: string } | null; line: Display;
+  source: { title: string; url: string } | null;
+  /** 5A3: every source; a house rule's is "Chausar's own rule" with no address (url ''). */
+  sources: { title: string; url: string }[];
+  line: Display;
 }
-export interface RulesListView { playbook: { id: string; label: string; riskLevel: string; lastReviewed: string } | null; rules: PlatformRuleView[]; summary: Display }
+/** 5A3 (P6): a recipe and one row of the measurement-boundaries table, as the engine words them. */
+export interface RecipeView { id: string; name: Display; whenToUse: Display; steps: { do: Display; why: Display }[]; howToRead: Display; mistakes: Display[] }
+export interface BoundaryView { evidence: Display; canSay: Display; cannotSay: Display }
+export interface RulesListView {
+  playbook: { id: string; label: string; riskLevel: string; lastReviewed: string } | null; rules: PlatformRuleView[]; summary: Display;
+  /** 5A3: a kit playbook's recipes and measurement boundaries; empty for the flagships. */
+  recipes: RecipeView[]; boundaries: BoundaryView[];
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ink v2 wave 4: the views the new engine methods answer (contracts.ts section 9e), named by package 4-0. Every figure
@@ -992,7 +1020,8 @@ export interface DepartmentView {
   /** doneThisWeek.permille (4A2): this week's count scaled to the busiest department's, floored; 0 when none did a job. */
   doneThisWeek: { count: number; receiptId: string; permille?: number }; spendThisMonth: DepartmentSpend; series: { jobs: SeriesPoint[]; spend: SeriesPoint[] };
 }
-export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed';
+export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed'
+  | 'monitors'; // 5A6: page monitors
 export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: string; outcome: 'ok' | 'warn' | 'failed'; line: Display } | null; note: Display | null }
 export interface KeeperView { jobs: KeeperJobView[] }
 export interface TeamListView {
@@ -1367,8 +1396,8 @@ export type RoutineSchedule =
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
-export interface RoutineView { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
-export interface RoutineInput { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
+export interface RoutineView { recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
 export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
 export interface AutoReadinessView { agent: string; items: { id: string; label: Display; met: boolean; line: Display }[]; locked: true; line: Display }
@@ -1399,6 +1428,185 @@ export interface IdeaView { id: string; title: Display; reason: Display; evidenc
 /** 4J18: one line of the capability page, with what it is about (key) and its honest state, so the screen can word it in Hindi. */
 export type CapabilityItemView = { list: 'see' | 'do' | 'off'; key: string; state: 'works' | 'reads' | 'records' | 'hands-off' | 'planned' | 'off'; line: Display };
 export interface CapabilityPageView { agent: string; canSee: Display[]; canDo: Display[]; off: Display[]; items: CapabilityItemView[]; line: Display }
+
+/**
+ * Ink v2 wave 5 (package 5-0): the wave 5 methods' shapes as the engine names them (platform/runtime/venture/contracts.ts
+ * W5_METHODS, and each owning package's records file). A result still marked W5Placeholder is one its package has not
+ * built; the package replaces its own line here with the fields the screen reads.
+ */
+export interface W5Placeholder { placeholder: true }
+/**
+ * 5A1: `OrderChainView` (platform/runtime/venture/playbooks/kit/records-chain.ts): a kit order's stages, each with its
+ * state, the stage it is at and the line "Stage 2 of 4", where the chain stands and a note when it waits or stopped.
+ */
+export interface OrderChainView {
+  orderId: string; playbook: string; offerKey: string; stage: number; of: number; line: string;
+  state: 'running' | 'waiting' | 'stopped' | 'done'; since: string | null;
+  stages: {
+    n: number; stepId: string; title: string; produces: string; state: 'done' | 'now' | 'waiting' | 'not-started' | 'stopped';
+    /** 5A3: what a person does by hand while the stage's connector is only planned, or null. */
+    manualPath: { step: string; connector: string; waitsOn: string; line: string } | null;
+  }[];
+  note: string | null;
+  prerequisites?: {stepId:string;title:string;state:'done'|'now'|'waiting'|'not-started'|'stopped'}[];
+  approval?: {stepId:string;title:string;state:'done'|'now'|'waiting'|'not-started'|'stopped'};
+}
+/** 5A2: inputs by name, money as the owner typed it in rupees, null for an input the owner does not know. */
+export type GoNoGoInputs = Readonly<Record<string, string | null>>;
+/** 5A2: what the GO card reads, in its order. */
+export type GoNoGoInputName = 'upfront' | 'monthly' | 'months' | 'limit';
+export type GoNoGoVerdict = 'GO' | 'HOLD' | 'NO-GO';
+/** 5A2: one GO, HOLD or NO-GO card; maxLoss opens its receipt (venture.receipt.get with the card's id). */
+export interface GoNoGoCardView {
+  id: string; at: string; playbook: string; subject: string; verdict: GoNoGoVerdict; line: Display;
+  unknown: { input: GoNoGoInputName; label: Display }[];
+  maxLoss: { minor: string; display: Display; receiptId: string } | null;
+  limit: { minor: string; display: Display } | null;
+  spendsNothing: Display | null;
+}
+export interface GoNoGoListView { cards: GoNoGoCardView[] }
+/** 5A2: a price that is a share of an amount the client confirms later (basis points the owner set). */
+export interface SharePrice { kind: 'share'; bps: string; baseMinor: string | null; baseEvidenceFileId: string | null; words: Display }
+/** 5A2: a pilot's terms agreed so far; left out, a fact is a placeholder. ownerHours: from the business; clientHours: from the client. */
+export interface SalesPilotTerms {
+  startsOn?: string; weeks?: number; hypothesis?: string; measure?: { what?: string; target?: string; by?: string };
+  ownerHours?: number; clientHours?: number; reference?: boolean;
+}
+export type SalesProposalSectionId = 'heard' | 'roadmap' | 'investment' | 'next' | 'questions';
+export interface SalesProposalSection { id: SalesProposalSectionId; title: string; lines: string[] }
+export type SalesProposalInvestment =
+  | { kind: 'price'; offerId: string; offerName: string; receiptId: string; totalMinor: string; display: Display; per: string }
+  | { kind: 'share'; offerId: string; offerName: string; bps: string; words: Display };
+export interface SalesProposalCheck { id: 'required-sections' | 'figures-resolve' | 'placeholders-listed'; passed: boolean; detail: Display }
+/** 5A2: a sales proposal; id null when the ask was wholly outside what the business does (exit says so). */
+export interface SalesProposalView {
+  id: string | null; at: string | null; to: string; offerId: string; offerName: string; pilot: boolean;
+  status: 'waiting' | 'approved' | 'outside';
+  sections: SalesProposalSection[]; investment: SalesProposalInvestment[]; placeholders: string[]; checks: SalesProposalCheck[];
+  author: 'template' | 'model'; line: Display;
+  exit: { verdict: 'partly' | 'outside'; reply: Display; rest: string[] } | null;
+  digest: string | null;
+  handoffs: OutreachHandoff[] | null;
+}
+/** 5A3: on 4J18's ideas; forward only, or dropped with a reason. */
+export type IdeaStage = 'inbox' | 'triage' | 'drafted' | 'made' | 'published' | 'dropped';
+export type IdeaGrade = 'worked' | 'so-so' | 'did-not';
+/** 5A3: one idea of the pipeline (platform/runtime/venture/playbooks/kit/records-rules.ts PipelineIdeaView). */
+export interface PipelineIdeaView {
+  id: string; text: Display; source: Display; by: 'owner' | 'agent'; role: string | null; stage: IdeaStage; addedOn: string; movedOn: string;
+  next: IdeaStage[]; dropReason: Display | null; expired: boolean; dropsOn: string | null; publishedOn: string | null; gradeFrom: string | null;
+  gradeDue: boolean; grade: IdeaGrade | null;
+}
+export interface IdeaAddedView { idea: PipelineIdeaView; line: Display }
+export interface IdeaMovedView { idea: PipelineIdeaView; line: Display }
+export interface IdeaGradedView { idea: PipelineIdeaView; line: Display }
+/** 5A4 (platform/runtime/venture/playbooks/kit/records-media.ts): brand kits, asset records, voice consent. */
+export interface KitClaim { claim: string; proofFileId: string }
+export interface BrandKitFields {
+  colours: string[]; fonts: string[]; logoFileId: string | null; voice: string[]; samples: string[];
+  bannedWords: string[]; bannedTopics: string[]; competitors: string[]; claims: KitClaim[];
+}
+export type BrandKitField = keyof BrandKitFields;
+export type BrandKitInput = Partial<BrandKitFields>;
+export type KitSource = 'client-kit' | 'business-voice' | 'house-style' | 'default';
+export type ResolvedKit = { [K in BrandKitField]: { value: BrandKitFields[K]; source: KitSource } };
+export interface BrandKitView {
+  clientId: string; kit: BrandKitFields | null; version: number | null; resolved: ResolvedKit; undo: BrandKitInput | null;
+  memory: { orderId: string; at: string; request: Display }[]; line: Display;
+}
+export type AssetSource =
+  | { kind: 'client-file'; uploadId: string | null } | { kind: 'generated'; model: string; prompt: string }
+  | { kind: 'licensed-stock'; provider: string; licenceId: string } | { kind: 'unknown' };
+export type AssetCost = { kind: 'receipt'; receiptId: string } | { kind: 'not-measured' } | { kind: 'reused'; assetId: string };
+export type DerivedUnit = 'narration' | 'captions' | 'translation' | 'dub' | 'article' | 'chapters';
+export type AssetSourceRef = { kind: 'upload'; id: string } | { kind: 'asset'; id: string } | { kind: 'transcript'; orderId: string };
+export interface AssetView {
+  id: string; at: string; orderId: string; clientId: string; runId: string | null; toolCallId: string | null; name: string; fileDigest: string | null;
+  source: AssetSource; licence: string | null; attribution: string | null; cost: AssetCost; consentId: string | null;
+  state: 'ready' | 'requested' | 'consent-withdrawn'; hygiene: { state: 'clean' | 'held' | 'not-media'; removed: string[] };
+  derived: { unit: DerivedUnit; source: AssetSourceRef; sourceDigest: string } | null;
+  supersededBy: string | null; supersedes: string | null; reusedFrom: string | null;
+  stale: boolean; blocked: { code: string; line: Display } | null; sourceLine: Display; costLine: Display;
+}
+export interface AssetsView { assets: AssetView[]; line: Display }
+export interface AssetRerunView { asset: AssetView; superseded: AssetView; line: Display }
+export interface AssetReuseView { asset: AssetView; line: Display }
+export type VoiceConsentState = 'current' | 'expired' | 'revoked' | 'replaced';
+export interface VoiceConsentItem {
+  id: string; at: string; speaker: string; recordingFileId: string; recordingDigest: string; transcript: string; statement: string; scope: string;
+  until: string | null; version: number; revokedAt: string | null; state: VoiceConsentState; assetsMade: number;
+}
+export interface VoiceConsentView { consent: VoiceConsentItem; line: Display }
+export interface VoiceConsentsView { consents: VoiceConsentItem[]; line: Display }
+/** 5A5 */
+export type ReportFormat = 'html' | 'pdf' | 'docx' | 'xlsx';
+/** One file of a report: its name, format, size, sha256 and bytes (base64), for the screen to offer as a download. */
+export interface ReportFileView { name: string; format: ReportFormat; bytes: number; sha256: string; contentBase64: string }
+/** venture.report.render: the files made (HTML always), manifest.json, why a PDF was not made, and what the report covers. */
+export interface ReportView {
+  id: string; runId: string; title: string; formats: ReportFormat[]; files: ReportFileView[];
+  manifest: { name: 'manifest.json'; bytes: number; sha256: string; contentBase64: string };
+  notes: Display[]; channels: string[]; period: { from: string; to: string } | null; estimates: number;
+}
+/** venture.report.list: each report without bytes (save makes it again), with every link's state, views and end. */
+export interface ReportListItem {
+  id: string; runId: string; orderId: string; title: string; at: string; formats: ReportFormat[]; files: Omit<ReportFileView, 'contentBase64'>[];
+  manifest: { name: 'manifest.json'; bytes: number; sha256: string }; notes: Display[]; channels: string[];
+  period: { from: string; to: string } | null; estimates: number; links: ReportShareView[];
+}
+export interface ReportListView { reports: ReportListItem[] }
+/** venture.report.share, .shareRotate, .shareDisable: url only in the answer that made or rotated it; reason otherwise. */
+export interface ReportShareView {
+  id: string; reportId: string; url: string | null; reason?: Display; from: string; to: string; channels: string[];
+  state: 'open' | 'disabled' | 'ended'; expiresAt: string; views: number; viewedAt: string | null;
+}
+/** 5A6 */
+export type MonitorKind = 'change' | 'contains' | 'price-below';
+export interface MonitorInput { url: string; kind: MonitorKind; text?: string; selector?: string; belowRupees?: string }
+/** platform/runtime/venture/build/records-connect.ts, the same shapes. */
+export interface MonitorView {
+  id: string; url: string; host: string; kind: MonitorKind; line: Display; lastCheckedAt: string | null; nextCheckAt: string | null;
+  alert: { at: string; line: Display } | null; failing: boolean; removed: boolean;
+}
+export interface MonitorsView { monitors: MonitorView[]; line: Display; hosted: boolean }
+export interface MailImportView { added: number; repeats: number; skipped: number; held: number; threads: number; line: Display }
+export interface MailThreadView {
+  id: string; subject: Display; from: string; count: number; lastAt: string; sources: ('mailbox' | 'file-import')[]; clientId: string | null;
+  desk: { playbook: string; kind: string } | null; held: boolean;
+}
+export interface MailThreadsView { threads: MailThreadView[]; mailbox: { connected: boolean; label: 'read'; line: Display; manualPath: Display } }
+export type LocalAppId = 'baocut' | 'kimo' | 'filmcraft';
+export interface LocalAppView {
+  id: LocalAppId; name: string; label: 'write' | 'planned: write'; found: boolean; note: Display; licence: Display; manualPath: Display | null;
+  needs: { remedy: Display; next: Display | null; at: string; command: string } | null;
+}
+export interface LocalAppsView { apps: LocalAppView[]; hosted: boolean; line: Display }
+export type WebhookKind = 'n8n' | 'make';
+export interface WebhookView { kind: WebhookKind; set: boolean; host: string | null; line: Display; test: 'answered' | 'unknown' | null }
+export interface SpeechProviderView {
+  id: string; name: string; label: 'write' | 'planned: write'; languages: string[]; voices: { id: string; name: string; language: string; licence: Display }[];
+  maxChars: number; price: { microsPerMillionChars: string; checkedOn: string; source: string } | null; waitsOn: Display | null; manualPath: Display | null; note: Display;
+}
+export interface SpeechProvidersView { providers: SpeechProviderView[]; line: Display }
+/** 5C1, 5C2 */
+export type CitationConfirmation = { name: string; membershipNumber: string; at: string };
+export type CaCitationsView = { version: number; tableHash: string; confirmedBy: CitationConfirmation | null; rows: {id:string;act:string;section:string;title:string;validFrom:string;validTo:string;replacedBy:string|null;source:string;verification:string}[]; rules:{id:string;title:string;assessmentYear:string;validFrom:string;validTo:string;verification:string;source:string}[] };
+export type CitationsConfirmView = { version: number; tableHash: string; confirmedBy: CitationConfirmation };
+export type SignoffCheckView = { id:string;ca:{name:string;membershipNumber:string};at:string;decision:'signed'|'returned';playbookHash:string|null;workingDigest:string;receipts:{id:string;digest:string|null}[];rederived:'same'|'differs';differs:{key:string;line:string}|null };
+export type DifferentialAddView = W5Placeholder;
+export type DataPackExportView={name:string;mime:string;contentBase64:string;digest:string;approvalDigest:string};
+/**
+ * Every business's desk (playbooks/desk-types.ts): one playbook id, one of its record kinds. rows, item and result are
+ * the owning package's shapes; a desk package narrows them where it reads them.
+ */
+export type DeskPlaybook =
+  | 'youtube' | 'ca-firm' | 'social-agency' | 'seo-visibility' | 'online-seller' | 'support-desk' | 'recruiting-desk' | 'job-search-desk'
+  | 'translation-studio' | 'bookkeeping-cfo' | 'podcast-to-article' | 'lead-generation' | 'newsletter-studio' | 'tender-desk'
+  | 'website-studio' | 'narration-studio' | 'virtual-assistant' | 'data-entry-desk' | 'app-testing' | 'dev-agency' | 'monitored-data'
+  | 'it-triage' | 'phone-receptionist';
+export interface DeskListView { playbook: DeskPlaybook; kind: string; rows: unknown[]; line: Display }
+export interface DeskItemView { playbook: DeskPlaybook; kind: string; item: unknown; digest: string }
+export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string; result: unknown; line: Display }
 
 // ---------------------------------------------------------------------------------------------------------------
 // The methods the UI calls, with their params and results.
@@ -1534,10 +1742,14 @@ export interface EngineMethods {
    */
   'venture.order.create': {
     params: {
-      clientId: string; offerId: string; quantity?: string; request: string;
+      clientId?: string; offerId: string; quantity?: string; request: string;
+      intakeFiles?: Record<string, { name: string; contentBase64: string }>;
       intake?: {
         rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string;
         calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite;
+        /** Kit answers; rupee inputs are parsed only by the engine. */
+        fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null>;
+        moneyRupees?: Record<string, string>;
       };
       /** 4J5 (M15): the price includes the tax. */
       taxInclusive?: boolean;
@@ -1792,10 +2004,47 @@ export interface EngineMethods {
   'venture.knowledge.add': { params: { source: KnowledgeSourceInput }; result: { source: KnowledgeSourceView } };
   'venture.knowledge.remove': { params: { id: string }; result: { removed: true; line: Display } };
   'venture.knowledge.test': { params: { question: string }; result: { hits: { sourceId: string; title: string; line: Display }[]; line: Display } };
-  'venture.ideas.list': { params: Record<string, never>; result: { ideas: IdeaView[]; waiting: { id: string; recordId: string; line: Display }[] } };
+  'venture.ideas.list': { params: Record<string, never>; result: { ideas: IdeaView[]; waiting: { id: string; recordId: string; line: Display }[]; pipeline: PipelineIdeaView[] } };
   'venture.ideas.start': { params: { id: string }; result: { proposal: ProposalView | null; suggestion: AgentSuggestion | null; line: Display } };
   'venture.ideas.dismiss': { params: { id: string }; result: { dismissed: true; line: Display } };
   'venture.agents.capabilities': { params: { agent: string }; result: CapabilityPageView };
+  // Ink v2 wave 5 (package 5-0; W5_METHODS in the engine, each answering NOT_BUILT_YET until its package lands)
+  'venture.order.chain': { params: { orderId: string }; result: OrderChainView };
+  'venture.salesProposal.draft': { params: ({ clientId: string; personId?: never } | { personId: string; clientId?: never }) & { offerId: string; pilot?: boolean | SalesPilotTerms }; result: SalesProposalView };
+  'venture.salesProposal.get': { params: { id: string } | { clientId: string } | { personId: string }; result: SalesProposalView };
+  'venture.goNoGo.card': { params: { playbook: string; subject: string; inputs: GoNoGoInputs }; result: GoNoGoCardView };
+  'venture.goNoGo.list': { params: Record<string, never>; result: GoNoGoListView };
+  'venture.ideas.add': { params: { text: string; source: string }; result: IdeaAddedView };
+  'venture.ideas.move': { params: { id: string; stage: IdeaStage; reason?: string }; result: IdeaMovedView };
+  'venture.ideas.grade': { params: { id: string; grade: IdeaGrade }; result: IdeaGradedView };
+  'venture.brandKit.get': { params: { clientId: string }; result: BrandKitView };
+  'venture.brandKit.set': { params: { clientId: string; kit: BrandKitInput }; result: BrandKitView };
+  'venture.assets.list': { params: { orderId?: string; clientId?: string }; result: AssetsView };
+  'venture.assets.rerun': { params: { id: string }; result: AssetRerunView };
+  'venture.assets.reuse': { params: { id: string; orderId: string }; result: AssetReuseView };
+  'venture.voiceConsent.record': { params: { speaker: string; recordingFileId: string; transcript: string; statement: string; scope: string; until: string | null }; result: VoiceConsentView };
+  'venture.voiceConsent.revoke': { params: { id: string }; result: VoiceConsentView };
+  'venture.voiceConsent.list': { params: Record<string, never>; result: VoiceConsentsView };
+  'venture.report.render': { params: { runId: string; formats?: ReportFormat[] }; result: ReportView };
+  'venture.report.share': { params: { reportId: string; from: string; to: string; channels?: string[] }; result: ReportShareView };
+  'venture.report.shareRotate': { params: { shareId: string }; result: ReportShareView };
+  'venture.report.shareDisable': { params: { shareId: string }; result: ReportShareView };
+  'venture.report.list': { params: { orderId?: string; runId?: string }; result: ReportListView };
+  'venture.monitors.list': { params: Record<string, never>; result: MonitorsView };
+  'venture.monitors.add': { params: MonitorInput; result: MonitorView };
+  'venture.monitors.remove': { params: { id: string }; result: MonitorView };
+  'venture.mail.import': { params: { name: string; contentBase64: string }; result: MailImportView };
+  'venture.mail.threads': { params: { clientId?: string }; result: MailThreadsView };
+  'venture.localApps.list': { params: Record<string, never>; result: LocalAppsView };
+  'venture.webhook.set': { params: { kind: 'n8n' | 'make'; url: string | null; test?: boolean }; result: WebhookView };
+  'venture.speechOut.providers': { params: Record<string, never>; result: SpeechProvidersView };
+  'venture.ca.confirmCitations': { params: { version: number; membershipNo: string }; result: CitationsConfirmView };
+  'venture.ca.signoff.get': { params: { id: string }; result: SignoffCheckView };
+  'venture.ca.differential.add': { params: { name: string; inputs: unknown; outputs: unknown; capturedBy: string }; result: DifferentialAddView };
+  'venture.ca.dataPack.export': { params: {packId:string;digest:string;fields:string[];unmask:string[];requestedBy:string;purpose:string;approvalDigest:string}; result: DataPackExportView };
+  'venture.desk.list': { params: { playbook: DeskPlaybook; kind: string; filter?: unknown }; result: DeskListView };
+  'venture.desk.get': { params: { playbook: DeskPlaybook; kind: string; id: string }; result: DeskItemView };
+  'venture.desk.act': { params: { playbook: DeskPlaybook; kind: string; id: string; action: string; payload: unknown; digest?: string }; result: DeskActView };
 }
 export type MethodName = keyof EngineMethods;
 export type ParamsOf<M extends MethodName> = EngineMethods[M]['params'];
@@ -1845,6 +2094,19 @@ export interface EngineClient {
    * hosted app and the fake, where the page downloads the engine's CSV itself.
    */
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  /**
+   * Desktop only (5A5): the desktop makes a draft's client report (venture.report.render, the PDF included) and saves
+   * every file and manifest.json in a new folder where the owner picks, atomically. Null when cancelled; EXPORT_EXISTS
+   * when that folder is there already. Absent on the web, the hosted app and the fake, where the page downloads files.
+   */
+  saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
+  /** Desktop 5B2: save only approved outputs; open only an opaque handle from this session. */
+  saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
+  openYoutubeProject?(savedId: string): Promise<{ opened: true }>;
+  /** Desktop-only native picker, import and source inspection. No page-supplied path and no installation. */
+  pickAppTestApk?(orderId: string, fromClient: true, digest?: string): Promise<{ imported: true; orderId: string } | null>;
+  saveSocialProject?(orderId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
+  openSocialProject?(savedId: string): Promise<{ opened: true }>;
   /**
    * Hosted only (W4 4J21, from 4J23): what the hosted server says about the signed-in person, read with the session
    * (GET /api/hosted/session's `me`): whether this server lets people start without an account, and the temporary

@@ -13,12 +13,14 @@ import { DRAFT_CHECKS, VERIFY_CHECKS } from '../../delivery/check-lists.ts';
 import { RIGHTS_INTAKE_FIELD, type RightsBasis } from '../../delivery/rights.ts';
 import { NOT_PROBED, postingOptions, type PostingEnvironment } from '../../build/posting.ts';
 import { YOUTUBE_ID, YOUTUBE_LABEL } from './registration.ts';
+import {YOUTUBE_OFFERS2,type YoutubeServiceId} from './offers2.ts';
+import {YOUTUBE_SERVICE_STEPS,YOUTUBE_SERVICE_GUIDANCE} from './service-steps.ts';
 
 // ---------------------------------------------------------------------------
 // Offers
 // ---------------------------------------------------------------------------
 
-export type YoutubeOfferId = 'episode-package' | 'shorts-from-own-video' | 'licensed-clips';
+export type YoutubeOfferId = 'episode-package' | 'shorts-from-own-video' | 'licensed-clips' | YoutubeServiceId;
 export type YoutubeOffer = {
   id: YoutubeOfferId;
   name: string;
@@ -50,6 +52,7 @@ export const YOUTUBE_OFFERS: readonly YoutubeOffer[] = Object.freeze([
     rightsBases: Object.freeze(['licence', 'creator-clip-programme'] as RightsBasis[]),
     deliverables: Object.freeze(['Clips with captions', 'A title for each clip', 'A source credit line in every description']),
   },
+  ...YOUTUBE_OFFERS2,
 ] satisfies YoutubeOffer[]).map(offer => Object.freeze(offer));
 
 export function youtubeOffer(id: YoutubeOfferId): YoutubeOffer {
@@ -74,7 +77,8 @@ export type StepRole =
 /** The deterministic checks a step runs (checks.ts and finishing.ts). */
 export type YoutubeCheckId =
   | 'hook-score' | 'title-thumbnail' | 'metadata-limits' | 'chapters' | 'retention-risk' | 'ai-disclosure'
-  | 'paid-promotion' | 'rights-recorded' | 'source-credit' | 'finishing';
+  | 'screencast-handoff' | 'service-sections' | 'source-backed-analysis' | 'audit-one-fix' | 'plan-fits-hours' | 'reply-not-bait' | 'comment-question-source' | 'after-publish-directive' | 'niche-evidence-labels' | 'query-test' | 'thumbnail-supported'
+  | 'paid-promotion' | 'rights-recorded' | 'source-credit' | 'finishing' | 'caption-file' | 'script-coverage' | 'cleanup';
 
 export type YoutubeStep = {
   id: string;
@@ -113,7 +117,7 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
   {
     id: 'intake', kind: 'gather', title: "Read the order and the client's files, and record the rights to the footage",
     role: agent('Intake clerk', 'Reads the order, the footage notes, the transcript and the brief, and lists what is missing.'),
-    tier: 'actor', model: 'fast', tools: ['files.list', 'files.read', 'youtube.retention', 'handoff.client', 'handoff.owner', 'evidence.record'], checks: none, youtubeChecks: ['rights-recorded'],
+    tier: 'actor', model: 'fast', tools: ['files.list', 'files.read', 'youtube.retention', 'youtube.afterPublish', 'youtube.outliers', 'youtube.niche', 'youtube.comments', 'youtube.archive', 'youtube.publicStats', 'handoff.client', 'handoff.owner', 'evidence.record'], checks: none, youtubeChecks: ['rights-recorded'],
     requiredSections: none, clipping: false, gate: 'rights-at-intake', floor: FLOOR.rights,
   },
   {
@@ -141,6 +145,12 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
     requiredSections: none, clipping: false, gate: null, floor: null,
   },
   {
+    id: 'edit', kind: 'work', title: 'Propose typed edits, measured cleanup, captions and script coverage',
+    role: agent('Cutter', 'Proposes whole edit operations on measured word ids only. Never invents speech or timings.'),
+    tier: 'actor', model: 'main', tools: ['files.list', 'files.read', 'youtube.editOps', 'youtube.clean', 'youtube.captions', 'youtube.coverage', 'youtube.dictionary', 'youtube.style', 'youtube.clips', 'youtube.broll', 'youtube.beats', 'youtube.export', 'handoff.owner'], checks: none, youtubeChecks: none,
+    requiredSections: none, clipping: false, gate: null, floor: null,
+  },
+  {
     id: 'assemble', kind: 'compute', title: 'Build the edit list from the chosen segments, with any paid voice quoted first',
     role: code('Builds the edit list from segment ids and snaps it to frames. A paid AI voice or presenter waits for your approval of its quote.'),
     tier: 'code', model: null, tools: none, checks: none, youtubeChecks: ['rights-recorded'],
@@ -156,9 +166,10 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
     id: 'verify', kind: 'verify', title: 'Check the package and the finished cut',
     role: code('Runs every check above again, then the finishing check on the cut when ffmpeg is on this computer.'),
     tier: 'code', model: null, tools: none, checks: VERIFY_CHECKS,
-    youtubeChecks: ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'retention-risk', 'ai-disclosure', 'paid-promotion', 'rights-recorded', 'source-credit', 'finishing'],
+    youtubeChecks: ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'retention-risk', 'ai-disclosure', 'paid-promotion', 'rights-recorded', 'source-credit', 'finishing', 'caption-file', 'script-coverage', 'cleanup'],
     requiredSections: none, clipping: false, gate: null, floor: null,
   },
+  ...YOUTUBE_SERVICE_STEPS,
   {
     id: 'review', kind: 'approve', title: 'You watch the cut and read the package',
     role: owner('Watches the cut and reads the package before anything reaches the client.'),
@@ -253,7 +264,7 @@ export function youtubeConnectors(env: YoutubeConnectorEnv): YoutubeConnector[] 
     {
       id: 'youtube-comments', name: 'YouTube comments', posting: [],
       modes: [
-        planned('handoff', 'The pinned comment and replies are drafts you post in YouTube Studio.', 'The engine drafts them, but no screen opens YouTube Studio for them yet.'),
+        available('handoff', 'Review source-linked reply drafts and the pin suggestion, then open YouTube Studio and post manually.'),
         planned('write', 'Posts replies through the YouTube Data API after you approve each one.', "Planned until Google's review of the app and a client in this build."),
       ],
     },
@@ -266,11 +277,11 @@ export function youtubeConnectors(env: YoutubeConnectorEnv): YoutubeConnector[] 
     },
     {
       id: 'youtube-data', name: 'YouTube Data API (public videos, the client\'s own channel)', posting: [],
-      modes: [planned('read', 'Reads public video data and the client\'s channel list with the client\'s own Google key.', 'No YouTube Data API client ships in this build.')],
+      modes: [available('read', 'Reads one exact public videos, channels or search request with your own session key after you approve it. Local project attempt counts are shown; Google owns the shared quota.')],
     },
     {
       id: 'youtube-analytics', name: 'YouTube Analytics (the client\'s channel)', posting: [],
-      modes: [planned('read', 'Reads retention for the channel review with read-only access the channel owner grants.', 'Not built. Until then the client uploads the Studio retention export, which the checks read.')],
+      modes: [planned('read', 'Reads retention for the channel review with read-only access the channel owner grants.', 'Planned: read. Waits for Google verification of the sensitive sign-in scope and an Analytics connector. Export the report from YouTube Studio and attach it to this order meanwhile.')],
     },
     {
       // Ink v2 wave 2 (2E2): the ffmpeg and whisper.cpp already on this computer, never installed or downloaded.
@@ -324,7 +335,7 @@ const fail = (message: string): never => { throw new Error(message); };
 export function validateYoutubePlaybook(playbook: YoutubePlaybook): void {
   const steps = playbook.steps;
   const approvals = new Map(playbook.approvals.map(item => [item.id, item]));
-  if (steps.length !== 10) fail('The YouTube channel playbook has ten steps.');
+  if (steps.length !== 11+YOUTUBE_SERVICE_STEPS.length) fail('The YouTube channel playbook needs its media steps and every named service writing step.');
   const rights = approvals.get('rights-at-intake');
   if (!rights || steps[0].gate !== 'rights-at-intake') fail('The first step must ask the owner to confirm the rights to the footage.');
   const cutting = steps.filter(step => step.clipping);
@@ -354,6 +365,6 @@ export function youtubeEngineSteps(playbook: YoutubePlaybook = YOUTUBE_PLAYBOOK)
   return playbook.steps.map(step => ({
     id: step.id, kind: step.kind, title: step.title, tier: step.tier, model: step.model,
     doneBy: step.role.kind === 'owner' ? 'you' : 'agent',
-    requiredSections: [...step.requiredSections], checks: [...step.checks], tools: [...step.tools], guidance: [],
+    requiredSections: [...step.requiredSections], checks: [...step.checks], tools: [...step.tools], guidance: [...(YOUTUBE_SERVICE_GUIDANCE[step.id as YoutubeServiceId]??[])],
   }));
 }

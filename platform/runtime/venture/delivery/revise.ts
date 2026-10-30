@@ -10,6 +10,9 @@ import { exactPayload, findRecord, identifier, listRecords, requireAppChannel, v
 import type {
   CheckResult, DeliveryRunRecord, DeliveryRunView, DraftFix, DraftRevision, Json, ModelTask, PlaybookCheckResult, VentureDeps, VentureRecord,
 } from '../contracts.ts';
+import { ghostwritingOffer, preserveOtherPosts } from '../playbooks/social/ghostwriting.ts';
+import { emptyGhostwriting } from '../playbooks/social/approvals.ts';
+import { draftPostsOf } from '../playbooks/social/run-approvals.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import { refuseUnsignedRun } from '../money/order-contracts.ts';
@@ -52,7 +55,7 @@ export function reopenMark(run: DeliveryRunRecord, at: string): NonNullable<Deli
   return { count: (run.reopened?.count ?? 0) + 1, at, files: [...(run.reopened?.files ?? [])] };
 }
 
-type RevisionInput = { runId: string; words: string; by: DraftRevision['by']; rowId: string | null; checks?: string[] };
+type RevisionInput = { socialPost?: DraftRevision['socialPost']; runId: string; words: string; by: DraftRevision['by']; rowId: string | null; checks?: string[] };
 
 /**
  * Starts a revision turn on a draft waiting for the owner's review: previews the step that wrote it with the owner's
@@ -63,27 +66,30 @@ export async function startRevision(deps: VentureDeps, ctx: Context, input: Revi
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRecord(state, 'venture-delivery-run', input.runId);
   check(run && run.ventureId === venture.id, 'DELIVERY_NOT_FOUND', 'That draft reply was not found.');
-  check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', NOT_READY);
+  check(run.status === 'ready-for-review' || input.socialPost && ['accepted','edited'].includes(run.status), 'DELIVERY_NOT_READY', NOT_READY);
+  check(!ghostwritingOffer(state,run)||draftPostsOf(run).length===0||input.socialPost,'SOCIAL_POST_REQUIRED','Choose one LinkedIn post to revise from the canvas.');
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   refuseNewWork(state, venture, ctx, deps.clock().toISOString());
   await loadQuarantineCheck();
   refuseQuarantined(state, venture, deps.clock().toISOString());
   // 4J12: a revision is new work on the order, so an order whose contract waits for the owner's signature starts none.
   refuseUnsignedRun(state, venture, run);
+  if(input.socialPost && run.deliverable)preserveOtherPosts({...run,revision:{socialPost:input.socialPost} as DraftRevision},run.deliverable);
   const main = deps.models.status(ctx).tiers.main;
   check(main.presetId !== 'built-in-templates' && main.usable !== false, 'NO_MODEL_CONNECTED', NO_AI);
   // The agent revises the text the owner saw; its own draft stays the base the owner's words are merged against.
   const base = run.renderedText ?? '';
   const draft: DraftRevision = {
     by: input.by, words: input.words, rowId: input.rowId, at: deps.clock().toISOString(), callId: '', base, previous: run.editedText ?? base,
-    prior: { callId: run.callId, phase: run.harness?.phase ?? null }, ...(input.checks ? { checks: input.checks } : {}),
+    ...(input.socialPost ? {socialPost:input.socialPost} : {}),
+    prior: { callId: run.callId, phase: run.harness?.phase ?? null, status:run.status }, ...(input.checks ? { checks: input.checks } : {}),
   };
   // The agent loop goes back to its writing turn; a one-step draft is drafted again. Either way with the owner's words.
   const harness = run.harness ? { ...run.harness, phase: 'write' as const } : null;
   const made = await previewNextTurn(deps, ctx, state, venture, { ...run, revision: draft }, harness);
   return ventureAction(deps, ctx, 'approve', 'delivery.revise', tx => {
     const current = tx.find('venture-delivery-run', run.id);
-    check(current && current.status === 'ready-for-review', 'DELIVERY_NOT_READY', NOT_READY);
+    check(current && current.status === run.status, 'DELIVERY_NOT_READY', NOT_READY);
     // The draft the owner saw: a newer draft, an edit or a merge since makes this click stale.
     check(current.renderedText === run.renderedText && current.editedText === run.editedText, 'APPROVAL_STALE', 'This draft changed since you read it. Read it again.');
     check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
@@ -128,9 +134,16 @@ export async function undoRevision(deps: VentureDeps, ctx: Context, runId: strin
     const revision = current.revision;
     const harness = current.harness && revision.prior.phase ? { ...current.harness, phase: revision.prior.phase } : current.harness;
     const restored: DeliveryRunRecord = {
-      ...current, status: 'ready-for-review', callId: revision.prior.callId, preview: null, harness: harness ?? null, revision: null,
+      ...current, status: revision.prior.status ?? 'ready-for-review', callId: revision.prior.callId, preview: null, harness: harness ?? null, revision: null,
       reopened: reopenMark(current, tx.now),
     };
+    if(revision.socialPost){
+      const order=tx.find('venture-order',current.orderId)!;const state=order.socialGhostwriting??emptyGhostwriting();const key='post-'+revision.socialPost.n;const before=revision.socialPost.prior;
+      check(state.rounds[key]===(before.rounds[key]??0)+1,'UNDO_TOO_LATE','A later revision of this post already started.');
+      const decisions={...state.decisions};if(before.decisions[key])decisions[key]=before.decisions[key]!;else delete decisions[key];
+      const next={...state,rounds:{...state.rounds,[key]:before.rounds[key]??0},decisions,charges:state.charges.filter(c=>!(c.postId===revision.socialPost!.postId&&c.round===state.rounds[key]))};
+      tx.replace({...order,socialGhostwriting:next});restored.socialGhostwriting=next;
+    }
     tx.replace(restored);
     // Today's decision on the row that sent it back is undone too.
     const live = rowId ? tx.list('venture-queue-decision').find(item => item.rowId === rowId && !item.undoneAt) : undefined;
@@ -167,6 +180,7 @@ export function landRevision(
 ): Partial<Pick<DeliveryRunRecord, 'revision' | 'merge' | 'editedText' | 'fix'>> {
   const revision = current.revision;
   if (!revision) return {};
+  if(revision.socialPost)return {revision:null,editedText:null,merge:null};
   const base = revision.base;
   const owner = current.editedText ?? base;
   const parts = mergeParagraphs(base, owner, landed.renderedText);

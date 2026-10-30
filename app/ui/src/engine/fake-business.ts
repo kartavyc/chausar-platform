@@ -1,3 +1,6 @@
+import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
+import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
+import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
  * The fake engine's answers for Connections and the business menu: Your AI (venture.models.* in a business,
  * venture.ai.* before one exists), plan and playbook (venture.blueprint.get and .update), prices (venture.price.quote)
@@ -18,6 +21,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 
 export interface DeskHost {
   current(): string;
+  orders?(): {offerId:string;status:string}[];
   businessName(id: string): string;
   now(): string;
   /** The next receipt number, shared with the queue's receipts. */
@@ -75,7 +79,7 @@ export class FakeBusinessDesk {
   private models: Record<string, ModelStatusLite>;
   private draftAi: ModelStatusLite;
   private blueprints: Record<string, BlueprintViewLite>;
-  private accepted: Record<string, BlueprintLite> = {};
+  private accepted: Record<string, BlueprintViewLite> = {};
   private builds: Record<string, BuildStatusView>;
   private receipts: ReceiptLite[];
   /** What each priced offer costs, as the engine would show it, by business and offer. */
@@ -89,7 +93,8 @@ export class FakeBusinessDesk {
     this.models = options.fresh ? {} : clone(MODEL_STATUS);
     this.draftAi = clone(DRAFT_AI_STATUS);
     this.blueprints = options.fresh ? {} : clone(BLUEPRINTS);
-    for (const [id, view] of Object.entries(this.blueprints)) if (view.blueprint.status === 'accepted') this.keepAccepted(id, view.blueprint);
+    for (const [id, view] of Object.entries(this.blueprints)) if (view.playbook?.id === 'ca-firm') this.blueprints[id] = fakeCaPlan(view, true);
+    for (const [id, view] of Object.entries(this.blueprints)) if (view.blueprint.status === 'accepted') this.keepAccepted(id, view);
     this.builds = options.fresh ? {} : clone(BUILDS);
     this.receipts = clone(OFFER_RECEIPTS);
   }
@@ -109,8 +114,21 @@ export class FakeBusinessDesk {
     return pick ? clone(pick) : undefined;
   }
 
+  /** Internal queue projection, without changing the open business. */
+  acceptedOffersFor(businessId: string) { return clone(this.accepted[businessId]?.blueprint.offers ?? []); }
+  acceptedPlanFor(businessId: string): BlueprintViewLite | null { return this.accepted[businessId] ? clone(this.accepted[businessId]!) : null; }
+  blueprintFor(businessId: string): BlueprintViewLite | null { return this.blueprints[businessId] ? clone(this.blueprints[businessId]!) : null; }
+
   /** A plan written elsewhere in the fake (onboarding) becomes this business's plan. */
   putBlueprint(businessId: string, view: BlueprintViewLite): void {
+    const prior=this.blueprints[businessId];
+    if(view.playbook?.id==='youtube'&&prior?.playbook?.id==='youtube'){
+      const kept=prior.blueprint.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer);
+      view.blueprint.offers.push(...clone(kept));
+      view.intake={...view.intake,...Object.fromEntries(kept.map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))};
+      view.offerReceipts={...view.offerReceipts,...Object.fromEntries(kept.map(offer=>[offer.id,null]))};
+      view.blueprint.digest=this.host.digest({...view.blueprint,digest:''});
+    }
     this.blueprints[businessId] = clone(view);
   }
 
@@ -119,12 +137,12 @@ export class FakeBusinessDesk {
     const view = this.blueprints[businessId];
     if (!view || view.blueprint.id !== blueprintId) return;
     view.blueprint.status = 'accepted';
-    this.keepAccepted(businessId, view.blueprint);
+    this.keepAccepted(businessId, view);
   }
 
-  private keepAccepted(businessId: string, blueprint: BlueprintLite): void {
-    this.accepted[businessId] = clone(blueprint);
-    for (const offer of blueprint.offers) {
+  private keepAccepted(businessId: string, view: BlueprintViewLite): void {
+    this.accepted[businessId] = clone(view);
+    for (const offer of view.blueprint.offers) {
       const shown = this.prices[`${businessId}:${offer.id}`];
       if (shown) this.prices[`accepted:${businessId}:${offer.id}`] = shown;
     }
@@ -303,6 +321,21 @@ export class FakeBusinessDesk {
         offer.pricing.unitPriceLabel = 'told-by-you';
         typedPrices[offer.id] = rupees(typed);
       }
+      // 5A2 (money/share-price.ts applyShareChange): a share in place of a fixed price; a fixed price takes it away.
+      if (change.share !== undefined) {
+        if (change.unitPrice !== undefined) throw invalid('Set a fixed price or a share, not both.');
+        if (change.share === null) delete offer.pricing.share;
+        else {
+          const typed = String((change.share as { percent?: unknown }).percent ?? '').replace(/[\s%]/g, '');
+          const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(typed);
+          const bps = match ? Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')) : 0;
+          if (!match || bps < 1 || bps > 10000) throw new EngineError('INVALID_SHARE', match ? 'A share must be from 0.01% to 100%.' : 'Type the share as a percent, like 8.33 or 12.');
+          offer.pricing.share = { kind: 'share', bps: String(bps), baseMinor: null, baseEvidenceFileId: null, words: '' };
+          offer.pricing.share.words = this.priceText(offer, '');
+          offer.pricing.unitPriceMinor = null;
+          offer.pricing.unitPriceLabel = 'not-set';
+        }
+      } else if (change.unitPrice !== undefined) delete offer.pricing.share;
     }
     // 4J8: an offer the owner adds, with no price yet, or takes out again (core/owner-offers.ts).
     if (patch.removeOffer !== undefined) {
@@ -310,16 +343,24 @@ export class FakeBusinessDesk {
       const offer = next.offers.find((o) => o.id === id);
       if (!offer) throw new EngineError('OFFER_NOT_FOUND', 'That offer is not in your plan.');
       if (!offer.addedByOwner) throw invalid('Only an offer you added can be taken out.');
+      if(this.host.orders?.().some(order=>order.offerId===id&&order.status==='open'))throw invalid('An open order uses this offer. Deliver or cancel it first.');
       next.offers = next.offers.filter((o) => o.id !== id);
     }
     if (patch.addOffer !== undefined) {
-      const add = (patch.addOffer ?? {}) as Record<string, unknown>;
+      let add = (patch.addOffer ?? {}) as Record<string, unknown>;let service:string|undefined;
+      if(Object.hasOwn(add,'youtubeService')){
+        if(Object.keys(add).length!==1)throw invalid('Send the required fields and nothing else.');
+        let chosen:ReturnType<typeof youtubeService>;try{chosen=youtubeService(add.youtubeService);}catch{throw invalid('Choose a named YouTube service.');}
+        if(view.playbook?.id!=='youtube')throw new EngineError('YOUTUBE_SERVICE_INVALID','Add a YouTube service only to a YouTube business.');
+        if(next.offers.some(offer=>offer.addedByOwner&&offer.playbookOffer===chosen.id))throw new EngineError('YOUTUBE_SERVICE_EXISTS','This service is already on your plan. Set its price or open that service.');
+        service=chosen.id;add={name:chosen.name,description:chosen.description,pricingModel:chosen.pricing};
+      }
       const model = add.pricingModel as PricingModel;
       if (!(model in UNITS)) throw invalid('Choose per month, per project or per hour.');
       if (next.offers.filter((o) => o.addedByOwner).length >= 5) throw invalid('Your plan holds five offers you added. Take one out first.');
       this.ownerOffers[biz] = (this.ownerOffers[biz] ?? 0) + 1;
       next.offers.push({
-        id: `offer_own_${this.ownerOffers[biz]}`, addedByOwner: true, name: told(text(add.name, 60, 'The offer name')), description: told(text(add.description, 200, 'The offer description')),
+        id: `offer_own_${this.ownerOffers[biz]}`, addedByOwner: true, ...(service?{playbookOffer:service}:{}), name: told(text(add.name, 60, 'The offer name')), description: told(text(add.description, 200, 'The offer description')),
         pricing: { model, quantityUnit: UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
       });
     }
@@ -328,7 +369,7 @@ export class FakeBusinessDesk {
     // Receipts belong to a version: a new version has none until it is priced again.
     this.blueprints[biz] = {
       blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])),
-      ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: clone(view.intake) } : {}),
+      ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: {...clone(view.intake),...Object.fromEntries(next.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer&&view.playbook?.id==='youtube').map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))} } : {}),
     };
     this.planRow(biz, next);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
@@ -336,6 +377,12 @@ export class FakeBusinessDesk {
   }
 
   private priceText(offer: OfferLite | undefined, key: string): string {
+    // 5A2: a share reads as the engine's shareWords ("8.33% of the amount your client confirms").
+    if (offer?.pricing.share) {
+      const bps = offer.pricing.share.bps.padStart(3, '0');
+      const fraction = bps.slice(-2).replace(/0+$/, '');
+      return `${bps.slice(0, -2).replace(/^0+(?=\d)/, '')}${fraction ? `.${fraction}` : ''}% of the amount your client confirms`;
+    }
     if (!offer || offer.pricing.unitPriceMinor === null) return 'Not set';
     return `${this.prices[key] ?? rupees(offer.pricing.unitPriceMinor.slice(0, -2) || '0')} per ${offer.pricing.quantityUnit}`;
   }
@@ -343,10 +390,14 @@ export class FakeBusinessDesk {
   /** The engine's plan row (views/queue.ts planRows): one per business, for the latest draft version. */
   private planRow(biz: string, latest: BlueprintLite): void {
     const rows = this.host.rows().filter((r) => !(r.businessId === biz && r.viewRef?.kind === 'plan'));
-    const accepted = this.accepted[biz];
+    const accepted = this.accepted[biz]?.blueprint;
     const base = { id: `q-plan-${biz}-v${latest.version}`, businessId: biz, businessName: this.host.businessName(biz), createdAt: latest.at, line: latest.oneLiner.value, viewRef: { kind: 'plan' as const, id: latest.id } };
     let seed: Omit<QueueRow, 'digest'>;
-    const changes = accepted ? latest.offers.filter((o) => (accepted.offers.find((a) => a.id === o.id)?.pricing.unitPriceMinor ?? null) !== o.pricing.unitPriceMinor) : [];
+    const changes = accepted ? latest.offers.filter((o) => {
+      const before = accepted.offers.find((a) => a.id === o.id);
+      // 5A2: setting or changing a share is a price change too.
+      return (before?.pricing.unitPriceMinor ?? null) !== o.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (o.pricing.share?.bps ?? null);
+    }) : [];
     if (!accepted) {
       seed = { ...base, kind: 'plan', title: 'Your plan is ready. Read it.', actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }] };
     } else if (changes.length === 0) {
@@ -364,17 +415,29 @@ export class FakeBusinessDesk {
   }
 
   private quote(biz: string, p: Record<string, unknown>): ReceiptLite {
+    if (Object.keys(p).some(key => !['offerId', 'quantity'].includes(key))) throw invalid('Send the required fields and nothing else.');
     const view = this.planOf(biz);
     const offer = view.blueprint.offers.find((o) => o.id === p.offerId);
     if (!offer) throw new EngineError('OFFER_NOT_FOUND', 'That offer is not in your plan.');
     if (offer.pricing.unitPriceMinor === null) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
-    const display = this.prices[`${biz}:${offer.id}`] ?? rupees(offer.pricing.unitPriceMinor.slice(0, -2) || '0');
+    const quantityText = p.quantity === undefined ? offer.pricing.defaultQuantity : p.quantity;
+    if (typeof quantityText !== 'string' || !/^[1-9][0-9]{0,4}$/.test(quantityText) || BigInt(quantityText) > 10000n) throw invalid('Quantity must be a whole number from 1 to 10000.');
+    const quantity = BigInt(quantityText);
+    // The fake computes paise here, where the engine computes them, and sends both the raw total and its display.
+    // Tax follows the existing sample receipt only; other tax settings retain the explicit manual limitation below.
+    const showMinor = (minor: bigint) => rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`);
+    const readSampleMinor = (display: string) => BigInt(display.replace(/[^0-9]/g, ''));
+    const unit = BigInt(offer.pricing.unitPriceMinor);
+    const display = this.prices[`${biz}:${offer.id}`] ?? showMinor(unit);
     const taxed = view.blueprint.backOffice.taxRegistered.value;
     const sample = OFFER_RECEIPTS.find((r) => r.figures[0]?.display === display && taxed && r.figures.length > 2);
+    const total = sample ? readSampleMinor(sample.figures.find(figure => figure.key === 'total')!.display) * quantity : unit * quantity;
+    const sampleFigures = sample ? [...(sample.figures.some(figure => figure.key === 'unit') ? [] : [{ key: 'unit', label: offer.name.value, display }]), ...sample.figures] : [];
+    const figures = sample ? sampleFigures.map(figure => ({ ...figure, display: figure.key === 'unit' || quantity === 1n ? figure.display : showMinor(readSampleMinor(figure.display) * quantity) }))
+      : [{ key: 'unit', label: offer.name.value, display }, { key: 'total', label: taxed ? 'Total before GST' : 'Total', display: quantity === 1n ? display : showMinor(total) }];
     const receipt: ReceiptLite = {
-      id: this.host.receiptId(), at: this.host.now(), stale: false,
-      figures: sample ? clone(sample.figures) : [{ key: 'unit', label: offer.name.value, display }, { key: 'total', label: taxed ? 'Total before GST' : 'Total', display }],
-      explanation: sample ? sample.explanation : taxed
+      id: this.host.receiptId(), at: this.host.now(), stale: false, totalMinor: String(total), figures,
+      explanation: sample ? (quantity === 1n ? sample.explanation : `${quantityText} units of ${offer.name.value} at ${display}, with the sample GST: ${showMinor(total)}.`) : taxed
         ? `${offer.name.value} at ${display}. The sample engine does not work out GST; the real one does, with each step on this receipt.`
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
@@ -382,7 +445,6 @@ export class FakeBusinessDesk {
     view.offerReceipts[offer.id] = receipt;
     return clone(receipt);
   }
-
   // ---------------------------------------------------------------------------------------------------------------
   // Keeping the business: this computer's key, the recovery code, the optional passphrase, backups
   // ---------------------------------------------------------------------------------------------------------------
@@ -506,7 +568,7 @@ export class FakeBusinessDesk {
     if (!view || !this.accepted[biz]) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept your plan first. The brief is written from the accepted plan.');
     const build = this.buildOf(biz);
     const version = (build.brief?.version ?? 0) + 1;
-    const markdown = templateBrief(this.accepted[biz].name.value, version);
+    const markdown = templateBrief(this.accepted[biz].blueprint.name.value, version);
     build.brief = { id: `brief-${biz}-${version}`, at: this.host.now(), briefId: `chb_${biz.slice(0, 8)}`, version, markdown, chars: markdown.length, wordsBy: 'template', lint: { ok: true, findings: [] } };
     return clone(build.brief);
   }

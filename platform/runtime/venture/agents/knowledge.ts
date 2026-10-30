@@ -183,9 +183,10 @@ async function readSource(deps: VentureDeps, state: State, venture: VentureRecor
     }
     case 'link': {
       const url = checkResearchUrl(input.url);
+      // 5A6: robots.txt first, read as Chausar; a page it keeps robots from is refused in its words (build/fetch-policy.ts).
       const answer = await guardedFetch(
         { url: url.href, method: 'GET', headers: { accept: 'text/html, text/plain' }, maxBytes: PAGE_BYTES, maxRedirects: 2 },
-        { resolve: deps.net?.resolve, send: profileSafe(deps.net?.send ?? pinnedSend) },
+        { resolve: deps.net?.resolve, send: profileSafe(deps.net?.send ?? pinnedSend, deps.net?.resolve) },
       );
       check(answer.status >= 200 && answer.status <= 299, 'NET_FAILED', 'That page did not answer, so nothing was added.');
       const type = (answer.headers['content-type'] ?? 'text/html').toLowerCase();
@@ -405,19 +406,36 @@ function eraseCallsCarrying(tx: VentureTx, sourceId: string): void {
  * Forget of a person in the owner's network (network/forget.ts removePersonData, DPDP): every word of their name in a
  * source (its title, its words) and in an idea Chausar keeps (its title, reason, prompt and evidence lines) becomes
  * "someone you asked Chausar to forget", a page address that names them goes, and the model calls that carried such a
- * source lose their words. names: the forget's own pattern.
+ * source lose their words. names: the forget's own pattern, or null when it has none. handles (Ink v2 wave 5, 5A3
+ * review): their email addresses and phone numbers, which an idea's words lose too (a phone however it is spaced).
  */
-export function eraseKnowledgeNaming(tx: VentureTx, names: RegExp): void {
-  const mentions = (text: string | null | undefined) => !!text && new RegExp(names.source, names.flags).test(text);
-  const unnamed = (text: string) => (mentions(text) ? collapse(text.replace(new RegExp(names.source, names.flags), FORGOTTEN_WORDS)) : text);
-  for (const record of tx.list('venture-knowledge')) {
-    if (record.removedAt !== null || ![record.title, record.text, record.url].some(mentions)) continue;
-    tx.replace<KnowledgeRecord>({ ...record, title: unnamed(record.title), text: unnamed(record.text), url: mentions(record.url) ? null : record.url });
-    eraseCallsCarrying(tx, record.id);
+export function eraseKnowledgeNaming(tx: VentureTx, names: RegExp | null, handles: readonly string[] = []): void {
+  if (names) {
+    const mentions = (text: string | null | undefined) => !!text && new RegExp(names.source, names.flags).test(text);
+    const unnamed = (text: string) => (mentions(text) ? collapse(text.replace(new RegExp(names.source, names.flags), FORGOTTEN_WORDS)) : text);
+    for (const record of tx.list('venture-knowledge')) {
+      if (record.removedAt !== null || ![record.title, record.text, record.url].some(mentions)) continue;
+      tx.replace<KnowledgeRecord>({ ...record, title: unnamed(record.title), text: unnamed(record.text), url: mentions(record.url) ? null : record.url });
+      eraseCallsCarrying(tx, record.id);
+    }
   }
+  // An idea loses their name and (5A3 review) their email and phone, wherever its words say them.
+  const handleParts = handles.map(handle => handle.trim()).filter(handle => handle.length >= 5).map(handle => {
+    const digits = handle.replace(/\D/g, '');
+    return !handle.includes('@') && digits.length >= 7 ? digits.split('').join('[\\s.()-]*') : escaped(handle);
+  });
+  const parts = [...(names ? [names.source] : []), ...handleParts];
+  if (!parts.length) return;
+  const flags = `${(names?.flags ?? 'iu').replace('g', '')}g`;
+  const says = (text: string | null | undefined) => !!text && parts.some(part => new RegExp(part, flags).test(text));
+  const unsaid = (text: string) => (says(text) ? collapse(parts.reduce((out, part) => out.replace(new RegExp(part, flags), FORGOTTEN_WORDS), text)) : text);
   for (const idea of tx.list('venture-idea')) {
-    if (![idea.title, idea.reason, idea.prompt, ...idea.evidence.map(item => item.line)].some(mentions)) continue;
-    tx.replace<IdeaRecord>({ ...idea, title: unnamed(idea.title), reason: unnamed(idea.reason), prompt: unnamed(idea.prompt), evidence: idea.evidence.map(item => ({ ...item, line: unnamed(item.line) })) });
+    // Ink v2 wave 5 (5A3): a pipeline idea also says where it came from.
+    if (![idea.title, idea.reason, idea.prompt, idea.pipeline?.source, ...idea.evidence.map(item => item.line)].some(says)) continue;
+    tx.replace<IdeaRecord>({
+      ...idea, title: unsaid(idea.title), reason: unsaid(idea.reason), prompt: unsaid(idea.prompt), evidence: idea.evidence.map(item => ({ ...item, line: unsaid(item.line) })),
+      ...(idea.pipeline ? { pipeline: { ...idea.pipeline, source: unsaid(idea.pipeline.source) } } : {}),
+    });
   }
 }
 

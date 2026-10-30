@@ -496,6 +496,7 @@ export function assembleComposed(decision: ComposeDecision, output: ComposeModel
   // An idea that picks a flagship playbook keeps the playbook's offers, approvals, label and base type; the AI's words
   // stay for the name, the summary, the customer, the steps, the pages and the tools (playbooks/plan.ts).
   const flagship = flagshipPlan(decision.text);
+  check(!flagship || flagship.offers.length <= OFFER_REFS.length, 'INVALID_VENTURE_REQUEST', 'This registered offer set needs a complete code identity range.');
   const offers: ComposedOffer[] = flagship
     ? flagship.offers.map((offer, index) => ({
       id: OFFER_REFS[index], block: offer.block, playbookOffer: offer.key, name: labelled(offer.name, 'assumption', 'engine'), description: labelled(offer.description, 'assumption', 'engine'),

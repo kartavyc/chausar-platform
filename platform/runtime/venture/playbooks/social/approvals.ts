@@ -213,3 +213,8 @@ export function calendarExport(items: CalendarItem[], options: GateOptions): str
     ].map(value => cell(String(value))).join(','));
   return `${[header, ...rows].join('\n')}\n`;
 }
+
+/** Per-post rounds survive model failures and reruns of a revision. Only an unsent Undo restores the prior state. */
+export type {GhostwritingState} from './revision-types.ts';
+import type {GhostwritingState} from './revision-types.ts';
+export const emptyGhostwriting = ():GhostwritingState=>({rounds:{},decisions:{},charges:[]});

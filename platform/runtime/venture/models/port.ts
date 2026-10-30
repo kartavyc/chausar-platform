@@ -22,6 +22,7 @@ import {
   listRateOfTable, modelTableOf, payerWords, reserveSpend, resolveRate, settleSpend, spendRatesOf, spendRefused, type SpendOutcome, type SpendSubject,
 } from '../money/spend.ts';
 import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
+import {modelBudgetUsed} from './budget.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
@@ -169,13 +170,8 @@ function spendOutcome(sent: boolean, usage: boolean, failed: boolean, costMicros
  * This month's spend on the preset, plus what every dispatching call of that preset reserves, plus this
  * estimate, must stay within the connection's monthly limit (months in UTC).
  */
-function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: PresetSpec, estimate: string, month: string) {
-  let total = BigInt(estimate);
-  for (const call of calls) {
-    if (call.presetId !== connection.presetId) continue;
-    if (call.status === 'dispatching') total += BigInt(call.estimatedMaxCostMicros);
-    else if (call.costMicros !== null && monthOf(call.at) === month) total += BigInt(call.costMicros);
-  }
+function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: PresetSpec, estimate: string, month: string, tx:VentureTx) {
+  const total = BigInt(estimate)+modelBudgetUsed(calls,tx.list('venture-spend'),connection.presetId,month);
   check(total <= BigInt(connection.monthlyCapMicros), 'BUDGET_REACHED',
     `This call could take ${spec.label} past your monthly limit of ${formatMicros(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
 }
@@ -383,11 +379,12 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   };
 
   /** One dispatch through the transport, then the route's parser. Transport errors become a failed result. */
-  const dispatch = async (prepared: Prepared, apiKey: string | null, purpose: ModelPurpose): Promise<Parsed> => {
+  const dispatch = async (prepared: Prepared, apiKey: string | null, purpose: ModelPurpose, onDispatch: () => void): Promise<Parsed> => {
     const transportFailure = { code: 'MODEL_FAILED', message: 'The model call failed. Chausar did not retry it.' };
     if (prepared.transport === 'http') {
       const headers = prepared.routeKind === 'anthropic-messages' ? anthropicHeaders(apiKey ?? '') : openaiHeaders(apiKey ?? '');
       try {
+        onDispatch();
         const response = await transport.http({ url: prepared.url, method: 'POST', headers, body: prepared.body, timeoutMs: HTTP_TIMEOUT_MS, purpose });
         if (!response || typeof response.status !== 'number' || typeof response.body !== 'string') return { ok: false, ...transportFailure, usage: null };
         const parsed = prepared.routeKind === 'anthropic-messages' ? parseAnthropic(response) : parseOpenAI(response);
@@ -406,6 +403,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const workFolder = join(directory, 'work');
       await mkdir(workFolder);
       const args = plan.args.map(arg => (arg === SCHEMA_PLACEHOLDER ? schemaPath : arg));
+      onDispatch();
       const response = await transport.process({ command: plan.command, args, env: cliEnv(plan.kind, plan.maxOutputTokens), stdin: plan.stdin, timeoutMs: PROCESS_TIMEOUT_MS, purpose, cwd: workFolder });
       if (!response || typeof response.exitCode !== 'number') return { ok: false, ...transportFailure, usage: null };
       // The tool refused a flag the route sends (one its help check let through, such as Claude Code's --max-turns):
@@ -431,12 +429,13 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
    * Steps 8 to 11: dispatch once, parse, validate, then record the result in its own action. The table is the price
    * the call was reserved at (the owner's rate card or the list price); a metered call settles its spend there too.
    */
-  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean): Promise<ModelOutcome<T>> => {
+  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean, beforeDispatch?: () => void): Promise<ModelOutcome<T>> => {
     const apiKey = spec.needsKey ? secrets.get(SECRET(spec.id)) : null;
-    const sent = !(spec.needsKey && !apiKey);
-    const parsed: Parsed = !sent
+    let sent = false;
+    const onDispatch = () => { const result: unknown = beforeDispatch?.(); if (result && typeof (result as { then?: unknown }).then === 'function') void Promise.resolve(result).catch(() => undefined); check(result === undefined, 'INVALID_VENTURE_REQUEST', 'A dispatch guard must finish synchronously.'); sent = true; };
+    const parsed: Parsed = spec.needsKey && !apiKey
       ? { ok: false, code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing, usage: null }
-      : await dispatch(prepared, apiKey, call.purpose);
+      : await dispatch(prepared, apiKey, call.purpose, onDispatch);
     // 4F2: the transport's class of a failure (parsed.cause) stays on the call record beside Chausar's words.
     let failure: { code: string; message: string; cause?: string } | null = parsed.ok ? null : { code: parsed.code, message: parsed.message, ...(parsed.cause ? { cause: parsed.cause } : {}) };
     let value: T | undefined;
@@ -611,7 +610,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         if (task.capLeftMicros !== undefined && BigInt(estimate) > BigInt(task.capLeftMicros)) {
           throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatMicros(estimate)}, more than the ${formatMicros(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
         }
-        checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now));
+        checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now),tx);
         const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);
         // The charge record, in the same commit as the call record: written before anything is sent.
         if (rate) reserveSpend(tx, { ...callSpend(record, route.spec), rate, estimateMicros: estimate });
@@ -646,7 +645,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       };
     },
 
-    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' }): Promise<ModelOutcome<T>> {
+    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }): Promise<ModelOutcome<T>> {
       check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
       check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
       // The rules judge's call going on its own (delivery/judge-run.ts) is recorded under the business's standing
@@ -683,7 +682,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         check(tx.state.policy.send !== 'nothing', 'SEND_DISABLED', MESSAGES.sendDisabled);
         const problem = problemOf(spec);
         if (problem) throw new ChausarError(problem.code, problem.message);
-        checkBudget(txCalls(tx), connection, spec, current.estimatedMaxCostMicros, monthOf(tx.now));
+        checkBudget(txCalls(tx), connection, spec, current.estimatedMaxCostMicros, monthOf(tx.now),tx);
         // Ink v2 wave 4 (4F2, H32): a call that writes a client draft is held to today's cap on drafts, read in this claim.
         if (current.purpose === 'delivery' && tx.venture) {
           const capped = writeCapDenial(tx.state, tx.venture, 'drafts', tx.now);
@@ -705,7 +704,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         return approved;
       }).catch(error => spendRefused(actionDeps, ctx, error));
       check(claimed.held, 'APPROVAL_STALE', MESSAGES.approvalStale);
-      return send(ctx, 'approve', call, claimed.held.prepared, presetSpec(call.presetId), validate, claimed.table ?? null, claimed.metered === true);
+      return send(ctx, 'approve', call, claimed.held.prepared, presetSpec(call.presetId), validate, claimed.table ?? null, claimed.metered === true, options?.beforeDispatch);
     },
   };
 }

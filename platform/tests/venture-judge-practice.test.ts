@@ -24,7 +24,7 @@ test('practice clients: every template client lists the rules judge among its ch
 test('practice clients of a CA firm get a rules judge result over the CA rules; a plain business gets the draft rules', async () => {
   const ca = await business(CA_IDEA);
   const run = await ca.call('venture.simulation.run', {});
-  assert.deepEqual(run.scenarioIds, ['bookkeeping-clean', 'bookkeeping-messy', 'bookkeeping-pushback']);
+  assert.deepEqual(run.scenarioIds, ['ca-firm-clean', 'ca-firm-messy', 'ca-firm-pushy']);
   for (const id of run.scenarioIds) {
     const episode = run.episodes.find((item: any) => item.scenarioId === id);
     const judged = episode.checks.find((item: any) => item.check === 'rules-judge');

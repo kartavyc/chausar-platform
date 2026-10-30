@@ -64,6 +64,7 @@ import { replyRows } from '../network/inbound-rows.ts';
 import { runControlRows } from '../delivery/run-control-rows.ts';
 import { moneyRows } from '../money/credits.ts';
 import { routineRows } from '../agents/routine-runner.ts';
+import { shareWords } from '../money/share-price.ts';
 
 export const STALE_LINE = 'This click did not run anything. Here is the new version.';
 export const GONE_LINE = 'This was resolved elsewhere.';
@@ -107,6 +108,8 @@ const base = (business: Business, kind: QueueKind, subject: string, version: str
 // ---------------------------------------------------------------------------
 
 function priceText(offer: Offer | undefined, currency: string): string {
+  // Ink v2 wave 5 (5A2): an offer priced as a share of an amount the client confirms later (money/share-price.ts).
+  if (offer?.pricing.share) return shareWords(offer.pricing.share.bps);
   const minor = offer?.pricing.unitPriceMinor ?? null;
   return minor === null ? 'Not set' : `${formatMinor(minor, currency)} per ${offer!.pricing.quantityUnit}`;
 }
@@ -128,7 +131,8 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
   const currency = latest.backOffice.currency;
   const changes = latest.offers.filter(offer => {
     const before = accepted.offers.find(item => item.id === offer.id);
-    return (before?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor;
+    // 5A2: setting or changing a share is a price change too, so it asks twice like any other.
+    return (before?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null);
   });
   if (!changes.length) {
     return [{
@@ -181,7 +185,7 @@ async function setupRows(deps: VentureDeps, ctx: Context, state: State, venture:
     });
   }
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
-  const unpriced = latest ? latest.offers.filter(offer => offer.pricing.unitPriceMinor === null).map(offer => offer.name.value) : [];
+  const unpriced = latest ? latest.offers.filter(offer => offer.pricing.unitPriceMinor === null && !offer.pricing.share).map(offer => offer.name.value) : [];
   // Tax counts as set only when the owner said yes or no; a default a screen filled in is Chausar's assumption.
   const tax = latest && latest.backOffice.taxRegistered.label !== 'told-by-you' ? latest.backOffice : null;
   if (latest && (unpriced.length || tax)) {
@@ -585,9 +589,19 @@ function bankRows(state: State, venture: VentureRecord, business: Business, ctx:
 // ---------------------------------------------------------------------------
 
 const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/monitored-data/rows.ts')).watchSourceRows(deps, ctx, state, venture)],
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/tender-desk/rows.ts')).tenderGapRows(deps, ctx, state, venture)],
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/phone-receptionist/rows.ts')).receptionistRows(deps, ctx, state, venture)],
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/social/revision-due.ts')).revisionDueRows(deps, ctx, state, venture)],
   ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
   ['money', moneyRows], // 4J5: credit notes waiting to be issued
   ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead
+  // Ink v2 wave 5 (5A1): kit chains that stopped or wait on the client past a stage's waitDays, as notices, loaded on use
+  ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/kit/chain.ts')).chainRows(deps, ctx, state, venture)],
+  // Ink v2 wave 5 (5A3): published ideas waiting for their grade, loaded on use
+  ['idea', async (deps, ctx, state, venture) => (await import('../playbooks/kit/ideas.ts')).ideaGradeRows(deps, ctx, state, venture)],
+  // Ink v2 wave 5 (5A2): sales proposals waiting for the owner to read and approve, loaded on use
+  ['sales-proposal', async (deps, ctx, state, venture) => (await import('../playbooks/kit/proposal.ts')).salesProposalRows(deps, ctx, state, venture)],
 ];
 
 /**

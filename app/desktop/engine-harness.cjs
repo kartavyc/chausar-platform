@@ -3,8 +3,27 @@ const { fork } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
+const { createFormsRelay } = require('./owner-browser-relay.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
+/**
+ * Ink v2 wave 5 (5A5): a report print the engine asked for. Checked here (an id, an HTML string within bounds, known
+ * scripts), passed to main's 'print' listener with one answer function, and answered to the worker once as
+ * { kind: 'host-print-result', printId, ok, pdfBase64 | reason }. With no listener, or a request out of bounds, 'failed'.
+ */
+function printRelay(harness, child, message) {
+  const printId = typeof message.printId === 'string' && /^[0-9a-f-]{36}$/.test(message.printId) ? message.printId : null;
+  if (!printId) return;
+  let answered = false;
+  const answer = result => {
+    if (answered) return; answered = true;
+    const reply = result && result.ok === true && typeof result.pdfBase64 === 'string' ? { ok: true, pdfBase64: result.pdfBase64 } : { ok: false, reason: result?.reason === 'font-missing' ? 'font-missing' : 'failed' };
+    try { if (child.connected) child.send({ kind: 'host-print-result', printId, ...reply }, () => {}); } catch { /* the engine is gone; its port times out */ }
+  };
+  const scripts = Array.isArray(message.scripts) ? message.scripts : [];
+  if (harness.listenerCount('print') === 0 || typeof message.html !== 'string' || message.html.length > 2_000_000 || !scripts.every(script => script === 'latin' || script === 'devanagari')) { answer(null); return; }
+  try { harness.emit('print', Object.freeze({ html: message.html, scripts: [...scripts] }), answer); } catch { answer(null); }
+}
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
   constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
@@ -25,11 +44,16 @@ class EngineHarness extends EventEmitter {
       try {
         const child = this.options.forkProcess(this.options.workerPath, [], { execPath: this.options.execPath, execArgv: ['--experimental-strip-types'], windowsHide: true, shell: false, env: { ...this.options.environment, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
         this.worker = child;
+        const forms = createFormsRelay(this, child);
+        child.once('disconnect', () => forms.close()); child.once('exit', () => forms.close());
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
           if (message.ready === true && this.state === 'starting') { this.status('ready'); settle(); return; }
           // A run event the engine committed: checked again here, then main forwards it to the window.
           if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
+          // Ink v2 wave 5 (5A5): the engine asks main to print a report's HTML to PDF (report-print.cjs); answered once.
+          if (message.kind === 'host-print' && message.id === undefined) { printRelay(this, child, message); return; }
+          if ((message.kind === 'host-forms' || message.kind === 'host-forms-verified') && message.id === undefined) { forms.receive(message); return; }
           if (typeof message.id !== 'string') return;
           const pending = this.waiting.get(message.id); if (!pending) return;
           this.waiting.delete(message.id); clearTimeout(pending.timer);
@@ -54,6 +78,8 @@ class EngineHarness extends EventEmitter {
     try { input = validateRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
     return this.#send(input, this.options.requestTimeoutMs);
   }
+  // Trusted main-process lifecycle only. No renderer method can manufacture this cancellation.
+  closeForms() { try { if (this.worker?.connected) this.worker.send({ kind: 'host-forms-closed' }, () => {}); } catch {} }
   // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert
   // rules (Ink v2 wave 4, 4G1). A plain notice with no reply: the next change corrects a lost one. False when not sent.
   reportWatching(watching) {

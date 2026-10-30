@@ -1,0 +1,167 @@
+[
+  {
+    "id": "seo-visibility",
+    "offers": [
+      "visibility-check",
+      "quarterly-remeasure",
+      "website-check",
+      "content-retainer",
+      "fix-and-measure",
+      "local-seo"
+    ]
+  },
+  {
+    "id": "online-seller",
+    "offers": [
+      "catalogue-upload",
+      "product-research",
+      "multi-store-report",
+      "product-photos",
+      "case-tracker",
+      "listing-health-audit",
+      "own-shop-back-office",
+      "reimbursement-audit",
+      "unit-economics-monthly",
+      "ads-health-check",
+      "amazon-ungating",
+      "amazon-brand-registry",
+      "amazon-returns",
+      "amazon-storefront",
+      "amazon-deals",
+      "amazon-compliance"
+    ]
+  },
+  {
+    "id": "support-desk",
+    "offers": [
+      "monthly-support",
+      "help-pages"
+    ]
+  },
+  {
+    "id": "recruiting-desk",
+    "offers": [
+      "role-intake",
+      "shortlist"
+    ]
+  },
+  {
+    "id": "job-search-desk",
+    "offers": [
+      "monthly-job-search",
+      "interview-prep-pack",
+      "job-title-audit",
+      "profile-and-tailoring",
+      "weekly-shortlist",
+      "career-coaching"
+    ]
+  },
+  {
+    "id": "translation-studio",
+    "offers": [
+      "document-translation",
+      "subtitles",
+      "dubbing",
+      "live-captions"
+    ]
+  },
+  {
+    "id": "bookkeeping-cfo",
+    "offers": [
+      "collections-desk",
+      "cfo-pack",
+      "decision-memo",
+      "money-checkup",
+      "seller-books",
+      "back-office-setup"
+    ]
+  },
+  {
+    "id": "podcast-to-article",
+    "offers": [
+      "article-per-episode"
+    ]
+  },
+  {
+    "id": "lead-generation",
+    "offers": [
+      "researched-pipeline",
+      "cold-email-month",
+      "linkedin-desk",
+      "community-report"
+    ]
+  },
+  {
+    "id": "newsletter-studio",
+    "offers": [
+      "client-newsletter"
+    ]
+  },
+  {
+    "id": "tender-desk",
+    "offers": [
+      "bid-response"
+    ]
+  },
+  {
+    "id": "website-studio",
+    "offers": [
+      "business-site"
+    ]
+  },
+  {
+    "id": "narration-studio",
+    "offers": [
+      "audiobook"
+    ]
+  },
+  {
+    "id": "virtual-assistant",
+    "offers": [
+      "va-monthly",
+      "errands-pack"
+    ]
+  },
+  {
+    "id": "data-entry-desk",
+    "offers": [
+      "data-entry-monthly",
+      "backlog-project"
+    ]
+  },
+  {
+    "id": "app-testing",
+    "offers": [
+      "app-test-round",
+      "demo-video"
+    ]
+  },
+  {
+    "id": "dev-agency",
+    "offers": [
+      "maintenance-retainer",
+      "qa-service",
+      "security-review"
+    ]
+  },
+  {
+    "id": "monitored-data",
+    "offers": [
+      "price-list-watch",
+      "tender-board-watch"
+    ]
+  },
+  {
+    "id": "it-triage",
+    "offers": [
+      "triage-desk"
+    ]
+  },
+  {
+    "id": "phone-receptionist",
+    "offers": [
+      "receptionist-setup",
+      "receptionist-monthly"
+    ]
+  }
+]

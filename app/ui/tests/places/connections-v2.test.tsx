@@ -30,6 +30,7 @@ function start(hash = '#/connections', options: { language?: 'en' | 'hi'; hosted
     }) as EngineClient['request'],
   };
   render(<App client={client} language={options.language ?? 'en'} />);
+  return client;
 }
 /**
  * The one honest rule for a tile's head chip and its look: the most its modes do today; else Writes when a way to post
@@ -72,17 +73,18 @@ function keyLikeText(root: HTMLElement): string[] {
 
 describe('Connections in the Ink v2 look', () => {
   it('Your AI is the first tile, then each category of connectors under its own heading', async () => {
-    start();
+    const client = start();
+    const cards = await client.request('venture.connectors.list', {}) as ConnectorCardLite[];
     await screen.findByText('Build', { selector: 'h2' });
     const main = document.querySelector('main')!;
     // The first tile in the page is a region named by its heading, Your AI.
     const first = main.querySelector('section[aria-labelledby]')!;
     expect(document.getElementById(first.getAttribute('aria-labelledby')!)?.textContent).toBe('Your AI');
-    const categories = [...new Set(CONNECTORS.map((card) => card.categoryLabel))];
+    const categories = [...new Set(cards.map((card) => card.categoryLabel))];
     const groups = categories.map((label) => screen.getByText(label, { selector: 'h2' }).closest('section')!);
     // The groups follow the engine's order, and every connector sits in its own category's group.
     for (const [index, label] of categories.entries()) {
-      const inGroup = CONNECTORS.filter((card) => card.categoryLabel === label).map((card) => card.name);
+      const inGroup = cards.filter((card) => card.categoryLabel === label).map((card) => card.name);
       expect(within(groups[index]!).getAllByRole('listitem').map((item) => item.querySelector('[data-connector-name]')?.textContent), label).toEqual(inGroup);
     }
     assertInkRules(document.body);
@@ -105,7 +107,7 @@ describe('Connections in the Ink v2 look', () => {
 
   it('a way to post that works makes the chip say Writes; the bank reads the statements you import, with Planned only on reading the bank directly', async () => {
     start();
-    const linkedin = await tile('LinkedIn');
+    const linkedin = await tile('X');
     expect(linkedin.querySelector('[data-connector-label] [data-label]')?.getAttribute('data-label')).toBe('write');
     // The planned API keeps its own line, apart from the chip.
     const api = linkedin.querySelector('[data-posting-planned="api"]') as HTMLElement;
@@ -139,14 +141,14 @@ describe('Connections in the Ink v2 look', () => {
     }
     // A connector that works keeps its real action.
     expect(within(await tile('Lovable')).getByRole('button', { name: 'Open Lovable' })).toBeTruthy();
-    expect(within(await tile('LinkedIn')).getByRole('button', { name: 'Sign in to LinkedIn' })).toBeTruthy();
+    expect(within(await tile('X')).getByRole('button', { name: 'Sign in to X' })).toBeTruthy();
     expect(within(await tile('Bank account (read only)')).getByRole('button', { name: 'Import a statement' })).toBeTruthy();
   });
 
   it("the connector sheet lists what each way of posting needs, numbered in the engine's order: setup steps for a way that works, what it needs first for a planned one", async () => {
-    start('#/connections?sheet=connector:linkedin');
-    const sheet = await sheetNamed('LinkedIn');
-    const linkedin = CONNECTORS.find((card) => card.id === 'linkedin')!;
+    start('#/connections?sheet=connector:x');
+    const sheet = await sheetNamed('X');
+    const linkedin = CONNECTORS.find((card) => card.id === 'x')!;
     for (const option of linkedin.postingOptions) {
       const block = sheet.querySelector(`[data-posting-option="${option.mode}"]`) as HTMLElement;
       const steps = block.querySelector('ol');
@@ -156,7 +158,7 @@ describe('Connections in the Ink v2 look', () => {
       const heading = document.getElementById(steps!.getAttribute('aria-labelledby') ?? '');
       expect(heading?.textContent, option.mode).toBe(option.status === 'available' ? 'To set it up' : 'What it needs first');
     }
-    expect(sheet.textContent).toContain('Sign-in: LinkedIn sign-in');
+    expect(sheet.textContent).toContain('Sign-in: X sign-in');
     assertInkRules(document.body);
   });
 
@@ -170,14 +172,15 @@ describe('Connections in the Ink v2 look', () => {
   });
 
   it('What Chausar can do on this computer lists every way that writes or sends, with the engine\'s words, and what stopping means', async () => {
-    start();
+    const client = start();
+    const cards = await client.request('venture.connectors.list', {}) as ConnectorCardLite[];
     const canDo = await region('What Chausar can do on this computer');
     const rows = await within(canDo).findAllByRole('listitem');
-    const expected = CONNECTORS.flatMap((card) => [
+    const expected = cards.flatMap((card) => [
       ...card.modes.filter((mode) => mode.mode === 'write' && mode.status === 'available').map((mode) => [card.name, mode.what]),
       ...card.postingOptions.filter((option) => option.status === 'available').map((option) => [card.name, option.what]),
     ]);
-    expect(expected.length).toBe(3);
+    expect(expected.length).toBe(8);
     expect(rows.map((row) => [row.querySelector('[data-can-do-name]')?.textContent, row.querySelector('[data-can-do-what]')?.textContent])).toEqual(expected);
     expect(canDo.textContent).toContain('Stopping a connection does not undo what already happened.');
     expect(canDo.textContent).not.toContain('GitHub');
@@ -285,8 +288,8 @@ describe('Connections in the Ink v2 look', () => {
   });
 
   it('speaks Hindi everywhere on the page and in the sheets, with no key showing', async () => {
-    start('#/connections?sheet=connector:linkedin', { language: 'hi' });
-    const sheet = await sheetNamed('LinkedIn');
+    start('#/connections?sheet=connector:x', { language: 'hi' });
+    const sheet = await sheetNamed('X');
     await screen.findByText('कनेक्शन', { selector: 'h1' });
     await waitFor(() => expect(document.querySelector('main')!.querySelectorAll('li').length).toBeGreaterThan(10));
     expect(keyLikeText(document.querySelector('main')!)).toEqual([]);

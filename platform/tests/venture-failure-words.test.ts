@@ -51,8 +51,8 @@ test('failure words: an AI failure is placed by its code and Chausar\'s own word
   assert.deepEqual(unknown, { kind: 'unknown', line: "The AI service answered with an error Chausar doesn't know. Nothing was retried.", fix: null, fixKind: null, transient: false });
   assert.equal(words('TOOL_FAILED', 'There is no file "f9".'), null, 'not an AI failure: its own words stand');
   // Fixes for what only the owner can clear on this computer.
-  assert.equal(fixFor({ code: 'TOOL_FAILED', message: 'not run: ffmpeg not found' }, { at: AT, dateOrder: 'day-month-year' }), 'Install ffmpeg, or turn off the finishing check, then run again.');
-  assert.equal(fixFor({ code: 'TOOL_FAILED', message: 'ffmpeg was not found on this computer.' }, { at: AT, dateOrder: 'day-month-year' }), 'Install ffmpeg, or turn off the finishing check, then run again.');
+  assert.equal(fixFor({ code: 'TOOL_FAILED', message: 'not run: ffmpeg not found' }, { at: AT, dateOrder: 'day-month-year' }), 'Install ffmpeg, then run the required finishing checks again.');
+  assert.equal(fixFor({ code: 'TOOL_FAILED', message: 'ffmpeg was not found on this computer.' }, { at: AT, dateOrder: 'day-month-year' }), 'Install ffmpeg, then run the required finishing checks again.');
   assert.equal(fixFor({ code: 'TIER_UNAVAILABLE', message: 'Needs Docker Desktop.' }, { at: AT, dateOrder: 'day-month-year' }), 'Set up Docker Desktop and start it, then run again.');
   assert.equal(fixFor({ code: 'TOOL_FAILED', message: 'There is no file "f9".' }, { at: AT, dateOrder: 'day-month-year' }), null, 'nothing for the owner to do');
 });

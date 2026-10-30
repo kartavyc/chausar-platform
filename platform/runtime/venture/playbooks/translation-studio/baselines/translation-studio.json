@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "playbook": "translation-studio",
+  "recordedAt": "2026-10-28",
+  "baseline": {
+    "passed": 6,
+    "of": 6
+  },
+  "cases": [
+    {
+      "id": "glossary-term-missing",
+      "request": "Keep every source block and its protected facts.",
+      "draft": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Invoice 42\",\"target\":\"बिल 42\",\"probes\":[],\"ownerHash\":null}]",
+      "meta": {
+        "source": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Invoice 42\",\"target\":\"बिल 42\",\"probes\":[],\"ownerHash\":null}]",
+        "glossary": "[{\"source\":\"Invoice\",\"target\":\"बिल\"}]"
+      }
+    },
+    {
+      "id": "subtitle-merged-sentences",
+      "request": "Keep every source block and its protected facts.",
+      "draft": "[{\"id\":\"s1\",\"page\":1,\"type\":\"sentence\",\"source\":\"Do not pay 42.\",\"target\":\"42 का भुगतान न करें।\",\"probes\":[],\"ownerHash\":null,\"startMs\":0,\"endMs\":4000},{\"id\":\"s2\",\"page\":1,\"type\":\"sentence\",\"source\":\"Wait here.\",\"target\":\"यहाँ प्रतीक्षा करें।\",\"probes\":[],\"ownerHash\":null,\"startMs\":4200,\"endMs\":6500}]",
+      "meta": {
+        "source": "[{\"id\":\"s1\",\"page\":1,\"type\":\"sentence\",\"source\":\"Do not pay 42.\",\"target\":\"42 का भुगतान न करें।\",\"probes\":[],\"ownerHash\":null,\"startMs\":0,\"endMs\":4000},{\"id\":\"s2\",\"page\":1,\"type\":\"sentence\",\"source\":\"Wait here.\",\"target\":\"यहाँ प्रतीक्षा करें।\",\"probes\":[],\"ownerHash\":null,\"startMs\":4200,\"endMs\":6500}]",
+        "glossary": "[]",
+        "format": "subtitles"
+      }
+    },
+    {
+      "id": "number-dropped",
+      "request": "Keep every source block and its protected facts.",
+      "draft": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Invoice 42\",\"target\":\"बिल 42\",\"probes\":[],\"ownerHash\":null}]",
+      "meta": {
+        "source": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Invoice 42\",\"target\":\"बिल 42\",\"probes\":[],\"ownerHash\":null}]",
+        "glossary": "[]"
+      }
+    },
+    {
+      "id": "hindi-legal-letter",
+      "request": "Keep every source block and its protected facts.",
+      "draft": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Please acknowledge notice 42.\",\"target\":\"कृपया नोटिस 42 की प्राप्ति स्वीकार करें।\",\"probes\":[],\"ownerHash\":null}]",
+      "meta": {
+        "source": "[{\"id\":\"p1\",\"page\":1,\"type\":\"paragraph\",\"source\":\"Please acknowledge notice 42.\",\"target\":\"कृपया नोटिस 42 की प्राप्ति स्वीकार करें।\",\"probes\":[],\"ownerHash\":null}]",
+        "glossary": "[]"
+      }
+    },
+    {
+      "id": "dub-consent-refusal",
+      "request": "A speaker has no signed voice consent.",
+      "draft": "CONSENT_REQUIRED",
+      "meta": {
+        "source": "{\"sentences\": [{\"id\": \"a\", \"speaker\": \"Asha\", \"text\": \"Hello\", \"startMs\": 0, \"endMs\": 2000}], \"voices\": []}"
+      }
+    },
+    {
+      "id": "dub-overlong",
+      "request": "Report an overlong sentence without truncating it.",
+      "draft": "overlong",
+      "meta": {
+        "source": "{\"startMs\": 0, \"endMs\": 2000, \"nextStartMs\": 3000, \"durationMs\": 5000}"
+      }
+    }
+  ]
+}

@@ -134,7 +134,7 @@ test("the answer the engine uses is the one the list gives: approved on a link l
   env.deps = { ...env.deps, connectors: { browser: port, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
   const hosted = { ...env.deps, host: 'hosted-web', publicUrl: 'https://app.example.com' } as VentureDeps;
   const social = await seedPostPlaybook(env.deps, 'social-agency');
-  const run = await seedPostDraft(env.deps, ['LinkedIn: Our cafe opens at 8 every weekday.'], { playbookId: social.id, playbookChecks: [{ playbook: 'social-agency', check: 'claims', outcome: 'pass', detail: 'ok' }] });
+  const run = await seedPostDraft(env.deps, ['X: Our cafe opens at 8 every weekday.'], { playbookId: social.id, playbookChecks: [{ playbook: 'social-agency', check: 'claims', outcome: 'pass', detail: 'ok' }] });
   const made = await call<ShareLinkView>(hosted, 'venture.share.create', { deliveryId: run.id });
   const token = /\/share\/([A-Za-z0-9_-]{32})$/.exec(made.url ?? '')![1];
   const page = (await sharePage(hosted, owner, token))!;
@@ -152,7 +152,7 @@ test("the answer the engine uses is the one the list gives: approved on a link l
   await env.store.update(state => {
     const stored = state.conversations.find(item => item.id === run.id) as DeliveryRunRecord;
     stored.status = 'edited';
-    stored.editedText = '# Posts for October\n\n## Posts\nLinkedIn: Our cafe opens at 7 every weekday.';
+    stored.editedText = '# Posts for October\n\n## Posts\nX: Our cafe opens at 7 every weekday.';
   });
   assert.equal((await call<{ answer?: unknown }>(env.deps, 'venture.share.list', { deliveryId: run.id })).answer, null);
   // A draft with no posts gets the same answer rule from its links.

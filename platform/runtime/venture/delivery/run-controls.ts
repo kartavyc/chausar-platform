@@ -76,7 +76,7 @@ type StopOutcome = 'stopped' | 'cut' | 'stopping' | 'finishing';
  * preview is voided, never sent. A run with a turn out records the stop, which the turn reads between calls, unless
  * force, which stops it at once (the turn is thrown away when it comes back). A one-step run's only step finishes.
  */
-function stopIn(tx: VentureTx, runId: string, force: boolean, by: string): StopOutcome {
+export function stopIn(tx: VentureTx, runId: string, force: boolean, by: string): StopOutcome {
   const current = tx.find('venture-delivery-run', runId);
   check(current, 'RUN_NOT_FOUND', 'That run was not found.');
   check(current.status !== 'stopped', 'RUN_ALREADY_STOPPED', 'This run is already stopped. Resume it or run it again.');

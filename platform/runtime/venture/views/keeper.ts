@@ -32,11 +32,11 @@ const KEEPER_ROLE = 'Runs the engine\'s own jobs as code, not AI: backups, the j
 
 /** The jobs Keeper always lists, in order; the probes and the calendar feed are listed once they have run. */
 const LISTED: readonly KeeperJobId[] = ['backups', 'journal-sweep', 'connection-checks', 'rule-freshness', 'rate-tables', 'posting-steps', 'network-strength'];
-const WHEN_RUN: readonly KeeperJobId[] = ['probes', 'calendar-feed'];
+const WHEN_RUN: readonly KeeperJobId[] = ['probes', 'calendar-feed', 'monitors']; // 5A6: page monitors once one has run
 const JOB_NAMES: Readonly<Record<KeeperJobId, string>> = Object.freeze({
   backups: 'Backups', 'journal-sweep': 'Journal sweep', 'connection-checks': 'Connection checks', 'rule-freshness': 'Platform rule dates',
   'rate-tables': 'Tax rate tables', 'posting-steps': 'Posting steps', 'network-strength': 'Network strength', probes: 'Needs-you checks',
-  'calendar-feed': 'Calendar feed',
+  'calendar-feed': 'Calendar feed', monitors: 'Page monitors',
 });
 export const KEEPER_WORDS = Object.freeze({
   notRun: 'Not run yet.',

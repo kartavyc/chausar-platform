@@ -148,10 +148,11 @@ test('each connector has a capability set; a field outside it is CONNECTOR_FIELD
     return true;
   });
   // The browser posts from whoever signed in, so it takes the text only: an account is refused, never dropped.
-  checkConnectorFields('linkedin', 'post', ['text']);
+  checkConnectorFields('linkedin', 'copy-and-open', ['text']);
   assert.deepEqual(CONNECTOR_CAPABILITIES.linkedin[0].fields, ['text']);
   assert.equal(Object.hasOwn(CONNECTOR_CAPABILITIES.linkedin[0], 'labelOnly'), false);
-  assert.throws(() => checkConnectorFields('linkedin', 'post', ['text', 'account']), code('CONNECTOR_FIELD_UNSUPPORTED'));
+  assert.throws(() => checkConnectorFields('linkedin', 'copy-and-open', ['text', 'account']), code('CONNECTOR_FIELD_UNSUPPORTED'));
+  assert.throws(() => checkConnectorFields('linkedin', 'post', ['text']), code('CONNECTOR_FIELD_UNSUPPORTED'));
   assert.throws(() => checkConnectorFields('x', 'post', ['text', 'image']), code('CONNECTOR_FIELD_UNSUPPORTED'));
   assert.throws(() => checkConnectorFields('zoho-books', 'read-books', []), code('CONNECTOR_FIELD_UNSUPPORTED'));
   checkConnectorFields('zoho-mail', 'read-inbox', ['host', 'port', 'user', 'appPassword']);

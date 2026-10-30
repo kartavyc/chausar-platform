@@ -72,6 +72,7 @@ interface HeldProposal extends Drafted {
 }
 interface HeldMessage {
   id: string; at: string; from: 'owner' | 'chief'; text: string; parts: ChatPart[]; proposalIds: string[]; routedTo: string | null;
+  recordReport?:true;
   worked: ChiefMessageView['worked']; dropped: string[]; read: boolean; counted?: ChiefCounted | null;
 }
 interface HeldThread { id: string; title: string; pinned: boolean; lastAt: string; messages: HeldMessage[] }
@@ -129,6 +130,9 @@ export class FakeChiefDesk {
     if (!this.fresh) this.held.set('lumen', this.sample());
   }
 
+  /** Private deterministic source report, stored only after the exact routine occurrence approval. */
+  keepVaReport(routineId:string,title:string,text:string):void{const held=this.mine(),id='va-routine-'+routineId,now=this.host.now();let thread=held.threads.find(t=>t.id===id);if(!thread){thread={id,title,pinned:true,lastAt:now,messages:[]};held.threads.push(thread);}thread.lastAt=now;thread.messages.push({id:'va-report-'+(++this.seq),at:now,from:'chief',text,parts:said(text),proposalIds:[],routedTo:null,worked:[],dropped:[],read:false,recordReport:true});this.host.emit({type:'chief.message',businessId:this.host.current(),at:now});}
+  eraseVaReports():void{for(const thread of this.mine().threads)thread.messages=thread.messages.filter(m=>!m.recordReport);}
   handles(method: string): boolean {
     return CHIEF_METHODS.has(method);
   }

@@ -1,0 +1,114 @@
+/* The client report on an order (Ink v2 wave 5, 5A5): the files made, the share form and the report's links. Tokens
+   only; rows on D's soft dividers; under 560 px of tile everything stacks. */
+.body {
+  display: grid;
+  gap: var(--sp-3);
+  container-type: inline-size;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.files,
+.links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file,
+.link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.file:first-child,
+.link:first-child {
+  border-top: 0;
+}
+
+.name {
+  flex: 1 1 14em;
+  min-width: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  flex: 1 1 14em;
+  min-width: 0;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.act {
+  flex: none;
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin-left: auto;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: end;
+}
+
+.checks {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.checks legend {
+  padding: 0;
+  margin-bottom: var(--sp-1);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.check {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.formAct {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+@container (max-width: 560px) {
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .act {
+    margin-left: 0;
+  }
+}

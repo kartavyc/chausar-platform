@@ -1,0 +1,8 @@
+/* Chausar S12. Tokens only, wrapping controls and full post text at phone widths. */
+.stack { display: grid; gap: var(--sp-3); min-width: 0; }
+.line { margin: var(--sp-2) 0; color: var(--fg2); font-size: var(--text-read); overflow-wrap: anywhere; white-space: pre-wrap; }
+.form { display: grid; gap: var(--sp-3); min-width: 0; }
+.label { display: grid; gap: var(--sp-1); color: var(--fg2); font-size: var(--text-read); min-width: 0; }
+.label select { min-width: 0; max-width: 100%; min-height: var(--target); padding: var(--sp-2); font: inherit; color: var(--fg); background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-button); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: flex-end; }
+.error { color: var(--fail); font-size: var(--text-read); }

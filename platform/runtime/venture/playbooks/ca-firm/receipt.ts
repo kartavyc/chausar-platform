@@ -2,12 +2,12 @@
 // each step names the section it rests on, and the receipt names the exact rate-table versions it used, whether the
 // CA confirmed them, the defaults it assumed and the questions still open. The receipt id is a digest of all that,
 // so the same inputs always give the same receipt, and a draft can only quote figures a receipt holds.
-import { digest } from '../../records.ts';
+import { digest } from '../../../portable.ts';
 import { inr } from './money.ts';
 import type { RateTable, SectionRef, TableStamp } from './rates.ts';
 
 /** 'portal-diff': the portal's figures against the receipts (portal.ts portalDiffReceipt). */
-export type CaEngine = 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff';
+export type CaEngine = 'advance-tax' | 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff' | 'what-if' | 'doc-entry' | 'books-health' | 'data-pack';
 export type CaFigure = { key: string; label: string; minor: string; display: string };
 export type CaReceiptStep = CaFigure & { section: string | null };
 export type CaReceipt<W = unknown> = {

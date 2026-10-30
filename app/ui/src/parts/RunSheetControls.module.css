@@ -12,6 +12,20 @@
   overflow-wrap: anywhere;
 }
 
+/* Keep the proved rate in the paragraph's text flow. A wrapping flex Figure would
+   isolate its receipt and the following closing parenthesis on separate rows. */
+.scopeLine [data-figure] {
+  display: inline;
+}
+
+.scopeLine [data-receipt] {
+  margin-inline-start: var(--sp-1);
+}
+
+.scopeLine [data-ui-number] {
+  white-space: normal;
+}
+
 .fold > summary {
   cursor: pointer;
   font-size: var(--text-read);

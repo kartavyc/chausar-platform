@@ -27,6 +27,7 @@ import { flagshipDelivery } from '../playbooks/steps.ts';
 import type { OwnerOfferRecord } from '../contracts.ts';
 import { addOwnerOffer, liveOwnerOffers, ownerOfferInput, removeOwnerOffer, syncOwnerOffers } from './owner-offers.ts';
 import { recordDecision } from '../journal/decisions.ts';
+import { applyShareChange } from '../money/share-price.ts';
 
 // ---------------------------------------------------------------------------
 // Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
@@ -163,7 +164,7 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
  */
 function withOwnerOffers(structure: BlueprintStructure, owned: readonly OwnerOfferRecord[]): BlueprintStructure {
   if (!owned.length) return structure;
-  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null), owner: true as const }))] };
+  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null), owner: true as const, ...(record.youtubeService?{playbookOffer:record.youtubeService}:{}) }))] };
 }
 
 function planStructure(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null): BlueprintStructure {
@@ -302,6 +303,9 @@ export function carryOver(structure: BlueprintStructure, previous: BlueprintReco
     const offer = next.offers.find(o => o.id === id);
     if (was && offer) offer.pricing = structuredClone(was.pricing);
   }
+  // 5A2: the first offer's share stays while the open interview holds no fixed price for it (money/share-price.ts).
+  const first = next.offers[0], firstWas = first ? previous.offers.find(o => o.id === first.id) : undefined;
+  if (!interviewClosed && first && firstWas?.pricing.share && first.pricing.unitPriceMinor === null) first.pricing = { ...first.pricing, share: structuredClone(firstWas.pricing.share) };
   if (interviewClosed) {
     backOffice.taxRegistered = structuredClone(before.taxRegistered);
     backOffice.taxRateBps = before.taxRateBps;
@@ -692,7 +696,7 @@ function basedOnOf(value: unknown): { blueprintId: string; digest: string } {
   check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan the change was made from.');
   return { blueprintId: body.blueprintId, digest: body.digest };
 }
-const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingModel'] as const;
+const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingModel', 'share'] as const;
 
 /** What an edit changed that the open interview also holds, so the two stay the same. */
 type InterviewMirror = { pricingModel?: PricingModel; price?: { text: string; minor: string } | null; tax?: boolean };
@@ -742,6 +746,9 @@ function applyOfferPatches(blueprint: BlueprintRecord, value: unknown, country: 
         if (id === OFFER_IDS[0]) mirror.price = price;
       }
     }
+    // Ink v2 wave 5 (5A2): a share of an amount the client confirms later, in place of a fixed price (money/share-price.ts);
+    // on the first offer the open interview then holds no fixed price either, so a rewrite does not bring one back.
+    if (applyShareChange(offer, change) && id === OFFER_IDS[0]) mirror.price = null;
   }
 }
 

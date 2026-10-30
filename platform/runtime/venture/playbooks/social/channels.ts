@@ -11,8 +11,9 @@ import { check } from '../../../contracts.ts';
 import type { PostingModeName } from '../../contracts.ts';
 import { NOT_PROBED, OWNER_SESSION_RISK, postingOptions, type PostingEnvironment } from '../../build/posting.ts';
 
-export const SOCIAL_CHANNELS = ['instagram', 'facebook', 'linkedin', 'x', 'threads', 'tiktok', 'youtube-shorts'] as const;
-export type SocialChannel = typeof SOCIAL_CHANNELS[number];
+import { SOCIAL_CHANNELS, type SocialChannel } from './channel-ids.ts';
+export { SOCIAL_CHANNELS, type SocialChannel } from './channel-ids.ts';
+
 export type MediaKind = 'image' | 'video';
 /** A width to height ratio in whole numbers, compared by cross-multiplying, never as a fraction. */
 export type Ratio = { w: number; h: number };
@@ -62,7 +63,13 @@ const NONE: ModeCapability = { can: [], cannot: ['Anything: this build has no po
 const META_PAID = { label: 'Paid partnership label', rule: 'meta-paid-partnership' };
 const META_AI = { label: 'AI info label', rule: 'meta-ai-label' };
 
+function openTextChannel(id:SocialChannel,name:string,maxChars:number,charsRule:string):ChannelCapability{return{id,name,connectorId:id,counting:'graphemes',maxChars,charsRule,maxHashtags:null,hashtagsRule:null,media:{required:false,kinds:[],maxItems:0,imageAspect:null,videoAspect:null,maxVideoSeconds:null,rules:[],ruleFor:{items:null,imageAspect:null,videoAspect:null,video:null}},altText:false,thread:false,paidToggle:null,aiToggle:null,formats:['Plain text'],modes:{api:{can:['Publish exact approved plain text to your connected account'],cannot:['Publish without separate approval','Upload media','Send direct messages']},'owner-browser-session':NONE,handoff:NONE}};}
+
 export const CHANNEL_CAPABILITIES: Readonly<Record<SocialChannel, ChannelCapability>> = Object.freeze({
+  bluesky:openTextChannel('bluesky','Bluesky',300,'bluesky-text-300'),
+  mastodon:openTextChannel('mastodon','Mastodon',500,'mastodon-text-house'),
+  telegram:openTextChannel('telegram','Telegram',4096,'telegram-text-4096'),
+  discord:openTextChannel('discord','Discord',2000,'discord-text-2000'),
   instagram: {
     id: 'instagram', name: 'Instagram', connectorId: 'instagram', counting: 'graphemes',
     maxChars: 2200, charsRule: 'ig-caption-2200', maxHashtags: 5, hashtagsRule: 'ig-hashtags-5',
@@ -101,8 +108,8 @@ export const CHANNEL_CAPABILITIES: Readonly<Record<SocialChannel, ChannelCapabil
     altText: true, thread: false, paidToggle: null, aiToggle: null,
     formats: ['Text', 'Image', 'Video', 'Document'],
     modes: {
-      api: { can: ['Publish an approved text post'], cannot: ['Publish without your approval', 'Post from a personal profile by automation'] },
-      'owner-browser-session': { can: ['Post approved text from the account you signed in to'], cannot: BROWSER_CANNOT },
+      api: { can: [], cannot: ['LinkedIn is copy-and-open only. Post the approved words yourself.'] },
+      'owner-browser-session': { can: [], cannot: ['LinkedIn is copy-and-open only. Post the approved words yourself.'] },
       handoff: HANDOFF,
     },
   },

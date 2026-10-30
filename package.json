@@ -41,7 +41,10 @@
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.3",
-    "pg": "8.23.0"
+    "@noble/hashes": "2.0.1",
+    "pg": "8.23.0",
+    "parse5": "8.0.1",
+    "tldts": "7.4.19"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.3",

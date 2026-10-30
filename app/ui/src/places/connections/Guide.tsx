@@ -1,4 +1,7 @@
 import { useId } from 'react';
+import {localizedBooksGuide} from './BooksGuide';
+import {localizedPlaybookGuide} from './PlaybookGuide';
+import {localizedSellerGuide} from './SellerGuide';
 import { useLanguage, useT } from '../../text';
 import { Icon } from '../../parts/Icon';
 import type { ConnectorGuideLite, ConnectorLadder } from '../../engine/types';
@@ -18,8 +21,9 @@ function dayOf(day: string, language: string): string {
  * what it sends ("Sends: nothing, so ..."), and what the agents can and can't do. A connection set up part way names
  * its missing setting first.
  */
-export function Guide({ guide }: { guide: ConnectorGuideLite }) {
+export function Guide({ guide: originalGuide, connectorId }: { guide: ConnectorGuideLite; connectorId?: string }) {
   const t = useT();
+  const guide = localizedSellerGuide(t,connectorId,localizedPlaybookGuide(t, connectorId, localizedBooksGuide(t, connectorId, originalGuide)));
   const language = useLanguage();
   const headingId = useId();
   const stepsId = useId();

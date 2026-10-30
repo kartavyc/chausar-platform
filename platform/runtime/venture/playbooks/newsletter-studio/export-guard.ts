@@ -1,0 +1,3 @@
+// Original scoped professional gates. Preparation remains available while actual client effects wait.
+import {requireNewsletter} from './core.ts';import type {NewsletterDraft} from './presend.ts';import {requireNewsletterConsentRule,NEWSLETTER_SPONSOR_RULE,NEWSLETTER_US_RULE} from './legal-core.ts';
+export function requireNewsletterExportRules(draft:NewsletterDraft|null,usRecipients:boolean){requireNewsletterConsentRule();if(draft?.sponsor)requireNewsletter(!!NEWSLETTER_SPONSOR_RULE.confirmedBy,'RULE_UNCONFIRMED','A lawyer must confirm sponsor disclosure before exporting sponsored copy.');if(usRecipients)requireNewsletter(!!NEWSLETTER_US_RULE.confirmedBy,'RULE_UNCONFIRMED','A lawyer must confirm commercial email rules before exporting to United States recipients.');}

@@ -17,7 +17,7 @@ import {
   EngineError, type AgentProposalView, type AgentView, type BlueprintViewLite, type CapabilityItemView, type CapabilityPageView,
   type ClientLite, type DeliveryLite, type DiffLine, type IdeaView, type KnowledgeSourceInput, type KnowledgeSourceView, type ModelStatusLite,
   type OrderLite, type PersonaFields, type PersonaView, type ProposalKind, type ProposalView, type RunDetail, type StandingOrdersView, type TeamListView,
-  type UploadLite, type VoiceInput, type VoiceSections, type VoiceView,
+  type UploadLite, type VoiceInput, type VoiceSections, type VoiceView, type PipelineIdeaView,
 } from './types';
 import type { W4DeskHost } from './fake-w4';
 
@@ -37,6 +37,8 @@ export interface AgentExtrasHooks {
   say?: (agent: string, text: string) => void;
   /** Mail the owner answers themselves that is not handled yet (the pipeline desk's inbound records). */
   waitingMail?: () => { id: string; who: string; date: string }[];
+  /** 5A3: the idea pipeline on the same list (fake-kit-rules.ts). */
+  pipelineIdeas?: () => PipelineIdeaView[];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -113,13 +115,12 @@ const JUDGE_ON = 'Code runs the checks, then an AI judge reads the draft on your
 
 /** What each sample step is, as the playbook's step kinds say (the fake's agents carry only id and purpose). */
 const STEP_KIND: Readonly<Record<string, 'gather' | 'work' | 'write' | 'verify' | 'floor'>> = {
-  cut: 'work', shorts: 'work', finish: 'verify', publish: 'floor', titles: 'write', thumbs: 'verify', brief: 'gather', price: 'floor', send: 'floor',
-  post: 'floor', match: 'work', gst: 'verify', portal: 'floor', draft: 'write', issue: 'floor',
+  cut: 'work', shorts: 'work', finish: 'verify', titles: 'write', thumbs: 'verify', brief: 'gather',
+  post: 'floor', match: 'work', gst: 'verify', draft: 'write', issue: 'floor',
 };
 /** The floor reason each always-ask step carries (the flagship playbooks' own words). */
 const FLOOR_LINE: Readonly<Record<string, string>> = {
-  publish: 'Publishing always asks you first.', price: 'A price change always asks you first.', send: 'Sending to a client always asks you first.',
-  portal: 'Anything on the GST portal always asks you first.', issue: 'Issuing an invoice always asks you first.', post: 'Posting always asks you first.',
+  issue: 'Issuing an invoice always asks you first.', post: 'Posting always asks you first.',
 };
 /** Steps that need a connector mode this build does not have (connector truth: Instagram posting is planned). */
 const NEEDS_PLANNED: Readonly<Record<string, string>> = { post: 'Instagram' };
@@ -245,7 +246,7 @@ export class FakeAgentExtras {
       case 'venture.knowledge.add': return this.knowledgeAdd(p);
       case 'venture.knowledge.remove': return this.knowledgeRemove(p);
       case 'venture.knowledge.test': return this.knowledgeTest(p);
-      case 'venture.ideas.list': exact(p, []); return { ideas: this.ideas().map(ideaView), waiting: this.waiting() };
+      case 'venture.ideas.list': exact(p, []); return { ideas: this.ideas().map(ideaView), waiting: this.waiting(), pipeline: this.hooks.pipelineIdeas?.() ?? [] };
       case 'venture.ideas.start': return this.ideaStart(p);
       case 'venture.ideas.dismiss': return this.ideaDismiss(p);
       case 'venture.agents.capabilities': { const body = exact(p, ['agent']); return this.capabilities(id(body.agent, 'Agent')); }

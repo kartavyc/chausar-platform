@@ -5,6 +5,7 @@ import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import type { QueueAction, QueueRow } from '../../engine/types';
 import s from './Work.module.css';
+import {actionWords} from '../today/OutreachRows';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -77,15 +78,16 @@ export function useRunAgain(row: QueueRow | undefined, onChanged: () => void, pr
   const opened = () => setViewed(true);
   const shownProblem = problem ? <p className={s.problem} role="status">{problem}</p> : null;
   if (!row || !action) return { action, opened, controls: null, ask: null, problem: shownProblem };
+  const label = actionWords(action.label, t);
 
   const locked = Boolean(action.requiresView && !viewed);
   const size = buttonSize ?? (prominent ? 'lg' : 'sm');
   if (phase === 'confirm') {
     const ask = (
       <div className={s.confirm}>
-        <p className={s.ask}>{t('approval.secondAsk', { action: action.label })}</p>
+        <p className={s.ask}>{t('approval.secondAsk', { action: label })}</p>
         <Button ref={cancelRef} size={size} onClick={() => { backToAgain.current = true; setPhase('idle'); }}>{t('approval.cancel')}</Button>
-        <Button variant="primary" size={size} data-confirm="" onClick={() => void send(row, action)}>{action.label}</Button>
+        <Button variant="primary" size={size} data-confirm="" onClick={() => void send(row, action)}>{label}</Button>
       </div>
     );
     return { action, opened, controls: null, ask, problem: shownProblem };
@@ -94,13 +96,13 @@ export function useRunAgain(row: QueueRow | undefined, onChanged: () => void, pr
     <>
       <Button
         ref={againRef} variant={prominent ? 'primary' : 'secondary'} size={size} data-key="primary" disabled={phase === 'busy'}
-        locked={locked} lockedReason={t('approval.unlock', { action: action.label })} lockedNoteId={noteId}
+        locked={locked} lockedReason={t('approval.unlock', { action: label })} lockedNoteId={noteId}
         onClick={() => { if (!locked) { if (action.secondAsk) setPhase('confirm'); else void send(row, action); } }}
       >
         {prominent && <Icon name="rotate-ccw" size={16} />}
-        {action.label}
+        {label}
       </Button>
-      {locked && <span id={noteId} className={prominent ? s.quiet : 'sr-only'}>{t('approval.unlockOpen', { action: action.label })}</span>}
+      {locked && <span id={noteId} className={prominent ? s.quiet : 'sr-only'}>{t('approval.unlockOpen', { action: label })}</span>}
     </>
   );
   return { action, opened, controls, ask: null, problem: shownProblem };

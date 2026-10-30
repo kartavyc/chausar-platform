@@ -6,7 +6,7 @@
 //
 // Ideas taken, code written here: NidheeshJain/itr-prep-skill (MIT) for the order of the tax stack; Invaro/
 // opentax-engine (AGPL-3.0, ideas only) for refusing loudly when a case is not modelled.
-import { ChausarError } from '../../../contracts.ts';
+import { ChausarError } from '../../../portable.ts';
 import {
   applyBps, invalid, minBig, maxBig, notModelled, optionalPaise, paise, round288, sumBig, inr,
 } from './money.ts';
@@ -127,7 +127,7 @@ function deductionsAllowed(builder: ReceiptBuilder, table: RateTable<IncomeTaxPa
     let label: string;
     // Labels name the deduction in words, never its section number: a client document quotes them, and section numbers
     // wait for the CA's confirmation (claims.ts sections-flagged). The step's key and section keep the code.
-    const title = (rule ?? table.payload.regimes.old.deductions[code]).title;
+    const title = (rule ?? table.payload.regimes.old.deductions[code])!.title;
     if (!rule) { allowed = 0n; label = `${title}: not allowed under the new regime`; }
     else if (rule.seniorOnly && !senior) { allowed = 0n; label = `${title}: only for a senior citizen`; }
     else if (rule.notForSenior && senior) { allowed = 0n; label = `${title}: not for a senior citizen, who claims the deduction for deposit interest instead`; }

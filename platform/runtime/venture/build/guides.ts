@@ -1,3 +1,10 @@
+import {R5_GUIDES} from './r5-guides.ts';
+import {APP_TESTING_GUIDES} from './app-testing-guides.ts';
+import {TRANSLATION_GUIDES} from './translation-guides.ts';
+import {CAREER_GUIDES} from './career-guides.ts';
+import {OPEN_POSTING_GUIDES} from './open-posting-guides.ts';
+import {NARRATION_GUIDES,NARRATION_CHARGES} from './narration-guides.ts';
+import {SELLER_GUIDES} from './seller-guides.ts';
 // Chausar venture launcher, connector setup guides (Ink v2 wave 4, package 4J7, catalogue K11). Every catalogue
 // connector has a guide: numbered steps that ask for the least access the code uses, the step people skip, what the
 // platform charges (dated only where Chausar's catalogue note says it), "No charge" for Chausar's own parts, a line on
@@ -7,6 +14,8 @@
 // only leave a key lying about. A half-configured connection names its missing setting (halfConfigured). guideProblems
 // is the validation a test runs over the whole catalogue.
 import type { State } from '../../contracts.ts';
+import {ZOHO_BOOKS_GUIDE} from './zoho-books-guide.ts';
+import {PLAYBOOK_GUIDES} from './playbook-guides.ts';
 import type { ConnectorGuide, VentureDeps } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { CONNECTOR_CATALOGUE, type CatalogueEntry } from './catalogue.ts';
@@ -43,7 +52,7 @@ const CHARGES: Readonly<Record<string, { line: string; noted: boolean }>> = Obje
   firstbase: { line: 'Forming a company through it has a fee.', noted: false },
 });
 /** Chausar's own parts and the connectors that need nothing but this computer or the owner's own mail. */
-const FREE = new Set(['chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account']);
+const FREE = new Set(['page-monitors','source-export','triage-copy','android-local','docker-local','app-testing-delivery','local-live-captions', 'career-links', 'career-boards', 'chausar-crm', 'chausar-books', 'chausar-templates', 'mail-app', 'bank-account', 'mail-import', 'article-transcript', 'article-local-transcription', 'article-publishing', 'newsletter-owner-tool', 'tender-documents', 'tender-submission', 'narration-files', 'narration-local-checks', 'narration-distribution']);
 
 type Hand = Omit<ConnectorGuide, 'charges' | 'missing'>;
 
@@ -75,6 +84,15 @@ const AGAIN = 'Chausar keeps it only while the app is open, so type it again aft
 
 /** The guides written by hand: every connector this build really links, hands off to, reads or keeps inside Chausar. */
 const HAND: Readonly<Record<string, Hand>> = Object.freeze({
+  'app-testing-delivery':APP_TESTING_GUIDES['app-testing-delivery']!,
+  ...CAREER_GUIDES,
+  ...SELLER_GUIDES,
+  ...PLAYBOOK_GUIDES,
+  ...R5_GUIDES,
+  ...OPEN_POSTING_GUIDES,
+  ...NARRATION_GUIDES,
+  ...TRANSLATION_GUIDES,
+  'zoho-books': ZOHO_BOOKS_GUIDE,
   lovable: builder('Lovable', 'Turn on GitHub sync in Lovable, so Chausar can follow the code.'),
   replit: builder('Replit', 'Connect GitHub in Replit, so Chausar can follow the code.'),
   bolt: builder('Bolt', 'Bolt keeps its own version when GitHub sync has a conflict. Check which version is live.'),
@@ -150,8 +168,29 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
     sends: 'Sends: nothing outside Chausar. Every number comes from the calculator with a receipt.',
     agentLimits: "Agents can't issue an invoice or record a payment. Each one waits for you.",
   },
-  linkedin: poster('LinkedIn'),
   x: poster('X'),
+  // Ink v2 wave 5 (5A6): mail files you import, and your own n8n or Make webhook.
+  'mail-import': {
+    steps: ['In your mail app, save the mails as .eml files, or export a folder as an .mbox file.', 'Under Connections, choose Import mail files and pick the file.'],
+    skipped: 'Export only the folder you need: a file over 25 MB is refused, and the smaller the file, the less of other people\'s mail Chausar keeps.',
+    checks: 'Nothing to connect: Chausar reads only the file you pick, and screens each message before it keeps anything.',
+    sends: 'Sends: nothing. Chausar never sends mail.',
+    agentLimits: "Agents read only the mail of the order's own client, screened first, and never your mailbox.",
+  },
+  'n8n-webhook': {
+    steps: ['In n8n, add a Webhook node to a workflow and copy its production address.', 'Under Connections, paste it as your n8n webhook, and send the test item if you like.', AGAIN],
+    skipped: 'Use the production address, not the test one, and keep the workflow active, or n8n will refuse what Chausar sends.',
+    checks: 'With the test item, Chausar sends that one fixed item first and keeps the address only if n8n did not refuse it.',
+    sends: 'Sends: only an item you approve, exactly as shown, to that webhook. Chausar never makes or changes a workflow.',
+    agentLimits: "Agents can't send to your webhook. Each item waits for you to approve it as shown.",
+  },
+  'make-webhook': {
+    steps: ['In Make, add a Custom webhook trigger to a scenario and copy its address.', 'Under Connections, paste it as your Make webhook, and send the test item if you like.', AGAIN],
+    skipped: 'Turn the scenario on, or Make will hold what Chausar sends until you do.',
+    checks: 'With the test item, Chausar sends that one fixed item first and keeps the address only if Make did not refuse it.',
+    sends: 'Sends: only an item you approve, exactly as shown, to that webhook. Chausar never makes or changes a scenario.',
+    agentLimits: "Agents can't send to your webhook. Each item waits for you to approve it as shown.",
+  },
 });
 
 /** What a connector this build does not link says it would do until it is built, beside the general planned words. */
@@ -179,6 +218,7 @@ function plannedGuide(item: CatalogueEntry): Hand {
 
 /** What the platform charges: dated only where the catalogue's note says it; Chausar's own parts and the owner's own mail are free. */
 function chargesOf(id: string): ConnectorGuide['charges'] {
+  if (NARRATION_CHARGES[id]) return { line: NARRATION_CHARGES[id], checkedOn: null };
   if (FREE.has(id)) return { line: NO_CHARGE, checkedOn: null };
   const said = CHARGES[id];
   return said ? { line: said.line, checkedOn: said.noted ? CATALOGUE_NOTES_ON : null } : { line: PRICES_UNCHECKED, checkedOn: null };
@@ -191,7 +231,7 @@ export function connectorWorks(item: CatalogueEntry): boolean {
 
 /** One connector's guide, with its missing setting when it is half configured. */
 export function guideOf(item: CatalogueEntry, missing: string | null = null): ConnectorGuide {
-  const hand = (connectorWorks(item) ? HAND[item.id] : undefined) ?? plannedGuide(item);
+  const hand = APP_TESTING_GUIDES[item.id] ?? (connectorWorks(item) ? HAND[item.id] : undefined) ?? plannedGuide(item);
   return {
     steps: hand.steps.map((step, index) => `${index + 1}. ${step}`), skipped: hand.skipped, charges: chargesOf(item.id), checks: hand.checks,
     sends: hand.sends, agentLimits: hand.agentLimits, missing,
@@ -232,7 +272,7 @@ export function halfConfigured(deps: Pick<VentureDeps, 'secrets'>, state: State,
     const empty = accounts.find(account => !imported.has(account.id));
     return empty ? `Missing: a statement file for ${empty.label}. Import one under Bank.` : null;
   }
-  if (connectorId === 'linkedin' || connectorId === 'x') {
+  if (connectorId === 'x') {
     // A steps record exists once the owner started checking; until every step has worked, the check is what is missing.
     const started = listRecords(state, 'venture-posting-steps', ventureId).some(record => record.connectorId === connectorId);
     return started && !stepsCheckedOnOf(state, connectorId) ? 'Missing: a posting steps check where every step worked. Run it again before the first post.' : null;

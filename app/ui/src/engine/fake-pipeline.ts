@@ -365,7 +365,7 @@ export class FakePipelineDesk {
   }
 
   /** Whether the blocklist covers an address, or its domain (customers/leads.ts isBlocked). */
-  private isBlocked(value: string | null | undefined): boolean {
+  isBlocked(value: string | null | undefined): boolean {
     const entry = (value ?? '').trim().toLowerCase();
     if (!entry) return false;
     const list = this.desk().blocklist;

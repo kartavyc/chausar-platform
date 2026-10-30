@@ -1,0 +1,18 @@
+/* Original career owner desk: calm sections and token-only responsive controls. */
+.stack[hidden]{display:none}
+.stack{display:grid;gap:var(--sp-4);min-width:0}
+.form{display:grid;gap:var(--sp-3);min-width:0}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+.line{color:var(--fg2);font-size:var(--text-read);overflow-wrap:anywhere}
+.quote{white-space:pre-wrap;overflow-wrap:anywhere;font-size:var(--text-read);margin:var(--sp-2) 0;min-width:0}
+.actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+.label{display:grid;gap:var(--sp-1);font-size:var(--text-read);min-width:0}
+.label select{font:inherit;min-height:var(--target);min-width:0;max-width:100%;color:var(--fg);background:var(--surface);border:var(--hair) solid var(--line);border-radius:var(--r-button);padding:var(--sp-2)}
+.check{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target);font-size:var(--text-read);overflow-wrap:anywhere}
+.check input{flex:none;width:var(--sp-4);height:var(--sp-4);accent-color:var(--link)}
+.error{color:var(--fail);font-size:var(--text-read)}
+.row{display:grid;gap:var(--sp-2);border:var(--hair) solid var(--line);border-radius:var(--r-card);padding:var(--sp-3);min-width:0}
+.list{display:grid;gap:var(--sp-2);padding-left:var(--sp-4);overflow-wrap:anywhere}
+.table{width:100%;border-collapse:collapse;font-size:var(--text-read)}
+.table th,.table td{text-align:left;padding:var(--sp-2);border-bottom:var(--hair) solid var(--line);overflow-wrap:anywhere}
+@media(max-width:560px){.pair{grid-template-columns:minmax(0,1fr)}}

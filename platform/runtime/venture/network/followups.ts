@@ -8,7 +8,7 @@
 // about a week" for intros; the follow-up habits of small sellers), tuned later from the owner's results.
 import type {
   CardTouch, DateOrder, FollowupSequence, IsoDate, IsoTime, OutreachChannel, OutreachKind, OutreachSentChannel, PipelineSettingsRecord, PipelineStage,
-} from '../contracts.ts';
+} from './followup-input.ts';
 
 /** The waits of each sequence, in days, each from the touch before it. */
 export const SEQUENCE_STEPS: Readonly<Record<FollowupSequence['kind'], readonly number[]>> = Object.freeze({
@@ -103,11 +103,11 @@ export function followupPlan(input: PlanInput): FollowupPlan | null {
   if (input.stage !== 'asked' || input.blocked || !sequence) return null;
   const sends = input.touches.filter(touch => touch.what === 'sent').map(touch => touch.on).sort();
   if (!sends.length) return null;
-  if (input.touches.some(touch => touch.what === 'reply' && touch.on >= sends[0])) return null;
-  const last = sends[sends.length - 1];
+  if (input.touches.some(touch => touch.what === 'reply' && touch.on >= sends[0]!)) return null;
+  const last = sends[sends.length - 1]!;
   const done = sends.length - 1; // follow-ups already sent
   if (done < sequence.steps.length) {
-    const step = sequence.steps[done];
+    const step = sequence.steps[done]!;
     let due = addDays(last, step.afterDays);
     if (done > 0) {
       // From the second follow-up on: at least 7 days after the last touch to this person, on this card or another.
@@ -137,8 +137,8 @@ export function settledPark(input: PlanInput): { on: IsoDate; askAgainFrom: IsoD
   for (let i = 0; i < sends.length; i += 1) {
     const plan = followupPlan({ ...input, touches: sends.slice(0, i + 1) });
     if (plan?.kind !== 'park') continue;
-    if (sends[i + 1] && sends[i + 1].on <= plan.on) continue;
-    const answered = input.touches.some(touch => touch.what === 'reply' && touch.on >= sends[0].on && touch.on <= plan.on);
+    if (sends[i + 1] && sends[i + 1]!.on <= plan.on) continue;
+    const answered = input.touches.some(touch => touch.what === 'reply' && touch.on >= sends[0]!.on && touch.on <= plan.on);
     return answered ? null : { on: plan.on, askAgainFrom: plan.askAgainFrom };
   }
   return null;

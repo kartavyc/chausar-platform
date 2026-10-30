@@ -4,6 +4,8 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
 import { EngineError, type EngineClient, type PlanSuggestionView, type Transport } from '../../src/engine/types';
 import type { Language } from '../../src/text';
+import START from '../../src/engine/fixtures-start.json';
+import type {WaysView} from '../../src/engine/types';
 import { assertInkRules } from '../helpers/ink-rules';
 
 /**
@@ -33,6 +35,9 @@ async function start(options: FakeOptions = {}, { language = 'en', transport, ai
 }
 
 const gallery = () => screen.findByRole('region', { name: 'All ways to earn' });
+const offered=START.ways as unknown as WaysView;
+const offeredNames=offered.ways.map(way=>way.label);
+const chipNames=(language:'en'|'hi')=>[`${language==='hi'?'सभी':'All'} ${offered.ways.length}`,...offered.categories.filter(c=>c.count>0).map(c=>`${language==='hi'?c.hi:c.label} ${c.count}`),...(offered.upTo.count>0?[`${language==='hi'?offered.upTo.hi:offered.upTo.label} ${offered.upTo.count}`]:[])];
 const tileNames = (region: HTMLElement, list = 'Ways to earn') => within(within(region).getByRole('list', { name: list })).getAllByRole('article').map((tile) => tile.querySelector('h3')?.textContent);
 
 describe('Start: the ways to earn from the engine', () => {
@@ -40,15 +45,15 @@ describe('Start: the ways to earn from the engine', () => {
     await start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Pick a way to earn' })).toBeTruthy();
     const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
-    expect(header.querySelector('b')?.textContent).toBe('3');
+    expect(header.querySelector('b')?.textContent).toBe(String(offered.ways.length));
     const region = await gallery();
     const chips = within(region).getByRole('group', { name: 'Show' });
-    // A chip that would show 0 is not drawn (no way fits "Up to 5 h a week" in the engine's list).
-    expect(within(chips).getAllByRole('button').map((chip) => chip.textContent)).toEqual(['All 3', 'Content 1', 'Marketing 1', 'Money and tax 1']);
-    expect(within(chips).getByRole('button', { name: 'All 3' }).getAttribute('aria-pressed')).toBe('true');
+    // Counts and available filters come from the engine's expanded wave-five catalogue.
+    expect(within(chips).getAllByRole('button').map((chip) => chip.textContent)).toEqual(chipNames('en'));
+    expect(within(chips).getByRole('button', { name: `All ${offered.ways.length}` }).getAttribute('aria-pressed')).toBe('true');
     const sort = within(region).getByRole('combobox', { name: 'Sort' }) as HTMLSelectElement;
     expect([...sort.options].map((option) => option.textContent)).toEqual(['Best fit', 'Fewest hours', 'Name']);
-    expect(tileNames(region)).toEqual(['CA practice', 'YouTube channel', 'Social media agency']);
+    expect(tileNames(region)).toEqual(offeredNames);
     // No fit until the owner asks (4C2: the fit is a call to the owner's AI): no featured tile, every Start a secondary.
     expect(region.querySelectorAll('[data-variant="primary"]')).toHaveLength(0);
     assertInkRules();
@@ -59,7 +64,7 @@ describe('Start: the ways to earn from the engine', () => {
     const region = await gallery();
     fireEvent.click(screen.getByRole('button', { name: 'Which way fits me?' }));
     await waitFor(() => expect(tileNames(region)[0]).toBe('Social media agency'));
-    expect(tileNames(region)).toEqual(['Social media agency', 'CA practice', 'YouTube channel']);
+    expect(tileNames(region)).toEqual(['Social media agency',...offeredNames.filter(name=>name!=='Social media agency')]);
     const primaries = [...region.querySelectorAll('[data-variant="primary"]')];
     expect(primaries.map((button) => button.getAttribute('aria-label'))).toEqual(['Start Social media agency']);
     assertInkRules();
@@ -71,8 +76,8 @@ describe('Start: the ways to earn from the engine', () => {
     const tile = within(region).getByRole('article', { name: 'CA practice' });
     expect(tile.textContent).toContain('6 to 10 h a week');
     expect(within(tile).getByText('Your time')).toBeTruthy();
-    expect(tile.textContent).toContain('Meet clients, review every draft, and work with your CA.');
-    expect(within(tile).getByRole('img', { name: '4 agents: Intake clerk, Tax preparer, Reconciler and Working papers writer' })).toBeTruthy();
+    expect(tile.textContent).toContain('Meet clients, review drafts, work with your CA.');
+    expect(within(tile).getByRole('img', { name: '2 agents: Reconciler and Tax preparer' })).toBeTruthy();
     const pay = tile.querySelector('[data-figure-group]')!;
     expect(pay.textContent).toContain('Clients usually pay, a client a month');
     expect(pay.textContent).toContain('₹5,000 to ₹20,000');
@@ -91,20 +96,21 @@ describe('Start: the ways to earn from the engine', () => {
     expect(within(yours).getByRole('button', { name: 'Start another YouTube channel' }).textContent).toBe('Start');
   });
 
-  it('a chip shows its ways; "Up to 5 h a week" reads maxHours and says when none fits; Sort orders as the engine does', async () => {
+  it('category, hours and sort controls show the corresponding current engine ways', async () => {
     await start();
     const region = await gallery();
-    fireEvent.click(within(region).getByRole('button', { name: 'Content 1' }));
-    expect(tileNames(region)).toEqual(['YouTube channel']);
-    expect(within(region).queryByRole('button', { name: /Up to 5 h a week/ })).toBeNull();
-    fireEvent.click(within(region).getByRole('button', { name: 'All 3' }));
+    fireEvent.click(within(region).getByRole('button', { name: `Content ${offered.categories.find(c=>c.id==='content')!.count}` }));
+    expect(tileNames(region)).toEqual(offered.ways.filter(way=>way.category==='content').map(way=>way.label));
+    fireEvent.click(within(region).getByRole('button', { name: new RegExp('Up to 5 h a week') }));
+    expect(tileNames(region)).toEqual(offered.ways.filter(way=>way.maxHours<=5).map(way=>way.label));
+    fireEvent.click(within(region).getByRole('button', { name: `All ${offered.ways.length}` }));
     const sort = within(region).getByRole('combobox', { name: 'Sort' });
     fireEvent.change(sort, { target: { value: 'name' } });
-    expect(tileNames(region)).toEqual(['CA practice', 'Social media agency', 'YouTube channel']);
+    expect(tileNames(region)).toEqual([...offeredNames].sort((a,b)=>a.localeCompare(b,'en-IN')));
     fireEvent.change(sort, { target: { value: 'fewest-hours' } });
-    expect(tileNames(region)).toEqual(['Social media agency', 'YouTube channel', 'CA practice']);
+    expect(tileNames(region)).toEqual([...offered.ways].sort((a,b)=>a.maxHours-b.maxHours||a.minHours-b.minHours||a.label.localeCompare(b.label,'en-IN')).map(way=>way.label));
     fireEvent.change(sort, { target: { value: 'best-fit' } });
-    expect(tileNames(region)).toEqual(['CA practice', 'YouTube channel', 'Social media agency']);
+    expect(tileNames(region)).toEqual(offeredNames);
   });
 
   it("a tile's Start puts the way's own sentence in the box and sends nothing", async () => {
@@ -121,11 +127,72 @@ describe('Start: the ways to earn from the engine', () => {
     await start({}, { language: 'hi' });
     const region = await screen.findByRole('region', { name: 'कमाई के सभी तरीके' });
     const chips = within(region).getByRole('group', { name: 'दिखाएँ' });
-    expect(within(chips).getAllByRole('button').map((chip) => chip.textContent)).toEqual(['सभी 3', 'कंटेंट 1', 'मार्केटिंग 1', 'पैसा और टैक्स 1']);
+    expect(within(chips).getAllByRole('button').map((chip) => chip.textContent)).toEqual(chipNames('hi'));
     fireEvent.change(within(region).getByRole('combobox', { name: 'क्रम' }), { target: { value: 'name' } });
-    const names = ['CA प्रैक्टिस', 'YouTube चैनल', 'सोशल मीडिया एजेंसी'].sort((a, b) => a.localeCompare(b, 'hi-IN'));
+    const names = offered.ways.map(way=>way.hi.label).sort((a, b) => a.localeCompare(b, 'hi-IN'));
     expect(tileNames(region, 'कमाई के तरीके')).toEqual(names);
     expect(within(region).getByRole('article', { name: 'CA प्रैक्टिस' }).textContent).toContain('हफ़्ते में 6 से 10 घंटे');
+  });
+});
+
+/**
+ * The three flagship tiles (Ink v2 wave 5, 5A1): each from its playbook's tile.ts (plan "Gallery tile" lines of 5B, 5C
+ * and 5D), through venture.playbooks.list: the line, the hours and the pay as a model estimate, what the owner does, the
+ * AI team (code roles never drawn as AI) and its line.
+ */
+describe('Start: the flagship tiles (5A1)', () => {
+  const tileOf = async (name: string) => within(await gallery()).getByRole('article', { name });
+  const figures = (tile: HTMLElement) => {
+    expect(tile.querySelector('[data-figure-group] [data-estimate]')?.textContent).toBe('model estimate');
+    expect(tile.querySelector('.sr-only')?.textContent).toContain('model estimate');
+  };
+
+  it('YouTube channel: episodes, shorts, packaging and audits; 4 to 8 h; three agents; ₹5,000 to ₹30,000 per video', async () => {
+    await start();
+    const tile = await tileOf('YouTube channel');
+    expect(tile.textContent).toContain("Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.");
+    expect(tile.textContent).toContain('4 to 8 h a week');
+    expect(tile.textContent).toContain('Record, watch each cut, meet sponsors.');
+    expect(within(tile).getByRole('img', { name: '3 agents: Story editor, Producer and Packager' })).toBeTruthy();
+    expect(tile.textContent).toContain('Edits, shorts, titles and sponsor quotes.');
+    const pay = tile.querySelector('[data-figure-group]')!;
+    expect(pay.textContent).toContain('Clients usually pay, per video');
+    expect(pay.textContent).toContain('₹5,000 to ₹30,000');
+    figures(tile);
+    assertInkRules();
+  });
+
+  it('CA practice: working papers your CA signs; 6 to 10 h; the reconciler and the tax preparer; ₹5,000 to ₹20,000 a client a month', async () => {
+    await start();
+    const tile = await tileOf('CA practice');
+    expect(tile.textContent).toContain('Books, GST, TDS and income tax working papers for small businesses; your CA of record signs anything regulated.');
+    expect(tile.textContent).toContain('Meet clients, review drafts, work with your CA.');
+    expect(within(tile).getByRole('img', { name: '2 agents: Reconciler and Tax preparer' })).toBeTruthy();
+    expect(tile.textContent).toContain('Books, workings, receipts for every figure.');
+    expect(tile.querySelector('[data-figure-group]')!.textContent).toContain('₹5,000 to ₹20,000');
+    // The calculator and the checks are code: never drawn as an AI.
+    expect(tile.textContent).not.toMatch(/Calculator|Checks/);
+    figures(tile);
+  });
+
+  it('Social media agency: posts, replies, reels and reports; 4 to 6 h; three agents; ₹8,000 to ₹25,000', async () => {
+    await start();
+    const tile = await tileOf('Social media agency');
+    expect(tile.textContent).toContain('Posts, replies, reels and monthly reports for local shops, clinics and coaches.');
+    expect(tile.textContent).toContain('4 to 6 h a week');
+    expect(tile.textContent).toContain('Approve drafts, talk to clients, post or hand off.');
+    expect(within(tile).getByRole('img', { name: '3 agents: Strategist, Writer and Creative' })).toBeTruthy();
+    expect(tile.textContent).toContain('Calendars, posts, reply drafts, report figures from exports.');
+    expect(tile.querySelector('[data-figure-group]')!.textContent).toContain('₹8,000 to ₹25,000');
+    figures(tile);
+  });
+
+  it('in Hindi, each flagship tile carries its Hindi words', async () => {
+    await start({}, { language: 'hi' });
+    const region = await screen.findByRole('region', { name: 'कमाई के सभी तरीके' });
+    expect(within(region).getByRole('article', { name: 'YouTube चैनल' }).textContent).toContain('रिकॉर्ड करें, हर कट देखें, स्पॉन्सर से मिलें।');
+    expect(within(region).getByRole('article', { name: 'CA प्रैक्टिस' }).textContent).toContain('बही-खाते, वर्किंग और हर आँकड़े की रसीद।');
+    expect(within(region).getByRole('article', { name: 'सोशल मीडिया एजेंसी' }).textContent).toContain('लोकल दुकानों, क्लिनिक और कोच के लिए पोस्ट, जवाब, रील और महीने की रिपोर्ट।');
   });
 });
 

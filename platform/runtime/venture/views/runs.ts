@@ -11,6 +11,7 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
+import { playbookForRun } from '../delivery/workflow.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { VOICE_PLAYBOOK } from '../playbooks/voice-match.ts';
 import { currentVenture, exactPayload, findRecord, formatMicros, identifier, listRecords } from '../records.ts';
@@ -28,7 +29,7 @@ import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
-import { scenariosFor } from '../delivery/scenarios.ts';
+import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
 import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
@@ -120,7 +121,7 @@ function stepAudited(calls: readonly ToolCallRecord[], audits: Map<string, StepA
 
 /** The steps a delivery run follows: its own playbook's, else the business's current one, else the accepted plan's. */
 function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord): PlaybookStep[] {
-  const own = findRecord(state, 'venture-playbook', run.playbookId);
+  const own = playbookForRun(state, run);
   if (own && own.ventureId === venture.id) return own.steps;
   const current = currentPlaybook(state, venture);
   if (current) return current.steps;
@@ -501,7 +502,7 @@ function judgeStanding(record: DeliveryRunRecord): JudgeStanding {
 }
 
 function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRunRecord, business: { id: string }): Built {
-  const scenarios = scenariosFor(serviceTypeOf(state, venture));
+  const scenarios = businessScenarios(state, venture.id, serviceTypeOf(state, venture));
   const { scenarios: total, passed } = record.summary;
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Rehearse with practice clients', state: 'done',

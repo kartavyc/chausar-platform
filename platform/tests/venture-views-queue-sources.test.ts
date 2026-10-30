@@ -78,7 +78,7 @@ test('queue: a quote over an hour old leaves Today; a fresh refusal asks again',
   assert.equal(listRecords(env.store.read(), 'venture-spend-quote').length, 2);
 });
 
-function browser(results: BrowserPostResult[] = [{ outcome: 'posted', line: 'LinkedIn showed the post.', url: null }]): BrowserPort {
+function browser(results: BrowserPostResult[] = [{ outcome: 'posted', line: 'X showed the post.', url: null }]): BrowserPort {
   return {
     async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; },
     async post() { return results.shift() ?? { outcome: 'posted', line: 'Posted.', url: null }; },
@@ -88,14 +88,14 @@ function browser(results: BrowserPostResult[] = [{ outcome: 'posted', line: 'Lin
 test('queue: a post waiting to go out is a connector row; Approve posts it once and Do not post rejects it', async () => {
   const env = await setup();
   env.deps = { ...env.deps, connectors: { browser: browser(), appReviewed: [], postTimeoutMs: 200 } };
-  const draft = await seedPostDraft(env.deps, ['LinkedIn: Our cafe books service is open for October.', 'LinkedIn: A second post the owner turns down.']);
-  const first = await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, part: 1, agent: 'Marketing agent' });
-  const second = await proposePost(env.deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, part: 2 });
+  const draft = await seedPostDraft(env.deps, ['X: Our cafe books service is open for October.', 'X: A second post the owner turns down.']);
+  const first = await proposePost(env.deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 1, agent: 'Marketing agent' });
+  const second = await proposePost(env.deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 2 });
 
   const rows = await ofKind(env, 'connector');
   assert.equal(rows.length, 2);
   const [one, two] = rows;
-  assert.equal(one.title, 'Post to LinkedIn');
+  assert.equal(one.title, 'Post to X');
   assert.equal(one.businessId, 'main');
   assert.equal(one.businessName, 'Ledgerline');
   assert.equal(one.agent, 'Marketing agent');
@@ -107,7 +107,7 @@ test('queue: a post waiting to go out is a connector row; Approve posts it once 
   assert.deepEqual([(await decide(env, one, 'approve')).reason], ['VIEW_FIRST']);
   const posted = await decide(env, one, 'approve', { viewed: true });
   assert.equal(posted.outcome, 'done', posted.line);
-  assert.match(posted.line, /^Posted to LinkedIn\./);
+  assert.match(posted.line, /^Posted to X\./);
   const denied = await decide(env, two, 'deny');
   assert.equal(denied.outcome, 'done', denied.line);
   const posts = new Map(listRecords(env.store.read(), 'venture-connector-post').map(post => [post.id, post]));

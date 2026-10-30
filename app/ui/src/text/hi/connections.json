@@ -154,8 +154,7 @@
   "connections.transcribe.save": "सेव करें",
   "connections.transcribe.remove": "हटाएँ",
   "connections.transcribe.failed": "सेव नहीं हुआ: {message}",
-  "connections.transcribe.loadFailed": "सेटअप पढ़ा नहीं जा सका: {message}"
-,
+  "connections.transcribe.loadFailed": "सेटअप पढ़ा नहीं जा सका: {message}",
   "connections.groupMeta": {
     "zero": "सब योजना में हैं",
     "one": "{total} में से {live} आज काम करता है",
@@ -267,9 +266,18 @@
   "connections.checks.checking": "जाँच हो रही है",
   "connections.checks.none": "अभी कुछ जुड़ा नहीं है, इसलिए जाँचने को कुछ नहीं था।",
   "connections.checks.found": "हर जाँच में क्या मिला",
-  "connections.checks.ready": {"one": "{count} तैयार", "other": "{count} तैयार"},
-  "connections.checks.warnings": {"one": "{count} चेतावनी", "other": "{count} चेतावनियाँ"},
-  "connections.checks.blocking": {"one": "{count} रुकावट", "other": "{count} रुकावटें"},
+  "connections.checks.ready": {
+    "one": "{count} तैयार",
+    "other": "{count} तैयार"
+  },
+  "connections.checks.warnings": {
+    "one": "{count} चेतावनी",
+    "other": "{count} चेतावनियाँ"
+  },
+  "connections.checks.blocking": {
+    "one": "{count} रुकावट",
+    "other": "{count} रुकावटें"
+  },
   "connections.checks.outcome.answered": "जवाब मिला",
   "connections.checks.outcome.failed": "फ़ेल हुआ",
   "connections.checks.outcome.skipped": "छोड़ा गया",
@@ -280,5 +288,8 @@
   "connections.mailbox.open": "मेलबॉक्स जोड़ें",
   "connections.mailbox.calendar.add": "पता जोड़ें",
   "connections.mailbox.calendar.next": "अगली बार {when} पढ़ा जाएगा।",
-  "connections.checks.at": "आख़िरी जाँच {when}"
+  "connections.checks.at": "आख़िरी जाँच {when}",
+  "connections.posting.mode.api": "एपीआई से पोस्ट करना",
+  "connections.posting.mode.owner-browser-session": "ब्राउज़र से पोस्ट करना",
+  "connections.posting.mode.handoff": "ख़ुद पोस्ट करना"
 }

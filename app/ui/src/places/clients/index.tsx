@@ -25,6 +25,7 @@ import { OutreachSheet } from './OutreachSheet';
 import { pipelineRefresh } from './pipeline';
 import { networkRefresh } from './network';
 import { NetworkTab } from './NetworkTab';
+import { ProposalSheet } from './Proposal';
 import { PersonSheet } from './PersonSheet';
 import { PipelineTab } from './PipelineTab';
 import { useClientsChanged } from './signals';
@@ -95,4 +96,7 @@ function Clients({ tab }: { tab: Tab }) {
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { client: ClientSheet, lead: LeadSheet, person: PersonSheet, 'network-import': ImportSheet, card: CardSheet, outreach: OutreachSheet };
+export const sheets: Readonly<Record<string, SheetComponent>> = {
+  client: ClientSheet, lead: LeadSheet, person: PersonSheet, 'network-import': ImportSheet, card: CardSheet, outreach: OutreachSheet,
+  proposal: ProposalSheet, // W5 5A2: a sales proposal for a client or a pipeline person
+};

@@ -4,6 +4,7 @@
 // trusted Python helper (pdf.extract). The shared hosted server never runs the Python helper, so there a PDF is refused
 // before it is stored. Practice files for rehearsal are made up by Chausar and never stored. On the desktop a YouTube
 // order's transcript can also be made on this computer from the cut named at intake (venture.files.transcribe).
+import {readDocx} from '../../playbooks/kit/ooxml/read.ts';
 import { audit, check, ChausarError, type Context } from '../../../contracts.ts';
 import { localPathProblem } from '../../../speech.ts';
 import { readWorkbook } from '../../../workbook.ts';
@@ -15,6 +16,7 @@ import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { parseTranscript, type Cue } from '../../playbooks/youtube/transcript.ts';
 import { HOSTED_NO_TRANSCRIBE, makeLocalTranscript, transcriptName, transcriptPrompt } from '../../playbooks/youtube/transcribe.ts';
 import type { ToolCallRecord } from '../../contracts.ts';
+import { mediaAdd, mediaKindOf } from '../../playbooks/kit/media-intake.ts';
 
 /** Fits one desktop request (two million bytes) once encoded. */
 export const MAX_UPLOAD_BYTES = 1_450_000;
@@ -47,8 +49,9 @@ export function sniffFormat(name: string, bytes: Uint8Array): UploadFormat {
   const lower = name.toLowerCase();
   const head = Buffer.from(bytes.subarray(0, 5)).toString('latin1');
   if (lower.endsWith('.pdf')) { check(head === '%PDF-', 'UNSUPPORTED_UPLOAD', 'This file is named .pdf but is not a PDF.'); return 'pdf'; }
+  if (lower.endsWith('.docx')) { check(head.startsWith('PK\u0003\u0004'), 'UNSUPPORTED_UPLOAD', 'This file is named .docx but is not a Word document.'); readDocx(bytes); return 'docx'; }
   if (lower.endsWith('.xlsx')) { check(head.startsWith('PK\u0003\u0004'), 'UNSUPPORTED_UPLOAD', 'This file is named .xlsx but is not an XLSX workbook.'); return 'xlsx'; }
-  if (lower.endsWith('.csv') || lower.endsWith('.txt')) {
+  if (lower.endsWith('.csv') || lower.endsWith('.txt') || lower.endsWith('.md') || lower.endsWith('.markdown')) {
     try { new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { throw new ChausarError('UNSUPPORTED_UPLOAD', 'This CSV is not UTF-8 text. Save it as CSV UTF-8 and add it again.'); }
     return 'csv';
   }
@@ -58,7 +61,7 @@ export function sniffFormat(name: string, bytes: Uint8Array): UploadFormat {
     check(parseTranscript(text).length > 0, 'UNSUPPORTED_UPLOAD', 'This transcript has no timed lines. Export it again as SRT or VTT and add it again.');
     return 'transcript';
   }
-  throw new ChausarError('UNSUPPORTED_UPLOAD', 'Add a CSV, XLSX or PDF file, or a transcript as SRT or VTT. Photos and scans need a reader this build does not have.');
+  throw new ChausarError('UNSUPPORTED_UPLOAD', 'Add a CSV, XLSX or PDF file, a transcript as SRT or VTT, a photo as JPEG, PNG or WebP, or a recording. Scans need a reader this build does not have.');
 }
 
 /** A transcript's lines in file order, each with its segment id (seg-1, seg-2 ...), the only way agents name a moment. */
@@ -78,10 +81,12 @@ export async function filesAddHandler(deps: VentureDeps, ctx: Context, payload: 
     'UPLOAD_LIMIT', 'Add a file smaller than one and a half megabytes.');
   const bytes = Buffer.from(encoded, 'base64');
   check(bytes.length > 0 && bytes.length <= MAX_UPLOAD_BYTES, 'UPLOAD_LIMIT', 'Add a file smaller than one and a half megabytes.');
+  // 5A4 (P9): a photo is kept only once cleaned of its location and camera data, a recording as it came, both apart.
+  if (mediaKindOf(name)) return mediaAdd(deps, ctx, { orderId, name, bytes });
   const format = sniffFormat(name, bytes);
   check(!(format === 'pdf' && deps.host === 'hosted-web'), 'TIER_UNAVAILABLE', HOSTED_NO_PDF);
   const file: FileLike = { id: 'upload_check', name, format, bytes: bytes.length, digest: digest(encoded), contentBase64: encoded, clientData: true };
-  if (format === 'csv' || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
+  if (format === 'csv' && !/\.(txt|md|markdown)$/i.test(name) || format === 'xlsx') tablesOfFile(file); // refuse a file the tools could never read, before it is stored
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'files.add', tx => {
     const order = tx.find('venture-order', orderId);
@@ -155,7 +160,7 @@ export async function filesListHandler(deps: VentureDeps, ctx: Context, payload:
   const orderId = body.orderId === undefined ? null : identifier(body.orderId, 'Order');
   const { state, venture } = readAs(deps, ctx, 'read');
   return listRecords(state, 'venture-upload', venture.id)
-    .filter(upload => upload.scope.kind !== 'poster' && (orderId === null || (upload.scope.kind === 'order' && upload.scope.orderId === orderId)))
+    .filter(upload => upload.scope.kind !== 'poster' && (orderId === null || ((upload.scope.kind === 'order' || upload.scope.kind === 'media') && upload.scope.orderId === orderId)))
     .map(uploadView);
 }
 

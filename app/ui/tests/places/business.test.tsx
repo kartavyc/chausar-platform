@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList } from '../../src/engine/types';
+import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList, type RulesListView } from '../../src/engine/types';
 import { lineDiff } from '../../src/places/business/SiteEdits';
 import { receiptMark } from '../helpers/ink-rules';
 
@@ -140,18 +140,26 @@ describe('Business: platform rules (2H)', () => {
     expect(social.rules.find((rule) => rule.id === 'linkedin-3000')?.usedBy).toContain('publish');
     expect(social.summary).toMatch(/^\d+ current, 0 to recheck, \d+ not confirmed against a source yet\.$/);
     const later = rulesListFor({ id: 'social-agency', label: 'Social media agency' }, '2027-01-25');
-    expect(later.summary).toBe(`0 current, ${later.rules.length} to recheck.`);
-    expect(later.rules[0]!.line).toMatch(/was checked 96 days ago, on 2026-10-21/);
+    const newer = later.rules.filter(rule => rule.checkedOn === '2026-10-27');
+    expect(newer.every(rule => !rule.stale)).toBe(true);
+    const {RULE_DATA}=await import('../../src/engine/fixtures-rules-data');
+    const sample=RULE_DATA['social-agency']!;
+    const isOld=(rule:typeof sample[number])=>(Date.parse('2027-01-25')-Date.parse(rule.checkedOn))/86400000>rule.windowDays;
+    const stale=sample.filter(isOld),unconfirmed=sample.filter(rule=>!isOld(rule)&&rule.unconfirmed);
+    expect(later.rules.filter(rule=>rule.stale).map(rule=>rule.id)).toEqual(stale.map(rule=>rule.id));
+    expect(later.summary).toBe(`${sample.length-stale.length-unconfirmed.length} current, ${stale.length} to recheck${unconfirmed.length?`, ${unconfirmed.length} not confirmed against a source yet`:''}.`);
+    expect(later.rules.find(rule => rule.id === 'x-weighted-280')!.line).toMatch(/was checked 96 days ago, on 2026-10-21/);
     for (const id of ['social-agency', 'youtube']) expect(rulesListFor({ id, label: id }, '2026-10-23').summary).not.toMatch(/rests on no dated platform rules/);
   });
 
   it("shows the playbook's dated rules: how many to recheck, each stale rule's line and its source link", async () => {
     start('#/business/plan', new FakeEngine({ now: () => '2027-01-25T09:00:00.000Z' }));
     const rules = await screen.findByRole('region', { name: 'Platform rules' });
-    await waitFor(() => expect(within(rules).getByText('0 current, 8 to recheck.')).toBeTruthy());
+    await waitFor(() => expect(within(rules).getByText('10 current, 8 to recheck.')).toBeTruthy());
     expect(within(rules).getByText("Medium risk · Chausar's build last reviewed these rules on 23 Oct 2026")).toBeTruthy();
     const stale = within(rules).getByRole('list', { name: 'To recheck' });
     expect(within(stale).getAllByRole('listitem')).toHaveLength(8);
+    expect(within(rules).getByRole('list', { name: 'Current rules' }).querySelectorAll(':scope > [data-rule]')).toHaveLength(10);
     const chapters = within(stale).getByText(/^Video chapters added by hand was checked 96 days ago, on 2026-10-21\./).closest('li')!;
     const link = within(chapters).getByRole('link', { name: 'Video Chapters, YouTube Help' });
     expect(link.getAttribute('href')).toBe('https://support.google.com/youtube/answer/9884579');
@@ -161,9 +169,10 @@ describe('Business: platform rules (2H)', () => {
   it('inside the window every rule is current, with what it does not cover; a business with no playbook shows none', async () => {
     start('#/business/plan', new FakeEngine({ now: () => '2026-10-23T09:00:00.000Z' }));
     const rules = await screen.findByRole('region', { name: 'Platform rules' });
-    await waitFor(() => expect(within(rules).getByText('8 current, 0 to recheck.')).toBeTruthy());
+    await waitFor(() => expect(within(rules).getByText('18 current, 0 to recheck.')).toBeTruthy());
     expect(within(rules).queryByRole('list', { name: 'To recheck' })).toBeNull();
     const current = within(rules).getByRole('list', { name: 'Current rules' });
+    expect(current.querySelectorAll(':scope > [data-rule]')).toHaveLength(18);
     const chapters = within(current).getByText(/^Video chapters added by hand: The first timestamp/).closest('li')!;
     expect(within(chapters).getByText('The check reads the chapters written in the description; automatic chapters YouTube may add are not read.')).toBeTruthy();
     expect(within(chapters).getByRole('link', { name: 'Video Chapters, YouTube Help' })).toBeTruthy();
@@ -174,7 +183,7 @@ describe('Business: platform rules (2H)', () => {
     const client = createFakeClient(engine);
     const request = client.request.bind(client);
     let asked = 0;
-    let answer: () => Promise<unknown> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.' });
+    let answer: () => Promise<RulesListView> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.', recipes: [], boundaries: [] });
     client.request = ((method: string, params?: unknown) => {
       if (method !== 'venture.rules.list') return request(method as never, params as never);
       asked += 1;
@@ -454,8 +463,9 @@ describe('Business menu', () => {
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
-    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
-    expect(hrefs).toHaveLength(10);
+    // W5 5A2: Go or no go, after Goals.
+    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(hrefs).toHaveLength(11);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
@@ -476,7 +486,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     expect(screen.getByText(/Agents never file or sign/)).toBeTruthy();
     const rates = screen.getByRole('region', { name: 'Rate tables to confirm' });
     expect(within(rates).getByRole('checkbox', { name: 'GST rates for services' })).toBeTruthy();
-    expect(rates.textContent).toContain('Version 3');
+    expect(rates.textContent).toContain('Version 2');
     expect(rates.textContent).toContain('no end date');
     expect(rates.textContent).toContain('CBIC rate notification for services, September 2025');
     const requests = screen.getByRole('region', { name: 'Sign-off requests' });
@@ -491,7 +501,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     fireEvent.click(within(rates).getByRole('checkbox', { name: 'GST rates for services' }));
     fireEvent.change(within(rates).getByLabelText("Your CA's membership number"), { target: { value: '999999' } });
     await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
-    await waitFor(() => expect(within(rates).getByRole('alert').textContent).toBe("That is not Meera Joshi's membership number. Only your CA of record signs."));
+    await waitFor(() => expect(within(rates).getByRole('alert').textContent).toBe('That is not the ICAI membership number of Meera Joshi, your CA of record.'));
     fireEvent.change(within(rates).getByLabelText("Your CA's membership number"), { target: { value: '412345' } });
     await act(async () => { fireEvent.click(within(rates).getByRole('button', { name: 'Confirm chosen tables' })); });
     await waitFor(() => expect(within(rates).getByText('Confirmed 1 rate table.')).toBeTruthy());
@@ -608,8 +618,8 @@ describe('Business: your CA (CA firm playbook)', () => {
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
     await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
-    expect(hrefs).toHaveLength(11);
+    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/go-no-go', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
+    expect(hrefs).toHaveLength(12);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 });

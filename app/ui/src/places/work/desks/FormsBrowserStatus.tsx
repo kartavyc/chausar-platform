@@ -1,0 +1,7 @@
+// Pending Forget is reachable even when every client record has already been erased.
+import {useState} from 'react';import {useEngine,useResource} from '../../../engine/context';import {useT} from '../../../text';
+import {Tile} from '../../../parts/Tile';import {Button} from '../../../parts/Button';
+export function FormsBrowserStatus(){const t=useT(),w=(key:string)=>t('pb-forms.'+key),engine=useEngine(),view=useResource('venture.desk.get',{playbook:'data-entry-desk',kind:'browser',id:'current'}),[busy,setBusy]=useState(false),[error,setError]=useState(false),state=view.data?.item as {desktop:boolean;permissionReviewed:boolean;cleanupPending:boolean}|undefined;
+ async function finish(){if(busy||view.loading||view.error||!state?.cleanupPending)return;setBusy(true);setError(false);try{await engine.request('venture.desk.act',{playbook:'data-entry-desk',kind:'browser',id:'current',action:'finish-forget',payload:{},digest:view.data!.digest});view.reload();}catch{setError(true);}finally{setBusy(false);}}
+ return <>{(!state?.permissionReviewed||view.error)&&<p>{w('planned')}</p>}{state&&!state.desktop&&<p>{w('error.FORM_DESKTOP_REQUIRED')}</p>}{state?.cleanupPending&&<Tile card><p>{w('error.FORM_PRIVACY_PENDING')}</p><Button variant="primary" locked={busy||view.loading||!!view.error||!state.desktop} onClick={()=>void finish()}>{w('finishForget')}</Button>{error&&<p role="alert">{w('error.FORM_PRIVACY_PENDING')}</p>}</Tile>}</>;
+}

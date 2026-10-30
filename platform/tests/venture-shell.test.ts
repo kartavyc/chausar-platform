@@ -106,7 +106,7 @@ async function desktop() {
     // readdir lists a one-page Ink build, so main.cjs finds app/ui/dist and opens its window.
     if (name === 'node:fs/promises') return { readFile: async (path: string) => path.endsWith('package.json') ? JSON.stringify({ chausarPreview: true, version: '2.3.4' }) : '', mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       readdir: async () => [{ name: 'index.html', isDirectory: () => false, isFile: () => true }] };
-    return require(name);
+    return createRequire(new URL('../../app/desktop/main.cjs', import.meta.url))(name);
   }, process: { argv: ['electron', '/owned/app'], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
   return { windows, engines, handlers, errors, opened, permissions };

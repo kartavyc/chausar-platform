@@ -1,3 +1,5 @@
+import {HIDDEN,FORMULA,normalEmail} from './normal-email.ts';
+export {normalEmail} from './normal-email.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): the pure core of the extractor that reads the owner's
 // own files where they are: in the desktop's worker process, in the engine as a second guard, and later in the hosted
 // app's browser (4D4). No Node or browser API is used here beyond Intl, so the same code runs in all three. It splits
@@ -233,8 +235,6 @@ export class CsvReader {
 /** Lower case, spaces collapsed: how a header cell is matched. */
 export const headerKey = (value: string) => value.replace(/^﻿/, '').trim().replace(/\s+/g, ' ').toLowerCase();
 
-const HIDDEN = /[\p{Cf}\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/gu;
-const FORMULA = /^[=+\-@]/;
 
 /**
  * One text cell as Chausar keeps it: hidden characters removed, spaces collapsed, formula signs at the start (= + - @,
@@ -250,18 +250,6 @@ export function cleanText(raw: string | undefined | null, max: number, drops: Dr
   if (!text) return null;
   const points = [...text];
   return points.length > max ? points.slice(0, max).join('').trim() : text;
-}
-
-const EMAIL = /^[^\s@<>()",;:]{1,64}@([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$/;
-
-/**
- * An email address in one spelling (trimmed, lower case, mailto: taken off), or null when it is not one. One starting
- * with a formula sign (= + -) is refused too: it would run as a formula in a spreadsheet the owner opens later.
- */
-export function normalEmail(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const text = raw.replace(HIDDEN, '').trim().replace(/^mailto:/i, '').toLowerCase();
-  return text.length <= 254 && !FORMULA.test(text) && EMAIL.test(text) ? text : null;
 }
 
 /**

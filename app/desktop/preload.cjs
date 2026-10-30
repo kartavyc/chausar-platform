@@ -24,6 +24,37 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
+  // A client report (5A5): the desktop makes the files and saves them in a new folder where the owner picks. Null when cancelled.
+  saveReport: async runId => {
+    const reply = await ipcRenderer.invoke('chausar:report:save', { runId: String(runId) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The report could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  saveYoutubeProject: async (editId, digest) => {
+    const reply = await ipcRenderer.invoke('chausar:youtube:saveProject', { editId: String(editId), digest: String(digest) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The project could not be saved.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
+  pickAppTestApk: async (orderId, fromClient, digest) => {
+    const reply = await ipcRenderer.invoke('chausar:apptest:pickApk', { orderId, fromClient, ...(digest === undefined ? {} : { digest }) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The client APK could not be read.'), { code: reply?.error?.code || 'CLIENT_APK_REQUIRED' });
+  },
+  openYoutubeProject: async savedId => {
+    const reply = await ipcRenderer.invoke('chausar:youtube:openProject', { savedId: String(savedId) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
+  saveSocialProject: async (orderId, digest) => {
+    const reply = await ipcRenderer.invoke('chausar:social:saveProject', { orderId: String(orderId), digest: String(digest) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The approved posts could not be saved.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
+  openSocialProject: async savedId => {
+    const reply = await ipcRenderer.invoke('chausar:social:openProject', { savedId: String(savedId) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];
@@ -36,15 +67,16 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   onEvent: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for run events.');
     const types = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
-      'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran'];
+      'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+      'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten'];
     const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
     const whole = value => Number.isSafeInteger(value) && value >= 0;
     const listener = (_event, value) => {
-      if (!value || typeof value !== 'object' || !types.includes(value.type) || !id(value.businessId) || (value.runId !== undefined && !id(value.runId))) return;
+      if (!value || typeof value !== 'object' || !types.includes(value.type) || !id(value.businessId) || (value.type !== 'privacy.forgotten' && value.runId !== undefined && !id(value.runId))) return;
       if (typeof value.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(value.at)) return;
       if ((value.seq !== undefined && !whole(value.seq)) || (value.count !== undefined && (value.type !== 'notify.new' || !whole(value.count)))) return;
       callback(Object.freeze({
-        type: value.type, businessId: value.businessId, ...(value.runId !== undefined ? { runId: value.runId } : {}), at: value.at,
+        type: value.type, businessId: value.businessId, ...(value.type !== 'privacy.forgotten' && value.runId !== undefined ? { runId: value.runId } : {}), at: value.at,
         ...(value.seq !== undefined ? { seq: value.seq } : {}), ...(value.count !== undefined ? { count: value.count } : {}),
       }));
     };

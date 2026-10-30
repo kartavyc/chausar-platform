@@ -8,6 +8,7 @@ import { useAskKey } from './ask';
 import { Bell, NotifyProvider } from './Bell';
 import { StatusLine } from '../parts/StatusLine';
 import { closeSheet, returnFocus, useRoute } from './navigation';
+import { PrivacyBoundary } from './PrivacyBoundary';
 import { useShellKeys } from './keys';
 import { PLACES, SHEETS } from './places';
 import { Rail } from './Rail';
@@ -37,7 +38,7 @@ export function Shell() {
   const client = useEngine();
   const status = useEngineStatus();
   const line = <StatusLine status={status} transport={client.transport} />;
-  return <BootScreen status={line}>{(checking) => <Frame statusLine={line} checking={checking} />}</BootScreen>;
+  return <BootScreen status={line}>{(checking) => <PrivacyBoundary>{(privacy) => <Frame key={privacy} statusLine={line} checking={checking} />}</PrivacyBoundary>}</BootScreen>;
 }
 
 /**

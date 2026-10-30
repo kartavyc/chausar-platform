@@ -60,7 +60,7 @@ export const BOARDS = [
     board: 'D-TeamDept', title: 'One department', address: '#/team?dept=prod', cases: ['team-dept-prod', 'team-dept'],
     matches: [
       'In the app now (W4 4A2): the toggle with Production chosen; the hero panel on the Production tint with icon, purpose, jobs this week, spend with its receipt and playbook steps.',
-      '"How Production runs" with its version: numbered steps with Auto and Hold, the publish step "Always asks you", and "A change makes version 5. You can undo it".',
+      '"How Production runs" with its version: assigned agent steps with Auto and Hold, and "A change makes version 5. You can undo it". Owner-only publication stays outside the agent assignments.',
       'Agents in the department, Recent work as cards with state and progress, and Spend and jobs by week.',
     ],
     differs: [

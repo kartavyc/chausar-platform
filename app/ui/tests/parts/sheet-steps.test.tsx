@@ -132,7 +132,7 @@ describe('RunSheet', () => {
     const { container } = render(<RunSheetView run={run('28')} onClose={() => {}} onRunAgain={onRunAgain} />);
     expect(container.textContent).toContain('ffmpeg was not found on this computer.');
     // W4 4F3: the engine's fix, in the screen's words, under what went wrong.
-    expect(container.textContent).toContain('How to fix itInstall ffmpeg, or turn off the finishing check, then run again.');
+    expect(container.textContent).toContain('How to fix itInstall ffmpeg, then run the required finishing checks again.');
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalled();
   });
