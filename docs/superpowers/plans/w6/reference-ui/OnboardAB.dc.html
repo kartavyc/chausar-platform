@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>About you: A that becomes B</title>
+
+<link rel="stylesheet" href="./d-base.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2f5bd3}a:hover{color:#1f45b0}
+@keyframes w6rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes w6slide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+.enter{animation:w6rise 400ms ease-out both}
+.enter-side{animation:w6slide 400ms ease-out both}
+@media (prefers-reduced-motion: reduce){.enter,.enter-side{animation:none}}
+</style>
+</helmet>
+<div class="page" style="min-height:1040px">
+  <div class="solo">
+    <div class="topbar">
+      <a class="brand" href="#" style="margin:0"><svg width="22" height="22" viewBox="0 0 37 37" aria-hidden="true"><rect x="0" y="0" width="18" height="18" rx="4.5" fill="#16181b"></rect><rect x="19" y="19" width="18" height="18" rx="4.5" fill="{{accent}}"></rect></svg><span class="word">chausar</span></a>
+      <ol class="steps" aria-label="Setup steps">
+        <li class="stp done"><b><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></b>Connected: ChatGPT plan</li>
+        <li class="stp on"><b>2</b>About you</li>
+        <li class="stp"><b>3</b>Your business</li>
+      </ol>
+    </div>
+
+    <div class="wrap">
+      <sc-if value="{{showA}}" hint-placeholder-val="{{ true }}">
+        <p class="eyebrow">Step 2 of 3</p>
+        <h1 class="h1">What do you do today?</h1>
+        <p class="sub">Write a message, or pick your field below. Writing turns this into a conversation.</p>
+
+        <div class="bento" style="margin-top:24px">
+          <div class="tile c12" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+            <label for="msg" class="h3">Tell Chausar about your work</label>
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <textarea id="msg" class="input" rows="2" style="flex:1" value="{{text}}" onChange="{{onType}}" placeholder="For example: I'm a CA with 6 years in audit and want to do books and GST for small shops near me."></textarea>
+              <button type="button" class="ib" aria-label="Attach your resume or LinkedIn export"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"></path></svg></button>
+              <button type="button" class="btn lg pri" style="background:{{accent}};color:{{accentInk}};border-color:{{accent}}" onClick="{{send}}">Send</button>
+            </div>
+            <p class="hint">Press Send to try it: the page turns into a chat with your business taking shape beside it.</p>
+          </div>
+
+          <div class="tile c12" style="padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span class="kchip">India, from your time zone</span><span class="kchip">Rupees</span><a class="more" href="#">Change</a>
+          </div>
+
+          <div class="c12" style="display:flex;align-items:baseline;gap:10px;margin-top:8px"><h2 class="h2">Or pick your field</h2></div>
+          <button type="button" class="fam c3"><span class="fam-n">Money and tax</span><span class="fam-s">CA, accountant, payroll, company secretary</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Teaching and coaching</span><span class="fam-s">Teacher, tutor, trainer, yoga, music, mentor</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Creative work</span><span class="fam-s">Designer, photographer, video editor, voice artist</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Writing and content</span><span class="fam-s">Copywriter, journalist, translator, ghostwriter</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Local services</span><span class="fam-s">Salon, electrician, home chef, travel, events</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Documents and reports</span><span class="fam-s">Tenders, SOPs, loan reports, HR handbooks</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Research and analysis</span><span class="fam-s">Market research, MIS, sales, procurement</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">People and careers</span><span class="fam-s">Recruiter, placement, resume help</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Shop and back office</span><span class="fam-s">Online selling, support desk, assistant</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Tech services</span><span class="fam-s">Websites, app testing, IT support</span></button>
+          <button type="button" class="fam c3"><span class="fam-n">Licensed work</span><span class="fam-s">Advocate, doctor, financial planner</span></button>
+          <button type="button" class="fam c3" style="border-style:dashed"><span class="fam-n">Something else</span><span class="fam-s">Just write it in the box above</span></button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{showB}}" hint-placeholder-val="{{ false }}">
+        <div class="bento">
+          <section class="tile c7 enter" style="padding:20px;display:flex;flex-direction:column;gap:14px;min-height:860px" aria-label="Talk to Chausar">
+            <div class="th"><span class="av av32 av-cz">C</span><h2 class="h3">Chausar</h2><span class="meta">Setting up your business</span><button type="button" class="more" onClick="{{back}}">Back to fields</button></div>
+            <div class="bubble b-me">{{sent}}</div>
+            <div class="bubble b-cz">Got it. You're in India, so I'll use rupees and GST. Three offers fit your skills. They're on the right with price ranges and where those come from. Want to change anything?</div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+              <div class="fchips">
+                <button type="button" class="fchip">Make it monthly only</button>
+                <button type="button" class="fchip">Only shops in my area</button>
+                <button type="button" class="fchip">I have 10 hours a week</button>
+              </div>
+              <div style="display:flex;gap:8px;align-items:flex-end">
+                <label for="say" class="sr-only">Message Chausar</label>
+                <textarea id="say" class="input" rows="2" style="flex:1" placeholder="Reply, or hold the mic to talk"></textarea>
+                <button type="button" class="ib" aria-label="Hold to talk"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10a7 7 0 0 0 14 0"></path><path d="M12 17v5"></path></svg></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="tile c5 enter-side" style="padding:20px;display:flex;flex-direction:column;gap:14px" aria-label="Your business, live">
+            <div class="th"><h2 class="h3">Your business</h2><span class="chip work" style="background:{{accentSoft}}"><span class="dot"></span>Updating as you talk</span></div>
+            <div class="inner" style="padding:14px">
+              <p class="eyebrow">Name</p>
+              <p style="font-size:18px;font-weight:600">[Your name] Books and GST</p>
+              <p class="meta" style="margin-top:4px">For small shops near you · Money and tax</p>
+            </div>
+            <p class="eyebrow">What you sell</p>
+            <div class="lift" style="padding:12px 14px;display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><p class="lr-t">Monthly books</p><p class="lr-s">Bank matching, bills, a short report</p></div><span class="est">₹[from]–[to] a month</span><i class="info" aria-label="Where this range comes from">i</i></div>
+            <div class="lift" style="padding:12px 14px;display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><p class="lr-t">GST returns</p><p class="lr-s">Monthly or quarterly filing pack</p></div><span class="est">₹[from]–[to] a return</span><i class="info" aria-label="Where this range comes from">i</i></div>
+            <div class="lift" style="padding:12px 14px;display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><p class="lr-t">Catch-up books</p><p class="lr-s">Past months put in order</p></div><span class="est">₹[from]–[to] a month</span><i class="info" aria-label="Where this range comes from">i</i></div>
+            <button type="button" class="btn xl pri wide" style="background:{{accent}};color:{{accentInk}};border-color:{{accent}};margin-top:auto">Keep this plan</button>
+          </section>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2FB67C","options":["#2FB67C","#22A06B","#4CAF86","#1F8F63"]},"$preview":{"width":1280,"height":1040}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { mode: 'a', text: "I'm a CA with 6 years in audit. I want to do books and GST for small shops near me.", sent: '' };
+}
+renderVals() {
+const accent = this.props.accent ?? '#2FB67C';
+const hex = String(accent).replace('#', '');
+const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.slice(0, 6);
+const n = parseInt(full, 16);
+const rgb = isNaN(n) ? [47, 182, 124] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+const accentSoft = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.12)';
+const mode = this.state.mode;
+return {
+accent: accent, accentInk: '#0b0d0e', accentSoft: accentSoft,
+showA: mode === 'a', showB: mode === 'b',
+text: this.state.text, sent: this.state.sent,
+onType: (e) => this.setState({ text: e.target.value }),
+send: () => { const t = String(this.state.text || '').trim(); if (t) this.setState({ mode: 'b', sent: t }); },
+back: () => this.setState({ mode: 'a' })
+};
+}
+}
+</script>
+</body>
+</html>

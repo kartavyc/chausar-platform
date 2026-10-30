@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>About you: pick and confirm</title>
+
+<link rel="stylesheet" href="./d-base.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2f5bd3}a:hover{color:#1f45b0}
+</style>
+</helmet>
+<div class="page" style="min-height:1040px">
+  <div class="solo">
+    <div class="topbar">
+      <a class="brand" href="#" style="margin:0"><svg width="22" height="22" viewBox="0 0 37 37" aria-hidden="true"><rect x="0" y="0" width="18" height="18" rx="4.5" fill="#16181b"></rect><rect x="19" y="19" width="18" height="18" rx="4.5" fill="{{accent}}"></rect></svg><span class="word">chausar</span></a>
+      <ol class="steps" aria-label="Setup steps">
+        <li class="stp done"><b><svg class="i i12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></b>Connected: ChatGPT plan</li>
+        <li class="stp on"><b>2</b>About you</li>
+        <li class="stp"><b>3</b>Your business</li>
+      </ol>
+    </div>
+
+    <div class="wrap">
+      <p class="eyebrow">Step 2 of 3</p>
+      <h1 class="h1">What do you do today?</h1>
+      <p class="sub">Chausar builds a small business around your skills. Use whichever is quickest.</p>
+
+      <div class="bento" style="margin-top:24px">
+        <div class="tile opt c4">
+          <div class="th"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg><h2 class="h3">Upload your resume</h2></div>
+          <p class="meta">A PDF. Read on this computer by your AI.</p>
+          <button type="button" class="btn wide" style="margin-top:auto">Choose a PDF</button>
+        </div>
+        <div class="tile opt c4">
+          <div class="th"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg><h2 class="h3">Use your LinkedIn export</h2></div>
+          <p class="meta">From LinkedIn's "Get a copy of your data". We never visit your profile.</p>
+          <button type="button" class="btn wide" style="margin-top:auto">Choose the ZIP</button>
+        </div>
+        <div class="tile opt sel c4">
+          <div class="th"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg><h2 class="h3">Tell us in a sentence</h2></div>
+          <div class="field">
+            <label for="me">About your work</label>
+            <textarea id="me" class="input" rows="3">I'm a CA with 6 years in audit. I want to do books and GST for small shops near me.</textarea>
+          </div>
+        </div>
+
+        <div class="tile c12" style="padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="kchip"><svg class="i i14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3"></circle><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path></svg>India, from your time zone</span>
+          <span class="kchip">Rupees</span>
+          <span class="kchip">GST: you said GST, so it is on</span>
+          <a class="more" href="#">Change</a>
+        </div>
+
+        <div class="c12" style="display:flex;align-items:baseline;gap:10px;margin-top:8px">
+          <h2 class="h2">Your field</h2>
+          <span class="meta">Your AI picked one from your sentence. Tap another if it is wrong.</span>
+        </div>
+
+        <button type="button" class="fam sel c3"><span class="fam-n">Money and tax</span><span class="fam-s">CA, accountant, payroll, company secretary</span><span class="chip work" style="align-self:flex-start;background:{{accentSoft}}"><span class="dot"></span>Picked by your AI</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Teaching and coaching</span><span class="fam-s">Teacher, tutor, trainer, yoga, music, mentor</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Creative work</span><span class="fam-s">Designer, photographer, video editor, voice artist</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Writing and content</span><span class="fam-s">Copywriter, journalist, translator, ghostwriter</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Local services</span><span class="fam-s">Salon, electrician, home chef, travel, events</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Documents and reports</span><span class="fam-s">Tenders, SOPs, loan reports, HR handbooks</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Research and analysis</span><span class="fam-s">Market research, MIS, sales, procurement</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">People and careers</span><span class="fam-s">Recruiter, placement, resume help</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Shop and back office</span><span class="fam-s">Online selling, support desk, assistant</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Tech services</span><span class="fam-s">Websites, app testing, IT support</span></button>
+        <button type="button" class="fam c3"><span class="fam-n">Licensed work</span><span class="fam-s">Advocate, doctor, financial planner. You sign every output.</span></button>
+        <button type="button" class="fam c3" style="border-style:dashed"><span class="fam-n">Something else</span><span class="fam-s">Describe it and your AI shapes a plan</span></button>
+
+        <div class="c12" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;flex-wrap:wrap">
+          <p class="hint">Next, your AI drafts three offers with price ranges and their sources.</p>
+          <button type="button" class="btn xl pri" style="background:{{accent}};color:{{accentInk}};border-color:{{accent}}">Build my business</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2FB67C","options":["#2FB67C","#22A06B","#4CAF86","#1F8F63"]},"$preview":{"width":1280,"height":1040}}'>
+class Component extends DCLogic {
+renderVals() {
+const accent = this.props.accent ?? '#2FB67C';
+const hex = String(accent).replace('#', '');
+const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.slice(0, 6);
+const n = parseInt(full, 16);
+const rgb = isNaN(n) ? [47, 182, 124] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+const accentSoft = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.12)';
+return { accent: accent, accentInk: '#0b0d0e', accentSoft: accentSoft };
+}
+}
+</script>
+</body>
+</html>
