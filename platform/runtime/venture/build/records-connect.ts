@@ -103,6 +103,15 @@ export type LocalAppPort = {
 export type WebhookKind = 'n8n' | 'make';
 /** venture.webhook.set's answer. The address itself never comes back: only its host. */
 export type WebhookView = { kind: WebhookKind; set: boolean; host: string | null; line: Display; test: 'answered' | 'unknown' | null };
+/**
+ * W6 6F4: venture.webhook.send's answer. Without a digest it is the preview (the exact text and the digest to approve);
+ * with one it is the receipt of the send: the journal entry, the delivery id (the idempotency key on the wire), the
+ * status and how many attempts it took. 'refused' is known not to have run; 'unknown' may have run and is never retried.
+ */
+export type WebhookSendView = {
+  kind: WebhookKind; host: string; text: string; digest: string; state: 'preview' | 'applied' | 'refused' | 'unknown';
+  status: number | null; deliveryId: string | null; attempts: number; entryId: string | null; line: Display;
+};
 
 // ---------------------------------------------------------------------------
 // Speech out

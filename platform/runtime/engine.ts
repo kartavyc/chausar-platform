@@ -1684,6 +1684,11 @@ export class Engine {
       case 'venture.agentSettings.get':
       case 'venture.agentSettings.set':
       case 'venture.mcpCredential.set':
+      case 'venture.mcpRegistry.list':
+      case 'venture.mcpOAuth.start':
+      case 'venture.packs.list':
+      case 'venture.packs.add':
+      case 'venture.packs.remove':
       case 'venture.agentApproval.decide':
       case 'venture.models.calls':
       case 'venture.price.quote':
@@ -1863,6 +1868,12 @@ export class Engine {
       case 'venture.notify.push.subscribe':
       case 'venture.notify.push.unsubscribe':
       case 'venture.notify.relay':
+      case 'venture.notify.telegram':
+      case 'venture.phone.access':
+      case 'venture.web.search':
+      case 'venture.web.read':
+      case 'venture.people.services':
+      case 'venture.people.lookup':
       case 'venture.models.cli.status':
       case 'venture.models.roles':
       case 'venture.goals.get':
@@ -1967,6 +1978,7 @@ export class Engine {
       case 'venture.mail.threads':
       case 'venture.localApps.list':
       case 'venture.webhook.set':
+      case 'venture.webhook.send':
       case 'venture.speechOut.providers':
       case 'venture.ca.confirmCitations':
       case 'venture.ca.signoff.get':

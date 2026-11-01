@@ -11,11 +11,36 @@
 
 import { EngineError, type NotificationView, type NotifyDigestView, type NotifySettingsView, type PushSubscriptionInput, type QueueRow } from './types';
 import type { W4DeskHost } from './fake-w4';
+import { qrMatrix } from '../../../../platform/runtime/venture/money/qr';
 
 const NOTIFY_METHODS = new Set<string>([
   'venture.notify.list', 'venture.notify.read', 'venture.notify.settings',
   'venture.notify.push.key', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay',
+  // W6 6F6 and 6F7
+  'venture.notify.telegram', 'venture.phone.access',
 ]);
+/** W6 6F6 telegram.ts WORDS and 6F7 phone.ts WORDS, as the engine says them. */
+const TELEGRAM_WORDS = {
+  token: 'Paste the bot token BotFather gave you. It looks like 123456789:AA, then about 35 letters and digits.',
+  chat: 'Give your chat id as a number. The phone access guide says how to find it.',
+  hosted: 'The hosted app does not talk to Telegram. Telegram alerts come from the desktop app.',
+  notSet: 'Set up your Telegram bot first.',
+  none: 'No Telegram bot is set. Alerts can go to your own bot as a count only.',
+  counts: 'Alerts go to your Telegram bot as a count only, like "3 things wait for you".',
+  details: 'Alerts go to your Telegram bot with the titles of what waits. Titles can name clients.',
+};
+const PHONE_WORDS = {
+  hosted: 'The hosted app opens on a phone by its own address. Phone access is for the desktop app.',
+  noTailscale: 'Tailscale is not running on this computer. The phone access guide shows how to set it up.',
+  hours: 'Choose how long a phone stays paired, from 1 to 24 hours.',
+  off: 'Phone access is off. Make a pairing link to open Chausar on your phone.',
+  link: 'Open this link on your phone within 10 minutes. It works once.',
+};
+const BOT_TOKEN = /^\d{6,12}:[A-Za-z0-9_-]{30,64}$/;
+const CHAT_ID = /^-?\d{1,20}$/;
+/** The fake computer's home network address (no Tailscale), and a sample pairing code: nothing listens. */
+const FAKE_WIFI = '192.168.1.20';
+const FAKE_PAIR_LINK = `http://${FAKE_WIFI}:43117/#pair=${'Fk'.repeat(21)}x`;
 
 /** centre.ts KIND_WORDS: what an ended item says instead of its row's title. */
 const KIND_WORDS: Readonly<Record<string, string>> = {
@@ -122,6 +147,8 @@ export class FakeNotifyDesk {
       case 'venture.notify.push.subscribe': return this.subscribe(p);
       case 'venture.notify.push.unsubscribe': return this.unsubscribe(p);
       case 'venture.notify.relay': return this.relay(p);
+      case 'venture.notify.telegram': return this.telegram(p);
+      case 'venture.phone.access': return this.phoneAccess(p);
       default: return refuse('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
   }
@@ -320,5 +347,62 @@ export class FakeNotifyDesk {
     }
     this.settings.set(this.host.current(), { ...this.current(), relay: stored });
     return view(stored);
+  }
+
+  private bots = new Map<string, { details: boolean }>();
+  /** telegram.ts telegramHandler: the bot goes to protected storage (here, nowhere); count only unless details; a test. Sends nothing. */
+  private telegram(p: Record<string, unknown>) {
+    exact(p, ['bot', 'details', 'test']);
+    check(!this.host.hosted(), 'TIER_UNAVAILABLE', TELEGRAM_WORDS.hosted);
+    const business = this.host.current();
+    const view = (bot: { details: boolean } | undefined, said?: string) => {
+      const base = bot ? { connected: true, details: bot.details, line: bot.details ? TELEGRAM_WORDS.details : TELEGRAM_WORDS.counts } : { connected: false, details: false, line: TELEGRAM_WORDS.none };
+      return said === undefined ? base : { ...base, said };
+    };
+    const current = this.bots.get(business);
+    if (!Object.keys(p).length) return view(current);
+    let bot: 'set' | null | undefined;
+    if (Object.hasOwn(p, 'bot') && p.bot !== null) {
+      check(typeof p.bot === 'object' && !Array.isArray(p.bot), 'INVALID_VENTURE_REQUEST', 'Send one request object.');
+      const given = p.bot as Record<string, unknown>;
+      exact(given, ['token', 'chatId'], ['token', 'chatId']);
+      check(typeof given.token === 'string' && BOT_TOKEN.test(given.token.trim()), 'INVALID_VENTURE_REQUEST', TELEGRAM_WORDS.token);
+      check(typeof given.chatId === 'string' && CHAT_ID.test(given.chatId.trim()), 'INVALID_VENTURE_REQUEST', TELEGRAM_WORDS.chat);
+      bot = 'set';
+    } else if (Object.hasOwn(p, 'bot')) bot = null;
+    check(!Object.hasOwn(p, 'details') || typeof p.details === 'boolean', 'INVALID_VENTURE_REQUEST', 'Details must be on or off.');
+    check(!Object.hasOwn(p, 'test') || p.test === true, 'INVALID_VENTURE_REQUEST', 'Send test as true.');
+    check(bot !== undefined || current, 'TELEGRAM_NOT_SET', TELEGRAM_WORDS.notSet);
+    const next = bot === null ? undefined : { details: typeof p.details === 'boolean' ? p.details : bot ? false : current!.details };
+    if (next) this.bots.set(business, next); else this.bots.delete(business);
+    if (p.test !== true || !next) return view(next);
+    return view(next, 'Telegram took the test alert.');
+  }
+
+  private phones = new Map<string, boolean>();
+  /** phone.ts phoneAccessHandler on a computer at 192.168.1.20 with no Tailscale: a sample link and its QR code; nothing listens. */
+  private phoneAccess(p: Record<string, unknown>) {
+    exact(p, ['action', 'via', 'hours']);
+    check(!this.host.hosted(), 'TIER_UNAVAILABLE', PHONE_WORDS.hosted);
+    const business = this.host.current();
+    check(p.action === undefined || p.action === 'link' || p.action === 'stop', 'INVALID_VENTURE_REQUEST', 'Send action as link or stop.');
+    check(p.action === 'link' || (p.via === undefined && p.hours === undefined), 'INVALID_VENTURE_REQUEST', 'Only a pairing link takes via and hours.');
+    const view = (link: { link: string; expiresAt: string } | null) => {
+      const on = this.phones.get(business) === true;
+      return {
+        on, addresses: [{ via: 'wifi' as const, address: FAKE_WIFI }], phones: 0, link: link?.link ?? null, expiresAt: link?.expiresAt ?? null,
+        line: link ? PHONE_WORDS.link : !on ? PHONE_WORDS.off : 'Phone access is on. 0 phones are paired. Some approvals still need this computer.',
+        qr: link ? (({ size, rows }) => ({ size, rows }))(qrMatrix(link.link)) : null,
+      };
+    };
+    if (p.action === 'stop') { this.phones.set(business, false); return view(null); }
+    if (p.action !== 'link') return view(null);
+    const via = p.via ?? 'wifi';
+    check(via === 'wifi' || via === 'tailscale', 'INVALID_VENTURE_REQUEST', 'Send via as wifi or tailscale.');
+    const hours = p.hours ?? 12;
+    check(Number.isInteger(hours) && (hours as number) >= 1 && (hours as number) <= 24, 'INVALID_VENTURE_REQUEST', PHONE_WORDS.hours);
+    check(via === 'wifi', 'PHONE_NO_NETWORK', PHONE_WORDS.noTailscale);
+    this.phones.set(business, true);
+    return view({ link: FAKE_PAIR_LINK, expiresAt: new Date(Date.parse(this.host.now()) + 10 * 60_000).toISOString() });
   }
 }

@@ -35,13 +35,13 @@ async function tile(name: string) {
 }
 
 describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => {
-  it('at rest one fold names seven connectors with honest labels and keeps all five original connections', async () => {
+  it('at rest one fold names nine connectors with honest labels and keeps all five original connections', async () => {
     await start();
     const closed = await screen.findByRole('region', { name: 'More ways to connect' });
     expect(closed.querySelector('details')!.open).toBe(false);
     const all = await openFold();
     await settle();
-    expect([...all.querySelectorAll('[data-kit-part]')].map(row => row.getAttribute('data-kit-part'))).toEqual(['open-posting', 'seo-publishing', 'monitors', 'mail', 'apps', 'webhook', 'speech']);
+    expect([...all.querySelectorAll('[data-kit-part]')].map(row => row.getAttribute('data-kit-part'))).toEqual(['open-posting', 'seo-publishing', 'monitors', 'mail', 'apps', 'webhook', 'speech', 'web-search', 'people-search']);
     expect(all.querySelector('[data-kit-part="open-posting"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="seo-publishing"]')!.textContent).toMatch(/Writes/i);
     expect(all.querySelector('[data-kit-part="apps"]')!.textContent).toMatch(/Writes/i);
@@ -101,11 +101,21 @@ describe('Connections: the shared connectors (5A6)', { timeout: 30_000 }, () => 
     expect(TEST_ITEM_TEXT).toBe(JSON.stringify({ from: 'Chausar', line: 'A test item from Chausar. You can ignore it.', test: true }));
     fireEvent.click(within(card).getByLabelText('Make'));
     type(field, 'https://hook.example.com/abc');
+    // W6 6F4 (D33): every item is signed. The secret field sits outside any form too; Make one fills a random secret.
+    const secret = within(card).getByLabelText('Signing secret') as HTMLInputElement;
+    expect(secret.getAttribute('autocomplete')).toBe('off');
+    expect(secret.closest('form')).toBeNull();
+    const go = within(card).getByRole('button', { name: 'Save and send the test' }) as HTMLButtonElement;
+    expect(go.disabled || go.getAttribute('aria-disabled') === 'true').toBe(true);
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Make one' })); });
+    expect(secret.value).toMatch(/^[A-Za-z0-9_-]{32,}$/);
+    const made = secret.value;
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Save and send the test' })); });
     await settle();
-    expect(calls(spy, 'venture.webhook.set')[0]![1]).toEqual({ kind: 'make', url: 'https://hook.example.com/abc', test: true });
+    expect(calls(spy, 'venture.webhook.set')[0]![1]).toEqual({ kind: 'make', url: 'https://hook.example.com/abc', secret: made, test: true });
     expect(card.textContent).toContain('The test item reached your Make connection.');
     expect(card.textContent).not.toContain('/abc');
+    expect(card.textContent).not.toContain(made);
     assertInkRules(document.body);
   });
 

@@ -8,6 +8,7 @@ import { Inner } from '../../parts/Card';
 import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
 import { McpServers } from './McpServers';
+import { Packs } from './Packs';
 
 export function AgentSettings() {
   const t = useT(), engine = useEngine(), id = useId();
@@ -51,6 +52,8 @@ export function AgentSettings() {
               {(['off', 'research', 'on'] as const).map(mode => <option key={mode} value={mode}>{t(`connections.settings.${mode}`)}</option>)}
             </select>
           </label>)}</div>
+          {/* W6 6F5 (D34): the tool's own Gmail connection, off unless the owner turns it on; every send still asks. */}
+          <label className={s.check}><input type="checkbox" checked={draft[name].connectors === true} onChange={event => provider(name, { connectors: event.currentTarget.checked })} />{t(`connections.settings.gmail.${name}`)}</label>
           {name === 'claude' && <label className={s.check}><input type="checkbox" checked={Boolean(draft.claude.fallbackModel)} onChange={event => {
             const { fallbackModel: _fallback, ...rest } = draft.claude;
             changed(); setDraft({ ...draft, claude: { ...rest, ...(event.currentTarget.checked ? { fallbackModel: 'claude-haiku-5-5' } : {}) } });
@@ -65,6 +68,7 @@ export function AgentSettings() {
         </fieldset>
         <McpServers servers={draft.mcpServers} busy={busy} saved={!dirty.current} onCredentialSaved={() => resource.reload()} onChange={mcpServers => { changed(); setApproveMcp(false); setDraft({ ...draft, mcpServers }); }} />
         {mcpChanged && <label className={s.check}><input type="checkbox" checked={approveMcp} onChange={event => setApproveMcp(event.currentTarget.checked)} />{t('connections.mcp.confirm')}</label>}
+        <Packs />
         <div className={s.notes} id={id}>
           <p>{t('connections.settings.folder')}</p><p>{t('connections.settings.shell')}</p>
           <p>{t('connections.settings.support')}</p><p>{t('connections.settings.mcp')}</p>

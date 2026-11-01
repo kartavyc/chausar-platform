@@ -943,10 +943,10 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
-test('handlers are exactly the forty-one owned methods, and every code the package throws is a declared venture or engine code', async () => {
+test('handlers are exactly the forty-two owned methods, and every code the package throws is a declared venture or engine code', async () => {
   // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
   // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
-  // speechOut.providers).
+  // speechOut.providers); W6 6F4 adds webhook.send.
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
@@ -956,7 +956,7 @@ test('handlers are exactly the forty-one owned methods, and every code the packa
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
     'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
     'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar', 'venture.speechOut.providers',
-    'venture.webhook.set',
+    'venture.webhook.send', 'venture.webhook.set',
   ]);
   const sources = await Promise.all(['brief.ts', 'brief-lint.ts', 'handoff.ts', 'lz.ts', 'github.ts', 'catalogue.ts', 'connectors.ts', 'index.ts', 'bank-methods.ts', 'site-methods.ts']
     .map(file => readFile(new URL(`../runtime/venture/build/${file}`, import.meta.url), 'utf8')));

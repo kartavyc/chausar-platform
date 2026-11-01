@@ -46,11 +46,116 @@ export function refuseDisguise(headers: Readonly<Record<string, string>> | undef
   }
 }
 
-/** The guard's sender with the policy before every hop, so a redirect never lands on a listed site, and always as Chausar. */
+// ---------------------------------------------------------------------------
+// Politeness (wave 6, 6F3, D32): one request per site every few seconds, robots.txt kept a while, a full stop at a
+// CAPTCHA and a pause when a site says too many requests. The state belongs to the underlying sender: the real network
+// sender (pinnedSend) is paced by default; any other sender (tests, an owner site's own API) is not paced unless it is
+// given politeness with usePoliteness, but every sender stops at a CAPTCHA.
+// ---------------------------------------------------------------------------
+
+/** The gap between two requests to the same site on the real network, in milliseconds. */
+export const POLITE_GAP_MS = 3000;
+const HOUR = 60 * 60 * 1000;
+
+export const POLITE_WORDS = Object.freeze({
+  captcha: 'This site asked for a CAPTCHA, so Chausar stopped reading it and will leave it alone today. Open the page in your own browser.',
+  paused: 'This site asked Chausar to slow down, so it is paused for a while. Try again later.',
+});
+
+export type PolitenessOptions = { gapMs: number; robotsMs: number; stopMs: number; now: () => number; sleep: (ms: number) => Promise<void> };
+type Politeness = PolitenessOptions & {
+  /** When the next request to a host may go. */ next: Map<string, number>;
+  /** Hosts left alone until a time, and why. */ stopped: Map<string, { until: number; code: 'CAPTCHA_STOP' | 'SITE_PAUSED' }>;
+  /** robots.txt answers kept per origin. */ robots: Map<string, { at: number; status: number; text: string }>;
+};
+
+// Not unref'd: a read waiting its turn must keep the process alive until it goes.
+const sleepFor = (ms: number) => new Promise<void>(done => { setTimeout(done, ms); });
+const QUIET: PolitenessOptions = { gapMs: 0, robotsMs: 0, stopMs: 24 * HOUR, now: () => Date.now(), sleep: sleepFor };
+const STATES = new WeakMap<PinnedSender, Politeness>();
+const fresh = (options: PolitenessOptions): Politeness => ({ ...options, next: new Map(), stopped: new Map(), robots: new Map() });
+
+/** Gives a sender its own politeness (tests, or a host that composes its own sender). Replaces any earlier state. */
+export function usePoliteness(send: PinnedSender, options: Partial<PolitenessOptions>): void {
+  STATES.set(send, fresh({ ...QUIET, ...options }));
+}
+function stateOf(send: PinnedSender): Politeness {
+  let state = STATES.get(send);
+  if (!state) { state = fresh(QUIET); STATES.set(send, state); }
+  return state;
+}
+/** A sender's politeness as it is now: the real sender's defaults, or quiet (no pacing) for one never given any. */
+export function politenessOf(send: PinnedSender): Readonly<PolitenessOptions> {
+  return stateOf(send);
+}
+usePoliteness(pinnedSend, { gapMs: POLITE_GAP_MS, robotsMs: HOUR, stopMs: 24 * HOUR });
+
+const hostKey = (url: URL) => url.hostname.toLowerCase().replace(/\.$/, '');
+
+/** Signs of a challenge page in the first part of a body, whatever its status. */
+const CHALLENGE = /cf-chl-|\/cdn-cgi\/challenge-platform\/|challenges\.cloudflare\.com\/turnstile|captcha-delivery\.com|px-captcha|_Incapsula_Resource|<title>\s*(?:Just a moment\.\.\.|Attention Required! \| Cloudflare|Are you a robot\??|Verify you are human|Human verification)\s*<\/title>/i;
+/** A CAPTCHA widget: a stop only on a refusal, since many ordinary pages carry one on a contact form. */
+const WIDGET = /g-recaptcha|recaptcha\/api|h-captcha|hcaptcha\.com|cf-turnstile|captcha/i;
+
+/** Whether an answer is a CAPTCHA or bot challenge rather than the page asked for. */
+export function captchaPage(answer: { status: number; headers: Record<string, string>; body: Buffer | Uint8Array | string }): boolean {
+  if (String(answer.headers['cf-mitigated'] ?? '').toLowerCase() === 'challenge') return true;
+  const body = typeof answer.body === 'string' ? answer.body.slice(0, 256 * 1024) : Buffer.from(answer.body).subarray(0, 256 * 1024).toString('utf8');
+  if (CHALLENGE.test(body)) return true;
+  return [401, 403, 429, 503].includes(answer.status) && WIDGET.test(body);
+}
+
+/** How long a Retry-After asks for (seconds or a date), capped at an hour; ten minutes when it says nothing usable. */
+function retryAfterMs(value: string | undefined, now: number): number {
+  const seconds = Number(value);
+  if (value && Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, HOUR);
+  const date = value ? Date.parse(value) : NaN;
+  return Number.isFinite(date) ? Math.min(Math.max(date - now, 0), HOUR) : 10 * 60 * 1000;
+}
+
+/** Refuses a host that is stopped (CAPTCHA) or paused (too many requests) right now. */
+function refuseStopped(state: Politeness, host: string): void {
+  const stop = state.stopped.get(host);
+  if (stop && stop.until > state.now()) throw new ChausarError(stop.code, stop.code === 'CAPTCHA_STOP' ? POLITE_WORDS.captcha : POLITE_WORDS.paused);
+}
+
+/**
+ * Waits for this sender's next slot on a site (robots.txt excepted), taken from the deadline: answers the time left.
+ * A slot further away than the deadline fails as a timeout before anything is sent. Also used by the desktop's
+ * JavaScript reader (web/reader.ts) so a page opened in a hidden window keeps the same pace.
+ */
+export async function paceSite(send: PinnedSender, url: URL, timeoutMs: number): Promise<number> {
+  const state = stateOf(send), host = hostKey(url);
+  refuseStopped(state, host);
+  if (state.gapMs <= 0 || url.pathname === '/robots.txt') return timeoutMs;
+  const now = state.now(), slot = Math.max(now, state.next.get(host) ?? now);
+  check(slot - now < timeoutMs, 'NET_TIMEOUT', NET_WORDS.timeout);
+  state.next.set(host, slot + state.gapMs);
+  if (slot > now) await state.sleep(slot - now);
+  return timeoutMs - (slot - now);
+}
+
+/** Notes what an answer says about its site: a CAPTCHA stops the site and throws; too many requests pauses it. */
+export function noteAnswer(send: PinnedSender, url: URL, answer: { status: number; headers: Record<string, string>; body: Buffer | Uint8Array | string }): void {
+  const state = stateOf(send), host = hostKey(url);
+  if (captchaPage(answer)) {
+    state.stopped.set(host, { until: state.now() + state.stopMs, code: 'CAPTCHA_STOP' });
+    throw new ChausarError('CAPTCHA_STOP', POLITE_WORDS.captcha);
+  }
+  if (answer.status === 429) state.stopped.set(host, { until: state.now() + retryAfterMs(answer.headers['retry-after'], state.now()), code: 'SITE_PAUSED' });
+}
+
+/**
+ * The guard's sender with the policy before every hop, so a redirect never lands on a listed site, and always as Chausar;
+ * 6F3: paced per site, and stopped at a CAPTCHA or paused after too many requests.
+ */
 export function policySafe(send: PinnedSender): PinnedSender {
   return async target => {
     checkFetchPolicy(target.url);
-    return send({ ...target, headers: { ...target.headers, 'user-agent': CHAUSAR_USER_AGENT } });
+    const timeoutMs = await paceSite(send, target.url, target.timeoutMs);
+    const answer = await send({ ...target, timeoutMs, headers: { ...target.headers, 'user-agent': CHAUSAR_USER_AGENT } });
+    noteAnswer(send, target.url, answer);
+    return answer;
   };
 }
 
@@ -144,9 +249,19 @@ export const ROBOTS_BYTES = 512 * 1024;
  * rule. A server error or a failed read throws, so the caller tries again later rather than reading the page.
  */
 export async function robotsCheck(url: URL, net: PoliteNet = {}): Promise<{ allowed: boolean; line: string | null }> {
-  const answer = await politeFetch({ url: `${url.origin}/robots.txt`, headers: { accept: 'text/plain' }, maxBytes: ROBOTS_BYTES, maxRedirects: 2, timeoutMs: 15_000 }, net);
-  if (answer.status >= 400 && answer.status < 500) return { allowed: true, line: null };
-  if (answer.status < 200 || answer.status > 299) throw new ChausarError('NET_FAILED', 'The site did not give its robots.txt, so Chausar did not read the page.');
-  const allowed = robotsAllows(answer.body.toString('utf8'), `${url.pathname}${url.search}`);
+  // 6F3: a sender with politeness keeps each site's robots.txt for a while (an hour on the real network), so a second
+  // page of the same site does not ask for it again. A server error is never kept.
+  const state = stateOf(net.send ?? pinnedSend);
+  const kept = state.robotsMs > 0 ? state.robots.get(url.origin) : undefined;
+  let status: number, text: string;
+  if (kept && state.now() - kept.at < state.robotsMs) ({ status, text } = kept);
+  else {
+    const answer = await politeFetch({ url: `${url.origin}/robots.txt`, headers: { accept: 'text/plain' }, maxBytes: ROBOTS_BYTES, maxRedirects: 2, timeoutMs: 15_000 }, net);
+    status = answer.status; text = answer.body.toString('utf8');
+    if (state.robotsMs > 0 && status >= 200 && status < 500 && status !== 429) state.robots.set(url.origin, { at: state.now(), status, text });
+  }
+  if (status >= 400 && status < 500) return { allowed: true, line: null };
+  if (status < 200 || status > 299) throw new ChausarError('NET_FAILED', 'The site did not give its robots.txt, so Chausar did not read the page.');
+  const allowed = robotsAllows(text, `${url.pathname}${url.search}`);
   return { allowed, line: allowed ? null : FETCH_POLICY_WORDS.robots };
 }

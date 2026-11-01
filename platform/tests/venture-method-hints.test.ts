@@ -21,14 +21,17 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 324 venture methods, 304 reached through the hosted host', () => {
+test('the pinned counts: 336 venture methods, 316 reached through the hosted host', () => {
   // Wave 6 adds consent, native settings and exact approvals, and removes three obsolete turn methods. 6C1 and 6C2 add
   // six draft methods (not hosted); 6C7 adds venture.needs.list, which the hosted host reaches. 6D adds billing get and
   // set, the invoice PDF and Razorpay payment links, all reached (hosted has no print port or key storage, and says so). 6C5
   // adds rule locks and attestation and 6C6 compliance set, all reached; compliance get also answers before any vault.
-  assert.equal(VENTURE_METHODS.length, 324);
+  // 6F6 adds venture.notify.telegram and 6F7 venture.phone.access, both reached (hosted refuses each in plain words).
+  // 6F1 adds the curated MCP list and OAuth sign-in, and 6F2 lists, adds and removes packs: five more, all reached.
+  // 6F3 adds web search and read, 6F8 people services and lookup, and 6F4 webhook send: five more, all reached.
+  assert.equal(VENTURE_METHODS.length, 336);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 304);
+  assert.equal(hosted.length, 316);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

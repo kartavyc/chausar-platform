@@ -73,3 +73,19 @@
   font-size: var(--text-read);
   overflow-wrap: anywhere;
 }
+/* W6 6F1: a field of an outside tool server's question. */
+.field {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-read);
+}
+.field select {
+  min-width: 0;
+  font: inherit;
+  padding: var(--sp-2);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+}

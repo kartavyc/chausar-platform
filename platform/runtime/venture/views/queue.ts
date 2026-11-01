@@ -289,9 +289,20 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
         await decideAgentApproval(d, context, { runId: run.id, digest: pending.digest, decision });
         return { line: decision === 'approve' ? 'Approved this exact AI step once.' : 'Declined this AI step.' };
       };
+      // W6 6F5: a send through the tool's own Gmail connection is itself the outside action, and says so.
+      const send = pending.request.kind === 'connector-send';
+      // W6 6F1: an outside tool server's question is answered with its fields on the run's card, never with a bare Approve.
+      if (pending.request.kind === 'external-input') {
+        rows.push({ subject, perform: { deny: decide('deny') },
+          row: { ...base(business, 'question', subject, `native-${pending.digest}`, at), agent, title: 'A question from a tool',
+            line: 'Open it to answer. Your answer goes only to that tool, never to the AI.', viewRef: viewRun, descriptionComplete: false,
+            actions: [action('read', 'Read', true), action('deny', 'Decline', false)] } });
+        continue;
+      }
       rows.push({ subject, perform: { approve: decide('approve'), deny: decide('deny') },
         row: { ...base(business, 'question', subject, `native-${pending.digest}`, at), agent,
-          title: 'Review one AI step', line: 'Read the full request before deciding. Outside actions still need their own approval.',
+          title: send ? 'Approve one send' : 'Review one AI step',
+          line: send ? 'Read the exact message first. Approving sends it once through your own connection.' : 'Read the full request before deciding. Outside actions still need their own approval.',
           viewRef: viewRun, descriptionComplete: false,
           actions: [action('read', 'Read', false), action('deny', 'Decline', false), action('approve', 'Approve once', true, { requiresView: true })] } });
       continue;

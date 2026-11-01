@@ -8,6 +8,8 @@ import { notifyListHandler, notifyReadHandler, notifyRefresh as refreshCentre, t
 import { countShown, currentNotifySettings, notifySettingsHandler } from './settings.ts';
 import { deliverPush, endPushSessions, pushKeyHandler, pushSubscribeHandler, pushUnsubscribeHandler } from './push-methods.ts';
 import { deliverRelay, relayHandler } from './relay.ts';
+import { deliverTelegram, telegramHandler } from './telegram.ts';
+import { phoneAccessHandler } from './phone.ts';
 
 export { endPushSessions };
 
@@ -91,9 +93,10 @@ export async function notifyRefresh(deps: VentureDeps, ctx: Context, options: { 
   // The tray showed the count from notify.new itself: that alert reached the owner whatever else happens.
   const trayShowed = deps.host !== 'hosted-web' && countShown(currentNotifySettings(state, venture.id), deps.host);
   startOutside(deps.store, async () => {
-    const [push, relay] = await Promise.all([deliverPush(deps, ctx, alert.count), deliverRelay(deps, ctx, alert.count)]);
+    // W6 6F6: and the owner's own Telegram bot, a count only unless the owner chose details.
+    const [push, relay, telegram] = await Promise.all([deliverPush(deps, ctx, alert.count), deliverRelay(deps, ctx, alert.count), deliverTelegram(deps, ctx, alert.count, at)]);
     // Written as the look was: the same context just committed the marks this undoes.
-    if (at && !trayShowed && !push.reached && !relay.reached) await waitAgain(deps, ctx, at);
+    if (at && !trayShowed && !push.reached && !relay.reached && !telegram.reached) await waitAgain(deps, ctx, at);
   });
   return result;
 }
@@ -108,4 +111,7 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.notify.push.subscribe': pushSubscribeHandler,
   'venture.notify.push.unsubscribe': pushUnsubscribeHandler,
   'venture.notify.relay': relayHandler,
+  // W6 6F6 Telegram alerts, 6F7 phone access
+  'venture.notify.telegram': telegramHandler,
+  'venture.phone.access': phoneAccessHandler,
 });

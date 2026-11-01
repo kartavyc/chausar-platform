@@ -61,6 +61,8 @@ async function startEngine() {
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
   engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
+  // Wave 6 (6F3): a page that needs JavaScript, read in a hidden window after the engine's own checks (web-render.cjs).
+  engine.on('render', (request, answer) => { require('./web-render.cjs').renderPage(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
   const credentials = require('./credential-store.cjs').createCredentialStore({ directory: join(app.getPath('userData'), 'credentials'), safeStorage });
   engine.on('credential', (request, answer) => {
     credentials[request.op](request.workspaceId, request.name, request.value)

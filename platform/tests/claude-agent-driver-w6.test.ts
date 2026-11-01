@@ -239,3 +239,19 @@ test('Claude close waits for SDK stream teardown before releasing the job folder
     release(); await closing; assert.equal(finished, true);
   } finally { release(); await session.close(); await f.cleanup(); }
 });
+
+test('6F3: research WebFetch follows the fetch policy: no terms-barred or LinkedIn site, no address inside the network', async () => {
+  const f = await fixture();
+  f.input.settings = { ...f.input.settings, webSearch: true, network: true };
+  const session = await f.driver.open(f.input);
+  try {
+    const run = session.run('Research.'); await f.prompts.next();
+    const hook = f.options.hooks!.PreToolUse![0]!.hooks[0]!;
+    const check = async (tool_input: Record<string, unknown>) => (await hook({ hook_event_name: 'PreToolUse', tool_name: 'WebFetch', tool_input, tool_use_id: 'tool-1', session_id: 'session', transcript_path: '', cwd: f.root }, 'tool-1', { signal: new AbortController().signal }) as any).hookSpecificOutput?.permissionDecision ?? 'allow';
+    assert.equal(await check({ url: 'https://leaf.example/tea', prompt: 'Read' }), 'allow');
+    for (const url of ['https://www.linkedin.com/in/someone', 'https://www.naukri.com/x', 'https://127.0.0.1/admin', 'https://192.168.1.1/', 'https://localhost/', 'https://[::1]/'])
+      assert.equal(await check({ url, prompt: 'Read' }), 'deny', url);
+    assert.equal((await hook({ hook_event_name: 'PreToolUse', tool_name: 'WebSearch', tool_input: { query: 'tea' }, tool_use_id: 'tool-2', session_id: 'session', transcript_path: '', cwd: f.root }, 'tool-2', { signal: new AbortController().signal }) as any).hookSpecificOutput, undefined);
+    finish(f.output); await run;
+  } finally { await session.close(); await f.cleanup(); }
+});

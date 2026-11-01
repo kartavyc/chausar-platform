@@ -25,6 +25,26 @@ function printRelay(harness, child, message) {
   if (harness.listenerCount('print') === 0 || typeof message.html !== 'string' || message.html.length > 2_000_000 || !scripts.every(script => script === 'latin' || script === 'devanagari')) { answer(null); return; }
   try { harness.emit('print', Object.freeze({ html: message.html, scripts: [...scripts] }), answer); } catch { answer(null); }
 }
+/**
+ * Wave 6 (6F3): a page the engine asks to read with JavaScript. Checked here (an id, an http or https address, a deadline,
+ * the barred hosts), passed to main's 'render' listener with one answer function (web-render.cjs), and answered to the
+ * worker once as { kind: 'host-render-result', renderId, ok, html, finalUrl | reason }. No listener or a bad ask: failed.
+ */
+function renderRelay(harness, child, message) {
+  const renderId = typeof message.renderId === 'string' && /^[0-9a-f-]{36}$/.test(message.renderId) ? message.renderId : null;
+  if (!renderId) return;
+  let answered = false;
+  const answer = result => {
+    if (answered) return; answered = true;
+    const ok = result && result.ok === true && typeof result.html === 'string' && result.html.length <= 2 * 1024 * 1024 && typeof result.finalUrl === 'string';
+    const reply = ok ? { ok: true, html: result.html, finalUrl: result.finalUrl } : { ok: false, reason: result?.reason === 'refused' || result?.reason === 'timeout' ? result.reason : 'failed' };
+    try { if (child.connected) child.send({ kind: 'host-render-result', renderId, ...reply }, () => {}); } catch { /* the engine is gone; its port times out */ }
+  };
+  const hosts = Array.isArray(message.blockedHosts) ? message.blockedHosts : null;
+  const plain = typeof message.url === 'string' && message.url.length <= 2048 && /^https?:\/\//i.test(message.url);
+  if (harness.listenerCount('render') === 0 || !plain || !hosts || hosts.length > 200 || !hosts.every(host => typeof host === 'string' && host.length <= 253) || !Number.isFinite(message.timeoutMs)) { answer(null); return; }
+  try { harness.emit('render', Object.freeze({ url: message.url, timeoutMs: message.timeoutMs, blockedHosts: [...hosts] }), answer); } catch { answer(null); }
+}
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
   constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
@@ -56,6 +76,8 @@ class EngineHarness extends EventEmitter {
           if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
           // Ink v2 wave 5 (5A5): the engine asks main to print a report's HTML to PDF (report-print.cjs); answered once.
           if (message.kind === 'host-print' && message.id === undefined) { printRelay(this, child, message); return; }
+          // Wave 6 (6F3): the engine asks main to read a page with JavaScript in a hidden window (web-render.cjs).
+          if (message.kind === 'host-render' && message.id === undefined) { renderRelay(this, child, message); return; }
           if (message.kind === 'host-credential' && message.id === undefined) { credentials.receive(message); return; }
           if ((message.kind === 'host-forms' || message.kind === 'host-forms-verified') && message.id === undefined) { forms.receive(message); return; }
           if (typeof message.id !== 'string') return;

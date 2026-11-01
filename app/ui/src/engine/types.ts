@@ -651,6 +651,9 @@ export interface ClientLite {
 }
 export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string }
 export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
+import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
+export type { SearchProviderId, WebSearchView, WebReadView, PeopleLookupView, PeopleSearchView };
 import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
 import type { AgentApprovalRequest } from '../../../../platform/runtime/venture/agent-runtime/driver-types';
@@ -1273,6 +1276,13 @@ export type WriteCapKind = 'drafts' | 'books-lines' | 'messages';
 
 /** 4G1 and 4G3 notifications and push. */
 export interface NotificationView { id: string; rowId: string; kind: QueueKind | QueueKindW4; title: Display; at: string; read: boolean }
+/** W6 6F6 (notify/telegram.ts). said: what a test alert did, only on a test. */
+export interface TelegramView { connected: boolean; details: boolean; line: Display; said?: Display }
+/** W6 6F7 (notify/phone.ts): the phone listener's state; a one-time pairing link and its QR code when one was asked for. */
+export interface PhoneAccessView {
+  on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number;
+  link: string | null; expiresAt: string | null; line: Display; qr: { size: number; rows: string[] } | null;
+}
 /** 4G1: the newest daily digest, for the centre only; receiptIds back its money figures. */
 export interface NotifyDigestView { id: string; day: string; at: string; line: Display; items: NotificationView[]; stillWaiting: number; receiptIds: string[] }
 export interface NotifySettingsView {
@@ -1696,6 +1706,11 @@ export interface LocalAppView {
 export interface LocalAppsView { apps: LocalAppView[]; hosted: boolean; line: Display }
 export type WebhookKind = 'n8n' | 'make';
 export interface WebhookView { kind: WebhookKind; set: boolean; host: string | null; line: Display; test: 'answered' | 'unknown' | null }
+/** W6 6F4: venture.webhook.send's preview (no digest) or receipt (with the digest the owner saw). */
+export interface WebhookSendView {
+  kind: WebhookKind; host: string; text: string; digest: string; state: 'preview' | 'applied' | 'refused' | 'unknown';
+  status: number | null; deliveryId: string | null; attempts: number; entryId: string | null; line: Display;
+}
 export interface SpeechProviderView {
   id: string; name: string; label: 'write' | 'planned: write'; languages: string[]; voices: { id: string; name: string; language: string; licence: Display }[];
   maxChars: number; price: { microsPerMillionChars: string; checkedOn: string; source: string } | null; waitsOn: Display | null; manualPath: Display | null; note: Display;
@@ -1863,7 +1878,13 @@ export interface EngineMethods {
   'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
   'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
   'venture.mcpCredential.set': { params:{serverId:string;token:string|null};result:{serverId:string;saved:boolean} };
-  'venture.agentApproval.decide': { params: {runId:string;digest:string;decision:'approve'|'deny'}; result: {runId:string;decision:'approve'|'deny'} };
+  // W6 6F1, 6F2: the curated MCP list, OAuth sign-in, playbook packs; a server question's answer rides on the approval.
+  'venture.mcpRegistry.list': { params: Record<string, never>; result: import('../../../../platform/runtime/venture/agent-runtime/mcp-registry').CuratedMcpView };
+  'venture.mcpOAuth.start': { params: {serverId:string}; result: {serverId:string;authorizationUrl:string} };
+  'venture.packs.list': { params: Record<string, never>; result: {packs:import('../../../../platform/runtime/venture/packs/pack-format').PackView[]} };
+  'venture.packs.add': { params: {pack:unknown;digest?:string}; result: {added:boolean;digest:string;pack:import('../../../../platform/runtime/venture/packs/pack-format').PackView} };
+  'venture.packs.remove': { params: {packId:string}; result: {removed:boolean} };
+  'venture.agentApproval.decide': { params: {runId:string;digest:string;decision:'approve'|'deny';content?:Record<string,unknown>}; result: {runId:string;decision:'approve'|'deny'} };
   'venture.order.list': { params: Record<string, never>; result: OrderLite[] };
   'venture.files.list': { params: { orderId?: string }; result: UploadLite[] };
   'venture.delivery.list': { params: Record<string, never>; result: DeliveryLite[] };
@@ -2030,6 +2051,15 @@ export interface EngineMethods {
   'venture.notify.push.unsubscribe': { params: { endpoint: string }; result: { subscribed: boolean; line: Display } };
   /** {} reads the relay (4G3); url null clears it. */
   'venture.notify.relay': { params: { url?: string | null }; result: { relay: Display | null; line: Display } };
+  // W6 6F6 Telegram alerts from the owner's own bot; 6F7 phone access on this Wi-Fi or Tailscale.
+  'venture.notify.telegram': { params: { bot?: { token: string; chatId: string } | null; details?: boolean; test?: true }; result: TelegramView };
+  'venture.phone.access': { params: { action?: 'link' | 'stop'; via?: 'wifi' | 'tailscale'; hours?: number }; result: PhoneAccessView };
+  // W6 6F3 web search (the AI tool's own first; the owner's own Brave, Exa or Tavily key for Chausar's lookups) and the polite reader.
+  'venture.web.search': { params: { provider?: SearchProviderId | null; key?: string; consentDigest?: string }; result: WebSearchView };
+  'venture.web.read': { params: { url: string }; result: WebReadView };
+  // W6 6F8 people search on the owner's own keys: Happenstance (own network), Probe42 (MCA company records).
+  'venture.people.services': { params: { service?: 'happenstance' | 'probe42'; key?: string | null }; result: PeopleSearchView };
+  'venture.people.lookup': { params: { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string }; result: PeopleLookupView };
   // 4H1 the CLI status and per-role models.
   /** `fresh: true` for "Check again": the engine looks at each tool again; left out, it may answer from a look in the last minute. */
   'venture.models.cli.status': { params: { fresh?: boolean }; result: { clis: CliStatusView[]; line: Display } };
@@ -2179,7 +2209,8 @@ export interface EngineMethods {
   'venture.mail.import': { params: { name: string; contentBase64: string }; result: MailImportView };
   'venture.mail.threads': { params: { clientId?: string }; result: MailThreadsView };
   'venture.localApps.list': { params: Record<string, never>; result: LocalAppsView };
-  'venture.webhook.set': { params: { kind: 'n8n' | 'make'; url: string | null; test?: boolean }; result: WebhookView };
+  'venture.webhook.set': { params: { kind: 'n8n' | 'make'; url: string | null; secret?: string; test?: boolean }; result: WebhookView };
+  'venture.webhook.send': { params: { kind: 'n8n' | 'make'; subject: string; payload: unknown; digest?: string }; result: WebhookSendView };
   'venture.speechOut.providers': { params: Record<string, never>; result: SpeechProvidersView };
   'venture.ca.confirmCitations': { params: { version: number; membershipNo: string }; result: CitationsConfirmView };
   'venture.ca.signoff.get': { params: { id: string }; result: SignoffCheckView };

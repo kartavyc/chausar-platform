@@ -176,6 +176,7 @@ export class VentureHost {
       github: this.#githubProxy(),
       secrets: this.#secrets,
       ...(options.credentials && options.host !== 'hosted-web' ? { credentials: options.credentials } : {}),
+      ...(options.phoneAccess && options.host !== 'hosted-web' ? { phoneAccess: options.phoneAccess } : {}),
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
@@ -208,6 +209,8 @@ export class VentureHost {
       // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.
       ...(options.print && options.host !== 'hosted-web' ? { print: options.print } : {}),
       ...(options.formsBrowser && options.host === 'desktop' ? { formsBrowser: options.formsBrowser } : {}),
+      // Wave 6 (6F3): the desktop's hidden reading window for pages that need JavaScript; never elsewhere.
+      ...(options.webRender && options.host === 'desktop' ? { webRender: options.webRender } : {}),
     });
   }
 

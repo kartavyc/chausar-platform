@@ -31,6 +31,7 @@ import type { PrintPort, ReportBody, ReportFormat, ReportListView, ReportShareBo
 import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
 import type {
   LocalAppBody, LocalAppPort, LocalAppsView, MailAttachment, MailImportView, MailThreadsView, MonitorBody, MonitorInput, MonitorsView, MonitorView, SpeechProvidersView, WebhookKind, WebhookView,
+  WebhookSendView,
 } from './build/records-connect.ts';
 import type { YoutubeDictionaryBody, YoutubeEditBody, YoutubeStyleBody } from './playbooks/youtube/records.ts';
 import type {
@@ -258,6 +259,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-call-log',
   // Wave 6 (6C5, 6C6): owner attestations of locked rules, and the profession and side-work answer.
   'venture-rule-attestation', 'venture-compliance',
+  // Wave 6 (6F2, 6F9): an added playbook pack; one Sunra image or video generation with its rupee quote and rights.
+  'venture-pack', 'venture-media-generation',
   // Wave 6 (6E7): the owner's trading journal (imports, opening holdings, tax packs).
   'venture-trade-journal',
   // Wave 6 (6E4, 6E5): a client document on the document desk; the sign-off desk's professionals, requests and signatures.
@@ -311,6 +314,10 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   signingSince?: { at: IsoTime; mac?: string };
   /** Wave 6 (6D1, 6D2): the owner's billing settings (money/billing.ts); absent fields read as the defaults. */
   billing?: Partial<import('./money/billing-types.ts').BillingSettings>;
+  /** Wave 6 (6F3): the owner's own web search key: which provider, its last four characters, when (web/search.ts). The key is in protected storage. */
+  webSearchKey?: import('./web/search-types.ts').SavedSearchKey | null;
+  /** Wave 6 (6F8): which people search services have the owner's own key saved (people/services.ts). Keys are in protected storage. */
+  peopleKeys?: import('./people/people-types.ts').SavedPeopleKeys;
 };
 
 export type TermLifecycle = 'proposed' | 'active' | 'retired';
@@ -2382,7 +2389,9 @@ export type Reconciliation = {
  * receipt. 'social.report': the report figures from a platform's exports (tools-social.ts), each kept in report.
  */
 export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
-  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'seo.claim' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute';
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'seo.claim' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute'
+    // W6 6F2: a calculator from an owner-added pack (packs/packs.ts)
+    | 'pack.calc';
   runRef: WorkRunRef;
   currency: string;
   inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
@@ -4020,6 +4029,8 @@ export type NotifySettingsRecord = RecordBase<'venture-notify-settings'> & {
   push: boolean;
   tray: boolean;
   relay: string | null;
+  /** W6 6F6: the owner's own Telegram bot is set (its token and chat id live in protected storage, never here); details: titles opt-in. */
+  telegram?: { details: boolean; savedAt: IsoTime } | null;
 };
 /**
  * One browser push subscription on a known push service (4G3), tied to the hosted session that made it: sessionHash is
@@ -4717,6 +4728,15 @@ export type PushSubscriptionInput = { endpoint: string; keys: { p256dh: string; 
 export interface PushKeyView { publicKey: string }
 export interface PushStateView { subscribed: boolean; line: Display }
 export interface RelayView { relay: Display | null; line: Display }
+/** W6 6F6. said: what a test alert did, only on a test. */
+export interface TelegramView { connected: boolean; details: boolean; line: Display; said?: Display }
+/** W6 6F7. Phone access on this Wi-Fi (or Tailscale): the listener's state, a one-time pairing link when one was asked for. */
+export interface PhoneAccessView {
+  on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number;
+  link: string | null; expiresAt: IsoTime | null; line: Display;
+  /** The pairing link as a QR code the phone's camera can read (money/qr.ts), or null. */
+  qr: { size: number; rows: string[] } | null;
+}
 
 /** 4H1. Never signedIn 'yes' without evidence; state stays 'unverified' until one real task succeeded. */
 export type CliStatusView = {
@@ -5255,6 +5275,10 @@ export type BookingSlotRecord = RecordBase<'venture-booking-slot'> & BookingSlot
 export type BookingRecord = RecordBase<'venture-booking'> & BookingRecordBody;
 /** Wave 6 (6E7): one trading journal entry (playbooks/trading-journal/records.ts). */
 export type TradeJournalRecord = RecordBase<'venture-trade-journal'> & TradeJournalBody;
+/** Wave 6 (6F2): an owner-added playbook pack (packs/packs.ts). */
+export type PackRecord = RecordBase<'venture-pack'> & import('./packs/packs.ts').PackRecordBody;
+/** Wave 6 (6F9): one Sunra generation, its code-computed rupee quote and rights record (media/sunra.ts). */
+export type MediaGenerationRecord = RecordBase<'venture-media-generation'> & import('./media/sunra.ts').MediaGenerationBody;
 export type ComplianceRecord = RecordBase<'venture-compliance'> & {
   professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
 };
@@ -5322,6 +5346,7 @@ export type AnyVentureRecord =
   | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
   | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord
   | RuleAttestationRecord | ComplianceRecord | TradeJournalRecord
+  | PackRecord | MediaGenerationRecord
   | DocumentRecord | SignoffRecord
   | LessonBatchRecord | BookingSlotRecord | BookingRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
@@ -5447,7 +5472,7 @@ export const W5_METHODS = [
   'venture.report.list',
   // 5A6 monitors, mail import, the owner's local apps, the webhook handoff and speech providers (build)
   'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
-  'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
+  'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
   // 5C1 the citations table and the stored sign-off; 5C2 differential cases and the ITR data pack
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   // Every business's own records, through its desk (playbooks/desks.ts and desk-types.ts)
@@ -5463,6 +5488,8 @@ export const VENTURE_METHODS = [
   // P2 models
   'venture.models.presets', 'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls',
   'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set',
+  // Wave 6 (6F1, 6F2): the curated MCP server list, OAuth sign-in to a server, and playbook packs (models)
+  'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove',
   // P3 money
   'venture.price.quote', 'venture.receipt.get',
   'venture.client.add', 'venture.client.list',
@@ -5518,6 +5545,10 @@ export const VENTURE_METHODS = [
   'venture.posting.limits.get', 'venture.posting.limits.set',
   // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer
   'venture.transcription.get', 'venture.transcription.set',
+  // Wave 6 (6F6, 6F7): Telegram alerts from the owner's own bot, and phone access on this Wi-Fi or Tailscale (notify)
+  'venture.notify.telegram', 'venture.phone.access',
+  // Wave 6 (6F3, 6F8): web search and the polite page reader; people search on the owner's own keys (network)
+  'venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -5560,6 +5591,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.blueprint.draft': 'core', 'venture.blueprint.get': 'core', 'venture.blueprint.update': 'core', 'venture.blueprint.accept': 'core',
   'venture.models.presets': 'models', 'venture.models.connect': 'models', 'venture.models.disconnect': 'models', 'venture.models.status': 'models', 'venture.models.calls': 'models',
   'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
+  'venture.mcpRegistry.list': 'models', 'venture.mcpOAuth.start': 'models', 'venture.packs.list': 'models', 'venture.packs.add': 'models', 'venture.packs.remove': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
   'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
   'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money',
@@ -5594,6 +5626,9 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.judge.auto.get': 'delivery', 'venture.judge.auto.set': 'delivery',
   'venture.posting.limits.get': 'build', 'venture.posting.limits.set': 'build',
   'venture.transcription.get': 'delivery', 'venture.transcription.set': 'delivery',
+  // Wave 6 (6F6, 6F7, 6F3, 6F8): kept in VENTURE_METHODS order.
+  'venture.notify.telegram': 'notify', 'venture.phone.access': 'notify',
+  'venture.web.search': 'network', 'venture.web.read': 'network', 'venture.people.services': 'network', 'venture.people.lookup': 'network',
   // Ink v2 wave 4
   'venture.team.keeper': 'views', 'venture.team.clearQuarantine': 'views',
   'venture.agents.thread.list': 'agents', 'venture.agents.thread.send': 'agents', 'venture.agents.proposal.decide': 'agents', 'venture.agents.version.undo': 'agents',
@@ -5646,7 +5681,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.report.render': 'playbooks', 'venture.report.share': 'playbooks', 'venture.report.shareRotate': 'playbooks', 'venture.report.shareDisable': 'playbooks',
   'venture.report.list': 'playbooks',
   'venture.monitors.list': 'build', 'venture.monitors.add': 'build', 'venture.monitors.remove': 'build', 'venture.mail.import': 'build', 'venture.mail.threads': 'build',
-  'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.speechOut.providers': 'build',
+  'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.webhook.send': 'build', 'venture.speechOut.providers': 'build',
   'venture.ca.confirmCitations': 'playbooks', 'venture.ca.signoff.get': 'playbooks', 'venture.ca.differential.add': 'playbooks', 'venture.ca.dataPack.export': 'playbooks',
   'venture.desk.list': 'playbooks', 'venture.desk.get': 'playbooks', 'venture.desk.act': 'playbooks',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
@@ -5661,6 +5696,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.agentApproval.decide',
   'venture.agentSettings.set', 'venture.mcpCredential.set',
+  'venture.mcpOAuth.start', 'venture.packs.add', 'venture.packs.remove',
   'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   'venture.rules.attest', 'venture.compliance.set',
   'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
@@ -5697,6 +5733,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set',
   'venture.runs.allowWrites',
   'venture.notify.settings', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay',
+  'venture.notify.telegram', 'venture.phone.access',
+  'venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup',
   'venture.goals.set',
   'venture.policy.allowSession',
   'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set',
@@ -5718,7 +5756,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   // venture.network.import is).
   'venture.ideas.add', 'venture.brandKit.set', 'venture.voiceConsent.record', 'venture.voiceConsent.revoke',
   'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
-  'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set',
+  'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set', 'venture.webhook.send',
   'venture.ca.confirmCitations', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.act',
 ] as const);
@@ -5782,7 +5820,7 @@ export const W5_METHOD_LEVELS: Readonly<Record<W5Method, MethodLevel>> = Object.
   'venture.report.render': 'prepare', 'venture.report.share': 'approve', 'venture.report.shareRotate': 'approve', 'venture.report.shareDisable': 'approve',
   'venture.report.list': 'read',
   'venture.monitors.list': 'read', 'venture.monitors.add': 'approve', 'venture.monitors.remove': 'approve', 'venture.mail.import': 'approve', 'venture.mail.threads': 'read',
-  'venture.localApps.list': 'read', 'venture.webhook.set': 'approve', 'venture.speechOut.providers': 'read',
+  'venture.localApps.list': 'read', 'venture.webhook.set': 'approve', 'venture.webhook.send': 'approve', 'venture.speechOut.providers': 'read',
   'venture.ca.confirmCitations': 'approve', 'venture.ca.signoff.get': 'read', 'venture.ca.differential.add': 'approve', 'venture.ca.dataPack.export': 'approve',
   'venture.desk.list': 'read', 'venture.desk.get': 'read', 'venture.desk.act': 'approve',
 });
@@ -5819,6 +5857,11 @@ export type VenturePayloads = {
   'venture.agentSettings.get': Empty;
   'venture.agentSettings.set': { settings: import('./agent-runtime/settings.ts').AiSettings; approveMcpConfiguration?: true };
   'venture.mcpCredential.set': { serverId: string; token: string | null };
+  'venture.mcpRegistry.list': Record<string, never>;
+  'venture.mcpOAuth.start': { serverId: string };
+  'venture.packs.list': Record<string, never>;
+  'venture.packs.add': { pack: unknown; digest?: string };
+  'venture.packs.remove': { packId: string };
   'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
   'venture.client.aiConsent.withdraw': { clientId: string };
   'venture.billing.get': Empty;
@@ -5877,7 +5920,7 @@ export type VenturePayloads = {
   'venture.launch.status': Empty;
   'venture.launch.advance': { to: 'practice' | 'live' };
   'venture.delivery.run': { orderId: string; useTemplate?: boolean };
-  'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny' };
+  'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny'; content?: Record<string, unknown> };
   'venture.delivery.review': { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: DeliveryReason; editedText?: string };
   'venture.delivery.list': Empty;
   'venture.capabilities': Empty;
@@ -6051,6 +6094,15 @@ export type VenturePayloads = {
   'venture.notify.push.unsubscribe': { endpoint: string };
   /** url: the owner's own https address; null clears it. */
   'venture.notify.relay': { url: string | null };
+  'venture.notify.telegram': { bot?: { token: string; chatId: string } | null; details?: boolean; test?: true };
+  'venture.phone.access': { action?: 'link' | 'stop'; via?: 'wifi' | 'tailscale'; hours?: number };
+  /** W6 6F3: {} reads; { provider, key, consentDigest } saves the owner's own search key; { provider: null } removes it. */
+  'venture.web.search': { provider?: import('./web/search-types.ts').SearchProviderId | null; key?: string; consentDigest?: string };
+  'venture.web.read': { url: string };
+  /** W6 6F8: {} reads; { service, key } saves the owner's own key; key null removes it. */
+  'venture.people.services': { service?: 'happenstance' | 'probe42'; key?: string | null };
+  /** W6 6F8: without digest, the exact lookup to approve; with it, the lookup once; searchId reads a Happenstance search. */
+  'venture.people.lookup': { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string };
   /** fresh: true looks at each tool again (Your AI's "Check again"); left out, a look from the last minute is reused. */
   'venture.models.cli.status': { fresh?: boolean };
   'venture.models.roles': Empty;
@@ -6176,7 +6228,8 @@ export type VenturePayloads = {
   'venture.localApps.list': Empty;
   /** url null clears it. */
   /** 5A6: test: send the fixed test item (shown first) once, journalled, before the address is kept. */
-  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null; test?: boolean };
+  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null; secret?: string; test?: boolean };
+  'venture.webhook.send': { kind: 'n8n' | 'make'; subject: string; payload: unknown; digest?: string };
   'venture.speechOut.providers': Empty;
   /** As venture.ca.confirmRates: the CA of record's membership number and the citations table version confirmed. */
   'venture.ca.confirmCitations': { version: number; membershipNo: string };
@@ -6233,6 +6286,11 @@ export type VentureResults = {
   'venture.agentSettings.get': import('./agent-runtime/settings.ts').AiSettingsView;
   'venture.agentSettings.set': import('./agent-runtime/settings.ts').AiSettingsView;
   'venture.mcpCredential.set': { serverId: string; saved: boolean };
+  'venture.mcpRegistry.list': import('./agent-runtime/mcp-registry.ts').CuratedMcpView;
+  'venture.mcpOAuth.start': { serverId: string; authorizationUrl: string };
+  'venture.packs.list': { packs: import('./packs/pack-format.ts').PackView[] };
+  'venture.packs.add': { added: boolean; digest: string; pack: import('./packs/pack-format.ts').PackView };
+  'venture.packs.remove': { removed: boolean };
   'venture.client.aiConsent.agree': ClientAiConsentView;
   'venture.client.aiConsent.withdraw': ClientAiConsentView;
   'venture.billing.get': import('./money/billing-types.ts').BillingView;
@@ -6417,6 +6475,12 @@ export type VentureResults = {
   'venture.notify.push.subscribe': PushStateView;
   'venture.notify.push.unsubscribe': PushStateView;
   'venture.notify.relay': RelayView;
+  'venture.notify.telegram': TelegramView;
+  'venture.phone.access': PhoneAccessView;
+  'venture.web.search': import('./web/search-types.ts').WebSearchView;
+  'venture.web.read': import('./web/search-types.ts').WebReadView;
+  'venture.people.services': import('./people/people-types.ts').PeopleSearchView;
+  'venture.people.lookup': import('./people/people-types.ts').PeopleLookupView;
   'venture.models.cli.status': CliStatusList;
   'venture.models.roles': RoleModelsView;
   'venture.goals.get': GoalView;
@@ -6525,6 +6589,7 @@ export type VentureResults = {
   'venture.mail.threads': MailThreadsView;
   'venture.localApps.list': LocalAppsView;
   'venture.webhook.set': WebhookView;
+  'venture.webhook.send': WebhookSendView;
   'venture.speechOut.providers': SpeechProvidersView;
   'venture.ca.confirmCitations': CitationsConfirmView;
   'venture.ca.signoff.get': SignoffCheckView;
@@ -6789,7 +6854,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}` | `shopify:${string}` | `storefront:${string}`;
+  | `webhook:${WebhookKind}` | `webhook-signing:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}` | `shopify:${string}` | `storefront:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;
@@ -6829,9 +6894,21 @@ export type VentureHostKind = 'desktop' | 'local-web' | 'hosted-web' | 'test';
 export function experimentalStorage(deps: { storage: VentureStorage; host: VentureHostKind }): boolean {
   return deps.host === 'hosted-web' || (deps.storage === 'experimental-file' && deps.host !== 'desktop');
 }
+/**
+ * W6 6F7: the host's phone listener (platform/runtime/phone-access.ts). status().addresses: where this computer can be
+ * reached on its home network or Tailscale, whether or not the listener runs. link(): starts it when needed and makes a
+ * one-time pairing link. stop(): closes it and ends every phone session. Trusted host composition only.
+ */
+export interface PhoneAccessPort {
+  status(): { on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number };
+  link(input: { via: 'wifi' | 'tailscale'; hours: number; minutes: number }): Promise<{ link: string; expiresAt: IsoTime }>;
+  stop(): Promise<void>;
+}
 export type VentureDeps = {
   /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
+  /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
+  phoneAccess?: PhoneAccessPort;
   /** Trusted test or desktop composition. Never accepted from an engine request. */
   agentRoute?: (ctx: Context, agentId: string) => Promise<import('./agent-runtime/route-types.ts').AgentRoute>;
   store: StateStore;
@@ -6912,6 +6989,8 @@ export type VentureDeps = {
   print?: PrintPort;
   /** Desktop-only trusted owner-browser port. Never supplied by a renderer or model. */
   formsBrowser?: FormsBrowserPort;
+  /** Wave 6 (6F3): the desktop's hidden window for reading a page that needs JavaScript (web/render-port.ts). Desktop only. */
+  webRender?: import('./web/reader.ts').PageRenderPort;
   /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
   localApps?: LocalAppPort;
 };
@@ -6948,6 +7027,8 @@ export type VentureHostOptions = {
   /** Trusted host composition for a tool driver, never supplied by an engine request. */
   agentRoute?: VentureDeps['agentRoute'];
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
+  /** W6 6F7: the host's phone listener, never supplied by an engine request. */
+  phoneAccess?: PhoneAccessPort;
   modelTransport?: ModelTransport;
   /** A transport, or a factory the host calls once with its store (fixtures use it to fill {{briefId}}). */
   githubTransport?: GitHubTransport | ((store: StateStore) => GitHubTransport);
@@ -6992,6 +7073,8 @@ export type VentureHostOptions = {
   print?: PrintPort;
   /** Desktop host composition for exact approved native HTML form requests. */
   formsBrowser?: FormsBrowserPort;
+  /** Wave 6 (6F3): the desktop's hidden window for reading a page that needs JavaScript (web/render-port.ts). Desktop only. */
+  webRender?: import('./web/reader.ts').PageRenderPort;
 };
 
 /**

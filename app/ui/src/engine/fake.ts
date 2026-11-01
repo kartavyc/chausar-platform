@@ -1,6 +1,7 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
+import { FakePacks } from './fake-packs';
 import {withSellerCards} from './fake-seller-cards';
 import {percentBps} from '../../../../platform/runtime/venture/money/rate-core';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
@@ -44,6 +45,7 @@ import { FakeKitRulesDesk } from './fake-kit-rules';
 import { FakeKitMediaDesk } from './fake-kit-media';
 import { FakeKitReportDesk } from './fake-kit-report';
 import { FakeKitConnectDesk } from './fake-kit-connect';
+import { FakeWebPeopleDesk } from './fake-web-people';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
 import { fakeChecklist, fakeWays } from './fake-start';
 import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
@@ -168,6 +170,7 @@ export class FakeEngine {
     countries: COUNTRIES,
     classify,
   });
+  private readonly packs = new FakePacks({ current: () => this.current, exists: () => this.ventures.has(this.current), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private readonly agentSettings = new FakeAgentSettings({ current: () => this.current, exists: () => this.ventures.has(this.current), agents: () => (this.agents[this.current] ?? []).filter(agent => agent.kind !== 'code').map(({ id, name }) => ({ id, name })), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private rows: QueueRow[];
   private decided = new Set<string>();
@@ -388,6 +391,8 @@ export class FakeEngine {
       new FakePlaybooksDesk(waveHost), new FakeKitChainDesk(waveHost, { fresh }), new FakeKitSalesDesk(waveHost, { fresh }),
       new FakeKitRulesDesk(waveHost, { fresh }), new FakeKitMediaDesk(waveHost, { fresh }), new FakeKitReportDesk(waveHost, { fresh }),
       new FakeKitConnectDesk(waveHost, { fresh }),
+      // Wave 6 (6F3, 6F8): web search, the page reader and people search (fake-web-people.ts).
+      new FakeWebPeopleDesk(waveHost),
     ];
     this.posting = new FakePostingDesk(waveHost, { fresh });
     this.practice = new FakePracticeDesk(waveHost, { fresh });
@@ -449,6 +454,10 @@ export class FakeEngine {
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
     if (method === 'venture.agentSettings.get' || method === 'venture.agentSettings.set') return this.agentSettings.request(method, params);
     if (method === 'venture.mcpCredential.set') return this.agentSettings.credential(params);
+    // W6 6F1, 6F2: OAuth sign-in (no protected storage in the demo), the curated server list, playbook packs.
+    if (method === 'venture.mcpOAuth.start') return this.agentSettings.oauth(params);
+    if (method === 'venture.mcpRegistry.list') return this.agentSettings.registry(params);
+    if (FakePacks.answers(method)) return this.packs.request(method, params);
     // W6 6C4: the two launch stages, Practice and Live, as delivery/launch.ts answers them.
     if (method === 'venture.launch.status' || method === 'venture.launch.advance') return this.launch(method, p);
     // W6 6C5 and 6C6: owner attestation of locked rules; the side-work question and the regulator's switch-offs.

@@ -92,6 +92,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-document': 'document', 'venture-signoff': 'signoff',
   // W6 6E7: the trading journal.
   'venture-trade-journal': 'tradejournal',
+  'venture-pack': 'pack', 'venture-media-generation': 'mediagen',
   // Wave 6 (6E2, 6E3)
   'venture-lesson-batch': 'lessonbatch', 'venture-booking-slot': 'bookslot', 'venture-booking': 'booking',
 };

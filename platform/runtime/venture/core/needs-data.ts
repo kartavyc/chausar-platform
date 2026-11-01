@@ -41,11 +41,13 @@ const SERVICES: Readonly<Record<string, Service>> = Object.freeze({
   },
   happenstance: {
     id: 'happenstance', name: 'Happenstance', connect: 'key', why: 'Find people in your own network who could become clients.',
-    planned: { waitsOn: 'Waits on Chausar\'s Happenstance connector and your own key.', meanwhile: 'Add your contacts under Clients, Network.' },
+    // 6F8: built and fixture-tested; it waits on the owner's own key and a first run on a real account.
+    planned: { waitsOn: 'Fixture-tested, needs your own Happenstance key: add it under Connections, More ways to connect.', meanwhile: 'Add your contacts under Clients, Network.' },
   },
   probe42: {
     id: 'probe42', name: 'Probe42', connect: 'key', why: 'Look up Indian company records before you pitch a business.',
-    planned: { waitsOn: 'Waits on Chausar\'s Probe42 connector and your own key.', meanwhile: 'Check a company on the MCA website yourself.' },
+    // 6F8: built and fixture-tested; it waits on the owner's own key and a first run on a real account.
+    planned: { waitsOn: 'Fixture-tested, needs your own Probe42 key: add it under Connections, More ways to connect.', meanwhile: 'Check a company on the MCA website yourself.' },
   },
   sunra: {
     id: 'sunra', name: 'Sunra', connect: 'key', why: 'Make images and short videos, with a cost shown before each one.',

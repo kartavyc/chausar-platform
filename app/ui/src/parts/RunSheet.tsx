@@ -30,7 +30,7 @@ type Evidence = NonNullable<RunStep['evidence']>[number];
 const RING: Record<RunState, AvatarState> = { active: 'working', waiting: 'waiting', failed: 'failed', done: 'idle' };
 
 export interface RunSheetViewProps {
-  onAgentApproval?: ((digest:string,decision:'approve'|'deny')=>Promise<void>)|undefined;
+  onAgentApproval?: ((digest:string,decision:'approve'|'deny',content?:Record<string,unknown>)=>Promise<void>)|undefined;
   run: RunDetail;
   onClose: () => void;
   returnFocus?: (() => void) | undefined;
@@ -242,7 +242,7 @@ export function RunSheet({ runId, onClose, returnFocus }: { runId: string; onClo
       needs={needs}
       onCopy={practice ? undefined : async () => { await client.request('venture.delivery.copy', { runId }); }}
       questionExpiresAt={answerRow?.meta?.expiresAt}
-      onAgentApproval={async(digest,decision)=>{try{await client.request('venture.agentApproval.decide',{runId,digest,decision});}finally{run.reload();queue.reload();}}}
+      onAgentApproval={async(digest,decision,content)=>{try{await client.request('venture.agentApproval.decide',{runId,digest,decision,...(content?{content}:{})});}finally{run.reload();queue.reload();}}}
     />
   );
 }

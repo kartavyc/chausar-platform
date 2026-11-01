@@ -193,10 +193,10 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the forty-one owned methods', () => {
+test('7. handlers keys equal the forty-two owned methods', () => {
   // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
   // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
-  // speechOut.providers).
+  // speechOut.providers); W6 6F4 adds webhook.send.
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
@@ -206,7 +206,7 @@ test('7. handlers keys equal the forty-one owned methods', () => {
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',
     'venture.share.create', 'venture.share.list', 'venture.share.recordAnswer', 'venture.share.request', 'venture.share.revoke',
     'venture.site.apply', 'venture.site.revert', 'venture.site.stage', 'venture.social.calendar', 'venture.speechOut.providers',
-    'venture.webhook.set',
+    'venture.webhook.send', 'venture.webhook.set',
   ]);
 });
 

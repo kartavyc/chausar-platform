@@ -35,6 +35,7 @@ import {
   searchFields, searchView, termHits, unshownFitting, usable, viewContext, type FieldValue, type ViewContext,
 } from './saved-searches.ts';
 import { count, fold, plural } from './text.ts';
+import { savedWebSearch } from '../web/search.ts';
 
 export const MAX_TRAITS = 5;
 /** At most this many candidates go to one scoring call, and at most this many scoring calls go out for one search or Find more. */
@@ -210,11 +211,13 @@ type WebPart = { pages: WebPage[]; line: string; state: SearchWebState };
  * emails, phone numbers and protected words in what is kept are masked.
  */
 async function webPages(deps: VentureDeps, text: string): Promise<WebPart> {
-  if (!deps.webSearch) return { pages: [], line: `${NOT_SET_UP} Only your network was searched.`, state: 'not-set-up' };
+  // 6F3: the host's own search, else the owner's saved Brave, Exa or Tavily key (web/search.ts).
+  const web = await savedWebSearch(deps);
+  if (!web) return { pages: [], line: `${NOT_SET_UP} Only your network was searched.`, state: 'not-set-up' };
   if (holdsIdNumber(text)) return { pages: [], line: 'Your words hold a card, bank account, Aadhaar or one-time code number, so they were not sent to the web search. Only your network was searched.', state: 'skipped' };
   let found: { url: string; title: string; snippet: string }[];
   try {
-    found = await deps.webSearch.search(screenReadback(text).text, { limit: MAX_WEB * 2 });
+    found = await web.search(screenReadback(text).text, { limit: MAX_WEB * 2 });
   } catch {
     return { pages: [], line: 'The web search did not answer, so only your network was searched.', state: 'failed' };
   }

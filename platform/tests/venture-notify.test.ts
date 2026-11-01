@@ -113,7 +113,7 @@ test('settings: defaults, app only, a pause of 30 days at most, quiet hours, dig
   assert.deepEqual({ ...first, keepsRunning: undefined, line: undefined }, {
     pausedUntil: null, quietHours: { from: '22:00', to: '07:00' }, digest: { hour: 8 }, push: false, tray: true, keepsRunning: undefined, line: undefined,
   });
-  assert.deepEqual(DEFAULT_NOTIFY_SETTINGS, { pausedUntil: null, quietHours: { from: '22:00', to: '07:00' }, digest: { hour: 8 }, push: false, tray: true, relay: null });
+  assert.deepEqual(DEFAULT_NOTIFY_SETTINGS, { pausedUntil: null, quietHours: { from: '22:00', to: '07:00' }, digest: { hour: 8 }, push: false, tray: true, relay: null, telegram: null });
   assert.match(first.line, /22:00 to 07:00/);
   assert.equal(listRecords(env.store.read(), 'venture-notify-settings').length, 0, 'reading the settings writes nothing');
 

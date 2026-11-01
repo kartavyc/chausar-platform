@@ -614,6 +614,10 @@
   "run.agentApproval.file-change": "File change",
   "run.agentApproval.command": "Command",
   "run.agentApproval.external-tool": "Tool call",
+  "run.agentApproval.connector-send": "Send through your connection",
   "run.agentApproval.approve": "Approve step",
-  "run.agentApproval.deny": "Deny step"
+  "run.agentApproval.deny": "Deny step",
+  "run.agentApproval.external-input": "Question from a tool",
+  "run.agentApproval.answer": "Send answer",
+  "run.agentApproval.cost": "Cost"
 }

@@ -31,6 +31,8 @@ export type JobToolPorts = {
   readSnapshot:(scope:Readonly<AgentJobScope>,context:Readonly<Context>)=>JobSnapshot | Promise<JobSnapshot>;
   readFile:(scope:Readonly<AgentJobScope>,file:JobFile,page:{offset:number;limit:number},context:Readonly<Context>)=>Promise<{text:string;nextOffset:number|null}>;
   calculations:JobCalculation[];
+  /** W6 6F2: markdown skills from the owner's added packs, shown to the AI as owner-added guidance. */
+  packSkills?:{id:string;title:string;markdown:string;source:'owner-added pack'}[];
   calculate:(scope:Readonly<AgentJobScope>,input:{operation:string;arguments:Record<string,unknown>},context:Readonly<Context>)=>Promise<JobCalculationResult>;
   /** Return only a currently valid, source-checked receipt. Missing, changed or revoked sources return null. */
   readReceipt:(scope:Readonly<AgentJobScope>,id:string,context:Readonly<Context>)=>AnyReceipt|null|Promise<AnyReceipt|null>;
@@ -88,7 +90,7 @@ export function createJobMCP(store:StateStore, capability:JobCapability, ports:J
     register('read_business','Read this job business and the required draft structure.',object(),true,async()=>{
       const data=await snapshot();const {id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge}=data.business;
       await capability.guard(async () => { await ports.recordContextRead?.(scope,data,context); });
-      return redactPayload({id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge,sections:data.sections,draftSchema:deliverySchema(serviceType,data.sections),calculations:ports.calculations});
+      return redactPayload({id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge,sections:data.sections,draftSchema:deliverySchema(serviceType,data.sections),calculations:ports.calculations,packSkills:ports.packSkills??[]});
     }),
     register('read_client','Read only the client assigned to this job.',object(),true,async()=>{
       const {id,name,email,taxId}= (await snapshot()).client;return redactPayload({id,name,email,...(taxId===undefined?{}:{taxId}),handoff:email?'email-handoff':'copy'});

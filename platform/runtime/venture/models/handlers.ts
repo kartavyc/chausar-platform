@@ -6,7 +6,7 @@ import { DELEGATE_CLIS, MODEL_PRESET_IDS, MODEL_PURPOSES } from '../contracts.ts
 import type {
   CliCheckRecord, CliFinding, CliStatusList, ModelPresetId, ModelPurpose, ModelStatusView, ModelTier, VentureDeps, VentureHandlerTable, VentureResults,
 } from '../contracts.ts';
-import { currentVenture, exactPayload, identifier, listRecords, requireAppChannel, requireVenture, smallInteger, ventureAction } from '../records.ts';
+import { currentVenture, exactPayload, identifier, listRecords, readVenture, requireAppChannel, requireVenture, smallInteger, ventureAction } from '../records.ts';
 import { CLI_STATUS_WORDS, cliListLine, cliStatusView, lastCliTask } from './cli-status.ts';
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
@@ -244,11 +244,20 @@ async function keepChecks(deps: VentureDeps, ctx: Context, clis: CliStatusList['
 
 import { setMcpCredential } from '../agent-runtime/external-credentials.ts';
 import { getAgentSettings, setAgentSettings } from '../agent-runtime/settings-methods.ts';
+import { startMcpOAuth } from '../agent-runtime/mcp-oauth.ts';
+import { curatedMcpRequest } from '../agent-runtime/mcp-registry.ts';
+import { addPack, listPacks, removePack } from '../packs/packs.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.agentSettings.get': getAgentSettings,
   'venture.agentSettings.set': setAgentSettings,
   'venture.mcpCredential.set': setMcpCredential,
+  // W6 6F1, 6F2
+  'venture.mcpRegistry.list': async (deps, ctx, raw) => { readVenture(deps, ctx); return curatedMcpRequest(raw); },
+  'venture.mcpOAuth.start': startMcpOAuth,
+  'venture.packs.list': listPacks,
+  'venture.packs.add': addPack,
+  'venture.packs.remove': removePack,
   'venture.models.presets': presets,
   'venture.models.connect': connect,
   'venture.models.disconnect': disconnect,

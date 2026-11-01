@@ -21,6 +21,7 @@ import {pinnedSend,systemResolver} from '../core/net-guard.ts';
 import type {PoliteNet} from '../build/fetch-policy.ts';
 import {SEO_SOURCE_CLAIM,sourceClaimOffer,checkedSourceClaim,sourceClaimUnchanged} from './seo-source-claims.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
+import { calculatePack, isPackOperation, packCalculations, packSkills } from '../packs/packs.ts';
 
 /** Trusted delivery composition supplies the existing playbook and policy checks, never model arguments. */
 export type NativeJobOptions = {
@@ -178,8 +179,12 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
       current();
       return { text: text.slice(page.offset, page.offset + page.limit), nextOffset: page.offset + page.limit < text.length ? page.offset + page.limit : null };
     },
-    calculations: [...JOB_CALCULATIONS, ...registeredJobCalculations(calculationGrant(deps.store.read(), current().run)), ...(supportsSourceClaims()?[SEO_SOURCE_CLAIM]:[])],
+    calculations: [...JOB_CALCULATIONS, ...registeredJobCalculations(calculationGrant(deps.store.read(), current().run)), ...(supportsSourceClaims()?[SEO_SOURCE_CLAIM]:[]),
+      ...packCalculations(deps.store.read(), scope.ventureId)],
+    packSkills: packSkills(deps.store.read(), scope.ventureId),
     calculate: async (_scope, input, context) => {
+      // W6 6F2: an owner-added pack calculator, run sandboxed, answered with a code receipt for this job.
+      if (isPackOperation(input.operation)) { const live = current(); return calculatePack(deps, context, live.run, live.receipt.currency, input.operation, input.arguments, state => guard(state, scope)); }
       if(input.operation==='seo_source_claim'){
         check(supportsSourceClaims(),'UNKNOWN_CALCULATION','This source check is not available for this job.');
         const live=sourceNetworkGuard(),file=live.files.find(row=>row.id===input.arguments.fileId);

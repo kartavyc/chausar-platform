@@ -8,6 +8,8 @@ export type AgentJobScope = {
 export type AgentDriverSettings = {
   model: string; effort: 'low' | 'medium' | 'high' | 'max'; autoReview: boolean;
   webSearch: boolean; network: boolean; shell: boolean; fallbackModel?: string;
+  /** W6 6F5 (D34): the owner turned on the tool's own Gmail connection. Used only with a plan login, never with a key. */
+  connectors?: boolean;
 };
 export type AgentMcpConnection = { name: string; command: string; args: string[]; env: Record<string, string> };
 export type AgentDriverCredentials = { apiKey: string; baseUrl?: string };
@@ -29,7 +31,9 @@ export type AgentTurnResult = {
 };
 /** Exact native request identity and complete inputs, never partial streamed arguments. */
 export type AgentApprovalRequest = {
-  kind: 'command' | 'file-change' | 'external-tool'; requestId: string; threadId: string; turnId: string; itemId: string;
+  /** W6 6F1: 'external-input' is an outside tool server's question for the owner (MCP elicitation), answered on the card. */
+  /** W6 6F5: 'connector-send' is a send through the tool's own Gmail connection; approving it sends exactly that, once. */
+  kind: 'command' | 'file-change' | 'external-tool' | 'external-input' | 'connector-send'; requestId: string; threadId: string; turnId: string; itemId: string;
   name: string; arguments: Record<string, unknown>; description?: string;
 };
 export type AgentDriverInput = {

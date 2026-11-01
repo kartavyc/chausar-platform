@@ -18,7 +18,7 @@ describe('AI settings', () => {
     fireEvent.change(screen.getByLabelText('Server URL'), { target: { value: 'http://127.0.0.1:1234/mcp' } });
     expect(screen.getByRole('button', { name: 'Save AI settings' }).getAttribute('aria-disabled')).toBe('true');
     expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.mcpServers).toEqual([]);
-    fireEvent.click(screen.getByLabelText('Allow these exact server connections for future jobs. Every tool call still asks.'));
+    fireEvent.click(screen.getByLabelText('Allow these exact server connections for future jobs. Calls that can change things still ask.'));
     fireEvent.click(screen.getByRole('button', { name: 'Save AI settings' }));
     await screen.findByText('AI settings saved.');
     expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.mcpServers[0]).toMatchObject({ name: 'Local sample', url: 'http://127.0.0.1:1234/mcp' });
@@ -55,6 +55,6 @@ describe('AI settings', () => {
     expect(settings.getByText('Every send, post, payment and deletion still asks you.')).toBeTruthy();
     expect(settings.getByText('Job folder only. Windows uses unelevated access.')).toBeTruthy();
     expect(settings.getByText('Shell access is not available yet.')).toBeTruthy();
-    expect(settings.getByText('External tools go through Chausar. Every call asks you.')).toBeTruthy();
+    expect(settings.getByText('External tools go through Chausar. Only checked read tools skip asking you.')).toBeTruthy();
   });
 });
