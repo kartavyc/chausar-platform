@@ -370,5 +370,21 @@
   "kit-intake-words.it-triage.sourceScope.label": "Client source scope",
   "kit-intake-words.it-triage.sourceScope.help": "Name the exact help channel and requested review.",
   "kit-intake-words.it-triage.permission.label": "Source permission",
-  "kit-intake-words.it-triage.permission.help": "Record who permits this source use and its limits."
+  "kit-intake-words.it-triage.permission.help": "Record who permits this source use and its limits.",
+  "kit-intake-words.lesson-desk.learners.label": "Children in this order",
+  "kit-intake-words.lesson-desk.learners.help": "Each child needs a parent's recorded consent before their records reach your AI.",
+  "kit-intake-words.lesson-desk.level.label": "Class or level",
+  "kit-intake-words.lesson-desk.level.help": "The class, grade or level you teach.",
+  "kit-intake-words.lesson-desk.syllabus.label": "Syllabus or exam",
+  "kit-intake-words.lesson-desk.syllabus.help": "The board, syllabus or exam the work follows.",
+  "kit-intake-words.booking-desk.service.label": "What the client wants",
+  "kit-intake-words.booking-desk.service.help": "The service, in the client's words.",
+  "kit-intake-words.booking-desk.address.label": "Where",
+  "kit-intake-words.booking-desk.address.help": "The address for a visit; leave empty for your own place.",
+  "kit-intake-words.booking-desk.preferredTime.label": "Preferred time",
+  "kit-intake-words.booking-desk.preferredTime.help": "When the client would like it; the desk holds the real slot.",
+  "kit-intake-words.booking-desk.eventDate.label": "Event date",
+  "kit-intake-words.booking-desk.eventDate.help": "The day of the event or wedding.",
+  "kit-intake-words.trading-journal.ca-ask.label": "What your CA asked for",
+  "kit-intake-words.trading-journal.ca-ask.help": "Copy what your CA needs, in their words."
 }

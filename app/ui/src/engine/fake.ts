@@ -280,6 +280,7 @@ export class FakeEngine {
       r5Report:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.r5Report(this.desk.acceptedPlanFor(this.current)?.playbook?.id??'',id);},
       phoneReport:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.phoneReport(id);},
       devReport:id=>{const desk=this.w5.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)!;return desk.devReport(id);},
+      signoffBlock:run=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);return desk?desk.signoffBlock(run):null;},
       vaBrief:(id,expected)=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('APPROVAL_STALE','Approve the current client room brief and start this work again.');return desk.vaBrief(id,expected);},
       rows:()=>this.rows,setRows:rows=>{this.rows=rows;},
       hosted: () => this.hosted,

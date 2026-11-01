@@ -46,7 +46,8 @@ test('the keyword guesser finds a CA, a tutor and a video editor, and says nothi
 test('familyIdea keeps owner words that already plan as the family, else leads with the family plan sentence', () => {
   assert.equal(familyIdea('money-tax', CA), CA);
   const tutor = familyIdea('teaching', 'I am a school teacher who loves maths');
-  assert.equal(classifyIdea(tutor), 'consulting');
+  // W6 6E1: teaching plans as its own type now.
+  assert.equal(classifyIdea(tutor), 'teaching');
   assert.ok(tutor.endsWith('I am a school teacher who loves maths'));
   // A correction to another family still plans as the corrected family.
   assert.equal(classifyIdea(familyIdea('creative', CA)), 'studio');

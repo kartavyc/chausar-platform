@@ -28,6 +28,11 @@ import type { DevAgencyDeskTypes } from './dev-agency/desk.ts';
 import type { MonitoredDataDeskTypes } from './monitored-data/desk.ts';
 import type { ItTriageDeskTypes } from './it-triage/desk.ts';
 import type { PhoneReceptionistDeskTypes } from './phone-receptionist/desk.ts';
+import type { TradingJournalDeskTypes } from './trading-journal/desk.ts'; // W6 6E7
+import type { LessonDeskDeskTypes } from './lesson-desk/desk.ts';
+import type { BookingDeskDeskTypes } from './booking-desk/desk.ts';
+import type { SignoffDeskDeskTypes } from './signoff-desk/desk.ts';
+import type { DocumentDeskDeskTypes } from './document-desk/desk.ts';
 
 /** One record kind on a desk: its list filter, a row, the whole item, and each action's payload and result. */
 export type DeskKindTypes = {
@@ -62,6 +67,11 @@ export type DeskTypes = {
   'monitored-data': MonitoredDataDeskTypes; // 5R5
   'it-triage': ItTriageDeskTypes; // 5R5
   'phone-receptionist': PhoneReceptionistDeskTypes; // 5R6
+  'trading-journal': TradingJournalDeskTypes; // W6 6E7
+  'lesson-desk': LessonDeskDeskTypes; // W6 6E2
+  'booking-desk': BookingDeskDeskTypes; // W6 6E3
+  'signoff-desk': SignoffDeskDeskTypes; // W6 6E5
+  'document-desk': DocumentDeskDeskTypes; // W6 6E4
 };
 
 export type DeskPlaybook = keyof DeskTypes;

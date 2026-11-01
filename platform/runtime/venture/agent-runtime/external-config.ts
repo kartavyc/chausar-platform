@@ -1,5 +1,6 @@
 /** Browser-safe configuration validation. Saving never connects or launches a program. */
 import { check } from '../../portable.ts';
+import { brokerTradingHost, refuseBrokerConnection } from '../policy/securities-guard.ts';
 
 type Identity = { id: string; name: string; credentialRef?: string; credentialRevision?: string };
 export type ExternalMcpServer = Identity & (
@@ -25,11 +26,14 @@ export function validateExternalServers(raw: unknown): ExternalMcpServer[] {
       check(Array.isArray(row.args) && row.args.every(arg => typeof arg === 'string' && !/[\u0000-\u001f\u007f]/.test(arg)
         && !/(?:--?|\/)(?:api[-_]?key|token|password|secret|authorization)(?:=|:|$)/i.test(arg)
         && !/(?:Bearer\s|sk-[A-Za-z0-9_-]{16}|gh[pousr]_[A-Za-z0-9]{20})/.test(arg)), BAD, 'Use separate program arguments without passwords or tokens.');
+      // W6 6E7 (D49): a local bridge to a broker trading API (for example a remote MCP proxy) is refused like the API itself.
+      if ((row.args as string[]).some(arg => /^https?:\/\//i.test(arg) && brokerTradingHost(arg))) refuseBrokerConnection('This server');
       return { ...identity, transport: 'stdio', command: row.command, args: [...row.args] };
     }
     check(row.transport === 'http' && text(row.url), BAD, 'Choose a local program or HTTP server.');
     let url: URL; try { url = new URL(row.url); } catch { check(false, BAD, 'Enter a full server URL.'); }
     check(!url.username && !url.password && !url.search && !url.hash && (url.protocol === 'https:' || url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)), BAD, 'Use HTTPS, or local HTTP, without credentials or query parameters.');
+    if (brokerTradingHost(url.href)) refuseBrokerConnection('This server'); // W6 6E7 (D49)
     return { ...identity, transport: 'http', url: url.href };
   });
 }

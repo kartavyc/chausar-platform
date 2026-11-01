@@ -57,6 +57,12 @@
   color: var(--mute);
 }
 
+/* W6 6E6: the official page a checked statute was read on. */
+.source {
+  font-size: var(--text-label);
+  color: var(--link);
+}
+
 .subheading {
   margin: 0;
   font-size: var(--text-label);

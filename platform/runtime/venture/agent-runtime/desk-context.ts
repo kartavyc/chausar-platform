@@ -5,14 +5,18 @@ import { refuseRecruitDraft } from '../playbooks/recruiting-desk/run-guard.ts';
 import { recruitingReport } from '../playbooks/recruiting-desk/report.ts';
 import { narrationReportRows, narrationReportReady } from '../playbooks/narration-studio/checks.ts';
 import { tenderApproved } from '../playbooks/tender-desk/state.ts';
+import { briefApproved } from '../playbooks/document-desk/core.ts';
 import {socialReportSources} from '../playbooks/social/report-run.ts';
 import { formsRunSource } from '../playbooks/data-entry-desk/run-source.ts';
 import { sellerReportSource } from '../playbooks/online-seller/report-source.ts';
+import { lessonDeskContext } from '../playbooks/lesson-desk/context.ts';
 
 /** Project only this client's current order. Secret-bearing transport state and unrelated captured people stay private. */
 export function deskContext(state: State, run: DeliveryRunRecord, order: OrderRecord, flagship: string | undefined, offerKey:string|null=null) {
   const scoped = <K extends VentureRecordKind>(kind: K) => listRecords(state, kind, run.ventureId)
     .filter((row: any) => row.orderId === order.id && row.clientId === order.clientId);
+  // W6 6E2 (D21): a child's lesson records reach the AI only with their parent's current consent; refused here otherwise.
+  if (flagship === 'lesson-desk') return lessonDeskContext(state, run, order);
   if (flagship === 'online-seller') {
     const files=listRecords(state,'venture-upload',run.ventureId).filter(file=>file.scope.kind==='order'&&file.scope.orderId===order.id&&(run.uploadIds===undefined||run.uploadIds.includes(file.id)));
     const report=sellerReportSource(order,offerKey,files,run.at.slice(0,10));
@@ -42,6 +46,13 @@ export function deskContext(state: State, run: DeliveryRunRecord, order: OrderRe
     const rows = scoped('venture-tender-question');
     check(rows.length && rows.every(tenderApproved), 'TENDER_APPROVAL_REQUIRED', 'Approve the current tender answers before starting AI work.');
     return { binding: digest(rows), data: { tenderRows: rows.map(({ id, sourceDigest, question, controls, approval }) => ({ id, sourceDigest, question, controls, approval })) } };
+  }
+  if (flagship === 'document-desk') {
+    // W6 6E4: AI work starts only from the owner's approved brief; the draft gets the outline, never the figures to copy.
+    const row = scoped('venture-document').at(-1);
+    check(row && briefApproved(row), 'DOCUMENT_BRIEF_REQUIRED', 'Approve the document outline, files and figures in the document desk before starting AI work.');
+    return { binding: digest({ id: row.id, brief: row.briefApproval }), data: { documentBrief: { docType: row.docType, title: row.title, sourceFileIds: row.sourceFileIds,
+      outline: row.sections.map(({ heading, brief }) => ({ heading, brief })), figures: row.figures ? 'The figures table joins the export with its receipt. Write no amounts.' : null } } };
   }
   if (flagship === 'narration-studio') {
     const rows = scoped('venture-narration-segment').sort((a, b) => a.sequence - b.sequence), report = narrationReportRows(rows);

@@ -10,6 +10,10 @@ export const REQUIRED_SECTIONS = Object.freeze({
   research: ['Summary', 'Method', 'What we will look for', 'Sources to check'],
   content: ['Summary', 'Draft', 'Notes for review', 'Next steps'],
   support: ['Summary', 'Replies drafted', 'Escalations', 'Next steps'],
+  // W6 6E1 (D2).
+  teaching: ['Summary', 'What we will cover', 'What we need from you', 'Next steps'],
+  'local-services': ['Summary', 'What we will do', 'Booking details', 'Next steps'],
+  licensed: ['Summary', 'What we heard', 'Papers we need', 'Next steps'],
   other: ['Summary', 'What we will do', 'Questions', 'Next steps'],
 });
 /** The first line of every template outline stored for a real order. */
@@ -60,6 +64,24 @@ export const TEMPLATE_OUTLINES: Readonly<Record<TemplateServiceType, readonly st
     'We will draft replies to your customers in your tone, for you to approve before they go out.',
     'We will mark any message that needs you, such as refunds or complaints, and pass it to you.',
     'Once you share your common questions and policies, we will start drafting replies.',
+  ],
+  teaching: [
+    'Thanks for your message. This reply sets out how the classes will work.',
+    "We will start from the learner's level and goals, and plan the lessons around them.",
+    "Please tell us the learner's level, the subject and the times that suit you.",
+    'Once you confirm a time, we will book the first lesson.',
+  ],
+  'local-services': [
+    'Thanks for your message. This reply sets out how we will handle your booking.',
+    'We will agree on the job and give you a quote before the visit.',
+    'Please share the address and the times that suit you for the visit.',
+    'Once you confirm the quote and the time, we will book the visit and send a reminder.',
+  ],
+  licensed: [
+    'Thanks for reaching out. This reply sets out how we will handle your matter.',
+    'We will restate your question in plain words, so you can correct us.',
+    'Please share the papers you have before the consultation.',
+    'Once the papers arrive, we will book a consultation with the professional.',
   ],
   other: [
     'Thanks for your message. This reply sets out how we will handle your request.',

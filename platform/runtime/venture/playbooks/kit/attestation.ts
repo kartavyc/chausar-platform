@@ -42,6 +42,8 @@ export const LOCKED_ELSEWHERE: Readonly<Record<string, readonly string[]>> = Obj
   'dev-agency': ['written-security-permission', 'incident-reporting'],
   'it-triage': ['slack-commercial'],
   'phone-receptionist': ['calling-law-review'],
+  // W6 6E7: the trader's tax pack rules wait for the owner's CA, like bookkeeping's.
+  'trading-journal': ['speculative-intraday', 'fno-business', 'capital-gains', 'grandfathering'],
 });
 export const NOT_ATTESTABLE_WORDS = 'This waits for a lawyer or CA to confirm it. Owner attestation for it is not available yet.';
 export const LOCKED_ELSEWHERE_LINE = 'Your rules here wait for a lawyer or CA. Owner attestation for this work is not available yet.';

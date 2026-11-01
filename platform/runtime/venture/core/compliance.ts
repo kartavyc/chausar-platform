@@ -12,6 +12,7 @@ import { readAs } from '../delivery/shared.ts';
 import { localDayAt } from '../local-day.ts';
 import { HARD_STOP_WORDS } from '../policy/hard-stops.ts';
 import { SIDE_WORK_ANSWERS, complianceOf, professionCompliance, type RegulatorTool, type SideWorkAnswer } from './compliance-data.ts';
+import { signoffDeskSwitchOffs } from '../playbooks/signoff-desk/gate.ts';
 
 const CHOOSE = 'Choose a profession.';
 const STALE = 'The rules for this profession changed. Read them again.';
@@ -68,6 +69,9 @@ export async function complianceSet(deps: VentureDeps, ctx: Context, payload: un
 export function refuseRegulatorForbidden(state: State, tool: RegulatorTool): void {
   const venture = currentVenture(state);
   if (!venture) return;
+  // W6 6E5: a sign-off desk business also carries the switch-offs of every profession its plan serves, recorded or not.
+  const desk = signoffDeskSwitchOffs(state, venture).find(entry => entry.tool === tool);
+  check(!desk, 'REGULATOR_FORBIDS', `${desk?.line ?? ''} ${HARD_STOP_WORDS}`);
   const record = complianceRecordOf(state, venture.id);
   if (!record) return;
   const current = professionCompliance(record.professionId)?.switchedOff ?? [];

@@ -61,6 +61,8 @@ export interface WorkHost {
   careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
   devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
   vaBrief?(orderId:string,expected?:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomBrief;
+  /** W6 6E5: the sign-off gate on Accept (the engine's kit/signoff-gate.ts). */
+  signoffBlock?(run:DeliveryLite):string|null;
   recruitDigest?(value:unknown):string;
   rows?(): import('./types').QueueRow[];
   setRows?(rows:import('./types').QueueRow[]):void;
@@ -253,7 +255,13 @@ export class FakeWorkDesk {
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': return this.start(biz, p);
-      case 'venture.delivery.review': if (this.templateRuns.has(biz+':'+p.runId)) {
+      case 'venture.delivery.review': {
+        // W6 6E5: a sign-off desk draft is accepted only once its professional of record signed these exact papers.
+        const held = p.verdict === 'accepted' ? (this.deliveries[biz] ?? []).find(run => run.id === p.runId) : undefined;
+        const unsigned = held ? this.host.signoffBlock?.(held) ?? null : null;
+        if (unsigned) throw new EngineError('SIGNOFF_REQUIRED', unsigned);
+      }
+      if (this.templateRuns.has(biz+':'+p.runId)) {
         const run = this.reviseRun(biz, String(p.runId), current => reviewTemplate(current, p, this.host.now()));
         const view = this.host.runs().find(view => view.businessId === biz && view.runId === run.id);
         if (view) { view.state = 'done'; view.steps = view.steps.map(step => ({ ...step, state: 'done' })); view.progress = { done: view.steps.length, total: view.steps.length }; }

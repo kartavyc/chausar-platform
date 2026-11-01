@@ -267,5 +267,88 @@
       "call answering service",
       "clinic receptionist"
     ]
+  },
+  {
+    "id": "trading-journal",
+    "picks": [
+      "trading journal",
+      "trade journal",
+      "stock trader",
+      "options trader",
+      "intraday trader",
+      "f&o trader",
+      "trader tax pack",
+      "tradebook"
+    ]
+  },
+  {
+    "id": "lesson-desk",
+    "picks": [
+      "lesson desk",
+      "tuition classes",
+      "home tuition",
+      "coaching classes",
+      "online tutoring",
+      "tutor for school children",
+      "spoken english classes",
+      "yoga classes",
+      "music classes",
+      "dance classes"
+    ]
+  },
+  {
+    "id": "booking-desk",
+    "picks": [
+      "booking desk",
+      "take bookings",
+      "appointment bookings",
+      "home salon",
+      "beauty salon",
+      "electrician visits",
+      "plumber visits",
+      "ac service visits",
+      "tiffin service",
+      "home chef",
+      "wedding planner",
+      "event planner",
+      "physiotherapy visits"
+    ]
+  },
+  {
+    "id": "signoff-desk",
+    "picks": [
+      "sign-off desk",
+      "signoff desk",
+      "advocate",
+      "law practice",
+      "legal drafting",
+      "doctor practice",
+      "doctor follow-up",
+      "patient follow-up",
+      "clinic follow-up",
+      "financial planner",
+      "mutual fund distributor",
+      "company secretary",
+      "secretarial work"
+    ]
+  },
+  {
+    "id": "document-desk",
+    "picks": [
+      "document desk",
+      "employee handbook",
+      "hr handbook",
+      "sop writing",
+      "standard operating procedure",
+      "detailed project report",
+      "project report",
+      "cma report",
+      "cma data",
+      "cost estimate",
+      "estimate preparation",
+      "thesis editing",
+      "technical writing",
+      "technical writer"
+    ]
   }
 ]

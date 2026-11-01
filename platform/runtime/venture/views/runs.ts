@@ -33,7 +33,7 @@ import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/pl
 import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
-import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
 import { agentFactsRowId, questionRowId, runError } from './queue.ts';
 import { screenSummary } from '../policy/untrusted.ts';
 import { agentName, businessOf, clientNameFor, elapsedText, lastEventAt, plain, short } from './shared.ts';
@@ -275,7 +275,7 @@ function deliveryRun(
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
-  const result = resultOf(run, run.status === 'edited' ? caSignoffBlock(state, venture, record) : null);
+  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null);
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,

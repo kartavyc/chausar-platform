@@ -1,11 +1,9 @@
 // Original tender exports after Countersign's AGPL workflow ideas only. A5 writers own the Office formats.
 import {check,ChausarError} from '../../../portable.ts';
-import {docxParts} from '../kit/ooxml/docx-parts.ts';
-import {xlsxParts} from '../kit/ooxml/xlsx-parts.ts';
+import {docxEntries,xlsxEntries,csvText} from '../kit/documents/pack.ts';
 import {readXlsxParts} from '../kit/ooxml/read-parts.ts';
 import type {ZipEntry} from '../kit/ooxml/zip-core.ts';
 import {xmlText,xmlUnescape} from '../kit/ooxml/xml.ts';
-import {csvCell} from '../../money/csv-cell.ts';
 import {TENDER_KINDS,type TenderKind} from './questions.ts';
 export type TenderExportRow={id:string;kind:TenderKind;question:string;answer:string};
 export type IssuerTenderMap={sheet:string;questionColumn:string;answerColumn:string;firstRow:number;lastRow:number};
@@ -73,5 +71,6 @@ export function tenderExportParts(input:{title:string;coverLines:readonly string
  fail(input&&bounded(input.title,300)&&Array.isArray(input.coverLines)&&input.coverLines.length<=20&&input.coverLines.every(line=>bounded(line,2000))&&Array.isArray(input.rows)&&input.rows.length>0&&input.rows.length<=500,'Use a title, bounded cover and one to five hundred tender answers.');
  fail(input.rows.every(row=>row&&bounded(row.id,200)&&TENDER_KINDS.includes(row.kind)&&bounded(row.question,4000)&&bounded(row.answer,20000))&&new Set(input.rows.map(row=>row.id)).size===input.rows.length,'Export distinct answered tender questions of an offered type.');
  const rows=[['ID','Question','Type','Answer'],...input.rows.map(row=>[row.id,row.question,row.kind,row.answer])];
- return {docx:docxParts({cover:{title:input.title,lines:input.coverLines},sections:input.rows.map(row=>({heading:row.question,paragraphs:[row.kind,row.answer]}))}),xlsx:xlsxParts({sheets:[{name:'Compliance matrix',rows}]}).map(part=>({name:part.name,bytes:encoder.encode(part.text)})),csv:'\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n'};
+ // W6 6E4: the pack parts are shared with the document desk (kit/documents/pack.ts); the bytes are unchanged.
+ return {docx:docxEntries(input.title,input.coverLines,input.rows.map(row=>({heading:row.question,paragraphs:[row.kind,row.answer]}))),xlsx:xlsxEntries([{name:'Compliance matrix',rows}]),csv:csvText(rows)};
 }

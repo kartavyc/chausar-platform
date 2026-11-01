@@ -5,17 +5,10 @@
 import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, SERVICE_TYPE_LABELS } from '../contracts.ts';
 import type { InterviewModelOutput, PricingModel, ServiceType } from '../contracts.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
+import { SERVICE_KEYWORDS } from './service-keywords.ts';
 
-/** Substring keywords per type, matched against the lower-cased idea. */
-export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = Object.freeze({
-  agency: ['marketing', 'ads', 'advert', 'social media', 'agency', 'leads', 'outreach', 'growth', 'campaign'],
-  studio: ['podcast', 'video', 'design', 'edit', 'photo', 'logo', 'brand', 'studio', 'animation'],
-  consulting: ['consult', 'advis', 'coach', 'strategy', 'audit', 'mentor'],
-  bookkeeping: ['bookkeep', 'accounts', 'accounting', 'gst', 'tax', 'ledger', 'payroll', 'invoice', 'books'],
-  research: ['research', 'lead list', 'market', 'report', 'analysis', 'data', 'survey'],
-  content: ['blog', 'newsletter', 'copy', 'writing', 'seo', 'article', 'content', 'script'],
-  support: ['support', 'customer service', 'inbox', 'helpdesk', 'help desk', 'chat', 'tickets'],
-});
+/** Substring keywords per type, matched against the lower-cased idea (pure, shared with the fake engine). */
+export { SERVICE_KEYWORDS };
 
 /**
  * Picks a service type from the idea. A flagship playbook the idea picks (playbooks/registry.ts) gives the type it
@@ -208,6 +201,70 @@ const WORDS: Readonly<Record<ServiceType, Words>> = Object.freeze({
     approvals: ['Every reply before it reaches a customer', 'Any refund or promise of money'],
     customer: 'Small online businesses that want fast, kind replies to their customers.',
     oneLiner: 'A support team for hire where an agent drafts replies and you approve each one.',
+  },
+  // W6 6E1 (D2): the three family types that borrowed consulting or other until now.
+  teaching: {
+    firstQuestion: 'Who will your first learners be?',
+    choices: ['School students', 'Working adults', 'Teams at companies'],
+    secondQuestion: 'How will learners join a class, for example online or at your place?',
+    offers: [
+      {
+        monthly: { name: 'Monthly classes', description: 'Weekly classes for a small batch, with practice work and a short progress note.' },
+        project: { name: 'Course', description: 'A set course of classes on one subject, from the first lesson to the last.' },
+        hourly: { name: 'Lessons by the hour', description: 'Classes with practice work, booked by the hour.' },
+      },
+      {
+        hourly: { name: 'One to one lessons', description: 'Focused help on what one learner needs, booked by the hour.' },
+        monthly: { name: 'Monthly one to one', description: 'Regular one to one lessons each month, planned with the learner.' },
+        project: { name: 'Exam preparation', description: 'A short run of lessons aimed at one exam or test.' },
+      },
+    ],
+    steps: ["Collect each learner's level and goals", 'Teach the class or the session', 'Draft worksheets, quizzes and progress notes for review', 'Send the approved notes to learners or parents'],
+    approvals: ['Every progress note before it reaches a learner or a parent', "Any use of a child's details, only after a parent agrees"],
+    customer: 'Students, parents and adult learners who want steady, patient teaching.',
+    oneLiner: 'A teaching practice where an agent drafts worksheets and progress notes, and you teach.',
+  },
+  'local-services': {
+    firstQuestion: 'Who will your first customers be?',
+    choices: ['Families nearby', 'Shops and offices', 'Couples and event hosts'],
+    secondQuestion: 'How do customers book you today, for example by phone or WhatsApp?',
+    offers: [
+      {
+        monthly: { name: 'Monthly visits', description: 'Regular booked visits for one household or shop each month.' },
+        project: { name: 'Single job', description: 'One booked job with a quote agreed before the visit.' },
+        hourly: { name: 'Visits by the hour', description: 'Booked visits charged by the hour, with a reminder before each one.' },
+      },
+      {
+        project: { name: 'Package', description: 'A set of visits or services sold together, quoted in advance.' },
+        monthly: { name: 'Monthly package', description: 'A set of visits or services each month, planned with the customer.' },
+        hourly: { name: 'Extra visit hours', description: 'Extra time on a booked visit, charged by the hour.' },
+      },
+    ],
+    steps: ['Collect the booking request and the address', 'Do the visit or the work in person', 'Draft the quote, the reminder and the follow up for review', 'Send the approved reminder to the customer'],
+    approvals: ['Every quote before it reaches a customer', 'Any deposit or payment request'],
+    customer: 'Families and small shops nearby who want reliable help, on time.',
+    oneLiner: 'A local service business where an agent drafts quotes and reminders, and you do the work.',
+  },
+  licensed: {
+    firstQuestion: 'Who will your first clients be?',
+    choices: ['Individuals and families', 'Small businesses', 'Other professionals'],
+    secondQuestion: 'How do clients book time with you today?',
+    offers: [
+      {
+        monthly: { name: 'Monthly retainer', description: 'Regular sessions and paperwork for one client each month, signed off by you.' },
+        project: { name: 'Single matter', description: 'One matter or review handled from intake to your sign off.' },
+        hourly: { name: 'Consultations by the hour', description: 'Booked sessions with notes, charged by the hour.' },
+      },
+      {
+        project: { name: 'Review pack', description: 'Papers gathered and put in order for you to review and sign.' },
+        monthly: { name: 'Monthly follow ups', description: 'Reminders and next steps for clients each month, checked by you.' },
+        hourly: { name: 'Paperwork hours', description: 'Forms and papers prepared for your review, booked by the hour.' },
+      },
+    ],
+    steps: ["Collect the client's papers and questions", 'Hold the consultation yourself', 'Draft notes, letters and reminders for your sign off', 'Send what you signed to the client'],
+    approvals: ['Every paper you sign before it reaches a client', 'Any message that asks a client for money'],
+    customer: 'People and businesses who need a licensed professional they can trust.',
+    oneLiner: 'A licensed practice where an agent prepares papers and reminders, and you advise and sign.',
   },
   other: {
     firstQuestion: 'Who will your first clients be?',

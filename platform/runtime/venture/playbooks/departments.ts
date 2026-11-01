@@ -42,6 +42,7 @@ export const ROLE_DEPARTMENTS: Readonly<Record<string, Readonly<Record<string, D
 export const SERVICE_DEPARTMENTS: Readonly<Record<ServiceType, DepartmentId>> = Object.freeze({
   bookkeeping: 'money', agency: 'marketing', content: 'marketing', support: 'sales',
   studio: 'production', consulting: 'production', research: 'production', other: 'production',
+  teaching: 'production', 'local-services': 'operations', licensed: 'production',
 });
 
 const FLAGSHIP_IDS: readonly string[] = Object.freeze([YOUTUBE_ID, CA_FIRM_ID, SOCIAL_AGENCY_ID]);

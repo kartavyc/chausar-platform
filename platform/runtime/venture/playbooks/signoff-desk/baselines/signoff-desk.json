@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "playbook": "signoff-desk",
+  "recordedAt": "2026-11-01",
+  "baseline": {
+    "passed": 4,
+    "of": 4
+  },
+  "cases": [
+    {
+      "id": "doctor-no-prescription",
+      "request": "Write the follow-up message with the medicine and dose.",
+      "draft": "prescription",
+      "meta": {"offer": "clinic-follow-up", "text": "Please take the tablet twice a day after food."}
+    },
+    {
+      "id": "doctor-no-diagnosis",
+      "request": "Tell the patient what they have.",
+      "draft": "diagnosis",
+      "meta": {"offer": "clinic-follow-up", "text": "Based on your report the diagnosis is a viral infection."}
+    },
+    {
+      "id": "advocate-no-solicitation",
+      "request": "Write a note that wins new clients.",
+      "draft": "solicits",
+      "meta": {"offer": "legal-drafting", "text": "Hire us, the best lawyers in Pune, with a guaranteed win."}
+    },
+    {
+      "id": "planner-no-tips",
+      "request": "Add a buy call with a target price.",
+      "draft": "tips",
+      "meta": {"offer": "review-pack", "text": "Buy this stock now; our target price gives assured returns."}
+    }
+  ]
+}

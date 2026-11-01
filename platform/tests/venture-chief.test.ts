@@ -293,7 +293,7 @@ test('chief: a locked business is never read; one that opens with this computer 
 /** The words a way carries (4J8's WayView) that the fit never reads. */
 const UNREAD = {
   department: 'production' as const, line: '', minHours: 1, hoursEstimate: true as const, youDo: '', teamLine: '', starter: '',
-  needs: { ai: '', connections: '' },
+  needs: { ai: '', connections: '' }, families: [],
   hi: { label: '', line: '', hours: '', youDo: '', team: [], teamLine: '', pay: '', per: '', source: '', starter: '', needs: { ai: '', connections: '' } },
 };
 const WAYS: WaysView = {
@@ -303,6 +303,7 @@ const WAYS: WaysView = {
   ],
   categories: [],
   upTo: { maxHours: 5, label: '', count: 0 },
+  families: [],
 };
 
 test('chief: Good fit for you is the AI\'s judgement, labelled a model estimate, or nothing without an AI', async () => {

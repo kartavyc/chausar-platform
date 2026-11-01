@@ -88,6 +88,12 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-dev-permission': 'devperm', 'venture-triage-channel': 'triage', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
   // Wave 6 (6C5, 6C6)
   'venture-rule-attestation': 'ruleattest', 'venture-compliance': 'compliance',
+  // W6 6E4, 6E5: the document desk and the sign-off desk.
+  'venture-document': 'document', 'venture-signoff': 'signoff',
+  // W6 6E7: the trading journal.
+  'venture-trade-journal': 'tradejournal',
+  // Wave 6 (6E2, 6E3)
+  'venture-lesson-batch': 'lessonbatch', 'venture-booking-slot': 'bookslot', 'venture-booking': 'booking',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
@@ -348,6 +354,8 @@ import {percentBps,bpsPercent} from './money/rate-core.ts';
  * web app ('web'). Never phone or MCP, and never a request whose source text is tainted.
  */
 import {isAppChannel} from '../portable.ts';
+// W6 6E7 (D49): every model text passes the securities guard.
+import {assertNoSecuritiesAdvice} from './policy/securities-guard.ts';
 export {isAppChannel} from '../portable.ts';
 
 /** Owner approvals happen inside the app, never phone or MCP. */
@@ -629,6 +637,7 @@ export function modelWords(value: unknown, field: string, max = 400, options: Mo
   const words = tidyWords(value, options.multiline === true);
   check(words.length >= 1 && words.length <= max, 'MODEL_OUTPUT_REJECTED', `The ${field} was empty or too long.`);
   check(!/^#/m.test(words), 'MODEL_OUTPUT_REJECTED', `The ${field} tried to start a heading.`);
+  assertNoSecuritiesAdvice(words, field);
   if (options.numbers === 'refuse') assertNoNumbers(words, field, options.allowed ?? []);
   else assertNoMoney(words, field, options.allowed ?? []);
   return words;

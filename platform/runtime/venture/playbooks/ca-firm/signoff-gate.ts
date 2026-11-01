@@ -11,7 +11,8 @@
 import {healthClientBlock} from './health-delivery.ts';
 import type { State } from '../../../contracts.ts';
 import type { DeliveryRunRecord, VentureRecord } from '../../contracts.ts';
-import { digest, findRecord, listRecords } from '../../records.ts';
+import { findRecord, listRecords } from '../../records.ts';
+import { gateBlock, gateStage, papersDigestOf, papersEdit } from '../kit/signoff-core.ts';
 import { pickPlaybook } from '../registry.ts';
 import { CA_OFFERS, type CaOffer, type CaOfferId } from './playbook.ts';
 import { CA_FIRM_ID } from './registration.ts';
@@ -74,13 +75,12 @@ export function regulatedPapersOf(state: State, venture: VentureRecord, orderId:
 
 type PapersRun = Pick<DeliveryRunRecord, 'id' | 'status' | 'renderedText' | 'deliverable' | 'editedText'>;
 
-/** The owner's paper edits, including those kept when Accept preserves their exact words (clientDraft). */
-const editOf = (run: Pick<DeliveryRunRecord, 'status' | 'editedText'>): string | null => ((run.status === 'edited' || run.status === 'accepted') && run.editedText ? run.editedText : null);
+/** The owner's paper edits, including those kept when Accept preserves their exact words (clientDraft). W6 6E5: kit/signoff-core.ts. */
+const editOf = papersEdit;
 
 /** The digest the CA signs: the run's papers as they would go out. The owner's edit has a digest of its own. */
 export function papersDigest(run: PapersRun): string {
-  const edit = editOf(run);
-  return edit !== null ? digest({ runId: run.id, text: edit, edited: true }) : digest({ runId: run.id, text: run.renderedText, deliverable: run.deliverable });
+  return papersDigestOf(run);
 }
 
 /**
@@ -92,17 +92,15 @@ export type SignoffStage = 'not-needed' | 'outline' | 'no-ca' | 'not-asked' | 'u
 
 export function signoffStage(state: State, venture: VentureRecord, run: PapersRun & Pick<DeliveryRunRecord, 'orderId' | 'servedBy'>): SignoffStage {
   if (!regulatedPapersOf(state, venture, run.orderId)) return 'not-needed';
+  // W6 6E5: the generalised gate (kit/signoff-core.ts), with the CA of record as the signer.
   const edited = editOf(run) !== null;
-  // A template outline never read the client's request, so it is never sent to the CA; the owner's edit of one is.
-  if (!edited && run.servedBy !== 'model') return 'outline';
-  const wanted = papersDigest(run);
-  const ofRun = signoffRequests(state, venture.id).filter(item => item.deliveryId === run.id);
-  const request = ofRun.filter(item => item.workingDigest === wanted).at(-1);
-  const decided = request ? signoffFor(state, venture.id, request.id) : null;
-  if (decided) return decided.decision === 'signed' ? 'signed' : 'returned';
-  if (!caOfRecord(state, venture.id)) return 'no-ca';
-  if (request) return sentTo(state, venture.id, request.id) ? 'sent' : 'unsent';
-  return !edited && ofRun.some(item => signoffFor(state, venture.id, item.id)?.decision === 'signed') ? 'changed' : 'not-asked';
+  const stage = gateStage({
+    edited, servedByModel: run.servedBy === 'model', wanted: edited || run.servedBy === 'model' ? papersDigest(run) : '', hasSigner: !!caOfRecord(state, venture.id),
+    requests: signoffRequests(state, venture.id).filter(item => item.deliveryId === run.id),
+    decision: id => signoffFor(state, venture.id, id)?.decision ?? null,
+    sent: id => !!sentTo(state, venture.id, id),
+  });
+  return stage === 'no-signer' ? 'no-ca' : stage;
 }
 
 export const SIGNOFF_WORDS = Object.freeze({
@@ -123,14 +121,5 @@ export const SIGNOFF_WORDS = Object.freeze({
 export function caSignoffBlock(state: State, venture: VentureRecord, run: PapersRun & Pick<DeliveryRunRecord, 'orderId' | 'servedBy'>): string | null {
   if(caOfferFor(state,venture,run.orderId)?.id==='books-health-check'){const block=healthClientBlock(state,venture.id,run);if(block)return block;}
   const stage = signoffStage(state, venture, run);
-  const edited = editOf(run) !== null;
-  switch (stage) {
-    case 'not-needed': case 'signed': return null;
-    case 'outline': return SIGNOFF_WORDS.outline;
-    case 'no-ca': return SIGNOFF_WORDS.noCa;
-    case 'returned': return SIGNOFF_WORDS.returned;
-    case 'changed': return SIGNOFF_WORDS.changed;
-    case 'sent': return edited ? SIGNOFF_WORDS.editSent : SIGNOFF_WORDS.sent;
-    default: return edited ? SIGNOFF_WORDS.editNotSent : SIGNOFF_WORDS.notSent;
-  }
+  return gateBlock(stage === 'no-ca' ? 'no-signer' : stage, editOf(run) !== null, { ...SIGNOFF_WORDS, noSigner: SIGNOFF_WORDS.noCa });
 }

@@ -1,6 +1,7 @@
 import { useContext, useId, useMemo, useState } from 'react';
 import { useLanguage, useT } from '../../text';
 import { useResource } from '../../engine/context';
+import { Button } from '../../parts/Button';
 import { Gallery } from '../../parts/Gallery';
 import { PageTitle } from '../../parts/PageTitle';
 import { SectionHead } from '../../parts/Tile';
@@ -40,6 +41,9 @@ export function Place() {
  * is the gallery's featured tile. Once the one-sentence start has begun, "Resume setup" goes: the business it names was just locked,
  * and a click would lose a recovery code shown once.
  */
+/** How many ways the gallery shows before "Show all" (W6 6E6). */
+export const WAYS_AT_REST = 18;
+
 export function StartPage({ gallery, onStarted, business, country }: {
   gallery?: (Omit<WaysSlot, 'onStart'> & { onStart?: WaysSlot['onStart'] }) | undefined; onStarted: () => void;
   /** W4 4J21: the open business, which the sentence can be added to. */
@@ -51,6 +55,7 @@ export function StartPage({ gallery, onStarted, business, country }: {
   const language = useLanguage();
   const galleryId = useId();
   const [chip, setChip] = useState('all');
+  const [family, setFamily] = useState('all');
   const [sort, setSort] = useState<WaySort>('best-fit');
   const [begun, setBegun] = useState(false);
   const { ask: fit, askFit } = useFit();
@@ -58,7 +63,12 @@ export function StartPage({ gallery, onStarted, business, country }: {
   const featured = fit.state === 'shown' ? fit.fit.wayId : gallery?.featured;
   const ways = waysToShow(gallery ? { ...gallery, featured, onStart: gallery.onStart ?? (() => {}) } : undefined);
   const count = ways ? String(ways.ways.length) : undefined;
-  const shown = ways ? orderWays(filterWays(ways.ways, chip, ways.upTo), sort, ways.featured, language) : [];
+  const shown = ways ? orderWays(filterWays(ways.ways, chip, ways.upTo, family), sort, ways.featured, language) : [];
+  // W6 6E6: the gallery grew past 25 ways, so at rest it shows the best first and "Show all" opens the rest; a chip or a
+  // family shows everything it matches.
+  const [all, setAll] = useState(false);
+  const narrowed = chip !== 'all' || family !== 'all';
+  const visible = all || narrowed ? shown : shown.slice(0, WAYS_AT_REST);
   /** A tile's Start puts its way's own sentence in the box below (never sent), as the fit's Start does (4J21). */
   const startWay = (id: string) => {
     const way = ways?.ways.find((item) => item.id === id);
@@ -80,11 +90,14 @@ export function StartPage({ gallery, onStarted, business, country }: {
         <section className={s.ways} aria-labelledby={galleryId}>
           <SectionHead id={galleryId} title={t('onboarding.gallery.title')} end={<span className={s.waysMeta}>{t(ways.ways.some((way) => way.hoursEstimate) ? 'onboarding.ways.meta' : 'onboarding.gallery.meta')}</span>} />
           {ways.categories && (
-            <GalleryFilters total={ways.ways.length} categories={ways.categories} upTo={ways.upTo} chip={chip} onChip={setChip} sort={sort} onSort={setSort} />
+            <GalleryFilters total={ways.ways.length} categories={ways.categories} upTo={ways.upTo} chip={chip} onChip={setChip} sort={sort} onSort={setSort} families={ways.families} family={family} onFamily={setFamily} />
           )}
           {shown.length > 0
-            ? <Gallery ways={shown} featured={ways.featured} onStart={startWay} />
+            ? <Gallery ways={visible} featured={ways.featured} onStart={startWay} />
             : <p className={s.waysNone} role="status">{t('onboarding.ways.none')}</p>}
+          {visible.length < shown.length && (
+            <div className={s.waysMore}><Button variant="secondary" onClick={() => setAll(true)}>{t('onboarding.ways.showAll', { count: String(shown.length) })}</Button></div>
+          )}
         </section>
       )}
       <Beside aside={<NotSure fit={fit} onFit={() => void askFit()} />}>

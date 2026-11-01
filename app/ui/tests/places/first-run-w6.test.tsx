@@ -148,7 +148,7 @@ describe('first run, step 3: Connect what your business needs', () => {
     await press('Keep this plan');
     // The fake computer keeps its key: no passphrase, and the recovery code only on hosted.
     expect(await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 })).toBeTruthy();
-    expect(calls.find(([method]) => method === 'venture.create')?.[1]).toMatchObject({ idea: 'Coaching and mentor sessions for students and adult learners', countryCode: 'IN' });
+    expect(calls.find(([method]) => method === 'venture.create')?.[1]).toMatchObject({ idea: 'Tuition classes and lessons for students and adult learners', countryCode: 'IN' });
     expect(calls.find(([method]) => method === 'venture.owner.set')?.[1]).toEqual({ familyId: 'teaching' });
     const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' });
     const rows = within(list).getAllByRole('listitem');

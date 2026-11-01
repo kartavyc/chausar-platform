@@ -10,7 +10,7 @@ it('matches every current native registration without importing the server into 
  const base=pathToFileURL(resolve(process.cwd(),'platform/runtime/venture/playbooks')+'/').href;
  const script=`import {currentRegistry} from ${JSON.stringify(base+'registry.ts')};console.log(JSON.stringify(currentRegistry().map(({id,label})=>({id,label}))));`;
  const rows=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8',timeout:10000})) as {id:string;label:string}[];
- expect(rows).toHaveLength(23);
+ expect(rows).toHaveLength(28); // W6 6E2, 6E3: +2 (lesson desk, booking desk); 6E4, 6E5: +2 (document desk, sign-off desk); 6E7: +1 (trading journal)
  expect(Object.keys(labels).sort()).toEqual(rows.map(row=>'playbook-labels.'+row.id).sort());
  for(const row of rows){expect(playbookLabel(t('en'),row)).toBe(row.label);}
 });

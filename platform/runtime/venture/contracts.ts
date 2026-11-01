@@ -58,7 +58,15 @@ import type { TestFindingBody } from './playbooks/app-testing/records.ts';
 import type { DevPermissionBody } from './playbooks/dev-agency/records.ts';
 import type { TriageChannelBody } from './playbooks/it-triage/records.ts';
 import type { WatchSourceBody } from './playbooks/monitored-data/records.ts';
+// Wave 6 (6E4, 6E5): the document desk and the sign-off desk.
+import type { DocumentBody } from './playbooks/document-desk/records.ts';
+import type { SignoffBody } from './playbooks/signoff-desk/records.ts';
+// Wave 6 (6E7): the trading journal.
+import type { TradeJournalBody } from './playbooks/trading-journal/records.ts';
 import type { CallLogBody } from './playbooks/phone-receptionist/records.ts';
+// Wave 6 (6E2, 6E3): the lesson desk and the booking desk.
+import type { LessonBatchRecordBody } from './playbooks/lesson-desk/records.ts';
+import type { BookingRecordBody, BookingSlotRecordBody } from './playbooks/booking-desk/records.ts';
 import type { DeskActPayload, DeskActView, DeskGetPayload, DeskItemView, DeskListPayload, DeskListView } from './playbooks/desk-types.ts';
 
 export const VENTURE_CONTRACT_VERSION = 'chausar.dev/venture/v1alpha1' as const;
@@ -107,12 +115,15 @@ export const INDIA_STATES: Readonly<Record<string, string>> = Object.freeze({
 // 3. Service types, the venture record, terms, checklist
 // ---------------------------------------------------------------------------
 
-export const SERVICE_TYPES = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'other'] as const;
+// W6 6E1 (D2): teaching, local services and licensed work have their own types, listed before 'other' so a keyword tie
+// still goes to the older type (core/service-types.ts classifyIdea).
+export const SERVICE_TYPES = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'teaching', 'local-services', 'licensed', 'other'] as const;
 export type ServiceType = typeof SERVICE_TYPES[number];
 /** Plain labels for each service type. P1 uses them in templates, P4 in brief line one, P7 on screens. */
 export const SERVICE_TYPE_LABELS: Readonly<Record<ServiceType, string>> = Object.freeze({
   agency: 'Marketing agency', studio: 'Creative studio', consulting: 'Consulting practice', bookkeeping: 'Bookkeeping studio',
-  research: 'Research desk', content: 'Content shop', support: 'Support team for hire', other: 'Service business',
+  research: 'Research desk', content: 'Content shop', support: 'Support team for hire',
+  teaching: 'Teaching and coaching', 'local-services': 'Local service business', licensed: 'Licensed practice', other: 'Service business',
 });
 
 export const LAUNCH_STAGES = ['rehearsal', 'shadow', 'approve-each', 'approve-sample', 'auto-spot-check'] as const;
@@ -247,6 +258,12 @@ export const VENTURE_RECORD_KINDS = [
   'venture-call-log',
   // Wave 6 (6C5, 6C6): owner attestations of locked rules, and the profession and side-work answer.
   'venture-rule-attestation', 'venture-compliance',
+  // Wave 6 (6E7): the owner's trading journal (imports, opening holdings, tax packs).
+  'venture-trade-journal',
+  // Wave 6 (6E4, 6E5): a client document on the document desk; the sign-off desk's professionals, requests and signatures.
+  'venture-document', 'venture-signoff',
+  // Wave 6 (6E2, 6E3): a lesson batch on the lesson desk; the booking desk's open slots and bookings.
+  'venture-lesson-batch', 'venture-booking-slot', 'venture-booking',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -556,7 +573,8 @@ export const APPROVAL_COUNT = 2;
 export const INTERVIEW_IDS = Object.freeze({ first: 'q_1', second: 'q_2', pricingModel: 'q_pricing_model', price: 'q_price', tax: 'q_tax', taxRate: 'q_tax_rate' } as const);
 export const SECOND_OFFER_MODEL: Readonly<Record<ServiceType, PricingModel>> = Object.freeze({
   agency: 'project', studio: 'hourly', consulting: 'project', bookkeeping: 'project',
-  research: 'hourly', content: 'project', support: 'hourly', other: 'project',
+  research: 'hourly', content: 'project', support: 'hourly',
+  teaching: 'hourly', 'local-services': 'project', licensed: 'project', other: 'project',
 });
 /** Headings promise work ahead, never work done: agents in this build only draft from the client's message. */
 export { REQUIRED_SECTIONS } from './delivery/template-outline.ts';
@@ -3398,7 +3416,8 @@ export type RuleLocksView = {
 export type ComplianceView = {
   profession: { id: string; label: string; family: string | null };
   question: string; responsibility: string;
-  rules: { id: string; title: string; line: string; checked: boolean }[];
+  /** W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. */
+  rules: { id: string; title: string; line: string; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: IsoDate | null; checkedDay: string | null }[];
   switchedOff: { tool: string; line: string }[];
   hardStops: { id: string; line: string }[];
   digest: string;
@@ -4964,12 +4983,16 @@ export type WayView = {
   needs: WayNeeds;
   starter: Display;
   yours: { businessId: string; name: string }[];
+  /** W6 6E6 (D2): the profession families this way serves (core/professions.ts), in the families' order. */
+  families: FamilyId[];
 };
 /** categories: only those with a way, with counts; upTo: the "Up to 5 h a week" filter (maxHours at most 5) and its count. */
 export interface WaysView {
   ways: WayView[];
   categories: { id: WayCategory; label: Display; count: number }[];
   upTo: { maxHours: number; label: Display; count: number };
+  /** W6 6E6 (D2): the families that have a way, in the families' order, each with its count of ways. */
+  families: { id: FamilyId; label: Display; count: number }[];
 }
 /**
  * 4J8. One change a plan suggestion makes, in plain words: before and after (empty before for an offer added).
@@ -5221,6 +5244,17 @@ export type RuleAttestationRecord = RecordBase<'venture-rule-attestation'> & {
   ruleId: string; playbookId: string; digest: string; attestedOn: IsoDate; memberId: string; withdrawnAt: string | null; withdrawnOn: IsoDate | null;
 };
 /** Wave 6 (6C6 / D5): the owner's profession, their answer to the side-work question, and what its regulator switches off. */
+/** Wave 6 (6E4): one client document on the document desk (playbooks/document-desk/records.ts). */
+export type DocumentRecord = RecordBase<'venture-document'> & DocumentBody;
+/** Wave 6 (6E5): one sign-off desk entry (playbooks/signoff-desk/records.ts). */
+export type SignoffRecord = RecordBase<'venture-signoff'> & SignoffBody;
+/** Wave 6 (6E2): one lesson batch with its learners, classes, work and parent messages (playbooks/lesson-desk/records.ts). */
+export type LessonBatchRecord = RecordBase<'venture-lesson-batch'> & LessonBatchRecordBody;
+/** Wave 6 (6E3): an open slot and a booking on the booking desk (playbooks/booking-desk/records.ts). */
+export type BookingSlotRecord = RecordBase<'venture-booking-slot'> & BookingSlotRecordBody;
+export type BookingRecord = RecordBase<'venture-booking'> & BookingRecordBody;
+/** Wave 6 (6E7): one trading journal entry (playbooks/trading-journal/records.ts). */
+export type TradeJournalRecord = RecordBase<'venture-trade-journal'> & TradeJournalBody;
 export type ComplianceRecord = RecordBase<'venture-compliance'> & {
   professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
 };
@@ -5287,7 +5321,9 @@ export type AnyVentureRecord =
   | ArticleLedgerRecord | LeadSourceRecord | NewsletterIssueRecord | NewsletterContactRecord | TenderQuestionRecord
   | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
   | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord
-  | RuleAttestationRecord | ComplianceRecord;
+  | RuleAttestationRecord | ComplianceRecord | TradeJournalRecord
+  | DocumentRecord | SignoffRecord
+  | LessonBatchRecord | BookingSlotRecord | BookingRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -6529,6 +6565,17 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 export const VENTURE_ERRORS = [
   // Wave 6 (6C5, 6C6): hard stops, owner attestation and regulator switches.
   'HARD_STOP', 'RULE_NOT_FOUND', 'RULE_NOT_ATTESTABLE', 'REGULATOR_FORBIDS',
+  // Wave 6 (6E7): the trading journal.
+  'TRADEBOOK_INVALID', 'TRADEBOOK_DUPLICATE', 'OPENING_INVALID', 'JOURNAL_EMPTY', 'TAX_YEAR_UNSUPPORTED',
+  // Wave 6 (6E4, 6E5): the document desk and the sign-off desk.
+  'DOCUMENT_NOT_FOUND', 'DOCUMENT_INPUT_INVALID', 'DOCUMENT_SOURCE_REQUIRED', 'DOCUMENT_BRIEF_REQUIRED', 'DOCUMENT_SECTION_REQUIRED', 'DOCUMENT_FIGURE_UNRECEIPTED', 'DOCUMENT_APPROVAL_REQUIRED',
+  'SIGNOFF_REQUIRED', 'SIGNOFF_REGISTRATION_INVALID', 'SIGNOFF_SIGNER_MISMATCH', 'SIGNOFF_SIGNER_REQUIRED', 'SIGNOFF_PAPERS_NOT_READY', 'SIGNOFF_DECIDED',
+  // Wave 6 (6E2, 6E3): the lesson desk, the booking desk and the owner's own message handoff.
+  'LESSON_BATCH_NOT_FOUND', 'LESSON_LEARNER_NOT_FOUND', 'LESSON_SESSION_NOT_FOUND', 'LESSON_WORK_NOT_FOUND', 'LESSON_NOT_A_QUIZ', 'LESSON_ORDER_REQUIRED',
+  'LESSON_ORDER_MISMATCH', 'LESSON_MESSAGE_NOT_FOUND', 'OWNER_MESSAGE_NO_ADDRESS',
+  'BOOKING_NOT_FOUND', 'BOOKING_SLOT_NOT_FOUND', 'BOOKING_SLOT_CLASH', 'BOOKING_SLOT_TAKEN', 'BOOKING_SLOT_REQUIRED', 'BOOKING_ORDER_MISMATCH', 'BOOKING_ORDER_TAKEN',
+  'BOOKING_QUOTE_REQUIRED', 'BOOKING_DEPOSIT_EXISTS', 'BOOKING_DEPOSIT_REQUIRED', 'BOOKING_DEPOSIT_NOT_ISSUED', 'BOOKING_NOT_HELD', 'BOOKING_NOT_CONFIRMED', 'BOOKING_CLOSED',
+  'BOOKING_MESSAGE_NOT_FOUND',
   // Wave 6: scoped native jobs and owner-configured external tools.
   'JOB_BUSY', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED',
   'MODEL_SEND_BLOCKED',

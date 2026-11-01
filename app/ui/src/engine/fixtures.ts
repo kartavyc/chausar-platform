@@ -7,6 +7,7 @@
 import type { AgentView, BooksSummaryLite, BusinessOnComputer, ClientLite, ConnectorCardLite, DeliveryLite, EvidenceItem, JournalEntry, OrderLite, QueueRow, ReceiptLite, RunDetail, ServiceType, SpendRow, UploadLite } from './types';
 
 import type { CountryLite } from './types';
+import { SERVICE_KEYWORDS as ENGINE_SERVICE_KEYWORDS } from '../../../../platform/runtime/venture/core/service-keywords';
 
 export interface FakeBusiness { id: string; name: string; serviceType: ServiceType; opens: BusinessOnComputer['opens'] }
 
@@ -32,17 +33,11 @@ export const COUNTRIES: CountryLite[] = [
 ];
 export const SERVICE_LABELS: Readonly<Record<ServiceType, string>> = {
   agency: 'Marketing agency', studio: 'Creative studio', consulting: 'Consulting practice', bookkeeping: 'Bookkeeping studio',
-  research: 'Research desk', content: 'Content shop', support: 'Support team for hire', other: 'Service business',
+  research: 'Research desk', content: 'Content shop', support: 'Support team for hire',
+  teaching: 'Teaching and coaching', 'local-services': 'Local service business', licensed: 'Licensed practice', other: 'Service business',
 };
-export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = {
-  agency: ['marketing', 'ads', 'advert', 'social media', 'agency', 'leads', 'outreach', 'growth', 'campaign'],
-  studio: ['podcast', 'video', 'design', 'edit', 'photo', 'logo', 'brand', 'studio', 'animation'],
-  consulting: ['consult', 'advis', 'coach', 'strategy', 'audit', 'mentor'],
-  bookkeeping: ['bookkeep', 'accounts', 'accounting', 'gst', 'tax', 'ledger', 'payroll', 'invoice', 'books'],
-  research: ['research', 'lead list', 'market', 'report', 'analysis', 'data', 'survey'],
-  content: ['blog', 'newsletter', 'copy', 'writing', 'seo', 'article', 'content', 'script'],
-  support: ['support', 'customer service', 'inbox', 'helpdesk', 'help desk', 'chat', 'tickets'],
-};
+/** W6 6E1: the engine's own keywords (a pure file), so the fake guesses a service type exactly as the engine does. */
+export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = ENGINE_SERVICE_KEYWORDS;
 /** The words the engine's queue view uses for a new business (platform/runtime/venture/views/queue.ts). */
 export const NEW_BUSINESS_ROWS = {
   plan: { title: 'Your plan is ready. Read it.', read: 'Read', accept: 'Accept' },

@@ -19,6 +19,9 @@ import { ARTICLE_META } from './article-metadata';
 import { NEWSLETTER_META } from './newsletter-metadata';
 import { WEBSITE_META } from './website-metadata';
 import { TENDER_META } from './tender-metadata';
+import { DOCUMENT_META } from './document-metadata'; // W6 6E4
+import { SIGNOFF_META } from './signoff-metadata'; // W6 6E5
+import { LESSON_META, BOOKING_META } from './lesson-booking-metadata'; // W6 6E2, 6E3
 import { NARRATION_META } from './narration-metadata';
 import { LEADGEN_REGISTRATION, LEADGEN_OFFERS, LEADGEN_INTAKE_FIELDS } from './fake-lead-generation';
 export interface FakeKitMetadata {
@@ -27,7 +30,7 @@ export interface FakeKitMetadata {
  offers: readonly { id: string; name: string; description: string; pricing: PricingModel; unit: string; intake: readonly string[]; rights?: readonly ('own-footage' | 'licence' | 'creator-clip-programme')[] }[];
  intakeFields: readonly NonNullable<OfferIntakeLite['kit']>[number][];
 }
-const METADATA = [MONITORED_META, TRIAGE_META, APP_TESTING_META, PHONE_META, FORMS_META, DEV_META, VA_META, CAREER_META, NARRATION_META, WEBSITE_META, TENDER_META, NEWSLETTER_META, ARTICLE_META, TRANSLATION_META, RECRUITING_META, SEO_FAKE_META, BOOKKEEPING_FAKE_METADATA, SELLER_FAKE_METADATA, SUPPORT_DESK_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }] as readonly FakeKitMetadata[];
+const METADATA = [MONITORED_META, TRIAGE_META, APP_TESTING_META, PHONE_META, FORMS_META, DEV_META, VA_META, CAREER_META, NARRATION_META, WEBSITE_META, TENDER_META, NEWSLETTER_META, ARTICLE_META, TRANSLATION_META, RECRUITING_META, SEO_FAKE_META, BOOKKEEPING_FAKE_METADATA, SELLER_FAKE_METADATA, SUPPORT_DESK_META, { registration: LEADGEN_REGISTRATION, offers: LEADGEN_OFFERS, intakeFields: LEADGEN_INTAKE_FIELDS }, DOCUMENT_META, SIGNOFF_META, LESSON_META, BOOKING_META] as readonly FakeKitMetadata[];
 const KITS = planPicks.map(plan => {
  const kit = METADATA.find(item => item.registration.id === plan.id);
  if (!kit) throw new Error('A landed kit has no browser metadata for ' + plan.id);

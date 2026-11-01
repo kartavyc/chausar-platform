@@ -37,7 +37,7 @@ import type {
   Display, JournalEntry, PostLogPort, PostingModeName, PostingOption, PostingProposal, VentureDeps,
 } from '../contracts.ts';
 import { promptLeakLine, promptLeaks } from '../playbooks/prompt-leak.ts';
-import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { regulatedSignoff } from '../playbooks/kit/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
 import { SOCIAL_CHANNELS, channelCapability, type SocialChannel } from '../playbooks/social/channels.ts';
 import { socialPostBlocks } from '../playbooks/social/post-lines.ts';
@@ -213,7 +213,7 @@ export function postHandoff(connectorId: string, text: string): { url: string; c
 
 /** Why a draft's post may not go out, with the code a refusal carries. */
 export type DraftPostReason = {
-  code: 'POST_DRAFT_UNCHECKED' | 'POST_CLIENT_NOT_APPROVED' | 'POST_DRAFT_CHANGED' | 'DELIVERY_NOT_READY' | 'PRACTICE_DRAFT' | 'CA_SIGNOFF_REQUIRED';
+  code: 'POST_DRAFT_UNCHECKED' | 'POST_CLIENT_NOT_APPROVED' | 'POST_DRAFT_CHANGED' | 'DELIVERY_NOT_READY' | 'PRACTICE_DRAFT' | 'CA_SIGNOFF_REQUIRED' | 'SIGNOFF_REQUIRED';
   line: string;
 };
 /**
@@ -358,8 +358,9 @@ export function draftPostGate(state: State, input: { draftId: string; connectorI
   }
   if (flagshipOf(state, run) === SOCIAL_AGENCY_ID) reasons.push(...clientReasons(state, run, current));
   // AI-native CA firm: regulated papers go out only as the CA of record signed them, the owner's edit included.
-  const unsigned = venture ? caSignoffBlock(state, venture, run) : null;
-  if (unsigned) reasons.push({ code: 'CA_SIGNOFF_REQUIRED', line: unsigned });
+  // W6 6E5: and a sign-off desk output only as its professional of record signed it.
+  const unsigned = venture ? regulatedSignoff(state, venture, run) : null;
+  if (unsigned) reasons.push({ code: unsigned.code, line: unsigned.line });
   return { allowed: reasons.length === 0, reasons, text, channel: post.channel, draftDigest: current };
 }
 
@@ -367,6 +368,8 @@ export function draftPostGate(state: State, input: { draftId: string; connectorI
 const REFUSAL_CODES: readonly string[] = [
   'POST_DRAFT_UNCHECKED', 'POST_CLIENT_NOT_APPROVED', 'POST_DRAFT_CHANGED', 'DELIVERY_NOT_READY', 'PRACTICE_DRAFT', 'CA_SIGNOFF_REQUIRED', 'CHANNEL_CHALLENGED', 'CHANNEL_FROZEN',
   'POST_RISK_BLOCKED',
+  // W6 6E5: a sign-off desk output waits for its professional of record.
+  'SIGNOFF_REQUIRED',
 ];
 
 /** Throws the first reason's code with every reason's words, so each refused post says all that is wrong with it. */

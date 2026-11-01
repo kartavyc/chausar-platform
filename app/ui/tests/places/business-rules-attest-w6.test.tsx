@@ -85,4 +85,13 @@ describe('ComplianceCheck (6C6)', () => {
     expect(set?.params).toMatchObject({ profession: 'advocate', sideWork: 'not-sure' });
     expect(answers).toEqual([expect.objectContaining({ profession: 'advocate', sideWork: 'not-sure', recorded: true })]);
   });
+  it('W6 6E6: a statute checked against its official page links that page with the date, and carries no unchecked tag', async () => {
+    const client = createFakeClient(new FakeEngine());
+    render(<TextProvider language="en"><EngineProvider client={client}><ComplianceCheck profession="school-teacher" record={false} onDone={() => {}} /></EngineProvider></TextProvider>);
+    expect(await screen.findByText('School teachers covered by the Right to Education Act may not take private tuition or do private teaching.')).toBeTruthy();
+    const link = screen.getByRole('link', { name: 'Official text, checked 1 Nov 2026' });
+    expect(link.getAttribute('href')).toMatch(/^https:\/\/megscpcr\.gov\.in\//);
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(screen.queryByText('Not checked against the official page yet')).toBeNull();
+  });
 });

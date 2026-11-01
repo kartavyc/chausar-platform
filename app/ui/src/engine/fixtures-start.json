@@ -94,7 +94,10 @@
           "connections": "The client's files (PDF, CSV or Excel) and your own mail app. Tally on this computer if you use it. A person files on the tax portals."
         },
         "starter": "A CA practice: books, GST and income tax working papers for small businesses.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "money-tax"
+        ]
       },
       {
         "id": "youtube",
@@ -148,7 +151,10 @@
           "connections": "The client's transcript (SRT or VTT) and footage notes as files. ffmpeg on this computer is optional, for the check on a finished cut."
         },
         "starter": "A YouTube channel service: hooks, titles and chapters for client videos.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "creative"
+        ]
       },
       {
         "id": "social-agency",
@@ -191,7 +197,11 @@
           "connections": "The client's brand files and platform exports, and your own mail app. You post from your own accounts, or import the calendar file into your scheduler."
         },
         "starter": "A social media agency: calendars, posts and replies for local shops.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "creative",
+          "writing"
+        ]
       },
       {
         "id": "seo-visibility",
@@ -245,7 +255,10 @@
           "connections": "Works with WordPress drafts, Cloudflare overrides, Google Business Profile, Client site and Search Console export."
         },
         "starter": "Seo agency: Site checks and captured AI-answer checks for local businesses.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "writing"
+        ]
       },
       {
         "id": "online-seller",
@@ -294,7 +307,11 @@
           "connections": "Works with Shopify Admin, Shopify Storefront, Your image app, Seller export files and Your seller dashboard."
         },
         "starter": "Online seller and seller services: Listing, ads and settlement audits from the seller exports you add.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "creative",
+          "shop-office"
+        ]
       },
       {
         "id": "support-desk",
@@ -343,7 +360,10 @@
           "connections": "Works with Mail files, Read-only mailbox and Your mail app."
         },
         "starter": "Support desk for small shops: Customer mail sorted, replies drafted and due times kept for small shops.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "shop-office"
+        ]
       },
       {
         "id": "recruiting-desk",
@@ -397,7 +417,10 @@
           "connections": "Works with Client resumes, Imported mail, Greenhouse, Lever, Ashby, Calendar export, LinkedIn and Naukri."
         },
         "starter": "Recruiting desk: Role rules, shortlists with quoted proof and interview scheduling.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "people"
+        ]
       },
       {
         "id": "job-search-desk",
@@ -469,7 +492,11 @@
           "connections": "Works with Client job links, Public job boards, Your Pinloop account, LinkedIn manual path and Naukri manual path."
         },
         "starter": "Job search help: Shortlists, resumes, preparation packs and outreach drafts.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "teaching",
+          "people"
+        ]
       },
       {
         "id": "translation-studio",
@@ -569,7 +596,10 @@
           "connections": "Works with Source text, Your AI, Consented stock voices and Local captions."
         },
         "starter": "Translation service: Documents and subtitles with source checks and review.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "writing"
+        ]
       },
       {
         "id": "bookkeeping-cfo",
@@ -637,7 +667,11 @@
           "connections": "Works with Client files and statements, Chausar books, Tally exports, Zoho Books and Your mail app."
         },
         "starter": "Bookkeeping and CFO help: Collections drafts, cash packs and spending checks for small firms.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "money-tax",
+          "research"
+        ]
       },
       {
         "id": "podcast-to-article",
@@ -686,7 +720,10 @@
           "connections": "Works with Episode transcript, Local transcription and Blog and newsletter."
         },
         "starter": "Podcast to articles: An article, show notes and a newsletter blurb from every episode.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "writing"
+        ]
       },
       {
         "id": "lead-generation",
@@ -740,7 +777,10 @@
           "connections": "Works with OpenStreetMap Overpass, Nominatim city lookup, Business own site, Happenstance, Your mail app, LinkedIn and WhatsApp."
         },
         "starter": "Lead generation and appointment setting: Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "research"
+        ]
       },
       {
         "id": "newsletter-studio",
@@ -794,7 +834,10 @@
           "connections": "Works with Your newsletter tool."
         },
         "starter": "Newsletter service: A newsletter for a niche, a local business or your own list, checked before every send.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "writing"
+        ]
       },
       {
         "id": "tender-desk",
@@ -848,7 +891,10 @@
           "connections": "Works with Client documents, RFP files, GeM, CPPP, State portals and Your mail app."
         },
         "starter": "Tender and proposal desk: RFP answers from your client documents, with an export pack for manual submission.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "documents"
+        ]
       },
       {
         "id": "website-studio",
@@ -897,7 +943,10 @@
           "connections": "Works with GitHub, Lovable, Replit, Cloudflare Pages, Vercel and Netlify."
         },
         "starter": "Website builder: Business sites and landing pages for clients, checked against their requirements before every release.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "tech"
+        ]
       },
       {
         "id": "narration-studio",
@@ -991,7 +1040,11 @@
           "connections": "Works with Manuscript files, Google Cloud speech, Local audio checks, Your AI, Public source page and Spotify for Authors."
         },
         "starter": "Narration and audiobooks: Books, lessons and short explainers with disclosed AI narration.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "teaching",
+          "creative"
+        ]
       },
       {
         "id": "virtual-assistant",
@@ -1040,7 +1093,10 @@
           "connections": "Works with Saved mail, Saved page monitors and Your own send and purchase."
         },
         "starter": "Virtual assistant service: Routines, research and client requests with exact approvals.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "shop-office"
+        ]
       },
       {
         "id": "data-entry-desk",
@@ -1089,7 +1145,10 @@
           "connections": "Works with Client source files."
         },
         "starter": "Data entry service: Client source records, each submit approved and read back.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "shop-office"
+        ]
       },
       {
         "id": "app-testing",
@@ -1143,7 +1202,10 @@
           "connections": "Works with Your stock speech voice and Reviewed files you send."
         },
         "starter": "App testing service: Emulator test rounds for small app makers, and recorded software demos.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "tech"
+        ]
       },
       {
         "id": "dev-agency",
@@ -1187,7 +1249,10 @@
           "connections": "Works with GitHub and Your coding tool."
         },
         "starter": "Maintenance retainer: Maintenance retainers, QA before release and security reviews for small web apps.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "tech"
+        ]
       },
       {
         "id": "monitored-data",
@@ -1231,7 +1296,10 @@
           "connections": "Works with Permitted page monitors and Source workbook download."
         },
         "starter": "Price monitoring: Price lists and tender boards watched for clients, from pages whose terms allow it.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "research"
+        ]
       },
       {
         "id": "it-triage",
@@ -1298,7 +1366,10 @@
           "connections": "Works with Approved reply you send."
         },
         "starter": "It support desk: Help-channel triage summaries for small teams, every reply approved.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "tech"
+        ]
       },
       {
         "id": "phone-receptionist",
@@ -1347,7 +1418,212 @@
           "connections": "Works with Call exports."
         },
         "starter": "AI phone receptionist: An AI receptionist for clinics and shops that says it is an AI and hands bookings to a person.",
-        "yours": []
+        "yours": [],
+        "families": [
+          "tech"
+        ]
+      },
+      {
+        "id": "trading-journal",
+        "playbook": "trading-journal",
+        "label": "Trading journal",
+        "category": "money-and-tax",
+        "department": "money",
+        "line": "Tradebooks become charges, profit or loss and a tax pack for your CA.",
+        "hours": "1 to 4 h a week",
+        "minHours": 1,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Import tradebooks and share the pack with your CA.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Code works every charge; notes for your CA.",
+        "clientsPay": {
+          "text": "₹500 to ₹3,000",
+          "per": "a trader a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Broker tradebook file and Your mail app."
+        },
+        "starter": "Trading journal: Tradebooks become charges, profit or loss and a tax pack for your CA.",
+        "yours": [],
+        "families": [
+          "money-tax"
+        ]
+      },
+      {
+        "id": "lesson-desk",
+        "playbook": "lesson-desk",
+        "label": "Lesson desk for tutors and teachers",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Batches, attendance, worksheets, quizzes, progress notes and fees for tutors and teachers.",
+        "hours": "6 to 20 h a week",
+        "minHours": 6,
+        "maxHours": 20,
+        "hoursEstimate": true,
+        "youDo": "Teach the classes, check the work and send parent messages.",
+        "team": [
+          {
+            "role": "Planner",
+            "initials": "PL",
+            "department": "production"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Plans lessons, drafts worksheets and quizzes, counts attendance and scores.",
+        "clientsPay": {
+          "text": "₹1,500 to ₹8,000",
+          "per": "a learner a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your mail app, WhatsApp chat and UPI link on invoices."
+        },
+        "starter": "Lesson desk for tutors and teachers: Batches, attendance, worksheets, quizzes, progress notes and fees for tutors and teachers.",
+        "yours": [],
+        "families": [
+          "teaching"
+        ]
+      },
+      {
+        "id": "booking-desk",
+        "playbook": "booking-desk",
+        "label": "Booking desk for local services",
+        "category": "shops-and-firms",
+        "department": "operations",
+        "line": "Enquiries, open slots, quotes, deposits by UPI and reminders for local services.",
+        "hours": "10 to 40 h a week",
+        "minHours": 10,
+        "maxHours": 40,
+        "hoursEstimate": true,
+        "youDo": "Do the visits, confirm bookings and send reminders.",
+        "team": [
+          {
+            "role": "Reader",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Reads enquiries, drafts confirmations, keeps slots and deposits.",
+        "clientsPay": {
+          "text": "₹500 to ₹25,000",
+          "per": "a booking",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your mail app, WhatsApp chat and UPI link on invoices."
+        },
+        "starter": "Booking desk for local services: Enquiries, open slots, quotes, deposits by UPI and reminders for local services.",
+        "yours": [],
+        "families": [
+          "local-services",
+          "licensed"
+        ]
+      },
+      {
+        "id": "signoff-desk",
+        "playbook": "signoff-desk",
+        "label": "Sign-off desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Regulated papers your licensed professional signs before a client sees them.",
+        "hours": "3 to 8 h a week",
+        "minHours": 3,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Review, get it signed, send.",
+        "team": [
+          {
+            "role": "Drafter",
+            "initials": "DR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Drafts papers within regulator limits.",
+        "clientsPay": {
+          "text": "₹2,000 to ₹20,000",
+          "per": "per paper",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client files and Your mail app."
+        },
+        "starter": "Sign-off desk: Regulated papers your licensed professional signs before a client sees them.",
+        "yours": [],
+        "families": [
+          "money-tax",
+          "licensed"
+        ]
+      },
+      {
+        "id": "document-desk",
+        "playbook": "document-desk",
+        "label": "Document desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Handbooks, SOPs, reports and estimates from client files; code works out figures.",
+        "hours": "3 to 10 h a week",
+        "minHours": 3,
+        "maxHours": 10,
+        "hoursEstimate": true,
+        "youDo": "Set the brief, approve, send.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Drafts sections and builds the export.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹40,000",
+          "per": "per document",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client files and Your mail app."
+        },
+        "starter": "Document desk: Handbooks, SOPs, reports and estimates from client files; code works out figures.",
+        "yours": [],
+        "families": [
+          "documents"
+        ]
       }
     ],
     "categories": [
@@ -1364,19 +1640,76 @@
       {
         "id": "money-and-tax",
         "label": "Money and tax",
-        "count": 2
+        "count": 3
       },
       {
         "id": "shops-and-firms",
         "label": "Shops and firms",
-        "count": 8
+        "count": 12
       }
     ],
     "upTo": {
       "maxHours": 5,
       "label": "Up to 5 h a week",
-      "count": 7
-    }
+      "count": 8
+    },
+    "families": [
+      {
+        "id": "money-tax",
+        "label": "Money and tax",
+        "count": 4
+      },
+      {
+        "id": "teaching",
+        "label": "Teaching and coaching",
+        "count": 3
+      },
+      {
+        "id": "creative",
+        "label": "Creative work",
+        "count": 4
+      },
+      {
+        "id": "writing",
+        "label": "Writing and content",
+        "count": 5
+      },
+      {
+        "id": "local-services",
+        "label": "Local services",
+        "count": 1
+      },
+      {
+        "id": "documents",
+        "label": "Documents and reports",
+        "count": 2
+      },
+      {
+        "id": "research",
+        "label": "Research and analysis",
+        "count": 3
+      },
+      {
+        "id": "people",
+        "label": "People and careers",
+        "count": 2
+      },
+      {
+        "id": "shop-office",
+        "label": "Shop and back office",
+        "count": 4
+      },
+      {
+        "id": "tech",
+        "label": "Tech services",
+        "count": 5
+      },
+      {
+        "id": "licensed",
+        "label": "Licensed work",
+        "count": 2
+      }
+    ]
   },
   "checklist": [
     {

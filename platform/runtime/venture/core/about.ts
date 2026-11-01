@@ -9,6 +9,7 @@
 // behind. A resume or export goes as the owner's own dropped file (core/attachment.ts): screened first, previewed,
 // recorded and sent once. Nothing here writes to a vault; the plan is kept later by venture.create.
 import { check, ChausarError, type Context } from '../../contracts.ts';
+import { securitiesAdviceIn, SECURITIES_GUARD_LINE } from '../policy/securities-guard.ts';
 import type { CountryCode, ModelTask, VentureDeps } from '../contracts.ts';
 import { exactPayload, plainText, requireAppChannel, singleLine } from '../records.ts';
 import { verifiedEntry } from '../playbooks/kit/ooxml/zip-core.ts';
@@ -74,6 +75,8 @@ export function aboutTask({ text, file }: { text: string; file: DroppedFile | nu
       const offers = (body.offers as unknown[]).map(item => {
         const offer = exactPayload(item, ['name', 'line'], ['name', 'line'], 'MODEL_OUTPUT_REJECTED');
         check(typeof offer.name === 'string' && offer.name.trim().length >= 2 && offer.name.length <= NAME_MAX && !NOT_IN_AN_OFFER.test(offer.name), 'MODEL_OUTPUT_REJECTED', 'An offer name is short plain words with no amount.');
+        // W6 6E7 (D49): an offer that sells tips, calls, copy trading or promised returns is refused.
+        check(!securitiesAdviceIn(`${offer.name}. ${typeof offer.line === 'string' ? offer.line : ''}`), 'MODEL_OUTPUT_REJECTED', SECURITIES_GUARD_LINE);
         check(typeof offer.line === 'string' && offer.line.length <= LINE_MAX && !NOT_IN_AN_OFFER.test(offer.line), 'MODEL_OUTPUT_REJECTED', 'An offer line is plain words with no amount.');
         return { name: offer.name.trim(), line: offer.line.trim() };
       });

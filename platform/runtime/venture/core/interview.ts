@@ -28,7 +28,7 @@ export const INTERVIEW_INSTRUCTIONS = "You help a new owner plan a service busin
 export const INTERVIEW_SCHEMA: Json = {
   type: 'object', additionalProperties: false, required: ['serviceType', 'questions'],
   properties: {
-    serviceType: { type: 'string', enum: ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'other'] },
+    serviceType: { type: 'string', enum: [...SERVICE_TYPES] },
     questions: {
       type: 'array', items: {
         type: 'object', additionalProperties: false,

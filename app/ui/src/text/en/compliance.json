@@ -7,6 +7,7 @@
   "compliance.answer.not-sure": "I am not sure",
   "compliance.rules": "Rules for your profession",
   "compliance.unchecked": "Not checked against the official page yet",
+  "compliance.source": "Official text, checked {day}",
   "compliance.off": "Switched off by your regulator",
   "compliance.stops": "Never allowed",
   "compliance.continue": "Continue",

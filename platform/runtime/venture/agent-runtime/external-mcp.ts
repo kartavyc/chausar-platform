@@ -11,6 +11,7 @@ import type { AgentApprovalRequest } from './driver-types.ts';
 import type { JobCapability } from './scope.ts';
 import { connectExternalClient, type ExternalClient, type ExternalTool } from './external-client.ts';
 import { validateExternalCredentialScope, type ExternalMcpServer } from './external-config.ts';
+import { brokerOrderTool, refuseBrokerConnection } from '../policy/securities-guard.ts';
 
 type Options = {
   signal: AbortSignal; guard(state: State): void;
@@ -52,6 +53,8 @@ export function createExternalMcpTools(deps: VentureDeps, ctx: Context, capabili
     guard();
     check(result.every(tool => typeof tool.name === 'string' && tool.name.length > 0 && tool.inputSchema?.type === 'object') && new Set(result.map(tool => tool.name)).size === result.length,
       'MCP_RESPONSE_INVALID', 'This server returned an invalid tool list.');
+    // W6 6E7 (D49): a server that can place, change or cancel broker orders is never used, whatever the owner approves.
+    if (result.some(brokerOrderTool)) refuseBrokerConnection('This external server');
     return result;
   }
   const fingerprint = (server: ExternalMcpServer, tool: ExternalTool) => digest({ server, tool });

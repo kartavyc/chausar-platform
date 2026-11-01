@@ -46,7 +46,8 @@ import { writtenByLine } from '../models/written-by.ts';
 import { contractChecks,draftWords,refuseUnsignedContract } from '../money/order-contracts.ts';
 import { citationUseFor } from '../playbooks/ca-firm/citations.ts';
 import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
-import { caOfferFor,caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { caOfferFor } from '../playbooks/ca-firm/signoff-gate.ts';
+import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
 import { diffExplanations } from '../playbooks/ca-firm/signoff.ts';
 import { failedPlaybookCheck,runFlagshipChecks,voiceDraftCheck,withQuoteFixes,withVoiceCheck } from '../playbooks/draft-checks.ts';
 import { mediaAcceptBlock } from '../playbooks/kit/assets.ts';
@@ -549,9 +550,10 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     if (verdict === 'accepted') {
       acceptableAsIs(run.checks, run.playbookChecks);
       check(!judgeReading(run, Date.parse(tx.now)), 'INVALID_VENTURE_REQUEST', JUDGE_READING);
-      // AI-native CA firm: regulated papers are accepted only once the CA of record signed off this exact draft.
-      const unsigned = caSignoffBlock(tx.state, tx.venture!, run);
-      if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
+      // Regulated papers (the CA firm's, and every sign-off desk output, W6 6E5) are accepted only once the professional of
+      // record signed this exact draft (playbooks/kit/signoff-gate.ts).
+      const unsigned = regulatedSignoff(tx.state, tx.venture!, run);
+      if (unsigned) throw new ChausarError(unsigned.code, unsigned.line);
       // 5A4: a file it hands over with no known licence, stale, held, made with withdrawn consent, or not made yet.
       const media = mediaAcceptBlock(tx.state, tx.venture!, run, tx.now);
       if (media) throw new ChausarError(media.code, media.line);
@@ -629,7 +631,7 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   const cancelled = !!state && findRecord(state, 'venture-order', run.orderId)?.status === 'cancelled';
   const canApprove = false;
   const blocked = ready
-    ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? caSignoffBlock(state, venture, run) : null)
+    ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? regulatedSignoffBlock(state, venture, run) : null)
       ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)) // 5A4: consent and its files' asset records
     : null;
   const canAccept = ready && blocked === null;

@@ -4,6 +4,8 @@ import {eraseDevNaming} from '../playbooks/dev-agency/privacy.ts';
 import {eraseFormsNaming,clearForgottenFormSignIns} from '../playbooks/data-entry-desk/privacy.ts';
 import {eraseAppTesting,clearForgottenDemoDesktops,clearForgottenAppTests} from '../playbooks/app-testing/privacy.ts';
 import {eraseReceptionist} from '../playbooks/phone-receptionist/privacy.ts';
+import {eraseLessons} from '../playbooks/lesson-desk/privacy.ts';
+import {eraseBookings} from '../playbooks/booking-desk/privacy.ts';
 import {eraseOpenPostingNaming} from '../build/open-posting-privacy.ts';
 import { removePostingLogEntries } from '../build/post-log.ts';
 import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
@@ -43,6 +45,8 @@ import {eraseSiteNaming} from '../playbooks/website-studio/privacy.ts';
 import {eraseNewsletterNaming} from '../playbooks/newsletter-studio/privacy.ts';
 import {eraseNarrationNaming} from '../playbooks/narration-studio/privacy.ts';
 import {eraseTenderNaming} from '../playbooks/tender-desk/privacy.ts';
+import {eraseDocumentNaming} from '../playbooks/document-desk/privacy.ts';
+import {eraseSignoffNaming} from '../playbooks/signoff-desk/privacy.ts';
 import { eraseSupportNaming } from '../playbooks/support-desk/privacy.ts';
 import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
 import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
@@ -325,7 +329,13 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     eraseNarrationNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseAppTesting(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseReceptionist(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    // W6 6E2, 6E3: the lesson desk's learners and messages, and the booking desk's bookings, of a forgotten family or client.
+    eraseLessons(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseBookings(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    // W6 6E4, 6E5: client documents and sign-off requests.
+    eraseDocumentNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSignoffNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseOpenPostingNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
     eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
     eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);

@@ -5,6 +5,7 @@
 // Pure: no clock, no store, no model. The fake engine imports this file too, so it answers exactly like the engine.
 import { ChausarError, check } from '../../portable.ts';
 import { PRICE_FAMILIES, PRICES_CHECKED_ON, PROFESSION_PRICES, type PriceRangeRow, type ProfessionPrices } from './price-ranges-data.ts';
+import { PRICE_FAMILY_OF, PROFESSIONS, professionsForPlaybook } from './professions.ts';
 
 /** W6 6C3 (D17): one source of a price range, as published. published is the source's own date when it shows one. */
 export type PriceSourceView = { url: string; publisher: string; title: string; published: string | null };
@@ -136,7 +137,8 @@ export function wayPrice(playbook: string): { guide: PriceGuideView; range: Pric
  * Throws, naming the row and the rule, unless every profession has a known family, a unique id and either sourced
  * ranges (unique ids, INR or USD, BigInt minor amounts low to high above zero, a cap from zero, a "per" unit, sources
  * with https links, publisher and title, the checked date) or a reason for no reliable data; and every way names a
- * profession here and, where it shows a range, that profession's range.
+ * profession here and, where it shows a range, that profession's range. W6 6E6: the rows are the 57-profession map's
+ * (core/professions.ts), same ids, labels, order and families, and each way's profession is one that runs on that way.
  */
 export function validatePriceRanges(rows: readonly ProfessionPrices[] = PROFESSION_PRICES): void {
   const fail = (message: string): never => { throw new ChausarError('INVALID_VENTURE_REQUEST', message); };
@@ -168,5 +170,13 @@ export function validatePriceRanges(rows: readonly ProfessionPrices[] = PROFESSI
   for (const [playbook, mapping] of Object.entries(WAY_PRICES)) {
     const row = rows.find(item => item.id === mapping.profession) ?? fail(`The way ${playbook} names an unknown profession.`);
     if (mapping.range && !row.ranges.some(range => range.id === mapping.range)) fail(`The way ${playbook} names a range its profession does not have.`);
+    if (rows === PROFESSION_PRICES && !professionsForPlaybook(playbook).some(item => item.id === mapping.profession)) fail(`The way ${playbook} names ${mapping.profession}, which the profession map does not run on it.`);
+  }
+  if (rows === PROFESSION_PRICES) {
+    if (rows.length !== PROFESSIONS.length) fail(`The price guide lists ${rows.length} professions; the profession map lists ${PROFESSIONS.length}.`);
+    PROFESSIONS.forEach((profession, index) => {
+      const row = rows[index]!;
+      if (row.id !== profession.id || row.label !== profession.label || row.family !== PRICE_FAMILY_OF[profession.family]) fail(`Price row ${row.id} does not match the profession map's ${profession.id}.`);
+    });
   }
 }

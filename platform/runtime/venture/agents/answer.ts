@@ -7,6 +7,7 @@
 // Nothing the consent promises is never sent reaches the AI: card, bank account, Aadhaar and one-time code numbers are
 // screened out of every fact, and client file names and the run's question pass the untrusted screen first.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { securitiesAdviceIn } from '../policy/securities-guard.ts';
 import type { AgentWaiting, ChatPart, Json, ModelTask, RunDetail, VentureDeps, VentureRecord } from '../contracts.ts';
 import { copiedTokens, digest, listRecords, modelNumbers, tidyWords } from '../records.ts';
 import { digitCopy, screenReadback } from '../core/secrets.ts';
@@ -276,6 +277,8 @@ export function validateAnswer(raw: unknown): AnswerOutput {
       const item = part as Record<string, unknown>;
       if (!item || typeof item !== 'object' || Object.keys(item).length !== 4 || (item.kind !== 'text' && item.kind !== 'figure')) return rejected('A part of the answer had the wrong shape.');
       for (const field of ['text', 'receiptId', 'key']) if (typeof item[field] !== 'string' || (item[field] as string).length > 600 || HIDDEN.test(item[field] as string)) return rejected('A part of the answer was not plain short text.');
+      // W6 6E7 (D49): an answer that gives securities advice is refused, so the template answer is used.
+      if (securitiesAdviceIn(item.text as string)) return rejected('A part of the answer gave securities advice, which Chausar never gives.');
       return { kind: item.kind, text: item.text as string, receiptId: item.receiptId as string, key: item.key as string };
     }),
   };

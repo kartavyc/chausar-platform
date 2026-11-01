@@ -18,7 +18,7 @@ import { recordDecision } from '../journal/decisions.ts';
 import { JUDGE_READING, PRACTICE_REASON, runView } from '../delivery/runs.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { reopenMark, RESTORED_LINE, revisionWords, SEND_BACK_MAX, startRevision, TOO_LATE_LINE, undoRevision } from '../delivery/revise.ts';
-import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
 import { sumReceipt } from '../money/sums.ts';
 import { setPlan } from '../money/set-plan.ts';
 
@@ -35,6 +35,7 @@ export const ACTION_WORDS = Object.freeze({
   notOffered: 'Send back works on drafts and on plan changes. Use the row\'s own buttons here.',
   editNotOffered: 'Only a draft waiting for your review can be edited here.',
   caEdit: "Your version of these papers needs the CA's sign-off. Edit it in Work, where it goes to the CA.",
+  signoffEdit: "Your version of these papers needs its professional's signature. Edit it in Work, then send it from the sign-off desk.",
   blockedEdit: 'This draft failed a check. Send it back with your words, or edit it in Work, where your version is final.',
   nothing: 'Nothing to undo here.',
   outside: "This went out, so it can't be undone.",
@@ -184,9 +185,10 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
   // A draft that can't be accepted as it stands would come back just as stuck: it goes back with words, or is edited in
   // Work, where the owner's version is final.
   // Held while the judge reads it, it says so in the judge's words.
-  if (!shown.canAccept && !caSignoffBlock(state, venture, run)) return refused('NOT_OFFERED', shown.acceptBlocked === JUDGE_READING ? JUDGE_READING : ACTION_WORDS.blockedEdit);
+  if (!shown.canAccept && !regulatedSignoffBlock(state, venture, run)) return refused('NOT_OFFERED', shown.acceptBlocked === JUDGE_READING ? JUDGE_READING : ACTION_WORDS.blockedEdit);
   // Regulated papers in the owner's words go to the CA of record first: that edit is made in Work.
-  if (caSignoffBlock(state, venture, { ...run, status: 'edited', editedText: text })) return refused('CA_SIGNOFF_REQUIRED', ACTION_WORDS.caEdit);
+  const unsignedEdit = regulatedSignoff(state, venture, { ...run, status: 'edited', editedText: text });
+  if (unsignedEdit) return refused(unsignedEdit.code, unsignedEdit.code === 'CA_SIGNOFF_REQUIRED' ? ACTION_WORDS.caEdit : ACTION_WORDS.signoffEdit);
   return answered(deps, ctx, found.subject, async () => {
     await ventureAction(deps, ctx, 'approve', 'queue.edit', tx => {
       const current = tx.find('venture-delivery-run', runId);

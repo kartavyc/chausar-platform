@@ -6,15 +6,15 @@
 // plan through a sentence: the owner's own words when they already plan as the family's service type, else the family's
 // plan sentence first. Every plan sentence is checked by test to classify as its family's service type.
 //
-// TODO(6E1): teaching, local-services and licensed get their own service types in core/service-types.ts. Until then
-// they map onto the closest existing type below (consulting, other, consulting); change FAMILY_SERVICE_TYPES and the
-// plan sentences together when 6E1 lands, and the families test will hold the new mapping.
+// W6 6E1: teaching, local services and licensed work plan as their own service types (core/service-types.ts). Documents
+// and people still plan as consulting: D2 adds only those three types. The 57 professions in each family are in
+// core/professions.ts (6E6), and every profession's own name finds its family through the keywords below.
 // Template words only: no digits, no prices, no done claims.
 
 import type { FamilyId, FamilyOffer } from './first-run-types.ts';
 
 /** The service types of contracts.ts SERVICE_TYPES, named here so this file needs no engine import. */
-type ServiceType = 'agency' | 'studio' | 'consulting' | 'bookkeeping' | 'research' | 'content' | 'support' | 'other';
+type ServiceType = 'agency' | 'studio' | 'consulting' | 'bookkeeping' | 'research' | 'content' | 'support' | 'teaching' | 'local-services' | 'licensed' | 'other';
 
 export type { FamilyId, FamilyOffer } from './first-run-types.ts';
 export const FAMILY_IDS: readonly FamilyId[] = Object.freeze([
@@ -26,7 +26,7 @@ export type Family = {
   label: string;
   /** The tile's second line: who belongs here. */
   line: string;
-  /** The existing service type the family plans as until 6E1 adds its own. */
+  /** The service type the family plans as. */
   serviceType: ServiceType;
   /** The sentence a tile pick starts the plan from, and the lead put before owner words that plan as another type. */
   planIdea: string;
@@ -50,8 +50,8 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     keywords: ['chartered accountant', ' ca ', 'accountant', 'accounting', 'bookkeep', 'gst', 'income tax', 'itr', 'payroll', 'company secretary', 'audit'],
   }),
   f({
-    id: 'teaching', label: 'Teaching and coaching', line: 'Teacher, tutor, trainer, yoga, music, mentor', serviceType: 'consulting',
-    planIdea: 'Coaching and mentor sessions for students and adult learners',
+    id: 'teaching', label: 'Teaching and coaching', line: 'Teacher, tutor, trainer, yoga, music, mentor', serviceType: 'teaching',
+    planIdea: 'Tuition classes and lessons for students and adult learners',
     offers: [
       { name: 'Weekly classes', line: 'Small batches with notes and practice work' },
       { name: 'One to one sessions', line: 'Focused help on what the learner needs' },
@@ -80,8 +80,8 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     keywords: ['copywrit', 'journalist', 'writer', 'writing', 'blog', 'newsletter', 'translator', 'translation', 'ghostwrit', 'podcast', 'seo', 'content'],
   }),
   f({
-    id: 'local-services', label: 'Local services', line: 'Salon, electrician, home chef, travel, events', serviceType: 'other',
-    planIdea: 'Home services for families nearby, booked by appointment',
+    id: 'local-services', label: 'Local services', line: 'Salon, electrician, home chef, travel, events', serviceType: 'local-services',
+    planIdea: 'Home visits, repairs and salon bookings for families nearby',
     offers: [
       { name: 'Booked visits', line: 'Slots, reminders and a quote before each visit' },
       { name: 'Packages', line: 'A set of visits or services sold together' },
@@ -97,7 +97,7 @@ export const FAMILIES: readonly Family[] = Object.freeze([
       { name: 'SOPs and handbooks', line: 'Clear written steps for a team' },
       { name: 'Project reports', line: 'Loan or project reports put together for review' },
     ],
-    keywords: ['tender', 'gem bid', 'bid writ', 'sop', 'handbook', 'dpr', 'cma report', 'technical writ', 'thesis', 'estimate'],
+    keywords: ['tender', 'gem bid', 'bid writ', 'sop', 'handbook', 'dpr', 'cma report', 'technical writ', 'technical', 'thesis', 'estimate'],
   }),
   f({
     id: 'research', label: 'Research and analysis', line: 'Market research, MIS, sales, procurement', serviceType: 'research',
@@ -107,7 +107,7 @@ export const FAMILIES: readonly Family[] = Object.freeze([
       { name: 'Monthly MIS', line: 'The numbers a business watches, put in one pack' },
       { name: 'Lead lists', line: 'Companies that fit, found from public sources' },
     ],
-    keywords: ['market research', 'research', 'analyst', 'analysis', 'mis', 'data', 'procurement', 'sales executive', 'lead list'],
+    keywords: ['market research', 'research', 'analyst', 'analysis', 'mis', 'data analys', 'procurement', 'sales executive', 'lead list'],
   }),
   f({
     id: 'people', label: 'People and careers', line: 'Recruiter, placement, resume help', serviceType: 'consulting',
@@ -140,8 +140,8 @@ export const FAMILIES: readonly Family[] = Object.freeze([
     keywords: ['software', 'developer', 'website', 'web design', 'app test', 'qa tester', 'tester', 'it support', 'call centre', 'receptionist', 'programmer'],
   }),
   f({
-    id: 'licensed', label: 'Licensed work', line: 'Advocate, doctor, financial planner', serviceType: 'consulting',
-    planIdea: 'Consulting and advisory sessions run by a licensed professional',
+    id: 'licensed', label: 'Licensed work', line: 'Advocate, doctor, financial planner', serviceType: 'licensed',
+    planIdea: 'Client follow ups and review packs for a licensed professional to sign off',
     offers: [
       { name: 'Consultations', line: 'Booked sessions with notes for the client' },
       { name: 'Follow ups', line: 'Reminders and next steps after each session' },

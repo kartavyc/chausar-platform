@@ -54,6 +54,8 @@ test("the eight fixed steps' one agent takes its department from the service typ
   const expected: Record<string, string> = {
     bookkeeping: 'money', agency: 'marketing', content: 'marketing', support: 'sales',
     studio: 'production', consulting: 'production', research: 'production', other: 'production',
+    // W6 6E1: the three new family types.
+    teaching: 'production', 'local-services': 'operations', licensed: 'production',
   };
   assert.deepEqual(Object.fromEntries(SERVICE_TYPES.map(type => [type, departmentOfService(type)])), expected);
 });

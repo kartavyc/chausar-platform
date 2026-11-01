@@ -50,6 +50,9 @@ const TEMPLATE_WORK: Readonly<Record<ServiceType, { work: string; area: string }
   research: { work: 'Clients describe the question they need answered and receive the findings in their own area.', area: 'A signed-in page where each client sees their own questions and findings.' },
   content: { work: 'Clients send topics and notes, then review each draft before it is published.', area: 'A signed-in page where each client sends topics and reviews their own drafts.' },
   support: { work: 'Business owners describe their product and support needs, then review the replies drafted for their customers.', area: 'A signed-in page where each client sees their own support requests and drafted replies.' },
+  teaching: { work: 'Learners or parents ask for a class, pick a time and follow their progress notes.', area: 'A signed-in page where each learner sees their own classes, worksheets and progress notes.' },
+  'local-services': { work: 'Customers ask for a visit, see the quote and pick a time that suits them.', area: 'A signed-in page where each customer sees their own bookings, quotes and reminders.' },
+  licensed: { work: 'Clients book a consultation and share their papers before it.', area: 'A signed-in page where each client shares their own papers and sees their next steps.' },
   other: { work: 'Clients describe what they need and follow their requests in one place.', area: 'A signed-in page where each client sees their own requests and files.' },
 });
 

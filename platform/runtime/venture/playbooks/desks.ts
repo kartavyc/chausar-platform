@@ -26,6 +26,11 @@ import { DEV_AGENCY_DESK } from './dev-agency/desk.ts';
 import { MONITORED_DATA_DESK } from './monitored-data/desk.ts';
 import { IT_TRIAGE_DESK } from './it-triage/desk.ts';
 import { PHONE_RECEPTIONIST_DESK } from './phone-receptionist/desk.ts';
+import { TRADING_JOURNAL_DESK } from './trading-journal/desk.ts'; // W6 6E7
+import { LESSON_DESK_DESK } from './lesson-desk/desk.ts'; // W6 6E2
+import { BOOKING_DESK_DESK } from './booking-desk/desk.ts'; // W6 6E3
+import { SIGNOFF_DESK_DESK } from './signoff-desk/desk.ts'; // W6 6E5
+import { DOCUMENT_DESK_DESK } from './document-desk/desk.ts'; // W6 6E4
 
 /** Each playbook's desk handlers, by playbook id, then by record kind. */
 export const PLAYBOOK_DESKS: Readonly<Record<DeskPlaybook, DeskHandlers>> = Object.freeze({
@@ -52,6 +57,11 @@ export const PLAYBOOK_DESKS: Readonly<Record<DeskPlaybook, DeskHandlers>> = Obje
   'monitored-data': MONITORED_DATA_DESK,
   'it-triage': IT_TRIAGE_DESK,
   'phone-receptionist': PHONE_RECEPTIONIST_DESK,
+  'trading-journal': TRADING_JOURNAL_DESK,
+  'lesson-desk': LESSON_DESK_DESK,
+  'booking-desk': BOOKING_DESK_DESK,
+  'signoff-desk': SIGNOFF_DESK_DESK,
+  'document-desk': DOCUMENT_DESK_DESK,
 });
 
 /** The handler for one record kind on one playbook's desk, or null when that playbook has none for it yet. */

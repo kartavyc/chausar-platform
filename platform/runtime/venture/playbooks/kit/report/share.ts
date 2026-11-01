@@ -22,7 +22,7 @@ import {
 } from '../../../records.ts';
 import { runView } from '../../../delivery/runs.ts';
 import { clientDraft } from '../../../build/draft-text.ts';
-import { caSignoffBlock } from '../../ca-firm/signoff-gate.ts';
+import { regulatedSignoff } from '../signoff-gate.ts';
 import { blocksInScope } from './blocks.ts';
 import type { ReportBlock, ReportShareView } from '../records-report.ts';
 
@@ -78,8 +78,8 @@ function checkSharable(state: State, venture: VentureRecord, report: ReportRecor
   check(!view.practiceNow && !run.practice, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');
   check(view.status !== 'ready-for-review' || view.canAccept, 'DELIVERY_NOT_READY', view.acceptBlocked ?? REPORT_SHARE_WORDS.notReady);
   check(clientDraft(run).digest === report.draftDigest, 'REPORT_STALE', REPORT_SHARE_WORDS.stale);
-  const unsigned = caSignoffBlock(state, venture, run);
-  if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
+  const unsigned = regulatedSignoff(state, venture, run);
+  if (unsigned) throw new ChausarError(unsigned.code, unsigned.line);
 }
 
 /**

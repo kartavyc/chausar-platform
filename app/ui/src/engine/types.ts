@@ -374,8 +374,8 @@ export interface ShareCommentLite { item: string; text: string; at: string; reco
 // platform/runtime/venture/contracts.ts.
 // ---------------------------------------------------------------------------------------------------------------
 
-export type ServiceType = 'agency' | 'studio' | 'consulting' | 'bookkeeping' | 'research' | 'content' | 'support' | 'other';
-export const SERVICE_TYPES: readonly ServiceType[] = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'other'];
+export type ServiceType = 'agency' | 'studio' | 'consulting' | 'bookkeeping' | 'research' | 'content' | 'support' | 'teaching' | 'local-services' | 'licensed' | 'other';
+export const SERVICE_TYPES: readonly ServiceType[] = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'teaching', 'local-services', 'licensed', 'other'];
 
 export interface BusinessOnComputer {
   folder: string; name: string | null; demo: boolean | null; unlock: 'this-computer' | 'passphrase';
@@ -1045,7 +1045,7 @@ export interface RuleLocksLite { playbook: { id: string; label: string } | null;
 /** W6 6C6: `venture.compliance.get` and `.set`: the side-work question, the profession's rules and regulator switches. */
 export interface ComplianceLite {
   profession: { id: string; label: Display; family: string | null }; question: Display; responsibility: Display;
-  rules: { id: string; title: Display; line: Display; checked: boolean }[]; switchedOff: { tool: string; line: Display }[];
+  rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null }[]; switchedOff: { tool: string; line: Display }[];
   hardStops: { id: string; line: Display }[]; digest: string;
   recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: string } | null;
 }
@@ -1416,6 +1416,8 @@ export interface WayView {
   /** W6 6C3: estimate is false where a sourced range for the way's own service replaced the model estimate; guide: the profession's sources or "No reliable data". */
   clientsPay: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string }; needs: WayNeeds; starter: Display;
   yours: { businessId: string; name: string }[];
+  /** W6 6E6 (D2): the profession families this way serves, in the families' order. */
+  families: string[];
 }
 /**
  * W6 6C3 (D17), `PriceGuideView` in platform/runtime/venture/contracts.ts (core/price-ranges.ts): a profession's price
@@ -1435,6 +1437,8 @@ export interface WaysView {
   ways: WayView[];
   categories: { id: WayCategory; label: Display; count: number }[];
   upTo: { maxHours: number; label: Display; count: number };
+  /** W6 6E6 (D2): the families that have a way, each with its count of ways. */
+  families: { id: string; label: Display; count: number }[];
 }
 /** `ComposeAttachmentNote` (onboarding-contracts.ts): a dropped file's name, whether it was used, and why not, never its text. */
 export interface AttachmentNote { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null }
@@ -1712,7 +1716,13 @@ export type DeskPlaybook =
   | 'youtube' | 'ca-firm' | 'social-agency' | 'seo-visibility' | 'online-seller' | 'support-desk' | 'recruiting-desk' | 'job-search-desk'
   | 'translation-studio' | 'bookkeeping-cfo' | 'podcast-to-article' | 'lead-generation' | 'newsletter-studio' | 'tender-desk'
   | 'website-studio' | 'narration-studio' | 'virtual-assistant' | 'data-entry-desk' | 'app-testing' | 'dev-agency' | 'monitored-data'
-  | 'it-triage' | 'phone-receptionist';
+  | 'it-triage' | 'phone-receptionist'
+  // W6 6E2, 6E3
+  | 'lesson-desk' | 'booking-desk'
+  // W6 6E4, 6E5
+  | 'document-desk' | 'signoff-desk'
+  // W6 6E7
+  | 'trading-journal';
 export interface DeskListView { playbook: DeskPlaybook; kind: string; rows: unknown[]; line: Display }
 export interface DeskItemView { playbook: DeskPlaybook; kind: string; item: unknown; digest: string }
 export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string; result: unknown; line: Display }

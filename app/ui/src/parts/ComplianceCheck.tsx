@@ -66,6 +66,8 @@ export function ComplianceCheck({ profession, record = true, onDone }: { profess
             <li key={rule.id} data-profession-rule={rule.id}>
               {rule.line}
               {!rule.checked && <> <span className={s.tag}>{t('compliance.unchecked')}</span></>}
+              {/* W6 6E6: a statute read on its official page links that page, with the day it was read. */}
+              {rule.checked && rule.source && rule.checkedDay && <> <a className={s.source} href={rule.source.url} target="_blank" rel="noopener noreferrer">{t('compliance.source', { day: rule.checkedDay })}</a></>}
             </li>
           ))}
         </ul>

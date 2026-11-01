@@ -40,7 +40,7 @@ import { calendarMonth } from '../money/dates.ts';
 import { orderIndex, orderSteps } from '../money/order-steps.ts';
 import { todayIso } from '../delivery/shared.ts';
 import { runView } from '../delivery/runs.ts';
-import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { regulatedSignoff } from '../playbooks/kit/signoff-gate.ts';
 import { createShareLink, recordClientDecision, type DraftApproval, type ShareLinkRecord } from '../playbooks/social/approvals.ts';
 import { draftApprovalsOfRun, draftPostViews, needsClientApproval, scheduleReasons } from '../playbooks/social/run-approvals.ts';
 import { clientDraft } from './draft-text.ts';
@@ -158,8 +158,9 @@ export async function shareCreate(deps: VentureDeps, ctx: Context, payload: unkn
     check(!run.practiceNow, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');
     check(run.status !== 'ready-for-review' || run.canAccept, 'DELIVERY_NOT_READY', run.acceptBlocked ?? SHARE_WORDS.notReady);
     // AI-native CA firm: regulated papers reach a client only as the CA of record signed them; an edit needs its own sign-off.
-    const unsigned = caSignoffBlock(tx.state, venture, record);
-    if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
+    // W6 6E5: a sign-off desk output likewise reaches a client only as its professional of record signed it.
+    const unsigned = regulatedSignoff(tx.state, venture, record);
+    if (unsigned) throw new ChausarError(unsigned.code, unsigned.line);
     // The secret screen (W1 H17): the client sees, and the digest covers, the text with any key or token taken out.
     // build/draft-text.ts makes both, so a post from this draft (build/posting.ts) means the same words and digest.
     const { title, text, digest: draftDigest } = clientDraft(run);

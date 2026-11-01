@@ -15,6 +15,8 @@ export interface WayData extends GalleryWay {
   minHours?: number | undefined;
   maxHours?: number | undefined;
   starter?: string | undefined;
+  /** W6 6E6 (D2): the profession families this way serves (the engine's ids). */
+  families?: readonly string[] | undefined;
 }
 
 /** A filter chip: the engine's id, its words and its count. */
@@ -28,6 +30,8 @@ export interface WaysSlot {
   onStart: (id: string) => void;
   categories?: readonly WayFilter[] | undefined;
   upTo?: (WayFilter & { maxHours: number }) | undefined;
+  /** W6 6E6 (D2): the engine's families with their counts; with them the Family list replaces the category chips. */
+  families?: readonly WayFilter[] | undefined;
 }
 
 /** The slot when it holds at least one way; an empty list is no gallery. */
@@ -66,6 +70,7 @@ export function wayData(way: WayView, language: 'en', categories: WaysView['cate
     pay: { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source, estimate: way.clientsPay.estimate, guide: way.clientsPay.guide, sourced: way.clientsPay.rangeId },
     needs: [way.needs.ai, way.needs.connections],
     starter: way.starter,
+    families: way.families,
   };
 }
 
@@ -76,6 +81,7 @@ export function waysSlotOf(view: WaysView, language: 'en', featured: string | nu
     featured: featured ?? undefined,
     categories: view.categories.map((item) => ({ id: item.id, label: item.label, count: item.count })),
     upTo: { id: 'up-to', label: view.upTo.label, count: view.upTo.count, maxHours: view.upTo.maxHours },
+    families: (view.families ?? []).map((item) => ({ id: item.id, label: item.label, count: item.count })),
   };
 }
 
@@ -97,9 +103,13 @@ export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: strin
   return fit < 0 ? list : [list[fit]!, ...list.slice(0, fit), ...list.slice(fit + 1)];
 }
 
-/** The ways one chip shows: all, one category, or those that need at most the "Up to" hours (they read maxHours). */
-export function filterWays(ways: readonly WayData[], chip: string, upTo: WaysSlot['upTo']): WayData[] {
-  if (chip === 'all') return [...ways];
-  if (upTo && chip === upTo.id) return ways.filter((way) => way.maxHours !== undefined && way.maxHours <= upTo.maxHours);
-  return ways.filter((way) => way.categoryId === chip);
+/**
+ * The ways one chip shows: all, one category, or those that need at most the "Up to" hours (they read maxHours); and,
+ * W6 6E6, only those serving the picked family ('all' for every family).
+ */
+export function filterWays(ways: readonly WayData[], chip: string, upTo: WaysSlot['upTo'], family = 'all'): WayData[] {
+  const inFamily = family === 'all' ? [...ways] : ways.filter((way) => way.families?.includes(family));
+  if (chip === 'all') return inFamily;
+  if (upTo && chip === upTo.id) return inFamily.filter((way) => way.maxHours !== undefined && way.maxHours <= upTo.maxHours);
+  return inFamily.filter((way) => way.categoryId === chip);
 }

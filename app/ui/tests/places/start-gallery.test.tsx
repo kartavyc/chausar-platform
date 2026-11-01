@@ -7,6 +7,7 @@ import type { Language } from '../../src/text';
 import START from '../../src/engine/fixtures-start.json';
 import type {WaysView} from '../../src/engine/types';
 import { assertInkRules } from '../helpers/ink-rules';
+import { WAYS_AT_REST } from '../../src/places/onboarding';
 
 /**
  * Start's gallery, the business picker and the file drop (W4 4J21; D-Start.dc.html; founder decisions: Start offers a
@@ -37,7 +38,8 @@ async function start(options: FakeOptions = {}, { language = 'en', transport, ai
 const gallery = () => screen.findByRole('region', { name: 'All ways to earn' });
 const offered=START.ways as unknown as WaysView;
 const offeredNames=offered.ways.map(way=>way.label);
-const chipNames=(_language:'en')=>[`All ${offered.ways.length}`,...offered.categories.filter(c=>c.count>0).map(c=>`${c.label} ${c.count}`),...(offered.upTo.count>0?[`${offered.upTo.label} ${offered.upTo.count}`]:[])];
+// W6 6E6 (D2): the families replace the older category chips; a Family list beside Sort picks one.
+const chipNames=(_language:'en')=>[`All ${offered.ways.length}`,...(offered.upTo.count>0?[`${offered.upTo.label} ${offered.upTo.count}`]:[])];
 const tileNames = (region: HTMLElement, list = 'Ways to earn') => within(within(region).getByRole('list', { name: list })).getAllByRole('article').map((tile) => tile.querySelector('h3')?.textContent);
 
 describe('Start: the ways to earn from the engine', () => {
@@ -53,6 +55,9 @@ describe('Start: the ways to earn from the engine', () => {
     expect(within(chips).getByRole('button', { name: `All ${offered.ways.length}` }).getAttribute('aria-pressed')).toBe('true');
     const sort = within(region).getByRole('combobox', { name: 'Sort' }) as HTMLSelectElement;
     expect([...sort.options].map((option) => option.textContent)).toEqual(['Best fit', 'Fewest hours', 'Name']);
+    // W6 6E6: at rest the gallery shows the first ways; "Show all" opens the rest in the same order.
+    expect(tileNames(region)).toEqual(offeredNames.slice(0, WAYS_AT_REST));
+    fireEvent.click(within(region).getByRole('button', { name: `Show all ${offered.ways.length} ways` }));
     expect(tileNames(region)).toEqual(offeredNames);
     // No fit until the owner asks (4C2: the fit is a call to the owner's AI): no featured tile, every Start a secondary.
     expect(region.querySelectorAll('[data-variant="primary"]')).toHaveLength(0);
@@ -64,7 +69,10 @@ describe('Start: the ways to earn from the engine', () => {
     const region = await gallery();
     fireEvent.click(screen.getByRole('button', { name: 'Which way fits me?' }));
     await waitFor(() => expect(tileNames(region)[0]).toBe('Social media agency'));
-    expect(tileNames(region)).toEqual(['Social media agency',...offeredNames.filter(name=>name!=='Social media agency')]);
+    const fitFirst = ['Social media agency',...offeredNames.filter(name=>name!=='Social media agency')];
+    expect(tileNames(region)).toEqual(fitFirst.slice(0, WAYS_AT_REST));
+    fireEvent.click(within(region).getByRole('button', { name: `Show all ${offered.ways.length} ways` }));
+    expect(tileNames(region)).toEqual(fitFirst);
     const primaries = [...region.querySelectorAll('[data-variant="primary"]')];
     expect(primaries.map((button) => button.getAttribute('aria-label'))).toEqual(['Start Social media agency']);
     assertInkRules();
@@ -105,14 +113,26 @@ describe('Start: the ways to earn from the engine', () => {
     expect(within(yours).getByRole('button', { name: 'Start another YouTube channel' }).textContent).toBe('Start');
   });
 
-  it('category, hours and sort controls show the corresponding current engine ways', async () => {
+  it('family, hours and sort controls show the corresponding current engine ways', async () => {
     await start();
     const region = await gallery();
-    fireEvent.click(within(region).getByRole('button', { name: `Content ${offered.categories.find(c=>c.id==='content')!.count}` }));
-    expect(tileNames(region)).toEqual(offered.ways.filter(way=>way.category==='content').map(way=>way.label));
+    // W6 6E6 (D2): the families, with the engine's counts, in a list beside Sort; one family shows only its ways.
+    const family = within(region).getByRole('combobox', { name: 'Family' }) as HTMLSelectElement;
+    expect([...family.options].map((option) => option.textContent)).toEqual(['All families', ...offered.families.map((f) => `${f.label} (${f.count})`)]);
+    expect(offered.families.map((f) => f.id)).toContain('money-tax');
+    fireEvent.change(family, { target: { value: 'money-tax' } });
+    expect(tileNames(region)).toEqual(offered.ways.filter((way) => way.families.includes('money-tax')).map((way) => way.label));
+    // A family and the hours chip narrow together.
+    fireEvent.click(within(region).getByRole('button', { name: new RegExp('Up to 5 h a week') }));
+    const both = offered.ways.filter((way) => way.families.includes('money-tax') && way.maxHours <= 5).map((way) => way.label);
+    if (both.length) expect(tileNames(region)).toEqual(both);
+    else expect(within(region).getByRole('status').textContent).toBeTruthy();
+    fireEvent.change(family, { target: { value: 'all' } });
+    fireEvent.click(within(region).getByRole('button', { name: `All ${offered.ways.length}` }));
     fireEvent.click(within(region).getByRole('button', { name: new RegExp('Up to 5 h a week') }));
     expect(tileNames(region)).toEqual(offered.ways.filter(way=>way.maxHours<=5).map(way=>way.label));
     fireEvent.click(within(region).getByRole('button', { name: `All ${offered.ways.length}` }));
+    fireEvent.click(within(region).getByRole('button', { name: `Show all ${offered.ways.length} ways` }));
     const sort = within(region).getByRole('combobox', { name: 'Sort' });
     fireEvent.change(sort, { target: { value: 'name' } });
     expect(tileNames(region)).toEqual([...offeredNames].sort((a,b)=>a.localeCompare(b,'en-IN')));

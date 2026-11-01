@@ -23,6 +23,11 @@ import { DEV_AGENCY_REGISTRATION } from './dev-agency/registration.ts';
 import { MONITORED_DATA_REGISTRATION } from './monitored-data/registration.ts';
 import { IT_TRIAGE_REGISTRATION } from './it-triage/registration.ts';
 import { PHONE_RECEPTIONIST_REGISTRATION } from './phone-receptionist/registration.ts';
+import { TRADING_JOURNAL_REGISTRATION } from './trading-journal/registration.ts'; // W6 6E7
+import { LESSON_DESK_REGISTRATION } from './lesson-desk/registration.ts'; // W6 6E2
+import { BOOKING_DESK_REGISTRATION } from './booking-desk/registration.ts'; // W6 6E3
+import { SIGNOFF_DESK_REGISTRATION } from './signoff-desk/registration.ts'; // W6 6E5
+import { DOCUMENT_DESK_REGISTRATION } from './document-desk/registration.ts'; // W6 6E4
 
 const ALL: readonly (PlaybookRegistration | null)[] = [
   SEO_VISIBILITY_REGISTRATION,
@@ -45,6 +50,11 @@ const ALL: readonly (PlaybookRegistration | null)[] = [
   MONITORED_DATA_REGISTRATION,
   IT_TRIAGE_REGISTRATION,
   PHONE_RECEPTIONIST_REGISTRATION,
+  TRADING_JOURNAL_REGISTRATION,
+  LESSON_DESK_REGISTRATION,
+  BOOKING_DESK_REGISTRATION,
+  SIGNOFF_DESK_REGISTRATION,
+  DOCUMENT_DESK_REGISTRATION,
 ];
 
 /** The wave 5 playbooks registered so far, in package order; a stub still null is not listed. */

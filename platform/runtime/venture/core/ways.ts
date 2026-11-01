@@ -16,6 +16,8 @@ import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS
 import { kitDefinitions } from '../playbooks/kit/installed.ts';
 import { kitWay } from '../playbooks/kit/tile.ts';
 import { wayPrice } from './price-ranges.ts';
+import { familiesForPlaybook } from './professions.ts';
+import { FAMILIES } from './families.ts';
 
 /** A business on this computer as a way sees it: its folder id, its name, and the playbook its idea picks (or none). */
 export type WayBusiness = { businessId: string; name: string; playbook: string | null };
@@ -64,6 +66,7 @@ function wayView(way: WayData, registry: readonly PlaybookRegistration[], busine
     needs: { ai: WAY_AI_NEED.en, connections: way.en.needs },
     starter: way.en.starter,
     yours: businesses.filter(business => business.playbook === way.playbook).map(business => ({ businessId: business.businessId, name: business.name })),
+    families: familiesForPlaybook(way.playbook),
 
   };
 }
@@ -81,7 +84,11 @@ export function waysView(data: readonly WayData[], registry: readonly PlaybookRe
   const categories = WAY_CATEGORIES
     .map(category => ({ id: category.id, label: category.en,  count: ways.filter(way => way.category === category.id).length }))
     .filter(category => category.count > 0);
-  return { ways, categories, upTo: { maxHours: UP_TO_HOURS, label: UP_TO_WORDS.en,  count: waysUpTo(ways, UP_TO_HOURS).length } };
+  // W6 6E6 (D2): the families, in their order, that have at least one way, with the count of ways serving each.
+  const families = FAMILIES
+    .map(family => ({ id: family.id, label: family.label, count: ways.filter(way => way.families.includes(family.id)).length }))
+    .filter(family => family.count > 0);
+  return { ways, categories, upTo: { maxHours: UP_TO_HOURS, label: UP_TO_WORDS.en,  count: waysUpTo(ways, UP_TO_HOURS).length }, families };
 }
 
 /**

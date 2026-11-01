@@ -163,5 +163,39 @@
       "receptionist-setup",
       "receptionist-monthly"
     ]
+  },
+  {
+    "id": "lesson-desk",
+    "offers": [
+      "monthly-classes",
+      "progress-reports"
+    ]
+  },
+  {
+    "id": "booking-desk",
+    "offers": [
+      "home-visit",
+      "appointment"
+    ]
+  },
+  {
+    "id": "signoff-desk",
+    "offers": [
+      "legal-drafting",
+      "clinic-follow-up",
+      "review-pack",
+      "secretarial-papers",
+      "tax-papers"
+    ]
+  },
+  {
+    "id": "document-desk",
+    "offers": [
+      "handbook-sop",
+      "project-report",
+      "estimate",
+      "thesis-edit",
+      "technical-writing"
+    ]
   }
 ]

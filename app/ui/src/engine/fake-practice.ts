@@ -83,6 +83,10 @@ const PERSONAS: Readonly<Record<ServiceType, readonly [string, string, string]>>
   research: ['A startup founder who needs a list of possible partners.', 'A manager with a vague question about the market.', 'A client who wants exact numbers guaranteed and extra reports for free.'],
   content: ['A dentist who wants regular blog posts for the clinic site.', 'A founder who wants content but has no topics or voice in mind.', 'A client who wants more posts for the same price and no edits.'],
   support: ['An online shop owner who wants help answering customer emails.', 'A founder whose inbox is overflowing and who is not sure what help they need.', 'A client who wants refunds promised to every customer and a lower fee.'],
+  // W6 6E1 (D2).
+  teaching: ['A parent who wants weekly maths tuition for a school student.', 'An adult learner who wants to speak better English but is not sure where to start.', 'A parent who wants guaranteed marks and free extra classes.'],
+  'local-services': ['A family who needs a plumber for a leaking kitchen tap.', 'A busy shop owner who writes in a hurry about a fault.', 'A customer who wants a discount and a free extra job.'],
+  licensed: ['A shop owner who wants a rental agreement reviewed before signing.', 'A worried person with a problem and no papers in order.', 'A client who wants a promised outcome and a free first meeting.'],
   other: ['A small business owner with a clear request.', 'A busy owner who writes in a hurry and leaves out what they need.', 'A client who wants a discount and extra work for free.'],
 };
 /** The code checks each sample episode passes, in the engine's words. */

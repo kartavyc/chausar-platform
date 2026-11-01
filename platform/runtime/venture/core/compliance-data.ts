@@ -4,10 +4,13 @@
 // which Chausar switches off for the business (for advocates: outreach and advertising, BCI Rule 36). A switch-off comes
 // from this data, never from an owner setting or an attestation, so neither can turn it back on.
 //
-// The statutes are named from Chausar's own notes and have NOT yet been checked against their official pages (6E6 checks
-// each before the beta ships), so every rule carries checked: false and the screen says so. Pure and shared with the fake
-// engine: no clock, no store, no Node built-ins.
+// W6 6E6: the professions, their statutes and hard stops come from the 57-profession map (core/professions.ts). A statute
+// read on its official page carries checked: true with its source and date; the rest stay checked: false and the screen
+// says "Not checked against the official page yet". Pure and shared with the fake engine: no clock, no store, no Node
+// built-ins.
 import { HARD_STOPS, type HardStop } from '../policy/hard-stops.ts';
+import { CAUTIONS, PROFESSIONS, professionOf, type CautionSource, type Profession } from './professions.ts';
+import { FAMILIES } from './families.ts';
 
 export const SIDE_WORK_QUESTION = 'Does your employment contract allow side work? This is your responsibility.';
 export const SIDE_WORK_RESPONSIBILITY = 'Chausar does not read your contract. You decide, and you are responsible for it.';
@@ -18,7 +21,11 @@ export type SideWorkAnswer = typeof SIDE_WORK_ANSWERS[number];
 export const REGULATOR_TOOLS = ['outreach', 'advertising'] as const;
 export type RegulatorTool = typeof REGULATOR_TOOLS[number];
 
-export type ProfessionRule = { id: string; title: string; line: string; checked: boolean };
+/**
+ * One statute as the screen shows it; source is the official page read (the first, where several were) or null, and
+ * checkedDay the day it was read in words ("1 Nov 2026"), so the screen formats nothing.
+ */
+export type ProfessionRule = { id: string; title: string; line: string; checked: boolean; source: CautionSource | null; checkedOn: string | null; checkedDay: string | null };
 export type ProfessionCompliance = {
   id: string; label: string; family: string | null;
   rules: readonly ProfessionRule[];
@@ -26,71 +33,45 @@ export type ProfessionCompliance = {
   hardStops: readonly string[];
 };
 
-const rule = (id: string, title: string, line: string): ProfessionRule => Object.freeze({ id, title, line, checked: false });
 const p = (item: ProfessionCompliance): ProfessionCompliance => Object.freeze({ ...item, rules: Object.freeze([...item.rules]), switchedOff: Object.freeze([...item.switchedOff]), hardStops: Object.freeze([...item.hardStops]) });
 
-export const PROFESSION_COMPLIANCE: readonly ProfessionCompliance[] = Object.freeze([
-  p({
-    id: 'advocate', label: 'Advocate', family: 'licensed',
-    rules: [rule('bci-rule-36', 'BCI Rule 36', 'Advocates may not advertise or ask people for work, directly or through others.')],
-    switchedOff: [
-      { tool: 'outreach', line: 'Outreach is off: Bar Council rules bar advocates from asking people for work.' },
-      { tool: 'advertising', line: 'Promotional posts are off: Bar Council rules bar advocates from advertising.' },
-    ],
-    hardStops: ['advocate-solicit'],
-  }),
-  p({
-    id: 'doctor', label: 'Doctor', family: 'licensed',
-    rules: [rule('telemedicine-2020', 'Telemedicine Practice Guidelines 2020', 'Only you, as a registered doctor, consult and prescribe. Chausar handles appointments and follow-ups.')],
-    switchedOff: [], hardStops: ['medical-diagnosis'],
-  }),
-  p({
-    id: 'financial-planner', label: 'Financial planner or mutual fund distributor', family: 'licensed',
-    rules: [rule('sebi-ia-ra', 'SEBI adviser and research analyst rules', 'Investment advice and research reports need a SEBI registration. Without one, Chausar makes review packs only.')],
-    switchedOff: [], hardStops: ['securities-advice'],
-  }),
-  p({
-    id: 'school-teacher', label: 'School teacher', family: 'teaching',
-    rules: [rule('rte-s28', 'RTE Act section 28', 'Teachers in schools under the Right to Education Act may not take private tuition.')],
-    switchedOff: [], hardStops: ['child-data'],
-  }),
-  p({
-    id: 'architect', label: 'Interior designer or architect', family: 'creative',
-    rules: [rule('coa-title', 'Architects Act title rule', 'Only an architect registered with the Council of Architecture may use the title architect.')],
-    switchedOff: [], hardStops: [],
-  }),
-  p({
-    id: 'real-estate-broker', label: 'Real estate broker', family: 'local-services',
-    rules: [rule('rera-agent', 'RERA agent registration', 'Agents register with the state RERA before selling registered projects.')],
-    switchedOff: [], hardStops: ['fake-reviews'],
-  }),
-  p({
-    id: 'home-chef', label: 'Home chef or tiffin service', family: 'local-services',
-    rules: [rule('fssai', 'FSSAI registration', 'Selling food needs an FSSAI registration or licence.')],
-    switchedOff: [], hardStops: ['fake-reviews'],
-  }),
-  p({
-    id: 'physiotherapist', label: 'Physiotherapist', family: 'local-services',
-    rules: [rule('ncahp', 'NCAHP Act', 'Physiotherapists register under the allied health professions law of their state.')],
-    switchedOff: [], hardStops: ['medical-diagnosis'],
-  }),
-  p({
-    id: 'call-centre-agent', label: 'Call centre agent', family: 'tech',
-    rules: [rule('trai-dnd', 'TRAI commercial calls rules', 'No promotional calls or messages to numbers on the Do Not Disturb list.')],
-    switchedOff: [], hardStops: ['undisclosed-ai'],
-  }),
-]);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** An ISO day as the app writes dates: "1 Nov 2026". */
+const dayWords = (iso: string) => { const [year, month, day] = iso.split('-').map(Number); return `${day} ${MONTHS[month! - 1]} ${year}`; };
 
-const FAMILY_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  'money-tax': 'Money and tax', teaching: 'Teaching and coaching', creative: 'Creative work', writing: 'Writing and content',
-  'local-services': 'Local services', documents: 'Documents and reports', research: 'Research and analysis', people: 'People and careers',
-  'shop-office': 'Shop and back office', tech: 'Tech services', licensed: 'Licensed work',
+/** A statute of the map as a rule line. */
+function ruleOf(id: string): ProfessionRule {
+  const caution = CAUTIONS.find(item => item.id === id);
+  if (!caution) throw new Error(`Unknown caution ${id}`);
+  const source = caution.sources[0];
+  return Object.freeze({
+    id, title: caution.title, line: caution.line, checked: caution.checked, source: source ? { ...source } : null,
+    checkedOn: caution.checkedOn, checkedDay: caution.checkedOn ? dayWords(caution.checkedOn) : null,
+  });
+}
+
+/** What a regulator switches off, by profession. Only advocates today: BCI Rule 36 bars soliciting and advertising. */
+const SWITCHED_OFF: Readonly<Record<string, readonly { tool: RegulatorTool; line: string }[]>> = Object.freeze({
+  advocate: [
+    { tool: 'outreach', line: 'Outreach is off: Bar Council rules bar advocates from asking people for work.' },
+    { tool: 'advertising', line: 'Promotional posts are off: Bar Council rules bar advocates from advertising.' },
+  ],
 });
 
-/** A profession by id, else a family by id (with no profession-specific rules), else null. */
+function complianceOfProfession(item: Profession): ProfessionCompliance {
+  return p({ id: item.id, label: item.label, family: item.family, rules: item.cautions.map(ruleOf), switchedOff: (SWITCHED_OFF[item.id] ?? []).map(entry => ({ ...entry })), hardStops: [...item.hardStops] });
+}
+
+/** Every profession of the beta, in the map's order. */
+export const PROFESSION_COMPLIANCE: readonly ProfessionCompliance[] = Object.freeze(PROFESSIONS.map(complianceOfProfession));
+
+const FAMILY_LABELS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(FAMILIES.map(family => [family.id, family.label])));
+
+/** A profession by id (or an id recorded before the map), else a family by id (with no profession-specific rules), else null. */
 export function professionCompliance(id: unknown): ProfessionCompliance | null {
   if (typeof id !== 'string') return null;
-  const found = PROFESSION_COMPLIANCE.find(item => item.id === id);
+  const profession = professionOf(id);
+  const found = profession ? PROFESSION_COMPLIANCE.find(item => item.id === profession.id) : undefined;
   if (found) return found;
   const label = FAMILY_LABELS[id];
   return label ? p({ id, label, family: id, rules: [], switchedOff: [], hardStops: [] }) : null;

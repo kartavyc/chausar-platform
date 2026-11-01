@@ -3551,5 +3551,1141 @@
         "confirmed": false
       }
     }
+  },
+  "trading-journal": {
+    "view": {
+      "playbook": {
+        "id": "trading-journal",
+        "label": "Trading journal",
+        "riskLevel": "high",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "securities-guard",
+          "platform": "house",
+          "rule": "Chausar never places, suggests or automates a trade, never gives buy, sell or hold advice, tips, target prices or promised returns, and never connects to a broker that can place orders.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "notes",
+            "no-securities-advice"
+          ],
+          "limitations": [
+            "A back office for SEBI registered advisers or analysts is not built yet."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Enforced in code on every model text, chat answer, offer and outside tool server."
+        },
+        {
+          "id": "securities-transaction-tax",
+          "platform": "charges",
+          "rule": "Securities transaction tax is worked per contract note line from the dated rates for delivery, intraday, futures and options.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "Options exercised at expiry are charged differently and are not read from a tradebook."
+          ],
+          "source": {
+            "title": "BSE notice 20260331-7 (rates in force from 1 October 2024 until 31 March 2026)",
+            "url": "https://www.kotakneo.com/uploads/20260331_7_c3867dfe94.pdf"
+          },
+          "sources": [
+            {
+              "title": "BSE notice 20260331-7 (rates in force from 1 October 2024 until 31 March 2026)",
+              "url": "https://www.kotakneo.com/uploads/20260331_7_c3867dfe94.pdf"
+            },
+            {
+              "title": "BSE notice 20260331-7, as per the Finance Act 2026 (NSE circular NSE/FATAX/73524 not read)",
+              "url": "https://www.kotakneo.com/uploads/20260331_7_c3867dfe94.pdf"
+            }
+          ],
+          "line": "Current. Read on the issuer's own page."
+        },
+        {
+          "id": "exchange-charges",
+          "platform": "charges",
+          "rule": "Exchange charges and the investor protection charge are worked from the dated exchange rates; the protection charge is folded into the exchange rate from March.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "BSE cash uses the rate for its main groups only."
+          ],
+          "source": {
+            "title": "NSE circular NSE/FA/64232 and BSE notice 20240927-37, as quoted by Zerodha",
+            "url": "https://zerodha.com/marketintel/bulletin/391488"
+          },
+          "sources": [
+            {
+              "title": "NSE circular NSE/FA/64232 and BSE notice 20240927-37, as quoted by Zerodha",
+              "url": "https://zerodha.com/marketintel/bulletin/391488"
+            },
+            {
+              "title": "NSE circular NSE/FA/73061 (investor protection charge folded in), as quoted by Upstox and Zerodha",
+              "url": "https://zerodha.com/charges"
+            }
+          ],
+          "line": "Current. Read where a broker quotes the issuer."
+        },
+        {
+          "id": "fees-stamp-gst",
+          "platform": "charges",
+          "rule": "The SEBI turnover fee, stamp duty on the buy side and GST on broker services are worked from their published rates.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "Brokers may round stamp duty and the transaction tax to the rupee."
+          ],
+          "source": {
+            "title": "SEBI turnover fee, Rs 10 a crore (notification SEBI/LAD-NRO/GN/2019/03), as quoted by brokers",
+            "url": "https://zerodha.com/charges"
+          },
+          "sources": [
+            {
+              "title": "SEBI turnover fee, Rs 10 a crore (notification SEBI/LAD-NRO/GN/2019/03), as quoted by brokers",
+              "url": "https://zerodha.com/charges"
+            },
+            {
+              "title": "Indian Stamp Act rates from 1 July 2020, buy side, as quoted by brokers (statute not read)",
+              "url": "https://zerodha.com/charges"
+            },
+            {
+              "title": "GST at 18% on broker services, as stated on broker charge pages (CBIC notification not read)",
+              "url": "https://zerodha.com/charges"
+            }
+          ],
+          "line": "Current. Read where a broker quotes the issuer."
+        },
+        {
+          "id": "brokerage-dp",
+          "platform": "charges",
+          "rule": "Brokerage is worked per executed order and DP charges per scrip on each delivery sell day, from each broker's own charges page.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "Older trades may have been charged at older brokerage."
+          ],
+          "source": {
+            "title": "Zerodha charges page",
+            "url": "https://zerodha.com/charges"
+          },
+          "sources": [
+            {
+              "title": "Zerodha charges page",
+              "url": "https://zerodha.com/charges"
+            },
+            {
+              "title": "Groww pricing pages (stocks, futures and options)",
+              "url": "https://groww.in/pricing"
+            },
+            {
+              "title": "Upstox brokerage charges page",
+              "url": "https://upstox.com/brokerage-charges/"
+            },
+            {
+              "title": "Dhan pricing page (DP charge per ISIN; whether it applies to sells only is not stated)",
+              "url": "https://dhan.co/pricing/"
+            }
+          ],
+          "line": "Current. Read on each broker's own charges page; the pages show no start day."
+        },
+        {
+          "id": "speculative-intraday",
+          "platform": "tax",
+          "rule": "Equity bought and sold on the same day without delivery is a speculative transaction, kept apart from other business.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Your CA decides how losses are set off and carried forward."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 43(5)",
+            "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 43(5)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+            },
+            {
+              "title": "Income-tax Act 2025, section 66(31) and 26(3)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-66-126"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "fno-business",
+          "platform": "tax",
+          "rule": "Futures and options traded on a recognised exchange are not speculative; their profit or loss is business income, and turnover is counted without sign.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Whether a tax audit applies is for your CA."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 43(5) proviso (d)",
+            "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 43(5) proviso (d)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+            },
+            {
+              "title": "Income-tax Act 2025, section 66(33)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-66-126"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. The turnover method follows the ICAI guidance note, not read in full. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "capital-gains",
+          "platform": "tax",
+          "rule": "Listed equity held for more than twelve months is long term; long-term gains above the yearly limit and short-term gains each have their own rate.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Chausar shows the rule's rate and never works out a tax to pay."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 111A",
+            "url": "https://incometaxindia.gov.in/w/section-111a"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 111A",
+              "url": "https://incometaxindia.gov.in/w/section-111a"
+            },
+            {
+              "title": "Income-tax Act 1961, section 112A",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-31-118"
+            },
+            {
+              "title": "Income-tax Act 2025, section 196",
+              "url": "https://incometaxindia.gov.in/w/section-196-78"
+            },
+            {
+              "title": "Income-tax Act 2025, section 198",
+              "url": "https://incometaxindia.gov.in/w/section-198-76"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "grandfathering",
+          "platform": "tax",
+          "rule": "For shares bought before the grandfathering day, cost is the higher of the actual cost and the lower of the fair market value you enter and the sale value.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Chausar does not bundle market prices; you enter the fair market value and its source."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 55(2)(ac)",
+            "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-90-114"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 55(2)(ac)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-90-114"
+            },
+            {
+              "title": "Income-tax Act 2025, section 90(7) and 90(8)(b)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-90-114"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. A CA has not confirmed it yet, so it works in practice runs only."
+        }
+      ],
+      "summary": "9 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "year-end-pack",
+          "name": "Year-end pack for your CA",
+          "whenToUse": "After the year closes",
+          "steps": [
+            {
+              "do": "Import every tradebook for the year from each broker.",
+              "why": "A sell needs its earlier buy to work the gain."
+            },
+            {
+              "do": "Add holdings bought before your first tradebook as opening holdings.",
+              "why": "Older buys carry the cost and date the gain needs."
+            },
+            {
+              "do": "Prepare the tax pack and compare the charges with your contract notes.",
+              "why": "Brokers can round some charges differently."
+            }
+          ],
+          "howToRead": "Read each figure with the rule and the year it rests on, then ask your CA.",
+          "mistakes": [
+            "Leaving out a broker's tradebook",
+            "Treating the pack as tax advice"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Your broker tradebook",
+          "canSay": "These trades were in the file you imported.",
+          "cannotSay": "These are all your trades, or your broker charged exactly this."
+        },
+        {
+          "evidence": "The tax pack",
+          "canSay": "These figures were worked by code under the rule shown.",
+          "cannotSay": "How much tax you owe, or anything about your return."
+        }
+      ]
+    },
+    "metadata": {
+      "securities-guard": {
+        "topic": "No trades, tips or advice",
+        "how": "Enforced in code on every model text, chat answer, offer and outside tool server.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "securities-transaction-tax": {
+        "topic": "Securities transaction tax",
+        "how": "Read on the issuer's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "exchange-charges": {
+        "topic": "Exchange transaction charges",
+        "how": "Read where a broker quotes the issuer.",
+        "read": "secondary",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "fees-stamp-gst": {
+        "topic": "SEBI fee, stamp duty and GST",
+        "how": "Read where a broker quotes the issuer.",
+        "read": "secondary",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "brokerage-dp": {
+        "topic": "Brokerage and DP charges",
+        "how": "Read on each broker's own charges page; the pages show no start day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "speculative-intraday": {
+        "topic": "Intraday is speculative",
+        "how": "Read on the income tax department's section pages.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "fno-business": {
+        "topic": "Futures and options are business income",
+        "how": "Read on the income tax department's section pages. The turnover method follows the ICAI guidance note, not read in full.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "capital-gains": {
+        "topic": "Short and long term gains on listed equity",
+        "how": "Read on the income tax department's section pages.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "grandfathering": {
+        "topic": "Shares bought before the grandfathering day",
+        "how": "Read on the income tax department's section pages.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      }
+    }
+  },
+  "lesson-desk": {
+    "view": {
+      "playbook": {
+        "id": "lesson-desk",
+        "label": "Lesson desk for tutors and teachers",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "child-data-consent",
+          "platform": "house",
+          "rule": "A child's lesson records reach your AI only while their parent's recorded consent is current. Withdrawal stops it at once.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "gather",
+            "draft"
+          ],
+          "limitations": [
+            "Whether a recorded consent meets the legal test for a parent's checked consent is for a lawyer. Chausar keeps the recording's digest and the words agreed."
+          ],
+          "source": {
+            "title": "MeitY, Digital Personal Data Protection framework",
+            "url": "https://www.meity.gov.in/data-protection-framework"
+          },
+          "sources": [
+            {
+              "title": "MeitY, Digital Personal Data Protection framework",
+              "url": "https://www.meity.gov.in/data-protection-framework"
+            }
+          ],
+          "line": "Current. Chausar house rule and hard stop. The Act was read for its section on a child's data and a parent's consent."
+        },
+        {
+          "id": "figures-from-chausar",
+          "platform": "house",
+          "rule": "Attendance, quiz scores and fees come from Chausar's counts and invoices. A draft never states them.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "draft",
+            "figures-from-chausar"
+          ],
+          "limitations": [
+            "The counts are only as right as the marks and answers you enter."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the desk counts and the figures check on every draft."
+        },
+        {
+          "id": "owner-sends-parent-messages",
+          "platform": "house",
+          "rule": "Parent messages go out only when you approve the exact words and send them from your own app.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "approve",
+            "send"
+          ],
+          "limitations": [
+            "Chausar cannot tell whether a message reached the parent."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the exact approval in the action journal and the handoff tests."
+        }
+      ],
+      "summary": "3 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "counts-before-notes",
+          "name": "Counts before notes",
+          "whenToUse": "Writing a progress note for a parent.",
+          "steps": [
+            {
+              "do": "Mark attendance and score the quiz in the desk first.",
+              "why": "The note's figures come from Chausar's counts."
+            },
+            {
+              "do": "Write what the learner did and what comes next.",
+              "why": "Parents want specific and kind words."
+            }
+          ],
+          "howToRead": "Read the counts beside the note before you send it.",
+          "mistakes": [
+            "Guessing attendance or marks in the words of a note."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Attendance marks",
+          "canSay": "Which classes a learner was marked present, late or absent.",
+          "cannotSay": "How much the learner understood."
+        },
+        {
+          "evidence": "A quiz score",
+          "canSay": "How many answers matched the key.",
+          "cannotSay": "The learner's ability or rank."
+        }
+      ]
+    },
+    "metadata": {
+      "child-data-consent": {
+        "topic": "Children's data and parent consent",
+        "how": "Chausar house rule and hard stop. The Act was read for its section on a child's data and a parent's consent.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "figures-from-chausar": {
+        "topic": "Attendance, scores and fees",
+        "how": "Checked by the desk counts and the figures check on every draft.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "owner-sends-parent-messages": {
+        "topic": "Messages to parents",
+        "how": "Checked by the exact approval in the action journal and the handoff tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "booking-desk": {
+    "view": {
+      "playbook": {
+        "id": "booking-desk",
+        "label": "Booking desk for local services",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "deposit-is-an-invoice",
+          "platform": "house",
+          "rule": "A deposit is an advance invoice on the booking's order, paid through its How to pay link. Chausar takes no money any other way.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "deposit",
+            "quote"
+          ],
+          "limitations": [
+            "Chausar learns a deposit was paid only when you mark it paid."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the deposit tests against the invoice code."
+        },
+        {
+          "id": "quote-from-your-prices",
+          "platform": "house",
+          "rule": "A quote is the order's price receipt from your own prices. A draft never states an amount.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "quote",
+            "no-amounts"
+          ],
+          "limitations": [
+            "Travel or materials you add by hand need their own order line."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the amounts check on every draft and the quote tests."
+        },
+        {
+          "id": "owner-sends-reminders",
+          "platform": "house",
+          "rule": "Reminders go out only when you approve the exact words and send them from your own app.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "approve",
+            "send"
+          ],
+          "limitations": [
+            "Chausar cannot tell whether a reminder reached the client."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the exact approval in the action journal and the handoff tests."
+        },
+        {
+          "id": "booking-privacy",
+          "platform": "house",
+          "rule": "Keep only the address and phone a booking needs, and honour Forget at once.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "intake"
+          ],
+          "limitations": [
+            "Legal duties for your business are for a lawyer to confirm."
+          ],
+          "source": {
+            "title": "MeitY, Digital Personal Data Protection framework",
+            "url": "https://www.meity.gov.in/data-protection-framework"
+          },
+          "sources": [
+            {
+              "title": "MeitY, Digital Personal Data Protection framework",
+              "url": "https://www.meity.gov.in/data-protection-framework"
+            }
+          ],
+          "line": "Current. Chausar house rule, read beside the data protection framework."
+        }
+      ],
+      "summary": "4 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "hold-then-deposit",
+          "name": "Hold, then ask for the deposit",
+          "whenToUse": "A new booking from an enquiry.",
+          "steps": [
+            {
+              "do": "Quote from an order with your price, then hold a slot.",
+              "why": "The quote and the time come from your own records."
+            },
+            {
+              "do": "Issue the deposit invoice and send its UPI link.",
+              "why": "The client pays the exact amount the invoice shows."
+            }
+          ],
+          "howToRead": "Read the slot, the quote and the deposit beside each message before you send it.",
+          "mistakes": [
+            "Promising a price or a time in a message before the desk holds it."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A held slot",
+          "canSay": "That time is kept for this client in your desk.",
+          "cannotSay": "That the client will turn up."
+        },
+        {
+          "evidence": "An issued deposit invoice",
+          "canSay": "What the client was asked to pay, from your price.",
+          "cannotSay": "That the client paid, until you mark it paid."
+        }
+      ]
+    },
+    "metadata": {
+      "deposit-is-an-invoice": {
+        "topic": "Deposits",
+        "how": "Checked by the deposit tests against the invoice code.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "quote-from-your-prices": {
+        "topic": "Quotes",
+        "how": "Checked by the amounts check on every draft and the quote tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "owner-sends-reminders": {
+        "topic": "Reminders",
+        "how": "Checked by the exact approval in the action journal and the handoff tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "booking-privacy": {
+        "topic": "Client details",
+        "how": "Chausar house rule, read beside the data protection framework.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "signoff-desk": {
+    "view": {
+      "playbook": {
+        "id": "signoff-desk",
+        "label": "Sign-off desk",
+        "riskLevel": "high",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "signoff-every-output",
+          "platform": "house",
+          "rule": "Every client output waits for the named professional of record to sign its exact papers.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "signoff"
+          ],
+          "limitations": [
+            "A signature in Chausar is not a filing, a stamp or a portal signature."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Code compares the signed digest with the papers at accept, share and post."
+        },
+        {
+          "id": "bci-rule-36",
+          "platform": "advocate",
+          "rule": "An advocate does not solicit work or advertise, directly or indirectly.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Bar Council of India Rules, Part VI, Chapter II, Rule 36",
+            "url": "https://www.barcouncilofindia.org/about/professional-standards/rules-on-professional-standards"
+          },
+          "sources": [
+            {
+              "title": "Bar Council of India Rules, Part VI, Chapter II, Rule 36",
+              "url": "https://www.barcouncilofindia.org/about/professional-standards/rules-on-professional-standards"
+            }
+          ],
+          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+        },
+        {
+          "id": "nmc-2002-6-1-1",
+          "platform": "doctor",
+          "rule": "Soliciting patients, directly or indirectly, is unethical.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Code of Medical Ethics Regulations, 2002, clause 6.1.1",
+            "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+          },
+          "sources": [
+            {
+              "title": "Code of Medical Ethics Regulations, 2002, clause 6.1.1",
+              "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "nmc-2002-1-4-1",
+          "platform": "doctor",
+          "rule": "A prescription carries the doctor's registration number.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Code of Medical Ethics Regulations, 2002, clause 1.4.1",
+            "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+          },
+          "sources": [
+            {
+              "title": "Code of Medical Ethics Regulations, 2002, clause 1.4.1",
+              "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "telemedicine-2020",
+          "platform": "doctor",
+          "rule": "Only a registered medical practitioner counsels patients or prescribes; an AI tool does not.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Telemedicine Practice Guidelines, 2020",
+            "url": "https://www.mohfw.gov.in/pdf/Telemedicine.pdf"
+          },
+          "sources": [
+            {
+              "title": "Telemedicine Practice Guidelines, 2020",
+              "url": "https://www.mohfw.gov.in/pdf/Telemedicine.pdf"
+            }
+          ],
+          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+        },
+        {
+          "id": "sebi-ia-2013",
+          "platform": "financial-planner",
+          "rule": "Investment advice needs a SEBI registration; returns are never assured.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "SEBI (Investment Advisers) Regulations, 2013",
+            "url": "https://www.sebi.gov.in/legal/regulations/"
+          },
+          "sources": [
+            {
+              "title": "SEBI (Investment Advisers) Regulations, 2013",
+              "url": "https://www.sebi.gov.in/legal/regulations/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+        },
+        {
+          "id": "sebi-ra-2014",
+          "platform": "financial-planner",
+          "rule": "Buy or sell calls and target prices need a research analyst registration.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "SEBI (Research Analysts) Regulations, 2014",
+            "url": "https://www.sebi.gov.in/legal/regulations/"
+          },
+          "sources": [
+            {
+              "title": "SEBI (Research Analysts) Regulations, 2014",
+              "url": "https://www.sebi.gov.in/legal/regulations/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+        },
+        {
+          "id": "cs-act-1980",
+          "platform": "company-secretary",
+          "rule": "A company secretary in practice does not solicit clients by advertisement.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Company Secretaries Act, 1980, First Schedule",
+            "url": "https://www.icsi.edu/"
+          },
+          "sources": [
+            {
+              "title": "Company Secretaries Act, 1980, First Schedule",
+              "url": "https://www.icsi.edu/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+        },
+        {
+          "id": "ca-act-1949",
+          "platform": "chartered-accountant",
+          "rule": "A chartered accountant in practice does not solicit clients by advertisement.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Chartered Accountants Act, 1949, First Schedule",
+            "url": "https://resource.cdn.icai.org/75789ca-act-61309.pdf"
+          },
+          "sources": [
+            {
+              "title": "Chartered Accountants Act, 1949, First Schedule",
+              "url": "https://resource.cdn.icai.org/75789ca-act-61309.pdf"
+            }
+          ],
+          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+        }
+      ],
+      "summary": "3 current, 0 to recheck, 6 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "sign-before-send",
+          "name": "Signature before sending",
+          "whenToUse": "Every regulated paper",
+          "steps": [
+            {
+              "do": "Draft the papers",
+              "why": "Drafts regulated papers from the client files."
+            },
+            {
+              "do": "The professional of record signs these exact papers.",
+              "why": "Signs every regulated paper."
+            }
+          ],
+          "howToRead": "Read the draft, then the signature line in the sign-off desk.",
+          "mistakes": [
+            "Sending papers before the signature",
+            "An AI diagnosis or a stock tip"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "The professional's signature",
+          "canSay": "The named professional signed these exact papers in Chausar.",
+          "cannotSay": "A court, council or portal accepts these papers."
+        }
+      ]
+    },
+    "metadata": {
+      "signoff-every-output": {
+        "topic": "Signature before any client output",
+        "how": "Code compares the signed digest with the papers at accept, share and post.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "bci-rule-36": {
+        "topic": "Advocates and solicitation",
+        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "nmc-2002-6-1-1": {
+        "topic": "Doctors and soliciting patients",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "nmc-2002-1-4-1": {
+        "topic": "Registration number on prescriptions",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "telemedicine-2020": {
+        "topic": "Who counsels and prescribes",
+        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "sebi-ia-2013": {
+        "topic": "Investment advice",
+        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "sebi-ra-2014": {
+        "topic": "Research calls and target prices",
+        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "cs-act-1980": {
+        "topic": "Company secretaries and advertising",
+        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "ca-act-1949": {
+        "topic": "Chartered accountants and advertising",
+        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "document-desk": {
+    "view": {
+      "playbook": {
+        "id": "document-desk",
+        "label": "Document desk",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "figures-from-receipt",
+          "platform": "house",
+          "rule": "Every amount a document shows comes from the figures table and its code receipt.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "figures",
+            "review",
+            "document-figures"
+          ],
+          "limitations": [
+            "A receipt proves the arithmetic, not the rates or quantities the owner entered."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Code refuses section text with an amount the receipt does not prove."
+        },
+        {
+          "id": "owner-sends-documents",
+          "platform": "house",
+          "rule": "The owner approves the exact document and sends it to the client.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "review",
+            "send"
+          ],
+          "limitations": [
+            "Chausar does not file or submit a document anywhere."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Code binds the approval to a digest of the brief and every section."
+        }
+      ],
+      "summary": "2 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "brief-first",
+          "name": "Brief before drafting",
+          "whenToUse": "Every document",
+          "steps": [
+            {
+              "do": "Approve the outline, files and figures before AI work.",
+              "why": "Reads the client files for the facts each section needs."
+            },
+            {
+              "do": "Approve the exact finished document.",
+              "why": "Approves the brief and the finished document, and sends it."
+            }
+          ],
+          "howToRead": "Read each section against its brief and the figures table.",
+          "mistakes": [
+            "Amounts typed into the text",
+            "Facts that are not in the client files"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "The figures receipt",
+          "canSay": "Code computed these amounts from the quantities and rates you entered.",
+          "cannotSay": "The rates, quantities or projections are right for the client."
+        }
+      ]
+    },
+    "metadata": {
+      "figures-from-receipt": {
+        "topic": "Figures in documents",
+        "how": "Code refuses section text with an amount the receipt does not prove.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "owner-sends-documents": {
+        "topic": "Sending documents",
+        "how": "Code binds the approval to a digest of the brief and every section.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
   }
 }

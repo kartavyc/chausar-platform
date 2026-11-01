@@ -12,6 +12,7 @@ export const AGENT_PURPOSES: readonly string[] = Object.freeze(['delivery', 'age
 const AGENT_NAMES: Readonly<Record<ServiceType, string>> = Object.freeze({
   agency: 'Marketing agent', studio: 'Studio agent', consulting: 'Consulting agent', bookkeeping: 'Bookkeeping agent',
   research: 'Research agent', content: 'Content agent', support: 'Support agent', other: 'Delivery agent',
+  teaching: 'Teaching agent', 'local-services': 'Bookings agent', licensed: 'Practice agent',
 });
 
 /** The delivery agent's name, from the plan's service type. */
