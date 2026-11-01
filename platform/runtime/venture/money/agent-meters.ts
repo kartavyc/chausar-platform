@@ -105,7 +105,7 @@ export async function spendMeters(deps: VentureDeps, ctx: Context, state: State,
       ...(media && media.micros > 0n ? { media: METER_WORDS.media(media.upTo, formatMicros(String(media.micros))) } : {}),
       cap: cap === undefined ? null : formatMicros(cap) + METER_WORDS.perMonth, capUsd: cap === undefined ? null : microsAsUsd(cap),
       ...(rupees && cap !== undefined ? { capRupees: rupeesBeside(cap, rupees)! } : {}),
-      usedPermille: permille === null ? null : Number(permille > 1000n ? 1000n : permille), paused,
+      usedPermille: permille === null ? null : parseInt((permille > 1000n ? 1000n : permille).toString(), 10), paused,
       line: capped === null ? METER_WORDS.noLimit : paused ? METER_WORDS.paused : METER_WORDS.used(percentOf(permille!)),
     };
   };

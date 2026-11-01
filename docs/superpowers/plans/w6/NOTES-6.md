@@ -402,3 +402,63 @@ Integrator changes:
 Still open from the guide's walk: in the fake engine's fresh first run, Today keeps a "Connect your AI" card after Use Codex; the 6C6 side-work question did not show in the onboarding walked.
 
 Evidence: 72 engine test files touched by or importing anything changed since Batches 8 and 9, 741 tests, failures only the core handler pin (fixed, 20/20) and the known local architecture-copy baseline (`results/w6-b10-engine.log`); 33 UI files, 586 tests (`results/w6-b10-ui.log`); both typechecks; `scripts/check.mjs` over 3,261 files; `third-party-notices --check` matches; the secret scan's only match is `POSTHOG_HOST`, PostHog's public server address in two tests, which is not a secret.
+
+### 6J5: final gates
+
+Run by Claude Code (Opus 5.5) on 2 November 2026 on the committed tree (`ca30dadd`), one gate after another, by `results/w6-final-run.sh`.
+
+First run:
+
+- Engine, six shards: 9,467 tests, 3 failures.
+  - `no money file uses float helpers on amounts`: the 6G5 spend meter turned its bounded used share into a number with `Number(`. It now uses the money package's own idiom, `parseInt(share.toString(), 10)`. That share is 0 to 1000 thousandths, not an amount. Fixed; `venture-money` 23/23, both spend meter files 16/16.
+  - `paired HTTP job retains a completed prefix ...` (`investigation-job-http`): a step hit its time limit under load (`JOB_STEP_EXCEEDS_LIMITS` after 9 s). Wave 6 never touched it, and it passes alone (9/9). Counted as a load-timing flake, not fixed.
+  - `docs/venture/architecture.md ... copied as is`: the known local baseline (it compares against the git-ignored `.b2c-work` copy).
+- UI, full vitest: 3,058 tests, 3 failures, all from 6G3/6G4 tests.
+  - Two CRM tests read the computer's clock, so they broke once the date passed 1 November; they now wrap the app in a `ClockProvider` matching the fake engine's time.
+  - The tax-details test found two "Email" texts once 6G3 added the log form's Email choice; it now checks the email address itself.
+  - All fixed; the two files pass.
+- `build:ui`: passed (the usual large-chunk warning).
+- Screen walk: 466 checks, 10 failures. All were one React warning on Money > Spend (and the Journal case that walked through it): two sibling parts, the meter and 6G5's spend meters, both used the key `0`. They now have distinct keys. Checked in the dev server after a fresh load (Spend and Journal clean), then the five Money cases walked again: 20/20 (`results/w6-final-walk-recheck`).
+
+After the fixes: both typechecks, `scripts/check.mjs` over 3,261 files, `third-party-notices --check`, and the seven Money and budget UI files (263 tests) all pass.
+
+#### Where wave 6 stands
+
+Real, checked live: Telegram alerts to the founder's own chat; the MCP client against Microsoft Learn; the web reader (RFC 9309); a webhook to a local receiver; a read-only Gmail search through Codex; mini apps and recorded flows in Electron; the Windows installer (install, launch with the bundled Codex, clean uninstall); PostHog and Sentry reports (HTTP 200 to the founder's projects).
+
+Fixture-tested only: Sunra, Razorpay, people search, search keys, whisper.cpp (not installed here) and Sarvam, the Linux packages (no `chausar-test` user on the VPS and no Linux build machine).
+
+Waits on the founder:
+
+- Accounts and devices:
+  - a Gmail test send (steps in `notes/6F5.md`);
+  - real phone pairing;
+  - the VPS `chausar-test` user and a Linux build machine;
+  - optional keys.
+- Local setup:
+  - run `npm install` once (Readability);
+  - remove the stale `chausar-6f5-claude-VNLkH7` entry in `~/.claude.json`.
+- Sign-offs:
+  - Crawlee, left out because it fakes browser fingerprints;
+  - the lockfile exception for `@electron/node-gyp`;
+  - icons.
+- Licence:
+  - the Agent SDK's proprietary licence (an AGPL section 7 permission, or stop shipping it);
+  - AGPL-only or or-later;
+  - the copyright line;
+  - DCO or CLA;
+  - `enterprise/`;
+  - the 8 audit decisions.
+- Beta:
+  - the support contact;
+  - feedback keys reaching a packaged build (`feedback.json` at packaging is still to do).
+- Content:
+  - unchecked statutes (BCI, Telemedicine) and what statute "size" means;
+  - real Groww, Upstox and Dhan exports;
+  - the trading journal tile wording;
+  - AI navigation opening pages at once;
+  - the hosted proxy-page policy for mini apps.
+- Fake engine:
+  - a "Connect your AI" card stays after Use Codex;
+  - the 6C6 side-work question does not show in onboarding.
+- Before pushing: the VPS address is in `docs/superpowers/plans/w6/PROMPT.md` in this branch's history.

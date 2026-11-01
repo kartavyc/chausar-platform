@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { assertInkRules } from '../helpers/ink-rules';
+import { ClockProvider } from '../../src/shell/clock';
 
 // W6 6G3 and 6G4 (D44): the client sheet's company (two-way, with the company sheet), timeline with "Log a call or
 // message", lists (pipelines with their own stages, from the Pipeline tab's Lists), the field history with who and when,
@@ -13,7 +14,8 @@ function start(hash: string) {
   window.location.hash = hash;
   const client = createFakeClient(new FakeEngine({ now: () => NOW }));
   const spy = vi.spyOn(client, 'request');
-  render(<App client={client} language="en" />);
+  // The screen's clock matches the fake engine's, so dates the form fills in are the engine's today on any run day.
+  render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="en" /></ClockProvider>);
   return { client, spy };
 }
 async function click(element: HTMLElement) {

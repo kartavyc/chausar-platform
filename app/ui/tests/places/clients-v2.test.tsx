@@ -212,7 +212,7 @@ describe('Clients: tax details, simple first', () => {
     expect(details.open).toBe(false);
     const tax = within(sheet).getByText('Tax number').closest('[role="group"]') as HTMLElement;
     expect(details.contains(tax)).toBe(true);
-    expect(details.contains(within(sheet).getByText('Email'))).toBe(false);
+    expect(details.contains(within(sheet).getByText('partners@boataudio.in'))).toBe(false);
     fireEvent.click(within(details).getByText('More details'));
     await waitFor(() => expect(details.open).toBe(true));
     expect(tax.textContent).toContain('27AABCB4321K1Z3');

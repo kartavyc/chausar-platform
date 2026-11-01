@@ -50,7 +50,7 @@ export function Spend() {
     <>
       {spend.error && <Failed error={spend.error} />}
       {/* W4 4J20: this month's spend against its limit, and what to do once it is used up (Meter.tsx). */}
-      <Meter key={round} />
+      <Meter key={`meter-${round}`} />
       <Section title={t('money.spend.title')} end={<>{total}<SpendMetersToggle open={byWho} controls={metersId} onToggle={() => setByWho((open) => !open)} /></>}>
         {spend.data && rows.length === 0 && <EmptyState title={t('money.spend.none')} />}
         {rows.length > 0 && (
@@ -65,7 +65,7 @@ export function Spend() {
         )}
         {rows.some((row) => row.kind === 'refused' && !row.reason) && <p className={s.quietLine}>{t('money.spend.refusedNote')}</p>}
       </Section>
-      <SpendMeters key={round} id={metersId} open={byWho} />
+      <SpendMeters key={`meters-${round}`} id={metersId} open={byWho} />
       <SpendPolicy onSaved={() => { spend.reload(); setRound((n) => n + 1); }} />
       <WriteLimits />
     </>
