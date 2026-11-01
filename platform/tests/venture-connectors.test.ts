@@ -193,14 +193,14 @@ test('6. starter flags and ordering for an India venture, before and after the p
   await assert.rejects(list(deps, { other: true }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('7. handlers keys equal the forty-two owned methods', () => {
+test('7. handlers keys equal the forty-four owned methods', () => {
   // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
   // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
-  // speechOut.providers); W6 6F4 adds webhook.send.
+  // speechOut.providers); W6 6F4 adds webhook.send, and 6H2 the recorded flows' list and act.
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
-    'venture.connectors.check', 'venture.connectors.list',
+    'venture.connectors.check', 'venture.connectors.list', 'venture.flows.act', 'venture.flows.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
     'venture.localApps.list', 'venture.mail.import', 'venture.mail.threads', 'venture.monitors.add', 'venture.monitors.list', 'venture.monitors.remove',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',

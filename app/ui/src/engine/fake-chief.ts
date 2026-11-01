@@ -257,6 +257,18 @@ export class FakeChiefDesk {
     return this.proposalView(kept);
   }
 
+  /**
+   * W6 6H1: a mini app's proposal (apps/apps.ts drafts it with draftProposal, source 'app', and raises it at once), with
+   * the app's own line, so its card is on Today and decided like any other. Returns its id and title.
+   */
+  draftFromApp(input: { kind: ProposalKind; title: string; line: string; target: { invoice?: string; order?: string } }): { id: string; title: string } {
+    const drafted: Drafted = { kind: input.kind, title: input.title, line: input.line, agent: null, spends: false, sends: false };
+    const kept: HeldProposal = { ...drafted, id: `proposal-${this.seq++}`, at: this.host.now(), status: 'drafted', raisedAt: null, outcome: null, digest: this.host.digest(drafted), target: { ...input.target } };
+    this.mine().proposals.push(kept);
+    this.raise({ id: kept.id });
+    return { id: kept.id, title: kept.title };
+  }
+
   /** 4E4: the proposals from meeting notes that wrote no day. */
   private readonly undated = new Set<string>();
 

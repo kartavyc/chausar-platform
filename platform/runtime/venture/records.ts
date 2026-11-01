@@ -43,12 +43,15 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-posting-steps': 'postingsteps', 'venture-bank-match': 'bankmatch', 'venture-posting-limits': 'postinglimits',
   'venture-judge-setting': 'judgesetting',
   'venture-transcription-setup': 'transcribesetup',
+  'venture-talk-setting': 'talksetting', 'venture-talk-heard': 'talkheard',
   // Ink v2 wave 4 (contracts.ts section 9e)
   'venture-keeper-run': 'keeperrun', 'venture-health-clear': 'healthclear',
   'venture-agent-message': 'agentmsg', 'venture-agent-proposal': 'agentprop', 'venture-chat-consent': 'chatconsent',
   'venture-agent-note': 'note', 'venture-agent-note-change': 'notechange',
   'venture-chief-thread': 'chiefthread', 'venture-chief-message': 'chiefmsg', 'venture-proposal': 'proposal',
   'venture-chat-settle': 'chatsettle',
+  // Wave 6 (6H3)
+  'venture-layout': 'layout', 'venture-layout-go': 'layoutgo',
   'venture-person': 'person', 'venture-network-import': 'netimport', 'venture-forgotten': 'forgotten',
   'venture-tie': 'tie', 'venture-network-search': 'netsearch',
   'venture-opportunity': 'opp', 'venture-pipeline-settings': 'pipesettings',
@@ -101,6 +104,10 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-crm-list': 'crmlist', 'venture-crm-list-item': 'crmitem', 'venture-memory-fact': 'fact',
   // Wave 6 (6G2)
   'venture-agent-retirement': 'retirement',
+  // Wave 6 (6H1)
+  'venture-mini-app': 'miniapp',
+  // Wave 6 (6H2)
+  'venture-flow': 'flowver', 'venture-flow-run': 'flowrun',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {

@@ -22,6 +22,7 @@ import { webhookSend, webhookSet } from './webhook-handoff.ts';
 import { localAppsList } from './local-apps.ts';
 import { mailImport, mailThreads } from './mail-in.ts';
 import { speechProviders } from './speech-out.ts';
+import { flowsAct, flowsList } from '../flows/methods.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -83,6 +84,9 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.webhook.set': webhookSet satisfies VentureHandler<'venture.webhook.set'>,
   'venture.webhook.send': webhookSend satisfies VentureHandler<'venture.webhook.send'>,
   'venture.speechOut.providers': speechProviders satisfies VentureHandler<'venture.speechOut.providers'>,
+  // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI (flows/methods.ts).
+  'venture.flows.list': flowsList satisfies VentureHandler<'venture.flows.list'>,
+  'venture.flows.act': flowsAct satisfies VentureHandler<'venture.flows.act'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';

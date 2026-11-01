@@ -25,12 +25,19 @@ import { autoReadinessHandler } from '../policy/auto-gate.ts';
 import { shadowSummaryHandler } from '../delivery/shadow-summary.ts';
 import { queueEditHandler, queueSendBackHandler, queueSetHandler, queueSetPreviewHandler, queueUndoHandler } from './queue-actions.ts';
 import { triagePreviewHandler, triageSetHandler } from './triage.ts';
+// Wave 6 (6H3, D40): a place's layout as data.
+import { layoutChangeHandler, layoutGetHandler } from './layout.ts';
+// Wave 6 (6H1, D39): mini apps and their MCP Apps bridge.
+import { APP_HANDLERS } from '../apps/apps.ts';
 
 /** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
   'venture.queue.list': queueListHandler,
+  // Wave 6 (6H3, D40): Today's and Money's layout, read and changed by the owner (the AI changes it through MCP tools).
+  'venture.layout.get': layoutGetHandler,
+  'venture.layout.change': layoutChangeHandler,
   'venture.queue.decide': queueDecideHandler,
   'venture.runs.list': runsListHandler,
   'venture.runs.get': runsGetHandler,
@@ -86,6 +93,8 @@ export const handlers: VentureHandlerTable = {
   'venture.journal.acceptBreak': journalAcceptBreakHandler,
   'venture.auto.readiness': autoReadinessHandler,
   'venture.shadow.summary': shadowSummaryHandler,
+  // Wave 6 (6H1): mini apps (apps/apps.ts).
+  ...APP_HANDLERS,
 };
 
 export { questionRowId } from './queue.ts';

@@ -675,10 +675,34 @@ export interface ClientAddParams { name: string; email?: string; countryCode?: s
 export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
+import type { FlowsActPayload, FlowsActView, FlowsListView } from '../../../../platform/runtime/venture/flows/flow-types';
+export type { FlowsActPayload, FlowsActView, FlowsListView, FlowVersionView, FlowRunView } from '../../../../platform/runtime/venture/flows/flow-types';
 export type { SearchProviderId, WebSearchView, WebReadView, PeopleLookupView, PeopleSearchView };
 // W6 6G3 (D44) the CRM, and 6G4 dated memory: the engine's own view types (crm/crm-data.ts, memory/facts-data.ts).
 import type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView } from '../../../../platform/runtime/venture/crm/crm-data';
 import type { FactView, FactVisibility, MemoryChange, MemoryView } from '../../../../platform/runtime/venture/memory/facts-data';
+// W6 6I1 push-to-talk: the engine's own shapes (agents/talk-core.ts is browser-safe).
+export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core';
+import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core';
+// W6 6H1 (D39): mini apps. The permission names and bridge tools live in the browser-safe apps/frame.ts.
+import type { AppPermission } from '../../../../platform/runtime/venture/apps/frame';
+export type { AppPermission };
+export interface MiniAppMessage { at: string; from: 'owner' | 'chausar'; text: Display; version: number | null }
+/** An app on the Apps place: reads are the chips that say what it reads or uses; allowed: it may run now. */
+export interface MiniAppCard { id: string; name: string; version: number; summary: Display; reads: Display[]; pinned: boolean; madeAt: string; allowed: boolean }
+/** One app, opened (apps/apps.ts appView): its frame document, versions, permission screen (ask) and the tools that answer now. */
+export interface MiniAppView extends MiniAppCard {
+  uri: string; document: string;
+  versions: { version: number; at: string; summary: Display; current: boolean }[];
+  permissions: { id: AppPermission; verb: 'Read' | 'Keep' | 'Use' | 'Propose'; line: Display }[];
+  grant: { permissions: AppPermission[]; at: string } | null;
+  ask: { digest: string; added: AppPermission[]; first: boolean } | null;
+  tools: string[];
+  messages: MiniAppMessage[];
+  never: Display;
+}
+/** What the bridge answers for one tools/call, in the MCP CallToolResult shape. */
+export interface MiniAppCallResult { content: { type: 'text'; text: string }[]; structuredContent: unknown; isError: false }
 export type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView, FactView, FactVisibility, MemoryChange, MemoryView };
 import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
@@ -1210,6 +1234,32 @@ export interface ChiefThreadStateInput { threadId: string; state: ChiefThreadSta
 /** W6 6G1: undo is the request that puts the chat back exactly; line is the engine's words. */
 export interface ChiefThreadStateResult { thread: ChiefThreadSummary; undo: ChiefThreadStateInput; line: Display }
 export interface ChiefSettleResult { days: number; undo: number; line: Display }
+/**
+ * W6 6H3 (D40): a place's layout as data (platform/runtime/venture/views/layout-core.ts and layout.ts). Blocks come in
+ * the order the page draws them; `keep` blocks (approvals, questions, stops, money totals) always show, keep their slot
+ * and their name. `ai` lists the AI's changes since the owner's own last one, with one Undo; `go` is the AI's latest
+ * request to open a place.
+ */
+export type LayoutPlace = 'today' | 'money';
+export type LayoutKeep = 'approval' | 'question' | 'hard-stop' | 'money';
+export type LayoutChange =
+  | { op: 'hide' | 'show'; block: string }
+  | { op: 'move'; block: string; to: number }
+  | { op: 'rename'; block: string; name: string | null }
+  | { op: 'save-view'; name: string }
+  | { op: 'use-view' | 'delete-view'; view: string }
+  | { op: 'reset' } | { op: 'restore'; to: string } | { op: 'keep' };
+export interface LayoutRequest { place: LayoutPlace; change: LayoutChange }
+export interface LayoutBlockView {
+  id: string; name: string; defaultName: string; shown: boolean; keep: LayoutKeep | null; why: string | null;
+  movable: boolean; rename: 'free' | 'aliases' | 'fixed'; aliases: string[];
+}
+export interface LayoutView {
+  place: LayoutPlace; title: string; href: string; blocks: LayoutBlockView[]; views: { id: string; name: string }[]; custom: boolean;
+  ai: { count: number; lines: string[]; undo: LayoutRequest } | null;
+  go: { id: string; href: string; title: string; at: string } | null;
+}
+export interface LayoutChangeResult { layout: LayoutView; undo: LayoutRequest; line: Display }
 /**
  * consent (4C2 review): the one chat consent as it stands; the screen shows this text and agrees by this digest.
  * settled (W6 6G1): the archive, latest settled first; settleAfterDays: the owner's quiet days (0 is never).
@@ -2062,6 +2112,30 @@ export interface EngineMethods {
   'venture.agents.retire.check': { params: { agent: string }; result: RetireCheckView };
   'venture.agents.retire': { params: { agent: string; to: string; digest: string }; result: { retired: RetiredAgentView; line: Display } };
   'venture.agents.restore': { params: { agent: string }; result: { agent: AgentView; routines: number; line: Display } };
+  // W6 6H1 (D39): mini apps, their permission screen, versions with undo, pin, export, delete and the MCP Apps bridge.
+  'venture.apps.list': { params: Record<string, never>; result: { apps: MiniAppCard[]; ideas: Display[]; never: Display } };
+  'venture.apps.get': { params: { app: string }; result: { app: MiniAppView } };
+  'venture.apps.make': { params: { ask: string; app?: string }; result: { app: MiniAppView; line: Display } };
+  'venture.apps.grant': { params: { app: string; digest: string }; result: { app: MiniAppView; line: Display } };
+  'venture.apps.revoke': { params: { app: string }; result: { app: MiniAppView; line: Display } };
+  'venture.apps.restore': { params: { app: string; version: number }; result: { app: MiniAppView; undo: { version: number }; line: Display } };
+  'venture.apps.pin': { params: { app: string; pinned: boolean }; result: { app: MiniAppView; undo: { pinned: boolean }; line: Display } };
+  'venture.apps.export': { params: { app: string }; result: { fileName: string; document: string; mediaType: 'text/html' } };
+  'venture.apps.call': { params: { app: string; tool: string; arguments: Record<string, unknown> }; result: MiniAppCallResult };
+  'venture.apps.remove': { params: { app: string }; result: { removed: true; line: Display } };
+  // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
+  'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };
+  'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
+  // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI.
+  'venture.flows.list': { params: Record<string, never>; result: FlowsListView };
+  'venture.flows.act': { params: FlowsActPayload; result: FlowsActView };
+  // W6 6I1: push-to-talk (agents/talk.ts)
+  'venture.talk.get': { params: Record<string, never>; result: TalkView };
+  'venture.talk.consent': { params: TalkConsentInput; result: TalkView };
+  'venture.talk.setup': { params: TalkSetupInput; result: TalkView };
+  'venture.talk.start': { params: Record<string, never>; result: TalkStarted };
+  'venture.talk.hear': { params: { sessionId: string; audioBase64: string }; result: TalkHeard };
+  'venture.talk.say': { params: { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string }; result: TalkSaid };
   'venture.chief.fit': { params: Record<string, never>; result: ChiefFit | null };
   'venture.proposals.raise': { params: { id: string }; result: { proposal: ProposalView; rowId: string | null; line: Display } };
   'venture.proposals.dismiss': { params: { id: string }; result: { proposal: ProposalView } };

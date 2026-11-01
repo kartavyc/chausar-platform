@@ -18,6 +18,7 @@ const PLACE_ICONS: Readonly<Record<RailPlace, IconName>> = {
   work: 'briefcase',
   clients: 'contact',
   money: 'wallet',
+  apps: 'layout-grid',
   connections: 'plug',
 };
 

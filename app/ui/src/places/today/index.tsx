@@ -5,7 +5,7 @@
  * Keys (J, K, Enter, A, D) come from the shell and move through the cards as through rows.
  */
 
-import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
@@ -42,6 +42,14 @@ import { useAnswerLabel } from './QuestionsCard';
 import { IdeasFold } from './IdeasFold';
 import { RUN_EVENTS, agentStateOf, runStateOf, useRunDetails } from './runs';
 import s from './Today.module.css';
+// W6 6H3 (D40): the page's layout as data, the AI's changes with Undo and Keep, and the Arrange sheet.
+import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
+import { LayoutNotice } from '../../parts/layout/LayoutNotice';
+import { ArrangeButton } from '../../parts/layout/ArrangeButton';
+import { LayoutSheet } from '../../parts/layout/LayoutSheet';
+import ls from '../../parts/layout/Layout.module.css';
+// W6 6H1 (D39): the mini apps the owner pinned to Today (nothing when none is pinned).
+import { PinnedApps } from '../apps';
 
 /** A run waiting on the owner adds a row; a failed run adds "Run again". */
 const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
@@ -109,6 +117,7 @@ export function Place() {
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
   const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
+  const layout = useLayout('today');
   // A stale decision hands back the new version; it shows until the list itself catches up.
   const [newer, setNewer] = useState<ReadonlyMap<string, { from: string; latest: QueueRow }>>(new Map());
   const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
@@ -357,40 +366,75 @@ export function Place() {
   // Each listed run's steps, read once and shared by the team's live tiles (a subset of these runs) and Working now.
   const details = useRunDetails(workingRuns.map((run) => run.runId));
 
-  return (
-    <>
+  // W6 6H3 (D40): the page's blocks in the owner's layout. Approvals, the greeting's count, notices and the goal keep
+  // their slots; the other blocks fill the remaining slots in the owner's order. Until the layout comes, the library's.
+  const drawn = drawnBlocks('today', layout.data);
+  const nameOf = (id: string) => drawn.find((block) => block.id === id)?.name;
+  const shown = (index: number) => Boolean(drawn[index]?.shown);
+  const blockContent: Readonly<Record<string, () => ReactNode>> = {
+    greeting: () => (
       <Greeting
         line={sentences(summary, activeRuns > 0 ? t('today.sub.working', { count: activeRuns }) : undefined)}
         count={summary ? String(queue.data?.needsYou ?? waiting) : undefined}
+        tools={<ArrangeButton place="today" />}
       />
-      <StorageNotice />
-      <PausedNote />
+    ),
+    notices: () => <><StorageNotice /><PausedNote /></>,
+    goal: () => <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />,
+    team: () => <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} title={nameOf('team')} />,
+    needs: () => (
+      // W4 4J19: the draft replies the cards show, read once for the page.
+      <DraftsProvider>
+      <NeedsYou
+        items={items}
+        loaded={Boolean(queue.data)}
+        failed={queue.error?.message}
+        filter={filter}
+        onFilter={(next) => chooseFilter(next)}
+        expanded={expanded}
+        onExpand={(first) => { setExpanded(true); if (first) setReveal(first); }}
+        card={card}
+        phone={narrow}
+        tip={narrow && session.showsTip() ? <SwipeTip onHide={hideTip} /> : undefined}
+      />
+      </DraftsProvider>
+    ),
+    working: () => <WorkingNow runs={workingRuns} details={details} rowForRun={rowForRun} goToRow={goToRow} title={nameOf('working')} />,
+    earlier: () => <Earlier title={nameOf('earlier')} />,
+    ideas: () => <IdeasFold title={nameOf('ideas')} />,
+    // W6 6H1 (D39): the mini apps the owner pinned to Today, a block of the layout (6H3) like the others.
+    apps: () => <PinnedApps />,
+  };
+  /** The block in slot `index`, in a wrapper that adds no box, or nothing when the owner's layout hides it. */
+  const slot = (index: number) => {
+    const block = drawn[index];
+    if (!block?.shown) return null;
+    return <div key={block.id} className={ls.block} data-block={block.id}>{blockContent[block.id]?.()}</div>;
+  };
+  const ideasHidden = drawn.some((block) => block.id === 'ideas' && !block.shown);
+
+  return (
+    <>
+      {slot(0)}
+      {slot(1)}
+      <LayoutNotice layout={layout.data} reload={layout.reload} />
       {/* One container, so the grids below follow the page's own width (a sheet open beside it narrows it). */}
       <div className={s.today}>
         <div className={s.page}>
-          <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />
-          <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} />
+          {slot(2)}
+          {slot(3)}
         </div>
-        {/* W4 4J19: the draft replies the cards show, read once for the page. */}
-        <DraftsProvider>
-        <NeedsYou
-          items={items}
-          loaded={Boolean(queue.data)}
-          failed={queue.error?.message}
-          filter={filter}
-          onFilter={(next) => chooseFilter(next)}
-          expanded={expanded}
-          onExpand={(first) => { setExpanded(true); if (first) setReveal(first); }}
-          card={card}
-          phone={narrow}
-          tip={narrow && session.showsTip() ? <SwipeTip onHide={hideTip} /> : undefined}
-        />
-        </DraftsProvider>
-        <div className={s.bottom}>
-          <WorkingNow runs={workingRuns} details={details} rowForRun={rowForRun} goToRow={goToRow} />
-          <Earlier />
-        </div>
-        <IdeasFold />
+        {slot(4)}
+        {(shown(5) || shown(6)) && (
+          <div className={cx(s.bottom, !(shown(5) && shown(6)) && s.bottomOne)}>
+            {slot(5)}
+            {slot(6)}
+          </div>
+        )}
+        {slot(7)}
+        {slot(8)}
+        {/* Waiting on you lists what waits on the owner: it shows when the layout hides Ideas too. */}
+        {ideasHidden && <IdeasFold ideas={false} />}
       </div>
     </>
   );
@@ -506,4 +550,5 @@ function Decided({ line: { row, line, receiptId, undo }, settle, layout, phone =
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { view: ViewSheet, 'call-notes': MeetingNotes, 'edit-draft': EditSheet, 'work-receipt': WorkReceiptSheet };
+// W6 6H3: `layout` (the Arrange sheet) serves every place that has a layout; it is registered here once.
+export const sheets: Readonly<Record<string, SheetComponent>> = { view: ViewSheet, 'call-notes': MeetingNotes, 'edit-draft': EditSheet, 'work-receipt': WorkReceiptSheet, layout: LayoutSheet };

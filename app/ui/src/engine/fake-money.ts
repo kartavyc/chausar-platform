@@ -235,6 +235,24 @@ export class FakeMoney {
     }
   }
 
+  /**
+   * W6 6H1: issued invoices as a mini app reads them (apps/apps.ts invoicesOf): each one's balance with a receipt, the
+   * same receipt for the same balance, and no raw amounts.
+   */
+  appInvoices(): { id: string; number: string; clientId: string; status: string; dueDate: string | null; balance: { display: string; receiptId: string } }[] {
+    return this.mine().filter((invoice) => invoice.number !== null && invoice.status !== 'draft').map((invoice) => {
+      const balance = this.balance(invoice);
+      const key = `${invoice.id}:${balance}`;
+      let receiptId = this.appBalances.get(key);
+      if (!receiptId) {
+        receiptId = this.newReceipt('Statement', balance, `Left to pay on ${invoice.number} now: ${this.show(invoice, balance)}, its total less what was paid and credited.`, invoice.currency);
+        this.appBalances.set(key, receiptId);
+      }
+      return { id: invoice.id, number: invoice.number as string, clientId: invoice.clientId, status: invoice.status, dueDate: invoice.dueDate, balance: { display: this.show(invoice, balance), receiptId } };
+    });
+  }
+  private readonly appBalances = new Map<string, string>();
+
   /** A receipt the money desk made or keeps (price receipts of new drafts, books receipts of issues and payments, bills). */
   receipt(id: string): ReceiptLite | undefined {
     const receipt = this.receipts.find((r) => r.id === id);

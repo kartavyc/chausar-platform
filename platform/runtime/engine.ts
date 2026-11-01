@@ -1819,6 +1819,10 @@ export class Engine {
       case 'venture.chief.thread.pin':
       case 'venture.chief.thread.state':
       case 'venture.chief.settle.set':
+      case 'venture.layout.get':
+      case 'venture.layout.change':
+      case 'venture.flows.list':
+      case 'venture.flows.act':
       case 'venture.chief.fit':
       case 'venture.proposals.raise':
       case 'venture.proposals.dismiss':
@@ -1895,6 +1899,22 @@ export class Engine {
       case 'venture.agents.retire.check':
       case 'venture.agents.retire':
       case 'venture.agents.restore':
+      case 'venture.apps.list':
+      case 'venture.apps.get':
+      case 'venture.apps.make':
+      case 'venture.apps.grant':
+      case 'venture.apps.revoke':
+      case 'venture.apps.restore':
+      case 'venture.apps.pin':
+      case 'venture.apps.export':
+      case 'venture.apps.call':
+      case 'venture.apps.remove':
+      case 'venture.talk.get':
+      case 'venture.talk.consent':
+      case 'venture.talk.setup':
+      case 'venture.talk.start':
+      case 'venture.talk.hear':
+      case 'venture.talk.say':
       case 'venture.models.cli.status':
       case 'venture.models.roles':
       case 'venture.goals.get':

@@ -37,6 +37,10 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.web.search': ['approve', 'u'], 'venture.web.read': ['prepare', 'uio'], 'venture.people.services': ['approve', 'u'], 'venture.people.lookup': ['approve', 'o'],
   // W6 6G1: a chat's state and the quiet days before one settles; each answer carries its exact Undo.
   'venture.chief.thread.state': ['prepare', 'ui'], 'venture.chief.settle.set': ['prepare', 'ui'],
+  // W6 6H3: a place's layout; each change carries its exact Undo.
+  'venture.layout.get': ['read', 'rui'], 'venture.layout.change': ['prepare', 'ui'],
+  // W6 6H2: recorded flows. A run touches the website in the desktop's window; its submits go through the journal.
+  'venture.flows.list': ['read', 'rui'], 'venture.flows.act': ['approve', 'o'],
   // W6 6G3: CRM reads, and owner edits whose every change is kept in the field history; 6G4: dated memory facts.
   'venture.crm.client': ['read', 'rui'], 'venture.crm.client.edit': ['prepare', 'u'], 'venture.crm.companies': ['read', 'rui'], 'venture.crm.company': ['read', 'rui'],
   'venture.crm.company.save': ['prepare', 'u'], 'venture.crm.link': ['prepare', 'ui'], 'venture.crm.log': ['prepare', ''], 'venture.crm.lists': ['read', 'rui'],
@@ -45,6 +49,14 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.memory.visibility': ['approve', 'ui'], 'venture.memory.forget': ['approve', ''],
   // W6 6G2: retiring is undone by Bring back, and Bring back by retiring again.
   'venture.agents.retire.check': ['read', 'rui'], 'venture.agents.retire': ['approve', 'u'], 'venture.agents.restore': ['approve', 'u'],
+  // W6 6H1: mini apps. Making one sends the owner's words to their AI; versions, pin and the grant each come back with
+  // Undo or Turn off; the bridge reads within the grant, keeps the app's notes and raises Today cards, never a send.
+  'venture.apps.list': ['read', 'rui'], 'venture.apps.get': ['read', 'rui'], 'venture.apps.make': ['prepare', 'uo'], 'venture.apps.grant': ['approve', 'ui'],
+  'venture.apps.revoke': ['approve', 'ui'], 'venture.apps.restore': ['prepare', 'ui'], 'venture.apps.pin': ['prepare', 'ui'], 'venture.apps.export': ['read', 'rui'],
+  'venture.apps.call': ['prepare', ''], 'venture.apps.remove': ['approve', ''],
+  // W6 6I1: push-to-talk. Hearing may send the recording to Sarvam; reading aloud calls the owner's speech provider.
+  'venture.talk.get': ['read', 'rui'], 'venture.talk.consent': ['approve', 'ui'], 'venture.talk.setup': ['approve', 'ui'], 'venture.talk.start': ['prepare', 'u'],
+  'venture.talk.hear': ['approve', 'o'], 'venture.talk.say': ['approve', 'o'],
   'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],

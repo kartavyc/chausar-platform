@@ -20,10 +20,12 @@ import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } fr
 
 /** A time on this computer's own clock, built from local parts so every time zone reads the same hour. */
 const at = (hour: number, minute = 0) => () => new Date(2026, 9, 23, hour, minute);
+/** The fake engine's own clock, on the same October day, so the month it answers with does not follow the real date. */
+const ENGINE_NOW = () => new Date(2026, 9, 23, 19, 5).toISOString();
 
 interface Start { hash?: string; engine?: FakeEngine; client?: EngineClient; language?: 'en'; now?: () => Date }
 
-function start({ hash = '#/today', engine = new FakeEngine(), client, language = 'en', now = at(19, 5) }: Start = {}) {
+function start({ hash = '#/today', engine = new FakeEngine({ now: ENGINE_NOW }), client, language = 'en', now = at(19, 5) }: Start = {}) {
   window.location.hash = hash;
   const used = client ?? createFakeClient(engine);
   render(<ClockProvider now={now}><App client={used} language={language} /></ClockProvider>);
@@ -77,7 +79,7 @@ function wrapped(engine: FakeEngine, { view, hold }: { view?: (view: QueueItemVi
 
 /** Open another sample business first, as the business menu does: the open one closes, then that one opens. */
 async function opened(folder: string): Promise<{ engine: FakeEngine; client: EngineClient }> {
-  const engine = new FakeEngine();
+  const engine = new FakeEngine({ now: ENGINE_NOW });
   const client = createFakeClient(engine);
   await client.request('workspace.lock', {});
   await client.request('workspace.open', { folder });
@@ -123,7 +125,7 @@ describe('Today v2: the greeting', () => {
   });
 
   it('with nothing waiting, the line only says who is working', async () => {
-    start({ engine: new FakeEngine({ queue: [] }) });
+    start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: [] }) });
     const header = (await screen.findByRole('heading', { level: 1 })).closest('header')!;
     await waitFor(() => expect(header.textContent).toContain('2 agents are working.'));
     expect(header.textContent).not.toContain('need you');
@@ -382,7 +384,7 @@ describe('Today v2: needs you', () => {
   });
 
   it('draws no business chips when every row is from one business', async () => {
-    start({ engine: new FakeEngine({ queue: QUEUE.filter((r) => r.businessId === 'lumen') }) });
+    start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: QUEUE.filter((r) => r.businessId === 'lumen') }) });
     await loaded();
     const show = within(needsYou()).getByRole('group', { name: 'Show' });
     expect(within(show).queryByRole('button', { name: /Lumen Studio/ })).toBeNull();
@@ -407,7 +409,7 @@ describe('Today v2: needs you', () => {
   });
 
   it('the fold counts and names only the rows still waiting: one resolved elsewhere leaves it', async () => {
-    const engine = new FakeEngine();
+    const engine = new FakeEngine({ now: ENGINE_NOW });
     const client = createFakeClient(engine);
     start({ client });
     await loaded();
@@ -424,7 +426,7 @@ describe('Today v2: needs you', () => {
 
   it('draws no fold once nothing behind it waits', async () => {
     const keep = new Set([...ORDER.slice(0, 5), 'q-run-again-thumbs']);
-    const client = createFakeClient(new FakeEngine({ queue: QUEUE.filter((r) => keep.has(r.id)) }));
+    const client = createFakeClient(new FakeEngine({ now: ENGINE_NOW, queue: QUEUE.filter((r) => keep.has(r.id)) }));
     start({ client });
     await loaded();
     expect(within(needsYou()).getByRole('button', { name: 'Show 1 more' })).toBeTruthy();
@@ -434,7 +436,7 @@ describe('Today v2: needs you', () => {
   });
 
   it('the fold names at most three of what it holds, then how many more', async () => {
-    start({ engine: new FakeEngine({ queue: [...QUEUE, ...SETUP_ROWS] }) });
+    start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: [...QUEUE, ...SETUP_ROWS] }) });
     await loaded();
     const order = [...QUEUE, ...SETUP_ROWS].map((r) => ({ ...r, digest: '' }) as QueueRow).sort(queueOrder);
     const folded = order.slice(5);
@@ -444,7 +446,7 @@ describe('Today v2: needs you', () => {
   });
 
   it('a card stays the same card across a filter change: a typed answer and a decision on its way survive', async () => {
-    const { client, calls, release } = wrapped(new FakeEngine(), { hold: true });
+    const { client, calls, release } = wrapped(new FakeEngine({ now: ENGINE_NOW }), { hold: true });
     start({ client });
     await loaded();
     // Past the first five, the question waits behind the fold; shown, it is a compact card.
@@ -477,14 +479,14 @@ describe('Today v2: needs you', () => {
   });
 
   it('says so in one sentence when nothing needs you, with no chips', async () => {
-    start({ engine: new FakeEngine({ queue: [] }) });
+    start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: [] }) });
     expect(await screen.findByText('Nothing needs you.')).toBeTruthy();
     expect(screen.getAllByText('Nothing needs you.')).toHaveLength(1);
     expect(within(needsYou()).queryByRole('group', { name: 'Show' })).toBeNull();
   });
 
   it('a filter with nothing in it says so and offers everything', async () => {
-    start({ hash: '#/today?show=setup', engine: new FakeEngine({ queue: QUEUE.filter((r) => r.kind !== 'setup' && r.kind !== 'locked') }) });
+    start({ hash: '#/today?show=setup', engine: new FakeEngine({ now: ENGINE_NOW, queue: QUEUE.filter((r) => r.kind !== 'setup' && r.kind !== 'locked') }) });
     expect(await within(await screen.findByRole('region', { name: 'Needs you' })).findByText('Nothing here needs you.')).toBeTruthy();
     await click(within(needsYou()).getByRole('button', { name: 'Show everything' }));
     expect(window.location.hash).toBe('#/today');
@@ -536,7 +538,7 @@ describe('Today v2: previews on the cards', () => {
   it("a draft is quoted words; a plan's and a file's text is Chausar's own, on the card and in the sheet", async () => {
     // The post, the plan and the sign-off on their own, so each is one of the five full cards (4Z3) with its text.
     const keep = new Set(['post:linkedin-ep13:v1', 'q-plan', 'q-signoff-gst']);
-    start({ engine: new FakeEngine({ queue: QUEUE.filter((r) => keep.has(r.id)) }) });
+    start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: QUEUE.filter((r) => keep.has(r.id)) }) });
     await loaded();
     // W4 4J19: the post comes with the engine's own preview (4J3): its exact text is quoted words.
     const post = await waitFor(() => {
@@ -571,7 +573,7 @@ describe('Today v2: previews on the cards', () => {
       ...v,
       sections: [{ heading: 'What you sell', lines: ['Monthly books: ₹16,000.00 per month (model estimate)', 'GST working (model estimate): ₹5,000.00 per project.'] }],
     });
-    const { client } = wrapped(new FakeEngine(), { view });
+    const { client } = wrapped(new FakeEngine({ now: ENGINE_NOW }), { view });
     start({ client });
     await loaded();
     const preview = await waitFor(() => {
@@ -593,7 +595,7 @@ describe('Today v2: previews on the cards', () => {
   it('a file of a business not registered for tax shows its title and line, and no tax figures', async () => {
     // Lumen Studio is open, and its plan says it does not charge GST. W4 4J19: a sign-off row the engine sent no preview
     // for (here, the sample's under another id) still follows this rule.
-    start({ engine: new FakeEngine({ queue: QUEUE.map((row) => (row.id === 'q-signoff-gst' ? { ...row, id: 'q-signoff-plain' } : row)) }) });
+    start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: QUEUE.map((row) => (row.id === 'q-signoff-gst' ? { ...row, id: 'q-signoff-plain' } : row)) }) });
     await loaded();
     const preview = await waitFor(() => {
       const found = cardOf('q-signoff-plain').querySelector<HTMLElement>('[data-preview="text"]')!;
@@ -606,7 +608,7 @@ describe('Today v2: previews on the cards', () => {
 
   it('a file of a business registered for tax keeps its first three lines, and no more', async () => {
     // Ledgerline is open: its plan says it charges GST. W4 4J19: a sign-off row with no preview of the engine's own.
-    const client = createFakeClient(new FakeEngine({ queue: QUEUE.map((row) => (row.id === 'q-signoff-gst' ? { ...row, id: 'q-signoff-plain' } : row)) }));
+    const client = createFakeClient(new FakeEngine({ now: ENGINE_NOW, queue: QUEUE.map((row) => (row.id === 'q-signoff-gst' ? { ...row, id: 'q-signoff-plain' } : row)) }));
     await client.request('workspace.lock', {});
     await client.request('workspace.open', { folder: 'ledgerline' });
     start({ client });
@@ -716,7 +718,7 @@ describe('Today v2: working now and earlier', () => {
   });
 
   it("each run's detail is read once for the page: the team's live tiles and Working now share it", async () => {
-    const { client, calls } = wrapped(new FakeEngine());
+    const { client, calls } = wrapped(new FakeEngine({ now: ENGINE_NOW }));
     start({ client });
     await waitFor(() => expect(rowOf('run-31')?.textContent).toContain('Rendering 3 of 6'));
     await waitFor(() => expect(rowOf('run-28')?.textContent).toContain("The video tool isn't installed on this computer yet."));

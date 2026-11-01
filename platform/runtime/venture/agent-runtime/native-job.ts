@@ -15,6 +15,7 @@ import { JOB_CALCULATIONS, calculateSourceRows } from './calculations.ts';
 import { calculateTrustedJob, calculatorSources, calculationGrant, registeredJobCalculations } from './trusted-calculators.ts';
 import { recordCheckSignal } from '../delivery/check-signals.ts';
 import { createExternalMcpTools } from './external-mcp.ts';
+import { createLayoutTools } from './ui-tools.ts';
 import { agentSettingsOf } from './settings.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
 import {pinnedSend,systemResolver} from '../core/net-guard.ts';
@@ -259,6 +260,6 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
   };
   const external = createExternalMcpTools(deps, ctx, capability, { guard: state => { guard(state, scope); },
     signal: options.signal ?? deps.closing?.signal ?? new AbortController().signal });
-  return { capability, service: createJobMCP(deps.store, capability, ports, external.tools), assertState: (state: State) => guard(state, scope),
+  return { capability, service: createJobMCP(deps.store, capability, ports, [...external.tools, ...createLayoutTools(deps, capability)]), assertState: (state: State) => guard(state, scope),
     async close() { capability.close(); await external.close(); } };
 }

@@ -36,6 +36,9 @@ import { FakeWiringDesk } from './fake-wiring';
 import { FakeAgentsDesk } from './fake-agents';
 // W6 6G2: retiring an agent, the Retired shelf and Bring back.
 import { FakeRetireDesk } from './fake-retire';
+// W6 6H1: mini apps and their bridge (fake-apps.ts).
+import { FakeAppsDesk } from './fake-apps';
+import { FakeLayoutDesk } from './fake-layout';
 import { FakeChiefDesk } from './fake-chief';
 import { FakeNetworkDesk } from './fake-network';
 import { FakeNotifyDesk } from './fake-notify';
@@ -49,9 +52,12 @@ import { FakeKitMediaDesk } from './fake-kit-media';
 import { FakeKitReportDesk } from './fake-kit-report';
 import { FakeKitConnectDesk } from './fake-kit-connect';
 import { FakeWebPeopleDesk } from './fake-web-people';
+import { FakeFlowsDesk } from './fake-flows';
 // Wave 6 (6G3, 6G4): the CRM and dated memory (fake-crm.ts, fake-memory.ts).
 import { FakeCrmDesk } from './fake-crm';
 import { FakeMemoryDesk } from './fake-memory';
+// Wave 6 (6I1): push-to-talk (fake-talk.ts).
+import { FakeTalkDesk } from './fake-talk';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
 import { fakeChecklist, fakeWays } from './fake-start';
 import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
@@ -232,7 +238,11 @@ export class FakeEngine {
     agents: () => this.agents[this.current] ?? [], ask: (method, p) => this.answerNow(method, p), runs: () => this.runs,
     rows: () => this.rows.filter((row) => !this.decided.has(row.id)),
   });
+  /** W6 6H3: each place's layout as data; public so tests and the demo can act as the owner's AI (ai(), go()). */
+  readonly layoutDesk: FakeLayoutDesk = new FakeLayoutDesk({ current: () => this.current, now: () => this.now(), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private readonly chief: FakeChiefDesk;
+  /** W6 6H1: mini apps, their grants, versions, pins, notes and calculator receipts. */
+  private readonly apps: FakeAppsDesk;
   private readonly network: FakeNetworkDesk;
   private readonly notify: FakeNotifyDesk;
   private readonly w4: FakeW4Desk;
@@ -406,6 +416,8 @@ export class FakeEngine {
       new FakeKitConnectDesk(waveHost, { fresh }),
       // Wave 6 (6F3, 6F8): web search, the page reader and people search (fake-web-people.ts).
       new FakeWebPeopleDesk(waveHost),
+      // Wave 6 (6H2): recorded flows, which need the desktop window; the fake answers as the engine does off the desktop.
+      new FakeFlowsDesk(),
       // Wave 6 (6G3, 6G4): the CRM (field history, companies, timelines, lists) and dated memory.
       new FakeCrmDesk({
         ...waveHost, clients: () => this.clients[this.current] ?? [],
@@ -414,6 +426,8 @@ export class FakeEngine {
         touches: (match) => this.network.clientTouches(match),
       }),
       new FakeMemoryDesk({ ...waveHost, clients: () => this.clients[this.current] ?? [] }),
+      // Wave 6 (6I1): push-to-talk, the notice, the services and reading an answer aloud.
+      new FakeTalkDesk(waveHost),
     ];
     this.posting = new FakePostingDesk(waveHost, { fresh });
     this.practice = new FakePracticeDesk(waveHost, { fresh });
@@ -424,6 +438,13 @@ export class FakeEngine {
     this.agentsDesk = new FakeAgentsDesk(waveHost, { fresh, floor: (input) => this.chief.draftFromAgent(input), retired: (agentId) => this.retire.retiredAgent(agentId) });
     // 4C2: the Chats desk reads the one chat consent the agents' desk keeps (it needs no agent).
     this.chief = new FakeChiefDesk(waveHost, { fresh, consent: () => this.agentsDesk.chatConsent() });
+    this.apps = new FakeAppsDesk({
+      current: () => this.current, now: () => this.now(), hosted: () => this.hosted, digest: digestOf,
+      clients: () => this.clients[this.current] ?? [], orders: () => this.work.request('venture.order.list', {}) as OrderLite[],
+      currency: () => this.ventureView()?.venture.country?.currency ?? 'INR', invoices: () => this.money.appInvoices(),
+      propose: (input) => this.chief.draftFromApp({ kind: input.kind, title: input.title, line: input.line, target: input.target }),
+      openRows: () => this.rows.filter((row) => !this.decided.has(row.id)).map((row) => row.id),
+    }, { fresh });
     this.network = new FakeNetworkDesk(waveHost, { fresh, meetings: this.chief, ...(options.pipelineDue === undefined ? {} : { due: options.pipelineDue }) });
     this.notify = new FakeNotifyDesk(waveHost, { fresh });
     // 4J22b: an idea's Start drafts through the Chats desk; an imported agent file and a persona version speak in the agent's chat.
@@ -487,6 +508,10 @@ export class FakeEngine {
     if (method === 'venture.rules.attest') return this.rulesAttest.attest(p);
     // W6 6G2: the check before retiring an agent, retiring it and Bring back (fake-retire.ts).
     if (this.retire.handles(method)) return this.retire.request(method, p);
+    // W6 6H1: mini apps (fake-apps.ts).
+    if (this.apps.handles(method)) return this.apps.request(method, p);
+    // W6 6H3: a place's layout (fake-layout.ts).
+    if (this.layoutDesk.handles(method)) return this.layoutDesk.request(method, p);
     if (method === 'venture.compliance.get' || method === 'venture.compliance.set') return this.compliance(method, p);
     this.refuseRegulator(method, p);
     this.guardInternalShare(method, p);
@@ -595,7 +620,8 @@ export class FakeEngine {
   /** A stored receipt by id, from whichever desk made it (venture.receipt.get, and 4J22a's verify). */
   private findReceipt(id: string): ReceiptLite | undefined {
     return this.work.orderReceipt(this.current,id) ?? this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.receipt(id) ?? RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id)
-      ?? this.extras.receipt(id) ?? this.kitSales()?.receipt(id); // 5A2: a GO card's maximum loss
+      ?? this.extras.receipt(id) ?? this.kitSales()?.receipt(id) // 5A2: a GO card's maximum loss
+      ?? this.apps?.receipt(id); // W6 6H1: an amount a mini app asked the calculator for
   }
 
   /**

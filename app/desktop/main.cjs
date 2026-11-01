@@ -9,9 +9,13 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
 let hostAwake = false;
-const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;}});
+const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;},verifyTalk:async sessionId=>{const view=await engine.request('venture.talk.get',{});return view?.desktop===true&&view.consent?.given===true&&view.session?.id===sessionId;}});
 const formsBrowser = require('./owner-browser-host.cjs').createFormsHost({BrowserWindow,WebContentsView,session,window:()=>window,onClosed:()=>stopFormsBrowser()});
 function stopFormsBrowser() { void formsBrowser.close(); engine?.closeForms?.(); }
+// Wave 6 (6H2, D41): the window for recorded flows, page JavaScript allowed; nothing that may send leaves before the approved press.
+const flowBrowser = require('./flow-browser.cjs').createFlowBrowser({ BrowserWindow, session });
+// Wave 6 (6H1, D39): the mini app sandbox proxy's own policy, and where frames inside the window may go.
+const { policyFor, subframeAllowed } = require('./mini-frame.cjs');
 const backgroundRequested = process.argv.includes('--background');
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
@@ -63,6 +67,9 @@ async function startEngine() {
   engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
   // Wave 6 (6F3): a page that needs JavaScript, read in a hidden window after the engine's own checks (web-render.cjs).
   engine.on('render', (request, answer) => { require('./web-render.cjs').renderPage(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
+  // Wave 6 (6H2): one step of a recorded flow in its window (flow-browser.cjs); the window closes when the engine stops.
+  engine.on('flows', (request, answer) => flowBrowser.handle(request, answer));
+  engine.on('status', status => { if (status?.state !== 'ready') void flowBrowser.close(); });
   const credentials = require('./credential-store.cjs').createCredentialStore({ directory: join(app.getPath('userData'), 'credentials'), safeStorage });
   engine.on('credential', (request, answer) => {
     credentials[request.op](request.workspaceId, request.name, request.value)
@@ -168,6 +175,8 @@ function createWindow(hash = '') {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
+  // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
+  window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
   window.once('ready-to-show', () => window.show());
   window.loadURL(TRUSTED_DOCUMENT + hash);
   window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
@@ -200,14 +209,14 @@ if (singleInstance) app.whenReady().then(async () => {
     const url = new URL(request.url); const file = inkFiles.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(inkRoot, file));
-    return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
+    return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': policyFor(url.pathname, "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"), 'X-Content-Type-Options': 'nosniff' } });
   });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
-      if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();
+      if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
       const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }

@@ -78,5 +78,17 @@
   "chats.counted.kind.runs": {"one": "{count} run", "other": "{count} runs"},
   "chats.counted.kind.people": {"one": "{count} person in your network", "other": "{count} people in your network"},
   "chats.counted.kind.leads": {"one": "{count} lead", "other": "{count} leads"},
-  "chats.counted.month": "{month}: {count} new"
+  "chats.counted.month": "{month}: {count} new",
+  "chats.talk.hold": "Hold to talk",
+  "chats.talk.listening": "Listening. Let go to stop.",
+  "chats.talk.nothing": "Nothing was heard. Hold the button and speak.",
+  "chats.talk.noticeTitle": "Before the microphone turns on",
+  "chats.talk.keep": "Keep my recordings",
+  "chats.talk.agree": "Agree",
+  "chats.talk.notNow": "Not now",
+  "chats.talk.cost": "At Sarvam's price this recording costs {figure}.",
+  "chats.talk.failed": "Couldn't use push-to-talk. {message}",
+  "chats.read.label": "Read aloud",
+  "chats.read.quote": "Read aloud for {figure}",
+  "chats.read.failed": "Couldn't read this aloud. {message}"
 }

@@ -17,6 +17,9 @@
  * W6 6G1 (D42): the head's Chat actions are Pin, Snooze (the engine's presets, each with its wake time) or Wake now, and
  * Settle or Reopen. Each change shows the engine's words with Undo, which sends the request the engine returned. A chat
  * that waits for the owner (a step to decide, or the chief's question) keeps Snooze and Settle locked and says why.
+ *
+ * W6 6I1 (D45): push-to-talk under the box puts the spoken words in the box unsent, as if typed; each answer can be read
+ * aloud from the engine's checked words (PushToTalk.tsx, ReadAloud.tsx).
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -35,6 +38,8 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import { DEPT_OF } from '../team/departments';
 import { PlanCard, type AgentLookup } from './PlanCard';
 import { ChangeNotice } from './ChangeNotice';
+import { PushToTalk } from './PushToTalk';
+import { ReadAloud } from './ReadAloud';
 import s from './Chats.module.css';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
@@ -207,7 +212,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
 
   const entries: ThreadEntry[] = messages.map((message): ThreadEntry => (message.from === 'owner'
     ? { kind: 'owner', id: message.id, at: message.at, text: plainOf(message.parts) }
-    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} agentOf={agentOf} onChanged={view.reload} /> }));
+    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> }));
 
   return (
     <section ref={area} className={s.pane} aria-labelledby={titleId}>
@@ -274,6 +279,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           suggestions={SUGGESTIONS.map((key) => t(key))}
           hint={t('chats.composer.hint')}
         />
+        <PushToTalk onHeard={(words) => setBox((was) => ({ words, n: was.n + 1 }))} />
       </div>
     </section>
   );
@@ -300,7 +306,7 @@ function Consent({ stale, text, words, problem, busy, onAgree, onNotNow }: { sta
 }
 
 /** One answer from the chief: who and when, its parts, the worked table, what was left out, where it went, the plan. */
-function ChiefAnswer({ message, agentOf, onChanged }: { message: ChiefMessageView; agentOf: AgentLookup; onChanged: () => void }) {
+function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: ChiefMessageView; threadId: string | null; agentOf: AgentLookup; onChanged: () => void }) {
   const t = useT();
   const language = useLanguage();
   const at = new Date(message.at);
@@ -334,6 +340,7 @@ function ChiefAnswer({ message, agentOf, onChanged }: { message: ChiefMessageVie
         </a>
       )}
       {message.proposals.length > 0 && <PlanCard proposals={message.proposals} agentOf={agentOf} onChanged={onChanged} />}
+      {threadId && message.parts.length > 0 && <ReadAloud threadId={threadId} messageId={message.id} />}
     </div>
   );
 }

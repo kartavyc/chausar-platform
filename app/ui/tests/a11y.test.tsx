@@ -108,6 +108,8 @@ const PLACES: Case[] = [
 
 const SHEETS: Case[] = [
   { name: 'run, working', hash: '#/today?sheet=run:31' },
+  // W6 6H3: the Arrange sheet for a place's layout.
+  { name: 'arrange Today', hash: '#/today?sheet=layout:today' },
   // W4 4E4: the card sheet (timeline, score, write to them, move it), a draft from before this session, the notes sheet.
   { name: 'pipeline card', hash: '#/clients/pipeline?sheet=card:opp_seed_tara' },
   { name: 'draft, from before this session', hash: '#/clients/pipeline?sheet=outreach:outreach_1' },

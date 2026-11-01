@@ -94,6 +94,10 @@ const METHODS = Object.freeze([
   'venture.chief.threads', 'venture.chief.thread.list', 'venture.chief.thread.send', 'venture.chief.thread.pin', 'venture.chief.fit',
   // W6 6G1: a chat's state and the quiet days before one settles.
   'venture.chief.thread.state', 'venture.chief.settle.set',
+  // W6 6H3: a place's layout.
+  'venture.layout.get', 'venture.layout.change',
+  // Wave 6 (6H2): recorded flows
+  'venture.flows.list', 'venture.flows.act',
   'venture.proposals.raise', 'venture.proposals.dismiss',
   'venture.network.import', 'venture.network.importUndo', 'venture.network.merge', 'venture.network.split', 'venture.network.forget',
   'venture.network.hide', 'venture.network.people', 'venture.network.person', 'venture.network.sources',
@@ -110,6 +114,10 @@ const METHODS = Object.freeze([
   'venture.crm.client', 'venture.crm.client.edit', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.company.save', 'venture.crm.link', 'venture.crm.log', 'venture.crm.lists', 'venture.crm.list', 'venture.crm.list.save', 'venture.crm.list.place', 'venture.memory.list', 'venture.memory.add', 'venture.memory.replace', 'venture.memory.visibility', 'venture.memory.forget',
   // Wave 6 (6G2): retiring an agent and Bring back
   'venture.agents.retire.check', 'venture.agents.retire', 'venture.agents.restore',
+  // Wave 6 (6H1): mini apps and their MCP Apps bridge
+  'venture.apps.list', 'venture.apps.get', 'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore',
+  'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
+  'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
   'venture.models.cli.status', 'venture.models.roles',
   'venture.goals.get', 'venture.goals.set', 'venture.goals.suggest',
   'venture.decisions.list', 'venture.policy.allowSession',

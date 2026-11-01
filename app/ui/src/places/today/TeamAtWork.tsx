@@ -26,6 +26,8 @@ export interface TeamAtWorkProps {
   goToRow: (rowId: string) => void;
   /** A phone: the stories are one row that scrolls sideways (D-Phone-Today `.hscroll`), and so are the live tiles. */
   phone?: boolean | undefined;
+  /** W6 6H3: the name the owner (or their AI) gave this block; left out, its own. */
+  title?: string | undefined;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface TeamAtWorkProps {
  * its team. Chausar leads the stories and opens Chats (W4 4C2, ChausarStory.tsx); with no agents yet the tile still
  * shows Chausar and Add agent, with no counts.
  */
-export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = false }: TeamAtWorkProps) {
+export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = false, title }: TeamAtWorkProps) {
   const t = useT();
   const headingId = useId();
 
@@ -64,7 +66,7 @@ export function TeamAtWork({ agents, runs, details, rowForRun, goToRow, phone = 
 
   return (
     <Tile as="section" labelledBy={headingId} className={s.team}>
-      <TileHead id={headingId} title={t('today.team.title')} meta={meta} more={{ href: '#/team', label: t('today.team.see') }} />
+      <TileHead id={headingId} title={title ?? t('today.team.title')} meta={meta} more={{ href: '#/team', label: t('today.team.see') }} />
       <StoriesRow stories={stories} lead={<ChausarStory />} onOpen={(id) => openSheet('agent', id)} onAdd={() => goTo('onboarding')} scroll={phone} className={s.stories} />
       {live.length > 0 && (
         // On a phone the tiles are one row that scrolls sideways, so the row itself takes focus (arrow keys scroll it)

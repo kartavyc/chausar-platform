@@ -211,6 +211,8 @@ export class VentureHost {
       ...(options.formsBrowser && options.host === 'desktop' ? { formsBrowser: options.formsBrowser } : {}),
       // Wave 6 (6F3): the desktop's hidden reading window for pages that need JavaScript; never elsewhere.
       ...(options.webRender && options.host === 'desktop' ? { webRender: options.webRender } : {}),
+      // Wave 6 (6H2): the desktop's browser window for recorded flows; never elsewhere.
+      ...(options.flowBrowser && options.host === 'desktop' ? { flowBrowser: options.flowBrowser } : {}),
     });
   }
 

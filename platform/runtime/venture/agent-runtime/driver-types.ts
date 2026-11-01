@@ -1,5 +1,8 @@
 /** Trusted host contracts. Credentials and MCP capabilities are ephemeral, never saved settings. */
-export const AGENT_MCP_TOOL_NAMES = ['read_business', 'read_client', 'read_order', 'list_files', 'read_file', 'calculate', 'draft_document', 'propose_action', 'search_records', 'external_tools', 'external_call'] as const;
+// W6 6H3 (D40): the five UI tools (ui-tools.ts UI_TOOL_NAMES) joined the pinned list deliberately. Codex refuses a server
+// whose tools differ from this list and Claude Code may call only these, so every job's toolbox carries them.
+export const AGENT_MCP_TOOL_NAMES = ['read_business', 'read_client', 'read_order', 'list_files', 'read_file', 'calculate', 'draft_document', 'propose_action', 'search_records', 'external_tools', 'external_call',
+  'ui_read_screen', 'ui_arrange', 'ui_rename', 'ui_views', 'ui_navigate'] as const;
 export type AgentJobScope = {
   jobId: string; runId: string; ventureId: string; orderId: string; clientId: string;
   agentId: string; memberId: string; epoch: number; consentId: string; consentRevision: number; generation: number;

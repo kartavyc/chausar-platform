@@ -943,14 +943,14 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
-test('handlers are exactly the forty-two owned methods, and every code the package throws is a declared venture or engine code', async () => {
+test('handlers are exactly the forty-four owned methods, and every code the package throws is a declared venture or engine code', async () => {
   // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
   // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
-  // speechOut.providers); W6 6F4 adds webhook.send.
+  // speechOut.providers); W6 6F4 adds webhook.send, and 6H2 the recorded flows' list and act.
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
     'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
-    'venture.connectors.check', 'venture.connectors.list',
+    'venture.connectors.check', 'venture.connectors.list', 'venture.flows.act', 'venture.flows.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
     'venture.localApps.list', 'venture.mail.import', 'venture.mail.threads', 'venture.monitors.add', 'venture.monitors.list', 'venture.monitors.remove',
     'venture.posting.checkSteps', 'venture.posting.limits.get', 'venture.posting.limits.set', 'venture.posting.propose', 'venture.posting.signIn',

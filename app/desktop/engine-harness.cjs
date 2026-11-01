@@ -45,6 +45,30 @@ function renderRelay(harness, child, message) {
   if (harness.listenerCount('render') === 0 || !plain || !hosts || hosts.length > 200 || !hosts.every(host => typeof host === 'string' && host.length <= 253) || !Number.isFinite(message.timeoutMs)) { answer(null); return; }
   try { harness.emit('render', Object.freeze({ url: message.url, timeoutMs: message.timeoutMs, blockedHosts: [...hosts] }), answer); } catch { answer(null); }
 }
+/**
+ * Wave 6 (6H2, D41): one step of a recorded flow the engine asks the desktop's flow window to take (flow-browser.cjs).
+ * Checked here (an id, a run, a known step, a payload within bounds), passed to main's 'flows' listener with one answer
+ * function, and answered to the worker once as { kind: 'host-flows-result', callId, ok, result | code }. No listener,
+ * or an ask out of bounds: FLOW_BROWSER_UNAVAILABLE, and main never sees it.
+ */
+const FLOW_OPS = new Set(['record', 'open', 'find', 'fill', 'click', 'facts', 'controls', 'close']);
+function flowsRelay(harness, child, message) {
+  const callId = typeof message.callId === 'string' && /^[0-9a-f-]{36}$/.test(message.callId) ? message.callId : null;
+  if (!callId) return;
+  let answered = false;
+  const answer = result => {
+    if (answered) return; answered = true;
+    let reply = { ok: false, code: 'FLOW_BROWSER_CLOSED' };
+    try { if (result && result.ok === true && JSON.stringify(result.result ?? null).length <= 2_000_000) reply = { ok: true, result: result.result ?? null }; else if (typeof result?.code === 'string' && /^FLOW_[A-Z_]{1,40}$/.test(result.code)) reply = { ok: false, code: result.code }; } catch { /* an answer that cannot be read is a closed window */ }
+    try { if (child.connected) child.send({ kind: 'host-flows-result', callId, ...reply }, () => {}); } catch { /* the engine is gone; its port times out */ }
+  };
+  let encoded = null;
+  try { encoded = JSON.stringify(message.payload); } catch { encoded = null; }
+  const plain = typeof message.runId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(message.runId) && FLOW_OPS.has(message.op) && message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload) && encoded && encoded.length <= 200_000;
+  if (!plain) return;
+  if (harness.listenerCount('flows') === 0) { answer({ ok: false, code: 'FLOW_BROWSER_UNAVAILABLE' }); return; }
+  try { harness.emit('flows', Object.freeze({ runId: message.runId, op: message.op, payload: JSON.parse(encoded) }), answer); } catch { answer(null); }
+}
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
   constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
@@ -78,6 +102,8 @@ class EngineHarness extends EventEmitter {
           if (message.kind === 'host-print' && message.id === undefined) { printRelay(this, child, message); return; }
           // Wave 6 (6F3): the engine asks main to read a page with JavaScript in a hidden window (web-render.cjs).
           if (message.kind === 'host-render' && message.id === undefined) { renderRelay(this, child, message); return; }
+          // Wave 6 (6H2): the engine asks main's flow window to take one step of a recorded flow (flow-browser.cjs).
+          if (message.kind === 'host-flows' && message.id === undefined) { flowsRelay(this, child, message); return; }
           if (message.kind === 'host-credential' && message.id === undefined) { credentials.receive(message); return; }
           if ((message.kind === 'host-forms' || message.kind === 'host-forms-verified') && message.id === undefined) { forms.receive(message); return; }
           if (typeof message.id !== 'string') return;

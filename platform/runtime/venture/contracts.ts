@@ -16,6 +16,8 @@ import type { SectionRef, TableStamp } from './playbooks/ca-firm/rates.ts';
 import type { CaEngine, CaReceiptStep } from './playbooks/ca-firm/receipt.ts';
 import type { SocialChannel } from './playbooks/social/channels.ts';
 import type { PriceGuideView } from './core/price-ranges.ts';
+import type { LayoutBy, LayoutChange, LayoutPlace, LayoutRequest, LayoutState } from './views/layout-core.ts';
+import type { LayoutChangeResult, LayoutView } from './views/layout.ts';
 import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 // Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
@@ -176,6 +178,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-judge-setting',
   // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer; the newest is in use.
   'venture-transcription-setup',
+  // Wave 6 (6I1): push-to-talk settings and each recording's receipt
+  'venture-talk-setting', 'venture-talk-heard',
   // Ink v2 wave 4 (named by package 4-0, section 9e; each package fills its own). Keeper's runs (4A1); agent threads,
   // proposals and the chat consent (4B1); notes and their changes (4B2); Chats and proposals (4C1); people, imports and
   // forgotten people (4D1); ties (4D2); searches (4D3); pipeline cards and settings (4E1); outreach drafts (4E2); the
@@ -190,6 +194,9 @@ export const VENTURE_RECORD_KINDS = [
   'venture-chief-thread', 'venture-chief-message', 'venture-proposal',
   // Wave 6 (6G1, D42): the owner's number of quiet days before a chat settles on its own; the newest is in use.
   'venture-chat-settle',
+  // Wave 6 (6H3, D40): each owner's layout of a place, one record per change (the newest is in use), and the AI's
+  // requests to open a place.
+  'venture-layout', 'venture-layout-go',
   'venture-person', 'venture-network-import', 'venture-forgotten',
   'venture-tie', 'venture-network-search',
   'venture-opportunity', 'venture-pipeline-settings',
@@ -275,6 +282,10 @@ export const VENTURE_RECORD_KINDS = [
   'venture-memory-fact',
   // Wave 6 (6G2, D43): an agent the owner retired, who took over its work, and when it was brought back.
   'venture-agent-retirement',
+  // Wave 6 (6H1, D39): a mini app the owner's AI wrote, with its versions, grant, pin and own notes (apps/apps.ts).
+  'venture-mini-app',
+  // Wave 6 (6H2, D41): one version of a recorded flow, and one dry run or run of it (flows/records.ts).
+  'venture-flow', 'venture-flow-run',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -3267,7 +3278,10 @@ export type SumReceiptSubject =
   | { type: 'across'; what: AcrossFigureId; month: string | null; currency: string; open: boolean; others: { businessId: string; name: string; asOf: IsoTime; amount: string }[] }
   // The total quote of a set the owner approved in one go (4J2, O9): each picked row in order, with what approving it
   // can cost in micro-dollars as code worked it out then (the subject holds it, so the receipt never drifts).
-  | { type: 'set'; items: { rowId: string; label: string; micros: MicroString }[] };
+  | { type: 'set'; items: { rowId: string; label: string; micros: MicroString }[] }
+  // W6 6H1: an amount a mini app asked the calculator for: the operation and its inputs in minor units, so the receipt
+  // never drifts (apps/calc.ts).
+  | { type: 'app-calc'; appId: string; operation: 'add' | 'times' | 'percent-off'; amounts: string[]; count: string | null; percentBps: string | null; currency: string };
 /** 4J6. The figures a snapshot keeps and the across views show. */
 export type AcrossFigureId = 'invoiced' | 'received' | 'owed' | 'spend';
 export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
@@ -3499,6 +3513,23 @@ export interface JudgeAutoView { auto: boolean; consentAt: IsoTime | null; line:
  * opens (platform/runtime/speech.ts restoreLocal). Never on the hosted server.
  */
 export type TranscriptionSetupRecord = RecordBase<'venture-transcription-setup'> & { command: string | null; model: string | null };
+
+/**
+ * W6 6I1 (D45): push-to-talk settings, newest wins: the notice agreed by its digest (null until agreed or after a
+ * withdraw), whether recordings are kept (off by default), the service that turns speech into words, and Sarvam's
+ * approved rate (its digest) with the owner's monthly limit in paise.
+ */
+export type TalkSettingRecord = RecordBase<'venture-talk-setting'> & {
+  consentDigest: string | null; consentAt: IsoTime | null; keepAudio: boolean; listen: 'whisper-local' | 'sarvam'; capMinor: string; rateDigest: string | null;
+};
+/** W6 6I1: one recording turned into words: its service, length and cost in paise; its audio only when kept; never its words. */
+export type TalkHeardRecord = RecordBase<'venture-talk-heard'> & {
+  provider: 'whisper-local' | 'sarvam'; durationMs: number; costMinor: string; phase: 'sending' | 'done' | 'failed';
+  audioBase64: string; audioDigest: string; erasedAt: IsoTime | null;
+};
+/** W6 6I1: the views and inputs live in the browser-safe agents/talk-core.ts, so the app reads the same shapes. */
+export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from './agents/talk-core.ts';
+import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from './agents/talk-core.ts';
 /**
  * venture.transcription.get and .set: the setup's honest status (set up, not set up, or its files are not where they
  * were set up, checked on disk each time), its paths, whether ffmpeg is on this computer too, and a plain line.
@@ -3633,6 +3664,10 @@ export type ChiefThreadRecord = RecordBase<'venture-chief-thread'> & {
 };
 /** W6 6G1: the owner's number of quiet days before a chat settles on its own (0 is never); the newest is in use. */
 export type ChatSettleRecord = RecordBase<'venture-chat-settle'> & { days: number };
+/** W6 6H3 (D40): one change to an owner's layout of a place (views/layout-core.ts), who made it and its line. */
+export type LayoutRecord = RecordBase<'venture-layout'> & { place: LayoutPlace; state: LayoutState; by: LayoutBy; line: string; op: LayoutChange['op'] };
+/** W6 6H3: the owner's AI asked the app to open a place; the app opens it once. */
+export type LayoutGoRecord = RecordBase<'venture-layout-go'> & { href: string; title: string };
 /** One message in a Chats thread (4C1): the owner's words, or the chief's typed answer with the receipts its tools returned. */
 export type ChiefMessageRecord = RecordBase<'venture-chief-message'> & {
   /** Regenerable private source summary; Forget removes it rather than retaining anonymous copied text. */
@@ -3669,7 +3704,9 @@ export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | '
 /** A proposal (4C1): drafted, raised to Today, then approved or dismissed. input: what the engine method for its kind takes. */
 export type ProposalRecord = RecordBase<'venture-proposal'> & {
   proposalKind: ProposalKind;
-  source: 'chief' | 'agent' | 'meeting' | 'idea';
+  /** W6 6H1: 'app', a mini app proposed it (appId); it is raised on Today at once and decided like any other. */
+  source: 'chief' | 'agent' | 'meeting' | 'idea' | 'app';
+  appId?: string | null;
   threadId: string | null;
   messageId: string | null;
   agent: string | null;
@@ -4513,6 +4550,42 @@ export interface RetireCheckView {
   blocked: Display | null;
   digest: string;
 }
+/** W6 6H1 (D39): a mini app's permission, tool names and versions live in the browser-safe apps/frame.ts. */
+export type { AppPermission } from './apps/frame.ts';
+import type { AppPermission } from './apps/frame.ts';
+/** W6 6H1: one version of a mini app: the HTML the owner's AI wrote (data, never run outside the frame), what its code needs. */
+export type MiniAppVersion = { version: number; at: IsoTime; html: string; summary: string; permissions: AppPermission[]; ask: string; callId: string | null; digest: string };
+export type MiniAppMessage = { at: IsoTime; from: 'owner' | 'chausar'; text: string; version: number | null };
+/**
+ * W6 6H1: a mini app. current: the version in use. grant: what the owner allowed on the permission screen (its digest
+ * binds the app, the version shown and those permissions), null until allowed or after Turn off. notes: the app's own
+ * notes (key to text), deleted with it.
+ */
+export type MiniAppRecord = RecordBase<'venture-mini-app'> & {
+  name: string; versions: MiniAppVersion[]; current: number;
+  grant: { permissions: AppPermission[]; version: number; digest: string; at: IsoTime } | null;
+  pinned: boolean; notes: Record<string, string>; messages: MiniAppMessage[];
+};
+export type MiniAppPermissionView = { id: AppPermission; verb: 'Read' | 'Keep' | 'Use' | 'Propose'; line: Display };
+/** W6 6H1: an app on the Apps place. reads: the chips that say what it reads or uses. allowed: it may run now. */
+export type MiniAppCard = { id: string; name: string; version: number; summary: Display; reads: Display[]; pinned: boolean; madeAt: IsoTime; allowed: boolean };
+/**
+ * W6 6H1: one app, opened. document: the frame document (policy, bridge, then the app's HTML). tools: the bridge tools
+ * that answer now (what the current version uses and the owner allowed). ask: the permission screen, when the current
+ * version needs something not allowed yet (first: nothing allowed yet), with the digest venture.apps.grant takes.
+ */
+export type MiniAppView = MiniAppCard & {
+  uri: string; document: string;
+  versions: { version: number; at: IsoTime; summary: Display; current: boolean }[];
+  permissions: MiniAppPermissionView[];
+  grant: { permissions: AppPermission[]; at: IsoTime } | null;
+  ask: { digest: string; added: AppPermission[]; first: boolean } | null;
+  tools: string[];
+  messages: MiniAppMessage[];
+  never: Display;
+};
+/** W6 6H1: what the bridge answers for a tools/call, in the MCP CallToolResult shape. */
+export type MiniAppCallResult = { content: { type: 'text'; text: string }[]; structuredContent: Json; isError: false };
 export interface AgentRetired { retired: RetiredAgentView; line: Display }
 export interface AgentRestored { agent: AgentView; routines: number; line: Display }
 
@@ -5424,12 +5497,15 @@ export type AnyVentureRecord =
   | PostingStepsRecord | BankMatchRecord | PostingLimitsRecord
   | JudgeSettingRecord
   | TranscriptionSetupRecord
+  | TalkSettingRecord
+  | TalkHeardRecord
   // Ink v2 wave 4 (section 9e)
   | KeeperRunRecord | HealthClearRecord
   | AgentMessageRecord | AgentProposalRecord | ChatConsentRecord
   | AgentNoteRecord | AgentNoteChangeRecord
   | ChiefThreadRecord | ChiefMessageRecord | ProposalRecord
   | ChatSettleRecord
+  | LayoutRecord | LayoutGoRecord
   | PersonRecord | NetworkImportRecord | ForgottenRecord
   | TieRecord | NetworkSearchRecord
   | OpportunityRecord | PipelineSettingsRecord
@@ -5472,7 +5548,9 @@ export type AnyVentureRecord =
   | DocumentRecord | SignoffRecord
   | LessonBatchRecord | BookingSlotRecord | BookingRecord
   | CrmChangeRecord | CompanyRecord | CrmLinkRecord | CrmEntryRecord | CrmListRecord | CrmListItemRecord | MemoryFactRecord
-  | AgentRetirementRecord;
+  | AgentRetirementRecord
+  | MiniAppRecord
+  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5681,6 +5759,15 @@ export const VENTURE_METHODS = [
   'venture.chief.thread.state', 'venture.chief.settle.set',
   // Wave 6 (6G2, D43): the check before retiring an agent, retiring it, and Bring back (agents)
   'venture.agents.retire.check', 'venture.agents.retire', 'venture.agents.restore',
+  // Wave 6 (6H1, D39): mini apps, their permission screen, versions, pin, export and the MCP Apps bridge (views)
+  'venture.apps.list', 'venture.apps.get', 'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore',
+  'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
+  // Wave 6 (6I1, D45): push-to-talk (agents)
+  'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  // Wave 6 (6H3, D40): a place's layout, read and changed by the owner; the AI's own changes come through the MCP tools (views)
+  'venture.layout.get', 'venture.layout.change',
+  // Wave 6 (6H2, D41): recorded flows, record once and run with no AI (build)
+  'venture.flows.list', 'venture.flows.act',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -5768,6 +5855,15 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.chief.thread.state': 'chief', 'venture.chief.settle.set': 'chief',
   // Wave 6 (6G2)
   'venture.agents.retire.check': 'agents', 'venture.agents.retire': 'agents', 'venture.agents.restore': 'agents',
+  // Wave 6 (6H1)
+  'venture.apps.list': 'views', 'venture.apps.get': 'views', 'venture.apps.make': 'views', 'venture.apps.grant': 'views', 'venture.apps.revoke': 'views',
+  'venture.apps.restore': 'views', 'venture.apps.pin': 'views', 'venture.apps.export': 'views', 'venture.apps.call': 'views', 'venture.apps.remove': 'views',
+  // Wave 6 (6I1)
+  'venture.talk.get': 'agents', 'venture.talk.consent': 'agents', 'venture.talk.setup': 'agents', 'venture.talk.start': 'agents', 'venture.talk.hear': 'agents', 'venture.talk.say': 'agents',
+  // Wave 6 (6H3)
+  'venture.layout.get': 'views', 'venture.layout.change': 'views',
+  // Wave 6 (6H2)
+  'venture.flows.list': 'build', 'venture.flows.act': 'build',
   // Ink v2 wave 4
   'venture.team.keeper': 'views', 'venture.team.clearQuarantine': 'views',
   'venture.agents.thread.list': 'agents', 'venture.agents.thread.send': 'agents', 'venture.agents.proposal.decide': 'agents', 'venture.agents.version.undo': 'agents',
@@ -5878,6 +5974,11 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.memory.visibility', 'venture.memory.forget',
   'venture.chief.thread.state', 'venture.chief.settle.set',
   'venture.agents.retire', 'venture.agents.restore',
+  // Wave 6 (6H1): making, allowing, changing, exporting and running a mini app happen in the app.
+  'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore', 'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
+  // Wave 6 (6H3): the owner's own layout change (the AI's go through its MCP tools, marked as the AI's).
+  'venture.layout.change',
+  'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
   'venture.goals.set',
   'venture.policy.allowSession',
   'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set',
@@ -6252,6 +6353,14 @@ export type VenturePayloads = {
   'venture.agents.retire.check': { agent: string };
   'venture.agents.retire': { agent: string; to: string; digest: string };
   'venture.agents.restore': { agent: string };
+  'venture.apps.list': Empty; 'venture.apps.get': { app: string }; 'venture.apps.make': { ask: string; app?: string };
+  'venture.apps.grant': { app: string; digest: string }; 'venture.apps.revoke': { app: string }; 'venture.apps.restore': { app: string; version: number };
+  'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
+  'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
+  'venture.layout.get': { place: LayoutPlace };
+  'venture.layout.change': LayoutRequest;
+  'venture.talk.get': Empty; 'venture.talk.consent': TalkConsentInput; 'venture.talk.setup': TalkSetupInput; 'venture.talk.start': Empty;
+  'venture.talk.hear': { sessionId: string; audioBase64: string }; 'venture.talk.say': { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string };
   /** W6 6F8: {} reads; { service, key } saves the owner's own key; key null removes it. */
   'venture.people.services': { service?: 'happenstance' | 'probe42'; key?: string | null };
   /** W6 6F8: without digest, the exact lookup to approve; with it, the lookup once; searchId reads a Happenstance search. */
@@ -6413,6 +6522,8 @@ export type VenturePayloads = {
   'venture.desk.list': DeskListPayload;
   'venture.desk.get': DeskGetPayload;
   'venture.desk.act': DeskActPayload;
+  'venture.flows.list': Empty;
+  'venture.flows.act': import('./flows/records.ts').FlowsActPayload;
   'venture.ai.options': OnboardingPayloads['venture.ai.options'];
   'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
@@ -6658,6 +6769,15 @@ export type VentureResults = {
   'venture.agents.retire.check': RetireCheckView;
   'venture.agents.retire': AgentRetired;
   'venture.agents.restore': AgentRestored;
+  'venture.apps.list': { apps: MiniAppCard[]; ideas: Display[]; never: Display }; 'venture.apps.get': { app: MiniAppView };
+  'venture.apps.make': { app: MiniAppView; line: Display }; 'venture.apps.grant': { app: MiniAppView; line: Display };
+  'venture.apps.revoke': { app: MiniAppView; line: Display }; 'venture.apps.restore': { app: MiniAppView; undo: { version: number }; line: Display };
+  'venture.apps.pin': { app: MiniAppView; undo: { pinned: boolean }; line: Display }; 'venture.apps.export': { fileName: string; document: string; mediaType: 'text/html' };
+  'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
+  'venture.layout.get': LayoutView;
+  'venture.layout.change': LayoutChangeResult;
+  'venture.talk.get': TalkView; 'venture.talk.consent': TalkView; 'venture.talk.setup': TalkView; 'venture.talk.start': TalkStarted;
+  'venture.talk.hear': TalkHeard; 'venture.talk.say': TalkSaid;
   'venture.people.services': import('./people/people-types.ts').PeopleSearchView;
   'venture.people.lookup': import('./people/people-types.ts').PeopleLookupView;
   'venture.crm.client': import('./crm/crm-data.ts').ClientCrmView;
@@ -6793,6 +6913,8 @@ export type VentureResults = {
   'venture.desk.list': DeskListView;
   'venture.desk.get': DeskItemView;
   'venture.desk.act': DeskActView;
+  'venture.flows.list': import('./flows/records.ts').FlowsListView;
+  'venture.flows.act': import('./flows/records.ts').FlowsActView;
   'venture.ai.options': OnboardingResults['venture.ai.options'];
   'venture.ai.connect': OnboardingResults['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
@@ -6823,6 +6945,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // Wave 6 (6H2): recorded flows.
+  'FLOW_INVALID', 'FLOW_NOT_FOUND', 'FLOW_NOT_TESTED', 'FLOW_HELD', 'FLOW_BUSY', 'FLOW_BROWSER_UNAVAILABLE', 'FLOW_BROWSER_CLOSED',
   // Wave 6 (6C5, 6C6): hard stops, owner attestation and regulator switches.
   'HARD_STOP', 'RULE_NOT_FOUND', 'RULE_NOT_ATTESTABLE', 'REGULATOR_FORBIDS',
   // Wave 6 (6G3, 6G4): a company that is not here; a fact kept already, replaced already, or not found.
@@ -6961,6 +7085,8 @@ export const VENTURE_ERRORS = [
   'DEPARTMENT_MISSING', 'AGENT_QUARANTINED', 'AGENT_IS_CODE',
   // Wave 6 (6G2): a retired agent's read-only shelf, and the last AI agent of a team, which cannot retire
   'AGENT_RETIRED', 'AGENT_LAST_ONE',
+  // Wave 6 (6H1): mini apps.
+  'APP_NOT_FOUND', 'APP_NEEDS_AI', 'APP_CODE_REFUSED', 'APP_NOT_PASSED', 'APP_NOT_ALLOWED', 'APP_TOOL_UNKNOWN', 'APP_NOTES_FULL', 'APP_PROPOSALS_FULL', 'APP_PROPOSAL_REFUSED',
   // Agent chat, "from now on" changes, versions and notes (4B1, 4B2)
   'CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE', 'CHAT_KEY_REFUSED', 'PATCH_OWNER_OP', 'PATCH_NOT_YOUR_STEP',
   'PROPOSAL_STALE', 'PROPOSAL_DECIDED', 'UNDO_NOTHING', 'UNDO_CONFLICT', 'NOTE_CHANGED', 'NOTES_FULL',
@@ -7190,6 +7316,8 @@ export type VentureDeps = {
   formsBrowser?: FormsBrowserPort;
   /** Wave 6 (6F3): the desktop's hidden window for reading a page that needs JavaScript (web/render-port.ts). Desktop only. */
   webRender?: import('./web/reader.ts').PageRenderPort;
+  /** Wave 6 (6H2, D41): the desktop's browser window for recorded flows (flows/port.ts). Desktop only. */
+  flowBrowser?: import('./flows/replay.ts').FlowBrowserPort;
   /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
   localApps?: LocalAppPort;
 };
@@ -7274,6 +7402,8 @@ export type VentureHostOptions = {
   formsBrowser?: FormsBrowserPort;
   /** Wave 6 (6F3): the desktop's hidden window for reading a page that needs JavaScript (web/render-port.ts). Desktop only. */
   webRender?: import('./web/reader.ts').PageRenderPort;
+  /** Wave 6 (6H2, D41): the desktop's browser window for recorded flows (flows/port.ts). Desktop only. */
+  flowBrowser?: import('./flows/replay.ts').FlowBrowserPort;
 };
 
 /**

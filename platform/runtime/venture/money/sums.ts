@@ -28,6 +28,7 @@ import { bandsCountPlan } from '../network/bands.ts';
 import { agentCostPlan } from '../agent-runtime/cost-proof.ts';
 import { nativeJobCostPlan } from '../agent-runtime/quality-cost.ts';
 import { spentByPlan } from './spend-meter.ts';
+import { appCalcPlan } from '../apps/calc.ts';
 
 /**
  * rupeeRate (4J4): for an amount converted from US dollars, the rupees per dollar it was worked at, in ten-thousandths
@@ -55,6 +56,7 @@ const LABELS: Readonly<Record<SumReceiptSubject['type'], string>> = Object.freez
   'spent-department': 'AI and tools by department', invoiced: 'Invoiced', goal: 'Toward the goal', aging: 'Owed by age',
   flow: 'In and out', cash: 'Cash ahead', margin: 'Margin', count: 'Counted', held: 'Held for running work',
   bills: 'Owed on bills', statement: 'Statement', across: 'Across your businesses', set: 'What this set can cost',
+  'app-calc': 'Worked out for an app',
 });
 /** What one addend and several are called, and the line when there are none. */
 const ADDEND_WORDS: Readonly<Partial<Record<SumReceiptSubject['type'], Required<Omit<SumWords, 'label'>>>>> = Object.freeze({
@@ -129,6 +131,7 @@ export function currentPlan(state: State, venture: VentureRecord, subject: SumRe
   if (subject.type === 'statement') return statementPlan(state, venture, subject);
   if (subject.type === 'across') return acrossPlan(state, venture, subject); // 4J6
   if (subject.type === 'set') return setPlan(subject); // 4J2
+  if (subject.type === 'app-calc') return appCalcPlan(subject); // W6 6H1
   if (subject.what === 'jobs') return jobsCountPlan(state, venture, subject);
   if (subject.what === 'funnel') return funnelCountPlan(state, venture, subject);
   return bandsCountPlan(state, venture, subject);

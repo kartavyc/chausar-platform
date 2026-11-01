@@ -1,0 +1,172 @@
+/* W6 6H3 (D40): a place's blocks, the AI's layout changes with Undo and Keep, the Arrange button and sheet. Quiet: no
+   new colours, the page's own type and spacing. */
+
+/* A block's wrapper adds no box, so the page's grids lay out the block itself, exactly as before. */
+.block {
+  display: contents;
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.lines {
+  display: inline;
+}
+
+/* The Arrange button in the page tools: the bell's look (D's `.ib`). */
+.tool {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease);
+}
+
+.tool:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.tool:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: var(--focus);
+}
+
+.list {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0 0 var(--sp-6);
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-bottom: var(--hair) solid var(--line-soft);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.why,
+.quiet {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.flip {
+  display: inline-grid;
+  transform: rotate(180deg);
+}
+
+.hiddenMark {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.rename > :first-child {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.selectLabel {
+  display: grid;
+  flex: 1 1 200px;
+  gap: var(--sp-1);
+  min-width: 0;
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.select {
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.section {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.views {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+  padding: 0;
+  list-style: none;
+}
+
+.view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.problem {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

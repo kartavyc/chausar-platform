@@ -17,6 +17,7 @@ import { voiceGetHandler, voiceLearnHandler, voiceSetHandler } from './voice.ts'
 import { personaGetHandler, personaSetHandler, personaTestHandler } from './persona.ts';
 import { agentsExportHandler, agentsImportHandler } from './export.ts';
 import { restoreHandler, retireCheckHandler, retireHandler } from './retire.ts';
+import { talkConsentHandler, talkGetHandler, talkHearHandler, talkSayHandler, talkSetupHandler, talkStartHandler } from './talk.ts';
 
 export const handlers: VentureHandlerTable = Object.freeze({
   // 4B1 agent threads, proposals, versions, standing orders and the chat consent
@@ -61,6 +62,9 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.agents.retire.check': retireCheckHandler,
   'venture.agents.retire': retireHandler,
   'venture.agents.restore': restoreHandler,
+  // W6 6I1 push-to-talk: the notice, the services, one recording per session, and reading an answer aloud
+  'venture.talk.get': talkGetHandler, 'venture.talk.consent': talkConsentHandler, 'venture.talk.setup': talkSetupHandler,
+  'venture.talk.start': talkStartHandler, 'venture.talk.hear': talkHearHandler, 'venture.talk.say': talkSayHandler,
 });
 
 // The record write agent threads share (package 4-0).

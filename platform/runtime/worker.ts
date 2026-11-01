@@ -9,6 +9,7 @@ import { processFormsPort } from './venture/build/form-fill-port.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 import { processCredentialPort } from './venture/models/credential-port.ts';
 import { processRenderPort } from './venture/web/render-port.ts';
+import { processFlowPort } from './venture/flows/port.ts';
 import { createPhoneAccess } from './phone-access.ts';
 import { INK_ROOT, listInkFiles } from './ui-ink.ts';
 
@@ -22,7 +23,9 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
     // Ink v2 wave 5 (5A5): a report's PDF is printed by the desktop main process, asked over this worker's own channel.
     ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process), credentials: processCredentialPort(process),
       // Wave 6 (6F3): pages that need JavaScript are read in the desktop's hidden window (web-render.cjs).
-      webRender: processRenderPort(process) } : {}),
+      webRender: processRenderPort(process),
+      // Wave 6 (6H2): recorded flows run in the desktop's flow window (flow-browser.cjs).
+      flowBrowser: processFlowPort(process) } : {}),
     phoneAccess } });
 }
 

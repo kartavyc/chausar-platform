@@ -40,6 +40,8 @@ const PLACES: { id: string; hash: string; receipted?: boolean }[] = [
   { id: 'clients/pipeline', hash: '#/clients/pipeline' },
   { id: 'clients/network', hash: '#/clients/network' },
   { id: 'money', hash: '#/money', receipted: true },
+  // W6 6H1: the Apps place (its budget is its first measure, 121 words rounded up).
+  { id: 'apps', hash: '#/apps' },
   { id: 'money/invoices', hash: '#/money/invoices' },
   { id: 'money/books', hash: '#/money/books' },
   { id: 'money/spend', hash: '#/money/spend' },
