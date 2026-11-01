@@ -16,7 +16,7 @@
 
 import {
   EngineError, type ChatConsentView, type ChatPart, type ChiefCounted, type ChiefFit, type ChiefLineAmount, type ChiefMessageView, type ChiefSendResult, type ChiefThreadSummary, type ChiefThreadView,
-  type ChiefThreadsView, type InvoiceLite, type OrderLite, type ProposalKind, type ProposalStatus, type ProposalView, type QueueAction, type QueueRow,
+  type ChiefThreadsView, type ChiefSettleResult, type ChiefSnoozeOption, type ChiefThreadState, type ChiefThreadStateInput, type ChiefThreadStateResult, type InvoiceLite, type OrderLite, type ProposalKind, type ProposalStatus, type ProposalView, type QueueAction, type QueueRow,
 } from './types';
 import { BOOKS } from './fixtures';
 import { fakeWays } from './fake-start';
@@ -25,6 +25,8 @@ import type { W4DeskHost } from './fake-w4';
 const CHIEF_METHODS = new Set<string>([
   'venture.chief.threads', 'venture.chief.thread.list', 'venture.chief.thread.send', 'venture.chief.thread.pin', 'venture.chief.fit',
   'venture.proposals.raise', 'venture.proposals.dismiss',
+  // W6 6G1 (D42): a chat's state and the quiet days before one settles (chief/states.ts).
+  'venture.chief.thread.state', 'venture.chief.settle.set',
 ]);
 
 /** The engine's words (chief/gate.ts, chief/proposals.ts, agents/threads.ts), word for word. */
@@ -37,8 +39,17 @@ const DECIDED = 'This proposal was decided already.';
 const PAGE = 50;
 const GROUPS = [
   { key: 'pinned', label: 'Pinned' }, { key: 'today', label: 'Today' }, { key: 'this-week', label: 'This week' },
-  { key: 'last-week', label: 'Last week' }, { key: 'earlier', label: 'Earlier' },
+  { key: 'last-week', label: 'Last week' }, { key: 'earlier', label: 'Earlier' }, { key: 'snoozed', label: 'Snoozed' },
 ] as const;
+/** W6 6G1: chief/states.ts, word for word: the quiet days by default, the most the owner may choose, and the refusal. */
+const SETTLE_DAYS = 7;
+const MAX_SETTLE_DAYS = 365;
+const WAITING_REFUSED = 'This chat is waiting for you. Answer it or decide its step first.';
+const STATES: readonly ChiefThreadState[] = ['pinned', 'active', 'snoozed', 'settled'];
+const PRESETS = ['later', 'tomorrow', 'next-week'] as const;
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const DAY_MS = 86_400_000;
+const KOLKATA_MS = 330 * 60_000;
 type GroupKey = (typeof GROUPS)[number]['key'];
 const LINES: Partial<Record<ProposalKind, string>> = {
   'start-run': 'This starts a run on your AI for this order. Each step that needs you still asks first.',
@@ -74,8 +85,11 @@ interface HeldMessage {
   id: string; at: string; from: 'owner' | 'chief'; text: string; parts: ChatPart[]; proposalIds: string[]; routedTo: string | null;
   recordReport?:true;
   worked: ChiefMessageView['worked']; dropped: string[]; read: boolean; counted?: ChiefCounted | null;
+  /** W6 6G1: the chief's question back, waiting for the owner until they write again. */
+  ask?: string;
 }
-interface HeldThread { id: string; title: string; pinned: boolean; lastAt: string; messages: HeldMessage[] }
+/** W6 6G1: snoozedUntil, settledAt and stateAt are the owner's snooze, Settle and last state change, as the engine keeps them. */
+interface HeldThread { id: string; title: string; pinned: boolean; lastAt: string; messages: HeldMessage[]; snoozedUntil?: string | null; settledAt?: string | null; stateAt?: string | null }
 interface Held { threads: HeldThread[]; proposals: HeldProposal[] }
 type Reply = { parts: ChatPart[]; ask?: string; routedTo?: string; worked?: ChiefMessageView['worked']; proposals?: (Drafted & { target?: HeldProposal['target'] })[] };
 
@@ -114,6 +128,43 @@ function asOfWords(iso: string): string {
   return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
 }
 
+/** W6 6G1: a wake time in Kolkata as chief/states.ts wakeWords says it: '22 Oct 2026, 09:00'. */
+function wakeWords(iso: string): string {
+  const local = new Date(Date.parse(iso) + KOLKATA_MS).toISOString();
+  return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
+}
+
+/** W6 6G1: the snooze choices now (chief/states.ts snoozeOptions): in three hours, tomorrow 09:00, next Monday 09:00, in Kolkata. */
+function snoozeOptions(now: string): ChiefSnoozeOption[] {
+  const nowMs = Date.parse(now);
+  const today = dayOf(now);
+  const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
+  const morning = (day: string) => new Date(Date.parse(`${day}T09:00:00.000Z`) - KOLKATA_MS).toISOString();
+  const all: ChiefSnoozeOption[] = [
+    { id: 'later', until: new Date(Math.floor((nowMs + 3 * 3_600_000) / 60_000) * 60_000).toISOString() },
+    { id: 'tomorrow', until: morning(addDays(today, 1)) },
+    { id: 'next-week', until: morning(addDays(today, ((8 - weekday) % 7) || 7)) },
+  ];
+  const seen = new Set<string>();
+  return all.filter((option) => option.until > now).sort((a, b) => a.until.localeCompare(b.until)).filter((option) => !seen.has(option.until) && Boolean(seen.add(option.until)));
+}
+
+/** W6 6G1: a chat's state now (chief/states.ts stateOf): pinned; waiting is active; the owner's Settle; a snooze ahead; the quiet days. */
+function stateOf(thread: HeldThread, waiting: boolean, now: string, days: number): Pick<ChiefThreadSummary, 'state' | 'snoozedUntil' | 'settled'> {
+  const active = { state: 'active' as const, snoozedUntil: null, settled: null };
+  if (thread.pinned) return { ...active, state: 'pinned' };
+  if (waiting) return active;
+  if (thread.settledAt) return { state: 'settled', snoozedUntil: null, settled: { at: thread.settledAt, by: 'owner' } };
+  const nowMs = Date.parse(now);
+  const until = thread.snoozedUntil ?? null;
+  if (until && Date.parse(until) > nowMs) return { state: 'snoozed', snoozedUntil: until, settled: null };
+  if (days > 0) {
+    const due = Math.max(Date.parse(thread.lastAt), thread.stateAt ? Date.parse(thread.stateAt) : 0, until ? Date.parse(until) : 0) + days * DAY_MS;
+    if (nowMs >= due) return { state: 'settled', snoozedUntil: null, settled: { at: new Date(due).toISOString(), by: 'auto' } };
+  }
+  return active;
+}
+
 export class FakeChiefDesk {
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
@@ -143,6 +194,8 @@ export class FakeChiefDesk {
       case 'venture.chief.thread.list': return this.list(p);
       case 'venture.chief.thread.send': return this.send(p);
       case 'venture.chief.thread.pin': return this.pin(p);
+      case 'venture.chief.thread.state': return this.setState(p);
+      case 'venture.chief.settle.set': return this.settleSet(p);
       case 'venture.chief.fit': return this.fit(p);
       case 'venture.proposals.raise': return this.raise(p);
       case 'venture.proposals.dismiss': return this.dismiss(p);
@@ -221,10 +274,26 @@ export class FakeChiefDesk {
 
   private summary(thread: HeldThread): ChiefThreadSummary {
     const last = thread.messages.filter((message) => message.from === 'chief').at(-1) ?? thread.messages.at(-1);
+    const waiting = this.waiting(thread);
     return {
       id: thread.id, title: thread.title, pinned: thread.pinned, lastAt: thread.lastAt, ...(last ? lastLineOf(last.parts) : { lastLine: '', amounts: [] }),
       unread: thread.messages.filter((message) => message.from === 'chief' && !message.read).length,
+      ...stateOf(thread, waiting, this.host.now(), this.settleDays()), waiting,
     };
+  }
+
+  /** W6 6G1: the owner's quiet days per business (chief/states.ts settleDaysOf), 7 until they choose. */
+  private readonly settleDaysOf = new Map<string, number>();
+  private settleDays(): number {
+    return this.settleDaysOf.get(this.host.current()) ?? SETTLE_DAYS;
+  }
+
+  /** W6 6G1: a step in the chat waits for Start or approval, or the chief's question is the last word (chief/states.ts waitingOf). */
+  private waiting(thread: HeldThread): boolean {
+    const last = thread.messages.at(-1);
+    if (last?.from === 'chief' && last.ask) return true;
+    const ids = new Set(thread.messages.flatMap((message) => message.proposalIds));
+    return this.mine().proposals.some((item) => ids.has(item.id) && (item.status === 'drafted' || item.status === 'raised'));
   }
 
   private proposalView(proposal: HeldProposal): ProposalView {
@@ -254,18 +323,23 @@ export class FakeChiefDesk {
     if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     const today = dayOf(this.host.now());
     const monday = mondayOf(today);
-    const groupOf = (thread: HeldThread): GroupKey => {
-      if (thread.pinned) return 'pinned';
+    // W6 6G1: snoozed chats come last; settled ones leave the groups for the archive.
+    const groupOf = (thread: ChiefThreadSummary): GroupKey | null => {
+      if (thread.state === 'settled') return null;
+      if (thread.state === 'pinned') return 'pinned';
+      if (thread.state === 'snoozed') return 'snoozed';
       const day = dayOf(thread.lastAt);
       if (day === today) return 'today';
       if (day >= monday) return 'this-week';
       return day >= addDays(monday, -7) ? 'last-week' : 'earlier';
     };
-    const threads = [...this.mine().threads].sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+    const threads = [...this.mine().threads].sort((a, b) => b.lastAt.localeCompare(a.lastAt)).map((thread) => this.summary(thread));
     return {
-      groups: GROUPS.map((group) => ({ key: group.key, label: group.label, threads: threads.filter((thread) => groupOf(thread) === group.key).map((thread) => this.summary(thread)) }))
+      groups: GROUPS.map((group) => ({ key: group.key, label: group.label, threads: threads.filter((thread) => groupOf(thread) === group.key) }))
         .filter((group) => group.threads.length > 0),
       consent: this.consent(),
+      settled: threads.filter((thread) => thread.settled).sort((a, b) => b.settled!.at.localeCompare(a.settled!.at)),
+      settleAfterDays: this.settleDays(),
     };
   }
 
@@ -282,14 +356,62 @@ export class FakeChiefDesk {
     const end = typeof p.before === 'string' ? thread.messages.findIndex((message) => message.id === p.before) : thread.messages.length;
     if (end < 0) throw new EngineError('INVALID_VENTURE_REQUEST', 'That message is not in this chat.');
     const start = Math.max(0, end - PAGE);
-    return { thread: this.summary(thread), messages: thread.messages.slice(start, end).map((message) => this.messageView(message)), more: start > 0 };
+    const summary = this.summary(thread);
+    return {
+      thread: summary, messages: thread.messages.slice(start, end).map((message) => this.messageView(message)), more: start > 0,
+      snooze: summary.waiting ? [] : snoozeOptions(this.host.now()),
+    };
   }
 
+  /** venture.chief.thread.pin: the same as venture.chief.thread.state pinned or active (6G1 clears a snooze or a Settle). */
   private pin(p: Record<string, unknown>): { thread: ChiefThreadSummary } {
     if (typeof p.pinned !== 'boolean') throw new EngineError('INVALID_VENTURE_REQUEST', 'pinned must be true or false.');
     const thread = this.threadOf(p.threadId);
-    thread.pinned = p.pinned;
+    Object.assign(thread, { pinned: p.pinned, snoozedUntil: null, settledAt: null, stateAt: this.host.now() });
     return { thread: this.summary(thread) };
+  }
+
+  /**
+   * W6 6G1 venture.chief.thread.state (chief/states.ts): pins, unpins, snoozes or settles a chat, with the request that
+   * undoes it exactly and the engine's words. A chat that waits for the owner cannot be snoozed or settled.
+   */
+  private setState(p: Record<string, unknown>): ChiefThreadStateResult {
+    const bad = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
+    if (Object.keys(p).some((key) => !['threadId', 'state', 'preset', 'until'].includes(key)) || p.threadId === undefined || p.state === undefined) throw bad('Send the required fields and nothing else.');
+    if (typeof p.threadId !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(p.threadId)) throw bad('Chat must be a known identifier.');
+    if (typeof p.state !== 'string' || !(STATES as readonly string[]).includes(p.state)) throw bad('state is pinned, active, snoozed or settled.');
+    const state = p.state as ChiefThreadState;
+    if (state === 'snoozed') {
+      if ((p.preset === undefined) === (p.until === undefined)) throw bad('A snooze takes a preset or a time.');
+      if (p.preset !== undefined && !(typeof p.preset === 'string' && (PRESETS as readonly string[]).includes(p.preset))) throw bad('preset is later, tomorrow or next-week.');
+      if (p.until !== undefined && !(typeof p.until === 'string' && INSTANT.test(p.until) && Number.isFinite(Date.parse(p.until)))) throw bad('Send the time like 2026-10-22T03:30:00.000Z.');
+    } else if (p.preset !== undefined || p.until !== undefined) throw bad('Only a snooze takes a preset or a time.');
+    const thread = this.threadOf(p.threadId);
+    const now = this.host.now();
+    const before = this.summary(thread);
+    if ((state === 'snoozed' || state === 'settled') && before.waiting) throw bad(WAITING_REFUSED);
+    let until: string | null = null;
+    if (state === 'snoozed') {
+      until = typeof p.until === 'string' ? p.until : snoozeOptions(now).find((option) => option.id === p.preset)?.until ?? null;
+      if (!until || until <= now) throw bad('Pick a time that is still ahead.');
+    }
+    Object.assign(thread, { pinned: state === 'pinned', snoozedUntil: until, settledAt: state === 'settled' ? now : null, stateAt: now });
+    const undo: ChiefThreadStateInput = before.state === 'snoozed' && before.snoozedUntil ? { threadId: thread.id, state: 'snoozed', until: before.snoozedUntil } : { threadId: thread.id, state: before.state };
+    const line = state === 'pinned' ? 'Pinned to the top of your chats.'
+      : state === 'snoozed' && until ? `Snoozed until ${wakeWords(until)}. It comes back early if it needs you.`
+        : state === 'settled' ? 'Settled. It is in Settled chats until you open it again.' : 'Back in your chats.';
+    return { thread: this.summary(thread), undo, line };
+  }
+
+  /** W6 6G1 venture.chief.settle.set (chief/states.ts): the quiet days, 0 (never) to 365, with the number before for Undo. */
+  private settleSet(p: Record<string, unknown>): ChiefSettleResult {
+    if (Object.keys(p).some((key) => key !== 'days') || p.days === undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const days = p.days;
+    if (typeof days !== 'number' || !Number.isInteger(days) || days < 0 || days > MAX_SETTLE_DAYS) throw new EngineError('INVALID_VENTURE_REQUEST', 'days is a whole number from 0 (never) to 365.');
+    this.mine();
+    const undo = this.settleDays();
+    this.settleDaysOf.set(this.host.current(), days);
+    return { days, undo, line: days === 0 ? 'Chats never settle on their own.' : `Chats settle after ${days} quiet ${days === 1 ? 'day' : 'days'}.` };
   }
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -323,6 +445,9 @@ export class FakeChiefDesk {
     const now = this.host.now();
     const thread: HeldThread = existing ?? { id: `chiefthread-${this.seq++}`, title: short(words, 80), pinned: false, lastAt: now, messages: [] };
     if (!existing) held.threads.push(thread);
+    // W6 6G1: the owner writing in a snoozed or settled chat brings it back.
+    thread.snoozedUntil = null;
+    thread.settledAt = null;
     const owner: HeldMessage = { id: `chiefmsg-${this.seq++}`, at: now, from: 'owner', text: words, parts: said(words), proposalIds: [], routedTo: reply.routedTo ?? null, worked: [], dropped: [], read: true };
     const proposalIds = (reply.proposals ?? []).map(({ target, ...drafted }) => {
       const kept: HeldProposal = { ...drafted, id: `proposal-${this.seq++}`, at: now, status: 'drafted', raisedAt: null, outcome: null, digest: this.host.digest(drafted), ...(target ? { target } : {}) };
@@ -331,7 +456,7 @@ export class FakeChiefDesk {
     });
     const chief: HeldMessage = {
       id: `chiefmsg-${this.seq++}`, at: now, from: 'chief', text: plainOf(reply.parts), parts: reply.parts, proposalIds,
-      routedTo: reply.routedTo ?? null, worked: reply.worked ?? [], dropped: [], read: false,
+      routedTo: reply.routedTo ?? null, worked: reply.worked ?? [], dropped: [], read: false, ...(reply.ask ? { ask: reply.ask } : {}),
     };
     thread.messages.push(owner, chief);
     thread.lastAt = now;
@@ -547,7 +672,9 @@ export class FakeChiefDesk {
     });
     const billedAt = ago(2);
     const titlesAt = ago(50);
-    const trailerAt = ago(9 * 24);
+    // W6 6G1: six quiet days, so it is still in the list; the offer chat has been quiet past seven, so it settled on its own.
+    const trailerAt = ago(6 * 24);
+    const offerAt = ago(12 * 24);
     const proposals = [
       draft('proposal-reminder-0039', 'draft-reminder', 'Draft a payment reminder for invoice INV-0039', false, billedAt, { invoice: 'INV-0039' }),
       draft('proposal-run-boat-14', 'start-run', "Start work on Boat Audio's order", true, billedAt, { order: 'o-boat-14' }),
@@ -585,6 +712,13 @@ export class FakeChiefDesk {
           messages: [
             message('chiefmsg-trailer-1', trailerAt, 'owner', said('@Editor cut a short trailer for episode 14'), { routedTo: 'editor' }),
             message('chiefmsg-trailer-2', trailerAt, 'chief', said("Sent to Editor. The reply is in Editor's chat."), { routedTo: 'editor' }),
+          ],
+        },
+        {
+          id: 'chiefthread-offer', title: 'Which offer should the channel page lead with?', pinned: false, lastAt: offerAt,
+          messages: [
+            message('chiefmsg-offer-1', offerAt, 'owner', said('Which offer should the channel page lead with?')),
+            message('chiefmsg-offer-2', offerAt, 'chief', said('Lead with long episode edits. Most of your orders are for those.')),
           ],
         },
       ],

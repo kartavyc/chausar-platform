@@ -48,6 +48,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-agent-message': 'agentmsg', 'venture-agent-proposal': 'agentprop', 'venture-chat-consent': 'chatconsent',
   'venture-agent-note': 'note', 'venture-agent-note-change': 'notechange',
   'venture-chief-thread': 'chiefthread', 'venture-chief-message': 'chiefmsg', 'venture-proposal': 'proposal',
+  'venture-chat-settle': 'chatsettle',
   'venture-person': 'person', 'venture-network-import': 'netimport', 'venture-forgotten': 'forgotten',
   'venture-tie': 'tie', 'venture-network-search': 'netsearch',
   'venture-opportunity': 'opp', 'venture-pipeline-settings': 'pipesettings',
@@ -95,6 +96,11 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-pack': 'pack', 'venture-media-generation': 'mediagen',
   // Wave 6 (6E2, 6E3)
   'venture-lesson-batch': 'lessonbatch', 'venture-booking-slot': 'bookslot', 'venture-booking': 'booking',
+  // Wave 6 (6G3, 6G4)
+  'venture-crm-change': 'crmchange', 'venture-company': 'company', 'venture-crm-link': 'crmlink', 'venture-crm-entry': 'crmentry',
+  'venture-crm-list': 'crmlist', 'venture-crm-list-item': 'crmitem', 'venture-memory-fact': 'fact',
+  // Wave 6 (6G2)
+  'venture-agent-retirement': 'retirement',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {

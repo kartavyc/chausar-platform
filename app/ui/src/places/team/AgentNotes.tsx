@@ -21,7 +21,7 @@ type Draft = { noteId: string | null; text: string; basedOn: string | null };
  * does (it erases the words, so it cannot be undone). Every change is a line with Undo while Undo can still apply; an
  * Undo the engine says erases the note (undoing its first change) asks first with the same words as Forget.
  */
-export function AgentNotes({ agent }: { agent: AgentView }) {
+export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** W6 6G2: a retired agent's shelf: no new notes or corrections; Forget and Undo still work. */ readOnly?: boolean }) {
   const t = useT();
   const language = useLanguage();
   const client = useEngine();
@@ -120,7 +120,7 @@ export function AgentNotes({ agent }: { agent: AgentView }) {
                   </div>
                 ) : (
                   <div className={c.noteActions}>
-                    <Button size="sm" onClick={() => { setProblem(null); setForgetting(null); setDraft({ noteId: note.id, text: note.text, basedOn: note.hash }); }}>{t('team.notes.edit')}</Button>
+                    {!readOnly && <Button size="sm" onClick={() => { setProblem(null); setForgetting(null); setDraft({ noteId: note.id, text: note.text, basedOn: note.hash }); }}>{t('team.notes.edit')}</Button>}
                     <Button size="sm" onClick={() => { setProblem(null); setDraft(null); setForgetting(note.id); }}>{t('team.notes.forget')}</Button>
                   </div>
                 )}
@@ -129,7 +129,7 @@ export function AgentNotes({ agent }: { agent: AgentView }) {
           </ul>
         )}
         {draft && draft.noteId === null ? form('team.notes.newLabel') : (
-          data && <Button size="sm" className={c.addNote} onClick={() => { setProblem(null); setForgetting(null); setDraft({ noteId: null, text: '', basedOn: null }); }}>{t('team.notes.add')}</Button>
+          data && !readOnly && <Button size="sm" className={c.addNote} onClick={() => { setProblem(null); setForgetting(null); setDraft({ noteId: null, text: '', basedOn: null }); }}>{t('team.notes.add')}</Button>
         )}
         {problem && <p className={c.problem} role="alert">{problem}</p>}
       </section>

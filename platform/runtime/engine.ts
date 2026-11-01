@@ -1817,6 +1817,8 @@ export class Engine {
       case 'venture.chief.thread.list':
       case 'venture.chief.thread.send':
       case 'venture.chief.thread.pin':
+      case 'venture.chief.thread.state':
+      case 'venture.chief.settle.set':
       case 'venture.chief.fit':
       case 'venture.proposals.raise':
       case 'venture.proposals.dismiss':
@@ -1874,6 +1876,25 @@ export class Engine {
       case 'venture.web.read':
       case 'venture.people.services':
       case 'venture.people.lookup':
+      case 'venture.crm.client':
+      case 'venture.crm.client.edit':
+      case 'venture.crm.companies':
+      case 'venture.crm.company':
+      case 'venture.crm.company.save':
+      case 'venture.crm.link':
+      case 'venture.crm.log':
+      case 'venture.crm.lists':
+      case 'venture.crm.list':
+      case 'venture.crm.list.save':
+      case 'venture.crm.list.place':
+      case 'venture.memory.list':
+      case 'venture.memory.add':
+      case 'venture.memory.replace':
+      case 'venture.memory.visibility':
+      case 'venture.memory.forget':
+      case 'venture.agents.retire.check':
+      case 'venture.agents.retire':
+      case 'venture.agents.restore':
       case 'venture.models.cli.status':
       case 'venture.models.roles':
       case 'venture.goals.get':

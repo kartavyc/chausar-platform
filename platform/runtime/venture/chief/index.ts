@@ -3,7 +3,8 @@
 // on first use of a method it owns. Threads and the answer: threads.ts, answer.ts, tools.ts, routing.ts; proposals and
 // their gate: proposals.ts, gate.ts; Today's cards: rows.ts (read by views/queue.ts); "Good fit for you": fit.ts.
 import type { VentureHandlerTable } from '../contracts.ts';
-import { threadListHandler, threadPinHandler, threadSendHandler, threadsHandler } from './threads.ts';
+import { threadListHandler, threadPinHandler, threadSendHandler, threadStateHandler, threadsHandler } from './threads.ts';
+import { settleSetHandler } from './states.ts';
 import { proposalsDismissHandler, proposalsRaiseHandler } from './proposals.ts';
 import { chiefFitHandler } from './fit.ts';
 
@@ -12,6 +13,9 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.chief.thread.list': threadListHandler,
   'venture.chief.thread.send': threadSendHandler,
   'venture.chief.thread.pin': threadPinHandler,
+  // W6 6G1 (D42): a chat's state (states.ts) and the quiet days before one settles on its own.
+  'venture.chief.thread.state': threadStateHandler,
+  'venture.chief.settle.set': settleSetHandler,
   'venture.chief.fit': chiefFitHandler,
   'venture.proposals.raise': proposalsRaiseHandler,
   'venture.proposals.dismiss': proposalsDismissHandler,

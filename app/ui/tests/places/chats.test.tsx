@@ -149,7 +149,8 @@ describe('#/chats: the list', () => {
     expect(within(list).getByRole('button', { name: 'New chat' })).toBeTruthy();
     expect(within(list).getByRole('searchbox', { name: 'Search chats' })).toBeTruthy();
     await waitFor(() => expect(within(list).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Today', 'This week', 'Last week']));
-    const links = within(list).getAllByRole('link');
+    // W6 6G1: the chats' own links (the head also links to Settled chats).
+    const links = within(list).getAllByRole('link').filter((link) => link.querySelector('[data-content]'));
     expect(links[0]!.getAttribute('href')).toBe('#/chats?thread=chiefthread-billed');
     expect(links[0]!.querySelector('[data-content]')!.textContent).toBe('How much have we billed this month?');
     // The last line's amounts are Figures with their receipts (ChiefThreadSummary.amounts), outside the link.
@@ -171,7 +172,8 @@ describe('#/chats: the list', () => {
     stubWidth(false);
     const { spy } = await start('#/chats');
     const list = await screen.findByRole('navigation', { name: 'Your chats' });
-    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(3));
+    // W6 6G1: three chats, and the link to the one settled chat, which a search hides.
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(4));
     const before = spy.mock.calls.length;
     fireEvent.change(within(list).getByRole('searchbox', { name: 'Search chats' }), { target: { value: 'titles' } });
     expect(within(list).getAllByRole('link').map((a) => a.querySelector('[data-content]')!.textContent)).toEqual(['How are the titles for episode 15 doing?']);

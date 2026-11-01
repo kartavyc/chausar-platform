@@ -336,6 +336,11 @@ export const RECEIPTS: ReceiptLite[] = [
   { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
   { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: 'USD 0.7198' }] },
   { id: 'R-0412', at: '2026-10-21T07:34:00.000Z', explanation: 'Bank lines matched to issued invoices by amount, date and reference.', stale: false, figures: [{ key: 'total', label: 'Lines matched', display: '212 of 214' }] },
+  // W6 6G5 (D44): the sums behind the spend meter rows and a run's model receipt, as money/spend-meter.ts spentByPlan words them.
+  { id: 'R-0451', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Model calls for episode 14 USD 0.5041. Added together: USD 0.5041.', stale: false, figures: [{ key: 'total', label: 'AI spend of Editor this month', display: 'USD 0.5041' }] },
+  { id: 'R-0452', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Title comparison, running USD 0.2156 (estimate). Added together: USD 0.2156. Calls not settled yet count at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI spend of Researcher this month', display: 'USD 0.2156' }] },
+  { id: 'R-0453', at: '2026-10-21T10:31:00.000Z', explanation: 'No paid calls.', stale: false, figures: [{ key: 'total', label: 'AI spend this month', display: 'USD 0.0000' }] },
+  { id: 'R-0454', at: '2026-10-21T07:12:00.000Z', explanation: '1 paid call: Claude Sonnet 5.5, delivery USD 0.0412. Added together: USD 0.0412.', stale: false, figures: [{ key: 'total', label: 'AI spend of this run', display: 'USD 0.0412' }] },
   {
     id: 'R-0415', at: '2026-10-21T10:04:00.000Z', explanation: 'Two mentions at ₹15,000 each, no discount, priced before tax.', stale: false,
     figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000.00' }, { key: 'subtotal', label: 'Two mentions', display: '₹30,000.00' }, { key: 'total', label: 'Total before tax', display: '₹30,000.00' }],

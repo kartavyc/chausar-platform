@@ -20,6 +20,7 @@ import { noteText } from './recall.ts';
 import { chatAgent,type ChatAgent } from './roles.ts';
 import { detectStanding } from './standing.ts';
 import { appendAgentMessage,type AgentMessageInput } from './store.ts';
+import { RETIRED_LINE,retirementOf,SHELF_THREAD_LINE } from './retired.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
@@ -97,9 +98,12 @@ export async function threadListHandler(deps: VentureDeps, ctx: Context, payload
   const end = before === null ? all.length : all.findIndex(entry => entry.id === before);
   check(end >= 0, 'INVALID_VENTURE_REQUEST', 'That item is not in this thread.');
   const start = Math.max(0, end - PAGE);
+  const retired = retirementOf(state, venture.id, agent.id);
   return {
     agent: { id: agent.id, name: agent.name, role: agent.job }, items: all.slice(start, end).map(entry => entry.item),
     waiting: waitingOn(deps, state, venture, agent), more: start > 0, consent: chatConsentState(deps, ctx, state, venture).view,
+    // W6 6G2: the Retired shelf's read-only thread.
+    ...(retired ? { retired: { at: retired.at, line: SHELF_THREAD_LINE } } : {}),
   };
 }
 
@@ -138,6 +142,8 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   check(!holdsIdNumber(words), 'CHAT_KEY_REFUSED', ID_REFUSED);
   let { state, venture } = readAs(deps, ctx, 'prepare');
   chatAgent(state, venture, agentId);
+  // W6 6G2: a retired agent's thread is read only on the Retired shelf.
+  check(!retirementOf(state, venture.id, agentId), 'AGENT_RETIRED', RETIRED_LINE);
   const route = requireChatConsent(deps, ctx, state, venture);
   const kind = options.routine ? null : detectStanding(words);
 

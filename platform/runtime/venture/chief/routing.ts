@@ -10,6 +10,7 @@ import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { currentPlaybook, deliveryFlagship } from '../delivery/playbook.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { chatAgent, type ChatAgent } from '../agents/roles.ts';
+import { isRetired } from '../agents/retired.ts';
 import { AGENT_ID } from '../views/shared.ts';
 
 export type TeamAgent = { id: string; name: string; job: string };
@@ -36,7 +37,8 @@ const brief = (agent: ChatAgent): TeamAgent => ({ id: agent.id, name: agent.name
 export function teamAgents(state: State, venture: VentureRecord): TeamAgent[] {
   const plan = acceptedBlueprintOrNull(state, venture);
   const flagship = flagshipDelivery(currentPlaybook(state, venture)?.flagship ?? (plan ? deliveryFlagship(venture, plan) : null));
-  const ids = flagship ? flagship.roles.filter(role => role.kind === 'agent').map(role => role.id) : [AGENT_ID];
+  // W6 6G2: a retired agent is on the Retired shelf, not the team: nothing routes to it and no routine asks it.
+  const ids = (flagship ? flagship.roles.filter(role => role.kind === 'agent').map(role => role.id) : [AGENT_ID]).filter(id => !isRetired(state, venture.id, id));
   const agents: TeamAgent[] = [];
   for (const id of ids) {
     try { agents.push(brief(chatAgent(state, venture, id))); } catch { /* not on this team now */ }

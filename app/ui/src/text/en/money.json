@@ -453,5 +453,15 @@
   "money.writeLimits.messages": "Messages a day",
   "money.writeLimits.save": "Save limits",
   "money.writeLimits.saving": "Saving",
-  "money.writeLimits.saved": "Saved. New work uses these limits."
+  "money.writeLimits.saved": "Saved. New work uses these limits.",
+  "money.meters.fold": "Spend by agent and routine",
+  "money.meters.agent": "Agent",
+  "money.meters.routine": "Routine",
+  "money.meters.setLimit": "Set a limit",
+  "money.meters.changeLimit": "Change limit",
+  "money.meters.limitField": "Monthly limit in US dollars",
+  "money.meters.limitHint": "Leave it empty for no limit of its own.",
+  "money.meters.save": "Save limit",
+  "money.meters.saving": "Saving",
+  "money.meters.cancel": "Cancel"
 }

@@ -55,6 +55,8 @@ import { eraseRoutinesNaming } from '../agents/routines.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
 import { eraseAgentJobs, eraseAgentJobRecords } from '../agent-runtime/privacy.ts';
 import { stopClientAgentJobs, stopAgentJob } from '../agent-runtime/lifecycle.ts';
+import { eraseCrmNaming } from '../crm/crm.ts';
+import { eraseFactsNaming } from '../memory/facts.ts';
 
 /** Said with every Forget: a backup the owner made earlier is a copy Chausar cannot reach into. */
 /** What a model call's stored text reads as once it named someone the owner asked Chausar to forget (4E3). */
@@ -276,6 +278,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     if (!scrubbed && absorbed?.length === record.absorbed?.length && before?.length === record.before?.length) continue;
     tx.replace<NetworkImportRecord>({ ...record, ...(absorbed ? { absorbed } : {}), ...(before ? { before } : {}) });
   }
+  // W6 6G3: the field history, company links, list places and logged timeline entries kept about them and their client.
+  eraseCrmNaming(tx, { personIds: gone, clientIds: new Set(options.erase ? people.flatMap(person => (person.clientId ? [person.clientId] : [])) : []), erase: options.erase, handles: [...emails, ...phones, ...urls], mentionsName });
   if (options.erase) {
     const agentRuns = tx.list('venture-delivery-run').filter(run => run.agentJob);
     eraseAgentJobs(tx, new Set(people.flatMap(person => person.clientId ? [person.clientId] : [])));
@@ -310,6 +314,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 4J18: their name in what the AI knows (the sources' titles, words and page addresses) and in kept ideas.
     // 5A3 review: an idea's words lose their email and phone too.
     eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
+    // W6 6G4: the dated facts about their clients, and any fact whose words name them, with every version.
+    eraseFactsNaming(tx, { clientIds: new Set(people.flatMap(person => (person.clientId ? [person.clientId] : []))), handles: [...emails, ...phones, ...urls], mentionsName });
     eraseSupportNaming(tx, emails, mentionsName, phones);
     eraseTriageNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     eraseWatchNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);

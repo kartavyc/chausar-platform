@@ -8,6 +8,7 @@ import { Field } from './Field';
 import { Icon } from './Icon';
 import { ModelEstimate } from './ModelEstimate';
 import { AgentProgress } from './AgentProgress';
+import { ModelReceipt } from './ModelReceipt';
 import { Receipt } from './Receipt';
 import { Sheet } from './Sheet';
 import { Steps } from './Steps';
@@ -118,6 +119,8 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       )}
       {!finished && <LiveCalls run={run} />}
       <AgentProgress progress={run.agentProgress} onDecide={onAgentApproval} />
+      {/* W6 6G5 (D44): which tool or model ran it, the tier, the tokens and the cost, from the engine. */}
+      <ModelReceipt receipt={run.modelReceipt} />
       <RunStopNote run={run} onResume={onResume} onRunAgain={onRunAgain} />
       {run.delivered && <DeliveredCard delivered={run.delivered} onCopy={onCopy} />}
       {/* W4 4J22a: coverage, the checks not run, the outcome and the report, from the engine's codes. */}

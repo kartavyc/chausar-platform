@@ -33,7 +33,8 @@ export function Rail({ route }: { route: Route }) {
   const needsYou = queue.data?.needsYou ?? 0;
   // W4 4C2: Chats says "New" until the open business has its first chat; where the engine cannot list chats, nothing.
   const chats = useResource('venture.chief.threads', {}, { refreshOn: (event) => event.type === 'chief.message' });
-  const firstChat = chats.data?.groups.length === 0;
+  // W6 6G1: a business whose chats are all settled has had chats, so no "New".
+  const firstChat = chats.data?.groups.length === 0 && chats.data.settled.length === 0;
 
   return (
     <nav className={s.rail} aria-label={t('shell.places')}>

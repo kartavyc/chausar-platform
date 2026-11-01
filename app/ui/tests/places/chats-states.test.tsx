@@ -1,0 +1,128 @@
+import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { App } from '../../src/shell/App';
+import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { NARROW } from '../../src/shell/useNarrow';
+import { assertInkRules } from '../helpers/ink-rules';
+
+// Chat states (wave 6, package 6G1, D42): a chat's head offers Pin, Snooze (presets the engine works out) and Settle,
+// each with Undo; a chat that waits for the owner cannot be snoozed or settled; snoozed chats sit at the end of the list;
+// settled chats leave it for Settled chats in the business menu, where the owner reopens them and picks the quiet days.
+
+const NOW = '2026-10-23T10:00:00.000Z';
+
+async function start(hash: string) {
+  window.location.hash = hash;
+  vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+    matches: query === NARROW ? false : false, media: query, onchange: null,
+    addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+  }) as unknown as MediaQueryList);
+  const fake = createFakeClient(new FakeEngine({ now: () => NOW }));
+  const spy = vi.spyOn(fake, 'request');
+  render(<App client={fake} language="en" />);
+  return { spy };
+}
+
+const settle = () => act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+const calls = (spy: { mock: { calls: unknown[][] } }, method: string) => spy.mock.calls.filter(([m]) => m === method).map(([, p]) => p);
+const chatList = () => screen.getByRole('navigation', { name: 'Your chats' });
+
+describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
+  it('Snooze offers the engine\'s presets; picking one moves the chat to Snoozed, and Undo puts it back', async () => {
+    const { spy } = await start('#/chats?thread=chiefthread-titles');
+    const snooze = await within(await screen.findByRole('group', { name: 'Chat actions' })).findByRole('button', { name: 'Snooze' });
+    await act(async () => { fireEvent.click(snooze); });
+    const menu = await screen.findByRole('group', { name: 'Snooze until' });
+    const presets = within(menu).getAllByRole('button');
+    expect(presets.map((button) => button.querySelector('[data-preset]')!.textContent)).toEqual(['In 3 hours', 'Tomorrow', 'Next Monday']);
+    expect(presets.every((button) => button.querySelector('time')?.getAttribute('dateTime'))).toBe(true);
+    await act(async () => { fireEvent.click(presets[1]!); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-titles', state: 'snoozed', preset: 'tomorrow' }]);
+    const status = await screen.findByRole('status', { name: 'Chat change' });
+    expect(status.textContent).toContain('Snoozed until 24 Oct 2026, 09:00. It comes back early if it needs you.');
+    await waitFor(() => expect(within(chatList()).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Today', 'Last week', 'Snoozed']));
+    await act(async () => { fireEvent.click(within(status).getByRole('button', { name: 'Undo' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state').at(-1)).toEqual({ threadId: 'chiefthread-titles', state: 'active' });
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Chat change' }).textContent).toContain('Back in your chats.'));
+    await waitFor(() => expect(within(chatList()).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Today', 'This week', 'Last week']));
+    assertInkRules(document.body);
+  });
+
+  it('Settle takes the chat out of the list into Settled chats; Reopen shows on its head; Undo brings it back', async () => {
+    const { spy } = await start('#/chats?thread=chiefthread-trailer');
+    const actions = await screen.findByRole('group', { name: 'Chat actions' });
+    await waitFor(() => expect(within(chatList()).getByRole('link', { name: '1 settled chat' })).toBeTruthy());
+    await act(async () => { fireEvent.click(within(actions).getByRole('button', { name: 'Settle' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-trailer', state: 'settled' }]);
+    expect((await screen.findByRole('status', { name: 'Chat change' })).textContent).toContain('Settled. It is in Settled chats until you open it again.');
+    await waitFor(() => expect(within(chatList()).queryByText('@Editor cut a short trailer for episode 14')).toBeNull());
+    const link = within(chatList()).getByRole('link', { name: '2 settled chats' });
+    expect(link.getAttribute('href')).toBe('#/business/chats');
+    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Chat actions' })).getByRole('button', { name: 'Reopen' })).toBeTruthy());
+    await act(async () => { fireEvent.click(within(screen.getByRole('status', { name: 'Chat change' })).getByRole('button', { name: 'Undo' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state').at(-1)).toEqual({ threadId: 'chiefthread-trailer', state: 'active' });
+    await waitFor(() => expect(within(chatList()).getByText('@Editor cut a short trailer for episode 14')).toBeTruthy());
+  });
+
+  it('a chat that waits for the owner: Snooze and Settle are locked, say why, and ask the engine nothing', async () => {
+    const { spy } = await start('#/chats?thread=chiefthread-billed');
+    const actions = await screen.findByRole('group', { name: 'Chat actions' });
+    await settle();
+    const snooze = within(actions).getByRole('button', { name: 'Snooze' });
+    const settleButton = within(actions).getByRole('button', { name: 'Settle' });
+    expect(snooze.getAttribute('aria-disabled')).toBe('true');
+    expect(settleButton.getAttribute('aria-disabled')).toBe('true');
+    await act(async () => { fireEvent.click(settleButton); });
+    expect(screen.getByText('This chat is waiting for you. Answer it or decide its step first.')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Snooze until' })).toBeNull();
+    expect(calls(spy, 'venture.chief.thread.state')).toEqual([]);
+  });
+});
+
+describe('Settled chats (Business, from the business menu)', () => {
+  it('lists the settled chats with why; Reopen with Undo; the quiet days with Undo', async () => {
+    const { spy } = await start('#/business/chats');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settled chats' })).toBeTruthy();
+    const list = await screen.findByRole('list', { name: 'Settled chats' });
+    const row = within(list).getByRole('listitem');
+    const open = within(row).getByRole('link', { name: 'Which offer should the channel page lead with?' });
+    expect(open.getAttribute('href')).toBe('#/chats?thread=chiefthread-offer');
+    expect(within(row).getByText('Settled on 18 Oct after 7 quiet days')).toBeTruthy();
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Reopen' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-offer', state: 'active' }]);
+    const status = await screen.findByRole('status', { name: 'Chat change' });
+    expect(status.textContent).toContain('Back in your chats.');
+    await waitFor(() => expect(screen.getByText('No settled chats. A chat settles after its quiet days, or when you settle it.')).toBeTruthy());
+    await act(async () => { fireEvent.click(within(status).getByRole('button', { name: 'Undo' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state').at(-1)).toEqual({ threadId: 'chiefthread-offer', state: 'settled' });
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Settled chats' })).getByText('You settled it on 23 Oct')).toBeTruthy());
+
+    const days = screen.getByRole('combobox', { name: 'Settle quiet chats' }) as HTMLSelectElement;
+    expect(days.value).toBe('7');
+    expect([...days.options].map((option) => option.textContent)).toEqual(['After 3 quiet days', 'After 7 quiet days', 'After 14 quiet days', 'After 30 quiet days', 'Never']);
+    await act(async () => { fireEvent.change(days, { target: { value: '0' } }); });
+    await settle();
+    expect(calls(spy, 'venture.chief.settle.set')).toEqual([{ days: 0 }]);
+    const said = screen.getByRole('status', { name: 'Chat change' });
+    expect(said.textContent).toContain('Chats never settle on their own.');
+    await act(async () => { fireEvent.click(within(said).getByRole('button', { name: 'Undo' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.settle.set').at(-1)).toEqual({ days: 7 });
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Settle quiet chats' }) as HTMLSelectElement).value).toBe('7'));
+    assertInkRules(document.body);
+  });
+
+  it('the business menu links to Settled chats', async () => {
+    await start('#/today');
+    const button = await within(screen.getByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ });
+    await act(async () => { fireEvent.click(button); });
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
+    expect(within(menu).getByRole('link', { name: 'Settled chats' }).getAttribute('href')).toBe('#/business/chats');
+  });
+});

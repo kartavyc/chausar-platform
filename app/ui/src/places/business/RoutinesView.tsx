@@ -7,6 +7,7 @@ import { stateText } from '../../parts/states';
 import type { AgentView, RoutineSchedule, RoutineView } from '../../engine/types';
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
+import { ModelReceipt } from '../../parts/ModelReceipt';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 
@@ -170,7 +171,9 @@ function History({ id }: { id: string }) {
             // A finished run says Delivered once, with its day; any other says its word and the engine's reason.
             <li key={run.id}>{run.state === 'completed'
               ? t('business.routines.delivered', { word: stateText(t, 'routine', run.state), day: dayOf(run.dueAt, language) })
-              : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, language) })}</li>
+              : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, language) })}
+              {/* W6 6G5 (D44): the model receipt of a run that asked an AI. */}
+              <ModelReceipt receipt={run.receipt} /></li>
           ))}
         </ul>
       )}

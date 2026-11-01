@@ -13,13 +13,18 @@
  * meanwhile (APPROVAL_STALE), it says so and shows the consent as it stands now, to agree again. A key or an id
  * number is refused in the engine's words and the box is emptied, so it is never sent again by accident; any other
  * refusal leaves the words in the box with the engine's reason.
+ *
+ * W6 6G1 (D42): the head's Chat actions are Pin, Snooze (the engine's presets, each with its wake time) or Wake now, and
+ * Settle or Reopen. Each change shows the engine's words with Undo, which sends the request the engine returned. A chat
+ * that waits for the owner (a step to decide, or the chief's question) keeps Snooze and Settle locked and says why.
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useLanguage, useT, type Language } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
 import { navigate } from '../../shell/navigation';
+import { useClock } from '../../shell/clock';
 import { ChausarAvatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
@@ -29,12 +34,22 @@ import { Figure } from '../../parts/Figure';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { DEPT_OF } from '../team/departments';
 import { PlanCard, type AgentLookup } from './PlanCard';
+import { ChangeNotice } from './ChangeNotice';
 import s from './Chats.module.css';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
 const SUGGESTIONS = ['chats.suggest.invoiced', 'chats.suggest.waiting', 'chats.suggest.spend'] as const;
 const LOCALE: Record<Language, string> = { en: 'en-IN' };
+
+/** 6G1: a snooze choice's wake time on this computer's clock: 18:42 today, else the weekday and the time ("Mon 09:00"). */
+function wakeOf(at: string, now: Date, language: Language): string {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = new Intl.DateTimeFormat(LOCALE[language], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  if (date.toDateString() === now.toDateString()) return time;
+  return `${new Intl.DateTimeFormat(LOCALE[language], { weekday: 'short' }).format(date)} ${time}`;
+}
 
 const codeOf = (error: unknown) => (error instanceof EngineError ? error.code : null);
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -52,6 +67,8 @@ export interface ChiefThreadProps {
 
 export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThreadProps) {
   const t = useT();
+  const language = useLanguage();
+  const clock = useClock();
   const engine = useEngine();
   const titleId = useId();
   const area = useRef<HTMLDivElement>(null);
@@ -64,6 +81,10 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
   const [consent, setConsent] = useState<{ stale: boolean; text: string; digest: string | null; words: string; problem: string | null; busy: boolean } | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pinning, setPinning] = useState(false);
+  /** 6G1: the last change, in the engine's words, with the request that undoes it; whether the snooze choices show. */
+  const [change, setChange] = useState<{ threadId: string; line: string; undo: ChiefThreadStateInput } | null>(null);
+  const [snoozing, setSnoozing] = useState(false);
+  const [lockedNote, setLockedNote] = useState(false);
 
   // Words handed over arrive in the box, unsent, with the cursor in it.
   useEffect(() => {
@@ -163,19 +184,26 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     setConsent(null);
   }
 
-  async function pin() {
-    if (!thread) return;
+  /** 6G1: pins, snoozes, settles or brings the chat back; the engine's words and its Undo request show under the head. */
+  async function setState(input: ChiefThreadStateInput) {
     setPinning(true);
+    setSnoozing(false);
+    setLockedNote(false);
     try {
-      await engine.request('venture.chief.thread.pin', { threadId: thread.id, pinned: !thread.pinned });
+      const result = await engine.request('venture.chief.thread.state', input);
+      setChange({ threadId: input.threadId, line: result.line, undo: result.undo });
       view.reload();
       onListChanged();
     } catch (error) {
-      setRefusal(messageOf(error));
+      setRefusal(t('chats.change.failed', { message: messageOf(error) }));
     } finally {
       setPinning(false);
     }
   }
+
+  const snoozeOptions: readonly ChiefSnoozeOption[] = shown?.snooze ?? [];
+  const waiting = thread?.waiting ?? false;
+  const shownChange = change && change.threadId === threadId ? change : null;
 
   const entries: ThreadEntry[] = messages.map((message): ThreadEntry => (message.from === 'owner'
     ? { kind: 'owner', id: message.id, at: message.at, text: plainOf(message.parts) }
@@ -191,11 +219,42 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           <p className={s.paneRole}>{t('chats.thread.role')}</p>
         </div>
         {thread && (
-          <Button variant="quiet" size="sm" aria-pressed={thread.pinned} disabled={pinning} onClick={() => void pin()}>
-            {t('chats.thread.pin')}
-          </Button>
+          <div className={s.paneActions} role="group" aria-label={t('chats.thread.actions')}>
+            <Button variant="quiet" size="sm" aria-pressed={thread.pinned} disabled={pinning}
+              onClick={() => void setState({ threadId: thread.id, state: thread.pinned ? 'active' : 'pinned' })}>
+              {t('chats.thread.pin')}
+            </Button>
+            {thread.state === 'snoozed' ? (
+              <Button variant="quiet" size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'active' })}>{t('chats.thread.wake')}</Button>
+            ) : (
+              <Button variant="quiet" size="sm" disabled={pinning} aria-disabled={waiting || undefined} aria-expanded={waiting ? undefined : snoozing}
+                onClick={() => { if (waiting) setLockedNote(true); else setSnoozing((was) => !was); }}>
+                {t('chats.thread.snooze')}
+              </Button>
+            )}
+            {thread.state === 'settled' ? (
+              <Button variant="quiet" size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'active' })}>{t('chats.thread.reopen')}</Button>
+            ) : (
+              <Button variant="quiet" size="sm" disabled={pinning} aria-disabled={waiting || undefined}
+                onClick={() => { if (waiting) setLockedNote(true); else void setState({ threadId: thread.id, state: 'settled' }); }}>
+                {t('chats.thread.settle')}
+              </Button>
+            )}
+          </div>
         )}
       </header>
+      {thread && snoozing && !waiting && snoozeOptions.length > 0 && (
+        <div className={cx(s.snooze, s.paneNote)} role="group" aria-label={t('chats.snooze.title')}>
+          {snoozeOptions.map((option) => (
+            <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
+              <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
+              <time className="mono" dateTime={option.until}>{wakeOf(option.until, clock(), language)}</time>
+            </Button>
+          ))}
+        </div>
+      )}
+      {thread && waiting && lockedNote && <p className={cx(s.quiet, s.paneNote)}>{t('chats.thread.waiting')}</p>}
+      {shownChange && <ChangeNotice className={s.paneNote} line={shownChange.line} busy={pinning} onUndo={() => void setState(shownChange.undo)} />}
       {threadId && view.error && !shown && !fallback ? (
         <p className={cx(s.problem, s.paneNote)} role="alert">{t('chats.thread.failed', { message: view.error.message })}</p>
       ) : entries.length > 0 ? (

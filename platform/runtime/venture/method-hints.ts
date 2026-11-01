@@ -35,6 +35,16 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.client.aiConsent.get': ['read', 'rui'], 'venture.client.aiConsent.agree': ['approve', 'u'], 'venture.client.aiConsent.withdraw': ['approve', 'i'],
   'venture.notify.telegram': ['approve', 'uo'], 'venture.phone.access': ['approve', 'uo'],
   'venture.web.search': ['approve', 'u'], 'venture.web.read': ['prepare', 'uio'], 'venture.people.services': ['approve', 'u'], 'venture.people.lookup': ['approve', 'o'],
+  // W6 6G1: a chat's state and the quiet days before one settles; each answer carries its exact Undo.
+  'venture.chief.thread.state': ['prepare', 'ui'], 'venture.chief.settle.set': ['prepare', 'ui'],
+  // W6 6G3: CRM reads, and owner edits whose every change is kept in the field history; 6G4: dated memory facts.
+  'venture.crm.client': ['read', 'rui'], 'venture.crm.client.edit': ['prepare', 'u'], 'venture.crm.companies': ['read', 'rui'], 'venture.crm.company': ['read', 'rui'],
+  'venture.crm.company.save': ['prepare', 'u'], 'venture.crm.link': ['prepare', 'ui'], 'venture.crm.log': ['prepare', ''], 'venture.crm.lists': ['read', 'rui'],
+  'venture.crm.list': ['read', 'rui'], 'venture.crm.list.save': ['prepare', 'u'], 'venture.crm.list.place': ['prepare', 'ui'],
+  'venture.memory.list': ['read', 'rui'], 'venture.memory.add': ['prepare', 'u'], 'venture.memory.replace': ['prepare', 'u'],
+  'venture.memory.visibility': ['approve', 'ui'], 'venture.memory.forget': ['approve', ''],
+  // W6 6G2: retiring is undone by Bring back, and Bring back by retiring again.
+  'venture.agents.retire.check': ['read', 'rui'], 'venture.agents.retire': ['approve', 'u'], 'venture.agents.restore': ['approve', 'u'],
   'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],

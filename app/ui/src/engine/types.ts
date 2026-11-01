@@ -162,6 +162,8 @@ export interface RunDetail extends RunSummary {
   scope?: RunScopeView; steer?: { text: Display; at: string; line: Display }[];
   gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: 'finished' | 'limit' | 'needs-answer' | 'blocked' | 'failures'; line: Display } | null };
   live?: { callId: string; state: 'start' | 'done' | 'error' }[];
+  /** W6 6G5 (D44): the run's model receipt (venture.runs.get on a delivery run). */
+  modelReceipt?: ModelReceiptView;
   /** 4F2 (O14): "How to fix it", only when the owner must act on a failed or breaker-stopped run. */
   fix?: Display;
   /** 4F2 (O14): the failure in the table's plain words, and codes for the screen's own words (English and Hindi). */
@@ -265,6 +267,8 @@ export interface SpendPolicyView {
   alertPermille?: number; alert?: Display;
   meter?: SpendMeterView | null; limitReached?: LimitReachedView; keyLimits?: LimitReachedView[];
   agentCaps?: AgentCapView[]; writeCaps?: WriteCapView[]; card?: RateCardLine[];
+  /** W6 6G5 (D44): this month's spend of each agent and each routine, with the owner's cap on each. */
+  meters?: SpendMetersView;
   /** 4Z3: the owner's choice of which currency leads spend, and the currency that leads now. */
   currencyLead?: CurrencyLead; leads?: 'INR' | 'USD';
   /** 4Z3: the monthly limit and the ask-first figure as the owner's currency leads them; absent with no limit. */
@@ -278,6 +282,24 @@ export interface SpendMeterView {
 /** 4F2 (M3): what the owner can do once the monthly limit is reached. Never credits. */
 export interface LimitReachedView { scope: 'business' | 'key'; presetId?: string; line: Display; options: { id: 'raise' | 'connect' | 'wait'; label: Display }[] }
 /** 4F2 (M5): one agent's own monthly limit; past it only that agent is paused. */
+/**
+ * W6 6G5 (D44), as platform/runtime/venture/contracts.ts: one agent's or routine's spend this month with its sum
+ * receipt; plan, runs on the owner's plan (never priced, never rupees); media, Sunra quotes beside it, not capped; the
+ * owner's cap, usedPermille and paused; line, where it stands in the engine's words.
+ */
+export interface SpendMeterRowView {
+  scope: 'agent' | 'routine'; id: string; name: Display;
+  used: Display; usedLead: SpendLead; receiptId: string;
+  plan: Display | null; media?: Display;
+  cap: Display | null; capUsd: string | null; capRupees?: Display; usedPermille: number | null; paused: boolean; line: Display;
+}
+export interface SpendMetersView { month: string; agents: SpendMeterRowView[]; routines: SpendMeterRowView[] }
+/** W6 6G5 (D44): what one run used: tool, model, tier, tokens, cost ('On your plan' with no figure on a plan). */
+export interface ModelReceiptView {
+  tool: Display; model: Display; tier: Display; usage: Display; cost: Display;
+  state: 'plan' | 'priced' | 'estimate' | 'unknown' | 'none';
+  receiptId?: string; costLead?: SpendLead; agent?: Display; line: Display;
+}
 export interface AgentCapView { agent: string; name: Display; capMicros: string; capUsd: string; cap: Display; used: Display; paused: boolean; capRupees?: Display; usedRupees?: Display }
 /** 4F2 (H32): one daily write cap: today's cap, what agents made today, in words. */
 export interface WriteCapView { kind: WriteCapKind; configuredCap: number; cap: number; used: number; raised: boolean; line: Display }
@@ -654,6 +676,10 @@ export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
 export type { SearchProviderId, WebSearchView, WebReadView, PeopleLookupView, PeopleSearchView };
+// W6 6G3 (D44) the CRM, and 6G4 dated memory: the engine's own view types (crm/crm-data.ts, memory/facts-data.ts).
+import type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView } from '../../../../platform/runtime/venture/crm/crm-data';
+import type { FactView, FactVisibility, MemoryChange, MemoryView } from '../../../../platform/runtime/venture/memory/facts-data';
+export type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView, FactView, FactVisibility, MemoryChange, MemoryView };
 import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
 import type { AgentApprovalRequest } from '../../../../platform/runtime/venture/agent-runtime/driver-types';
@@ -1103,6 +1129,20 @@ export interface TeamListView {
   totals?: { doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; held: MoneyFigure | null };
   /** A quarantine no single agent can claim; cleared with agentId 'team'. */
   teamHealth?: AgentHealth;
+  /** W6 6G2: the Retired shelf, oldest first; sent only when an agent is retired. */
+  retired?: RetiredAgentView[];
+}
+/** W6 6G2 (D43). One agent on the Retired shelf; to is null when the owner took over its work. */
+export interface RetiredAgentView { id: string; name: string; role: Display; department?: DepartmentId; at: string; to: { id: string; name: string } | null; line: Display }
+export interface RetireInFlight { id: string; kind: 'run' | 'question' | 'proposal' | 'today'; line: Display }
+/** W6 6G2. The check before retiring: what it holds, what is in flight, routines that switch off, who can take over. */
+export interface RetireCheckView {
+  agent: { id: string; name: string; role: Display };
+  holds: { steps: Display[]; instructions: number; notes: number; messages: number };
+  inFlight: RetireInFlight[];
+  routines: { id: string; name: string; when: Display }[];
+  to: { id: string; name: string }[];
+  kept: Display; blocked: Display | null; digest: string;
 }
 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
@@ -1124,6 +1164,8 @@ export type AgentThreadItem = { type: 'message'; message: AgentMessageView } | {
 export interface AgentThreadView {
   agent: { id: string; name: string; role: string }; items: AgentThreadItem[];
   waiting: { runId: string; rowId: string; question: Display } | null; more: boolean; consent: ChatConsentView;
+  /** W6 6G2: set while the agent is retired; the thread is read only. */
+  retired?: { at: string; line: Display };
 }
 export interface AgentSendResult { added: AgentThreadItem[]; line: Display | null }
 export interface StandingOrderView { stepId: string; step: Display; text: string; since: number; quote: string; at: string }
@@ -1152,9 +1194,30 @@ export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | '
 export interface ProposalView { id: string; at: string; kind: ProposalKind; status: ProposalStatus; title: Display; line: Display; what: Display; agent: string | null; rowId: string | null; digest: string; secondAsk: boolean }
 /** 4C2 review: each receipted figure lastLine states, exactly as written there, at its offset in UTF-16 code units. */
 export interface ChiefLineAmount { text: Display; start: number; length: number; receiptId: string }
-export interface ChiefThreadSummary { id: string; title: string; pinned: boolean; lastAt: string; lastLine: Display; amounts: ChiefLineAmount[]; unread: number }
-/** consent (4C2 review): the one chat consent as it stands; the screen shows this text and agrees by this digest. */
-export interface ChiefThreadsView { groups: { key: 'pinned' | 'today' | 'this-week' | 'last-week' | 'earlier'; label: Display; threads: ChiefThreadSummary[] }[]; consent: ChatConsentView }
+/**
+ * W6 6G1 (D42): state is the chat's one state; snoozedUntil while snoozed; settled says when and whether the owner or
+ * the quiet days settled it; waiting: a step or the chief's question waits for the owner, so it is never hidden.
+ */
+export interface ChiefThreadSummary {
+  id: string; title: string; pinned: boolean; lastAt: string; lastLine: Display; amounts: ChiefLineAmount[]; unread: number;
+  state: ChiefThreadState; snoozedUntil: string | null; settled: { at: string; by: 'owner' | 'auto' } | null; waiting: boolean;
+}
+/** W6 6G1. */
+export type ChiefThreadState = 'pinned' | 'active' | 'snoozed' | 'settled';
+export type ChiefSnoozePreset = 'later' | 'tomorrow' | 'next-week';
+export interface ChiefSnoozeOption { id: ChiefSnoozePreset; until: string }
+export interface ChiefThreadStateInput { threadId: string; state: ChiefThreadState; preset?: ChiefSnoozePreset; until?: string }
+/** W6 6G1: undo is the request that puts the chat back exactly; line is the engine's words. */
+export interface ChiefThreadStateResult { thread: ChiefThreadSummary; undo: ChiefThreadStateInput; line: Display }
+export interface ChiefSettleResult { days: number; undo: number; line: Display }
+/**
+ * consent (4C2 review): the one chat consent as it stands; the screen shows this text and agrees by this digest.
+ * settled (W6 6G1): the archive, latest settled first; settleAfterDays: the owner's quiet days (0 is never).
+ */
+export interface ChiefThreadsView {
+  groups: { key: 'pinned' | 'today' | 'this-week' | 'last-week' | 'earlier' | 'snoozed'; label: Display; threads: ChiefThreadSummary[] }[]; consent: ChatConsentView;
+  settled: ChiefThreadSummary[]; settleAfterDays: number;
+}
 /** 4C2 review: the counts by code (4J14, Q21): each kind's records, and the new ones in each month (YYYY-MM), oldest first. */
 export interface ChiefCounted { entities: { kind: string; count: number }[]; months: { month: string; count: number }[] }
 export interface ChiefMessageView {
@@ -1162,7 +1225,8 @@ export interface ChiefMessageView {
   routedTo: { agent: string; name: string } | null; worked: { label: Display; value: Display; receiptId: string }[]; dropped: Display[];
   counted: ChiefCounted | null;
 }
-export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean }
+/** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
+export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean; snooze: ChiefSnoozeOption[] }
 export interface ChiefSendResult { thread: ChiefThreadSummary; added: ChiefMessageView[]; ask: Display | null }
 export interface ChiefFit { wayId: string; line: Display; estimate: true }
 
@@ -1762,6 +1826,8 @@ export interface EngineMethods {
       capUsd?: string | null; askFirstUsd?: string | null; rates?: SpendRateInput[]; inrPerUsd?: string | null;
       // 4F2: the day's cap, the alert share in permille, each agent's own monthly limit, and lower daily write caps.
       dailyCapUsd?: string | null; alertPermille?: number; agentCaps?: { agent: string; capUsd: string }[]; writeCaps?: Partial<Record<WriteCapKind, number>>;
+      /** W6 6G5: each routine's own monthly limit in US dollars; the list replaces the one in force. */
+      routineCaps?: { routine: string; capUsd: string }[];
       // 4Z3: which currency leads spend.
       currencyLead?: CurrencyLead;
     };
@@ -1989,6 +2055,13 @@ export interface EngineMethods {
   'venture.chief.thread.list': { params: { threadId: string; before?: string }; result: ChiefThreadView };
   'venture.chief.thread.send': { params: { threadId?: string; text: string }; result: ChiefSendResult };
   'venture.chief.thread.pin': { params: { threadId: string; pinned: boolean }; result: { thread: ChiefThreadSummary } };
+  // W6 6G1 (D42): a chat's state with its exact Undo, and the quiet days before one settles (0 is never).
+  'venture.chief.thread.state': { params: ChiefThreadStateInput; result: ChiefThreadStateResult };
+  'venture.chief.settle.set': { params: { days: number }; result: ChiefSettleResult };
+  // W6 6G2 (D43): the check before retiring an agent, retiring it (to: another agent's id or 'owner'), and Bring back.
+  'venture.agents.retire.check': { params: { agent: string }; result: RetireCheckView };
+  'venture.agents.retire': { params: { agent: string; to: string; digest: string }; result: { retired: RetiredAgentView; line: Display } };
+  'venture.agents.restore': { params: { agent: string }; result: { agent: AgentView; routines: number; line: Display } };
   'venture.chief.fit': { params: Record<string, never>; result: ChiefFit | null };
   'venture.proposals.raise': { params: { id: string }; result: { proposal: ProposalView; rowId: string | null; line: Display } };
   'venture.proposals.dismiss': { params: { id: string }; result: { proposal: ProposalView } };
@@ -2060,6 +2133,24 @@ export interface EngineMethods {
   // W6 6F8 people search on the owner's own keys: Happenstance (own network), Probe42 (MCA company records).
   'venture.people.services': { params: { service?: 'happenstance' | 'probe42'; key?: string | null }; result: PeopleSearchView };
   'venture.people.lookup': { params: { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string }; result: PeopleLookupView };
+  // W6 6G3 the CRM: field history, companies with two-way links, client timelines and lists (pipelines with their own stages).
+  'venture.crm.client': { params: { clientId: string }; result: ClientCrmView };
+  'venture.crm.client.edit': { params: { clientId: string; field: 'name' | 'email' | 'note'; value: string }; result: ClientCrmView };
+  'venture.crm.companies': { params: Record<string, never>; result: CompanyRow[] };
+  'venture.crm.company': { params: { companyId: string }; result: CompanyView };
+  'venture.crm.company.save': { params: { companyId?: string; name?: string; domain?: string | null; note?: string | null }; result: CompanyView };
+  'venture.crm.link': { params: { companyId: string | null; member: string }; result: CrmMemberView };
+  'venture.crm.log': { params: { clientId: string; kind: CrmEntryKind; on: string; text: string }; result: ClientCrmView };
+  'venture.crm.lists': { params: Record<string, never>; result: CrmListRow[] };
+  'venture.crm.list': { params: { listId: string }; result: CrmListView };
+  'venture.crm.list.save': { params: { listId?: string; name: string; stages: string[] }; result: CrmListView };
+  'venture.crm.list.place': { params: { listId: string; member: string; stage: string | null }; result: CrmListView };
+  // W6 6G4 dated memory: facts with since when, what they replaced, their source and who may see them.
+  'venture.memory.list': { params: { subject?: string }; result: MemoryView };
+  'venture.memory.add': { params: { subject: string; topic: string; text: string; since?: string; visibility?: FactVisibility }; result: MemoryChange };
+  'venture.memory.replace': { params: { factId: string; text: string; since?: string }; result: MemoryChange };
+  'venture.memory.visibility': { params: { factId: string; visibility: FactVisibility }; result: MemoryChange };
+  'venture.memory.forget': { params: { factId: string }; result: MemoryChange };
   // 4H1 the CLI status and per-role models.
   /** `fresh: true` for "Check again": the engine looks at each tool again; left out, it may answer from a look in the last minute. */
   'venture.models.cli.status': { params: { fresh?: boolean }; result: { clis: CliStatusView[]; line: Display } };
@@ -2156,7 +2247,7 @@ export interface EngineMethods {
   'venture.order.contract.propose': { params: { orderId: string; contract: OrderContract }; result: OrderContractView };
   'venture.order.contract.sign': { params: { orderId: string; digest: string }; result: OrderContractView };
   'venture.routines.list': { params: Record<string, never>; result: { routines: RoutineView[] } };
-  'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display }[] } };
+  'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView }[] } };
   'venture.routines.set': { params: { routine: RoutineInput }; result: { routine: RoutineView } };
   'venture.routines.remove': { params: { id: string }; result: { removed: true; line: Display } };
   'venture.options.rerank': { params: { questionId: string; weights: Record<string, number> }; result: { options: RankedOptionView[] } };

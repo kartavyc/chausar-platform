@@ -11,6 +11,7 @@ import { Icon } from '../../parts/Icon';
 import { Bento, Tile, TileHead, type TileSpan } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { AgentSheet } from './AgentSheet';
+import { RetiredShelf } from './AgentRetire';
 import { CountsLine, DepartmentPanel } from './DepartmentPanel';
 import { chosenDept, departmentsOf, versionOf, type DepartmentData, type Member } from './departments';
 import { HealthLine } from './HealthLine';
@@ -93,6 +94,8 @@ export function Place() {
                 : <AllAgents members={members} onChanged={team.reload} />}
             </>
           )}
+          {/* W6 6G2: the Retired shelf, only when someone is on it. */}
+          {team.data?.retired && team.data.retired.length > 0 && <RetiredShelf retired={team.data.retired} onChanged={team.reload} />}
         </div>
       )}
     </>

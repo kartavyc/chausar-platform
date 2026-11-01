@@ -199,6 +199,8 @@ async function seedThread(env: ChiefEnv, title: string, at: string, read = true)
 
 test('chief: threads by Today, This week, Last week and Earlier, with the last line and unread; pins first', async () => {
   const env = await chiefBusiness();
+  // W6 6G1: these chats would settle after 7 quiet days; the grouping is tested with settling off (venture-chat-states.test.ts tests it).
+  await env.chief('venture.chief.settle.set', { days: 0 });
   assert.deepEqual((await env.chief('venture.chief.threads')).groups, [], 'no thread is made up before anything is asked or any routine has run');
   // Wednesday 21 October 2026: this week began on Monday the 19th.
   const earlier = await seedThread(env, 'Earlier question', '2026-10-01T06:00:00.000Z');

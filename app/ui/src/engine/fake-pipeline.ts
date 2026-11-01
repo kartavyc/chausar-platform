@@ -197,6 +197,11 @@ export class FakePipelineDesk {
   private forecasts = new Map<string, { businessId: string; receipt: ReceiptLite }>();
 
   rememberQuote(quote: HeldPipelineQuote): void { this.desk().quotes.push(structuredClone(quote)); }
+  /** W6 6G3: the sends and replies on the cards a client's timeline reads (a Won card that made them, or a card of a person linked to them). */
+  clientTouches(match: (card: { personId: string; clientName: string | null }) => boolean): { id: string; what: 'sent' | 'reply'; on: string; at: string; channel: string | null }[] {
+    return this.cards().filter((card) => match({ personId: card.view.personId, clientName: card.state.client?.name ?? null }))
+      .flatMap((card) => card.state.touches.map((touch, index) => ({ id: `${card.view.id}:${index}`, what: touch.what, on: touch.on, at: `${touch.on}T00:00:00.000Z`, channel: touch.channel })));
+  }
 
   constructor(host: W4DeskHost, people: PipelinePeople, meetings: MeetingDrafts, options: { fresh?: boolean; due?: boolean } = {}) {
     this.host = host;

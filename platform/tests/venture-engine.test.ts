@@ -97,7 +97,8 @@ test('after workspace.create, every other venture method called with {} reaches 
   // W6 6C5/6C6 added venture.rules.locks, venture.rules.attest and venture.compliance.set (compliance.get is pre-vault),
   // and the 6C7 first run its AI tools, login and About-you methods, which are draft methods.
   // W6 Batch 6 added twelve more (6F1, 6F2, 6F3, 6F4, 6F6, 6F7, 6F8).
-  assert.equal(methods.length, 316);
+  // Batch 7 added twenty-one (6G1, 6G2, 6G3, 6G4).
+  assert.equal(methods.length, 337);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
 });

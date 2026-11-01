@@ -8,6 +8,7 @@ import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/pl
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { flagshipDelivery, type FlagshipDelivery } from '../playbooks/steps.ts';
 import { AGENT_ID, agentName } from '../views/shared.ts';
+import { holderOf, retirements } from './retired.ts';
 
 /** Keeper's id on Team (4A1): the engine's own jobs, run as code. */
 export const KEEPER_ID = 'keeper';
@@ -61,7 +62,11 @@ export function chatAgent(state: State, venture: VentureRecord, agentId: string)
     return { id: AGENT_ID, name: agentName(state, venture), job: DELIVERY_JOB, steps, stepIds: steps.map(step => step.id), team: steps, playbook, flagship };
   }
   const role = flagship.roles.find(item => item.id === agentId);
-  const own = steps.filter(step => flagship.roleOf[step.id] === agentId);
+  // W6 6G2: an agent on the team also does the steps retired agents handed to it; a retired agent keeps its own steps
+  // for its read-only thread (agents/retired.ts).
+  const known = retirements(state, venture.id);
+  const own = known.has(agentId) ? steps.filter(step => flagship.roleOf[step.id] === agentId)
+    : steps.filter(step => flagship.roleOf[step.id] !== undefined && holderOf(state, venture.id, flagship.roleOf[step.id], known) === agentId);
   check(role && own.length, 'AGENT_NOT_FOUND', 'That agent was not found.');
   check(role.kind === 'agent', 'AGENT_IS_CODE', `${role.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
   return { id: role.id, name: role.name, job: role.job, steps: own, stepIds: own.map(step => step.id), team: steps, playbook, flagship };

@@ -55,7 +55,9 @@ describe('Business > Routines (4J22a)', () => {
     await act(async () => { fold.open = true; fold.dispatchEvent(new Event('toggle')); });
     await waitFor(() => expect(fold.querySelectorAll('li')).toHaveLength(2));
     const lines = [...fold.querySelectorAll('li')].map((li) => li.textContent);
-    expect(lines[0]).toBe('Delivered, 20 Oct 2026');
+    // W6 6G5: a delivered run that asked the AI carries its model receipt under the line.
+    expect(lines[0]).toMatch(/^Delivered, 20 Oct 2026Model receipt/);
+    expect(lines[0]).toContain('On your plan');
     expect(lines[1]).toMatch(/^Missed: Missed once while Chausar was closed\./);
     expect(fold.textContent).not.toMatch(/\bDone\b/);
   });

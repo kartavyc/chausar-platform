@@ -24,6 +24,7 @@ import {
 import { AGENT_ID, AGENT_PURPOSES } from '../views/shared.ts';
 import {modelBudgetUsed} from './budget.ts';
 import { exactModelRate } from './exact-rate.ts';
+import { currentRoutineScope } from '../agents/routine-scope.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
@@ -140,14 +141,22 @@ function sweep(tx: VentureTx) {
 const spendKey = (callId: string) => `model:${callId}`;
 
 /** A model call on the spend ledger: its words, who pays (the connection's key) and the exact text paid for. */
-function callSpend(call: Pick<CallRecord, 'id' | 'purpose' | 'connectionId' | 'payloadDigest' | 'agentId'>, spec: PresetSpec): SpendSubject {
+function callSpend(call: Pick<CallRecord, 'id' | 'purpose' | 'connectionId' | 'payloadDigest' | 'agentId'> & Partial<Pick<CallRecord, 'routineId'>>, spec: PresetSpec): SpendSubject {
   return {
+    // W6 6G5 (D44): the routine the call was made for, so that routine's own limit holds on its charge.
+    ...(call.routineId ? { routine: call.routineId } : {}),
     key: spendKey(call.id), item: `model:${spec.id}`, label: `${spec.label}, ${call.purpose}`, payer: `connection:${call.connectionId}`,
     draftDigest: call.payloadDigest, connector: spec.id, ref: call.id,
     // Ink v2 wave 4 (4F2): the team agent the call works for, from its purpose, so the agent's own limit holds even
     // where the charge is written before the call record (generate, a rehearsal's turns on standing consent).
     agent: call.agentId ?? (AGENT_PURPOSES.includes(call.purpose) ? AGENT_ID : null),
   };
+}
+
+/** W6 6G5: the routine run the current work belongs to (agents/routine-scope.ts), as call record fields; none outside one. */
+function routineFields(): Pick<CallRecord, 'routineId' | 'routineRunId'> {
+  const scope = currentRoutineScope();
+  return scope ? { routineId: scope.routineId, routineRunId: scope.runId } : {};
 }
 
 /**
@@ -481,7 +490,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const newCall = (tx: VentureTx, route: Extract<Route, { kind: 'model' }>, tier: ModelTier, task: ModelTask<unknown>, prepared: Prepared, estimate: string, consent: CallRecord['consent'], table: ModelPriceTable | null): CallRecord => {
     const { connection, spec } = route;
     return {
-      ...tx.base('venture-model-call'), purpose: task.purpose, ...(task.agentId ? {agentId:task.agentId} : {}), ...(task.agentJobId ? {agentJobId:task.agentJobId} : {}), tier, presetId: spec.id, connectionId: connection.id, routeKind: spec.kind,
+      ...tx.base('venture-model-call'), purpose: task.purpose, ...(task.agentId ? {agentId:task.agentId} : {}), ...(task.agentJobId ? {agentJobId:task.agentJobId} : {}), ...routineFields(), tier, presetId: spec.id, connectionId: connection.id, routeKind: spec.kind,
       model: connection.model, consent, endpoint: connection.endpoint,
       payloadText: prepared.payloadText.slice(0, MAX_STORED_PAYLOAD), payloadDigest: digest(prepared.payloadText),
       payloadTruncated: prepared.payloadText.length > MAX_STORED_PAYLOAD, containsClientData: task.containsClientData,
@@ -497,7 +506,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
    */
   const priceOf = async (ctx: Context, state: State, route: Extract<Route, { kind: 'model' }>, task: ModelTask<unknown>, prepared: Prepared): Promise<{ rate: SpendRate | null; table: ModelPriceTable | null }> => {
     const payloadDigest = digest(prepared.payloadText);
-    const subject = callSpend({ id: `unsent-${payloadDigest.slice(0, 16)}`, purpose: task.purpose, agentId:task.agentId, connectionId: route.connection.id, payloadDigest }, route.spec);
+    const subject = callSpend({ id: `unsent-${payloadDigest.slice(0, 16)}`, purpose: task.purpose, agentId:task.agentId, connectionId: route.connection.id, payloadDigest, ...routineFields() }, route.spec);
     try {
       const rate = meteredRate(state, route.connection.ventureId, route.spec, route.connection.model, transport.replay === true, subject);
       return { rate, table: rate ? modelTableOf(rate, subject) : route.spec.priceTable };

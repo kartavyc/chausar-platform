@@ -593,6 +593,8 @@
   },
   "runsheet.scope.rupeeRate": "{amount} at {rate} per {unit} (your rate, set {date})",
   "run.agentUpdates": "AI updates",
+  "run.modelReceipt.title": "Model receipt",
+  "run.modelReceipt.by": "Run by {agent}",
   "run.agentTools": "Work in progress",
   "run.agentStatus.running": "Running",
   "run.agentStatus.done": "Done",

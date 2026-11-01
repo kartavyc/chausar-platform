@@ -22,6 +22,7 @@ import { chatRoute } from './consent.ts';
 import { requireConnectorChecked } from '../build/connector-check.ts';
 import {pickPlaybook} from '../playbooks/registry.ts';
 import {VA_REPORT_PROMPTS} from '../playbooks/virtual-assistant/routines.ts';
+import { RETIRED_LINE, RETIRED_SUFFIX, retirementOf } from './retired.ts';
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -146,7 +147,11 @@ export function runsOf(state: State, ventureId: string, routineId: string): Rout
 
 /** Who a routine asks: the agent's name, or Chausar for the chief. */
 export function askedName(state: State, venture: VentureRecord, agent: string | null): string {
-  return agent === null ? 'Chausar' : teamAgents(state, venture).find(item => item.id === agent)?.name ?? agent;
+  if (agent === null) return 'Chausar';
+  const onTeam = teamAgents(state, venture).find(item => item.id === agent)?.name;
+  // W6 6G2: a retired agent keeps its name, with "(retired)".
+  const retired = onTeam ? null : retirementOf(state, venture.id, agent);
+  return onTeam ?? (retired ? `${retired.name}${RETIRED_SUFFIX}` : agent);
 }
 
 /** The input checked: the name, the agent (one on the team, or null for the chief), a standalone prompt and the schedule. */
@@ -155,6 +160,7 @@ function checkInput(state: State, venture: VentureRecord, raw: unknown, nowMs: n
   const body = exactPayload(raw, ['id', 'name', 'agent', 'prompt', 'schedule', 'on','recordReport'], ['name', 'prompt', 'schedule', 'on']);
   const name = tidyWords(plainText(body.name, 'Name', { min: 1, max: MAX_NAME }));
   const agent = body.agent === undefined || body.agent === null ? null : identifier(body.agent, 'Agent');
+  if (agent !== null) check(!retirementOf(state, venture.id, agent), 'AGENT_RETIRED', RETIRED_LINE);
   if (agent !== null) check(teamAgents(state, venture).some(item => item.id === agent), 'INVALID_VENTURE_REQUEST', 'That agent is not on this team.');
   const prompt = checkPrompt(plainText(body.prompt, 'Prompt', { min: 10, max: MAX_PROMPT }));
   const report=body.recordReport;
@@ -232,7 +238,21 @@ export async function routinesRunsHandler(deps: VentureDeps, ctx: Context, paylo
   const id = identifier(body.id, 'Routine');
   const { state, venture } = readAs(deps, ctx, 'read');
   check(listRecords(state, 'venture-routine', venture.id).some(routine => routine.id === id), 'INVALID_VENTURE_REQUEST', 'That routine was not found.');
-  return { runs: runsOf(state, venture.id, id).reverse().map(routineRunView) };
+  // W6 6G5 (D44): each run that asked an AI carries its model receipt, its cost behind a sum receipt of its charges.
+  const routine = listRecords(state, 'venture-routine', venture.id).find(item => item.id === id)!;
+  const calls = listRecords(state, 'venture-model-call', venture.id).filter(call => call.routineId === id);
+  const { callsModelReceipt } = await import('../money/model-receipt.ts');
+  const { spentByPlan } = await import('../money/spend-meter.ts');
+  const { sumReceipt } = await import('../money/sums.ts');
+  const runs: RoutineRunView[] = [];
+  for (const run of runsOf(state, venture.id, id).reverse()) {
+    const mine = calls.filter(call => call.routineRunId === run.id);
+    if (!mine.length) { runs.push(routineRunView(run)); continue; }
+    const plan = spentByPlan(state, venture, { type: 'spent-by', scope: 'routine-run', id: run.id, month: null });
+    const receiptId = plan.addends.length ? (await sumReceipt(deps, ctx, venture.id, plan)).id : undefined;
+    runs.push({ ...routineRunView(run), receipt: callsModelReceipt(state, venture, mine, { agent: routine.agent, ...(receiptId ? { receiptId } : {}) }) });
+  }
+  return { runs };
 }
 
 /** venture.routines.set { routine } (approve, app only): the owner sets or changes a routine. */

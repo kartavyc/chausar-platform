@@ -21,6 +21,8 @@ import { Fields, MoreDetails } from './Fields';
 // W5 5A4: the client's brand kit, read by every creative step.
 import { BrandKit } from './BrandKit';
 import { AiConsent } from './AiConsent';
+// W6 6G3, 6G4: the client's company, timeline, lists, dated facts and field history.
+import { ClientCrm } from './ClientCrm';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
@@ -101,6 +103,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
         <>
           <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
           <AiConsent key={client.id} clientId={client.id} />
+          <ClientCrm key={`crm-${client.id}`} clientId={client.id} />
 
           <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
 

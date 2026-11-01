@@ -85,6 +85,11 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
   try {
     job.capability.assert();
     billing = await startAgentBilling(deps, ctx, { runId, jobId: job.capability.scope.jobId, agentId: options.agentId, route });
+    // W6 6G5 (D44): the AI this job runs on, for its model receipt: the preset when the host named one, the model and tier.
+    await ventureAction(deps, ctx, 'prepare', 'agent.job.route', tx => {
+      const { run } = job.assertState(tx.state);
+      tx.replace({ ...run, agentJob: { ...run.agentJob!, route: { ...(route.presetId ? { presetId: route.presetId } : {}), model: route.settings.model, tier: 'main' as const } } });
+    });
     let prompt = jobPrompt(route.settings, route.credentials);
     if (options.resumeFrom) {
       const state = deps.store.read(), previous = findRecord(state, 'venture-delivery-run', options.resumeFrom);

@@ -66,6 +66,7 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
     ['business.build', '#/business/build'], ['business.practice', '#/business/practice'],
     ...(venture.data?.playbook?.id === 'ca-firm' ? [['business.ca', '#/business/ca'] as const] : []),
     ['business.notify', '#/business/notifications'],
+    ['business.chats', '#/business/chats'], // W6 6G1: settled chats and the quiet days (D42: the archive is in Settings)
     ['business.keep', '#/business/keep'], ['business.new', '#/onboarding'],
   ];
 

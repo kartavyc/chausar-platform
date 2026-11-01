@@ -25,6 +25,7 @@ import { failureWords } from './failure-words.ts';
 import { selectAgentRoute } from '../agent-runtime/route.ts';
 import { launchAgentWork,runNativeAgent } from '../agent-runtime/runner.ts';
 import { voiceRules } from '../agents/voice.ts';
+import { jobAgentFor } from '../agents/retired.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import type {
 BlueprintRecord,
@@ -381,7 +382,9 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
   const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
   const sections = draft?.sections ?? REQUIRED_SECTIONS[context.blueprint.serviceType];
   const stepId = draft?.stepId ?? playbook.steps.find(step => step.kind === 'write')?.id;
-  const agentId = (stepId && flagshipDelivery(playbook.flagship ?? null)?.roleOf[stepId]) || 'delivery';
+  const role = (stepId && flagshipDelivery(playbook.flagship ?? null)?.roleOf[stepId]) || 'delivery';
+  // W6 6G2: a retired role's new work runs as the agent that took it over (the team's own settings when the owner did).
+  const agentId = role === 'delivery' ? role : jobAgentFor(deps.store.read(), context.venture.id, role);
   const revisionIdentity = (run: DeliveryRunRecord) => digest(run.revision ? { ...run.revision, callId: '' } : null);
   const expectedRevision = continuation.existingRunId
     ? revisionIdentity(findRun(deps.store.read(), context.venture, continuation.existingRunId)) : null;

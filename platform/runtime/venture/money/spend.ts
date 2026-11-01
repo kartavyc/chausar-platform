@@ -39,6 +39,8 @@ import type { ModelPresetId, ModelTier, RateCardLine } from '../contracts.ts';
 // 4Z3: which currency leads spend.
 import type { CountryProfile, CurrencyLead, SpendLead } from '../contracts.ts';
 import { nativeJobSpends } from '../agent-runtime/job-spend.ts';
+// W6 6G5 (D44): each routine's own limit and the meters per agent and per routine.
+import { requireRoutinesExist, routineCapRefusal, routineCapsChecked, routineCapsTyped } from './spend-meter.ts';
 
 const MICROS = /^(0|[1-9][0-9]{0,14})$/;
 const ITEM = /^(model|delegate|connector):[A-Za-z0-9_.-]{1,120}$/;
@@ -76,6 +78,8 @@ export type SpendSubject = {
   agent?: string | null;
   connector?: string | null;
   ref?: string | null;
+  /** W6 6G5: the routine the call works for, so that routine's own limit holds; absent outside a routine run. */
+  routine?: string | null;
 };
 export type SpendReservation = SpendSubject & { rate: SpendRate; estimateMicros: MicroString };
 export type SpendOutcome =
@@ -99,6 +103,7 @@ function subjectOf(input: SpendSubject): SpendSubject {
   return {
     key: input.key, item: input.item, label: input.label, payer: input.payer, draftDigest: input.draftDigest,
     agent: input.agent ?? null, connector: input.connector ?? null, ref: input.ref ?? null,
+    ...(input.routine ? { routine: input.routine } : {}),
   };
 }
 
@@ -247,6 +252,7 @@ export function reserveSpend(tx: VentureTx, request: SpendReservation): SpendRec
     ...base, ...(article ? {articleOrderId:article.orderId} : {}), key: subject.key, item: subject.item, label: subject.label, agent: subject.agent ?? null, connector: subject.connector ?? null,
     payer: subject.payer, draftDigest: subject.draftDigest, rate: structuredClone(request.rate), reservedMicros: request.estimateMicros,
     settledMicros: null, settledBy: null, phase: 'reserved', quoteId, ref: subject.ref ?? null, refusal: null, settledAt: null,
+    ...(subject.routine ? { routine: subject.routine } : {}),
   } satisfies SpendRecord);
 }
 
@@ -303,6 +309,7 @@ export async function spendRefused(deps: VentureDeps, ctx: Context, error: unkno
           ...tx.base('venture-spend'), key: subject.key, item: subject.item, label: subject.label, agent: subject.agent ?? null, connector: subject.connector ?? null,
           payer: subject.payer, draftDigest: subject.draftDigest, rate: null, reservedMicros: refusal.estimateMicros ?? '0', settledMicros: null, settledBy: null,
           phase: 'refused', quoteId: null, ref: subject.ref ?? null, refusal: { code: refusal.code, message: refusal.message }, settledAt: null,
+          ...(subject.routine ? { routine: subject.routine } : {}),
         } satisfies SpendRecord);
       });
     } catch {
@@ -399,7 +406,7 @@ function rateLine(value: unknown): SpendRate {
  */
 export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyRecord> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
-  const body = exactPayload(payload, ['capMicros', 'askAboveMicros', 'rates', 'inrPerUsd', 'dailyCapMicros', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead']);
+  const body = exactPayload(payload, ['capMicros', 'askAboveMicros', 'rates', 'inrPerUsd', 'dailyCapMicros', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead', 'routineCaps']);
   // 4Z3: which currency leads spend; left out, the choice already set is kept.
   const lead = body.currencyLead === undefined ? undefined : currencyLeadOf(body.currencyLead);
   // Ink v2 wave 4 (4F2): the day's cap, the alert share, each agent's own limit and the lower write caps.
@@ -414,6 +421,8 @@ export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: u
     check(new Set(rates.map(rate => rate.item)).size === rates.length, 'INVALID_VENTURE_REQUEST', 'Each item has one line on the rate card.');
   }
   return ventureAction(deps, ctx, 'admin', 'spend.policy', tx => {
+    // W6 6G5: a routine limit names one of this business's routines, read in this write.
+    if (limits.routineCaps) requireRoutinesExist(tx.state, tx.venture!.id, limits.routineCaps);
     const current = latestPolicy(tx.list('venture-spend-policy'));
     const held = current?.rupeeRate ?? null;
     const rupeeRate = perUsd === undefined ? held
@@ -606,12 +615,14 @@ export async function spendPolicyGet(deps: VentureDeps, ctx: Context, payload: u
  */
 export async function spendPolicySet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyView> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
-  const body = exactPayload(payload, ['cap', 'askFirst', 'capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'dailyCap', 'dailyCapUsd', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead']);
+  const body = exactPayload(payload, ['cap', 'askFirst', 'capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'dailyCap', 'dailyCapUsd', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead', 'routineCaps']);
   const cap = usdOrMicros(body, 'capUsd', 'cap', 'The monthly limit', 2);
   const askFirst = usdOrMicros(body, 'askFirstUsd', 'askFirst', 'The ask-first figure', 2);
   // Ink v2 wave 4 (4F2): the day's cap in US dollars too, each agent's limit in US dollars, the alert share, write caps.
   const dailyCap = usdOrMicros(body, 'dailyCapUsd', 'dailyCap', 'The daily limit', 2);
   const agentCaps = body.agentCaps === undefined ? undefined : agentCapsTyped(body.agentCaps);
+  // W6 6G5: each routine's own limit, in US dollars as typed.
+  const routineCaps = body.routineCaps === undefined ? undefined : routineCapsTyped(body.routineCaps);
   let rates: unknown[] | undefined;
   if (body.rates !== undefined) {
     check(Array.isArray(body.rates), 'INVALID_VENTURE_REQUEST', 'rates is a list of rate card lines.');
@@ -634,6 +645,7 @@ export async function spendPolicySet(deps: VentureDeps, ctx: Context, payload: u
     ...(dailyCap !== undefined ? { dailyCapMicros: dailyCap } : {}),
     ...(body.alertPermille !== undefined ? { alertPermille: body.alertPermille } : {}),
     ...(agentCaps !== undefined ? { agentCaps } : {}),
+    ...(routineCaps !== undefined ? { routineCaps } : {}),
     ...(body.writeCaps !== undefined ? { writeCaps: body.writeCaps } : {}),
     ...(body.currencyLead !== undefined ? { currencyLead: body.currencyLead } : {}),
   });
@@ -811,7 +823,7 @@ const LIMIT_WORDS = Object.freeze({
   agentGoesOn: 'Other work goes on. Raise its limit in Money to let it go on this month.',
 });
 
-type Limits = Partial<Pick<SpendPolicyRecord, 'dailyCapMicros' | 'alertPermille' | 'agentCaps' | 'writeCaps'>>;
+type Limits = Partial<Pick<SpendPolicyRecord, 'dailyCapMicros' | 'alertPermille' | 'agentCaps' | 'writeCaps' | 'routineCaps'>>;
 
 /** The 4F2 limits a setSpendPolicy payload carries, checked: the day's cap, the alert share, agent limits, write caps. */
 function limitsOf(body: Record<string, unknown>): Limits {
@@ -832,6 +844,8 @@ function limitsOf(body: Record<string, unknown>): Limits {
     });
     check(new Set(limits.agentCaps.map(item => item.agent)).size === limits.agentCaps.length, 'INVALID_VENTURE_REQUEST', 'Each agent has one limit.');
   }
+  // W6 6G5: each routine's own monthly limit, in micro units.
+  if (body.routineCaps !== undefined) limits.routineCaps = routineCapsChecked(body.routineCaps);
   if (body.writeCaps !== undefined) {
     const caps = body.writeCaps;
     check(caps !== null && typeof caps === 'object' && !Array.isArray(caps), 'INVALID_VENTURE_REQUEST', 'Write caps are drafts, books lines and messages, each a whole number.');
@@ -856,6 +870,8 @@ function keptLimits(current: SpendPolicyRecord | null, limits: Limits): Limits {
   if (alert !== undefined) kept.alertPermille = alert;
   const agents = limits.agentCaps ?? current?.agentCaps;
   if (agents !== undefined) kept.agentCaps = structuredClone(agents);
+  const routines = limits.routineCaps ?? current?.routineCaps;
+  if (routines !== undefined) kept.routineCaps = structuredClone(routines);
   if (limits.writeCaps || current?.writeCaps) kept.writeCaps = { ...(current?.writeCaps ?? {}), ...(limits.writeCaps ?? {}) };
   return kept;
 }
@@ -903,6 +919,9 @@ function refuseOverLimits(tx: VentureTx, policy: SpendPolicyRecord, records: rea
     throw new SpendRefusal('SPEND_CAP', `${agentNameOf(tx.state, venture, agent)} reached its own monthly limit of ${formatMicros(cap.capMicros)}, so it is paused until you raise it or the month ends. Other work goes on.`,
       subjectOf(request), request.estimateMicros);
   }
+  // W6 6G5 (D44): a call made for a routine is held to that routine's own monthly limit too (it alone pauses).
+  const routineRefusal = routineCapRefusal(tx.state, venture, policy, records, request.routine, estimate, tx.now);
+  if (routineRefusal) throw new SpendRefusal('SPEND_CAP', routineRefusal, subjectOf(request), request.estimateMicros);
 }
 
 /** A share in thousandths as a percentage: 790 is '79%', 755 is '75.5%'. */
@@ -1050,6 +1069,8 @@ async function limitsView(deps: VentureDeps, ctx: Context, state: State, venture
     alertPermille: alert, alert: `Today tells you at ${percentOf(BigInt(alert))} of this month's limit.`,
     meter, ...(limitReached ? { limitReached } : {}), ...(keys.length ? { keyLimits: keys } : {}),
     agentCaps: agentCapViews(state, venture, policy, nowIso),
+    // W6 6G5 (D44): this month's spend of each agent and each routine, with the owner's cap on each.
+    meters: await (await import('./agent-meters.ts')).spendMeters(deps, ctx, state, venture, policy),
     writeCaps: writeCapsToday(state, venture, nowIso),
     card: rateCard(state, venture, policy),
   };

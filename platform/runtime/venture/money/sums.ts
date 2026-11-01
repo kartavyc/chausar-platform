@@ -27,6 +27,7 @@ import { funnelCountPlan } from '../network/funnel.ts';
 import { bandsCountPlan } from '../network/bands.ts';
 import { agentCostPlan } from '../agent-runtime/cost-proof.ts';
 import { nativeJobCostPlan } from '../agent-runtime/quality-cost.ts';
+import { spentByPlan } from './spend-meter.ts';
 
 /**
  * rupeeRate (4J4): for an amount converted from US dollars, the rupees per dollar it was worked at, in ten-thousandths
@@ -49,6 +50,7 @@ const NAMED = 12;
 const LABELS: Readonly<Record<SumReceiptSubject['type'], string>> = Object.freeze({
   'agent-cost': 'AI usage cost',
   'agent-job-cost': 'AI job and quality check',
+  'spent-by': 'AI spend',
   owed: 'Owed on open invoices', received: 'Received', spent: 'AI and tools', 'tax-total': 'Tax on issued invoices',
   'spent-department': 'AI and tools by department', invoiced: 'Invoiced', goal: 'Toward the goal', aging: 'Owed by age',
   flow: 'In and out', cash: 'Cash ahead', margin: 'Margin', count: 'Counted', held: 'Held for running work',
@@ -109,6 +111,7 @@ export function spentPlan(state: State, venture: VentureRecord, month: string): 
 export function currentPlan(state: State, venture: VentureRecord, subject: SumReceiptSubject): SumPlan {
   if (subject.type === 'agent-cost') return agentCostPlan(state, venture, subject);
   if (subject.type === 'agent-job-cost') return nativeJobCostPlan(state, venture, subject);
+  if (subject.type === 'spent-by') return spentByPlan(state, venture, subject); // W6 6G5
   if (subject.type === 'tax-total') return taxTotalPlan(state, venture, subject);
   if (subject.type === 'owed') return owedPlan(state, venture, subject.clientId);
   if (subject.type === 'received') return receivedPlan(state, venture, subject.from, subject.to);

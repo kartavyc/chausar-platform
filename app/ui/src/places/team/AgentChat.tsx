@@ -282,17 +282,22 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
         </>
       )}
       {line && <p className={c.line} role="status">{line}</p>}
-      <div className={c.compose}>
-        {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
-        <Composer
-          key={initialKey ?? 0}
-          initial={initial || undefined}
-          label={t('team.chat.label', { name: agent.name })}
-          onSend={send}
-          suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
-          hint={t('team.chat.hint', { name: agent.name })}
-        />
-      </div>
+      {/* W6 6G2: a retired agent's chat is read only on the Retired shelf: its history, and no box to write in. */}
+      {data?.retired ? (
+        <p className={c.quiet} data-retired="">{data.retired.line}</p>
+      ) : (
+        <div className={c.compose}>
+          {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
+          <Composer
+            key={initialKey ?? 0}
+            initial={initial || undefined}
+            label={t('team.chat.label', { name: agent.name })}
+            onSend={send}
+            suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
+            hint={t('team.chat.hint', { name: agent.name })}
+          />
+        </div>
+      )}
     </div>
   );
 }

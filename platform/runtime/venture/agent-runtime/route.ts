@@ -33,6 +33,6 @@ export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId:
     check(executable && startableProgram(executable), 'CLI_UNAVAILABLE', 'Install Claude Code on this computer, then try again.');
     driver = createClaudeDriver({ executable });
   } else driver = new CodexDriver();
-  return { driver, settings, ...(apiKey ? { credentials: { apiKey, ...(serving.presetId === 'openrouter' ? { baseUrl: 'https://openrouter.ai/api/v1' } : {}) },
+  return { driver, settings, presetId: serving.presetId, ...(apiKey ? { credentials: { apiKey, ...(serving.presetId === 'openrouter' ? { baseUrl: 'https://openrouter.ai/api/v1' } : {}) },
     billing: { connectionId: connection!.id, presetId: connection!.presetId, model: settings.model } } : {}) };
 }

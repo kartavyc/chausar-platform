@@ -4,7 +4,8 @@
  * worded here from its key. A chat's title is the owner's own first question, so it is quoted words; its last line is
  * the engine's, with each amount it states a Figure with its receipt (ChiefThreadSummary.amounts), so the line sits
  * outside the chat's link (a receipt is a button of its own) and the link covers the row. The time is the clock time
- * for today, the weekday this week, the date before that.
+ * for today, the weekday this week, the date before that. W6 6G1: Snoozed comes last, each with when it comes back;
+ * settled chats are not listed; a quiet link beside the title says how many and opens Settled chats.
  */
 
 import { useId, useState, type ReactNode } from 'react';
@@ -49,6 +50,7 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
   const searchId = useId();
   const [query, setQuery] = useState('');
   const groups = threads.data?.groups ?? [];
+  const settled = threads.data?.settled.length ?? 0;
   const needle = query.trim().toLocaleLowerCase();
   const shown = groups
     .map((group) => ({ ...group, threads: needle ? group.threads.filter((thread) => thread.title.toLocaleLowerCase().includes(needle)) : group.threads }))
@@ -59,6 +61,12 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
     <nav className={s.list} aria-labelledby={titleId}>
       <div className={s.listHead}>
         <h2 id={titleId} className={s.listTitle}>{t('chats.list.title')}</h2>
+        {/* 6G1: settled chats leave the list for Settled chats in the business pages (D42: the archive lives in Settings). */}
+        {settled > 0 && needle === '' && (
+          <a className={s.settledLink} href="#/business/chats" aria-label={t('chats.list.settled', { count: settled })} title={t('chats.list.settled', { count: settled })}>
+            <Icon name="history" size={16} />
+          </a>
+        )}
         <Button variant="ink" size="sm" onClick={onNew}>
           <Icon name="plus" size={16} />
           {t('chats.list.new')}
@@ -71,17 +79,18 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
       </div>
       <div className={s.groups}>
         {threads.error && !threads.data && <p className={s.problem} role="alert">{t('chats.failed', { message: threads.error.message })}</p>}
-        {threads.data && groups.length === 0 && <p className={s.quiet}>{t('chats.list.none')}</p>}
+        {threads.data && groups.length === 0 && settled === 0 && <p className={s.quiet}>{t('chats.list.none')}</p>}
         {needle !== '' && groups.length > 0 && shown.length === 0 && <p className={s.quiet}>{t('chats.list.noMatch')}</p>}
         {shown.map((group) => (
-          <Group key={group.key} label={t(`chats.group.${group.key}`)} threads={group.threads} selected={selected} now={now} language={language} />
+          <Group key={group.key} label={t(`chats.group.${group.key}`)} threads={group.threads} selected={selected} now={now} language={language} snoozed={group.key === 'snoozed'} />
         ))}
       </div>
     </nav>
   );
 }
 
-function Group({ label, threads, selected, now, language }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; language: Language }) {
+/** snoozed (6G1): the Snoozed group shows when each chat comes back instead of when it last moved. */
+function Group({ label, threads, selected, now, language, snoozed }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; language: Language; snoozed: boolean }) {
   const t = useT();
   const headingId = useId();
   return (
@@ -101,7 +110,14 @@ function Group({ label, threads, selected, now, language }: { label: string; thr
                 {thread.lastLine && <span className={s.chatLine} data-last-line="">{withAmounts(thread.lastLine, thread.amounts)}</span>}
               </span>
               <span className={s.chatSide}>
-                <time className={cx(s.chatTime, 'mono')} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, language)}</time>
+                {snoozed && thread.snoozedUntil ? (
+                  <span className={cx(s.chatTime, 'mono')}>
+                    <span className="sr-only">{t('chats.list.wakes')} </span>
+                    <time dateTime={thread.snoozedUntil}>{whenOf(thread.snoozedUntil, now, language)}</time>
+                  </span>
+                ) : (
+                  <time className={cx(s.chatTime, 'mono')} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, language)}</time>
+                )}
                 {thread.unread > 0 && <span className={s.unread} aria-hidden="true" />}
               </span>
             </li>

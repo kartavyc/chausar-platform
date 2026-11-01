@@ -618,7 +618,17 @@ export async function runsListHandler(deps: VentureDeps, ctx: Context, payload: 
 export async function runsGetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<RunDetail> {
   const body = exactPayload(payload, ['runId'], ['runId']);
   const runId = identifier(body.runId, 'Run');
-  const build = allRuns(deps, ctx, true).runs.get(runId);
+  const { state, venture, runs } = allRuns(deps, ctx, true);
+  const build = runs.get(runId);
   check(build, 'RUN_NOT_FOUND', 'That run was not found.');
-  return build().detail;
+  const detail = build().detail;
+  // W6 6G5 (D44): a delivery run's model receipt: the tool, tier, tokens and cost from its own records.
+  const record = venture ? listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === runId) : undefined;
+  if (!venture || !record) return detail;
+  const { runModelReceipt } = await import('../money/model-receipt.ts');
+  const { spentByPlan } = await import('../money/spend-meter.ts');
+  const { sumReceipt } = await import('../money/sums.ts');
+  const plan = spentByPlan(state, venture, { type: 'spent-by', scope: 'run', id: runId, month: null });
+  const receiptId = !record.agentJob && plan.addends.length ? (await sumReceipt(deps, ctx, venture.id, plan)).id : undefined;
+  return { ...detail, modelReceipt: runModelReceipt(state, venture, record, receiptId) };
 }

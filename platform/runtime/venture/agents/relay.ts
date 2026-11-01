@@ -25,6 +25,7 @@ import { teamFlagship } from '../views/team-shape.ts';
 import { AGENT_ID, agentName, short } from '../views/shared.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { appendAgentMessage } from './store.ts';
+import { retiredName } from './retired.ts';
 
 /** The owner, above the team's top: where a top-level agent's report goes. */
 export const OWNER = 'owner';
@@ -308,7 +309,8 @@ export function relayInbox(state: State, venture: VentureRecord, agentId: string
 /** A team member's name for the owner: a flagship role's, the delivery agent's, else its id. */
 function memberName(state: State, venture: VentureRecord, id: string): string {
   const role = teamFlagship(state, venture)?.roles.find(item => item.id === id);
-  return role?.name ?? (id === AGENT_ID ? agentName(state, venture) : id);
+  // W6 6G2: a retired agent's reports on Today keep its name, with "(retired)".
+  return retiredName(state, venture.id, id, role?.name ?? (id === AGENT_ID ? agentName(state, venture) : id));
 }
 
 /**

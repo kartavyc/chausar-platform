@@ -18,6 +18,7 @@ import { countryProfile } from '../../../../platform/runtime/venture/core/countr
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
+import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
 import { FakeFirstRun, FIRST_RUN_METHODS } from './fake-first-run';
 import type { ModelStatusLite } from './types';
@@ -33,6 +34,8 @@ import { FakePracticeDesk } from './fake-practice';
 import { FakeBankDesk } from './fake-bank';
 import { FakeWiringDesk } from './fake-wiring';
 import { FakeAgentsDesk } from './fake-agents';
+// W6 6G2: retiring an agent, the Retired shelf and Bring back.
+import { FakeRetireDesk } from './fake-retire';
 import { FakeChiefDesk } from './fake-chief';
 import { FakeNetworkDesk } from './fake-network';
 import { FakeNotifyDesk } from './fake-notify';
@@ -46,6 +49,9 @@ import { FakeKitMediaDesk } from './fake-kit-media';
 import { FakeKitReportDesk } from './fake-kit-report';
 import { FakeKitConnectDesk } from './fake-kit-connect';
 import { FakeWebPeopleDesk } from './fake-web-people';
+// Wave 6 (6G3, 6G4): the CRM and dated memory (fake-crm.ts, fake-memory.ts).
+import { FakeCrmDesk } from './fake-crm';
+import { FakeMemoryDesk } from './fake-memory';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
 import { fakeChecklist, fakeWays } from './fake-start';
 import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
@@ -55,6 +61,7 @@ import { withTruth } from './fake-setup';
 import { fakeLaunchAdvance, fakeLaunchStatus, type LaunchFacts } from './fake-launch';
 import { FakeRulesAttest } from './fake-rules-attest';
 import type { ComplianceLite } from './types';
+import type { TeamListView } from './types';
 import { SIDE_WORK_ANSWERS, complianceOf, professionCompliance } from '../../../../platform/runtime/venture/core/compliance-data';
 import { HARD_STOP_WORDS } from '../../../../platform/runtime/venture/policy/hard-stops';
 import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
@@ -219,6 +226,12 @@ export class FakeEngine {
    * (fake-notify.ts), and the rest (fake-w4.ts).
    */
   private readonly agentsDesk: FakeAgentsDesk;
+  /** W6 6G2: who is retired, who took over their steps, and the Retired shelf. */
+  private readonly retire: FakeRetireDesk = new FakeRetireDesk({
+    current: () => this.current, now: () => this.now(), hosted: () => this.hosted, digest: digestOf,
+    agents: () => this.agents[this.current] ?? [], ask: (method, p) => this.answerNow(method, p), runs: () => this.runs,
+    rows: () => this.rows.filter((row) => !this.decided.has(row.id)),
+  });
   private readonly chief: FakeChiefDesk;
   private readonly network: FakeNetworkDesk;
   private readonly notify: FakeNotifyDesk;
@@ -393,13 +406,22 @@ export class FakeEngine {
       new FakeKitConnectDesk(waveHost, { fresh }),
       // Wave 6 (6F3, 6F8): web search, the page reader and people search (fake-web-people.ts).
       new FakeWebPeopleDesk(waveHost),
+      // Wave 6 (6G3, 6G4): the CRM (field history, companies, timelines, lists) and dated memory.
+      new FakeCrmDesk({
+        ...waveHost, clients: () => this.clients[this.current] ?? [],
+        people: () => this.network.privacyFacts().map((person) => ({ id: person.id, name: person.names[0] ?? 'Someone in your network', clientId: person.clientId })),
+        editClient: (clientId, field, value) => this.editClientField(clientId, field, value),
+        touches: (match) => this.network.clientTouches(match),
+      }),
+      new FakeMemoryDesk({ ...waveHost, clients: () => this.clients[this.current] ?? [] }),
     ];
     this.posting = new FakePostingDesk(waveHost, { fresh });
     this.practice = new FakePracticeDesk(waveHost, { fresh });
     this.bank = new FakeBankDesk(waveHost, { fresh });
     this.wiring = new FakeWiringDesk(waveHost, { fresh });
     // 4B3: a request on the floor in an agent's chat is a proposal the Chats desk raises to Today.
-    this.agentsDesk = new FakeAgentsDesk(waveHost, { fresh, floor: (input) => this.chief.draftFromAgent(input) });
+    // W6 6G2: a retired agent's chat reads on the Retired shelf and takes no new words.
+    this.agentsDesk = new FakeAgentsDesk(waveHost, { fresh, floor: (input) => this.chief.draftFromAgent(input), retired: (agentId) => this.retire.retiredAgent(agentId) });
     // 4C2: the Chats desk reads the one chat consent the agents' desk keeps (it needs no agent).
     this.chief = new FakeChiefDesk(waveHost, { fresh, consent: () => this.agentsDesk.chatConsent() });
     this.network = new FakeNetworkDesk(waveHost, { fresh, meetings: this.chief, ...(options.pipelineDue === undefined ? {} : { due: options.pipelineDue }) });
@@ -463,6 +485,8 @@ export class FakeEngine {
     // W6 6C5 and 6C6: owner attestation of locked rules; the side-work question and the regulator's switch-offs.
     if (method === 'venture.rules.locks') { if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.'); return this.rulesAttest.locks(); }
     if (method === 'venture.rules.attest') return this.rulesAttest.attest(p);
+    // W6 6G2: the check before retiring an agent, retiring it and Bring back (fake-retire.ts).
+    if (this.retire.handles(method)) return this.retire.request(method, p);
     if (method === 'venture.compliance.get' || method === 'venture.compliance.set') return this.compliance(method, p);
     this.refuseRegulator(method, p);
     this.guardInternalShare(method, p);
@@ -493,9 +517,11 @@ export class FakeEngine {
         const run = this.runs.find((r) => r.runId === p.runId);
         if (!run) throw new EngineError('RUN_NOT_FOUND', 'This run is not on this computer.');
         // 4F3: the scope's cap in rupees at the owner's rate, read when asked, as the engine's views/runs.ts does.
-        return clone(this.w4.runView(run));
+        // W6 6G5 (D44): with the run's model receipt, as the engine's runs.get adds it.
+        const view = this.w4.runView(run);
+        return clone({ ...view, modelReceipt: fakeRunReceipt(view) });
       }
-      case 'venture.team.list': return this.w4.teamList(clone(this.agents[this.current] ?? []), this.runs);
+      case 'venture.team.list': return this.teamView();
       case 'venture.team.gate': return this.gate(p as ParamsOf<'venture.team.gate'>);
       case 'venture.team.posture': return this.posture(p as ParamsOf<'venture.team.posture'>);
       case 'venture.spend.list': return { rows: this.spendRows(), ...this.spendTotal() };
@@ -687,7 +713,14 @@ export class FakeEngine {
     return fakeClientAiConsent(method,payload,{clients:this.clients[this.current]??[],ventureId:"venture_"+this.current,now:()=>this.now(),changed:()=>{this.work.recheckAiConsent();this.emit({type:'queue.changed',businessId:this.current,at:this.now()});}});
   }
 
+  /** venture.team.list as the engine sends it; W6 6G2: retired agents on the Retired shelf, their steps with whoever took over. */
+  private teamView(): TeamListView {
+    return this.retire.withShelf(this.w4.teamList(this.retire.agentsNow(clone(this.agents[this.current] ?? [])), this.runs));
+  }
+
   private answerNow(method: string, p: Record<string, unknown>): unknown {
+    // W6 6G2: the retire methods answer inside another desk's request too (agent chat reads the shelf).
+    if (this.retire.handles(method)) return this.retire.request(method, p);
     if (method === 'venture.agentApproval.decide') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.agree' || method === 'venture.client.aiConsent.withdraw') throw new EngineError('APP_APPROVAL_REQUIRED','Approve this inside the Chausar app.');
     if (method === 'venture.client.aiConsent.get') return this.clientAiConsent(method,p);
@@ -701,7 +734,7 @@ export class FakeEngine {
     if (FakeMoney.answers(method)) return this.money.request(method, p);
     if (method === 'venture.connectors.list') return withTruth(this.posting.connectorCards(withSellerCards(clone(CONNECTORS))), this.hosted);
     // 4B3: agent chat reads the team (whose steps an agent owns) and the clients (whom a note is about).
-    if (method === 'venture.team.list') return this.w4.teamList(clone(this.agents[this.current] ?? []), this.runs);
+    if (method === 'venture.team.list') return this.teamView();
     if (method === 'venture.client.list') return clone(this.clients[this.current] ?? []);
     // 4E4: a pipeline card moved to Won makes its client, as the engine's move does through addClient.
     if (method === 'venture.client.add') return this.addClient(p);
@@ -726,6 +759,7 @@ export class FakeEngine {
       this.work.socialChain.forgetPeople(gone, method === 'venture.network.forget');
       this.kitSales()?.forgetPeople(gone, method === 'venture.network.forget');
       for (const desk of this.w5 ?? []) if (desk instanceof FakePlaybooksDesk || desk instanceof FakeKitConnectDesk) desk.forgetPeople(gone, method === 'venture.network.forget');
+      for (const desk of this.w5 ?? []) if (desk instanceof FakeCrmDesk || desk instanceof FakeMemoryDesk) desk.forgetPeople(gone, method === 'venture.network.forget');
     }
     if (method === 'venture.network.forget') this.emit({ type: 'privacy.forgotten', businessId: this.current, at: this.now() });
     return answer;
@@ -765,7 +799,8 @@ export class FakeEngine {
     const businesses = new Set(rows.map((r) => r.businessId)).size;
     const count = String(rows.length);
     const summary = rows.length === 0 ? 'Nothing needs you.' : `${count} ${rows.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;
-    return { rows: clone(rows), summary, needsYou: rows.length, businesses };
+    // W6 6G2: a card naming a retired agent says "(retired)" after its name.
+    return { rows: clone(rows).map((row) => this.retire.rowName(row)), summary, needsYou: rows.length, businesses };
   }
 
   private decide(p: ParamsOf<'venture.queue.decide'>): QueueDecision|Promise<QueueDecision> {
@@ -905,10 +940,20 @@ export class FakeEngine {
       const clientId = item.subject.slice('client:'.length);
       for (const list of Object.values(this.clients)) {
         const client = list.find((c) => c.id === clientId);
+        // W6 6G3: the owner applying a suggestion is a row in the client's field history, as the engine's ledger writes it.
+        if (client && client[item.field] !== item.value) this.w5?.find((desk): desk is FakeCrmDesk => desk instanceof FakeCrmDesk)?.recordClientChange(clientId, item.field, client[item.field] ?? null, item.value, 'owner', item.id);
         if (client) client[item.field] = item.value;
       }
     }
     return { item: clone(item) };
+  }
+  /** W6 6G3: the owner's own value for a client field (venture.crm.client.edit), as owner-entered evidence written through. */
+  private editClientField(clientId: string, field: 'name' | 'email' | 'note', value: string): void {
+    const client = (this.clients[this.current] ?? []).find((c) => c.id === clientId);
+    if (!client) return;
+    for (const item of this.evidence) if (item.subject === `client:${clientId}` && item.field === field) item.applied = false;
+    this.evidence.unshift({ id: `ev-${clientId}-${field}-${this.clientSeq++}`, subject: `client:${clientId}`, field, value, type: 'owner-entered', strength: 'verified', claim: 'observed', source: 'You entered this.', applied: true });
+    client[field] = value;
   }
   /** venture.journal.resolve: the owner says what they found on an unknown outcome. Nothing is sent again. */
   private resolveJournal(p: ParamsOf<'venture.journal.resolve'>) {

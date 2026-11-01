@@ -25,6 +25,7 @@ import { holdsIdNumber } from './answer.ts';
 import { chatAgent, type ChatAgent } from './roles.ts';
 import { ACT_STEP_KINDS, ALWAYS_LIMIT, holdsWords, maskNote, noteRefusal, noteText, scopeClient, screenIds, type NoteProblem } from './recall.ts';
 import { eraseKnowledgeHolding } from './knowledge.ts';
+import { RETIRED_LINE, retirementOf } from './retired.ts';
 
 export type { NoteProblem } from './recall.ts';
 
@@ -472,6 +473,8 @@ export async function notesEditHandler(deps: VentureDeps, ctx: Context, payload:
   return ventureAction(deps, ctx, 'approve', 'agents.notes.edit', tx => {
     const venture = tx.venture!;
     const agent = chatAgent(tx.state, venture, agentId);
+    // W6 6G2: a retired agent's notes are on the read-only shelf; Forget and Undo still work there.
+    check(!retirementOf(tx.state, venture.id, agentId), 'AGENT_RETIRED', RETIRED_LINE);
     const current = noteId === null ? null : tx.find('venture-agent-note', noteId) ?? null;
     if (noteId !== null) {
       check(current && current.agent === agent.id, 'INVALID_VENTURE_REQUEST', NOT_FOUND);
