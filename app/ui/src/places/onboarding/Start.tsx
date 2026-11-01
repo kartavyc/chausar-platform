@@ -36,7 +36,7 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * shown), so the page around it can stop offering ways away from it: the open business was locked on the way, and the
  * recovery code shows once. `onBegin(false)` when it rests again (a refusal before the vault).
  */
-export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, business, home }: {
+export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, business, home, plan, onKept }: {
   variant: 'first-run' | 'place'; onStarted: () => void; orDescribe?: boolean | undefined; onBegin?: ((begun: boolean) => void) | undefined;
   /** Words another tile puts in the box (W4 4C2: the fit's Start with this), each with its own count; never sent. */
   fill?: { text: string; n: number } | undefined;
@@ -44,6 +44,12 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   business?: string | undefined;
   /** The open business's confirmed country: a new business starts there until the owner chooses another. */
   home?: string | undefined;
+  /**
+   * W6 6C2: the plan About you kept (its idea and the confirmed country). Start then shows no box: it keeps that plan at
+   * once, asking only what the engine forces (a passphrase, the recovery code), and calls onKept instead of opening Today.
+   */
+  plan?: { idea: string; countryCode: string } | undefined;
+  onKept?: (() => void | Promise<void>) | undefined;
 }) {
   const t = useT();
   const language = useLanguage();
@@ -93,6 +99,15 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     if (home && !picked.current && countries?.some((c) => c.code === home)) setCountryCode(home);
   }, [home, countries]);
 
+  // W6 6C2: a plan kept on About you is kept at once, once.
+  const auto = useRef(false);
+  useEffect(() => {
+    if (!plan || auto.current) return;
+    auto.current = true;
+    void act(() => begin(plan.idea, plan.countryCode));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the kept plan starts once
+  }, []);
+
   // The cursor goes in the box on a computer with a mouse; a phone keeps its keyboard closed until the owner taps.
   useEffect(() => {
     try { if (window.matchMedia('(pointer: fine)').matches) box.current?.focus(); } catch { /* focus is a convenience */ }
@@ -123,6 +138,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   async function finish(sentence: Sentence) {
     setStage({ kind: 'working', step: 'plan' });
     await setUpPlan(client.request, sentence);
+    if (onKept) { await onKept(); return; }
     goTo('today');
     onStarted();
   }
@@ -176,6 +192,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     event?.preventDefault();
     if (busy || stage.kind === 'code') return;
     if (kept) { void act(() => finish(kept)); return; }
+    if (plan && !asking) { void act(() => begin(plan.idea, plan.countryCode)); return; }
     if (asking) {
       const first = passphrase.current?.value ?? '';
       if (first.length < PASSPHRASE_MIN) { setProblem({ text: t('onboarding.passphrase.short'), on: 'passphrase' }); passphrase.current?.focus(); return; }
@@ -242,7 +259,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   /** The box takes words: not while Chausar reads them, and not once the vault is made for them. */
   const editable = !busy && kept === null;
   const question = place && orDescribe ? t('onboarding.describe.or') : t('onboarding.question');
-  const inBar = !asking && stage.kind !== 'code';
+  const inBar = !plan && !asking && stage.kind !== 'code';
   const submitButton = (
     // While a suggested plan change shows, its Apply is the tile's one primary (W4 4J21).
     <Button variant={adding && suggestion?.patch ? 'secondary' : 'primary'} size="lg" type="submit" disabled={busy} aria-busy={busy || undefined}>
@@ -289,6 +306,8 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
           </div>
           <p className={s.formLine}>{t('onboarding.describe.line')}</p>
         </>
+      ) : plan ? (
+        <h1 className={s.question}>{t('first-run.keep.title')}</h1>
       ) : (
         <>
           <h1 className={s.question}><label htmlFor={boxId}>{question}</label></h1>
@@ -296,7 +315,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
         </>
       )}
 
-      <div className={s.box} data-invalid={boxProblem ? '' : undefined}>
+      {!plan && <div className={s.box} data-invalid={boxProblem ? '' : undefined}>
         <textarea
           ref={box}
           id={boxId}
@@ -316,7 +335,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
           {inBar && !countryCheck && submitButton}
           </div>
         )}
-      </div>
+      </div>}
 
       {picking && business !== undefined && (
         <BusinessPick business={business} target={target} onTarget={(next) => { setTarget(next); setSuggestion(null); setProblem(null); }} disabled={busy} />
@@ -394,7 +413,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   }
   return (
     <div className={s.alone}>
-      <Brand />
+      {!plan && <Brand />}
       {form}
     </div>
   );

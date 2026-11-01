@@ -579,7 +579,7 @@ export interface CalendarIntakeLite { month: string; channels: string[]; postsPe
 /** `OrderIntake.clientRules`: the client's own word lists; a missing list is empty. */
 export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string[]; competitors?: string[]; protectedPhrases?: string[] }
 /** intake: by offer id, worked out by the engine; absent when no offer asks anything at intake. */
-export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite> }
+export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView }
 export interface BlueprintPatchLite {
   countryCode?: string;
   name?: string; oneLiner?: string; customer?: string;
@@ -661,6 +661,9 @@ export interface OrderLite {
   internal?: true;
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
+  /** Wave 6 (6D1): when the whole order is due; (6D4) the owner's own price in a client's currency. */
+  dueDate?: string;
+  foreignPrice?: { currency: string; unitPriceMinor: string };
   /** OrderRecord.intake, trimmed (a flagship offer's intake). cutFile: the finished cut on this computer, desktop only. */
   intake?: { calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite; rights?: { basis: RightsBasisLite; holder: string; reference: string | null; scope: string | null; expiresOn: string | null; recordedAt: string; recordedBy: string } | null; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; format?: 'long' | 'short'; cutFile?: string | null; fields?: Record<string, string | boolean | readonly string[] | readonly { name: string; consentId: string | null }[] | null> };
   /** 4J3: the order's stage steps from the records, and what waits on the owner ("2 wait on you: ..."), or null. */
@@ -751,6 +754,8 @@ export interface InvoiceLite {
   next?: InvoiceNext;
   /** 4J4: an open invoice past its due day ("71 days late"). */
   late?: { days: number; line: Display };
+  /** Wave 6 (6D1): the part of its order a list row bills, when it bills a part. */
+  part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; label: string };
 }
 /**
  * `venture.invoice.get`, `.prepare`, `.issue` and `venture.payment.record` (InvoiceView), trimmed. Amounts reach the UI
@@ -779,6 +784,10 @@ export interface InvoiceViewLite {
   invoice: InvoiceLite & {
     currency: string; dueInDays: number; digest: string; documentTitle: string;
     priceReceiptId: string; booksReceiptId: string | null; booksNote: string | null;
+    /** Wave 6 (6D1): the part of its order this invoice bills, its terms line and its own reminder days. */
+    part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; label: string };
+    terms?: string;
+    reminderDays?: number[];
   };
   client: { id: string; name: string };
   receipt: { id: string; stale: boolean };
@@ -793,6 +802,37 @@ export interface InvoiceViewLite {
   rateChange?: { charged: string; now: string; line: Display };
   /** 4J20: an open invoice past its due day. */
   late?: { days: number; line: Display };
+  /** Wave 6 (6D1): how much of a part-billed order is billed and left, as engine text. */
+  billed?: { orderTotal: Display; billed: Display; left: Display; invoices: number };
+  /** Wave 6 (6D2, 6D3): how the client pays, built by the engine from the balance. */
+  howToPay?: HowToPayLite;
+}
+
+/** Wave 6 (6D2, 6D3): an invoice's ways to pay, as text and a QR code the engine drew; no amount the UI could add up. */
+export interface HowToPayLite {
+  upi: { id: string; payeeName: string; link: string; qr: { version: number; size: number; rows: string[] }; amount: Display; reference: string; receiptId: string } | null;
+  bank: { accountName: string; accountNumber: string; ifsc: string | null; swift: string | null; bankName: string | null } | null;
+  upiNote: Display | null;
+  payLink: { id: string; shortUrl: string; status: 'created' | 'partially_paid' | 'expired' | 'cancelled' | 'paid'; checkedAt: string | null; label: 'fixture-tested' } | null;
+  payLinkOffer: { amount: Display; currency: string; digest: string; label: 'fixture-tested' } | null;
+}
+/** Wave 6 (6D1, 6D2, 6D3): the owner's billing settings (money/billing.ts). */
+export interface BillingSettingsLite {
+  dueInDays: number; terms: string | null; reminderDays: number[]; upiId: string | null; payeeName: string | null;
+  bank: { accountName: string; accountNumber: string; ifsc: string | null; swift: string | null; bankName: string | null } | null;
+  razorpay: { mode: 'test' | 'live'; keyHint: string; savedAt: string } | null;
+}
+export interface BillingView { settings: BillingSettingsLite; defaults: { dueInDays: number; reminderDays: number[] }; razorpayLabel: 'fixture-tested' }
+export type BillingPatch = Partial<Omit<BillingSettingsLite, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & {
+  /** Days as typed text or whole numbers; the engine reads and checks them. */
+  dueInDays?: number | string; reminderDays?: (number | string)[];
+  bank?: { accountName: string; accountNumber: string; ifsc?: string | null; swift?: string | null; bankName?: string | null } | null;
+  razorpayKeys?: { keyId: string; keySecret: string } | null;
+};
+/** Wave 6 (6D2): an issued invoice's file and the links that open the owner's own WhatsApp or mail app. */
+export interface InvoicePdfView {
+  fileName: string; format: 'pdf' | 'html'; mimeType: 'application/pdf' | 'text/html'; contentBase64: string; note: Display | null;
+  share: { text: string; subject: string; whatsappUrl: string; mailtoUrl: string };
 }
 
 /**
@@ -875,6 +915,13 @@ export interface SimulationRunLite {
 }
 /** ImprovementReadiness: reason is the engine's words; 'planned' means the loop is not in this build. */
 export interface ImprovementReadinessLite { judged: number; rejectedOrEdited: number; due: boolean; reason: Display; status: 'available' | 'planned' }
+/** `venture.launch.status` (wave 6, 6C4): the two stages the owner sees; reason is the engine's words for each. */
+export interface LaunchStatusView {
+  stage: 'practice' | 'live';
+  stages: { stage: 'practice' | 'live'; allowed: boolean; reason: Display; current: boolean }[];
+  acceptedDeliveries: number;
+  improvement: ImprovementReadinessLite;
+}
 /** `venture.improve.run` (ImprovementRunRecord), trimmed. changes: one plain line per change the kept version makes. */
 export interface ImprovementRunLite {
   id: string; at: string; status: 'kept-candidate' | 'kept-parent' | 'incomplete'; parentPlaybookId: string; candidatePlaybookId: string | null;
@@ -990,6 +1037,17 @@ export interface CaReceiptView {
   explanations: CaDiffExplanation[];
   /** On a portal diff only: each key that is not the same, both sides as the engine wrote them, and the CA's explanation or null. */
   portalDifferences?: { key: string; label: string; state: 'differs' | 'missing-on-portal' | 'only-on-portal'; ours: Display | null; portal: Display | null; explanation: string | null }[];
+}
+/** W6 6C5: one locked rule as its attestation screen shows it (`venture.rules.locks`). */
+export interface LockedRuleLite { id: string; playbook: string; topic: Display; rule: Display; limitations: Display; needs: 'lawyer' | 'ca'; sources: { title: string; url: string }[]; digest: string; attestable: boolean; attestedOn: string | null; line: Display }
+/** W6 6C5: `venture.rules.locks` and `venture.rules.attest`: the locked rules, the words the owner ticks, and the hard stops. */
+export interface RuleLocksLite { playbook: { id: string; label: string } | null; rules: LockedRuleLite[]; words: Display; line: Display; hardStops: { id: string; line: Display }[] }
+/** W6 6C6: `venture.compliance.get` and `.set`: the side-work question, the profession's rules and regulator switches. */
+export interface ComplianceLite {
+  profession: { id: string; label: Display; family: string | null }; question: Display; responsibility: Display;
+  rules: { id: string; title: Display; line: Display; checked: boolean }[]; switchedOff: { tool: string; line: Display }[];
+  hardStops: { id: string; line: Display }[]; digest: string;
+  recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: string } | null;
 }
 /** `venture.rules.list`: the dated platform rules a flagship playbook's checks rest on. */
 export interface PlatformRuleView {
@@ -1355,8 +1413,23 @@ export interface WayView {
   id: string; playbook: string; label: Display; category: WayCategory; department: DepartmentId; line: Display;
   hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
   team: { role: string; initials: string; department: DepartmentId }[]; teamLine: Display;
-  clientsPay: { text: Display; per: Display; estimate: true; source: Display }; needs: WayNeeds; starter: Display;
+  /** W6 6C3: estimate is false where a sourced range for the way's own service replaced the model estimate; guide: the profession's sources or "No reliable data". */
+  clientsPay: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string }; needs: WayNeeds; starter: Display;
   yours: { businessId: string; name: string }[];
+}
+/**
+ * W6 6C3 (D17), `PriceGuideView` in platform/runtime/venture/contracts.ts (core/price-ranges.ts): a profession's price
+ * ranges from credible sources with the date checked, or status no-reliable-data with line "No reliable data". Every
+ * amount's words (text) are the engine's; the UI shows them, never computes them, and a guide never sets a price.
+ */
+export interface PriceSourceView { url: string; publisher: string; title: string; published: string | null }
+export interface PriceRangeView {
+  id: string; label: string; currency: string; lowMinor: string; highMinor: string; kind: 'range' | 'minimums' | 'cap';
+  text: Display; per: Display; city: string | null; sources: PriceSourceView[]; checkedOn: string; checked: Display; note: Display;
+}
+export interface PriceGuideView {
+  profession: string; label: Display; family: string; status: 'sourced' | 'no-reliable-data';
+  ranges: PriceRangeView[]; line: Display | null; reason: Display | null; checkedOn: string; checked: Display;
 }
 export interface WaysView {
   ways: WayView[];
@@ -1380,7 +1453,35 @@ export interface PlanSuggestionView {
   left: Display; line: Display; callId: string | null;
 }
 /** kept: only on the answer that removed a stored name, the backups line Forget also shows. */
-export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[] }
+export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[]; familyId?: string }
+/**
+ * Wave 6 (6C1): each tool found on this computer, its own sign-in state (from its own status command) and any login in
+ * flight: the device code and link the tool printed (platform/runtime/venture/models/login.ts).
+ */
+export type ToolLoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
+export interface ToolLite {
+  cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown';
+  login: { state: ToolLoginState; code: string | null; link: string | null; line: string | null };
+}
+export interface ToolsLite { tools: ToolLite[]; line: string }
+/** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
+export interface FamilyTileLite { id: string; label: string; line: string }
+export interface AboutReadLite {
+  family: FamilyTileLite | null;
+  offers: { name: string; line: string }[];
+  country: CountryLite | null;
+  evidence: string | null;
+  idea: string | null;
+  source: 'ai' | 'keywords' | 'tile';
+  file?: { name: string; included: boolean; line: string | null };
+}
+/** Wave 6 (6C7): what the business needs from outside, as core/needs.ts answers. */
+export interface NeedLite {
+  id: string; name: string; why: string; label: 'write' | 'read' | 'handoff' | 'planned';
+  connect: { kind: 'sign-in' | 'key' | 'guide' | 'none'; connectorId: string | null; place: 'connections' | 'connections/ai' | null };
+  waitsOn: string | null; meanwhile: string | null; required: false;
+}
+export interface NeedsListLite { family: { id: string; label: string } | null; needs: NeedLite[] }
 /** reason (4J22a): only 'changed' and 'unsigned-since' are mismatches; the others are not confirmed. */
 export interface ReceiptVerifyView { id: string; valid: boolean; label: 'reproduction_ready' | 'incomplete' | 'signature_only'; reason: 'signed' | 'changed' | 'unsigned-since' | 'unsigned-old' | 'no-key' | 'key-gone'; line: Display }
 /** digest: what the owner saw, sent back to accept exactly that break (venture.journal.acceptBreak). */
@@ -1681,7 +1782,7 @@ export interface EngineMethods {
   'venture.receipt.get': { params: { id: string }; result: ReceiptLite };
   'venture.books.summary': { params: { period?: BooksPeriodKey | string }; result: BooksSummaryLite };
   'venture.invoice.get': { params: { invoiceId: string }; result: InvoiceViewLite };
-  'venture.invoice.prepare': { params: { orderId: string; dueInDays?: number; issueDate?: string }; result: InvoiceViewLite };
+  'venture.invoice.prepare': { params: { orderId: string; dueInDays?: number; issueDate?: string; reminderDays?: number[]; part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; label?: string; percent?: string; amount?: string } }; result: InvoiceViewLite };
   'venture.invoice.issue': { params: { invoiceId: string; digest: string }; result: InvoiceViewLite };
   /** 4J5: allocations splits one payment of amount across invoices, in place of invoiceId; tds: what the client deducted (India). */
   'venture.payment.record': {
@@ -1744,6 +1845,11 @@ export interface EngineMethods {
   'venture.client.aiConsent.get': { params: {clientId:string}; result: ClientAiConsentView };
   'venture.client.aiConsent.agree': { params: {clientId:string;disclosureDigest:string}; result: ClientAiConsentView };
   'venture.client.aiConsent.withdraw': { params: {clientId:string}; result: ClientAiConsentView };
+  // Wave 6 money (6D1 to 6D4)
+  'venture.billing.get': { params: Record<string, never>; result: BillingView };
+  'venture.billing.set': { params: BillingPatch; result: BillingView };
+  'venture.invoice.pdf': { params: { invoiceId: string }; result: InvoicePdfView };
+  'venture.invoice.payLink': { params: { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' }; result: InvoiceViewLite };
   'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
   'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
   'venture.mcpCredential.set': { params:{serverId:string;token:string|null};result:{serverId:string;saved:boolean} };
@@ -1758,6 +1864,8 @@ export interface EngineMethods {
   'venture.order.create': {
     params: {
       clientId?: string; offerId: string; quantity?: string; request: string;
+      /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
+      dueDate?: string; currency?: string; unitPrice?: string;
       intakeFiles?: Record<string, { name: string; contentBase64: string }>;
       intake?: {
         rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string;
@@ -1815,6 +1923,10 @@ export interface EngineMethods {
   'venture.ca.receipt': { params: { id: string }; result: CaReceiptView };
   'venture.ca.explainDiff': { params: { receiptId: string; key: string; note: string; membershipNo: string }; result: { explanation: CaDiffExplanation } };
   'venture.rules.list': { params: Record<string, never>; result: RulesListView };
+  'venture.rules.locks': { params: Record<string, never>; result: RuleLocksLite };
+  'venture.rules.attest': { params: { ruleId: string; attest: boolean; digest?: string }; result: RuleLocksLite };
+  'venture.compliance.get': { params: { profession?: string }; result: ComplianceLite };
+  'venture.compliance.set': { params: { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string }; result: ComplianceLite };
   'venture.judge.auto.get': { params: Record<string, never>; result: JudgeAutoView };
   /** The owner's, inside the app. auto: true records the standing consent for the judge's calls. */
   'venture.judge.auto.set': { params: { auto: boolean }; result: JudgeAutoView };
@@ -1967,7 +2079,7 @@ export interface EngineMethods {
   'venture.blueprint.suggest': { params: { text: string; attachment?: { name: string; text: string } }; result: PlanSuggestionView };
   'venture.owner.get': { params: Record<string, never>; result: OwnerView };
   /** firstName null takes the owner's name back. */
-  'venture.owner.set': { params: { firstName?: string | null; excludedServices?: string[] }; result: OwnerView };
+  'venture.owner.set': { params: { firstName?: string | null; excludedServices?: string[]; familyId?: string | null }; result: OwnerView };
   'venture.receipt.verify': { params: { id: string }; result: ReceiptVerifyView };
   'venture.journal.chain': { params: Record<string, never>; result: JournalChainView };
   'venture.journal.acceptBreak': { params: { digest: string }; result: JournalChainView };
@@ -1978,8 +2090,8 @@ export interface EngineMethods {
   'venture.delivery.playbook': { params: Record<string, never>; result: unknown };
   'venture.simulation.get': { params: { runId: string }; result: SimulationRunLite };
   'venture.simulation.fromSignal': { params: { signalId: string }; result: ScenarioLite };
-  'venture.launch.status': { params: Record<string, never>; result: unknown };
-  'venture.launch.advance': { params: { to: string }; result: unknown };
+  'venture.launch.status': { params: Record<string, never>; result: LaunchStatusView };
+  'venture.launch.advance': { params: { to: 'practice' | 'live' }; result: LaunchStatusView };
   'venture.delivery.review': { params: { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: string; editedText?: string }; result: DeliveryLite };
   'venture.capabilities': { params: Record<string, never>; result: unknown[] };
   'venture.work.get': { params: { id: string }; result: WorkReceiptLite };
@@ -1987,6 +2099,14 @@ export interface EngineMethods {
   'venture.delegate.get': { params: { id: string }; result: unknown };
   'venture.ai.calls': { params: { limit?: number }; result: unknown[] };
   'venture.country.suggest': { params: { text: string }; result: { country: CountryLite | null; evidence: string | null; source: 'ai' | 'not-connected' } };
+  // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault; (6C7) what the business needs.
+  'venture.ai.tools': { params: Record<string, never>; result: ToolsLite };
+  'venture.ai.login.start': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
+  'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
+  'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
+  'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
+  'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
+  'venture.needs.list': { params: Record<string, never>; result: NeedsListLite };
   'venture.compose.decide': { params: { text: string; countryCode: string }; result: unknown };
   'venture.compose.fill': { params: { composeId: string }; result: unknown };
   'venture.compose.get': { params: Record<string, never>; result: unknown };

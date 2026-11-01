@@ -28,6 +28,7 @@ import { Bills } from './Bills';
 import { Books } from './Books';
 import { ExportButton } from './ExportButton';
 import { InvoiceSheet } from './InvoiceSheet';
+import { BillingSheet } from './BillingSheet';
 import { Invoices } from './Invoices';
 import { Journal } from './Journal';
 import { LimitSheet } from './LimitSheet';
@@ -131,4 +132,6 @@ function MonthPicker({ month }: { month: string }) {
 
 export const sheets: Readonly<Record<string, SheetComponent>> = {
   invoice: InvoiceSheet, payment: PaymentSheet, limit: LimitSheet, accountant: AccountantSheet,
+  // Wave 6 (6D2): how clients pay, the owner's billing settings.
+  billing: BillingSheet,
 };

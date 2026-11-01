@@ -10,6 +10,7 @@ import { Examples } from '../../src/places/onboarding/Examples';
 import type { WayData, WaysSlot } from '../../src/places/onboarding/ways';
 import { rule } from '../helpers/css';
 import { assertInkRules } from '../helpers/ink-rules';
+import { keepPlan, skipAi } from './first-run-steps';
 
 /**
  * Start in the direction D look (w3 plan, 3G2; D-Start.dc.html). The flow, the passphrase and the recovery code keep
@@ -187,9 +188,8 @@ describe('Start: the one-sentence tile', () => {
 describe('Start: the passphrase and the recovery code keep their order', () => {
   it('Lock and start comes after the passphrase fields, and only Continue is offered while the code shows', async () => {
     start({ fresh: true, deviceKeys: false }, { hash: '#/today' });
-    const box = await screen.findByRole('textbox', { name: 'What do you want to start?' });
-    fireEvent.change(box, { target: { value: IDEA } });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start' })); });
+    // W6: the first run keeps the plan About you made; the passphrase and the recovery code follow as before.
+    await keepPlan(IDEA);
     const again = await screen.findByLabelText('Type it again');
     const lock = screen.getByRole('button', { name: 'Lock and start' });
     expect(follows(again, lock)).toBe(true);
@@ -201,15 +201,14 @@ describe('Start: the passphrase and the recovery code keep their order', () => {
     const main = screen.getByRole('main');
     expect(within(main).queryByRole('button', { name: /^(Start|Lock and start|Try again)$/ })).toBeNull();
     expect(within(main).getAllByRole('button', { name: 'Continue' })).toHaveLength(1);
-    // The box is kept and read-only now: no "write in English or Hindi" hint for a box nobody can write in.
-    expect(main.textContent).not.toContain('Write in English or');
+    // No box while the plan is kept: no "write in English" hint for a box nobody can write in.
+    expect(main.textContent).not.toContain('Write in English');
     assertInkRules();
   });
 
   it('Continue stays locked, reachable and saying why, until the owner ticks that the code is saved', async () => {
     const { calls } = start({ fresh: true, deviceKeys: false }, { hash: '#/today' });
-    fireEvent.change(await screen.findByRole('textbox', { name: 'What do you want to start?' }), { target: { value: IDEA } });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start' })); });
+    await keepPlan(IDEA);
     fireEvent.change(await screen.findByLabelText('Passphrase'), { target: { value: 'correct horse battery' } });
     fireEvent.change(screen.getByLabelText('Type it again'), { target: { value: 'correct horse battery' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Lock and start' })); });
@@ -253,24 +252,22 @@ describe('Start: once it begins, nothing else on the page leads away', () => {
     expect(screen.getByRole('link', { name: 'Resume setup' })).toBeTruthy();
   });
 
-  it('the first run: "Open a business you already have" goes once Start begins', async () => {
+  it('the first run: "Open a business you already have" goes once keeping the plan begins', async () => {
     start({ fresh: true, deviceKeys: false }, { hash: '#/today' });
-    const box = await screen.findByRole('textbox', { name: 'What do you want to start?' });
+    await skipAi();
     expect(screen.getByRole('button', { name: 'Open a business you already have' })).toBeTruthy();
-    fireEvent.change(box, { target: { value: IDEA } });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start' })); });
+    await keepPlan(IDEA);
     await screen.findByLabelText('Type it again');
     expect(screen.queryByRole('button', { name: 'Open a business you already have' })).toBeNull();
   });
 
-  it('from Welcome back: "Back to your businesses" goes once Start begins', async () => {
+  it('from Welcome back: "Back to your businesses" goes once keeping the plan begins', async () => {
     start({ closed: true, deviceKeys: false }, { hash: '#/today' });
     const another = await screen.findByRole('button', { name: 'Start another business' });
     await act(async () => { fireEvent.click(another); });
-    const box = await screen.findByRole('textbox', { name: 'What do you want to start?' });
+    await skipAi();
     expect(screen.getByRole('button', { name: 'Back to your businesses' })).toBeTruthy();
-    fireEvent.change(box, { target: { value: IDEA } });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start' })); });
+    await keepPlan(IDEA);
     await screen.findByLabelText('Type it again');
     expect(screen.queryByRole('button', { name: 'Back to your businesses' })).toBeNull();
   });
@@ -287,18 +284,20 @@ describe('Start: Welcome back carries the logo too', () => {
 });
 
 describe('Start: the first run stays simple', () => {
-  it('the brand, the question, the box with its hint and Start; no steps, no examples, no gallery', async () => {
+  // W6 6C1 (reference-ui/Main.dc.html): the brand, the three named setup steps and Connect your AI; still no rail,
+  // no examples and no gallery, and one filled primary: the tool found on this computer.
+  it('the brand, the three setup steps and Connect your AI; no examples, no gallery', async () => {
     start({ fresh: true }, { hash: '#/today' });
-    await screen.findByRole('textbox', { name: 'What do you want to start?' });
+    await screen.findByRole('button', { name: 'Sign in with Codex' }, { timeout: 4000 });
     const main = screen.getByRole('main');
-    // The two-square mark is decorative; the name is said once.
-    expect(main.querySelectorAll('svg[aria-hidden="true"] rect')).toHaveLength(2);
+    // The two-square mark (the first picture) is decorative; the name is said once.
+    expect(main.querySelector('svg[aria-hidden="true"]')!.querySelectorAll('rect')).toHaveLength(2);
     expect(within(main).getByText('Chausar')).toBeTruthy();
-    expect(main.textContent).toContain('Write in English');
+    expect(within(main).getByRole('list', { name: 'Setup steps' })).toBeTruthy();
     expect(within(main).queryByRole('group', { name: 'Examples' })).toBeNull();
     expect(within(main).queryByRole('region', { name: 'How starting works' })).toBeNull();
     expect(within(main).queryByRole('link', { name: 'Resume setup' })).toBeNull();
-    expect([...main.querySelectorAll('[data-variant="primary"]')].map((b) => b.textContent)).toEqual(['Start']);
+    expect([...main.querySelectorAll('[data-variant="primary"]')].map((b) => b.textContent)).toEqual(['Sign in with Codex']);
     assertInkRules();
   });
 });

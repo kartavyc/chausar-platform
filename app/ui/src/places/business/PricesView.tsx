@@ -6,7 +6,8 @@ import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Tile } from '../../parts/Tile';
-import type { OfferLite, ReceiptLite } from '../../engine/types';
+import { PriceGuideList } from '../../parts/PriceSources';
+import type { OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types';
 import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
@@ -28,7 +29,7 @@ export function PricesView() {
   if (plan.data === null) {
     return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
   }
-  const { blueprint, offerReceipts } = plan.data;
+  const { blueprint, offerReceipts, priceGuide } = plan.data;
   return (
     <div className={s.page}>
       <PendingPlanRows onDecided={plan.reload} />
@@ -44,8 +45,25 @@ export function PricesView() {
         </ul>
         {/* W5 5A2: a share of an amount the client confirms later, one step away (founder decision of 23 Oct). */}
         <ShareFold offers={blueprint.offers} onChanged={plan.reload} />
+        {/* W6 6C3 (D17): what clients pay for this profession, from published sources with the date checked, or "No
+            reliable data". Information beside the owner's own prices: it fills in and changes nothing. */}
+        {priceGuide && <PriceGuideSection guide={priceGuide} />}
       </section>
     </div>
+  );
+}
+
+/**
+ * W6 6C3: the plan's profession guide under the offers, one fold away like the receipt's working (simple first): each
+ * sourced range with its (i), or "No reliable data".
+ */
+function PriceGuideSection({ guide }: { guide: PriceGuideView }) {
+  const t = useT();
+  return (
+    <details className={s.priceGuide} data-price-guide-fold="">
+      <summary className={s.priceGuideTitle}>{t('price-sources.title')}</summary>
+      <PriceGuideList guide={guide} />
+    </details>
   );
 }
 

@@ -1,5 +1,6 @@
 // Current file and source evidence for every career delivery boundary. Only the owner desk creates approved packs.
 import {check,type State} from '../../../contracts.ts';
+import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import {digest,listRecords} from '../../records.ts';
 import {careerEvidence} from './source-state.ts';
 import {careerFileBinding} from './thread-state.ts';
@@ -22,7 +23,7 @@ export function careerRunSource(state:State,ventureId:string,orderId:string,clie
 
 export function careerRunCurrent(state:State,ventureId:string,run:DeliveryRunRecord,now:string|undefined=undefined,clientApproved=false){
  if(playbookForRun(state,run)?.flagship!=='job-search-desk')return;
- requireCareerClientRule();const source=careerRunSource(state,ventureId,run.orderId);
+ requireCareerClientRule(attestedRules(state,ventureId));const source=careerRunSource(state,ventureId,run.orderId);
  check(run.careerPackBinding===source.sourceBinding,'CAREER_SOURCE_CHANGED','The rendered career pack changed. Start a new delivery from its approved files.');
  check(run.renderedText===source.text&&(!run.editedText||run.editedText===source.text),'CAREER_CLAIM_BOUNDARY','Use the exact approved career pack text.');
  if(clientApproved){check(now,'INVALID_VENTURE_REQUEST','Use the current review time.');careerRunSource(state,ventureId,run.orderId,now);}

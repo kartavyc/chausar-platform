@@ -1,0 +1,7 @@
+{
+  "price-sources.where": "Where this range comes from",
+  "price-sources.whyNone": "Why there is no range",
+  "price-sources.checked": "Checked {date}. Your price is yours to set.",
+  "price-sources.perIn": "{per}, {city}",
+  "price-sources.title": "Price ranges"
+}

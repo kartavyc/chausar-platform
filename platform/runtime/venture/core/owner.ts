@@ -6,6 +6,7 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel, singleLine, ventureAction } from '../records.ts';
 import type { OwnerProfileRecord, OwnerView, VentureDeps, VentureRecord } from '../contracts.ts';
+import { isFamilyId, type FamilyId } from './families.ts';
 
 /**
  * A first name of 1 to 40 characters, once the curly apostrophe is made straight: it starts with a letter in any script;
@@ -25,9 +26,10 @@ const NAME_RULE = 'Your first name can have 1 to 40 letters, with spaces, dots, 
 export const BACKUPS_LINE = 'Backups made before now still hold this person until those backups are deleted.';
 
 /** The profile's two fields for a business, empty when the owner has set nothing. */
-export function ownerProfileOf(state: State, ventureId: string): Pick<OwnerProfileRecord, 'firstName' | 'excludedServices'> {
+export function ownerProfileOf(state: State, ventureId: string): Pick<OwnerProfileRecord, 'firstName' | 'excludedServices'> & { familyId?: FamilyId } {
   const record = listRecords(state, 'venture-owner-profile', ventureId).at(-1);
-  return { firstName: record?.firstName ?? null, excludedServices: [...(record?.excludedServices ?? [])] };
+  // Wave 6: the family shows only once About you kept one, so older profiles read exactly as before.
+  return { firstName: record?.firstName ?? null, excludedServices: [...(record?.excludedServices ?? [])], ...(record?.familyId ? { familyId: record.familyId } : {}) };
 }
 
 /** The services the owner said the business does not sell, in the owner's order (read by 4E2's outreach check). */
@@ -77,8 +79,11 @@ export async function ownerGet(deps: VentureDeps, ctx: Context, payload: unknown
  */
 export async function ownerSet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OwnerView> {
   requireAppChannel(ctx, 'venture.owner.set');
-  const body = exactPayload(payload, ['firstName', 'excludedServices']);
+  const body = exactPayload(payload, ['firstName', 'excludedServices', 'familyId']);
   check(Object.keys(body).length > 0, 'INVALID_VENTURE_REQUEST', 'Send your first name, the services you do not sell, or both.');
+  // Wave 6 (6C2): the profession family the plan was kept with, so Connections lists what this business needs (6C7).
+  check(!Object.hasOwn(body, 'familyId') || body.familyId === null || isFamilyId(body.familyId), 'INVALID_VENTURE_REQUEST', 'Choose one of the listed fields.');
+  const familyId = Object.hasOwn(body, 'familyId') ? (body.familyId as FamilyId | null) : undefined;
   const firstName = Object.hasOwn(body, 'firstName') ? (body.firstName === null ? null : firstNameOf(body.firstName)) : undefined;
   const excludedServices = Object.hasOwn(body, 'excludedServices') ? excludedServicesList(body.excludedServices) : undefined;
   return ventureAction(deps, ctx, 'approve', 'owner.set', tx => {
@@ -89,6 +94,7 @@ export async function ownerSet(deps: VentureDeps, ctx: Context, payload: unknown
       memberId: tx.ctx.memberId, epoch: tx.ctx.epoch, at: tx.now,
       firstName: firstName === undefined ? current?.firstName ?? null : firstName,
       excludedServices: excludedServices ?? current?.excludedServices ?? [],
+      ...(familyId !== undefined ? { familyId } : current?.familyId !== undefined ? { familyId: current.familyId } : {}),
     };
     if (current) tx.replace(next); else tx.put(next);
     const removed = firstName === null && current?.firstName != null;

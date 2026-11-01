@@ -1,5 +1,5 @@
 {
-  "connections.line": "Your AI and what each tool does today.",
+  "connections.line": "Your AI and your tools.",
   "connections.failed": "Couldn't load your connections: {message}",
   "connections.posting": "Posting",
   "connections.posting.api": "API",

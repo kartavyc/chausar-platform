@@ -61,9 +61,9 @@ test('every readiness item can be met, and auto with spot checks still answers A
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), locked);
   await assert.rejects(call(env, 'venture.policy.allowSession', { stepId: 'draft' }), code('AUTO_LOCKED'));
   const status = await deliveryHandlers['venture.launch.status']!(env.deps, owner, {}) as LaunchStatus;
-  const auto = status.stages.find(stage => stage.stage === 'auto-spot-check')!;
-  assert.deepEqual([auto.allowed, auto.reason], [false, AUTO_LOCKED_WORDS]);
-  assert.equal(status.stage, 'approve-each', 'nothing moved');
+  // 6C4: unfinished stages are hidden; the owner sees Practice and Live only.
+  assert.deepEqual(status.stages.map(stage => stage.stage), ['practice', 'live']);
+  assert.equal(status.stage, 'live', 'nothing moved');
 });
 
 test('auto stays locked at every rung, from the ladder and from Team, whatever readiness says', async () => {
@@ -74,8 +74,8 @@ test('auto stays locked at every rung, from the ladder and from Team, whatever r
     await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'auto-spot-check' }), code('AUTO_LOCKED'));
     await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), code('AUTO_LOCKED'));
   }
-  // The other rungs still behave as before.
-  await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'approve-sample' }), code('STAGE_PLANNED'));
+  // 6C4: the hidden sample stage is not a choice at all.
+  await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'approve-sample' }), code('INVALID_VENTURE_REQUEST'));
   const tightened = await call<{ agent: { posture: string } }>(env, 'venture.team.posture', { agentId: 'delivery', posture: 'shadow' });
   assert.equal(tightened.agent.posture, 'shadow');
 });

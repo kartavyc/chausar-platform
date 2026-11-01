@@ -57,10 +57,12 @@ const METHODS = Object.freeze([
   'venture.countries', 'venture.preview',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.needs.list',
   'venture.create', 'venture.get', 'venture.events', 'venture.interview.next',
   'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
   'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
-  'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
+  'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
   'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.spend.list', 'venture.build.brief',
   'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
@@ -80,7 +82,7 @@ const METHODS = Object.freeze([
   'venture.delivery.judge', 'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe',
   'venture.posting.propose', 'venture.posting.signIn', 'venture.posting.checkSteps', 'venture.share.recordAnswer', 'venture.social.calendar',
   'venture.bank.ledger', 'venture.bank.apply', 'venture.bank.alerts.get', 'venture.bank.alerts.set',
-  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list',
+  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list', 'venture.rules.locks', 'venture.rules.attest', 'venture.compliance.get', 'venture.compliance.set',
   'venture.judge.auto.get', 'venture.judge.auto.set',
   'venture.posting.limits.get', 'venture.posting.limits.set',
   'venture.transcription.get', 'venture.transcription.set',
@@ -177,6 +179,8 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://shopify.dev',
   'https://developer.android.com',
   'https://docs.docker.com',
+  // Wave 6 (6C1): the sign-in pages the tools' own logins print (Codex device code; Claude Code's sign-in).
+  'https://auth.openai.com', 'https://claude.ai', 'https://claude.com',
 ]);
 const MAX_EXTERNAL_URL = 30_000;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);

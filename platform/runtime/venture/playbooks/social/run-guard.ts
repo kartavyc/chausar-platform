@@ -10,6 +10,7 @@ import { boundSocialSource } from './bound-source.ts';
 import { socialD2Preflight } from './d2-preflight.ts';
 import { digest,listRecords } from '../../records.ts';
 import { requireOrderPeopleConsent } from '../kit/voice-consent.ts';
+import { isPracticeStage } from '../../core/launch-stage.ts';
 import { findRecord } from '../../records.ts';
 import { socialLegalBlock } from './legal-confirmation.ts';
 export { boundSocialSource } from './bound-source.ts';
@@ -22,7 +23,7 @@ export function refuseSocialDraft(state: State, venture: VentureRecord, order: O
         if (['video-ads','reel-from-clips','hook-variations','local-instagram','cross-posting'].includes(key??'')) requireOrderPeopleConsent(state,venture,order,today);
         if (order.socialChain || key === 'video-ads') {
             const client = findRecord(state, 'venture-client', order.clientId);
-            const legal = socialLegalBlock({ countries: [venture.country.code, client?.countryCode], rehearsal: venture.launchStage === 'shadow', paid: key === 'video-ads' || order.intake?.paidPromotion === true, synthetic: order.intake?.aiVoice === true || order.intake?.aiPresenter === true });
+            const legal = socialLegalBlock({ countries: [venture.country.code, client?.countryCode], rehearsal: isPracticeStage(venture.launchStage), paid: key === 'video-ads' || order.intake?.paidPromotion === true, synthetic: order.intake?.aiVoice === true || order.intake?.aiPresenter === true });
             check(!legal, 'RULE_UNCONFIRMED', legal ?? 'A lawyer must confirm the applicable disclosure rules.');
         }
         if (key === 'community-replies') {

@@ -17,6 +17,7 @@ import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
   ...CUSTODY_METHODS]);
 
 /** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */

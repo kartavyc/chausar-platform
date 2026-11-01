@@ -18,6 +18,7 @@ import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SA
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
 import { fakeCountrySuggestion } from './fake-country';
+import { FakeFirstRun, FIRST_RUN_METHODS } from './fake-first-run';
 import type { ModelStatusLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
@@ -49,6 +50,15 @@ import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
 import { fakeSocialForIdea, fakeSocialPlan } from './fake-social-plan';
 import { fakeSocialRevisionDueRows } from './fake-social-revision-due';
 import { withTruth } from './fake-setup';
+import { fakeLaunchAdvance, fakeLaunchStatus, type LaunchFacts } from './fake-launch';
+import { FakeRulesAttest } from './fake-rules-attest';
+import type { ComplianceLite } from './types';
+import { SIDE_WORK_ANSWERS, complianceOf, professionCompliance } from '../../../../platform/runtime/venture/core/compliance-data';
+import { HARD_STOP_WORDS } from '../../../../platform/runtime/venture/policy/hard-stops';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
+/** The business's own calendar day (as the engine's local-day.ts reads it from the country's time zone). */
+const localDayAt = (instant: string, country: { code: string }) => new Intl.DateTimeFormat('en-CA', { timeZone: COUNTRY_TIME_ZONES[country.code] ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
+import { withPriceGuide } from './fake-price-ranges';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
 import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
@@ -100,7 +110,7 @@ export interface FakeOptions {
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
 interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made'; passphrase?: string | undefined }
-interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number }
+interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number; launchStage?: string }
 /** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
 const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
@@ -108,6 +118,8 @@ const BEFORE_VAULT = new Set([
   'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
   // Ink v2 wave 4 (4J8): the Start gallery's ways to earn, a pre-vault method on the engine too.
   'venture.playbooks.list',
+  // W6 6C6: the profession's rules, shown when onboarding picks it, before any vault exists.
+  'venture.compliance.get',
 ]);
 /** The recovery codes the sample opens with: the one made at creation and the one Keep this business makes. */
 const SAMPLE_CODES = new Set([SAMPLE_RECOVERY_CODE, 'R4KD9QXM2HTW7PLB3NCF6YJV']);
@@ -143,6 +155,19 @@ export const queueOrder = (a: QueueRow, b: QueueRow) => queueGroup(a) - queueGro
   || (a.kind === 'locked' ? 0 : a.createdAt.localeCompare(b.createdAt));
 
 export class FakeEngine {
+  /** W6 6C1, 6C2, 6C7: the tools' own sign-in, About you and what the business needs (fake-first-run.ts). */
+  readonly firstRun = new FakeFirstRun({
+    hosted: () => this.hosted,
+    aiStatus: () => this.desk.request('venture.ai.status', {}) as ModelStatusLite,
+    venture: () => {
+      const venture = this.open ? this.ventures.get(this.current) : undefined;
+      if (!venture) return null;
+      const owner = this.answerNow('venture.owner.get', {}) as { familyId?: string };
+      return { idea: venture.idea, country: countryProfile(venture.countryCode), familyId: owner.familyId ?? null };
+    },
+    countries: COUNTRIES,
+    classify,
+  });
   private readonly agentSettings = new FakeAgentSettings({ current: () => this.current, exists: () => this.ventures.has(this.current), agents: () => (this.agents[this.current] ?? []).filter(agent => agent.kind !== 'code').map(({ id, name }) => ({ id, name })), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private rows: QueueRow[];
   private decided = new Set<string>();
@@ -245,6 +270,8 @@ export class FakeEngine {
       business: (id) => this.businesses.find((b) => b.id === id) ?? null, deviceKeys: () => this.deviceKeys && !this.hosted,
       // 4H2: the hosted app lists the command-line presets as unavailable (models/presets.ts availabilityOf).
       hosted: () => this.hosted,
+      // W6 6C1: the sample Codex, once its own sign-in finished, can connect (models/cli-status.ts 'unverified').
+      codexSignedIn: () => this.firstRun.codexSignedIn(),
     }, { fresh });
     this.work = new FakeWorkDesk({
       careerSource:id=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('CAREER_APPROVAL_REQUIRED','Create and approve this order exact rendered pack in the career desk.');return desk.careerSource(id);},
@@ -415,11 +442,19 @@ export class FakeEngine {
   async request(method: string, params: unknown = {}): Promise<unknown> {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
-    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
     if (method === 'venture.agentSettings.get' || method === 'venture.agentSettings.set') return this.agentSettings.request(method, params);
     if (method === 'venture.mcpCredential.set') return this.agentSettings.credential(params);
+    // W6 6C4: the two launch stages, Practice and Live, as delivery/launch.ts answers them.
+    if (method === 'venture.launch.status' || method === 'venture.launch.advance') return this.launch(method, p);
+    // W6 6C5 and 6C6: owner attestation of locked rules; the side-work question and the regulator's switch-offs.
+    if (method === 'venture.rules.locks') { if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.'); return this.rulesAttest.locks(); }
+    if (method === 'venture.rules.attest') return this.rulesAttest.attest(p);
+    if (method === 'venture.compliance.get' || method === 'venture.compliance.set') return this.compliance(method, p);
+    this.refuseRegulator(method, p);
     this.guardInternalShare(method, p);
     const started = this.onboarding(method, p);
     if (started !== NOT_ONBOARDING) return started;
@@ -568,12 +603,72 @@ export class FakeEngine {
     }
   }
 
+  private readonly rulesAttest = new FakeRulesAttest({
+    current: () => this.current,
+    playbook: () => { const pick = this.desk.playbook(this.current); return pick ? { id: pick.id, label: pick.label } : null; },
+    today: () => localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }),
+    now: () => this.now(),
+    changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }),
+  });
+  private readonly complianceRecords = new Map<string, NonNullable<ComplianceLite['recorded']>>();
+
+  /** venture.compliance.get and .set, as core/compliance.ts answers them. */
+  private compliance(method: string, p: Record<string, unknown>): ComplianceLite {
+    const allowed = method === 'venture.compliance.get' ? ['profession'] : ['profession', 'sideWork', 'digest'];
+    const required = method === 'venture.compliance.set' || !this.open ? (method === 'venture.compliance.set' ? allowed : ['profession']) : [];
+    if (!Object.keys(p).every((key) => allowed.includes(key)) || !required.every((key) => Object.hasOwn(p, key))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const recorded = this.open ? this.complianceRecords.get(this.current) ?? null : null;
+    const item = professionCompliance(p.profession ?? recorded?.professionId);
+    if (!item) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a profession.');
+    const pure = complianceOf(item);
+    if (method === 'venture.compliance.get') return { ...pure, recorded: recorded ? { ...recorded } : null };
+    if (typeof p.sideWork !== 'string' || !(SIDE_WORK_ANSWERS as readonly string[]).includes(p.sideWork)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Answer the side-work question.');
+    if (p.digest !== pure.digest) throw new EngineError('APPROVAL_STALE', 'The rules for this profession changed. Read them again.');
+    if (!this.ventures.get(this.current)) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
+    const next = { professionId: item.id, sideWork: p.sideWork as 'allowed' | 'not-allowed' | 'not-sure', acknowledgedOn: localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }) };
+    this.complianceRecords.set(this.current, next);
+    this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
+    return { ...pure, recorded: { ...next } };
+  }
+
+  /** The regulator's switch-offs, as core/compliance.ts refuseRegulatorForbidden refuses them. */
+  private refuseRegulator(method: string, p: Record<string, unknown>): void {
+    const tool = method === 'venture.outreach.draft' || method === 'venture.outreach.open' || method === 'venture.leads.draft' ? 'outreach' : method === 'venture.posting.propose' ? 'advertising' : null;
+    const recorded = tool && this.open ? this.complianceRecords.get(this.current) : undefined;
+    if (!tool || !recorded) return;
+    const exact = method === 'venture.leads.draft' ? [['leadId', 'subject', 'body', 'postalAddress'], ['leadId', 'subject', 'body']] : method === 'venture.posting.propose' ? [['draftId', 'account'], ['draftId']] : null;
+    if (exact && (!Object.keys(p).every((key) => exact[0]!.includes(key)) || !exact[1]!.every((key) => Object.hasOwn(p, key)))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const off = professionCompliance(recorded.professionId)?.switchedOff.find((entry) => entry.tool === tool);
+    if (off) throw new EngineError('REGULATOR_FORBIDS', `${off.line} ${HARD_STOP_WORDS}`);
+  }
+
+  private launchFacts(): LaunchFacts {
+    const venture = this.ventures.get(this.current);
+    const main = (this.answerNow('venture.models.status', {}) as { tiers?: { main?: { presetId?: string; usable?: boolean } } } | undefined)?.tiers?.main;
+    const runs = this.answerNow('venture.delivery.list', {}) as DeliveryLite[];
+    return {
+      stored: venture?.launchStage ?? 'rehearsal', accepted: !!this.desk.acceptedPlanFor(this.current),
+      connected: !!main && main.usable !== false && main.presetId !== 'built-in-templates',
+      acceptedDeliveries: runs.filter((run) => run.verdict?.choice === 'accepted' && run.servedBy === 'model' && !run.practice).length,
+    };
+  }
+
+  private launch(method: string, p: Record<string, unknown>) {
+    const venture = this.ventures.get(this.current);
+    if (!venture) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
+    if (method === 'venture.launch.advance') {
+      const stored = fakeLaunchAdvance(this.launchFacts(), p);
+      if (stored !== (venture.launchStage ?? 'rehearsal')) { venture.launchStage = stored; this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }); }
+    } else if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    return fakeLaunchStatus(this.launchFacts());
+  }
+
   private ventureView() {
         const venture = this.ventures.get(this.current);
         const playbook = this.desk.playbook(this.current);
         // 4J8: the checklist item by item, with names and links, as the engine's venture.get carries it.
         // 4J20: the business's country (its code and currency), as the engine's venture record carries it.
-        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage:'rehearsal' as const, country: venture.countryCode ? countryProfile(venture.countryCode) : null, ...(venture.originalCountry ? { originalCountry: clone(venture.originalCountry) } : {}) }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
+        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage: venture.launchStage ?? 'rehearsal', country: venture.countryCode ? countryProfile(venture.countryCode) : null, ...(venture.originalCountry ? { originalCountry: clone(venture.originalCountry) } : {}) }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
         }
 
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
@@ -590,6 +685,8 @@ export class FakeEngine {
     if (method === 'venture.books.summary') return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
     if(method==='venture.share.list')return this.shareView(p);
     if (method === 'venture.get') return this.ventureView();
+    // W6 6C5: the fake's own rule gates read the open business's attestations, as the engine's guards do.
+    if (method === 'venture.rules.locks') return this.rulesAttest.locks();
     this.guardInternalShare(method, p);
     if (FakeMoney.answers(method)) return this.money.request(method, p);
     if (method === 'venture.connectors.list') return withTruth(this.posting.connectorCards(withSellerCards(clone(CONNECTORS))), this.hosted);
@@ -910,7 +1007,7 @@ export class FakeEngine {
       case 'venture.blueprint.draft': {
         const questions = this.interviews.get(this.current);
         if (!questions) return NOT_ONBOARDING;
-        return this.draftPlan(questions);
+        return withPriceGuide(this.draftPlan(questions), this.ventures.get(this.current)?.countryCode ?? 'IN');
       }
       default: return NOT_ONBOARDING;
     }

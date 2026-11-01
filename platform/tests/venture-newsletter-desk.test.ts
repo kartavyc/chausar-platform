@@ -1,4 +1,5 @@
 import {networkForget} from '../runtime/venture/network/forget.ts';
+import {rulesAttestHandler} from '../runtime/venture/playbooks/rules-attest.ts';import {ruleDigest} from '../runtime/venture/playbooks/kit/attestation.ts';
 // Original public newsletter owner desk tests, with an injected DNS resolver and no sends.
 import test from 'node:test';import assert from 'node:assert/strict';
 import {setup,owner,seedBlueprint,seedOrder,code} from './venture-views-env.ts';
@@ -57,3 +58,8 @@ test('newsletter dispatch guard stops a privacy change inside model preparation'
  await assert.rejects(invoke('ai-confirm',{callId:preview.callId,approvedDigest:preview.digest}),{code:'CLIENT_AI_CONSENT_REQUIRED'});assert.equal(sends,phase==='response'?1:0);
  }
  });
+test('W6 6C5: after the owner attests subscriber permission, the live client list is imported',async()=>{const f=await fixture(),payload={orderId:f.order.id,fileId:f.fileId,consent:true};const preview=await f.act('import-preview',payload);
+ await assert.rejects(f.act('import',payload,'new',(preview.result as any).digest),code('RULE_UNCONFIRMED'));
+ await rulesAttestHandler(f.env.deps,owner,{ruleId:NEWSLETTER_PRIVACY_RULE.id,attest:true,digest:ruleDigest(NEWSLETTER_PRIVACY_RULE)});
+ const result=await f.act('import',payload,'new',(preview.result as any).digest);assert.equal((result.result as any).imported,1);assert.equal(listRecords(f.env.store.read(),'venture-newsletter-contact').length,1);
+});

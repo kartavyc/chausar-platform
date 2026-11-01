@@ -4,6 +4,7 @@ import { resetCountry } from './fake-country-plan';
 import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
 import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
+import { withPriceGuide } from './fake-price-ranges';
 /**
  * The fake engine's answers for Connections and the business menu: Your AI (venture.models.* in a business,
  * venture.ai.* before one exists), plan and playbook (venture.blueprint.get and .update), prices (venture.price.quote)
@@ -44,6 +45,8 @@ export interface DeskHost {
   deviceKeys(): boolean;
   /** 4H2: whether this answers as the hosted web server. */
   hosted?(): boolean;
+  /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
+  codexSignedIn?(): boolean;
 }
 
 const DESK_METHODS = new Set([
@@ -174,7 +177,10 @@ export class FakeBusinessDesk {
    * unavailable there, in the engine's words (models/presets.ts availabilityOf, AVAILABILITY_REASONS.hostedCli).
    */
   private presets() {
-    const presets = clone(MODEL_PRESETS);
+    const signedIn = this.host.codexSignedIn?.() === true;
+    const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' && signedIn
+      ? { ...preset, availability: 'unverified' as const, availabilityReason: 'Codex is on this computer and signed in. Not yet tried on a real task.' }
+      : preset));
     if (!this.host.hosted?.()) return presets;
     return presets.map((preset) => (preset.runsOn === 'this-computer'
       ? { ...preset, availability: 'unavailable' as const, availabilityReason: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.' }
@@ -192,8 +198,9 @@ export class FakeBusinessDesk {
       case 'venture.ai.status': return clone(this.draftAi);
       case 'venture.ai.connect': return this.connect(this.draftAi, p, null);
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p);
-      case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? clone(view) : null; }
-      case 'venture.blueprint.update': return this.update(biz, p.patch, p.basedOn);
+      // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
+      case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
+      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
       case 'venture.build.status': return clone(this.buildOf(biz));
       case 'venture.build.brief': return this.brief(biz);
@@ -239,7 +246,7 @@ export class FakeBusinessDesk {
   }
 
   private connect(state: ModelStatusLite, p: Record<string, unknown>, biz: string | null): ModelStatusLite {
-    const preset = MODEL_PRESETS.find((x) => x.id === p.presetId);
+    const preset = this.presets().find((x) => x.id === p.presetId);
     if (!preset) throw invalid('Choose one of the listed AI options.');
     if (p.consentDigest !== preset.consentDigest) throw new EngineError('MODEL_CONSENT_REQUIRED', 'Read what is sent and agree to it first.');
     const key = typeof p.apiKey === 'string' ? p.apiKey.trim() : '';

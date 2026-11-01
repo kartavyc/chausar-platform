@@ -270,26 +270,21 @@ function practiceWithAi(env: Awaited<ReturnType<typeof kitBusiness>>): { judged:
   return { judged };
 }
 
-test('launch: from the first stage, a kit business rehearses its three practice clients, launch.status lists them, and shadow opens', async t => {
+test('launch: from Practice, a kit business rehearses its three practice clients, and Live opens once an AI is connected', async t => {
   // Practice clients with no files, so each episode is one drafted reply.
   const base = kitFixture();
   t.after(installKitFixture(kitFixture({ practice: base.practice.map(client => ({ ...client, files: [] })) })));
   const env = await kitBusiness(undefined, { seedStage: false });
   await env.call('venture.delivery.playbook');
   const before = await env.call('venture.launch.status');
-  assert.equal(before.stage, 'rehearsal', 'a new business starts at rehearsal');
-  assert.deepEqual(before.rehearsal.map((row: any) => row.scenarioId), ['kit-fixture-clean', 'kit-fixture-messy', 'kit-fixture-pushback']);
-  assert.equal(before.stages.find((stage: any) => stage.stage === 'shadow').allowed, false);
+  assert.equal(before.stage, 'practice', 'a new business starts in Practice');
+  assert.deepEqual(before.stages.map((stage: any) => stage.stage), ['practice', 'live']);
   practiceWithAi(env);
   const run = await env.call('venture.simulation.run', {});
   assert.deepEqual(run.scenarioIds, ['kit-fixture-clean', 'kit-fixture-messy', 'kit-fixture-pushback']);
   assert.equal(run.passed, true, JSON.stringify(run.episodes.map((episode: any) => [episode.scenarioId, episode.checks.filter((c: any) => !c.passed)])));
-  const after = await env.call('venture.launch.status');
-  assert.deepEqual(after.rehearsal.map((row: any) => [row.scenarioId, row.passed, row.judged]), [
-    ['kit-fixture-clean', true, true], ['kit-fixture-messy', true, true], ['kit-fixture-pushback', true, true],
-  ]);
-  const shadow = await env.call('venture.launch.advance', { to: 'shadow' });
-  assert.equal(shadow.stage, 'shadow');
+  const live = await env.call('venture.launch.advance', { to: 'live' });
+  assert.equal(live.stage, 'live');
   // The run view and the improvement loop read the same practice clients.
   const runs = await env.call('venture.runs.list', { state: 'all' });
   assert.ok(runs.runs.some((item: any) => item.purpose === 'Rehearse with practice clients'));

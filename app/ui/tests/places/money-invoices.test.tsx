@@ -134,7 +134,7 @@ describe('Money: invoices', () => {
     expect(called(calls, 'venture.invoice.issue')).toEqual([['venture.invoice.issue', { invoiceId: draft.id, digest: draft.digest }]]);
     await waitFor(() => expect(sheet.textContent).toContain('Issued as INV-0042.'));
     expect(within(sheet).getByRole('heading', { level: 2 }).textContent).toBe('INV-0042');
-    expect(sheet.textContent).toContain('Issued 21 Oct 2026, due 5 Nov 2026');
+    expect(sheet.textContent).toContain('Issued 21 Oct 2026, due 28 Oct 2026'); // due in 7 days, the default since wave 6 (6D1)
     expect(within(sheet).queryByRole('button', { name: 'Issue invoice' })).toBeNull();
     expect(within(sheet).getByRole('button', { name: 'Record payment' })).toBeTruthy();
   });
@@ -143,7 +143,7 @@ describe('Money: invoices', () => {
     const { engine, draft } = await withDraft();
     start(`#/money/invoices?sheet=invoice:${draft.id}`, engine);
     const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
-    await waitFor(() => expect(sheet.textContent).toContain('Draft. Due 15 days after it is issued.'));
+    await waitFor(() => expect(sheet.textContent).toContain('Draft. Due 7 days after it is issued.'));
     act(() => { engine.money.touch(draft.id); });
     await click(within(sheet).getByRole('button', { name: 'Issue invoice' }));
     await click(within(sheet).getByRole('button', { name: 'Issue' }));

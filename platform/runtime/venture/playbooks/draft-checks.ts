@@ -112,6 +112,8 @@ export type FlagshipCheckInput = {
   toolCalls?: readonly ToolCallRecord[];
   /** The CA of record's explanations of portal differences so far (ca-firm/signoff.ts diffExplanations); none in rehearsal. */
   caCitationUse?: import('./ca-firm/citations.ts').CitationUse;
+  /** W6 6C5: the owner's standing rule attestations in this business (rule id to the digest of the words ticked). */
+  attestedRules?: import('./kit/attestation.ts').AttestedRules;
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
   caHealthReviews?: readonly Pick<import('./ca-firm/work-core.ts').CaWorkingBody,'receiptId'|'receiptDigest'|'decisions'>[];
 };

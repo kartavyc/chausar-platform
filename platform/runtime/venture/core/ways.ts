@@ -15,6 +15,7 @@ import { departmentOfRole, departmentOfService } from '../playbooks/departments.
 import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, type WayData } from '../playbooks/ways.ts';
 import { kitDefinitions } from '../playbooks/kit/installed.ts';
 import { kitWay } from '../playbooks/kit/tile.ts';
+import { wayPrice } from './price-ranges.ts';
 
 /** A business on this computer as a way sees it: its folder id, its name, and the playbook its idea picks (or none). */
 export type WayBusiness = { businessId: string; name: string; playbook: string | null };
@@ -30,6 +31,18 @@ export function initialsOf(name: string): string {
 
 const RUPEES = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 const rupees = (amount: number) => `₹${RUPEES.format(amount)}`;
+
+/**
+ * W6 6C3 (D17): what clients usually pay. A sourced range that prices the way's own service replaces the model
+ * estimate (its words, unit and publishers with the date checked); otherwise the model estimate stays with its basis.
+ * The profession's guide rides along either way, so the gallery can show its sources or "No reliable data".
+ */
+function clientsPayOf(way: WayData, estimate: string): WayView['clientsPay'] {
+  const price = wayPrice(way.playbook);
+  const guide = price ? { guide: price.guide } : {};
+  if (price?.range && price.source) return { text: price.range.text, per: price.range.per, estimate: false, source: price.source, ...guide, rangeId: price.range.id };
+  return { text: estimate, per: way.en.per, estimate: true, source: WAY_SOURCE.en, ...guide };
+}
 
 /** One way's view, or null when its playbook is not registered or does not deliver: no tile for an unbuilt one. */
 function wayView(way: WayData, registry: readonly PlaybookRegistration[], businesses: readonly WayBusiness[]): WayView | null {
@@ -47,7 +60,7 @@ function wayView(way: WayData, registry: readonly PlaybookRegistration[], busine
     department: departmentOfService(registration.serviceType), line: way.en.line,
     hours: `${way.hours.min} to ${way.hours.max} h a week`, minHours: way.hours.min, maxHours: way.hours.max, hoursEstimate: true,
     youDo: way.en.youDo, team, teamLine: way.en.teamLine,
-    clientsPay: { text: pay.en, per: way.en.per, estimate: true, source: WAY_SOURCE.en },
+    clientsPay: clientsPayOf(way, pay.en),
     needs: { ai: WAY_AI_NEED.en, connections: way.en.needs },
     starter: way.en.starter,
     yours: businesses.filter(business => business.playbook === way.playbook).map(business => ({ businessId: business.businessId, name: business.name })),

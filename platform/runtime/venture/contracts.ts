@@ -10,10 +10,12 @@ import type {
 import type { FootageRights, RightsBasis } from './delivery/rights.ts';
 import type { BankAlert, BankAlertRule, BankAlertRuleInput } from './build/bank.ts';
 import type { NetResolver, PinnedSender } from './core/net-guard.ts';
+import type { FamilyId, NeedsList } from './core/first-run-types.ts';
 import type { TlsConnector } from './network/imap.ts';
 import type { SectionRef, TableStamp } from './playbooks/ca-firm/rates.ts';
 import type { CaEngine, CaReceiptStep } from './playbooks/ca-firm/receipt.ts';
 import type { SocialChannel } from './playbooks/social/channels.ts';
+import type { PriceGuideView } from './core/price-ranges.ts';
 import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 // Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
@@ -243,6 +245,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-dev-permission',
   'venture-watch-source', 'venture-triage-channel',
   'venture-call-log',
+  // Wave 6 (6C5, 6C6): owner attestations of locked rules, and the profession and side-work answer.
+  'venture-rule-attestation', 'venture-compliance',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -288,6 +292,8 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   journalHead?: { seq: number; digest: string; mac?: string };
   /** 4J10 (H26): when this business first signed a receipt, HMAC'd like journalHead: an unsigned receipt made after it was changed. */
   signingSince?: { at: IsoTime; mac?: string };
+  /** Wave 6 (6D1, 6D2): the owner's billing settings (money/billing.ts); absent fields read as the defaults. */
+  billing?: Partial<import('./money/billing-types.ts').BillingSettings>;
 };
 
 export type TermLifecycle = 'proposed' | 'active' | 'retired';
@@ -499,7 +505,15 @@ export type BlueprintView = {
   playbook?: PlaybookPick;
   /** What an order for each offer asks at intake, by offer id; absent when no offer asks anything. Not part of the record. */
   intake?: Record<string, OfferIntakeAsk>;
+  /**
+   * W6 6C3 (D17): what clients pay for this business's profession, from credible sources with the date checked, or "No
+   * reliable data". Information only: it never sets or changes a price. Absent when the plan maps to no beta profession.
+   */
+  priceGuide?: PriceGuideView;
 };
+
+/** W6 6C3 (D17): the price range views, defined beside their code (core/price-ranges.ts) so the app's fake engine can use them. */
+export type { PriceGuideView, PriceRangeView, PriceSourceView } from './core/price-ranges.ts';
 
 /** venture.preview: the instant plan shown before any vault exists. Template words only; nothing is stored. */
 export type PlanPreview = {
@@ -896,6 +910,10 @@ export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
     blueprintDigest: string; // digest of the blueprint version priced, draft or accepted
     /** 4J5 (M15): the unit price already includes the tax, so code splits it; absent on every other receipt. */
     taxInclusive?: true;
+    /** Wave 6 (6D1): this receipt prices one part of an order, cut from the whole order's receipt (money/invoice-parts.ts). */
+    part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; shareBps: BpsString | null; basisReceiptId: string; earlierMinor: MinorString };
+    /** Wave 6 (6D4): priced in the order's own currency at the owner's own price for a client abroad. */
+    currencyBy?: 'order';
   };
   steps: PriceStep[];
   figures: PriceFigure[];
@@ -971,6 +989,10 @@ export type OrderRecord = RecordBase<'venture-order'> & {
    * rest lists what the playbook does not do, and reply the fixed words for the client. Absent when all of it is in scope.
    */
   outOfScope?: { rest: string[]; reply: string };
+  /** Wave 6 (6D1): when the whole order is due to be paid, owner-set; the final invoice is due then unless told otherwise. */
+  dueDate?: IsoDate;
+  /** Wave 6 (6D4): the owner's own price in the client's currency, for a client abroad. Never converted. */
+  foreignPrice?: import('./money/billing-types.ts').ForeignPrice;
 };
 /**
  * A flagship offer's intake, checked by code when the order is made. rights: the rights to the footage, required for
@@ -1050,6 +1072,14 @@ export type InvoiceRecord = RecordBase<'venture-invoice'> & {
   booksNote: string | null; // why booksReceiptId is null, in words
   paidMinor: MinorString;
   balanceMinor: MinorString;
+  /** Wave 6 (6D1): the part of its order this invoice bills; absent on a whole-order invoice. */
+  part?: import('./money/billing-types.ts').InvoicePart;
+  /** Wave 6 (6D1): the owner's payment terms line, as saved when drafted; absent when they set none. */
+  terms?: string;
+  /** Wave 6 (6D1): this invoice's own reminder days late; absent: its schedule's, else the business default. */
+  reminderDays?: number[];
+  /** Wave 6 (6D3): the Razorpay Payment Link made for it, on the owner's approval. */
+  payLink?: import('./money/billing-types.ts').PayLinkState;
 };
 /** 'cheque' (4J5, M11): pending until the owner clears it or a bank row pays it. */
 export type PaymentMethod = 'bank-transfer' | 'upi' | 'card' | 'cash' | 'payment-link' | 'other' | 'cheque';
@@ -1099,6 +1129,10 @@ export type InvoiceView = {
   credits?: CreditNoteView[];
   /** 4J20: an open invoice past its due day, as invoice.list rows say it; absent otherwise. */
   late?: { days: number; line: Display };
+  /** Wave 6 (6D1): how much of the order is billed, when the order is billed in parts. */
+  billed?: import('./money/billing-types.ts').OrderBilledView;
+  /** Wave 6 (6D2, 6D3): how the client pays this invoice, built by code from its balance. */
+  howToPay?: import('./money/billing-types.ts').HowToPayView;
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
@@ -1612,6 +1646,8 @@ export const EXTERNAL_ORIGINS = Object.freeze([
   'https://shopify.dev',
   'https://developer.android.com',
   'https://docs.docker.com',
+  // Wave 6 (6C1): the sign-in pages the tools' own logins print (Codex device code; Claude Code's sign-in).
+  'https://auth.openai.com', 'https://claude.ai', 'https://claude.com',
 ] as const);
 
 // ---------------------------------------------------------------------------
@@ -1975,13 +2011,13 @@ export type ImprovementReadiness = {
   reason: string;
   status: 'available' | 'planned'; // 'available' since the gated improvement loop (venture.improve.*) landed
 };
+/**
+ * Wave 6 (6C4 / D19): the two stages the owner sees, Practice and Live (you approve each). The vault keeps its older
+ * stage names (core/launch-stage.ts maps them); the unfinished stages are never listed.
+ */
 export type LaunchStatus = {
-  stage: LaunchStage;
-  stages: { stage: LaunchStage; allowed: boolean; reason: string; status: 'available' | 'planned' }[];
-  /** Newest run per template scenario for the current playbook; judged means a model wrote and a judge answered. */
-  rehearsal: { scenarioId: string; runId: string | null; passed: boolean | null; judged: boolean }[];
-  lastRunId: string | null;
-  lastRunPassed: boolean | null;
+  stage: 'practice' | 'live';
+  stages: { stage: 'practice' | 'live'; allowed: boolean; reason: string; current: boolean }[];
   acceptedDeliveries: number;
   improvement: ImprovementReadiness;
 };
@@ -2700,6 +2736,7 @@ export const VENTURE_EVENTS = [
   'model-connected', 'model-disconnected', 'send-policy-changed',
   'price-quoted', 'client-added', 'order-created', 'order-delivered', 'invoice-prepared', 'invoice-issued', 'payment-recorded',
   'brief-ready', 'handoff-prepared', 'handoff-opened', 'repo-linked', 'repo-synced',
+  'rule-attested', 'rule-attestation-withdrawn', 'compliance-recorded',
   'playbook-ready', 'simulation-finished', 'launch-stage-changed', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'signal-recorded',
   'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
   'delivery-brief-waiting', 'delegate-finished',
@@ -3347,6 +3384,26 @@ export interface BoundaryView { evidence: Display; canSay: Display; cannotSay: D
  * venture.rules.list: the playbook's rules with their freshness, its risk level and when it was last reviewed; for a kit
  * playbook (5A3) also its recipes and its measurement boundaries (empty for the flagships). Empty with no playbook.
  */
+/** Wave 6 (6C5): one locked rule as its attestation screen shows it. */
+export type LockedRuleView = {
+  id: string; playbook: string; topic: string; rule: string; limitations: string; needs: 'lawyer' | 'ca';
+  sources: { title: string; url: string }[]; digest: string; attestable: boolean; attestedOn: IsoDate | null; line: string;
+};
+/** venture.rules.locks and venture.rules.attest: the business's locked rules, the words the owner ticks, and the hard stops. */
+export type RuleLocksView = {
+  playbook: { id: string; label: string } | null; rules: LockedRuleView[]; words: string; line: string;
+  hardStops: { id: string; line: string }[];
+};
+/** Wave 6 (6C6): a profession's side-work question, rules and regulator switches, and the recorded answer. */
+export type ComplianceView = {
+  profession: { id: string; label: string; family: string | null };
+  question: string; responsibility: string;
+  rules: { id: string; title: string; line: string; checked: boolean }[];
+  switchedOff: { tool: string; line: string }[];
+  hardStops: { id: string; line: string }[];
+  digest: string;
+  recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
+};
 export interface RulesListView {
   playbook: { id: string; label: string; riskLevel: string; lastReviewed: IsoDate } | null;
   rules: PlatformRuleView[];
@@ -4103,7 +4160,11 @@ export type FileRequestRecord = RecordBase<'venture-file-request'> & {
 };
 
 /** The owner's profile (4J9): first name for the greeting, and services the business does not sell (C21). */
-export type OwnerProfileRecord = RecordBase<'venture-owner-profile'> & { firstName: string | null; excludedServices: string[] };
+export type OwnerProfileRecord = RecordBase<'venture-owner-profile'> & {
+  firstName: string | null; excludedServices: string[];
+  /** Wave 6 (6C2, 6C7): the profession family the plan was kept with (core/families.ts); absent in older records. */
+  familyId?: FamilyId | null;
+};
 /**
  * 4J8. An offer the owner added to the plan: its stable plan offer id (offer_own_1 upward, never reused), its words and
  * how it is charged, kept in step with the plan's words; removedAt once the owner took it out. Never a price: that is
@@ -4893,7 +4954,13 @@ export type WayView = {
   id: string; playbook: string; label: Display; category: WayCategory; department: DepartmentId; line: Display;
   hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
   team: { role: string; initials: string; department: DepartmentId }[]; teamLine: Display;
-  clientsPay: { text: Display; per: Display; estimate: true; source: Display };
+  /**
+   * W6 6C3 (D17): where the way's profession has a credible range for this service, text and per are that range's,
+   * estimate is false and source names its publishers and date; otherwise they are the model estimate as before.
+   * guide: the profession's sourced ranges or "No reliable data"; absent when the way maps to no beta profession.
+   * rangeId: which of the guide's ranges is shown, only when estimate is false.
+   */
+  clientsPay: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string };
   needs: WayNeeds;
   starter: Display;
   yours: { businessId: string; name: string }[];
@@ -4930,7 +4997,7 @@ export interface PlanSuggestionView {
 }
 
 /** 4J9. kept: only on the answer that removed a stored name, Forget's backups line (earlier backups still hold it). */
-export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[] }
+export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[]; familyId?: FamilyId | null }
 
 /** 4J10. reason (4J22a): only 'changed' and 'unsigned-since' are mismatches; the others are not confirmed. */
 export type ReceiptVerifyReason = 'signed' | 'changed' | 'unsigned-since' | 'unsigned-old' | 'no-key' | 'key-gone';
@@ -5149,6 +5216,14 @@ export type DevPermissionRecord = RecordBase<'venture-dev-permission'> & DevPerm
 export type TriageChannelRecord = RecordBase<'venture-triage-channel'> & TriageChannelBody;
 export type WatchSourceRecord = RecordBase<'venture-watch-source'> & WatchSourceBody;
 export type CallLogRecord = RecordBase<'venture-call-log'> & CallLogBody;
+/** Wave 6 (6C5 / D20): the owner ticked "I am responsible for this in my business" for one locked rule, on a day. Withdrawn by setting withdrawnAt. */
+export type RuleAttestationRecord = RecordBase<'venture-rule-attestation'> & {
+  ruleId: string; playbookId: string; digest: string; attestedOn: IsoDate; memberId: string; withdrawnAt: string | null; withdrawnOn: IsoDate | null;
+};
+/** Wave 6 (6C6 / D5): the owner's profession, their answer to the side-work question, and what its regulator switches off. */
+export type ComplianceRecord = RecordBase<'venture-compliance'> & {
+  professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
+};
 
 export type AnyVentureRecord =
   | VentureRecord | InterviewRecord | BlueprintRecord | TermRecord | ModelConnectionRecord | ModelCallRecord
@@ -5211,7 +5286,8 @@ export type AnyVentureRecord =
   | PromiseToPayRecord | CollectionStageRecord | BooksPostingRecord
   | ArticleLedgerRecord | LeadSourceRecord | NewsletterIssueRecord | NewsletterContactRecord | TenderQuestionRecord
   | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
-  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord;
+  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord
+  | RuleAttestationRecord | ComplianceRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5355,6 +5431,8 @@ export const VENTURE_METHODS = [
   'venture.price.quote', 'venture.receipt.get',
   'venture.client.add', 'venture.client.list',
   'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
+  // Wave 6 money (6D1 to 6D4): billing settings, an invoice's PDF and share links, Razorpay Payment Links
+  'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
@@ -5396,7 +5474,8 @@ export const VENTURE_METHODS = [
   'venture.delivery.judge', 'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe',
   'venture.posting.propose', 'venture.posting.signIn', 'venture.posting.checkSteps', 'venture.share.recordAnswer', 'venture.social.calendar',
   'venture.bank.ledger', 'venture.bank.apply', 'venture.bank.alerts.get', 'venture.bank.alerts.set',
-  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list',
+  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list', 'venture.rules.locks', 'venture.rules.attest',
+  'venture.compliance.get', 'venture.compliance.set',
   // Ink v2 wave 2 (2C1): whether the judge runs on its own on drafts for a client or the public (judgeAuto)
   'venture.judge.auto.get', 'venture.judge.auto.set',
   // Ink v2 wave 2 (2B1): the owner's posting limits per channel
@@ -5411,13 +5490,17 @@ export const VENTURE_METHODS = [
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
+  // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault; 6C7: what the business needs.
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
+  'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.needs.list',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
  * Answered without a vault, a model or any write. The engine routes them before its vault check. venture.playbooks.list
  * (Ink v2 wave 4, 4J8) is the Start gallery's list of ways to earn.
  */
-export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['venture.countries', 'venture.preview', 'venture.playbooks.list'] as const);
+export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['venture.countries', 'venture.preview', 'venture.playbooks.list', 'venture.compliance.get'] as const);
 /**
  * Answered by the engine's draft desk before the vault check. They may call a model and write the in-memory draft
  * store, never the vault. The same nine as ONBOARDING_METHODS in onboarding-contracts.ts (a test pins them equal).
@@ -5426,6 +5509,8 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
+  'venture.about.read', 'venture.about.pick', 'venture.about.families',
 ] as const);
 
 /**
@@ -5441,6 +5526,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
   'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
+  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money',
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
   'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
   'venture.payment.record': 'money', 'venture.books.summary': 'money',
@@ -5467,7 +5553,8 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.delivery.judge': 'delivery', 'venture.delivery.judgeSend': 'delivery', 'venture.improve.rollback': 'delivery', 'venture.files.transcribe': 'delivery',
   'venture.posting.propose': 'build', 'venture.posting.signIn': 'build', 'venture.posting.checkSteps': 'build', 'venture.share.recordAnswer': 'build', 'venture.social.calendar': 'build',
   'venture.bank.ledger': 'build', 'venture.bank.apply': 'build', 'venture.bank.alerts.get': 'build', 'venture.bank.alerts.set': 'build',
-  'venture.ca.receipt': 'views', 'venture.ca.explainDiff': 'views', 'venture.rules.list': 'views',
+  'venture.ca.receipt': 'views', 'venture.ca.explainDiff': 'views', 'venture.rules.list': 'views', 'venture.rules.locks': 'views', 'venture.rules.attest': 'views',
+  'venture.compliance.get': 'core', 'venture.compliance.set': 'core',
   'venture.judge.auto.get': 'delivery', 'venture.judge.auto.set': 'delivery',
   'venture.posting.limits.get': 'build', 'venture.posting.limits.set': 'build',
   'venture.transcription.get': 'delivery', 'venture.transcription.set': 'delivery',
@@ -5530,17 +5617,23 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
   'venture.country.suggest': 'core',
+  'venture.ai.tools': 'models', 'venture.ai.login.start': 'models', 'venture.ai.login.cancel': 'models',
+  'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
+  'venture.needs.list': 'core',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.agentApproval.decide',
   'venture.agentSettings.set', 'venture.mcpCredential.set',
   'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
+  'venture.rules.attest', 'venture.compliance.set',
+  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.review',
   'venture.files.add', 'venture.improve.adopt',
   'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
   'venture.country.suggest',
+  'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read',
   'venture.queue.decide', 'venture.team.gate',
   'venture.evidence.apply',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.apply', 'venture.site.revert', 'venture.leads.recordSend',
@@ -5692,10 +5785,16 @@ export type VenturePayloads = {
   'venture.mcpCredential.set': { serverId: string; token: string | null };
   'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
   'venture.client.aiConsent.withdraw': { clientId: string };
+  'venture.billing.get': Empty;
+  'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay'>> & { razorpayKeys?: { keyId: string; keySecret: string } | null };
+  'venture.invoice.pdf': { invoiceId: string };
+  'venture.invoice.payLink': { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' };
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
   'venture.order.create': {
     clientId?: string; offerId: string; quantity?: string; request: string;
+    /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
+    dueDate?: IsoDate; currency?: string; unitPrice?: string;
     intakeFiles?: Record<string, { name: string; contentBase64: string }>;
     intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyAmounts?: Record<string, string> };
     /** 4J5 (M15): the price includes the tax. */
@@ -5703,7 +5802,7 @@ export type VenturePayloads = {
   };
   'venture.order.list': Empty;
   'venture.order.deliver': { orderId: string; deliveredOn: IsoDate };
-  'venture.invoice.prepare': { orderId: string; dueInDays?: number; issueDate?: IsoDate };
+  'venture.invoice.prepare': { orderId: string; dueInDays?: number; issueDate?: IsoDate; reminderDays?: number[]; part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; label?: string; percent?: string; amount?: string } };
   'venture.invoice.issue': { invoiceId: string; digest: string };
   'venture.invoice.get': { invoiceId: string };
   'venture.invoice.list': Empty;
@@ -5740,7 +5839,7 @@ export type VenturePayloads = {
   'venture.simulation.get': { runId: string };
   'venture.simulation.fromSignal': { signalId: string };
   'venture.launch.status': Empty;
-  'venture.launch.advance': { to: LaunchStage };
+  'venture.launch.advance': { to: 'practice' | 'live' };
   'venture.delivery.run': { orderId: string; useTemplate?: boolean };
   'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny' };
   'venture.delivery.review': { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: DeliveryReason; editedText?: string };
@@ -5817,6 +5916,10 @@ export type VenturePayloads = {
   'venture.ca.receipt': { id: string };
   'venture.ca.explainDiff': { receiptId: string; key: string; note: string; membershipNo: string };
   'venture.rules.list': Empty;
+  'venture.rules.locks': Empty;
+  'venture.rules.attest': { ruleId: string; attest: boolean; digest?: string };
+  'venture.compliance.get': { profession?: string };
+  'venture.compliance.set': { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string };
   'venture.judge.auto.get': Empty;
   /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
   'venture.judge.auto.set': { auto: boolean };
@@ -5965,7 +6068,7 @@ export type VenturePayloads = {
   'venture.blueprint.suggest': { text: string; attachment?: { name: string; text: string } };
   'venture.owner.get': Empty;
   /** firstName null takes the owner's name back (minimum data). */
-  'venture.owner.set': { firstName?: string | null; excludedServices?: string[] };
+  'venture.owner.set': { firstName?: string | null; excludedServices?: string[]; familyId?: FamilyId | null };
   'venture.receipt.verify': { id: string };
   'venture.journal.chain': Empty;
   /** digest: the recorded break the owner accepts; a new chain starts with a line that says so. */
@@ -6053,6 +6156,13 @@ export type VenturePayloads = {
   'venture.ai.status': OnboardingPayloads['venture.ai.status'];
   'venture.ai.calls': OnboardingPayloads['venture.ai.calls'];
   'venture.country.suggest': OnboardingPayloads['venture.country.suggest'];
+  'venture.ai.tools': OnboardingPayloads['venture.ai.tools'];
+  'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
+  'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
+  'venture.about.read': OnboardingPayloads['venture.about.read'];
+  'venture.about.pick': OnboardingPayloads['venture.about.pick'];
+  'venture.about.families': OnboardingPayloads['venture.about.families'];
+  'venture.needs.list': Record<string, never>;
   'venture.compose.decide': OnboardingPayloads['venture.compose.decide'];
   'venture.compose.fill': OnboardingPayloads['venture.compose.fill'];
   'venture.compose.get': OnboardingPayloads['venture.compose.get'];
@@ -6089,6 +6199,10 @@ export type VentureResults = {
   'venture.mcpCredential.set': { serverId: string; saved: boolean };
   'venture.client.aiConsent.agree': ClientAiConsentView;
   'venture.client.aiConsent.withdraw': ClientAiConsentView;
+  'venture.billing.get': import('./money/billing-types.ts').BillingView;
+  'venture.billing.set': import('./money/billing-types.ts').BillingView;
+  'venture.invoice.pdf': import('./money/invoice-pdf.ts').InvoicePdfView;
+  'venture.invoice.payLink': InvoiceView;
   'venture.client.list': ClientListRow[];
   'venture.order.create': OrderRecord;
   /** 4J3: each order with its stage steps and what waits on the owner (money/order-steps.ts). */
@@ -6187,6 +6301,10 @@ export type VentureResults = {
   'venture.ca.receipt': CaReceiptView;
   'venture.ca.explainDiff': { explanation: CaDiffExplanation };
   'venture.rules.list': RulesListView;
+  'venture.rules.locks': RuleLocksView;
+  'venture.rules.attest': RuleLocksView;
+  'venture.compliance.get': ComplianceView;
+  'venture.compliance.set': ComplianceView;
   'venture.judge.auto.get': JudgeAutoView;
   'venture.judge.auto.set': JudgeAutoView;
   'venture.posting.limits.get': PostingLimitsView;
@@ -6385,6 +6503,13 @@ export type VentureResults = {
   'venture.ai.status': OnboardingResults['venture.ai.status'];
   'venture.ai.calls': OnboardingResults['venture.ai.calls'];
   'venture.country.suggest': OnboardingResults['venture.country.suggest'];
+  'venture.ai.tools': OnboardingResults['venture.ai.tools'];
+  'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
+  'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
+  'venture.about.read': OnboardingResults['venture.about.read'];
+  'venture.about.pick': OnboardingResults['venture.about.pick'];
+  'venture.about.families': OnboardingResults['venture.about.families'];
+  'venture.needs.list': NeedsList;
   'venture.compose.decide': OnboardingResults['venture.compose.decide'];
   'venture.compose.fill': OnboardingResults['venture.compose.fill'];
   'venture.compose.get': OnboardingResults['venture.compose.get'];
@@ -6402,6 +6527,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // Wave 6 (6C5, 6C6): hard stops, owner attestation and regulator switches.
+  'HARD_STOP', 'RULE_NOT_FOUND', 'RULE_NOT_ATTESTABLE', 'REGULATOR_FORBIDS',
   // Wave 6: scoped native jobs and owner-configured external tools.
   'JOB_BUSY', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED',
   'MODEL_SEND_BLOCKED',
@@ -6543,6 +6670,8 @@ export const VENTURE_ERRORS = [
   'ALLOW_SESSION_FLOOR', 'FILE_CHANGED', 'SEND_BACK_EMPTY', 'UNDO_TOO_LATE', 'UNDO_OUTSIDE_EFFECT', 'SET_KIND_REFUSED', 'SET_NEEDS_PICK',
   // Previews, money views, bills and credits (4J3 to 4J5)
   'POSTER_NOT_AVAILABLE', 'EXPORT_EXISTS', 'PAGING_LOOP', 'BILL_PAYMENT_TOO_LARGE', 'QUOTE_ALREADY_INVOICED', 'CREDIT_TOO_LARGE',
+  // Wave 6 money (6D1 to 6D4)
+  'ORDER_OVER_INVOICED', 'INVALID_UPI_ID', 'INVALID_BANK_DETAILS', 'FOREIGN_NEEDS_LUT', 'RAZORPAY_NOT_CONNECTED', 'RAZORPAY_FAILED',
   // Connector truth, file requests and the owner profile (4J7, 4J9)
   'CONNECTOR_FIELD_UNSUPPORTED', 'ROUTINE_NEEDS_CHECK', 'SHARE_USED', 'SHARE_EXPIRED', 'OWNER_NAME_INVALID',
   // The chained journal and journalled-action extras (4J10), execution places (4J11), step edges and contracts (4J12)
@@ -6694,6 +6823,8 @@ export type VentureDeps = {
   closing?: VentureClosingPort;
   /** The network guard's lookup and sender for requests the engine makes itself (bank alert counts). Absent means the real ones; tests inject stubs. */
   net?: { resolve?: NetResolver; send?: PinnedSender; tls?: TlsConnector };
+  /** Wave 6 (6D3): the HTTPS port payment providers are asked through. Tests pass recorded responses; absent: fetch. */
+  paymentHttp?: import('./money/billing-types.ts').PaymentHttp;
   /** Called once with the events a venture action committed, after the commit. A listener's failure never undoes it. */
   publish?: (events: VentureEventRecord[]) => void;
   /**

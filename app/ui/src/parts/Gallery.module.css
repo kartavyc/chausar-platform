@@ -132,6 +132,11 @@
   color: var(--mute);
 }
 
+/* W6 6C3: a sourced range's head holds its (i); the sources open on their own line under it. */
+.sourcedHead {
+  flex-wrap: wrap;
+}
+
 .factName {
   flex: 1;
   min-width: 0;

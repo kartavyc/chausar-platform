@@ -1,11 +1,12 @@
 import {hash} from '../runtime/portable.ts';
+import {rulesAttestHandler} from '../runtime/venture/playbooks/rules-attest.ts';import {ruleDigest} from '../runtime/venture/playbooks/kit/attestation.ts';
+import {NARRATION_RIGHTS_RULE} from '../runtime/venture/playbooks/narration-studio/rules.ts';
 // Public desk lifecycle tests with a synthetic provider, no external account or network.
 import {scopeNarration} from './fixtures/venture/narration.ts';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {setup,owner,phone,seedBlueprint,seedOrder,seedRun} from './venture-views-env.ts';
 import {ventureAction,listRecords} from '../runtime/venture/records.ts';
 import {NARRATION_STUDIO_DESK} from '../runtime/venture/playbooks/narration-studio/desk.ts';
-import {NARRATION_RIGHTS_RULE} from '../runtime/venture/playbooks/narration-studio/rules.ts';
 import {writeFile} from 'node:fs/promises';
 import {setSpendPolicy} from '../runtime/venture/money/spend.ts';
 import {net,personNamed} from './venture-network-env.ts';
@@ -70,3 +71,8 @@ test('detail read with a pre-Forget snapshot never returns the erased private ro
  await assert.rejects(invoke('ai-confirm',{callId:preview.callId,approvedDigest:preview.digest}),{code:'CLIENT_AI_CONSENT_REQUIRED'});assert.equal(sends,phase==='response'?1:0);
  }
  });
+test('W6 6C5: after the owner attests narration rights, paid client production can be quoted',async()=>{const f=await fixture();await f.act('connect',{key:['fixture','speech','account'].join('-')});await f.act('import',{fileId:f.file.id,voice:'en-IN-Standard-A',language:'en-IN',destination:'client'});let view=await f.get();
+ await assert.rejects(f.act('quote',{segmentId:view.item.rows[0].id},view.digest),{code:'RULE_UNCONFIRMED'});
+ await rulesAttestHandler(f.e.deps,owner,{ruleId:NARRATION_RIGHTS_RULE.id,attest:true,digest:ruleDigest(NARRATION_RIGHTS_RULE)});
+ view=await f.get();await f.act('quote',{segmentId:view.item.rows[0].id},view.digest).catch((error:any)=>assert.notEqual(error.code,'RULE_UNCONFIRMED',error.message));
+});

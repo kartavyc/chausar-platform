@@ -1,6 +1,9 @@
 // Invoices: prepared from an order with a fresh price receipt, approved by digest, numbered on issue, and
 // written into the books as an invoice fact. Tax invoice fields follow the owner's own settings.
-// Ink v2 wave 4 (4J5): an order's quote becomes one invoice, once (QUOTE_ALREADY_INVOICED); each line keeps the rate
+// Wave 6 (6D1): an order may be billed by several invoices (an advance, milestones, a part payment, the final one), cut
+// from its receipt by invoice-parts.ts; together they never pass the order's total (QUOTE_ALREADY_INVOICED,
+// ORDER_OVER_INVOICED), and each is still issued only on the owner's approval of its exact digest.
+// Ink v2 wave 4 (4J5): each line keeps the rate
 // charged, and a tax-included price says so on its line (tax-kinds.ts splits it); recurring schedules draft through
 // draftInvoiceIn; the view adds the invoice's next step, its timeline (invoice-states.ts), its credit notes, the TDS
 // the client deducted and, on a draft whose rate is no longer the plan's, the rate change, which only the owner acts on.
@@ -8,7 +11,7 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { gstinValid } from '../../memory.ts';
 import {
-  activateTerm, digest, exactPayload, isoDate, listRecords, readVenture, requireAppChannel, smallInteger, ventureAction, type VentureTx,
+  activateTerm, digest, exactPayload, isoDate, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx,
 } from '../records.ts';
 import { creditViewsOn } from './credits.ts';
 import { invoiceNext, invoiceTimeline } from './invoice-states.ts';
@@ -21,8 +24,15 @@ import { lateOf } from './aging.ts';
 import { hasCountry } from './figure-kinds.ts';
 import { localDayAt } from '../local-day.ts';
 import { insertBooksFact, invoiceFact } from './facts.ts';
-import { buildPriceReceipt, receiptFigure, receiptTaxable } from './quote.ts';
-import { halfRateBps, stateName, taxDecision } from './tax.ts';
+import { buildPriceReceipt, priceAllowedNumbers, priceFigures, receiptDigest, receiptFigure, receiptTaxable } from './quote.ts';
+import { halfRateBps, halfRatePercent, ratePercent, stateName, taxDecision, type TaxDecision } from './tax.ts';
+import { billingOf } from './billing.ts';
+import { dueDaysOf, reminderDaysOf } from './billing-rules.ts';
+import { cutPart, partAskOf, PART_WORDS, type PartAsk, type PartCut, type PartSums } from './invoice-parts.ts';
+import { daysFrom } from './ledger.ts';
+import { howToPayOf, howToPayLines } from './how-to-pay.ts';
+import type { OrderBilledView } from './billing-types.ts';
+import { numberGuard } from '../../calculator.ts';
 import { newestFirst, oneLine, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
 import { digestOf, journalled, type ApplyHandle } from '../journal/journal.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
@@ -97,6 +107,8 @@ export function invoiceDigest(invoice: InvoiceRecord): string {
     totalMinor: invoice.totalMinor, taxRateBps: invoice.taxRateBps, taxTreatment: invoice.taxTreatment, taxLines: invoice.taxLines,
     documentTitle: invoice.documentTitle, supplierTaxId: invoice.supplierTaxId, clientTaxId: invoice.clientTaxId,
     placeOfSupply: invoice.placeOfSupply, sacCode: invoice.sacCode,
+    ...(invoice.part ? { part: invoice.part } : {}), ...(invoice.terms !== undefined ? { terms: invoice.terms } : {}),
+    ...(invoice.reminderDays !== undefined ? { reminderDays: invoice.reminderDays } : {}),
   });
 }
 
@@ -147,13 +159,19 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
   const today = localDayAt(deps.clock(), venture.country);
   const rateChange = rateChangeOf(state, venture, invoice);
   const credited = creditedOn(invoice.id, listRecords(state, 'venture-credit-note', venture.id));
+  // 6D4: an invoice in the client's currency is never converted; the home-currency value for the tax return is recorded
+  // by the owner or their accountant.
+  if (invoice.currency !== country.currency) notes.push(`This invoice is in ${invoice.currency}. Chausar does not convert it: record its ${country.currency} value at the exchange rate of the invoice date in your tax return, or ask your accountant.`);
+  const sellerName = blueprint?.name.value ?? venture.workingName;
+  const howToPay = howToPayOf(state, venture, invoice, sellerName);
+  const billed = billedOf(state, venture, invoice);
   return {
     invoice,
     country,
     client,
     receipt,
     payments,
-    documentText: documentText({ invoice, client, sellerName: blueprint?.name.value ?? venture.workingName, country, experimental, creditedMinor: String(credited) }),
+    documentText: documentText({ invoice, client, sellerName, country, experimental, creditedMinor: String(credited), howToPay: howToPayLines(howToPay, country) }),
     figures: invoiceFigures(invoice, receipt, credited),
     notes,
     next: invoiceNext(state, historicalVenture, invoice, today),
@@ -162,16 +180,130 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
     credits: creditViewsOn(state, venture, invoice.id),
     // 4J20: how late an open invoice is, as its list row says it.
     ...(lateOf(invoice, today) ? { late: lateOf(invoice, today)! } : {}),
+    ...(billed ? { billed } : {}),
+    ...(howToPay ? { howToPay } : {}),
   };
 }
 
-/** What drafting an invoice takes: its order, the days until due and the issue date (null: today on the owner's calendar). */
-export type InvoiceDraftInput = { orderId: string; dueInDays: number; issueDate: IsoDate | null };
+/** The invoices on an order that count against its total: issued, part paid or paid, never drafts or cancelled ones. */
+function countedOn(invoices: readonly InvoiceRecord[], orderId: string, except?: string): InvoiceRecord[] {
+  return invoices.filter(item => item.orderId === orderId && item.id !== except && item.status !== 'draft' && item.status !== 'void');
+}
+
+/** 6D1: how much of an order billed in parts is billed and left, when this invoice is one of its parts. */
+function billedOf(state: State, venture: VentureRecord, invoice: InvoiceRecord): OrderBilledView | null {
+  if (!invoice.part) return null;
+  const counted = countedOn(listRecords(state, 'venture-invoice', venture.id), invoice.orderId);
+  const billed = counted.reduce((sum, item) => sum + BigInt(item.totalMinor), 0n);
+  const total = BigInt(invoice.part.orderTotalMinor);
+  const money = (minor: bigint) => formatMinor(minor, invoice.currency);
+  return {
+    orderTotalMinor: String(total), billedMinor: String(billed), leftMinor: String(total - billed),
+    orderTotal: money(total), billed: money(billed), left: money(total - billed), invoices: counted.length,
+  };
+}
+
+/**
+ * What drafting an invoice takes: its order, the days until due (null: the order's own due date, else the owner's
+ * default), the issue date (null: today on the owner's calendar), and (6D1) the part of the order it bills (null: the
+ * whole order, or what is left when earlier parts were issued) and its own reminder days.
+ */
+export type InvoiceDraftInput = { orderId: string; dueInDays: number | null; issueDate: IsoDate | null; part?: PartAsk | null; reminderDays?: number[] | null };
+
+/** A receipt's amount before tax, tax lines (in the order taxLineKeys names them) and total, as BigInt. */
+function sumsOfReceipt(receipt: PriceReceiptRecord): PartSums {
+  return {
+    taxable: BigInt(receiptTaxable(receipt)),
+    lines: taxLineKeys(receipt.inputs.taxTreatment).map(key => BigInt(receiptFigure(receipt, key)?.minor ?? '0')),
+    total: BigInt(receipt.totalMinor),
+  };
+}
+
+/** What issued invoices on an order billed: amount before tax, each tax line and total; a missing line is zero. */
+function billedSums(invoices: readonly InvoiceRecord[], treatment: TaxTreatment): PartSums {
+  const keys = taxLineKeys(treatment);
+  return invoices.reduce<PartSums>((sum, item) => ({
+    taxable: sum.taxable + BigInt(item.subtotalMinor) - BigInt(item.discountMinor),
+    lines: keys.map((_key, index) => (sum.lines[index] ?? 0n) + BigInt(item.taxLines[index]?.minor ?? '0')),
+    total: sum.total + BigInt(item.totalMinor),
+  }), { taxable: 0n, lines: keys.map(() => 0n), total: 0n });
+}
+
+/** The words of a part receipt's tax, by template from its figures. */
+function partTaxWords(figures: PriceFigure[], decision: TaxDecision, taxLabel: string, tax: bigint): string {
+  const shown = (key: PriceFigure['key']) => figures.find(f => f.key === key)?.display ?? '';
+  if (decision.treatment === 'zero-rated-lut') return ', zero-rated as an export of services under LUT';
+  if (decision.treatment === 'none' || tax === 0n) return '';
+  if (decision.treatment === 'single') return `, plus ${taxLabel} at ${ratePercent(decision.rateBps)}% (${shown('tax')})`;
+  if (decision.treatment === 'igst') return `, plus IGST at ${ratePercent(decision.rateBps)}% (${shown('igst')})`;
+  const half = halfRatePercent(decision.rateBps);
+  return `, plus CGST at ${half}% (${shown('cgst')}) and SGST at ${half}% (${shown('sgst')})`;
+}
+
+/**
+ * 6D1: the price receipt of one part of an order, cut from the whole order's receipt (basis) by invoice-parts.ts. Pure
+ * arithmetic with its steps; the explanation is an engine template checked by the number guard.
+ */
+function partReceipt(tx: VentureTx, invoiceId: string, basis: PriceReceiptRecord, cut: PartCut, ask: PartAsk, earlier: bigint, decision: TaxDecision, taxLabel: string): PriceReceiptRecord {
+  const currency = basis.currency;
+  const treatment = basis.inputs.taxTreatment;
+  const amounts = {
+    unit: String(cut.taxable), subtotal: String(cut.taxable), discount: '0', taxable: String(cut.taxable), tax: String(cut.tax),
+    cgst: treatment === 'cgst-sgst' ? String(cut.lines[0] ?? 0n) : null, sgst: treatment === 'cgst-sgst' ? String(cut.lines[1] ?? 0n) : null,
+    igst: treatment === 'igst' ? String(cut.lines[0] ?? 0n) : null, total: String(cut.total),
+  };
+  const figures = priceFigures(amounts, decision, taxLabel, 'invoice', currency);
+  const money = (minor: bigint | string) => formatMinor(minor, currency);
+  const kind: PartAsk['kind'] = cut.final ? 'final' : ask.kind;
+  const share = ask.shareBps !== null && !cut.final ? ratePercent(String(ask.shareBps)) : null;
+  const explanation = cut.final
+    ? `${PART_WORDS.final}: the order's ${money(basis.totalMinor)} less ${money(earlier)} billed before = ${money(cut.total)}.`
+    : share !== null
+      ? `${PART_WORDS[kind]}: ${share}% of the order's ${money(receiptTaxable(basis))} before tax is ${money(cut.taxable)}${partTaxWords(figures, decision, taxLabel, cut.tax)} = ${money(cut.total)}.`
+      : `${PART_WORDS[kind]} of ${money(cut.taxable)} before tax${partTaxWords(figures, decision, taxLabel, cut.tax)} = ${money(cut.total)}.`;
+  const plain = (minor: bigint | string) => money(minor).slice(currency.length + 1).replace(/,/g, '');
+  const record: PriceReceiptRecord = {
+    ...tx.base('venture-price-receipt'),
+    subject: { type: 'invoice', invoiceId },
+    operation: 'venture.price',
+    currency,
+    minorDigits: basis.minorDigits,
+    inputs: {
+      unitPriceMinor: String(cut.taxable), quantity: '1', discountBps: '0', taxMode: basis.inputs.taxMode, taxRateBps: basis.inputs.taxRateBps,
+      taxTreatment: treatment, unitPriceBy: 'told-by-you', taxRateBy: basis.inputs.taxRateBy, blueprintDigest: basis.inputs.blueprintDigest,
+      part: { kind, shareBps: share === null ? null : String(ask.shareBps), basisReceiptId: basis.id, earlierMinor: String(earlier) },
+      ...(basis.inputs.currencyBy ? { currencyBy: basis.inputs.currencyBy } : {}),
+    },
+    steps: cut.steps,
+    figures,
+    totalMinor: String(cut.total),
+    allowedNumbers: [...new Set([
+      ...priceAllowedNumbers(figures, '1', decision), plain(basis.totalMinor), plain(receiptTaxable(basis)), plain(earlier), plain(cut.total),
+      ...(share !== null ? [share] : []),
+    ])],
+    explanation,
+    digest: '',
+    stale: false,
+  };
+  numberGuard(record.explanation, record);
+  record.digest = receiptDigest(record);
+  return tx.put(record);
+}
+
+/** The due date and days: what was asked; else the order's own due date when it falls within 90 days; else the default. */
+function dueOf(asked: number | null, orderDue: IsoDate | undefined, issueDate: IsoDate, defaultDays: number): { dueInDays: number; dueDate: IsoDate } {
+  if (asked !== null) return { dueInDays: asked, dueDate: addDaysUtc(issueDate, asked) };
+  if (orderDue) {
+    const days = daysFrom(issueDate, orderDue);
+    if (days >= 0 && days <= 90) return { dueInDays: days, dueDate: orderDue };
+  }
+  return { dueInDays: defaultDays, dueDate: addDaysUtc(issueDate, defaultDays) };
+}
 
 /**
  * Inside a venture transaction: drafts the invoice for an order, replacing any earlier draft, with a fresh price
- * receipt at the plan's rate now. An order whose quote is on an issued invoice already is refused: one order becomes one
- * invoice, once. Each line keeps the rate charged; a tax-included price says so on its line, whose unit is the amount
+ * receipt at the plan's rate now, or (6D1) one part of the order cut from its receipt. An order billed in full already is
+ * refused. Each line keeps the rate charged; a tax-included price says so on its line, whose unit is the amount
  * before tax per unit (exact, because the split works per unit).
  */
 export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): InvoiceRecord {
@@ -188,26 +320,53 @@ export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): Invoice
   check(!order.internal, 'INTERNAL_ORDER', 'Your own shop work has no customer invoice.');
   check(order.status !== 'cancelled', 'INVALID_VENTURE_REQUEST', 'This order was cancelled.');
   const existing = tx.list('venture-invoice').filter(i => i.orderId === order.id);
-  check(existing.every(i => i.status === 'draft'), 'QUOTE_ALREADY_INVOICED', "This order's quote is on an issued invoice already. One order becomes one invoice, once.");
-  const draft = existing.at(-1) ?? null;
+  // 6D1: an order may be billed in parts; a whole-order invoice already issued leaves nothing to bill.
+  const issued = countedOn(existing, order.id);
+  check(issued.every(i => i.part), 'QUOTE_ALREADY_INVOICED', 'This order is billed in full already. Change the order before you bill more.');
+  const draft = existing.filter(i => i.status === 'draft').at(-1) ?? null;
   const client = tx.find('venture-client', order.clientId);
   check(client, 'CLIENT_NOT_FOUND', 'The client of this order was not found.');
   const offer = requireOffer(blueprint, order.offerId);
-  requirePrice(offer);
+  if (!order.foreignPrice) requirePrice(offer);
 
   const base = tx.base('venture-invoice');
   const invoiceId = draft?.id ?? base.id;
-  const receipt = buildPriceReceipt(tx, { type: 'invoice', invoiceId }, { quantity: order.quantity, taxInclusive: order.taxInclusive === true }, blueprint, offer, client);
   const backOffice = blueprint.backOffice;
   const country = blueprintCountry(venture, blueprint);
+  const decision = taxDecision(backOffice, client, country);
+  const billing = billingOf(venture);
+  const pricing = { quantity: order.quantity, taxInclusive: order.taxInclusive === true, ...(order.foreignPrice ? { foreign: order.foreignPrice } : {}) };
+  // 6D1: a part of the order (or the rest after issued parts) is cut from the receipt of the whole order; later parts
+  // reuse the receipt the first issued part was cut from, so a price change never moves an order already part billed.
+  const parted = (input.part !== undefined && input.part !== null) || issued.length > 0;
+  let receipt: PriceReceiptRecord;
+  let partRecord: InvoiceRecord['part'];
+  if (!parted) receipt = buildPriceReceipt(tx, { type: 'invoice', invoiceId }, pricing, blueprint, offer, client);
+  else {
+    const basis = issued.length
+      ? tx.find('venture-price-receipt', issued[0]!.part!.basisReceiptId)
+      : buildPriceReceipt(tx, { type: 'invoice', invoiceId }, pricing, blueprint, offer, client);
+    check(basis, 'RECEIPT_NOT_FOUND', 'The receipt this order was billed from was not found.');
+    const ask: PartAsk = input.part ?? { kind: 'final', label: PART_WORDS.final, shareBps: null, taxableMinor: null };
+    const earlier = billedSums(issued, basis.inputs.taxTreatment);
+    const cut = cutPart(sumsOfReceipt(basis), earlier, ask, { taxRateBps: basis.inputs.taxRateBps, treatment: basis.inputs.taxTreatment, currency: basis.currency });
+    receipt = partReceipt(tx, invoiceId, basis, cut, ask, earlier.total, decision, oneLine(backOffice.taxLabel));
+    // A share or amount that took all that was left is the final invoice; a name the owner typed is kept.
+    const label = cut.final && ask.label === PART_WORDS[ask.kind] ? PART_WORDS.final : ask.label;
+    partRecord = {
+      kind: cut.final ? 'final' : ask.kind, label, shareBps: receipt.inputs.part?.shareBps ?? null, basisReceiptId: basis.id,
+      orderTotalMinor: basis.totalMinor, earlierMinor: String(earlier.total),
+    };
+  }
   // An issue date the owner leaves out is today on their own calendar, not the UTC day.
   const issueDate = input.issueDate ?? localDayAt(tx.now, country);
-  const dueDate = addDaysUtc(issueDate, input.dueInDays);
-  const decision = taxDecision(backOffice, client, country);
+  const { dueInDays, dueDate } = dueOf(input.dueInDays, order.dueDate, issueDate, billing.dueInDays);
   check(decision.treatment === receipt.inputs.taxTreatment, 'INVALID_VENTURE_REQUEST', 'The tax treatment changed while pricing.');
   const inclusive = receipt.inputs.taxInclusive === true;
   const subtotal = figureOf(receipt, 'subtotal').minor;
-  const line: InvoiceLine = {
+  const line: InvoiceLine = partRecord ? {
+    description: `${oneLine(offer.name.value)}: ${partRecord.label}`, quantity: '1', unitMinor: subtotal, amountMinor: subtotal, taxRateBps: receipt.inputs.taxRateBps,
+  } : {
     description: inclusive ? `${oneLine(offer.name.value)} (price includes ${oneLine(backOffice.taxLabel)})` : oneLine(offer.name.value),
     quantity: order.quantity,
     // A tax-included line's unit is its amount before tax per unit: exact when the line divides, else the per-unit
@@ -228,7 +387,7 @@ export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): Invoice
     currency: receipt.currency,
     issueDate,
     dueDate,
-    dueInDays: input.dueInDays,
+    dueInDays,
     lines: [line],
     subtotalMinor: subtotal,
     discountMinor: figureOf(receipt, 'discount').minor,
@@ -251,6 +410,9 @@ export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): Invoice
     booksNote: null,
     paidMinor: '0',
     balanceMinor: receipt.totalMinor,
+    ...(partRecord ? { part: partRecord } : {}),
+    ...(billing.terms !== null ? { terms: billing.terms } : {}),
+    ...(input.reminderDays ? { reminderDays: [...input.reminderDays] } : {}),
   };
   invoice.digest = invoiceDigest(invoice);
   const stored = draft ? tx.replace(invoice) : tx.put(invoice);
@@ -260,12 +422,17 @@ export function draftInvoiceIn(tx: VentureTx, input: InvoiceDraftInput): Invoice
 
 /** venture.invoice.prepare (level prepare): a draft invoice for an order, replacing any earlier draft. */
 export async function prepareInvoice(deps: VentureDeps, ctx: Context, payload: unknown): Promise<InvoiceView> {
-  const body = exactPayload(payload, ['orderId', 'dueInDays', 'issueDate'], ['orderId']);
+  const body = exactPayload(payload, ['orderId', 'dueInDays', 'issueDate', 'part', 'reminderDays'], ['orderId']);
   const orderId = recordId(body.orderId, 'Order');
-  const dueInDays = body.dueInDays === undefined ? 15 : smallInteger(body.dueInDays, 'Days until due', 0, 90);
+  const dueInDays = body.dueInDays === undefined ? null : dueDaysOf(body.dueInDays);
   const given = body.issueDate === undefined ? null : isoDate(body.issueDate, 'Issue date');
+  const reminderDays = body.reminderDays === undefined ? null : reminderDaysOf(body.reminderDays);
   return ventureAction(deps, ctx, 'prepare', 'invoice.prepare', tx => {
-    const stored = draftInvoiceIn(tx, { orderId, dueInDays, issueDate: given });
+    // A part payment's typed amount is read in the order's own currency.
+    const order = tx.find('venture-order', orderId);
+    const currency = (order && tx.find('venture-price-receipt', order.priceReceiptId)?.currency) || 'INR';
+    const part = body.part === undefined ? null : partAskOf(body.part, currency);
+    const stored = draftInvoiceIn(tx, { orderId, dueInDays, issueDate: given, part, reminderDays });
     return invoiceView(tx.state, tx.venture as VentureRecord, stored, deps);
   });
 }
@@ -306,6 +473,13 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
     const receipt = tx.find('venture-price-receipt', invoice.priceReceiptId);
     check(receipt, 'RECEIPT_NOT_FOUND', 'The price receipt of this invoice was not found.');
     const taxable = receiptTaxable(receipt);
+    // 6D1: nothing issues past the order's total, whatever was issued since this draft was made.
+    const others = countedOn(tx.list('venture-invoice'), invoice.orderId, invoice.id);
+    check(invoice.part ? others.every(item => item.part) : others.length === 0, 'QUOTE_ALREADY_INVOICED', 'This order is billed in full already. Change the order before you bill more.');
+    const billedBefore = others.reduce((sum, item) => sum + BigInt(item.totalMinor), 0n);
+    check(!invoice.part || (billedBefore === BigInt(invoice.part.earlierMinor) && billedBefore + BigInt(invoice.totalMinor) <= BigInt(invoice.part.orderTotalMinor)),
+      'APPROVAL_STALE', 'Another invoice on this order was issued after you checked this one. Draft it again.');
+    const billedInFull = !invoice.part || billedBefore + BigInt(invoice.totalMinor) === BigInt(invoice.part.orderTotalMinor);
 
     const sequence = venture.invoiceSequence + 1;
     const number = `INV-${String(sequence).padStart(4, '0')}`;
@@ -314,7 +488,7 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
     const next: InvoiceRecord = { ...invoice, number, status: 'issued', issuedAt: tx.now, factIds: [fact.id] };
     tx.replace(next);
     const order = tx.find('venture-order', invoice.orderId);
-    if (order && order.status === 'open') tx.replace({ ...order, status: 'invoiced' });
+    if (order && order.status === 'open' && billedInFull) tx.replace({ ...order, status: 'invoiced' });
     activateTerm(tx, 'invoice', { recordId: next.id, kind: 'venture-invoice' });
     tx.emit('invoice-issued', { invoiceId: next.id, number });
     handle.settleIn(tx, `Issued ${number}.`, invoice.priceReceiptId);

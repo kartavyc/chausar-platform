@@ -26,6 +26,9 @@ import { moneyExport } from './export.ts';
 import { receiptVerifyHandler } from '../journal/signing.ts';
 import { orderContractGet, orderContractPropose, orderContractSign } from './order-contracts.ts';
 import { moneyAcross } from './across.ts';
+import { billingGet, billingSet } from './billing.ts';
+import { invoicePdf } from './invoice-pdf.ts';
+import { invoicePayLink } from './razorpay.ts';
 
 export { computePrice, type PriceInput } from './price.ts';
 // 4J6: the open business's summary for the others on this computer; the host's snapshot() reads it.
@@ -83,4 +86,9 @@ export const handlers: VentureHandlerTable = {
   'venture.order.contract': orderContractGet,
   'venture.order.contract.propose': orderContractPropose,
   'venture.order.contract.sign': orderContractSign,
+  // Wave 6 (6D1 to 6D4): billing settings, an invoice's PDF and share links, Razorpay Payment Links.
+  'venture.billing.get': billingGet,
+  'venture.billing.set': billingSet,
+  'venture.invoice.pdf': invoicePdf,
+  'venture.invoice.payLink': invoicePayLink,
 };

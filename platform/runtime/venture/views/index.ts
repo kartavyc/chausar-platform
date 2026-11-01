@@ -12,6 +12,8 @@ import { untrustedModeHandler, untrustedReleaseHandler } from '../policy/untrust
 import { queueViewHandler } from './queue-view.ts';
 import { caConfirmRates, caExplainDiff, caGet, caReceipt, caRecordSignoff, caSetOfRecord } from '../playbooks/ca-firm/methods.ts';
 import { rulesListHandler } from '../playbooks/rules-view.ts';
+// Wave 6 (6C5): owner attestation of locked rules, and the hard stops.
+import { rulesAttestHandler, rulesLocksHandler } from '../playbooks/rules-attest.ts';
 import { businessPauseHandler, runsResumeHandler, runsRoundGateHandler, runsSteerHandler, runsStopHandler } from '../delivery/run-controls.ts';
 import { awayGetHandler, awaySetHandler } from '../delivery/away.ts';
 import { runsAllowWritesHandler } from '../delivery/harness/write-caps.ts';
@@ -53,6 +55,8 @@ export const handlers: VentureHandlerTable = {
   'venture.ca.receipt': caReceipt,
   'venture.ca.explainDiff': caExplainDiff,
   'venture.rules.list': rulesListHandler,
+  'venture.rules.locks': rulesLocksHandler,
+  'venture.rules.attest': rulesAttestHandler,
   // Ink v2 wave 4 (package 4-0 registered these; each package replaces its own lines). 4A1 Keeper and health.
   'venture.team.keeper': teamKeeperHandler,
   'venture.team.clearQuarantine': teamClearQuarantineHandler,

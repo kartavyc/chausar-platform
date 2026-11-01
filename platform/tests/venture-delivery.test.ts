@@ -22,9 +22,7 @@ import {
 import { playbookHash } from '../runtime/venture/delivery/playbook.ts';
 import { rehearsalRefs, TEMPLATE_OUTLINE_LINE, TEMPLATE_OUTLINES, TEMPLATE_PRICE_SENTENCE, TEMPLATE_QUESTION } from '../runtime/venture/delivery/deliverable.ts';
 import { PRACTICE_CLIENTS } from '../runtime/venture/delivery/scenarios.ts';
-import {
-  REASON_CONNECT_AI, REASON_NO_JUDGE, REASON_NOT_JUDGED, REASON_PASS_ALL, REASON_REHEARSE_ALL, REASON_TEMPLATE_DRAFTS,
-} from '../runtime/venture/delivery/launch.ts';
+import { LIVE_LINE, PRACTICE_LINE, REASON_ACCEPT_PLAN, REASON_CONNECT_AI } from '../runtime/venture/delivery/launch.ts';
 import { DONE_CLAIM_REASON, PRACTICE_REASON, STAGE_BLOCKED_REASON } from '../runtime/venture/delivery/runs.ts';
 import { HOSTED_NO_AGENT_CODE, HOSTED_NO_CONTAINERS } from '../runtime/venture/delivery/harness/sandbox.ts';
 import { VentureTestStore } from './venture-test-store.ts';
@@ -704,133 +702,84 @@ test('model rehearsal: a missing section fails required-sections; a judge no fai
 });
 
 // ---------------------------------------------------------------------------
-// 6. Launch ladder
+// 6. Launch stages (wave 6, 6C4 / D19): Practice and Live (you approve each)
 // ---------------------------------------------------------------------------
 
-test('launch ladder: template rehearsal cannot unlock shadow; judged model runs for all three can', async () => {
+test('launch stages: the owner sees two stages, Practice and Live, and no retired or unfinished stage', async () => {
   const env = await setup();
   let status = await call<LaunchStatus>(env, 'venture.launch.status');
-  const stage = (s: LaunchStatus, name: string) => s.stages.find(item => item.stage === name)!;
-  assert.equal(status.stage, 'rehearsal');
-  assert.equal(stage(status, 'rehearsal').allowed, true);
-  assert.equal(stage(status, 'shadow').allowed, false);
-  assert.equal(stage(status, 'shadow').reason, REASON_REHEARSE_ALL);
-  assert.deepEqual(status.rehearsal.map(row => [row.scenarioId, row.runId, row.passed, row.judged]), [
-    ['bookkeeping-clean', null, null, false], ['bookkeeping-messy', null, null, false], ['bookkeeping-pushback', null, null, false],
-  ]);
-  assert.deepEqual([stage(status, 'approve-sample'), stage(status, 'auto-spot-check')].map(item => [item.allowed, item.status, item.reason]), [
-    // 4J15: auto with spot checks is built but locked (the founder's decision), not planned.
-    [false, 'planned', 'Planned. Needs a sampling rule first.'], [false, 'available', "Routine-step approval is not available yet."],
-  ]);
-  assert.equal(status.improvement.status, 'available');
-  assert.equal(status.improvement.due, false);
-
-  await call(env, 'venture.simulation.run', { useTemplate: true });
-  status = await call<LaunchStatus>(env, 'venture.launch.status');
-  assert.ok(status.rehearsal.every(row => row.passed === true && row.judged === false));
-  assert.equal(stage(status, 'shadow').allowed, false);
-  assert.equal(stage(status, 'shadow').reason, REASON_CONNECT_AI);
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'shadow' }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === REASON_CONNECT_AI);
-
+  assert.equal(status.stage, 'practice');
+  assert.deepEqual(status.stages.map(item => [item.stage, item.current]), [['practice', true], ['live', false]]);
+  assert.equal(status.stages[0].allowed, true);
+  assert.equal(status.stages[1].allowed, false);
+  assert.equal(status.stages[1].reason, REASON_CONNECT_AI);
+  assert.doesNotMatch(JSON.stringify([status.stage, status.stages]), /shadow|rehears|approve-sample|auto-spot-check|approve-each/i);
+  await assert.rejects(call(env, 'venture.launch.advance', { to: 'live' }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === REASON_CONNECT_AI);
+  // A connected AI is the one check kept. No rehearsal of made-up clients is needed any more.
   await queueModel(env, {});
-  await call(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
   status = await call<LaunchStatus>(env, 'venture.launch.status');
-  assert.deepEqual(status.rehearsal.map(row => row.judged), [true, false, false]);
-  assert.equal(stage(status, 'shadow').allowed, false, 'one scenario is not enough');
-  assert.equal(stage(status, 'shadow').reason, REASON_REHEARSE_ALL);
-
-  for (const id of ['bookkeeping-messy', 'bookkeeping-pushback']) await call(env, 'venture.simulation.run', { scenarioIds: [id] });
-  status = await call<LaunchStatus>(env, 'venture.launch.status');
-  assert.ok(status.rehearsal.every(row => row.passed === true && row.judged === true));
-  assert.equal(stage(status, 'shadow').allowed, true);
-  assert.equal(stage(status, 'approve-each').allowed, false);
-  assert.equal(status.lastRunPassed, true);
-
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'approve-each' }), code('LAUNCH_STAGE_BLOCKED'));
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'approve-sample' }), code('STAGE_PLANNED'));
+  assert.equal(status.stages[1].allowed, true);
+  assert.equal(listRecords(env.store.read(), 'venture-simulation-run').length, 0);
+  for (const to of ['shadow', 'approve-each', 'rehearsal', 'approve-sample']) await assert.rejects(call(env, 'venture.launch.advance', { to }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(call(env, 'venture.launch.advance', { to: 'auto-spot-check' }), code('AUTO_LOCKED'));
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'shadow' }, phone), code('APP_APPROVAL_REQUIRED'));
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'live' }), code('INVALID_VENTURE_REQUEST'));
-
-  status = await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'shadow' });
-  assert.equal(status.stage, 'shadow');
-  assert.equal(stage(status, 'approve-each').allowed, true);
-  status = await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'approve-each' });
-  assert.equal(status.stage, 'approve-each');
-  assert.equal(env.store.read().conversations.find(r => r.kind === 'venture-record').status, 'live');
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'approve-sample' }), code('STAGE_PLANNED'));
-  status = await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'rehearsal' });
-  assert.equal(status.stage, 'rehearsal');
-  assert.equal(env.store.read().conversations.find(r => r.kind === 'venture-record').status, 'rehearsal');
-  assert.equal(events(env).filter(name => name === 'launch-stage-changed').length, 3);
+  await assert.rejects(call(env, 'venture.launch.advance', { to: 'live' }, phone), code('APP_APPROVAL_REQUIRED'));
+  status = await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'live' });
+  assert.equal(status.stage, 'live');
+  assert.deepEqual(status.stages.map(item => item.current), [false, true]);
+  const record = () => listRecords(env.store.read(), 'venture-record')[0];
+  assert.equal(record().launchStage, 'approve-each');
+  assert.equal(record().status, 'live');
+  // Moving down is always allowed, even with no AI connected.
+  env.models.main = 'template';
+  status = await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'practice' });
+  assert.equal(status.stage, 'practice');
+  assert.equal(record().launchStage, 'rehearsal');
+  assert.equal(record().status, 'rehearsal');
+  assert.equal(events(env).filter(name => name === 'launch-stage-changed').length, 2);
+  // The fake engine pins the same words (app/ui/tests/engine/fake-launch-w6.test.ts).
+  assert.deepEqual([REASON_CONNECT_AI, REASON_ACCEPT_PLAN, PRACTICE_LINE, LIVE_LINE], ['Connect your AI first.', 'Accept your plan first.', 'Real orders get practice drafts that never reach clients.', 'You approve each draft before it reaches a client.']);
+  for (const reason of [REASON_CONNECT_AI, REASON_ACCEPT_PLAN, ...status.stages.map(item => item.reason)]) {
+    assert.deepEqual(houseStyleFindings(reason), [], reason);
+    assert.doesNotMatch(reason, /\u2014/);
+  }
 });
 
-test('launch ladder: the shadow reason says why a rehearsal with an AI did not count', async () => {
+test('launch stages: Live needs an accepted plan, and an old shadow business reads as Practice', async () => {
+  const draft = await setup({ accepted: false });
+  await queueModel(draft, {});
+  const status = await call<LaunchStatus>(draft, 'venture.launch.status');
+  assert.equal(status.stages[1].allowed, false);
+  assert.equal(status.stages[1].reason, REASON_ACCEPT_PLAN);
+  await assert.rejects(call(draft, 'venture.launch.advance', { to: 'live' }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === REASON_ACCEPT_PLAN);
+  const old = await setup();
+  await setStage(old, 'shadow');
+  assert.equal((await call<LaunchStatus>(old, 'venture.launch.status')).stage, 'practice');
+});
+
+test('launch stages: a real order gets an AI practice draft in Practice, then a live AI draft after the owner moves up', async () => {
   const env = await setup();
-  const all = { scenarioIds: ['bookkeeping-clean', 'bookkeeping-messy', 'bookkeeping-pushback'] };
-  const ladder = async () => {
-    const status = await call<LaunchStatus>(env, 'venture.launch.status');
-    return { status, shadow: status.stages.find(item => item.stage === 'shadow')! };
-  };
-
-  // An AI is connected but its drafts were refused (a price in the words): not judged, and the owner is not told to connect an AI.
-  const bad = structuredClone(await fixture('draft-rehearsal'));
-  bad.sections[0].parts[0].text = 'Your books will cost INR 2,000.';
-  await queueModel(env, {});
-  env.models.outputs.delivery = [bad];
-  const refused = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
-  assert.equal(refused.modelMode, 'model');
-  assert.ok(refused.episodes.every(episode => /^The draft was refused: /.test(episode.firstFailure ?? '')));
-  let { status, shadow } = await ladder();
-  assert.ok(status.rehearsal.every(row => row.runId === refused.id && !row.judged));
-  assert.equal(shadow.allowed, false);
-  assert.equal(shadow.reason, REASON_NOT_JUDGED);
-  await assert.rejects(call(env, 'venture.launch.advance', { to: 'shadow' }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === REASON_NOT_JUDGED);
-
-  // The AI writes the drafts but templates serve quick work, so no AI judges them.
-  await queueModel(env, {});
-  env.models.fast = 'template';
-  const noJudge = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
-  assert.equal(noJudge.modelMode, 'mixed');
-  assert.equal(noJudge.passed, true);
-  ({ status, shadow } = await ladder());
-  assert.ok(status.rehearsal.every(row => row.passed === true && !row.judged));
-  assert.equal(shadow.reason, REASON_NO_JUDGE);
-
-  // Templates write the drafts and the AI only judges them: still not a rehearsal with your AI.
-  await queueModel(env, {});
-  env.models.main = 'template';
-  const templateDrafts = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
-  assert.equal(templateDrafts.modelMode, 'mixed');
-  assert.ok(templateDrafts.episodes.every(episode => episode.judge.every(answer => answer.answer === 'yes')));
-  ({ shadow } = await ladder());
-  assert.equal(shadow.reason, REASON_TEMPLATE_DRAFTS);
-
-  // Every practice client judged by the AI, but one failed.
-  await queueModel(env, { judge: ['judge-no-claims', 'judge-yes'] });
-  const oneFailed = await call<SimulationRunRecord>(env, 'venture.simulation.run', all);
-  assert.deepEqual(oneFailed.episodes.map(episode => episode.passed), [false, true, true]);
-  ({ status, shadow } = await ladder());
-  assert.ok(status.rehearsal.every(row => row.judged));
-  assert.equal(shadow.reason, REASON_PASS_ALL);
-  assert.equal(status.stages.find(item => item.stage === 'approve-each')!.reason, REASON_PASS_ALL);
-
-  // Only template runs: the spec's words.
-  const fresh = await setup();
-  await call(fresh, 'venture.simulation.run', { useTemplate: true });
-  const freshStatus = await call<LaunchStatus>(fresh, 'venture.launch.status');
-  assert.equal(freshStatus.stages.find(item => item.stage === 'shadow')!.reason, REASON_CONNECT_AI);
-  for (const reason of [REASON_NOT_JUDGED, REASON_NO_JUDGE, REASON_TEMPLATE_DRAFTS, REASON_PASS_ALL]) {
-    assert.deepEqual(houseStyleFindings(reason), [], reason);
-    assert.doesNotThrow(() => assertNoNumbers(reason, 'reason'), reason);
-  }
+  const { order } = await seedOrder(env);
+  await queueModel(env, { delivery: ['draft-order'] });
+  await allowAgent(env, order.id);
+  const practice = await completed(env, order.id);
+  assert.equal(practice.status, 'ready-for-review', JSON.stringify(practice));
+  assert.equal(practice.servedBy, 'model');
+  assert.equal(practice.practice, true);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: practice.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
+  assert.equal((await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'live' })).stage, 'live');
+  const live = await completed(env, order.id);
+  assert.equal(live.servedBy, 'model');
+  assert.equal(live.practice, false);
+  assert.equal((live as DeliveryRunRecord & { canAccept?: boolean }).canAccept, true);
+  assert.equal((await call<DeliveryRunRecord>(env, 'venture.delivery.review', { runId: live.id, verdict: 'accepted' })).status, 'accepted');
+  assert.equal((await call<LaunchStatus>(env, 'venture.launch.status')).acceptedDeliveries, 1);
 });
 
 // ---------------------------------------------------------------------------
 // 7. Real delivery runs
 // ---------------------------------------------------------------------------
 
-test('real runs: a template outline at any stage; a model draft waits for approval and is blocked at rehearsal', async () => {
+test('real runs: a template outline at any stage; a model draft in Practice is a practice draft', async () => {
   const env = await setup();
   const { order } = await seedOrder(env);
   await assert.rejects(call(env, 'venture.delivery.run', { orderId: 'order_missing' }), code('ORDER_NOT_FOUND'));
@@ -855,10 +804,13 @@ test('real runs: a template outline at any stage; a model draft waits for approv
   await assert.rejects(call(env,'venture.delivery.run',{orderId:order.id}),code('CLIENT_AI_CONSENT_REQUIRED'));
   await allowAgent(env,order.id);
   const before = JSON.stringify(env.store.read().conversations);
-  await assert.rejects(call(env, 'venture.delivery.run', { orderId: order.id }), (error: any) => error.code === 'LAUNCH_STAGE_BLOCKED' && error.message === 'Practise with your AI first, then practise on real orders.');
-  assert.equal(JSON.stringify(env.store.read().conversations), before);
+  // 6C4: Practice is where real orders get AI practice drafts; the old rehearsal stage no longer blocks them.
+  const practiceRun = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id });
+  assert.equal(practiceRun.practice, true);
+  assert.notEqual(JSON.stringify(env.store.read().conversations), before);
   assert.equal(env.models.previewed.length, 0);
-  // useTemplate still gives an outline at the rehearsal stage, with a model connected.
+  await waitForAgentWork(env.store, practiceRun.id);
+  // useTemplate still gives an outline in Practice, with a model connected.
   const forced = await call<DeliveryRunRecord>(env, 'venture.delivery.run', { orderId: order.id, useTemplate: true });
   assert.equal(forced.servedBy, 'template');
 });
@@ -887,7 +839,7 @@ test('real tool jobs keep failed claims unaccepted and reject missing sections o
 test('moving the launch stage down blocks review and interrupts a tool job before its draft is saved',async()=>{
  const env=await setup(),{order}=await seedOrder(env);await queueModel(env,{delivery:['draft-order']});await allowAgent(env,order.id);await setStage(env,'approve-each');
  const ready=await completed(env,order.id);await setStage(env,'shadow');await assert.rejects(call(env,'venture.delivery.review',{runId:ready.id,verdict:'accepted'}),code('PRACTICE_DRAFT'));
- await setStage(env,'approve-each');env.models.afterSend=()=>setStage(env,'rehearsal');const failed=await completed(env,order.id);assert.equal(failed.status,'failed');assert.equal(failed.deliverable,null);env.models.afterSend=null;
+ await setStage(env,'approve-each');env.models.afterSend=()=>setStage(env,'approve-sample');const failed=await completed(env,order.id);assert.equal(failed.status,'failed');assert.equal(failed.deliverable,null);env.models.afterSend=null;await setStage(env,'approve-each');
  const outline=await call<DeliveryRunRecord>(env,'venture.delivery.run',{orderId:order.id,useTemplate:true});assert.equal((await call<DeliveryRunRecord>(env,'venture.delivery.review',{runId:outline.id,verdict:'accepted'})).status,'accepted');
 });
 

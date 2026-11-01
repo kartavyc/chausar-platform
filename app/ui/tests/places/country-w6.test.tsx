@@ -28,15 +28,31 @@ async function connected() {
   return start(engine);
 }
 
+// W6 6C2: the country now shows on About you (the first run's step 2); the plan is kept from there.
+const BOX = 'Tell Chausar about your work';
+async function aboutYou() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Skip for now: use templates' }, { timeout: 4000 }));
+  return screen.findByRole('textbox', { name: BOX });
+}
+async function sendAndKeep(text: string, beforeKeep?: () => Promise<void>) {
+  fireEvent.change(screen.getByRole('textbox', { name: BOX }), { target: { value: text } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  const keep = await screen.findByRole('button', { name: 'Keep this plan' });
+  await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
+  if (beforeKeep) await beforeKeep();
+  fireEvent.click(screen.getByRole('button', { name: 'Keep this plan' }));
+}
+
 describe('wave 6 country defaults', () => {
   for (const zone of ['Asia/Kolkata', 'Asia/Calcutta']) {
     it(`uses India from ${zone}, even when the computer language names the US`, async () => {
       timeZone(zone);
       vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-US');
       const request = start();
-      expect(await screen.findByText('India · INR')).toBeTruthy();
-      fireEvent.change(screen.getByRole('textbox', { name: 'What do you want to start?' }), { target: { value: 'Bookkeeping for small cafes and shops.' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await aboutYou();
+      expect(await screen.findByText('India, from your time zone')).toBeTruthy();
+      expect(screen.getByText('INR')).toBeTruthy();
+      await sendAndKeep('Bookkeeping for small cafes and shops.');
       await waitFor(() => expect(request).toHaveBeenCalledWith('venture.create', expect.objectContaining({ countryCode: 'IN' })));
     });
   }
@@ -45,18 +61,20 @@ describe('wave 6 country defaults', () => {
     timeZone('America/Los_Angeles');
     vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-IN');
     start();
-    expect(await screen.findByText('United States · USD')).toBeTruthy();
+    await aboutYou();
+    expect(await screen.findByText('United States, from your time zone')).toBeTruthy();
+    expect(screen.getByText('USD')).toBeTruthy();
   });
 
   it('keeps the owner country choice when their sentence names clients elsewhere', async () => {
     timeZone('Asia/Kolkata');
     vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-US');
     const request = start();
-    await screen.findByText('India · INR');
+    await aboutYou();
+    await screen.findByText('India, from your time zone');
     fireEvent.click(screen.getByRole('button', { name: 'Change' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Country' }), { target: { value: 'GB' } });
-    fireEvent.change(screen.getByRole('textbox', { name: 'What do you want to start?' }), { target: { value: 'Bookkeeping for clients in India and Canada.' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await sendAndKeep('Bookkeeping for clients in India and Canada.');
     await waitFor(() => expect(request).toHaveBeenCalledWith('venture.create', expect.objectContaining({ countryCode: 'GB' })));
   });
 });
@@ -66,25 +84,27 @@ describe('wave 6 country suggestions', () => {
   for (const keep of [false, true]) it(`asks before using an AI country suggestion and respects ${keep ? 'Keep' : 'Use'}`, async () => {
     timeZone('Asia/Kolkata');
     const request = await connected();
-    await screen.findByText('India · INR');
-    fireEvent.change(screen.getByRole('textbox', { name: 'What do you want to start?' }), { target: { value: words } });
-    expect(request.mock.calls.some(([method]) => method === 'venture.country.suggest')).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
-    const use = await screen.findByRole('button', { name: 'Use United Kingdom' });
-    expect(screen.getByText('Your words suggest United Kingdom, with prices in GBP.')).toBeTruthy();
-    expect(request.mock.calls.some(([method]) => method === 'workspace.create')).toBe(false);
-    fireEvent.click(keep ? screen.getByRole('button', { name: 'Keep India' }) : use);
+    await aboutYou();
+    await screen.findByText('India, from your time zone');
+    fireEvent.change(screen.getByRole('textbox', { name: BOX }), { target: { value: words } });
+    expect(request.mock.calls.some(([method]) => method === 'venture.about.read' || method === 'venture.country.suggest')).toBe(false);
+    await sendAndKeep(words, async () => {
+      const use = await screen.findByRole('button', { name: 'Use United Kingdom' });
+      expect(screen.getByText('Your words suggest United Kingdom, with prices in GBP.')).toBeTruthy();
+      expect(request.mock.calls.some(([method]) => method === 'workspace.create')).toBe(false);
+      fireEvent.click(keep ? screen.getByRole('button', { name: 'Keep India' }) : use);
+    });
     await waitFor(() => expect(request).toHaveBeenCalledWith('venture.create', expect.objectContaining({ countryCode: keep ? 'IN' : 'GB' })));
   });
 
   it('does not ask AI to override a manually selected country', async () => {
     timeZone('Asia/Kolkata');
     const request = await connected();
-    await screen.findByText('India · INR');
+    await aboutYou();
+    await screen.findByText('India, from your time zone');
     fireEvent.click(screen.getByRole('button', { name: 'Change' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Country' }), { target: { value: 'CA' } });
-    fireEvent.change(screen.getByRole('textbox', { name: 'What do you want to start?' }), { target: { value: words } });
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await sendAndKeep(words, async () => { expect(screen.queryByRole('button', { name: 'Use United Kingdom' })).toBeNull(); });
     await waitFor(() => expect(request).toHaveBeenCalledWith('venture.create', expect.objectContaining({ countryCode: 'CA' })));
     expect(request.mock.calls.some(([method]) => method === 'venture.country.suggest')).toBe(false);
   });
@@ -93,12 +113,12 @@ describe('wave 6 country suggestions', () => {
     timeZone('Asia/Kolkata');
     const engine = new FakeEngine({ fresh: true });
     const original = engine.request.bind(engine);
-    vi.spyOn(engine, 'request').mockImplementation((method, params) => method === 'venture.country.suggest'
+    vi.spyOn(engine, 'request').mockImplementation((method, params) => method === 'venture.about.read'
       ? Promise.reject(new EngineError('MODEL_TIMEOUT', 'Your AI did not answer. Try again.')) : original(method, params));
     const request = start(engine);
-    await screen.findByText('India · INR');
-    fireEvent.change(screen.getByRole('textbox', { name: 'What do you want to start?' }), { target: { value: words } });
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await aboutYou();
+    fireEvent.change(screen.getByRole('textbox', { name: BOX }), { target: { value: words } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Your AI did not answer. Try again.');
     expect(request.mock.calls.some(([method]) => method === 'workspace.create')).toBe(false);
   });

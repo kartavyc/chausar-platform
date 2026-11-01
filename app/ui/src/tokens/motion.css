@@ -25,3 +25,15 @@
   from { transform: translateX(var(--snap-from, 0)); }
   to { transform: none; }
 }
+
+/* Wave 6 About you (AboutYou.module.css): on Send, the chat rises from where the box was and the preview slides in
+   from the right, once, over --t-settle. Under reduced motion --t-settle is 0 and the component also turns them off. */
+@keyframes ink-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ink-slide {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}

@@ -43,6 +43,8 @@ import { KitConnect } from './KitConnect';
 import { ChecksTile } from './ChecksTile';
 import { Guide, LadderWord } from './Guide';
 import { localizedConnectionCard } from './ConnectionWords';
+// W6 6C7: what this business needs from outside, the same list as the first run's last step.
+import { BusinessNeeds } from '../onboarding/BusinessNeeds';
 import s from './Connections.module.css';
 
 /** The engine's refusals that the Website build page resolves: no brief, a brief that failed its checks, no accepted plan. */
@@ -96,9 +98,18 @@ export function Place() {
   const groups = useMemo(() => grouped(cards.data ?? []), [cards.data]);
   // Transcription reads files on this computer: only the desktop app, inside a business, offers it.
   const local = Boolean(venture.data) && client.transport !== 'hosted';
+  if (route.sub === 'needs' && venture.data) {
+    return (
+      <>
+        <PageTitle title={t('place.connections')} line={t('connections.line')} />
+        <div className={s.place}><BusinessNeeds place="connections" /></div>
+      </>
+    );
+  }
   return (
     <>
       <PageTitle title={t('place.connections')} line={t('connections.line')} />
+      {venture.data && <p className={s.needsLink}><a href="#/connections/needs">{t('first-run.needs.link')}</a></p>}
       <div className={s.place}>
         <YourAi focus={route.sub === 'ai'} />
         <CliStatus />

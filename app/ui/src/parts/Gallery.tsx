@@ -6,6 +6,8 @@ import { cx } from './cx';
 import { Count } from './Figure';
 import { Icon } from './Icon';
 import { ModelEstimate } from './ModelEstimate';
+import { PriceGuideList, PriceSources } from './PriceSources';
+import type { PriceGuideView } from '../engine/types';
 import type { IconName } from './icons';
 import s from './Gallery.module.css';
 
@@ -33,9 +35,11 @@ export interface GalleryWay {
   youDo: string;
   /** The agents that run it, and what they do. */
   team: { names: readonly string[]; line: string };
-  /** What clients usually pay: a range a model wrote, so it always reads "model estimate" and never has a receipt.
-   *  `per` says per what ("per mention"). */
-  pay: { range: string; per?: string | undefined; source?: string | undefined };
+  /** What clients usually pay: a range a model wrote, so it reads "model estimate" and never has a receipt.
+   *  `per` says per what ("per mention"). W6 6C3: `estimate: false` when the range is a sourced one (the guide's
+   *  `sourced` range), shown with its (i) and sources instead; `guide` is the way's profession's sources or "No reliable
+   *  data", one fold away. */
+  pay: { range: string; per?: string | undefined; source?: string | undefined; estimate?: boolean | undefined; guide?: PriceGuideView | undefined; sourced?: string | undefined };
   /** W4 4J21: what the owner needs besides time (their own AI, the connections it uses), one fold away with the pay
    *  range's source. */
   needs?: readonly string[] | undefined;
@@ -65,6 +69,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
   const language = useLanguage();
   const titleId = useId();
   const agents = new Intl.ListFormat('en-IN', { style: 'long', type: 'conjunction' }).format(way.team.names);
+  const sourcedRange = way.pay.estimate === false ? way.pay.guide?.ranges.find((range) => range.id === way.pay.sourced) : undefined;
   const startName = way.running ? t('gallery.startAnotherNamed', { name: way.name }) : t('gallery.startNamed', { name: way.name });
   return (
     <article className={cx(s.tile, className)} aria-labelledby={titleId} data-card="" data-featured={featured ? '' : undefined}>
@@ -96,14 +101,26 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
         </li>
         {/* The range is a model's, proved by its "model estimate" label on the line above, as on the board: the fact is
             one figure group. */}
-        <li className={s.fact} data-figure-group="">
-          <p className={s.factHead}>
-            <Icon name="indian-rupee" size={14} />
-            <span className={s.factName}>{way.pay.per ? t('gallery.payPer', { per: way.pay.per }) : t('gallery.pay')}</span>
-            <ModelEstimate />
-          </p>
-          <p className={cx(s.pay, 'mono')}>{way.pay.range}</p>
-        </li>
+        {sourcedRange && way.pay.guide ? (
+          // W6 6C3: a range from credible sources, proved by its sources and date in the (i), as a receipt proves a figure.
+          <li className={s.fact} data-sourced-range="">
+            <p className={cx(s.factHead, s.sourcedHead)}>
+              <Icon name="indian-rupee" size={14} />
+              <span className={s.factName}>{way.pay.per ? t('gallery.payPer', { per: way.pay.per }) : t('gallery.pay')}</span>
+              <PriceSources guide={way.pay.guide} range={sourcedRange} />
+            </p>
+            <p className={cx(s.pay, 'mono')}>{way.pay.range}</p>
+          </li>
+        ) : (
+          <li className={s.fact} data-figure-group="">
+            <p className={s.factHead}>
+              <Icon name="indian-rupee" size={14} />
+              <span className={s.factName}>{way.pay.per ? t('gallery.payPer', { per: way.pay.per }) : t('gallery.pay')}</span>
+              <ModelEstimate />
+            </p>
+            <p className={cx(s.pay, 'mono')}>{way.pay.range}</p>
+          </li>
+        )}
       </ul>
       <details className={s.needs} data-way-needs="">
         <summary className={s.needsHead}>{t('gallery.needs')}</summary>
@@ -122,6 +139,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
         <p className={s.factLine}>{way.team.line}</p>
         {way.needs?.map((line) => <p key={line} className={s.factLine}>{line}</p>)}
         {way.pay.source && <p className={s.source}>{way.pay.source}</p>}
+        {way.pay.guide && !sourcedRange && <PriceGuideList guide={way.pay.guide} className={s.source} />}
       </details>
       <div className={s.foot}>
         <Button

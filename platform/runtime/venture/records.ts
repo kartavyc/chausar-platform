@@ -86,6 +86,8 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-newsletter-contact': 'nlcontact', 'venture-tender-question': 'tenderq', 'venture-site-requirement': 'sitereq', 'venture-site-release': 'siterelease',
   'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding', 'venture-demo-project': 'demoproject',
   'venture-dev-permission': 'devperm', 'venture-triage-channel': 'triage', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
+  // Wave 6 (6C5, 6C6)
+  'venture-rule-attestation': 'ruleattest', 'venture-compliance': 'compliance',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {

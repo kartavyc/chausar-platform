@@ -22,7 +22,7 @@ const NO_PLAYBOOK = 'This business has no work instructions with dated platform 
  * The flagship playbook the business runs: the playbook in use's, else the accepted plan's (as delivery picks it),
  * else, before a plan is accepted, the one the idea picks (the playbook the plan page names).
  */
-function businessFlagship(state: State, venture: VentureRecord): string | null {
+export function businessFlagship(state: State, venture: VentureRecord): string | null {
   const playbook = currentPlaybook(state, venture);
   if (playbook) return playbook.flagship ?? null;
   const plan = acceptedBlueprintOrNull(state, venture);

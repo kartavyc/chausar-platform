@@ -182,6 +182,7 @@ export class Engine {
     const pending = this.#draftPending ??= import('./venture/draft/index.ts').then(module => {
       const desk = module.createDraftDesk({
         ...(this.options.venture ?? {}), demo: !!this.options.demo,
+        ...(this.services.helper ? { helper: this.services.helper } : {}),
         ventureExists: () => !!this.vault && this.vault.read().conversations.some(record => record?.kind === 'venture-record'),
         vaultOpen: () => !!this.vault,
       }) as DraftDeskHandle;
@@ -990,6 +991,8 @@ export class Engine {
       ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
+    // Wave 6 (6C6): onboarding shows the profession's rules when it is picked, before any vault exists.
+    if (method === 'venture.compliance.get' && !this.vault) return (await import('./venture/core/compliance.ts')).complianceBeforeVault(payload);
     if (method === 'venture.country.suggest' && !this.vault?.read().conversations.some(record => record?.kind === 'venture-record')) {
       return (await this.#draftDesk()).request(this.context, method, payload);
     }
@@ -1008,6 +1011,13 @@ export class Engine {
       case 'venture.compose.fill':
       case 'venture.compose.get':
       case 'venture.compose.update':
+      // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault.
+      case 'venture.ai.tools':
+      case 'venture.ai.login.start':
+      case 'venture.ai.login.cancel':
+      case 'venture.about.read':
+      case 'venture.about.pick':
+      case 'venture.about.families':
         return (await this.#draftDesk()).request(this.context, method, payload);
     }
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
@@ -1683,6 +1693,10 @@ export class Engine {
       case 'venture.client.aiConsent.get':
       case 'venture.client.aiConsent.agree':
       case 'venture.client.aiConsent.withdraw':
+      case 'venture.billing.get':
+      case 'venture.billing.set':
+      case 'venture.invoice.pdf':
+      case 'venture.invoice.payLink':
       case 'venture.order.create':
       case 'venture.order.list':
       case 'venture.order.deliver':
@@ -1771,6 +1785,10 @@ export class Engine {
       case 'venture.ca.receipt':
       case 'venture.ca.explainDiff':
       case 'venture.rules.list':
+      case 'venture.rules.locks':
+      case 'venture.rules.attest':
+      case 'venture.compliance.get':
+      case 'venture.compliance.set':
       case 'venture.judge.auto.get':
       case 'venture.judge.auto.set':
       case 'venture.posting.limits.get':
@@ -1887,6 +1905,7 @@ export class Engine {
       case 'venture.blueprint.suggest':
       case 'venture.owner.get':
       case 'venture.owner.set':
+      case 'venture.needs.list':
       case 'venture.receipt.verify':
       case 'venture.journal.chain':
       case 'venture.journal.acceptBreak':

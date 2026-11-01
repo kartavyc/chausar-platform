@@ -8,6 +8,8 @@ import type {
   Offer, PlanFlagshipStep, PricingModel, RecordBase, SecretShelf, ServiceType,
 } from './contracts.ts';
 
+import type { AboutRead, FamilyId, ToolView, ToolsView } from './core/first-run-types.ts';
+
 export const ONBOARDING_CONTRACT_VERSION = 'chausar.dev/venture-onboarding/v1alpha2' as const;
 
 /** The onboarding methods. All are answered before the vault check by the engine's draft desk. contracts.ts lists them
@@ -16,6 +18,8 @@ export const ONBOARDING_METHODS = [
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
+  'venture.about.read', 'venture.about.pick', 'venture.about.families',
 ] as const;
 export type OnboardingMethod = typeof ONBOARDING_METHODS[number];
 
@@ -351,6 +355,12 @@ export type OnboardingPayloads = {
   'venture.compose.fill': { composeId: string };
   'venture.compose.get': Record<string, never>;
   'venture.compose.update': { composeId: string; patch: ComposePatch };
+  'venture.ai.tools': Record<string, never>;
+  'venture.ai.login.start': { cli: 'codex' | 'claude-code' };
+  'venture.ai.login.cancel': { cli: 'codex' | 'claude-code' };
+  'venture.about.read': { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } };
+  'venture.about.pick': { familyId: FamilyId; text?: string };
+  'venture.about.families': Record<string, never>;
 };
 export type OnboardingResults = {
   'venture.country.suggest': CountrySuggestion;
@@ -363,4 +373,10 @@ export type OnboardingResults = {
   'venture.compose.fill': ComposedPlan;
   'venture.compose.get': ComposeState | null;
   'venture.compose.update': ComposedPlan;
+  'venture.ai.tools': ToolsView;
+  'venture.ai.login.start': ToolView;
+  'venture.ai.login.cancel': ToolView;
+  'venture.about.read': AboutRead;
+  'venture.about.pick': AboutRead;
+  'venture.about.families': { families: { id: FamilyId; label: string; line: string }[] };
 };

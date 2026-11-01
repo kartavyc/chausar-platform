@@ -1,4 +1,5 @@
 import {bindClientAiContext} from '../../clients/ai-context.ts';
+import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 // Exact career AI request approval. Only approved fact selections become code-rendered draft packs.
 import {authorize,check,type Context} from '../../../contracts.ts';
 import type {CareerThreadRecord,VentureDeps} from '../../contracts.ts';
@@ -10,9 +11,9 @@ import {careerPack} from './pack.ts';
 import {requireCareerClientRule} from './rules.ts';
 const binding=(row:CareerThreadRecord)=>digest({...row,aiRequest:null,aiCallIds:[]});
 export async function careerAi(deps:VentureDeps,ctx:Context,p:Record<string,unknown>){
- const {state,venture}=readVenture(deps,ctx),row=listRecords(state,'venture-career-thread',venture.id).find(r=>r.id===p.id);check(row?.pack,'CAREER_NOT_FOUND','Choose a career pack.');check(p.digest===digest(row),'APPROVAL_STALE','Review the current career pack.');requireCareerClientRule();
+ const {state,venture}=readVenture(deps,ctx),row=listRecords(state,'venture-career-thread',venture.id).find(r=>r.id===p.id);check(row?.pack,'CAREER_NOT_FOUND','Choose a career pack.');check(p.digest===digest(row),'APPROVAL_STALE','Review the current career pack.');requireCareerClientRule(attestedNow(deps));
  const clientAi=bindClientAiContext(deps,ctx,row.orderId,p.action==='ai-confirm'?row.aiRequest?.preview:undefined);
- const expected=binding(row),live=()=>{clientAi.assert();authorize(deps.store,ctx,'approve');requireCareerClientRule();const scope=careerOrder(deps,ctx,row.orderId),current=listRecords(deps.store.read(),'venture-career-thread',venture.id).find(r=>r.id===row.id),evidence=careerEvidence(deps.store.read(),venture.id,row.orderId);check(current?.pack&&binding(current)===expected&&digest(scope.order)===current.pack.orderDigest&&evidence.factsDigest===current.pack.factsDigest&&evidence.sourcesDigest===current.pack.sourcesDigest,'CAREER_SOURCE_CHANGED','The career facts, source or pack changed. Review a new pack.');return{current,evidence};};
+ const expected=binding(row),live=()=>{clientAi.assert();authorize(deps.store,ctx,'approve');requireCareerClientRule(attestedNow(deps));const scope=careerOrder(deps,ctx,row.orderId),current=listRecords(deps.store.read(),'venture-career-thread',venture.id).find(r=>r.id===row.id),evidence=careerEvidence(deps.store.read(),venture.id,row.orderId);check(current?.pack&&binding(current)===expected&&digest(scope.order)===current.pack.orderDigest&&evidence.factsDigest===current.pack.factsDigest&&evidence.sourcesDigest===current.pack.sourcesDigest,'CAREER_SOURCE_CHANGED','The career facts, source or pack changed. Review a new pack.');return{current,evidence};};
  check(row.pack.input.kind!=='weekly-shortlist'&&row.pack.input.kind!=='career-coaching','INVALID_VENTURE_REQUEST','Choose a resume, cover letter, interview preparation or title audit for AI evidence selection.');
  const first=live(),task=careerTask(row.pack.input.kind,first.evidence.facts,first.evidence.listings);
  if(p.action==='ai-preview'){

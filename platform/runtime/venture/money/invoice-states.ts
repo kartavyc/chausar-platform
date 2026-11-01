@@ -73,7 +73,9 @@ export function invoiceTimeline(state: State, venture: VentureRecord, invoice: I
       continue;
     }
     const tds = payment.tds ? `, and TDS ${money(payment.tds.amountMinor)} under ${payment.tds.section} to be shown on the client's TDS certificate` : '';
-    events.push({ what: 'paid', on: payment.receivedOn, line: `Paid ${money(payment.amountMinor)} by ${METHOD_WORDS[payment.method]} on ${date(payment.receivedOn)}${tds}` });
+    // 6D2: a UPI payment the owner typed is their word, not a bank's: Chausar cannot see the client's UPI app.
+    const marked = payment.method === 'upi' && !payment.bankTransactionId ? ', marked paid by you' : '';
+    events.push({ what: 'paid', on: payment.receivedOn, line: `Paid ${money(payment.amountMinor)} by ${METHOD_WORDS[payment.method]} on ${date(payment.receivedOn)}${marked}${tds}` });
   }
   const credits = listRecords(state, 'venture-credit-note', venture.id);
   for (const note of issuedCredits(invoice.id, credits)) {

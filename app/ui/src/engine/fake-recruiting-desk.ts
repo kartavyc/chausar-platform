@@ -5,6 +5,7 @@
  */
 
 import {EngineError,type OrderLite} from './types';
+import {fakeAttested} from './fake-rules-attest';
 import type { FakePlaybookDesk,FakeDeskKind } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import {need,screenCriteria,professionalText} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/criteria';
@@ -34,7 +35,7 @@ export function fakeRecruitingDeskDesk(host: W4DeskHost): FakePlaybookDesk {
  const save=<T extends RecruitRow>(row:T):T=>{store().set(row.id,structuredClone(row));return row;};
  const find=<T extends RecruitRow>(kind:string,id:unknown):T=>{const r=store().get(String(id));need(r?.kind==='venture-recruit-'+kind,'RECRUIT_NOT_FOUND','Choose a record in this business.');return structuredClone(r) as T;};
  const roleOf=(id:string)=>{const role=find<RecruitRole>('role',id),order=(host.ask('venture.order.list',{}) as OrderLite[]).find(o=>o.id===role.serviceOrderId);need(order&&order.status!=='cancelled'&&order.clientId===role.clientId,'RECRUIT_ORDER_REQUIRED','Choose this client service order.');return role;};
- const privacy=()=>{const v=host.ask('venture.get',{}) as {venture?:{launchStage?:string}}|null;recruitPrivacyReady(v?.venture?.launchStage);};
+ const privacy=()=>{const v=host.ask('venture.get',{}) as {venture?:{launchStage?:string}}|null;recruitPrivacyReady(v?.venture?.launchStage,fakeAttested(host.ask?.bind(host)));};
  const eraseCandidates=(candidates:RecruitCandidate[])=>{host.eraseRecruitingMail?.(candidates.filter(c=>c.source.kind==='mail').map(c=>c.source.id));host.eraseRecruitingCopies?.([...new Set(candidates.map(c=>find<RecruitRole>('role',c.roleId).serviceOrderId))]);for(const c of candidates){store().delete(c.id);for(const r of [...rows<RecruitTouch>('touch'),...rows<RecruitInterview>('interview')])if(r.candidateId===c.id)store().delete(r.id);}host.eraseSellerFiles?.(candidates.filter(c=>c.source.kind==='file').map(c=>c.source.id));};
  const shared:RecruitStore={host,rows,base,save,find,roleOf,privacy,eraseCandidates};
  function request(raw:unknown,op:string){const p=exact(raw,op==='list'?['playbook','kind','filter']:op==='get'?['playbook','kind','id']:['playbook','kind','id','action','payload','digest'],op==='list'?['playbook','kind']:op==='get'?['playbook','kind','id']:['playbook','kind','id','action','payload']);need(p.playbook==='recruiting-desk'&&kinds.includes(p.kind),'INVALID_VENTURE_REQUEST','Choose a recruiting record.');if(op!=='list')need(typeof p.id==='string'&&p.id.length>0&&p.id.length<=100,'INVALID_VENTURE_REQUEST','Choose a record.');return p;}

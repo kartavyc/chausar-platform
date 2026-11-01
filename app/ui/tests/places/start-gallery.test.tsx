@@ -89,6 +89,15 @@ describe('Start: the ways to earn from the engine', () => {
     expect(fold.querySelector('summary')?.textContent).toBe('What it takes');
     expect(fold.textContent).toContain('Your own AI, paid by you directly.');
     expect(fold.textContent).toContain('Not a survey, a quote or a promise: you set every price.');
+    // W6 6C3: ICAI's figures price single tasks, not this monthly service, so they wait in the fold with their sources.
+    expect(fold.querySelectorAll('[data-sourced-range] button[data-price-sources]')).toHaveLength(2);
+    expect(fold.textContent).toContain('₹4,000 to ₹8,000 or more');
+    // A way with no credible source keeps the model estimate label, its basis, and says "No reliable data" in its fold.
+    const youtube = within(region).getByRole('article', { name: 'YouTube channel' });
+    expect(youtube.querySelector('[data-figure-group] [data-estimate]')?.textContent).toBe('model estimate');
+    const youtubeFold = youtube.querySelector('details[data-way-needs]') as HTMLDetailsElement;
+    expect(youtubeFold.textContent).toContain('Not a survey, a quote or a promise: you set every price.');
+    expect(youtubeFold.textContent).toContain('No reliable data');
     // The open business runs YouTube channel: "You run this"; its Start reads Start like every tile's (4Z2) and is
     // named "Start another" for a screen reader.
     const yours = within(region).getByRole('article', { name: 'YouTube channel' });

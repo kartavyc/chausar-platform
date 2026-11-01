@@ -62,7 +62,8 @@ export function wayData(way: WayView, language: 'en', categories: WaysView['cate
     maxHours: way.maxHours,
     youDo: way.youDo,
     team: { names: way.team.map((member) => member.role), line: way.teamLine },
-    pay: { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source },
+    // W6 6C3: a sourced range keeps its guide and range id, so the tile shows its (i) in place of the estimate label.
+    pay: { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source, estimate: way.clientsPay.estimate, guide: way.clientsPay.guide, sourced: way.clientsPay.rangeId },
     needs: [way.needs.ai, way.needs.connections],
     starter: way.starter,
   };

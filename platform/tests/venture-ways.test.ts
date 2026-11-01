@@ -11,6 +11,7 @@ import type { State } from '../runtime/contracts.ts';
 import type { WaysView, WayView } from '../runtime/venture/contracts.ts';
 import { listWays, openWayBusiness, orderWays, waysUpTo, waysView } from '../runtime/venture/core/ways.ts';
 import { WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, connectorWorks, validateWays, type WayData } from '../runtime/venture/playbooks/ways.ts';
+import { WAY_PRICES, priceGuide } from '../runtime/venture/core/price-ranges.ts';
 import { PLAYBOOK_REGISTRY, findPlaybook, pickPlaybook } from '../runtime/venture/playbooks/registry.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import {kitDefinitions} from '../runtime/venture/playbooks/kit/installed.ts';
@@ -85,9 +86,12 @@ test('ways: each way has its category, hours a week, the work plan\'s own AI tea
     assert.equal(way.hours, `${way.minHours} to ${way.maxHours} h a week`);
     assert.ok(Number.isInteger(way.minHours) && Number.isInteger(way.maxHours) && way.minHours >= 1 && way.minHours <= way.maxHours && way.maxHours <= 60);
     assert.equal(way.hoursEstimate, true, 'the hours are a model\'s too');
-    assert.equal(way.clientsPay.estimate, true);
-    assert.equal(way.clientsPay.source, WAY_SOURCE.en);
-    assert.match(way.clientsPay.text, /^₹[\d,]+ to ₹[\d,]+$/);
+    // W6 6C3: a credible range for the way's own service replaces the model estimate, with its publishers and date.
+    const sourced = Boolean(WAY_PRICES[way.playbook]?.range);
+    assert.equal(way.clientsPay.estimate, !sourced);
+    if (sourced) assert.match(way.clientsPay.source, /\. Checked 1 Nov 2026\.$/);
+    else assert.equal(way.clientsPay.source, WAY_SOURCE.en);
+    if (!sourced) assert.match(way.clientsPay.text, /^₹[\d,]+ to ₹[\d,]+$/);
     assert.ok(way.line.length > 0 && way.youDo.length > 0 && way.teamLine.length > 0 && way.clientsPay.per.length > 0);
   }
   assert.deepEqual(byId(view, 'youtube'), {
@@ -99,7 +103,7 @@ test('ways: each way has its category, hours a week, the work plan\'s own AI tea
       { role: 'Story editor', initials: 'SE', department: 'production' }, { role: 'Producer', initials: 'PR', department: 'sales' },
       { role: 'Packager', initials: 'PA', department: 'marketing' },
     ],
-    clientsPay: { text: '₹5,000 to ₹30,000', per: 'per video', estimate: true, source: WAY_SOURCE.en },
+    clientsPay: { text: '₹5,000 to ₹30,000', per: 'per video', estimate: true, source: WAY_SOURCE.en, guide: priceGuide('video-editor') },
   });
   const ca = byId(view, 'ca-firm');
   assert.deepEqual([ca.label, ca.category, ca.department, ca.hours, ca.maxHours, ca.clientsPay.text, ca.clientsPay.per], ['CA practice', 'money-and-tax', 'money', '6 to 10 h a week', 10, '₹5,000 to ₹20,000', 'a client a month']);

@@ -76,11 +76,12 @@ test('recheck: nothing changed lets it apply; each changed fact denies with its 
   assert.equal(denied({ order: null })?.code, 'ORDER_NOT_ACTIVE');
   assert.equal(denied({ order: { status: 'invoiced' } }), null, 'an invoiced order is still being worked on');
   assert.deepEqual(denied({ clientOnFile: false }), { code: 'CLIENT_NOT_ACTIVE', reason: 'The client for this order is no longer on file, so it was stopped.' });
-  // The stage can move either way: down to rehearsal, or up past approve each; both stop it with the same words.
-  for (const stage of ['rehearsal', 'auto-spot-check'] as const) {
+  // 6C4: Practice (rehearsal or shadow) and Live let it go on; a hidden unfinished stage stops it with the same words.
+  for (const stage of ['approve-sample', 'auto-spot-check'] as const) {
     assert.deepEqual(denied({ stage }), { code: 'LAUNCH_STAGE_BLOCKED', reason: "The business's launch stage changed after you approved this, so it was stopped." }, stage);
   }
   assert.equal(denied({ stage: 'shadow' }), null);
+  assert.equal(denied({ stage: 'rehearsal' }), null);
   const overRun = denied({ run: { usedMicros: '950', capMicros: '1000' } });
   assert.equal(overRun?.code, 'RUN_CAP_REACHED');
   assert.match(overRun!.reason, /USD 0\.0010/);

@@ -1,0 +1,131 @@
+/* W6 6C3 (D17): a price range and where it comes from, as reference-ui/OnboardB.dc.html draws them: D's round `.info`
+   button beside the range, and the `.pop` card below it, in flow, so it never runs off a narrow screen. */
+
+.wrap {
+  display: contents;
+}
+
+/* D's `.info`: a small round button holding an "i" drawn by CSS, so the letter is not a word a reader counts. */
+.info {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-24);
+  height: var(--av-24);
+  padding: 0;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  font-style: normal;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.info::before {
+  content: 'i';
+}
+
+.info:hover {
+  background: var(--hover);
+}
+
+.info[aria-expanded='true'] {
+  border-color: var(--fg2);
+}
+
+/* D's `.pop`, on its own line under the range. */
+.pop {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+  color: var(--fg);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  font-style: normal;
+  white-space: normal;
+  text-align: start;
+}
+
+.pop[hidden] {
+  display: none;
+}
+
+.title {
+  font-weight: var(--weight-strong);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.item a {
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+
+.item a:hover {
+  color: var(--link-hover);
+}
+
+.meta {
+  color: var(--mute);
+}
+
+/* One range on its own line: label, amount, unit, (i); the popover wraps under them. */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.label {
+  color: var(--fg2);
+  font-size: var(--text-read);
+}
+
+.amount {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.per {
+  color: var(--mute);
+  font-size: var(--text-read);
+}
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.none {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--fg2);
+  font-size: var(--text-read);
+}

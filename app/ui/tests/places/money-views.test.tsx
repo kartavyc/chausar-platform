@@ -164,7 +164,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
     // A draft of 15 days' terms issued on 21 Oct is due 5 Nov, in the week to 11 Nov.
     expect(line.textContent).toContain('Issuing the draft for Boat Audio today adds');
     expect(line.textContent).toContain('₹30,000.00');
-    expect(line.textContent).toContain('in the week to 11 Nov.');
+    expect(line.textContent).toContain('in the week to 28 Oct.'); // due in 7 days, the default since wave 6 (6D1)
     expect(within(line).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     expect(within(line).getByRole('link', { name: 'Open on Today' }).getAttribute('href')).toBe('#/today');
     assertInkRules();

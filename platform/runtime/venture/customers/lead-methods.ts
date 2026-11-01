@@ -5,6 +5,7 @@
 // - The postal address is the business's: only the owner sets it, inside the app. Agents draft with the stored one.
 // - Agents only draft. Chausar never sends: the owner sends from their own mailbox and records the send in the app.
 import { authorize, check, type Context } from '../../contracts.ts';
+import { refuseRegulatorForbidden } from '../core/compliance.ts';
 import type { LeadRecord, LeadSettingsRecord, LeadView, OutreachDraftView, VentureDeps } from '../contracts.ts';
 import {
   exactPayload, identifier, isAppChannel, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx,
@@ -64,6 +65,8 @@ export async function leadsList(deps: VentureDeps, ctx: Context, payload: unknow
  */
 export async function leadsDraft(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ lead: LeadView; draft: OutreachDraftView }> {
   const body = exactPayload(payload, ['leadId', 'subject', 'body', 'postalAddress'], ['leadId', 'subject', 'body']);
+  // W6 6C6: a tool the profession's regulator forbids is refused whatever the settings (advocates: BCI Rule 36).
+  refuseRegulatorForbidden(deps.store.read(), 'outreach');
   const leadId = identifier(body.leadId, 'leadId');
   const owner = isAppChannel(ctx);
   const address = body.postalAddress === undefined ? undefined : singleLine(body.postalAddress, 'The postal address', { min: 5, max: 300 });

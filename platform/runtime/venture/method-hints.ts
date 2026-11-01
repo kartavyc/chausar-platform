@@ -31,6 +31,7 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.price.quote': ['prepare', 'ui'], 'venture.receipt.get': ['read', 'rui'],
   'venture.client.add': ['prepare', ''], 'venture.client.list': ['read', 'rui'],
   'venture.client.aiConsent.get': ['read', 'rui'], 'venture.client.aiConsent.agree': ['approve', 'u'], 'venture.client.aiConsent.withdraw': ['approve', 'i'],
+  'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],
   'venture.payment.record': ['prepare', ''], 'venture.books.summary': ['read', 'rui'],
@@ -64,6 +65,7 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.share.recordAnswer': ['approve', ''], 'venture.social.calendar': ['read', 'rui'],
   'venture.bank.ledger': ['read', 'rui'], 'venture.bank.apply': ['prepare', ''], 'venture.bank.alerts.get': ['read', 'rui'], 'venture.bank.alerts.set': ['admin', 'ui'],
   'venture.ca.receipt': ['read', 'rui'], 'venture.ca.explainDiff': ['approve', ''], 'venture.rules.list': ['read', 'rui'],
+  'venture.rules.locks': ['read', 'rui'], 'venture.rules.attest': ['approve', ''], 'venture.compliance.get': ['read', 'rui'], 'venture.compliance.set': ['approve', ''],
   'venture.judge.auto.get': ['read', 'rui'], 'venture.judge.auto.set': ['approve', 'ui'],
   'venture.posting.limits.get': ['read', 'rui'], 'venture.posting.limits.set': ['approve', 'ui'],
   'venture.transcription.get': ['read', 'rui'], 'venture.transcription.set': ['approve', 'ui'],
@@ -71,6 +73,10 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.ai.calls': ['read', 'rui'], 'venture.compose.decide': ['approve', 'u'], 'venture.compose.fill': ['prepare', 'uo'], 'venture.compose.get': ['read', 'rui'],
   'venture.compose.update': ['prepare', 'u'],
   'venture.country.suggest': ['approve', 'u'],
+  // Wave 6: the tools' own sign-in (it reaches the tool's site), About you (it may ask the owner's AI), the needs list.
+  'venture.ai.tools': ['read', 'rui'], 'venture.ai.login.start': ['approve', 'uo'], 'venture.ai.login.cancel': ['approve', 'ui'],
+  'venture.about.read': ['approve', 'uo'], 'venture.about.pick': ['read', 'rui'], 'venture.about.families': ['read', 'rui'],
+  'venture.needs.list': ['read', 'rui'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */

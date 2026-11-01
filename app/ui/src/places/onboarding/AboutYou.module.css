@@ -1,0 +1,278 @@
+/* About you (reference-ui/OnboardAB.dc.html): option A (the message box over the field tiles) and option B (the chat on
+   the left, the live "Your business" on the right). On Send, A becomes B in one motion of --t-settle (400 ms, and 0
+   under reduced motion): the chat rises from where the box was and the preview slides in from the right. Nothing
+   moves while the owner types. [data-motion='none'] (reduced motion, read by the component too) moves nothing. */
+
+.box {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.boxLabel {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+}
+
+.boxRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+  resize: vertical;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.attach {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control);
+  height: var(--control);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.attach:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--fg2);
+  font-size: var(--text-label);
+}
+
+.hint {
+  color: var(--dim);
+  font-size: var(--text-label);
+}
+
+.where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  font-size: var(--text-body);
+}
+
+.select {
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.pickHead {
+  margin-top: var(--sp-2);
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+}
+
+.families {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 759px) {
+  .families { grid-template-columns: minmax(0, 1fr); }
+}
+
+.family {
+  display: grid;
+  gap: var(--sp-1);
+  width: 100%;
+  height: 100%;
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.family:hover {
+  background: var(--hover);
+}
+
+.family:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.family[data-else] {
+  border-style: dashed;
+}
+
+.familyName {
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+}
+
+.familyLine {
+  color: var(--fg2);
+  font-size: var(--text-label);
+}
+
+/* Option B. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 520px;
+}
+
+.chatHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.chatTitle {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+}
+
+.chatHead > :last-child {
+  margin-left: auto;
+}
+
+.bubble {
+  max-width: 85%;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  font-size: var(--text-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.me {
+  align-self: flex-end;
+  background: var(--inner);
+}
+
+.them {
+  align-self: flex-start;
+  border: var(--hair) solid var(--line);
+  background: var(--surface);
+}
+
+.chatFoot {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: auto;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.previewHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.nameCard {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.label {
+  color: var(--dim);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+}
+
+.name {
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  overflow-wrap: anywhere;
+}
+
+.offers {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offer {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.offerName {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+}
+
+.offerLine {
+  color: var(--fg2);
+  font-size: var(--text-label);
+}
+
+.keep {
+  margin-top: auto;
+}
+
+.keep > button {
+  width: 100%;
+}
+
+/* The one motion: on Send only, once, --t-settle long, none under reduced motion. */
+.rise {
+  animation: global(ink-rise) var(--t-settle) var(--ease) 1 both;
+}
+
+.slide {
+  animation: global(ink-slide) var(--t-settle) var(--ease) 1 both;
+}
+
+[data-motion='none'] .rise,
+[data-motion='none'] .slide {
+  animation: none;
+}

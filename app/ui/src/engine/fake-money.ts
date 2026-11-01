@@ -24,6 +24,10 @@ import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../plat
 import { BUSINESSES, RECEIPTS } from './fixtures';
 import { FakeBills, FAKE_4J5_BILL_METHODS } from './fake-bills';
 import { FakeMoneyViews, FAKE_4J20_METHODS } from './fake-money-views';
+import { FakeBilling, FAKE_6D_METHODS, asEngine, base64Utf8, fakeInvoiceHtml, howToPay, howToPayLines, payLinkDigest, payLinkOpen, shareWords, type FakePayLink } from './fake-money-pay';
+import { cutPart, partAskOf, PART_WORDS, type PartAsk } from '../../../../platform/runtime/venture/money/invoice-parts';
+import { dueDaysOf, reminderDaysOf } from '../../../../platform/runtime/venture/money/billing-rules';
+import type { TaxTreatment } from '../../../../platform/runtime/venture/money/price-types';
 import {
   EngineError, PAYMENT_METHODS, type BooksPeriodKey, type BooksSummaryLite, type ClientLite, type CreditNoteView, type InvoiceLite, type InvoiceNext,
   type InvoiceTimelineEntry, type InvoiceViewLite, type OrderLite, type OutreachView, type PaymentLite, type PaymentMethod, type PriceFigureLite,
@@ -41,6 +45,12 @@ interface HeldInvoice {
   description: string; price: Price; paid: number; notes: string[]; digest: string;
   /** 4J5: what issued credit notes took off. */
   credited?: number;
+  /** Wave 6 (6D1): the part of its order, cut from the order's own figures (basis) at its treatment and rate. */
+  part?: { kind: PartAsk['kind']; label: string; shareBps: string | null; basis: { subtotal: number; taxes: TaxLine[]; total: number }; treatment: TaxTreatment; rateBps: string; earlier: number };
+  terms?: string;
+  reminderDays?: number[];
+  /** Wave 6 (6D3): the sample Payment Link made on approval. */
+  payLink?: FakePayLink;
 }
 interface HeldPayment extends PaymentLite { businessId: string; amount: number; tdsAmount?: number }
 interface HeldCredit { id: string; at: string; businessId: string; invoiceId: string; amount: number; reason: string; status: 'waiting' | 'issued' | 'cancelled'; number: string | null }
@@ -48,7 +58,7 @@ interface HeldSchedule extends RecurringInvoiceView { businessId: string }
 
 /** What the fake needs from the engine around it. */
 export interface MoneyHost {
-  orderSnapshot?: (id: string) => { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[] } | undefined;
+  orderSnapshot?: (id: string) => { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[]; treatment?: string; rateBps?: string } | undefined;
   now: () => string;
   business: () => string;
   clients: () => readonly ClientLite[];
@@ -178,6 +188,9 @@ export class FakeMoney {
   private reminders: { id: string; invoiceId: string; at: string }[] = [];
   private creditSeq = 1;
   private readonly bills: FakeBills;
+  /** Wave 6 (6D1, 6D2, 6D3): the owner's billing settings per business. */
+  private readonly billing = new FakeBilling();
+  private linkSeq = 1;
   /** 4J20: aging, in and out, cash ahead, margins and the CA export, read from this desk's records. */
   private readonly views: FakeMoneyViews;
 
@@ -195,7 +208,7 @@ export class FakeMoney {
 
   static answers(method: string): boolean {
     return method === 'venture.invoice.list' || method === 'venture.invoice.get' || method === 'venture.invoice.prepare' || method === 'venture.invoice.issue' || method === 'venture.payment.record'
-      || FAKE_4J5_MONEY_METHODS.includes(method) || FAKE_4J5_BILL_METHODS.includes(method) || FAKE_4J20_METHODS.includes(method);
+      || FAKE_4J5_MONEY_METHODS.includes(method) || FAKE_4J5_BILL_METHODS.includes(method) || FAKE_4J20_METHODS.includes(method) || FAKE_6D_METHODS.includes(method);
   }
 
   request(method: string, p: Record<string, unknown>): unknown {
@@ -212,6 +225,12 @@ export class FakeMoney {
       case 'venture.invoice.remind': return this.remind(p);
       case 'venture.invoice.recurring': return this.schedule(p);
       case 'venture.invoice.recurringList': return { items: this.schedules.filter((s) => s.businessId === this.host.business()).map(({ businessId: _b, ...view }) => ({ ...view })) };
+      case 'venture.billing.get':
+        if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+        return this.billing.view(this.host.business());
+      case 'venture.billing.set': { const view = this.billing.set(this.host.business(), p, this.host.now()); this.host.changed(); return view; }
+      case 'venture.invoice.pdf': return this.pdf(p);
+      case 'venture.invoice.payLink': return this.payLink(p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
   }
@@ -310,7 +329,7 @@ export class FakeMoney {
   }
 
   private lite(invoice: HeldInvoice): InvoiceLite {
-    return { id: invoice.id, at: invoice.at, orderId: invoice.orderId, clientId: invoice.clientId, number: invoice.number, status: invoice.status, issueDate: invoice.issueDate, dueDate: invoice.dueDate };
+    return { id: invoice.id, at: invoice.at, orderId: invoice.orderId, clientId: invoice.clientId, number: invoice.number, status: invoice.status, issueDate: invoice.issueDate, dueDate: invoice.dueDate, ...(invoice.part ? { part: { kind: invoice.part.kind, label: invoice.part.label } } : {}) };
   }
 
   /** A list row: the record plus its total, price receipt and next step, formatted here as the engine formats them. */
@@ -371,8 +390,10 @@ export class FakeMoney {
     const late = daysBetween(invoice.dueDate, this.today());
     if (late <= 0) return { action: 'wait', line: `Awaiting payment, due ${invoice.dueDate}.` };
     const words = `${late} ${late === 1 ? 'day' : 'days'} late`;
-    const reached = [3, 10, 30].filter((day) => day <= late);
-    if (!reached.length) return { action: 'wait', line: `${words}. A reminder is due on ${addDays(invoice.dueDate, 3)}.` };
+    // 6D1 (money/reminders.ts): the invoice's own days, else the owner's default, else 3, 10 and 30 days late.
+    const days = invoice.reminderDays?.length ? invoice.reminderDays : this.billing.of(this.host.business()).reminderDays;
+    const reached = days.filter((day) => day <= late);
+    if (!reached.length) return { action: 'wait', line: `${words}. A reminder is due on ${addDays(invoice.dueDate, days[0]!)}.` };
     const from = addDays(invoice.dueDate, reached.at(-1)!);
     const drafted = this.reminders.filter((r) => r.invoiceId === invoice.id && r.at.slice(0, 10) >= from).at(-1);
     return drafted
@@ -388,7 +409,7 @@ export class FakeMoney {
       const tds = p.tds ? `, and TDS ${this.show(invoice, p.tdsAmount ?? 0)} under ${p.tds.section}` : '';
       events.push(p.state === 'pending'
         ? { what: 'cheque', on: p.receivedOn, line: `Cheque for ${this.show(invoice, p.amount)} received on ${p.receivedOn}, waiting to clear${tds}` }
-        : { what: 'paid', on: p.receivedOn, line: `Paid ${this.show(invoice, p.amount)} by ${METHOD_WORDS[p.method]} on ${p.receivedOn}${p.tds ? `, and TDS ${this.show(invoice, p.tdsAmount ?? 0)} under ${p.tds.section} to be shown on the client's TDS certificate` : ''}` });
+        : { what: 'paid', on: p.receivedOn, line: `Paid ${this.show(invoice, p.amount)} by ${METHOD_WORDS[p.method]} on ${p.receivedOn}${p.method === 'upi' && !(p as { bankTransactionId?: string }).bankTransactionId ? ', marked paid by you' : ''}${p.tds ? `, and TDS ${this.show(invoice, p.tdsAmount ?? 0)} under ${p.tds.section} to be shown on the client's TDS certificate` : ''}` });
     }
     for (const c of this.credits.filter((item) => item.invoiceId === invoice.id && item.status === 'issued')) events.push({ what: 'credited', on: c.at.slice(0, 10), line: `Credit note ${c.number} for ${this.show(invoice, c.amount)} on ${c.at.slice(0, 10)}` });
     for (const r of this.reminders.filter((item) => item.invoiceId === invoice.id)) events.push({ what: 'reminder', on: r.at.slice(0, 10), line: `Reminder drafted on ${r.at.slice(0, 10)}, not sent yet` });
@@ -413,14 +434,28 @@ export class FakeMoney {
     const name = this.clientName(invoice.clientId);
     const figures = this.figures(invoice);
     const dates = invoice.issueDate && invoice.dueDate ? `Issued ${invoice.issueDate}, due ${invoice.dueDate}` : `Draft, due ${invoice.dueInDays} days after it is issued`;
+    // 6D2: how the client pays, from the balance and the owner's settings (fake-money-pay.ts, as how-to-pay.ts builds it).
+    const pay = this.payOf(invoice);
+    const part = invoice.part;
     const documentText = [
       invoice.documentTitle, invoice.number ?? 'Draft', dates, `Billed to: ${name}`, '', invoice.description,
       ...figures.map((figure) => `${figure.label}: ${figure.display}`),
+      ...(part ? [`Order total ${this.show(invoice, part.basis.total)}, billed before ${this.show(invoice, part.earlier)}`] : []),
+      ...(invoice.terms !== undefined ? [`Terms: ${invoice.terms}`] : []),
+      ...howToPayLines(pay),
     ].join('\n');
     const { digest: invoiceDigest, documentTitle, priceReceiptId, booksReceiptId, booksNote, currency, dueInDays } = invoice;
     const stale = (RECEIPTS.find((r) => r.id === priceReceiptId) ?? this.receipts.find((r) => r.id === priceReceiptId))?.stale ?? false;
+    const counted = part ? this.mine().filter((i) => i.orderId === invoice.orderId && i.status !== 'draft' && i.status !== 'void') : [];
+    const billed = counted.reduce((sum, i) => sum + totalOf(i.price), 0);
     return {
-      invoice: { ...this.lite(invoice), currency, dueInDays, digest: invoiceDigest, documentTitle, priceReceiptId, booksReceiptId, booksNote },
+      ...(part ? { billed: { orderTotal: this.show(invoice, part.basis.total), billed: this.show(invoice, billed), left: this.show(invoice, part.basis.total - billed), invoices: counted.length } } : {}),
+      ...(pay ? { howToPay: pay } : {}),
+      invoice: {
+        ...this.lite(invoice), currency, dueInDays, digest: invoiceDigest, documentTitle, priceReceiptId, booksReceiptId, booksNote,
+        ...(part ? { part: { kind: part.kind, label: part.label } } : {}), ...(invoice.terms !== undefined ? { terms: invoice.terms } : {}),
+        ...(invoice.reminderDays ? { reminderDays: [...invoice.reminderDays] } : {}),
+      },
       country: countryProfile(invoice.countryCode ?? 'IN'),
       client: { id: invoice.clientId, name },
       receipt: { id: priceReceiptId, stale },
@@ -433,6 +468,50 @@ export class FakeMoney {
       credits: this.credits.filter((c) => c.invoiceId === invoice.id).map((c) => this.creditView(c)),
       ...this.late(invoice),
     };
+  }
+
+  private sellerName(): string { return BUSINESSES.find((b) => b.id === this.host.business())?.name ?? 'Your business'; }
+
+  /** How the client pays this invoice, or null when the owner set no way to pay. */
+  private payOf(invoice: HeldInvoice) {
+    return howToPay(this.billing.of(this.host.business()), {
+      id: invoice.id, number: invoice.number, status: invoice.status, currency: invoice.currency, balance: this.balance(invoice), balanceText: this.show(invoice, this.balance(invoice)),
+      priceReceiptId: invoice.priceReceiptId, sellerName: this.sellerName(), ...(invoice.payLink ? { payLink: invoice.payLink } : {}), digest,
+    });
+  }
+
+  /** venture.invoice.pdf: the fake has no desktop printer, so the file is the invoice page as HTML and says why. */
+  private pdf(p: Record<string, unknown>) {
+    if (Object.keys(p).some((key) => key !== 'invoiceId') || p.invoiceId === undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const invoice = this.find(p.invoiceId);
+    if (invoice.number === null || invoice.status === 'draft') throw new EngineError('INVALID_VENTURE_REQUEST', 'Issue this invoice before you share it.');
+    if (invoice.status === 'void') throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice was cancelled.');
+    const view = this.view(invoice);
+    const html = fakeInvoiceHtml(`${invoice.documentTitle} ${invoice.number}`, view.documentText);
+    const client = this.host.clients().find((c) => c.id === invoice.clientId);
+    const share = shareWords({ client: view.client.name, number: invoice.number, balance: this.show(invoice, this.balance(invoice)), due: invoice.dueDate, seller: this.sellerName(), email: client?.email ?? null, howToPay: view.howToPay ?? null });
+    return { fileName: `${invoice.number.replace(/[^A-Za-z0-9-]/g, '-')}.html`, format: 'html' as const, mimeType: 'text/html' as const, contentBase64: base64Utf8(html), note: 'A PDF needs the desktop app.', share };
+  }
+
+  /** venture.invoice.payLink: Razorpay is fixture-tested in the engine; the fake makes a sample link on the exact approval. */
+  private payLink(p: Record<string, unknown>): InvoiceViewLite {
+    if (Object.keys(p).some((key) => !['invoiceId', 'action', 'digest'].includes(key)) || p.invoiceId === undefined || p.action === undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    if (p.action !== 'create' && p.action !== 'check') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say create or check.');
+    if (p.action === 'create' ? typeof p.digest !== 'string' || !/^[A-Za-z0-9]{1,200}$/.test(p.digest) : p.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the link you checked, only to create one.');
+    if (!this.billing.of(this.host.business()).razorpay) throw new EngineError('RAZORPAY_NOT_CONNECTED', 'Add your Razorpay keys in How clients pay first.');
+    const invoice = this.find(p.invoiceId);
+    const input = { id: invoice.id, number: invoice.number, status: invoice.status, balance: this.balance(invoice), currency: invoice.currency, digest, ...(invoice.payLink ? { payLink: invoice.payLink } : {}) };
+    if (p.action === 'create') {
+      if (!payLinkOpen(input)) throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice has a payment link already, or nothing left to pay.');
+      if (payLinkDigest(input) !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked the link. Look at it again.');
+      const n = this.linkSeq++;
+      invoice.payLink = { id: `plink_sample${String(n).padStart(4, '0')}`, shortUrl: `https://rzp.io/i/sample${n}`, status: 'created', checkedAt: null, amount: this.balance(invoice), currency: invoice.currency };
+    } else {
+      if (!invoice.payLink) throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice has no payment link to check.');
+      invoice.payLink.checkedAt = this.host.now();
+    }
+    this.host.changed();
+    return this.view(invoice);
   }
 
   private openInvoices(): BooksSummaryLite['openInvoices'] {
@@ -468,20 +547,65 @@ export class FakeMoney {
     if (order.internal) throw new EngineError('INTERNAL_ORDER', 'Your own shop work has no customer invoice.');
     if (order.status === 'cancelled') throw new EngineError('INVALID_VENTURE_REQUEST', 'This order was cancelled.');
     const existing = this.mine().filter((i) => i.orderId === order.id && i.status !== 'void');
-    // 4J5 (M11): an order's quote becomes one invoice, once.
-    if (existing.some((i) => i.status !== 'draft')) throw new EngineError('QUOTE_ALREADY_INVOICED', "This order's quote is on an issued invoice already. One order becomes one invoice, once.");
+    // 6D1 (money/invoices.ts): an order may be billed in parts; a whole-order invoice already issued leaves nothing to bill.
+    const issued = existing.filter((i) => i.status !== 'draft');
+    if (issued.some((i) => !i.part)) throw new EngineError('QUOTE_ALREADY_INVOICED', 'This order is billed in full already. Change the order before you bill more.');
     const snapshot = this.host.orderSnapshot?.(order.id);
     const priced = snapshot ? { price: { subtotal: Number(snapshot.subtotal), taxes: snapshot.taxes.map(tax => ({ ...tax, minor: Number(tax.minor) })) }, title: snapshot.taxes.length ? 'TAX INVOICE' : NOT_TAX, notes: [] } : ORDER_PRICES[order.id];
     const currency = snapshot?.currency ?? 'INR';
     if (!priced) throw new EngineError('ORDER_NOT_PRICED', 'The sample engine has no price for this order.');
-    const dueInDays = p.dueInDays === undefined ? 15 : p.dueInDays;
-    if (typeof dueInDays !== 'number' || !Number.isInteger(dueInDays) || dueInDays < 0 || dueInDays > 90) throw new EngineError('INVALID_VENTURE_REQUEST', 'Payment terms are 0 to 90 days.');
-    this.invoices = this.invoices.filter((i) => !existing.includes(i));
+    const settings = this.billing.of(this.host.business());
+    let dueInDays: number;
+    let reminderDays: number[] | undefined;
+    let ask: PartAsk | null;
+    try {
+      // The order's own due date when it falls within 90 days, else the owner's default (7 days unless they changed it).
+      const orderDays = order.dueDate ? daysBetween(this.today(), order.dueDate) : -1;
+      dueInDays = p.dueInDays === undefined ? (orderDays >= 0 && orderDays <= 90 ? orderDays : settings.dueInDays) : dueDaysOf(p.dueInDays);
+      reminderDays = p.reminderDays === undefined ? undefined : reminderDaysOf(p.reminderDays);
+      ask = p.part === undefined ? null : partAskOf(p.part, currency);
+    } catch (error) { throw asEngine(error); }
+    let price: Price = { subtotal: priced.price.subtotal, taxes: priced.price.taxes.map((line) => ({ ...line })) };
+    let part: HeldInvoice['part'];
+    let receiptId: string;
+    if (ask || issued.length) {
+      const first = issued[0]?.part;
+      const basis = first?.basis ?? { subtotal: priced.price.subtotal, taxes: priced.price.taxes.map((line) => ({ ...line })), total: totalOf(priced.price) };
+      const treatment = (first?.treatment ?? snapshot?.treatment ?? (priced.price.taxes.length ? 'cgst-sgst' : 'none')) as TaxTreatment;
+      const rateBps = first?.rateBps ?? snapshot?.rateBps ?? (priced.price.taxes.length ? '1800' : '0');
+      const keys = treatment === 'cgst-sgst' ? ['cgst', 'sgst'] : treatment === 'igst' ? ['igst'] : treatment === 'none' ? [] : ['tax'];
+      const lineOf = (taxes: TaxLine[], key: string) => BigInt(taxes.find((line) => line.key === key)?.minor ?? 0);
+      const billed = issued.reduce((sum, i) => ({ taxable: sum.taxable + BigInt(i.price.subtotal), lines: keys.map((key, index) => (sum.lines[index] ?? 0n) + lineOf(i.price.taxes, key)), total: sum.total + BigInt(totalOf(i.price)) }), { taxable: 0n, lines: keys.map(() => 0n), total: 0n });
+      const chosen: PartAsk = ask ?? { kind: 'final', label: PART_WORDS.final, shareBps: null, taxableMinor: null };
+      let cut: ReturnType<typeof cutPart>;
+      try {
+        cut = cutPart({ taxable: BigInt(basis.subtotal), lines: keys.map((key) => lineOf(basis.taxes, key)), total: BigInt(basis.total) }, billed, chosen, { taxRateBps: rateBps, treatment, currency });
+      } catch (error) { throw asEngine(error); }
+      const label = cut.final && chosen.label === PART_WORDS[chosen.kind] ? PART_WORDS.final : chosen.label;
+      price = { subtotal: Number(cut.taxable), taxes: keys.flatMap((key, index) => basis.taxes.some((line) => line.key === key) ? [{ key, label: basis.taxes.find((line) => line.key === key)!.label, minor: Number(cut.lines[index] ?? 0n) }] : []) };
+      const shareBps = !cut.final && chosen.shareBps !== null ? String(chosen.shareBps) : null;
+      part = { kind: cut.final ? 'final' : chosen.kind, label, shareBps, basis, treatment, rateBps, earlier: Number(billed.total) };
+      const kindWords = PART_WORDS[part.kind];
+      const explanation = cut.final
+        ? `${kindWords}: the order's ${this.show({ currency }, basis.total)} less ${this.show({ currency }, part.earlier)} billed before = ${this.show({ currency }, totalOf(price))}.`
+        : shareBps !== null
+          ? `${kindWords}: ${Number(shareBps) / 100}% of the order's ${this.show({ currency }, basis.subtotal)} before tax is ${this.show({ currency }, price.subtotal)} = ${this.show({ currency }, totalOf(price))}.`
+          : `${kindWords} of ${this.show({ currency }, price.subtotal)} before tax = ${this.show({ currency }, totalOf(price))}.`;
+      receiptId = `R-0${this.receiptSeq++}`;
+      this.receipts.push({ id: receiptId, at: this.host.now(), explanation, stale: false, figures: [
+        { key: 'subtotal', label: 'Subtotal', display: this.show({ currency }, price.subtotal) },
+        ...price.taxes.map((line) => ({ key: line.key, label: line.label, display: this.show({ currency }, line.minor) })),
+        { key: 'total', label: 'Total', display: this.show({ currency }, totalOf(price)) },
+      ] });
+    } else receiptId = this.priceReceipt(order, priced.price, currency);
+    const drafts = existing.filter((i) => i.status === 'draft');
+    this.invoices = this.invoices.filter((i) => !drafts.includes(i));
     const invoice = this.sealed({
       id: `inv-draft-${this.draftSeq++}`, at: this.host.now(), businessId: this.host.business(), orderId: order.id, clientId: order.clientId, number: null, status: 'draft',
-      issueDate: null, dueDate: null, dueInDays, currency, countryCode: snapshot?.countryCode ?? 'IN', documentTitle: priced.title, priceReceiptId: this.priceReceipt(order, priced.price, currency),
-      booksReceiptId: null, booksNote: null, description: order.request, price: { subtotal: priced.price.subtotal, taxes: priced.price.taxes.map((line) => ({ ...line })) },
+      issueDate: null, dueDate: null, dueInDays, currency, countryCode: snapshot?.countryCode ?? 'IN', documentTitle: priced.title, priceReceiptId: receiptId,
+      booksReceiptId: null, booksNote: null, description: part ? `${order.request}: ${part.label}` : order.request, price,
       paid: 0, notes: [...priced.notes], digest: '',
+      ...(part ? { part } : {}), ...(settings.terms !== null ? { terms: settings.terms } : {}), ...(reminderDays ? { reminderDays } : {}),
     });
     this.invoices.push(invoice);
     this.host.changed();
@@ -493,6 +617,11 @@ export class FakeMoney {
     if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
     if (invoice.status !== 'draft') throw new EngineError('INVOICE_NOT_DRAFT', 'This invoice was already issued.');
     if (invoice.digest !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again, then issue it.');
+    // 6D1: nothing issues past the order's total, whatever was issued since this draft was made.
+    const others = this.mine().filter((i) => i.orderId === invoice.orderId && i.id !== invoice.id && i.status !== 'draft' && i.status !== 'void');
+    if (invoice.part ? others.some((i) => !i.part) : others.length > 0) throw new EngineError('QUOTE_ALREADY_INVOICED', 'This order is billed in full already. Change the order before you bill more.');
+    const before = others.reduce((sum, i) => sum + totalOf(i.price), 0);
+    if (invoice.part && (before !== invoice.part.earlier || before + totalOf(invoice.price) > invoice.part.basis.total)) throw new EngineError('APPROVAL_STALE', 'Another invoice on this order was issued after you checked this one. Draft it again.');
     const today = this.today();
     invoice.number = `INV-${String(this.numberSeq++).padStart(4, '0')}`;
     invoice.status = 'issued';

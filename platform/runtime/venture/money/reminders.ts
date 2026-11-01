@@ -19,10 +19,16 @@ import type { InvoiceNext, InvoiceRecord, IsoDate, OutreachRecord, OutreachView,
 /** The days late a reminder is due on when the invoice's schedule picked none. */
 export const REMINDER_DAYS: readonly number[] = Object.freeze([3, 10, 30]);
 
-/** The reminder days of an invoice: its recurring schedule's own, else 3, 10 and 30. */
-export function reminderDaysFor(state: State, venture: VentureRecord, invoice: Pick<InvoiceRecord, 'id'>): readonly number[] {
+/**
+ * The reminder days of an invoice: its own (6D1), else its recurring schedule's, else the owner's default in billing
+ * settings, else 3, 10 and 30.
+ */
+export function reminderDaysFor(state: State, venture: VentureRecord, invoice: Pick<InvoiceRecord, 'id'> & { reminderDays?: number[] }): readonly number[] {
+  if (invoice.reminderDays?.length) return invoice.reminderDays;
   const schedule = listRecords(state, 'venture-recurring-invoice', venture.id).find(item => (item.made ?? []).some(made => made.invoiceId === invoice.id));
-  return schedule?.reminderDays?.length ? schedule.reminderDays : REMINDER_DAYS;
+  if (schedule?.reminderDays?.length) return schedule.reminderDays;
+  const owner = venture.billing?.reminderDays;
+  return owner?.length ? owner : REMINDER_DAYS;
 }
 
 /** The reminders drafted for an invoice, oldest first. */

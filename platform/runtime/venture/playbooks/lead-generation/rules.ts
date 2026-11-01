@@ -1,5 +1,5 @@
 // Chausar leadgen dated rules. Official protocols read on build day; legal interpretation awaits a lawyer.
-import type { DatedRule } from '../kit/define.ts';
+import type { DatedRule } from '../kit/rule-type.ts';
 const ordinary = (id: string, topic: string, rule: string, url: string, usedBy: string[], legal = false): DatedRule => ({ id, scope: 'lead-generation', topic, rule, sources: [{ title: topic, url }], checkedOn: '2026-10-27', read: legal ? 'unconfirmed' : 'official', how: legal ? 'Source located; a lawyer must confirm its application.' : 'Read the official provider documentation on build day.', usedBy, limitations: 'Permission to read a source is not permission to contact someone.', needs: legal ? 'lawyer' : null, ...(legal ? { confirmedBy: null } : {}) });
 export const LEAD_RULES: readonly DatedRule[] = [
   ordinary('osm-licence', 'OpenStreetMap attribution', 'Keep attribution and the database licence with each prospect; publish derived databases only under the required licence.', 'https://www.openstreetmap.org/copyright', ['source', 'lead-has-source']),

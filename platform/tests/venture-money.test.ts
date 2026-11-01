@@ -635,7 +635,7 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   // A second order gets the next number.
   const next = await orderFor(env, { name: 'Bengaluru Bakes', taxId: GSTIN_29 });
   const draft2 = await call(env, 'venture.invoice.prepare', { orderId: next.order.id, issueDate: '2026-10-03' });
-  assert.equal(draft2.invoice.dueDate, '2026-10-18'); // default 15 days
+  assert.equal(draft2.invoice.dueDate, '2026-10-10'); // the default 7 days (wave 6, 6D1)
   assert.equal(draft2.invoice.taxTreatment, 'igst');
   assert.deepEqual(draft2.invoice.taxLines, [{ label: 'IGST at 18%', rateBps: '1800', minor: '44982' }]);
   assert.equal(draft2.invoice.placeOfSupply, 'Karnataka (29)');
@@ -894,7 +894,7 @@ test('one day basis: today, the invoice date and the books period are the local 
   env.deps.clock = () => new Date('2026-10-14T20:00:00.000Z');
   const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id });
   assert.equal(draft.invoice.issueDate, '2026-10-15');
-  assert.equal(draft.invoice.dueDate, '2026-10-30'); // 15 October plus the default 15 days
+  assert.equal(draft.invoice.dueDate, '2026-10-22'); // 15 October plus the default 7 days (wave 6, 6D1)
   const summary = await call(env, 'venture.books.summary', {});
   assert.equal(summary.today, '2026-10-15');
   assert.equal(summary.timeZone, 'Asia/Kolkata');
@@ -1040,7 +1040,7 @@ test('every error code the money package throws is a listed venture code or a kn
 
 test('handlers cover exactly the money methods: eighteen, the twenty-one Ink v2 wave 4 added, and 4J5\'s bills.stop', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'money');
-  assert.equal(owned.length, 43); // The three per-client AI consent handlers belong to money.
+  assert.equal(owned.length, 47); // The three per-client AI consent handlers and wave 6's billing, PDF and payment link (6D) belong to money.
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');

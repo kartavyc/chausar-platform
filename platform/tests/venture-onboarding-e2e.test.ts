@@ -516,9 +516,9 @@ test('a composed plan rehearses with the model: the demo bookkeeping plan is kep
       assert.ok(episode.judge.every(answer => answer.answer === 'yes'), JSON.stringify(episode.judge));
     }
   }
-  const launch = await ask('venture.launch.status') as { rehearsal: { scenarioId: string; passed: boolean; judged: boolean }[] };
-  assert.deepEqual(launch.rehearsal.map(r => [r.scenarioId, r.passed, r.judged]).sort(),
-    [['bookkeeping-clean', true, true], ['bookkeeping-messy', true, true], ['bookkeeping-pushback', true, true]]);
+  // 6C4: rehearsals stay a Practice feature; Live opens with the accepted plan and the connected AI, not a rehearsal gate.
+  const launch = await ask('venture.launch.status') as { stage: string; stages: { stage: string; allowed: boolean }[] };
+  assert.deepEqual([launch.stage, launch.stages.map(s => [s.stage, s.allowed])], ['practice', [['practice', true], ['live', true]]]);
   const judged = (await ask('venture.models.calls', { limit: 100 }) as ModelCallRecord[]).filter(call => call.purpose === 'judge');
   assert.ok(judged.length > 0 && judged.every(call => call.status === 'completed' && call.replay), 'the judge answered from the demo recording');
 });

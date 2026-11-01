@@ -31,7 +31,63 @@
           "text": "₹5,000 to ₹20,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "chartered-accountant",
+            "label": "Chartered accountant",
+            "family": "money-and-tax",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "ca-itr-salary",
+                "label": "Income tax return with salary or other income",
+                "currency": "INR",
+                "lowMinor": "400000",
+                "highMinor": "800000",
+                "kind": "minimums",
+                "text": "₹4,000 to ₹8,000 or more",
+                "per": "per return",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://caalley.com/ca/minimum_fees_icai.pdf",
+                    "publisher": "ICAI Committee for Members in Practice",
+                    "title": "Revised Minimum Recommended Scale of Fees (reprinted on caalley.com)",
+                    "published": "2020-02-11"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "ICAI recommended minimum fees, from class C cities (low) to class A cities such as Mumbai or Delhi (high). They are guidance, not mandatory."
+              },
+              {
+                "id": "ca-gst-monthly",
+                "label": "GST returns, the monthly part of the fee",
+                "currency": "INR",
+                "lowMinor": "200000",
+                "highMinor": "400000",
+                "kind": "minimums",
+                "text": "₹2,000 to ₹4,000 or more",
+                "per": "per month",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://caalley.com/ca/minimum_fees_icai.pdf",
+                    "publisher": "ICAI Committee for Members in Practice",
+                    "title": "Revised Minimum Recommended Scale of Fees (reprinted on caalley.com)",
+                    "published": "2020-02-11"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "ICAI recommended minimums for class C to class A cities. The scale adds a separate fixed fee on top. Guidance, not mandatory."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -74,7 +130,18 @@
           "text": "₹5,000 to ₹30,000",
           "per": "per video",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "video-editor",
+            "label": "Video editor",
+            "family": "creative-work",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and the rate text that did load reads as generic copy, not data.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -160,7 +227,18 @@
           "text": "₹10,000 to ₹35,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "marketing-seo-blogs",
+            "label": "Marketing executive (SEO blogs)",
+            "family": "writing-and-content",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and the rate text that did load reads as generic copy, not data.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -198,7 +276,18 @@
           "text": "₹5,000 to ₹20,000",
           "per": "per audit or a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "marketplace-seller-ops",
+            "label": "Ex-retail staff (marketplaces)",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplaces leave fees to seller and provider; only unverified ads were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -236,7 +325,18 @@
           "text": "₹6,000 to ₹20,000",
           "per": "a shop a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "customer-service",
+            "label": "Customer service",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No credible published price per support agent was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -279,7 +379,18 @@
           "text": "₹25,000 to ₹80,000",
           "per": "per hire",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "hr-recruiter",
+            "label": "HR recruiter",
+            "family": "people-and-careers",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only recruiters' own blogs were found; the news pages would not load.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -317,7 +428,41 @@
           "text": "₹3,000 to ₹15,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "senior-mentor",
+            "label": "Senior mentor",
+            "family": "teaching-and-coaching",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "mentor-30-min",
+                "label": "Career coaching call",
+                "currency": "INR",
+                "lowMinor": "8100",
+                "highMinor": "120500",
+                "kind": "range",
+                "text": "₹81 to ₹1,205",
+                "per": "per 30 minute call",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://topmate.io/s/career-guidance",
+                    "publisher": "Topmate",
+                    "title": "Career coaching in India",
+                    "published": null
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Lowest and highest of the seven priced 30 minute calls listed on the page. Prices vary widely."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -355,7 +500,69 @@
           "text": "₹100 to ₹400",
           "per": "per video minute",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "translator",
+            "label": "Translator",
+            "family": "writing-and-content",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "translator-per-word",
+                "label": "Translation at government rates",
+                "currency": "INR",
+                "lowMinor": "50",
+                "highMinor": "125",
+                "kind": "range",
+                "text": "₹0.50 to ₹1.25",
+                "per": "per word",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://www.ntm.org.in/announcements/Rates%20for%20translators,%20data%20entry,%20copy%20eidtor,%20proof%20reader%20and%20reviewers.pdf",
+                    "publisher": "National Translation Mission (Ministry of Education)",
+                    "title": "Rates for translators, data entry, copy editors, proof readers and reviewers",
+                    "published": "2020-09-22"
+                  },
+                  {
+                    "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/mar/doc202437320701.pdf",
+                    "publisher": "Press Information Bureau",
+                    "title": "Guidelines for empanelment of casual and online translators",
+                    "published": "2024-03"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Low is the National Translation Mission's general rate; high is PIB's online translator rate. Government rates sit at the low end of the market."
+              },
+              {
+                "id": "translator-shift",
+                "label": "Casual translator at PIB",
+                "currency": "INR",
+                "lowMinor": "180000",
+                "highMinor": "200000",
+                "kind": "range",
+                "text": "₹1,800 to ₹2,000",
+                "per": "per shift",
+                "city": "New Delhi",
+                "sources": [
+                  {
+                    "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/mar/doc202437320701.pdf",
+                    "publisher": "Press Information Bureau",
+                    "title": "Guidelines for empanelment of casual and online translators",
+                    "published": "2024-03"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Junior translator (low) and senior translator (high) rates per shift."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -385,10 +592,45 @@
         ],
         "teamLine": "Reads ledgers, calculates figures and prepares reports.",
         "clientsPay": {
-          "text": "₹5,000 to ₹20,000",
-          "per": "a client a month",
-          "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "text": "₹499 to ₹15,000",
+          "per": "per month",
+          "estimate": false,
+          "source": "IndiaMART. Checked 1 Nov 2026.",
+          "guide": {
+            "profession": "accountant",
+            "label": "Accountant",
+            "family": "money-and-tax",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "accountant-monthly-books",
+                "label": "Monthly bookkeeping for a small business",
+                "currency": "INR",
+                "lowMinor": "49900",
+                "highMinor": "1500000",
+                "kind": "range",
+                "text": "₹499 to ₹15,000",
+                "per": "per month",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://m.indiamart.com/impcat/accounting-services.html",
+                    "publisher": "IndiaMART",
+                    "title": "Accounting Services",
+                    "published": null
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Lowest and highest of twelve monthly prices that sellers posted, from several cities. What each covers varies by seller."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          },
+          "rangeId": "accountant-monthly-books"
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -426,7 +668,18 @@
           "text": "₹2,500 to ₹8,000",
           "per": "per episode",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "podcaster",
+            "label": "Podcaster",
+            "family": "writing-and-content",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only one studio's own price page was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -469,7 +722,18 @@
           "text": "₹15,000 to ₹40,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "sales-executive",
+            "label": "Sales executive",
+            "family": "research-and-analysis",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No credible published price for lead generation or sales outsourcing was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -512,7 +776,18 @@
           "text": "₹5,000 to ₹20,000",
           "per": "per client per month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "journalist-newsletter",
+            "label": "Journalist (newsletters)",
+            "family": "writing-and-content",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No Indian outlet or survey publishes current freelance rates.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -555,7 +830,18 @@
           "text": "₹10,000 to ₹50,000",
           "per": "per bid",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "tender-bid-writer",
+            "label": "Tender or GeM bid writer",
+            "family": "documents-and-reports",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only seller listings with unclear units were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -593,7 +879,18 @@
           "text": "₹15,000 to ₹60,000",
           "per": "per site",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "website-developer",
+            "label": "Software engineer (websites)",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only agency and hosting blogs were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -631,7 +928,63 @@
           "text": "₹3,000 to ₹12,000",
           "per": "per finished hour",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "voice-artist",
+            "label": "Voice artist",
+            "family": "creative-work",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "voice-others",
+                "label": "Narration for a programme, most voices",
+                "currency": "INR",
+                "lowMinor": "300000",
+                "highMinor": "500000",
+                "kind": "range",
+                "text": "₹3,000 to ₹5,000",
+                "per": "per programme",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://prasarbharati.gov.in/?p=27720",
+                    "publisher": "Prasar Bharati (Doordarshan)",
+                    "title": "Rate Card for Artist and Casual Assignees",
+                    "published": "2023-07-04"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Doordarshan's rate card for its own programmes: the regional rate (low) and the national rate (high). Private work may pay differently."
+              },
+              {
+                "id": "voice-acclaimed",
+                "label": "Narration for a programme, acclaimed voices",
+                "currency": "INR",
+                "lowMinor": "500000",
+                "highMinor": "3000000",
+                "kind": "range",
+                "text": "₹5,000 to ₹30,000",
+                "per": "per programme",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://prasarbharati.gov.in/?p=27720",
+                    "publisher": "Prasar Bharati (Doordarshan)",
+                    "title": "Rate Card for Artist and Casual Assignees",
+                    "published": "2023-07-04"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "From the regional rate for regionally acclaimed voices to the national rate for nationally acclaimed ones."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -669,7 +1022,18 @@
           "text": "₹8,000 to ₹25,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "executive-assistant",
+            "label": "Executive assistant",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -707,7 +1071,18 @@
           "text": "₹5,000 to ₹20,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "data-entry",
+            "label": "Data entry",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -750,7 +1125,18 @@
           "text": "₹5,000 to ₹25,000",
           "per": "per round",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "qa-tester",
+            "label": "QA tester",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -783,7 +1169,18 @@
           "text": "₹10,000 to ₹40,000",
           "per": "per client per month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "website-developer",
+            "label": "Software engineer (websites)",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only agency and hosting blogs were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -816,7 +1213,18 @@
           "text": "₹3,000 to ₹12,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "market-research-analyst",
+            "label": "Market research analyst",
+            "family": "research-and-analysis",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -849,7 +1257,41 @@
           "text": "₹8,000 to ₹25,000",
           "per": "a team a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "it-support",
+            "label": "IT support",
+            "family": "tech-services",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "computer-repair-visit",
+                "label": "Laptop or computer repair visit",
+                "currency": "INR",
+                "lowMinor": "15900",
+                "highMinor": "59900",
+                "kind": "range",
+                "text": "₹159 to ₹599",
+                "per": "per visit",
+                "city": "Noida",
+                "sources": [
+                  {
+                    "url": "https://www.urbancompany.com/delhi-ncr-laptop-repair-sector-23-noida",
+                    "publisher": "Urban Company",
+                    "title": "Laptop repair, Sector 23 Noida",
+                    "published": null
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "From the inspection charge to the starting price of a service. Spare parts cost extra."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -887,7 +1329,18 @@
           "text": "₹5,000 to ₹15,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "ai-receptionist",
+            "label": "Call centre agent (AI receptionist)",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No credible published monthly price for a call answering service was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",

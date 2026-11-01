@@ -157,7 +157,7 @@ function partsInput(value: unknown): { invoiceId: string; typed: string }[] {
 }
 
 /** The calculator's received receipt for each payment the books can now count, kept on the payment. After a commit. */
-async function sealBooks(deps: VentureDeps, ctx: Context, counted: readonly Counted[]): Promise<void> {
+export async function sealBooks(deps: VentureDeps, ctx: Context, counted: readonly Counted[]): Promise<void> {
   if (!counted.length) return;
   const books: { id: string; receiptId: string | null; note: string | null }[] = [];
   const { state, venture } = readVenture(deps, ctx);

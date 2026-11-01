@@ -576,7 +576,7 @@ async function filesUnder(directory: string): Promise<string[]> {
   return out;
 }
 
-test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault methods stay the three', async () => {
+test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault methods stay the four', async () => {
   const runtime = new URL('../runtime/', import.meta.url);
   const files = await filesUnder(decodeURIComponent(runtime.pathname).replace(/^\/([A-Za-z]:)/, '$1'));
   assert.ok(files.length > 100, 'the scan reads the runtime files');
@@ -586,7 +586,8 @@ test('boundary: nothing under platform/runtime imports from platform/tests; DRAF
   }
   assert.deepEqual([...DRAFT_METHODS], [...ONBOARDING_METHODS]);
   // The draft methods are not pre-vault; the one later addition is the Start gallery's list of ways (Ink v2 wave 4, 4J8).
-  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list']);
+  // W6 6C6: the compliance check also answers before a vault exists, so a new owner sees it on Start.
+  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list', 'venture.compliance.get']);
   assert.ok(initialState('x').policy, 'imports stay used');
   assert.ok(ChausarError);
 });

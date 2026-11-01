@@ -98,7 +98,8 @@ const QUOTED_HEX = /(['"`])#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\1/gi;
 const EMBEDDED_HEX = /(?<=[\s(,:])(?<!url\()#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})(?![\w-])/gi;
 const SVG_PAINT = /\b(?:fill|stroke|stopColor|floodColor|lightingColor)=\{?(['"`])([^'"`]*)\1/g;
 
-const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css'];
+// W6 6C2 (DECISIONS D16a): About you turns A into B on Send, one motion of --t-settle.
+const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css'];
 const SPACING = /^(?:(?:padding|margin)(?:-[a-z]+)*|(?:row-|column-|grid-|grid-row-|grid-column-)?gap)$/;
 
 /** Each check takes one stylesheet (comments removed), or code for codeColours, and returns what breaks the rule. */

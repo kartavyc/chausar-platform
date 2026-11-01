@@ -1,5 +1,6 @@
 // Owner-only browser sequence. Every asynchronous step rechecks the exact client source and record claim.
 import {keepFormReview,formsScreenshot} from './screenshots.ts';
+import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import {randomUUID} from 'node:crypto';
 import {check,type Context} from '../../../contracts.ts';
 import {digest,exactPayload,listRecords} from '../../records.ts';
@@ -27,7 +28,7 @@ export async function formsBrowserAction(deps:VentureDeps,ctx:Context,id:unknown
   await endFormsBrowser(deps,row.id);return replaceEntry(deps,ctx,row,{state:journals.some(value=>value.state==='applied'||value.state==='outcome_unknown')?'outcome-unknown':'not-sent',submitReview:null},true);
  }
  currentSource(deps,ctx,row);const port=formsPort(deps);
- if(action==='open'){check(await clearForgottenFormSignIns(deps,ctx),'FORM_PRIVACY_PENDING','Finish clearing the forgotten client sign-in before opening another browser.');requireFormsClientRule();
+ if(action==='open'){check(await clearForgottenFormSignIns(deps,ctx),'FORM_PRIVACY_PENDING','Finish clearing the forgotten client sign-in before opening another browser.');requireFormsClientRule(attestedRules(deps.store.read(),row.ventureId));
   const b=exactPayload(payload,['url','permissionFileId','allowed','revocableStaffLogin','savedSignInId']);
   check(['source','open','captured','filled','review','not-sent'].includes(row.state),'FORM_ACTION_HELD','Inspect this existing submit outcome before opening another attempt.');
   check(typeof b.permissionFileId==='string'&&(b.savedSignInId===null||b.savedSignInId==='new'||typeof b.savedSignInId==='string'&&/^[a-f0-9-]{36}$/.test(b.savedSignInId)),'FORM_PERMISSION_REQUIRED','Choose written permission and an explicit saved sign-in, or a fresh browser.');

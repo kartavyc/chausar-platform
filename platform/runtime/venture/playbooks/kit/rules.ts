@@ -13,6 +13,7 @@ import type { CountryProfile, IsoDate, PlaybookCheckResult } from '../../contrac
 import { validDate } from '../../../memory.ts';
 import { localDayAt } from '../../local-day.ts';
 import type { DatedRule, RuleRead } from './define.ts';
+import { NO_ATTESTATIONS, ruleCleared, type AttestedRules } from './attestation.ts';
 
 export type { DatedRule, RuleRead } from './define.ts';
 
@@ -177,10 +178,11 @@ export type RuleUse = 'client' | 'rehearsal';
  * (confirmedBy null), the way the CA firm's rate tables work in rehearsal only until the CA confirms them. used: the
  * step and check ids the work ran. A rehearsal goes on, and so does a rule that needs no such confirmation.
  */
-export function requireConfirmedRules(rules: readonly DatedRule[], used: Iterable<string>, use: RuleUse): void {
+export function requireConfirmedRules(rules: readonly DatedRule[], used: Iterable<string>, use: RuleUse, attested: AttestedRules = NO_ATTESTATIONS): void {
   if (use === 'rehearsal') return;
   const ran = new Set(used);
-  const waiting = rules.find(rule => waitsForConfirmation(rule) && rule.usedBy.some(id => ran.has(id)));
+  // W6 6C5: a rule the owner attested (these exact words, not withdrawn) no longer holds the work.
+  const waiting = rules.find(rule => waitsForConfirmation(rule) && !ruleCleared(rule, attested) && rule.usedBy.some(id => ran.has(id)));
   check(!waiting, 'RULE_UNCONFIRMED', waiting
     ? `A ${WHO[waiting.needs!]} has not confirmed the rule "${waiting.topic}" yet. It works in practice runs only until they do.`
     : '');

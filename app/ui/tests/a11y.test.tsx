@@ -282,18 +282,28 @@ const OPENED: Case[] = [
   // w3 3G2: Start's examples, its country choice, and the box asking for more on the first run.
   { name: 'New business, an example chosen', hash: '#/onboarding', press: ['Wedding invitation videos'] },
   { name: 'New business, the country being changed', hash: '#/onboarding', press: ['Change'] },
-  { name: 'First run, the box asking for more', hash: '#/today', options: { fresh: true }, press: ['Start'] },
+  // W6 6C1, 6C2, 6C7: the first run's steps: Connect your AI with Codex's own sign-in waiting, About you as A and as
+  // B, the box asking for more, the vault steps after Keep this plan, and the services step.
+  { name: 'First run, Codex sign-in waiting for its code', hash: '#/today', options: { fresh: true }, press: ['Sign in with Codex'] },
+  { name: 'First run, About you', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates'] },
+  { name: 'First run, About you asking for more', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', 'Send'] },
+  {
+    name: 'First run, About you as a chat', hash: '#/today', options: { fresh: true },
+    press: ['Skip for now: use templates', { fill: 'Tell Chausar about your work', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Send'],
+  },
+  { name: 'First run, a field tile straight to the plan', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/] },
   {
     name: 'First run, the passphrase step', hash: '#/today', options: { fresh: true, deviceKeys: false },
-    press: [{ fill: 'What do you want to start?', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Start'],
+    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan'],
   },
   {
     name: 'First run, the recovery code step', hash: '#/today', options: { fresh: true, deviceKeys: false },
     press: [
-      { fill: 'What do you want to start?', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Start',
+      'Skip for now: use templates', /^Money and tax/, 'Keep this plan',
       { fill: 'Passphrase', with: 'correct horse battery' }, { fill: 'Type it again', with: 'correct horse battery' }, 'Lock and start',
     ],
   },
+  { name: 'First run, what the business needs', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan'] },
 ];
 
 describe('axe on every sheet', () => {

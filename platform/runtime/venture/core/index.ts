@@ -7,10 +7,13 @@ import { blueprintAccept, blueprintDraft, blueprintGet, blueprintUpdate } from '
 import { ventureEvents } from './events.ts';
 import { interviewAnswer, interviewNext } from './interview.ts';
 import { ownerGet, ownerSet } from './owner.ts';
+// Wave 6 (6C6): the side-work question and the profession's rules.
+import { complianceGet, complianceSet } from './compliance.ts';
 import { settingsDraftHandler, settingsDraftsHandler } from './settings-drafts.ts';
 import { blueprintSuggest } from './suggest.ts';
 import { createVenture, getVenture } from './venture.ts';
 import { countrySuggest } from './country-suggestion.ts';
+import { needsList } from './needs.ts';
 import { evidenceApply, evidenceDismiss, evidenceList } from '../evidence/ledger.ts';
 
 /** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
@@ -37,8 +40,12 @@ export const handlers: VentureHandlerTable = {
   'venture.settings.draft': settingsDraftHandler,
   'venture.settings.drafts': settingsDraftsHandler,
   'venture.owner.get': ownerGet,
+  'venture.compliance.get': complianceGet,
+  'venture.compliance.set': complianceSet,
   'venture.owner.set': ownerSet,
   'venture.blueprint.suggest': blueprintSuggest,
+  // Wave 6 (6C7): the outside services the open business would use.
+  'venture.needs.list': needsList,
 };
 
 export { listCountries } from './countries.ts';

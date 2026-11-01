@@ -1,4 +1,5 @@
 import {publishingSends} from '../network/governor.ts';
+import { refuseRegulatorForbidden } from '../core/compliance.ts';
 import {socialLegalBlock} from '../playbooks/social/legal-confirmation.ts';
 import {OPEN_PLATFORMS,isOpenPlatform,connectedOpenAccount,openAccountIdentity} from './open-posting-accounts.ts';
 import {sendOpenPost} from './open-posting.ts';
@@ -950,6 +951,8 @@ function refuseWith(reasons: { code: string; line: string }[]): void {
  */
 export async function postingPropose(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PostingProposal> {
   const body = exactPayload(payload, ['draftId', 'account'], ['draftId']);
+  // W6 6C6: a tool the profession's regulator forbids is refused whatever the settings (advocates: BCI Rule 36).
+  refuseRegulatorForbidden(deps.store.read(), 'advertising');
   const named = parsePostId(body.draftId);
   check(named, 'POST_NOT_A_POST', NOT_A_POST_LINE);
   const account = body.account === undefined ? undefined : singleLine(body.account, 'account', { max: 80 });

@@ -289,12 +289,8 @@ test('the whole venture journey in India, with a model and GitHub answering from
       assert.ok(episode.turns.some(turn => turn.by === 'agent' && turn.text.startsWith('Question: ')));
     }
   }
-  const rehearsed = await ask('venture.launch.status') as LaunchStatus;
-  assert.deepEqual(rehearsed.rehearsal.map(r => [r.scenarioId, r.passed, r.judged]).sort(),
-    [['bookkeeping-clean', true, true], ['bookkeeping-messy', true, true], ['bookkeeping-pushback', true, true]]);
-
-  // 17. Shadow: practice drafts only.
-  assert.equal((await ask('venture.launch.advance', { to: 'shadow' }) as LaunchStatus).stage, 'shadow');
+  // 17. Practice (6C4): a new business starts there; real orders get practice drafts only.
+  assert.equal((await ask('venture.launch.status') as LaunchStatus).stage, 'practice');
 
   // 18. A client in Maharashtra and an order. CGST and SGST at 9 percent each:
   // (249900 x 1800 + 10000) / 20000 = 449,830,000 / 20000 = 22491; tax 2 x 22491 = 44982; total 294882.
@@ -325,7 +321,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.ok(practice.checks.length > 0 && practice.checks.every(c => c.passed), JSON.stringify(practice.checks));
   assert.ok(practice.checks.some(c => c.check === 'no-done-claims'));
   await assert.rejects(ask('venture.delivery.review', { runId: waiting.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
-  assert.equal((await ask('venture.launch.advance', { to: 'approve-each' }) as LaunchStatus).stage, 'approve-each');
+  assert.equal((await ask('venture.launch.advance', { to: 'live' }) as LaunchStatus).stage, 'live');
   assert.equal((await ask('venture.get') as VentureView).venture.status, 'live');
   const real = await ask('venture.delivery.run', { orderId: order.id }) as DeliveryRunRecord;
   assert.equal(real.practice, false); assert.equal(real.preview, null);
@@ -408,7 +404,8 @@ test('the whole venture journey in India, with a model and GitHub answering from
     assert.equal(call.status, 'completed');
     assert.ok(call.agentJobId);
   }
-  for (const call of sent.filter(c => c.purpose === 'judge')) assert.equal(call.payloadText.includes('2,948.82'), false);
+  // Since 6B8 the judge gets this run's price receipt; the total reaches it only inside that receipt, never as loose text.
+  for (const call of sent.filter(c => c.purpose === 'judge' && c.payloadText.includes('2,948.82'))) assert.ok(call.payloadText.includes(orderReceipt.id), call.id);
 
   // 30. The vault holds neither the key nor the token.
   const vaultText = JSON.stringify(engine.vault?.read());
@@ -476,10 +473,10 @@ test('the template path in the United States works with no AI and nothing sent',
     assert.ok(episode.judge.length > 0 && episode.judge.every(answer => answer.answer === 'not-judged'));
   }
   const launch = await ask('venture.launch.status') as LaunchStatus;
-  const shadow = launch.stages.find(s => s.stage === 'shadow');
-  assert.equal(shadow?.allowed, false);
-  assert.equal(shadow?.reason, "Connect an AI and rehearse with it first. Template outlines can't be judged.");
-  await assert.rejects(ask('venture.launch.advance', { to: 'shadow' }), code('LAUNCH_STAGE_BLOCKED'));
+  const live = launch.stages.find(s => s.stage === 'live');
+  assert.equal(live?.allowed, false);
+  assert.equal(live?.reason, 'Connect your AI first.');
+  await assert.rejects(ask('venture.launch.advance', { to: 'live' }), code('LAUNCH_STAGE_BLOCKED'));
 
   // USD 150.00 an hour x 2 hours = 30000 cents, no tax.
   const client = await ask('venture.client.add', { name: 'Hudson Demo Client', countryCode: 'US' }) as ClientRecord;

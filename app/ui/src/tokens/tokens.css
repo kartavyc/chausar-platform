@@ -11,6 +11,10 @@
 :root {
   color-scheme: light dark;
 
+  /* Wave 6 (6D2): a payment QR code is dark on light in every theme, so any UPI app can read it. */
+  --qr-light: #ffffff;
+  --qr-dark: #000000;
+
   --bg: #fbfbfa;
   --surface: #ffffff;
   --fg: #16181b;
@@ -234,6 +238,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --qr-light: #ffffff;
+    --qr-dark: #000000;
     --bg: #111214;
     --surface: #17181a;
     --fg: #eceef0;
@@ -304,6 +310,8 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --qr-light: #ffffff;
+  --qr-dark: #000000;
   --bg: #111214;
   --surface: #17181a;
   --fg: #eceef0;

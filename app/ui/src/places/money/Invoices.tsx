@@ -49,7 +49,8 @@ export function Invoices() {
   const list = invoices.data ?? [];
   // Drafts first, then open, then closed; the engine's own order inside each.
   const rows = [0, 1, 2].flatMap((group) => list.filter((invoice) => ORDER[invoice.status] === group));
-  const invoiced = new Set(list.filter((invoice) => invoice.status !== 'void').map((invoice) => invoice.orderId));
+  // 6D1: an order billed only by issued parts, none of them the final one, still has the rest to bill.
+  const invoiced = new Set(list.filter((invoice) => invoice.status !== 'void' && (invoice.status === 'draft' || !invoice.part || invoice.part.kind === 'final')).map((invoice) => invoice.orderId));
   const toInvoice = (orders.data ?? []).filter((order) => order.status !== 'cancelled' && order.status !== 'invoiced' && !invoiced.has(order.id));
   const reload = () => { invoices.reload(); orders.reload(); };
 

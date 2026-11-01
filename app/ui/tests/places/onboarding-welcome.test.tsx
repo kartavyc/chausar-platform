@@ -78,12 +78,12 @@ describe('Welcome back: businesses on this computer, none open', () => {
     expect(opened(calls)).toEqual([]);
   });
 
-  it('starting another business goes to the one-sentence start, with a way back', async () => {
+  it('starting another business goes to the first run (W6: Connect your AI first), with a way back', async () => {
     const { show } = start({ closed: true });
     await show();
     const another = await screen.findByRole('button', { name: 'Start another business' });
     await act(async () => { fireEvent.click(another); });
-    expect(await screen.findByRole('textbox', { name: 'What do you want to start?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Connect your AI' }, { timeout: 4000 })).toBeTruthy();
     const back = await screen.findByRole('button', { name: 'Back to your businesses' });
     await act(async () => { fireEvent.click(back); });
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeTruthy();

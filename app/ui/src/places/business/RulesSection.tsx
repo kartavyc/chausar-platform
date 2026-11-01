@@ -24,6 +24,8 @@ export function RulesSection() {
   const staleId = useId();
   const currentId = useId();
   const rules = useResource('venture.rules.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
+  // W6 6C5: a business with rules waiting for the owner's tick links to Your rules (one screen per rule).
+  const locks = useResource('venture.rules.locks', {}, { refreshOn: (event) => event.type === 'queue.changed' });
 
   if (rules.data === undefined && !rules.error) return null;
   if (rules.data && !rules.data.playbook) return null;
@@ -37,6 +39,11 @@ export function RulesSection() {
       ) : (
         <>
           <p className={s.strong}>{view.summary}</p>
+          {locks.data && locks.data.rules.length > 0 && (
+            <p className={s.note} data-your-rules="">
+              {locks.data.line} <a className={r.source} href="#/business/rules">{t('business.yourRules.open')}</a>
+            </p>
+          )}
           <p className={s.note}>
             {t('business.rules.review', {
               risk: RISKS.includes(view.playbook.riskLevel) ? t(`business.rules.risk.${view.playbook.riskLevel}`) : view.playbook.riskLevel,

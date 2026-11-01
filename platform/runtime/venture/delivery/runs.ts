@@ -53,6 +53,7 @@ import { mediaAcceptBlock } from '../playbooks/kit/assets.ts';
 import { resolveKit } from '../playbooks/kit/brand-kit.ts';
 import { chainOnReview,orderChain } from '../playbooks/kit/chain.ts';
 import { requireConfirmedRules } from '../playbooks/kit/rules.ts';
+import { attestedRules } from '../playbooks/kit/attestation-records.ts';
 import { requireOrderPeopleConsent,todayOf } from '../playbooks/kit/voice-consent.ts';
 import { pinSocialOrder,socialVoiceGuard } from '../playbooks/social/chain.ts';
 import { keepSocialPostPlan,socialSlotContext } from '../playbooks/social/slots-live.ts';
@@ -70,6 +71,7 @@ import { loadQuarantineCheck,refuseQuarantined } from './quarantine-gate.ts';
 import { landRevision } from './revise.ts';
 import { freezeScope,refuseMissingCapability,refuseNewWork } from './run-guards.ts';
 import { acceptedBlueprint,newestFirst,optionalFlag,readAs,todayIso,ventureReceipts } from './shared.ts';
+import { agentMayDraft, isLiveStage, isPracticeStage } from '../core/launch-stage.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
 import { playbookForOrder,playbookForRun,type RunPlaybook } from './workflow.ts';
 
@@ -78,7 +80,7 @@ const REVIEW_DECISION_WORDS: Readonly<Record<'accepted' | 'edited' | 'rejected',
   accepted: 'Draft accepted.', edited: 'You edited the draft into your own version.', rejected: 'Draft rejected.',
 });
 
-export const STAGE_BLOCKED_REASON = 'Practise with your AI first, then practise on real orders.';
+export const STAGE_BLOCKED_REASON = 'Move the business to Practice or Live first.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
@@ -174,6 +176,8 @@ async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook
     caExplanations: diffExplanations(deps.store.read(), context.venture.id),
     caHealthReviews: listRecords(deps.store.read(),'venture-ca-working',context.venture.id).filter(row=>row.mode==='health'),
     caCitationUse: citationUseFor(deps.store.read(), context.venture.id, 'client'),
+    // W6 6C5: the owner's standing rule attestations, read by the kit checks' rule gate.
+    attestedRules: attestedRules(deps.store.read(), context.venture.id),
   };
   // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
   const own = await guardedPlaybookChecks(playbook.flagship, { deliverable, files: checkInput.files, tables: checkInput.tables, toolCalls: checkInput.toolCalls }, () => runFlagshipChecks(checkInput)) as PlaybookCheckResult[];
@@ -309,7 +313,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if(chain?.definition.registration.id==='website-studio')check(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
     if(chain?.definition.registration.id==='newsletter-studio')check(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');
   if(chain?.definition.registration.id==='translation-studio')check(order.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
-  if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client');
+  if (chain) requireConfirmedRules(chain.definition.rules, [...chain.offer.stages, ...chain.definition.checkIds], 'client', attestedRules(state, venture.id));
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
   const template = ['dev-agency','job-search-desk','phone-receptionist','app-testing','monitored-data','it-triage'].includes(chain?.definition.registration.id??'') || useTemplate || status!.tiers.main.presetId === 'built-in-templates';
@@ -322,7 +326,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
   const playbook = playbookForOrder(deps, ctx, fresh.state, fresh.venture, basePlaybook, context.order, context.offerKey);
-  if (chain) requireConfirmedRules(chain.definition.rules, [...playbook.steps.map(step => step.id), ...chain.definition.checkIds], 'client');
+  if (chain) requireConfirmedRules(chain.definition.rules, [...playbook.steps.map(step => step.id), ...chain.definition.checkIds], 'client', attestedRules(fresh.state, fresh.venture.id));
   if (playbook.flagship === 'seo-visibility' && ['content-retainer','local-seo'].includes(context.offerKey ?? '')) (await import('../playbooks/seo-visibility/article-budget.ts')).articleLimitMicros(context.order.intake?.fields?.articleLimitUsd);
   const { refs } = draftContext(context, todayIso(deps, context.venture));
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
@@ -386,7 +390,7 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
     const current = orderContext(tx.state, tx.venture!, context.order.id);
     check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
     const run: DeliveryRunRecord = { ...baseRun(tx, current.order, playbook, [], '0'), status: 'waiting-for-you', servedBy: 'model',
-      practice: tx.venture!.launchStage === 'shadow', callId: null, preview: null, deliverable: null, renderedText: null,
+      practice: !isLiveStage(tx.venture!.launchStage), callId: null, preview: null, deliverable: null, renderedText: null,
       checks: [], uploadIds: uploads.map(file => file.id) };
     tx.put(run); tx.emit('run.started', { runId: run.id }); return run;
   });
@@ -408,7 +412,7 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
           formsRunCurrent(state, venture.id, current);
           requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
           const chain = orderChain(state, venture, order);
-          if (chain) requireConfirmedRules(chain.definition.rules, [...playbook.steps.map(step => step.id), ...chain.definition.checkIds], 'client');
+          if (chain) requireConfirmedRules(chain.definition.rules, [...playbook.steps.map(step => step.id), ...chain.definition.checkIds], 'client', attestedRules(state, venture.id));
           check(playbookForRun(state, current)?.hash === playbook.hash, 'JOB_SOURCE_CHANGED', 'The work plan changed. Start a new job.');
         },
         async checkDraft(state, current, saved, sourceNet) {
@@ -497,7 +501,8 @@ function findRun(state: State, venture: VentureRecord, runId: string): DeliveryR
 
 /** The stages at which an agent may draft for a real order. Moving down is always allowed, so each step checks again. */
 export function agentStage(stage: VentureRecord['launchStage']): boolean {
-  return stage === 'shadow' || stage === 'approve-each';
+  // 6C4: Practice (the old rehearsal or shadow) and Live; never the hidden unfinished stages.
+  return agentMayDraft(stage);
 }
 
 /** venture.delivery.review: accept, edit or reject a ready draft. Practice drafts are never accepted. */
@@ -628,7 +633,7 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
       ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)) // 5A4: consent and its files' asset records
     : null;
   const canAccept = ready && blocked === null;
-  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && (!practiceNow || stage === 'shadow'));
+  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && (!practiceNow || isPracticeStage(stage)));
   // 4H1 (U17): which engine wrote the draft, read from its own call record; only with the vault's state.
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
 }

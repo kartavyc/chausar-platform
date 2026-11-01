@@ -6,7 +6,8 @@ import {FakeVaDelivery} from './fake-va-delivery';
 import {taxDecision} from '../../../../platform/runtime/venture/money/tax-decision';
 import {computeInclusivePrice,splitsInclusive} from '../../../../platform/runtime/venture/money/price-inclusive';
 import {computePrice} from '../../../../platform/runtime/venture/money/price';
-import {formatMinor} from '../../../../platform/runtime/currency';
+import {currencyMinorDigits,decimalMinor,formatMinor} from '../../../../platform/runtime/currency';
+import {countryProfile} from '../../../../platform/runtime/venture/core/countries';
 import {digest as priceDigest} from '../../../../platform/runtime/portable';
 import type {RoomPrice} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
 import type {ReceiptLite} from './types';
@@ -37,6 +38,10 @@ import { fakeSocialIntake, fakeSocialPreflight } from './fake-social-intake';
 import { fakeSocialOfferIntake } from './fake-social-plan';
 import { fakeKitOfferIntake } from './fake-kit-plans';
 import { withFakeOrderSteps } from './fake-previews';
+import { isLiveStage } from '../../../../platform/runtime/venture/core/launch-stage';
+import { ruleCleared } from '../../../../platform/runtime/venture/playbooks/kit/attestation';
+import { FORMS_ACCESS_RULE } from '../../../../platform/runtime/venture/playbooks/data-entry-desk/rules';
+import { fakeAttested } from './fake-rules-attest';
 import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -116,7 +121,7 @@ export class FakeWorkDesk {
   readonly youtubeServices: FakeYoutubeServiceRun;
   private orders: Record<string, OrderLite[]>;
   private orderPrices=new Map<string,{price:RoomPrice;receipt:ReceiptLite}>();
-  private invoiceSnapshots = new Map<string, { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[] }>();
+  private invoiceSnapshots = new Map<string, { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[]; treatment?: string; rateBps?: string }>();
   invoiceSnapshot(biz: string, id: string) { return clone(this.invoiceSnapshots.get(biz + ':' + id)); }
   roomPrice(biz:string,id:string){const kept=this.orderPrices.get(biz+':'+id);return kept?clone(kept.price):undefined;}
   orderReceipt(biz:string,id:string){return clone([...this.orderPrices.entries()].find(([key,value])=>key.startsWith(biz+':')&&value.receipt.id===id)?.[1].receipt);}
@@ -274,7 +279,9 @@ export class FakeWorkDesk {
     if (!plan) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept your plan first.');
     const offer = plan.blueprint.offers.find((o) => o.id === p.offerId);
     if (!offer) throw invalid('That service is not in your plan.');
-    if (offer.pricing.unitPriceMinor === null) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
+    // 6D1, 6D4 (money/orders.ts): the order's own due date, and a price in a client's own currency, as the engine reads them.
+    const foreignAsk = fakeForeignAsk(p);
+    if (offer.pricing.unitPriceMinor === null && !foreignAsk) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
     const internal = plan.playbook?.id === 'online-seller' && offer.playbookOffer === 'own-shop-back-office';
     let client = this.host.clients().find(c => internal ? c.self : c.id === p.clientId);
     if (!internal && !client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
@@ -324,6 +331,7 @@ export class FakeWorkDesk {
       client = this.host.clients().find(c => c.id === made.id)!; client.self = true;
     }
     if (!client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
+    const foreignPrice = foreignAsk ? fakeForeignPrice(foreignAsk, client, this.host.country()) : null;
     const orderId = `o-new-${++this.seq}`;
     const order: OrderLite = {
       ...(internal ? { internal: true as const } : {}),
@@ -332,17 +340,21 @@ export class FakeWorkDesk {
       priceReceiptId: 'order-price-'+biz+'-'+orderId, deliveredOn: null,
       // The engine keeps the intake on the order (OrderRecord.intake); a transcript made here reads its cutFile.
       ...(keptIntake && typeof keptIntake === 'object' ? { intake: clone(keptIntake) as OrderLite['intake'] } : {}),
+      ...(foreignAsk?.dueDate ? { dueDate: foreignAsk.dueDate } : {}), ...(foreignPrice ? { foreignPrice } : {}),
     };
     let roomPrice:{price:RoomPrice;receipt:ReceiptLite};
-    let invoiceSnapshot: { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[] };
+    let invoiceSnapshot: { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[]; treatment?: string; rateBps?: string };
     {
-      const office=plan.blueprint.backOffice,country=this.host.country(),currency=office.currency;
-      if(currency!==country.currency)throw new EngineError('CURRENCY_CONFLICT',`This business keeps its books in ${country.currency}.`);
-      const decision=taxDecision({taxRegistered:office.taxRegistered,taxRateBps:office.taxRateBps??'0',taxState:office.taxState??null,lutConfirmed:office.lutConfirmed??false},{countryCode:client.countryCode??null,stateCode:client.stateCode??null},country.code),input={unitPriceMinor:offer.pricing.unitPriceMinor,quantity:order.quantity,discountBps:'0',taxRateBps:decision.rateBps,currency,taxTreatment:decision.treatment},computed=p.taxInclusive===true&&splitsInclusive(decision.treatment)?computeInclusivePrice(input):computePrice(input),id=order.priceReceiptId;
+      const office=plan.blueprint.backOffice,country=this.host.country(),currency=foreignPrice?.currency??office.currency;
+      if(office.currency!==country.currency)throw new EngineError('CURRENCY_CONFLICT',`This business keeps its books in ${country.currency}.`);
+      const decision=taxDecision({taxRegistered:office.taxRegistered,taxRateBps:office.taxRateBps??'0',taxState:office.taxState??null,lutConfirmed:office.lutConfirmed??false},{countryCode:client.countryCode??null,stateCode:client.stateCode??null},country.code);
+      if(foreignPrice&&decision.treatment==='igst')throw new EngineError('FOREIGN_NEEDS_LUT',`Confirm your Letter of Undertaking (LUT) in your plan to bill this client in their currency, or bill them in ${country.currency}.`);
+      if(foreignPrice&&decision.treatment!=='zero-rated-lut'&&decision.rateBps!=='0')throw new EngineError('FOREIGN_NEEDS_LUT',`Tax on this sale is worked out in ${country.currency}, so bill this client in ${country.currency}.`);
+      const input={unitPriceMinor:foreignPrice?.unitPriceMinor??offer.pricing.unitPriceMinor!,quantity:order.quantity,discountBps:'0',taxRateBps:decision.rateBps,currency,taxTreatment:decision.treatment},computed=p.taxInclusive===true&&splitsInclusive(decision.treatment)?computeInclusivePrice(input):computePrice(input),id=order.priceReceiptId;
       const display=formatMinor(computed.amounts.total,currency),receipt:ReceiptLite={id,at:order.at,stale:false,totalMinor:computed.amounts.total,figures:[{key:'unit',label:'Price per '+offer.pricing.quantityUnit,display:formatMinor(computed.amounts.unit,currency)},{key:'subtotal',label:'Subtotal',display:formatMinor(computed.amounts.subtotal,currency)},...(['taxable','tax','cgst','sgst','igst'] as const).flatMap(key=>computed.amounts[key]===null?[]:[{key,label:key.toUpperCase(),display:formatMinor(computed.amounts[key]!,currency)}]),{key:'total',label:'Total',display}],explanation:computed.steps.map(step=>step.rule+'; inputs: '+step.inputs.join(', ')+'; result: '+step.resultMinor+' minor units').join('. ')};
       roomPrice={price:{offerId:offer.id,minor:computed.amounts.total,currency,receiptId:id,priceDigest:priceDigest({orderId:order.id,input,computed}),display},receipt};order.priceReceiptId=id;
       const split = computed.amounts.cgst !== null || computed.amounts.sgst !== null || computed.amounts.igst !== null;
-      invoiceSnapshot = { countryCode: country.code, currency, subtotal: computed.amounts.subtotal,
+      invoiceSnapshot = { countryCode: country.code, currency, subtotal: computed.amounts.subtotal, treatment: decision.treatment, rateBps: decision.rateBps,
         taxes: (split ? ['cgst', 'sgst', 'igst'] as const : ['tax'] as const).flatMap(key => computed.amounts[key] === null || computed.amounts[key] === '0' ? [] : [{ key, label: key.toUpperCase(), minor: computed.amounts[key]! }]),
       };
     }
@@ -359,7 +371,7 @@ export class FakeWorkDesk {
     }
     this.orderPrices.set(biz+':'+order.id,roomPrice);
     this.invoiceSnapshots.set(biz + ':' + order.id, invoiceSnapshot);
-    if(plan.playbook?.id==='narration-studio')this.narrationPrices.set(biz+':'+order.id,{id:order.priceReceiptId,currency:plan.blueprint.backOffice.currency,hourlyMinor:offer.pricing.unitPriceMinor,ownerSet:offer.pricing.unitPriceLabel==='told-by-you',stale:false});
+    if(plan.playbook?.id==='narration-studio')this.narrationPrices.set(biz+':'+order.id,{id:order.priceReceiptId,currency:plan.blueprint.backOffice.currency,hourlyMinor:(foreignPrice?.unitPriceMinor??offer.pricing.unitPriceMinor)!,ownerSet:offer.pricing.unitPriceLabel==='told-by-you',stale:false});
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
     return clone(order);
   }
@@ -381,11 +393,11 @@ export class FakeWorkDesk {
     const order = this.order(biz, p.orderId);
     fakeRecruitPreflight(this.host,order);
     if(this.host.plan()?.playbook?.id==='app-testing')this.host.testingSource!(order.id);
-    if(this.host.plan()?.playbook?.id==='data-entry-desk'){this.host.formsSource!(order.id);throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Client system permission" yet. It works in practice runs only until they do.');}
+    if(this.host.plan()?.playbook?.id==='data-entry-desk'){this.host.formsSource!(order.id);if(!ruleCleared(FORMS_ACCESS_RULE as never,fakeAttested(this.host.ask?.bind(this.host))))throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Client system permission" yet. It works in practice runs only until they do.');}
     if(this.host.plan()?.playbook?.id==='website-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private website source needs a qualified local model. Review it manually meanwhile.');
     if(this.host.plan()?.playbook?.id==='website-studio'&&!SITE_FORM_RULE.confirmedBy)throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Website form notice and permission" yet. It works in practice runs only until they do.');
     if(this.host.plan()?.playbook?.id==='newsletter-studio'&&order.intake?.fields?.private===true)throw new EngineError('PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');
-    if(this.host.plan()?.playbook?.id==='newsletter-studio'&&!NEWSLETTER_PRIVACY_RULE.confirmedBy)throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Subscriber permission" yet. It works in practice runs only until they do.');
+    if(this.host.plan()?.playbook?.id==='newsletter-studio'&&!ruleCleared(NEWSLETTER_PRIVACY_RULE as never,fakeAttested(this.host.ask?.bind(this.host))))throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Subscriber permission" yet. It works in practice runs only until they do.');
     if(this.host.plan()?.playbook?.id==='translation-studio'&&order.intake?.fields?.private!==false)throw new EngineError('PRIVATE_NEEDS_LOCAL','This private job needs a local model. Use the local review sheet meanwhile.');
     if(this.host.plan()?.playbook?.id==='translation-studio')throw new EngineError('RULE_UNCONFIRMED','A lawyer has not confirmed the rule "Translation rights review" yet. It works in practice runs only until they do.');
     const blocked = order.intake?.fields?.blockedCustomers;
@@ -412,7 +424,9 @@ export class FakeWorkDesk {
       this.nativeSources.set(biz+':'+runId,{digest:this.nativeSource(biz,order),fileIds:this.orderFiles(biz,order.id).map(file=>file.id)});
       runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'0s',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
       // No installed AI runs in this fake. It starts honestly with no fabricated tool results or answer.
-      const run:DeliveryLite&{preview:null}={id:runId,at,orderId:order.id,status:'waiting-for-you',practice:false,servedBy:'model',preview:null,deliverable:null,verdict:null,awaitingYou:false};
+      const stage=(this.host.ask?.('venture.get',{}) as {venture?:{launchStage?:string}}|null|undefined)?.venture?.launchStage;
+      // W6 6C4: in Practice an AI draft for a real order is a practice draft, as the engine marks it.
+      const run:DeliveryLite&{preview:null}={id:runId,at,orderId:order.id,status:'waiting-for-you',practice:!isLiveStage(stage),servedBy:'model',preview:null,deliverable:null,verdict:null,awaitingYou:false};
       (this.deliveries[biz]??=[]).unshift(run);this.host.emit({type:'run.started',businessId:biz,runId,at});return clone(run);
     }
     if(this.host.plan()?.playbook?.id==='social-agency')throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
@@ -479,4 +493,28 @@ export class FakeWorkDesk {
     list.unshift(upload);
     return clone(upload);
   }
+}
+
+/** 6D1, 6D4: the due date and a foreign price a request asks for, read as money/orders.ts reads them. */
+function fakeForeignAsk(p: Record<string, unknown>): { dueDate: string | null; currency: string; typed: string } | { dueDate: string | null; currency: null; typed: null } | null {
+  if (p.dueDate !== undefined && (typeof p.dueDate !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(p.dueDate) || Number.isNaN(Date.parse(`${p.dueDate}T00:00:00Z`)) || new Date(`${p.dueDate}T00:00:00Z`).toISOString().slice(0, 10) !== p.dueDate)) {
+    throw new EngineError('INVALID_VENTURE_REQUEST', 'Due date must be a date like 2026-10-15.');
+  }
+  const dueDate = (p.dueDate as string | undefined) ?? null;
+  if ((p.currency === undefined) !== (p.unitPrice === undefined)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Give the currency and your price in it together.');
+  if (p.currency === undefined) return dueDate ? { dueDate, currency: null, typed: null } : null;
+  const typed = typeof p.unitPrice === 'string' && p.unitPrice.length <= 40 ? p.unitPrice.replace(/[\s,]/g, '') : '';
+  if (!/^\d+(?:\.\d+)?$/.test(typed)) throw new EngineError('INVALID_AMOUNT', 'Your price must be a positive amount like 2499 or 2499.50.');
+  if (typeof p.currency !== 'string' || !/^[A-Z]{3}$/.test(p.currency)) throw new EngineError('INVALID_CURRENCY', 'Use a three-letter currency code like USD.');
+  return { dueDate, currency: p.currency, typed };
+}
+
+function fakeForeignPrice(ask: NonNullable<ReturnType<typeof fakeForeignAsk>>, client: ClientLite, country: { code: string; currency: string }): { currency: string; unitPriceMinor: string } | null {
+  if (ask.currency === null || ask.typed === null) return null;
+  currencyMinorDigits(ask.currency);
+  if (ask.currency === country.currency) throw new EngineError('INVALID_VENTURE_REQUEST', `Your prices are in ${country.currency} already; leave the currency out.`);
+  if (!client.countryCode || client.countryCode === country.code) throw new EngineError('INVALID_VENTURE_REQUEST', `Bill a client in their own currency only when they are outside ${countryProfile(country.code).name}. Add their country first.`);
+  const unitPriceMinor = decimalMinor(ask.typed, ask.currency);
+  if (BigInt(unitPriceMinor) <= 0n) throw new EngineError('INVALID_AMOUNT', 'Your price must be above zero.');
+  return { currency: ask.currency, unitPriceMinor };
 }

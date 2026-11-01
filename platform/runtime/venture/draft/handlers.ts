@@ -23,6 +23,8 @@ import { countrySuggest } from '../core/country-suggestion.ts';
 import { calls as modelCalls, connectModel, disconnect as modelDisconnect } from '../models/handlers.ts';
 import { droppedFile, screenedFile, sendFileDropTask, withFile, type DroppedFile } from '../core/attachment.ts';
 import { DESK_CONTEXT } from './store.ts';
+import { aboutFamilies, aboutPick, aboutRead } from '../core/about.ts';
+import type { LoginDesk } from '../models/login.ts';
 
 export { ATTACHMENT_LEFT_OUT, ATTACHMENT_MAX_BYTES, type DroppedFile } from '../core/attachment.ts';
 
@@ -44,7 +46,16 @@ export type DeskHandle = {
   session(): ComposeSession | null;
   /** Stores the session unless the desk was cleared while the request ran (a cleared desk never comes back). */
   keep(session: ComposeSession | null): void;
+  /** Wave 6 (6C1): the tools' own logins in flight, stopped when the desk clears. */
+  login(): LoginDesk;
 };
+
+/** venture.ai.login.start and .cancel take { cli } only. */
+function loginCli(payload: unknown): 'codex' | 'claude-code' {
+  const body = exactPayload(payload, ['cli'], ['cli']);
+  check(body.cli === 'codex' || body.cli === 'claude-code', 'INVALID_VENTURE_REQUEST', 'Choose Codex or Claude Code.');
+  return body.cli;
+}
 
 // ---------------------------------------------------------------------------
 // Connect an AI
@@ -217,4 +228,11 @@ export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload:
   'venture.compose.fill': composeFill,
   'venture.compose.get': composeGet,
   'venture.compose.update': composeUpdate,
+  // Wave 6 (6C1): each tool's own sign-in; (6C2) About you.
+  'venture.ai.tools': (desk, payload) => { exactPayload(payload, []); return desk.login().tools(); },
+  'venture.ai.login.start': (desk, payload) => desk.login().start(loginCli(payload)),
+  'venture.ai.login.cancel': (desk, payload) => desk.login().cancel(loginCli(payload)),
+  'venture.about.read': (desk, payload) => aboutRead(desk.deps, DESK_CONTEXT, payload),
+  'venture.about.pick': (desk, payload) => aboutPick(desk.deps, DESK_CONTEXT, payload),
+  'venture.about.families': (desk, payload) => aboutFamilies(desk.deps, DESK_CONTEXT, payload),
 });

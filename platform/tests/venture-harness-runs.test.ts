@@ -253,15 +253,17 @@ test('native shadow draft keeps its practice status and refuses an unproved outs
   await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
   await ventureAction(env.deps, owner, 'approve', 'fixture.stage', tx => tx.touch({ launchStage: 'approve-each' }));
   assert.equal((await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(row => row.id === run.id)!.acceptBlocked, PRACTICE_REASON);
-  let outbound = 0;
-  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: { async open(input) {
+  // 6C4: Practice still lets the AI draft, so moving Live down to Practice mid-run does not stop the work; the draft
+  // it lands reads as a practice draft now (practiceNow) and can never reach the client.
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: scriptedAgent(() => report, async () => {
     await ventureAction(env.deps, owner, 'approve', 'fixture.stage', tx => tx.touch({ launchStage: 'rehearsal' }));
-    input.guard(); outbound++; throw new Error('Must not dispatch after launch stage moved down.');
-  } } });
+  }) });
   const next = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
   await waitForAgentWork(env.store, next.id);
-  assert.equal(outbound, 0);
-  assert.equal(findRecord(env.store.read(), 'venture-delivery-run', next.id)!.status, 'failed');
+  const moved = (await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(row => row.id === next.id)!;
+  assert.equal(moved.practiceNow, true, JSON.stringify(moved));
+  assert.equal(moved.acceptBlocked, PRACTICE_REASON);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: next.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
 });
 
 test('hosted server refuses client PDFs and owner-tool jobs without probing Docker or Python', async () => {
