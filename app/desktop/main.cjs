@@ -17,6 +17,12 @@ const flowBrowser = require('./flow-browser.cjs').createFlowBrowser({ BrowserWin
 // Wave 6 (6H1, D39): the mini app sandbox proxy's own policy, and where frames inside the window may go.
 const { policyFor, subframeAllowed } = require('./mini-frame.cjs');
 const backgroundRequested = process.argv.includes('--background');
+// Wave 6 (6J1, D3, D36): the installed beta (release channel "beta") starts at login hidden in the tray (--hidden) and
+// keeps running in the tray when the window closes; both are owner settings in the tray menu (background.cjs). The
+// bundled Codex goes last on the engine's PATH. Previews and development runs keep the behaviour they had.
+let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { startAtLogin: false, keepRunning: false };
+const hiddenStart = process.argv.includes('--hidden');
+const runsInBackground = () => backgroundRequested || ownerKeepsRunning;
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
 const inkRoot = join(root, 'app/ui/dist');
@@ -42,7 +48,7 @@ async function listInkFiles() {
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
 function reportJobLifecycle() {
   if (engine?.state !== 'ready') return Promise.resolve();
-  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && backgroundRequested });
+  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && runsInBackground() });
 }
 function lifecycleChanged() {
   void reportJobLifecycle().catch(error => {
@@ -55,7 +61,17 @@ async function startEngine() {
   if (stopping) return;
   const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
   if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
+  releaseBeta = app.isPackaged && metadata.chausarReleaseChannel === 'beta' && metadata.chausarPreview !== true;
+  if (releaseBeta) await startBackground();
+  if (stopping) return;
   const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
+  // Wave 6 (6J2): the opt-in report keys, from this shell's environment or the build's feedback.json; never hard-coded.
+  Object.assign(environment, require('./feedback-keys.cjs').feedbackKeys({ env: process.env, packaged: app.isPackaged, resources: process.resourcesPath, read: path => require('node:fs').readFileSync(path, 'utf8') }));
+  if (releaseBeta) {
+    const program = join(process.resourcesPath, 'codex', 'bin', process.platform === 'win32' ? 'codex.exe' : 'codex');
+    const there = await require('node:fs/promises').lstat(program).then(info => info.isFile() && !info.isSymbolicLink(), () => false);
+    Object.assign(environment, require('./background.cjs').bundledCodexEnvironment(environment, { resourcesPath: process.resourcesPath, platform: process.platform, exists: () => there }));
+  }
   const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
@@ -105,8 +121,23 @@ function trayTooltip() {
 function trayMenu() {
   return Menu.buildFromTemplate([
     ...(trayCount > 0 ? [{ label: needYou(trayCount), click: () => openApprovals() }, { type: 'separator' }] : []),
-    { label: 'Open Chausar', click: () => openWindow() }, { type: 'separator' }, { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
+    { label: 'Open Chausar', click: () => openWindow() }, { type: 'separator' },
+    ...(background ? [...background.menuItems(backgroundValue, changeBackground), { type: 'separator' }] : []),
+    { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
   ]);
+}
+/** 6J1: the beta's owner settings; the first run registers the default login item. A failure never stops the start. */
+async function startBackground() {
+  background = require('./background.cjs').createBackground({ app, fs: require('node:fs/promises'), platform: process.platform, directory: app.getPath('userData'), home: app.getPath('home'), env: process.env, execPath: process.execPath, beta: true });
+  backgroundValue = await background.settings(); ownerKeepsRunning = backgroundValue.keepRunning;
+  try { await background.apply(); } catch (error) { console.error(publicError(error).message); }
+}
+function changeBackground(update) {
+  if (!background) return;
+  void background.change(update).then(value => {
+    backgroundValue = value; ownerKeepsRunning = value.keepRunning;
+    tray?.setContextMenu(trayMenu()); lifecycleChanged();
+  }, error => console.error(publicError(error).message));
 }
 function setTrayCount(count) {
   if (count === trayCount) return;
@@ -155,7 +186,7 @@ function openWindow(hash = '') {
 function openApprovals() { openWindow(APPROVE_HASH); }
 /** Once ever, on Windows in the background: the window closed, and Chausar keeps running. */
 function noteStillRunning() {
-  if (!backgroundRequested || stopping || stillRunningAsked || process.platform !== 'win32' || !tray || typeof tray.displayBalloon !== 'function') return;
+  if (!runsInBackground() || stopping || stillRunningAsked || process.platform !== 'win32' || !tray || typeof tray.displayBalloon !== 'function') return;
   stillRunningAsked = true;
   writeFile(join(app.getPath('userData'), STILL_RUNNING_FILE), 'shown', { flag: 'wx', mode: 0o600 })
     .then(() => { tray?.displayBalloon({ title: 'Chausar', content: STILL_RUNNING, iconType: 'info' }); },
@@ -175,6 +206,8 @@ function createWindow(hash = '') {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
+  // Wave 6 (6J2): a window that stopped is noted for the next report, only while the owner has crash reports on.
+  window.webContents.on('render-process-gone', (_event, details) => { if (details?.reason !== 'clean-exit' && engine?.state === 'ready') void engine.request('venture.feedback.crash', { source: 'desktop', name: 'WindowGone', message: `The window stopped: ${String(details?.reason ?? 'unknown').replace(/[^a-z-]/g, '')}` }).catch(() => {}); });
   // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
   window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
   window.once('ready-to-show', () => window.show());
@@ -239,12 +272,12 @@ if (singleInstance) app.whenReady().then(async () => {
   const socialProjects = require('./social-project.cjs').createSocialProject();
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); createWindow(); }
+  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
 app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
 app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
-app.on('window-all-closed', () => { if (!backgroundRequested) app.quit(); });
+app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true;

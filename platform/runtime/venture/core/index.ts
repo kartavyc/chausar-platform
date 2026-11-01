@@ -14,6 +14,8 @@ import { blueprintSuggest } from './suggest.ts';
 import { createVenture, getVenture } from './venture.ts';
 import { countrySuggest } from './country-suggestion.ts';
 import { needsList } from './needs.ts';
+// Wave 6 (6J2): feedback, an opt-in Send report with its preview.
+import { feedbackAnswerHandler, feedbackConsentHandler, feedbackCrashHandler, feedbackDeleteHandler, feedbackGetHandler, feedbackSendHandler } from './feedback.ts';
 import { evidenceApply, evidenceDismiss, evidenceList } from '../evidence/ledger.ts';
 
 /** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
@@ -46,6 +48,9 @@ export const handlers: VentureHandlerTable = {
   'venture.blueprint.suggest': blueprintSuggest,
   // Wave 6 (6C7): the outside services the open business would use.
   'venture.needs.list': needsList,
+  // Wave 6 (6J2): feedback.
+  'venture.feedback.get': feedbackGetHandler, 'venture.feedback.consent': feedbackConsentHandler, 'venture.feedback.send': feedbackSendHandler,
+  'venture.feedback.answer': feedbackAnswerHandler, 'venture.feedback.crash': feedbackCrashHandler, 'venture.feedback.delete': feedbackDeleteHandler,
 };
 
 export { listCountries } from './countries.ts';

@@ -46,7 +46,7 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 377 unique valid names with owners and well-formed subsets', () => {
+test('VENTURE_METHODS: 383 unique valid names with owners and well-formed subsets', () => {
   // 126 through wave 2, the 138 wave 4 names package 4-0 added (W4_METHODS), 4J8's venture.blueprint.suggest and 4J5's
   // venture.bills.stop; and the 34 wave 5 names package 5-0 added (W5_METHODS: venture.order.chain, salesProposal.draft
   // and .get, goNoGo.card, ideas.add, .move and .grade, brandKit.get and .set, assets.list, .rerun and .reuse,
@@ -56,7 +56,7 @@ test('VENTURE_METHODS: 377 unique valid names with owners and well-formed subset
   // Wave 6 adds country suggestion, three client-consent methods, exact native approval,
   // two AI settings methods and MCP credentials; the three per-turn delivery methods are removed. 6C1 adds the tools'
   // own sign-in (tools, login.start, login.cancel), 6C2 About you (about.read, .pick, .families), 6C7 needs.list.
-  assert.equal(VENTURE_METHODS.length, 377); // W6 Batch 6 added 12 (MCP registry and OAuth, packs, web, people, Telegram, phone, webhook send); Batch 7 added 21 (chat states, retire, CRM, facts); Batches 8 and 9 added 20 (mini apps 10, flows 2, layout 2, talk 6)
+  assert.equal(VENTURE_METHODS.length, 383); // W6 Batch 6 added 12 (MCP registry and OAuth, packs, web, people, Telegram, phone, webhook send); Batch 7 added 21 (chat states, retire, CRM, facts); Batches 8 and 9 added 20 (mini apps 10, flows 2, layout 2, talk 6); Batch 10 added 6 (feedback)
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);

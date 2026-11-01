@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, open, readFile, readdir, writeFile } from 'node:fs/promises';
+import { cp, lstat, open, readFile, readdir, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,15 @@ const platforms = new Set(['win32', 'darwin', 'linux']);
 const architectures = new Set(['x64', 'arm64']);
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const previewOutput = 'release/preview';
+// Wave 6 (6J1, D3): the unsigned beta, Windows and Linux only, with real data and the bundled Codex.
+const betaOutput = 'release/beta';
+const modes = Object.freeze({ preview: { config: 'app/desktop/builder.preview.json', output: previewOutput }, beta: { config: 'app/desktop/builder.beta.json', output: betaOutput }, final: { config: 'app/desktop/builder.json', output: 'release' } });
+const betaArtifactExtensions = { win32: ['exe'], linux: ['AppImage', 'tar.gz'] };
+const CODEX_CHECK = 'bundled Codex with its LICENSE and NOTICE';
+// 6J1: electron-builder 26 depends on Electron's own node-gyp fork, which npm records as a Git source. It is a build-time
+// (dev) package, never shipped, and never run here (npmRebuild is off). Only this exact commit is accepted, still with
+// its integrity hash; every other package must resolve to an HTTPS registry artifact.
+const PINNED_BUILD_GIT_SOURCES = Object.freeze({ 'node_modules/@electron/node-gyp': 'git+ssh://git@github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2' });
 const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
@@ -87,16 +96,20 @@ function nodeVersionSupported(version) {
 
 /** Native builds deliberately require the host OS and architecture; this is not a cross-compilation claim. */
 export function createDesktopPackagePlan({ mode = 'preview', platform = process.platform, architecture = process.arch, unpacked = false, hostPlatform = process.platform, hostArchitecture = process.arch } = {}) {
-  if (!['preview', 'final'].includes(mode)) throw new Error('mode must be preview or final');
+  if (!Object.hasOwn(modes, mode)) throw new Error('mode must be preview, beta or final');
   if (!platforms.has(platform) || !architectures.has(architecture)) throw new Error('supported targets are win32, darwin or linux with x64 or arm64 architecture');
   if (platform !== hostPlatform || architecture !== hostArchitecture) throw new Error(`build ${platform}-${architecture} on a matching native host; this host is ${hostPlatform}-${hostArchitecture}`);
+  if (mode === 'beta' && !Object.hasOwn(betaArtifactExtensions, platform)) throw new Error('the beta is built for Windows and Linux only; Mac is out of scope');
   if (typeof unpacked !== 'boolean') throw new Error('unpacked must be a boolean');
+  const { config, output } = modes[mode];
   return {
     mode, platform, architecture, unpacked, target: `${platform}-${architecture}`,
-    config: `app/desktop/builder${mode === 'preview' ? '.preview' : ''}.json`,
-    output: mode === 'preview' ? previewOutput : 'release',
-    builderArguments: ['--config', `app/desktop/builder${mode === 'preview' ? '.preview' : ''}.json`, flags[platform], `--${architecture}`, '--publish', 'never', ...(unpacked ? ['--dir'] : [])],
-    qualification: mode === 'preview' ? 'unsigned demo preview; no production runtimes, signing, publishing or update channel' : 'signed prerequisites required; packaging does not prove native launch or rollback',
+    config,
+    output,
+    builderArguments: ['--config', config, flags[platform], `--${architecture}`, '--publish', 'never', ...(unpacked ? ['--dir'] : [])],
+    qualification: mode === 'preview' ? 'unsigned demo preview; no production runtimes, signing, publishing or update channel'
+      : mode === 'beta' ? 'unsigned beta with real data and the bundled Codex; Windows warns about an unknown publisher; no publishing or update channel'
+        : 'signed prerequisites required; packaging does not prove native launch or rollback',
   };
 }
 
@@ -113,16 +126,16 @@ export function parseDesktopPackageArguments(args) {
       const value = args[++index];
       if (!value || value.startsWith('--')) throw new Error(`missing value for ${flag}`);
       result[flag === '--arch' ? 'architecture' : flag.slice(2)] = value;
-    } else throw new Error(`unknown option: ${flag}; use --mode preview|final --platform win32|darwin|linux --arch x64|arm64 [--dir] [--check]`);
+    } else throw new Error(`unknown option: ${flag}; use --mode preview|beta|final --platform win32|darwin|linux --arch x64|arm64 [--dir] [--check]`);
   }
   return result;
 }
 
-/** Preview child processes never receive signing, release publishing or production service credentials. */
+/** Preview and beta child processes never receive signing, release publishing or production service credentials. */
 export function desktopPackagingEnvironment(mode, environment = process.env) {
-  if (!['preview', 'final'].includes(mode)) throw new Error('mode must be preview or final');
+  if (!Object.hasOwn(modes, mode)) throw new Error('mode must be preview, beta or final');
   const result = { ...environment };
-  if (mode === 'preview') {
+  if (mode === 'preview' || mode === 'beta') {
     for (const name of Object.keys(result)) {
       if (/^(?:CSC_|WIN_CSC_|APPLE_|CHAUSAR_|AWS_|DO_|KEYGEN_|COMPOSIO_)/i.test(name) || /(?:TOKEN|PASSWORD|SECRET|PRIVATE_KEY|CREDENTIAL)/i.test(name)) delete result[name];
     }
@@ -157,6 +170,34 @@ function validatePreviewConfig(config) {
   }
 }
 
+/** 6J1: the unsigned beta. Real data (no preview flag), NSIS per user without admin, AppImage and tar.gz, only the
+ * staged Codex bundle and the notices as extra resources, the local Electron, no signing, hooks or publishing. */
+export function validateBetaConfig(config) {
+  if (config.appId !== 'in.chausar.desktop' || config.productName !== 'Chausar' || config.extraMetadata?.name !== 'chausar' || config.extraMetadata?.productName !== 'Chausar' || config.extraMetadata?.chausarReleaseChannel !== 'beta' || Object.hasOwn(config.extraMetadata ?? {}, 'chausarPreview')) throw new Error('the beta needs the Chausar identity, the beta release channel and no preview flag');
+  if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false) throw new Error('the beta is unsigned; signing and executable editing stay off');
+  if (config.publish !== null || config.npmRebuild !== false || config.directories?.output !== betaOutput) throw new Error('the beta disables publishing and dependency rebuilds and uses release/beta');
+  if (config.extends !== undefined || Object.keys(config).some(name => /^(before|after|artifactBuild|onNodeModule)/.test(name))) throw new Error('the beta cannot inherit another configuration or run custom build hooks');
+  if (config.electronDist !== 'node_modules/electron/dist') throw new Error('the beta must use the verified local Electron distribution instead of another download');
+  if (config.mac !== undefined) throw new Error('Mac is out of scope for the beta');
+  if (JSON.stringify(config.win?.target) !== JSON.stringify(['nsis']) || JSON.stringify(config.linux?.target) !== JSON.stringify(['AppImage', 'tar.gz'])) throw new Error('beta targets are the Windows installer (NSIS) and Linux AppImage and tar.gz');
+  const nsis = config.nsis ?? {};
+  if (nsis.oneClick !== false || nsis.perMachine !== false || nsis.allowElevation !== false || nsis.deleteAppDataOnUninstall !== false || nsis.include !== 'app/desktop/installer.nsh') throw new Error('the beta installs per user without admin, keeps the owner data on uninstall and removes its login entry');
+  const resources = JSON.stringify(config.extraResources);
+  if (resources !== JSON.stringify([{ from: 'vendor/codex-bundle/${os}-${arch}', to: 'codex', filter: ['**/*'] }, { from: 'app/desktop/notices', to: 'notices', filter: ['**/*'] }, { from: 'LICENSE', to: 'LICENSE' }, { from: 'NOTICE', to: 'NOTICE' }])) throw new Error('the beta carries only the staged Codex bundle, the notices, and the AGPL licence and NOTICE (6J3) as extra resources');
+  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'node_modules/**/*']) {
+    if (!config.files?.includes(glob)) throw new Error(`beta package is missing ${glob}`);
+  }
+  // electron-builder 26 writes every unpacked file of a mixed file set into one pattern that @electron/asar refuses
+  // over 64 KB, so each folder unpacked whole is its own file set and adds one short entry.
+  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
+    if (!config.files?.some(entry => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] }))) throw new Error(`beta package carries ${folder} as its own file set`);
+    if (config.files.includes(`${folder}/**/*`)) throw new Error(`beta package lists ${folder} once, as its own file set`);
+  }
+  for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
+    if (!config.asarUnpack?.includes(glob)) throw new Error(`beta worker execution requires unpacked ${glob}`);
+  }
+}
+
 async function dependencyPrerequisites(root, platform) {
   const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   const { compareVersions } = await import('../platform/runtime/updater.ts');
@@ -180,6 +221,7 @@ async function dependencyPrerequisites(root, platform) {
   for (const [path, entry] of Object.entries(lock.packages)) {
     if (!path) continue;
     if (entry.link || !exactVersion.test(entry.version ?? '') || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(entry.integrity ?? '')) throw new Error('locked packages require exact versions and registry integrity hashes');
+    if (entry.dev === true && PINNED_BUILD_GIT_SOURCES[path] === entry.resolved) continue;
     const url = new URL(entry.resolved);
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error('locked packages must resolve to HTTPS registry artifacts');
   }
@@ -228,8 +270,15 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
     const config = JSON.parse(await readFile(join(root, plan.config), 'utf8'));
     validateInkPackagingConfig(config);
     if (plan.mode === 'preview') validatePreviewConfig(config);
+    else if (plan.mode === 'beta') validateBetaConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');
   });
+  if (plan.mode === 'beta') {
+    await check(CODEX_CHECK, async () => {
+      const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
+      await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture });
+    });
+  }
   if (plan.mode === 'final') {
     const { packagePreflight } = await import('./package-preflight.mjs');
     const final = await packagePreflight({ root, platform: plan.platform, architecture: plan.architecture, environment });
@@ -250,7 +299,7 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
   if (!exactVersion.test(version ?? '')) throw new Error('output checks require an exact package version');
   const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
-  for (const path of ['release', ...(plan.mode === 'preview' ? ['release/preview'] : [])]) {
+  for (const path of ['release', ...(plan.mode === 'final' ? [] : [plan.output])]) {
     try {
       const info = await lstat(join(root, path));
       if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('packaging output paths must be real directories inside the checkout');
@@ -261,7 +310,8 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
     const priorOutput = await readdir(join(root, plan.output));
     if (priorOutput.length) throw new Error('packaging output directory is not empty; review and move or archive the previous output before another build');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`) : [];
+  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`)
+    : plan.mode === 'beta' ? betaArtifactExtensions[plan.platform].map(extension => `Chausar-Beta-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`) : [];
   return { receiptPath, expectedArtifacts };
 }
 
@@ -276,7 +326,7 @@ export function desktopPackageCommands(plan, { cliPath, viteCli }) {
   ];
 }
 
-/** Windows preview uses ZIP without NSIS. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
+/** Windows preview uses ZIP without NSIS; the beta (6J1) builds an unsigned per-user NSIS installer. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
 export async function packageDesktop({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env, checkOnly = false } = {}) {
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
   if (!prerequisites.ok || checkOnly) return { ...prerequisites, packaged: false, checkOnly };
@@ -292,14 +342,22 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (command.name === 'Ink build') await regular(join(root, 'app/ui/dist/index.html'));
   }
   const artifacts = [];
-  if (plan.mode === 'preview' && !plan.unpacked) {
-    const output = join(root, previewOutput);
+  if (plan.mode !== 'final' && !plan.unpacked) {
+    const output = join(root, plan.output);
     for (const name of expectedArtifacts) {
       const path = join(output, name), info = await regular(path);
       artifacts.push({ path: name, size: info.size, sha256: await sha256(path) });
     }
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts };
+  // 6J1: the beta's own third-party notices sit beside its artifacts too (they are also inside, in resources/notices).
+  let bundled;
+  if (plan.mode === 'beta') {
+    await cp(join(root, 'app/desktop/notices'), join(root, plan.output, 'notices'), { recursive: true, errorOnExist: true, force: false });
+    const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
+    const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture });
+    bundled = { codex: { version: codex.version, target: codex.target, licence: codex.licence, files: Object.keys(codex.files).length }, notices: 'notices/THIRD-PARTY-NOTICES.md' };
+  }
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }

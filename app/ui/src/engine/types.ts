@@ -684,6 +684,9 @@ import type { FactView, FactVisibility, MemoryChange, MemoryView } from '../../.
 // W6 6I1 push-to-talk: the engine's own shapes (agents/talk-core.ts is browser-safe).
 export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core';
 import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core';
+// W6 6J2 feedback: the engine's own shapes (core/feedback-core.ts is browser-safe).
+export type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackPreview, FeedbackView } from '../../../../platform/runtime/venture/core/feedback-core';
+import type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackView } from '../../../../platform/runtime/venture/core/feedback-core';
 // W6 6H1 (D39): mini apps. The permission names and bridge tools live in the browser-safe apps/frame.ts.
 import type { AppPermission } from '../../../../platform/runtime/venture/apps/frame';
 export type { AppPermission };
@@ -2136,6 +2139,13 @@ export interface EngineMethods {
   'venture.talk.start': { params: Record<string, never>; result: TalkStarted };
   'venture.talk.hear': { params: { sessionId: string; audioBase64: string }; result: TalkHeard };
   'venture.talk.say': { params: { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string }; result: TalkSaid };
+  // W6 6J2: feedback, an opt-in Send report with its preview, short questions, crash notes and Delete my reports.
+  'venture.feedback.get': { params: Record<string, never>; result: FeedbackView };
+  'venture.feedback.consent': { params: FeedbackConsentInput; result: FeedbackView };
+  'venture.feedback.send': { params: { digest: string }; result: FeedbackView };
+  'venture.feedback.answer': { params: FeedbackAnswerInput; result: FeedbackView };
+  'venture.feedback.crash': { params: FeedbackCrashInput; result: FeedbackCrashKept };
+  'venture.feedback.delete': { params: Record<string, never>; result: FeedbackView };
   'venture.chief.fit': { params: Record<string, never>; result: ChiefFit | null };
   'venture.proposals.raise': { params: { id: string }; result: { proposal: ProposalView; rowId: string | null; line: Display } };
   'venture.proposals.dismiss': { params: { id: string }; result: { proposal: ProposalView } };

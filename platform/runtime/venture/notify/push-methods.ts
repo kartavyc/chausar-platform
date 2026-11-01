@@ -40,7 +40,7 @@ const FINAL_CODES: ReadonlySet<string> = new Set(['NET_REDIRECT_REFUSED', 'NET_U
 const BEFORE_SENDING: ReadonlySet<string> = new Set(['NET_URL_REFUSED', 'NET_ADDRESS_REFUSED', 'NET_LOOKUP_FAILED', 'PUSH_ENDPOINT_REFUSED']);
 const SESSION_HASH = /^[a-f0-9]{64}$/;
 export const PUSH_WORDS = Object.freeze({
-  desktop: 'Phone alerts need the hosted app. On this computer the tray shows the count.',
+  desktop: 'On this computer, phone alerts come by Telegram below; the tray shows the count.',
   notSetUp: 'Phone alerts are not set up on this server yet. The bell still lists everything.',
   on: 'Phone alerts are on for this browser. They carry a count only, never names or figures.',
   off: 'Phone alerts are off. The bell still lists everything.',

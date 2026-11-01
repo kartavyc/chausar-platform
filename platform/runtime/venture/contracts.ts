@@ -286,6 +286,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-mini-app',
   // Wave 6 (6H2, D41): one version of a recorded flow, and one dry run or run of it (flows/records.ts).
   'venture-flow', 'venture-flow-run',
+  // Wave 6 (6J2, D47): the owner's report choices (newest wins) and each crash or answer waiting for Send report (core/feedback.ts).
+  'venture-feedback-setting', 'venture-feedback-item',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -3531,6 +3533,25 @@ export type TalkHeardRecord = RecordBase<'venture-talk-heard'> & {
 export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from './agents/talk-core.ts';
 import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from './agents/talk-core.ts';
 /**
+ * W6 6J2 (D47): the owner's report choices, newest wins: the notice agreed by its digest (null until agreed, after a
+ * withdraw or a deletion request), usage and crash reports each on or off, the random report id, the milestones and
+ * questions already sent or asked, the last send's answers, and the last deletion request.
+ */
+export type FeedbackSettingRecord = RecordBase<'venture-feedback-setting'> & {
+  consentDigest: string | null; consentAt: IsoTime | null; usage: boolean; crashes: boolean; reportId: string | null;
+  milestonesSent: string[]; asked: string[]; sentAny: boolean;
+  lastSend: import('./core/feedback-core.ts').FeedbackSend | null;
+  deletion: { at: IsoTime; reportId: string; line: string } | null;
+};
+/** W6 6J2: one scrubbed crash or one fixed answer waiting for Send report; its words are erased once sent or dropped. */
+export type FeedbackItemRecord = RecordBase<'venture-feedback-item'> & {
+  item: 'crash' | 'answer'; status: 'queued' | 'sent' | 'dropped';
+  crash: import('./core/feedback-core.ts').KeptCrash | null; answer: { question: string; answer: string } | null;
+};
+/** W6 6J2: the views and inputs live in the browser-safe core/feedback-core.ts, so the app reads the same shapes. */
+export type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackPreview, FeedbackView } from './core/feedback-core.ts';
+import type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackView } from './core/feedback-core.ts';
+/**
  * venture.transcription.get and .set: the setup's honest status (set up, not set up, or its files are not where they
  * were set up, checked on disk each time), its paths, whether ffmpeg is on this computer too, and a plain line.
  */
@@ -5499,6 +5520,8 @@ export type AnyVentureRecord =
   | TranscriptionSetupRecord
   | TalkSettingRecord
   | TalkHeardRecord
+  | FeedbackSettingRecord
+  | FeedbackItemRecord
   // Ink v2 wave 4 (section 9e)
   | KeeperRunRecord | HealthClearRecord
   | AgentMessageRecord | AgentProposalRecord | ChatConsentRecord
@@ -5764,6 +5787,8 @@ export const VENTURE_METHODS = [
   'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
   // Wave 6 (6I1, D45): push-to-talk (agents)
   'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  // Wave 6 (6J2, D47): feedback, an opt-in Send report with its preview, short questions, crash notes and Delete my reports (core)
+  'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   // Wave 6 (6H3, D40): a place's layout, read and changed by the owner; the AI's own changes come through the MCP tools (views)
   'venture.layout.get', 'venture.layout.change',
   // Wave 6 (6H2, D41): recorded flows, record once and run with no AI (build)
@@ -5860,6 +5885,8 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.apps.restore': 'views', 'venture.apps.pin': 'views', 'venture.apps.export': 'views', 'venture.apps.call': 'views', 'venture.apps.remove': 'views',
   // Wave 6 (6I1)
   'venture.talk.get': 'agents', 'venture.talk.consent': 'agents', 'venture.talk.setup': 'agents', 'venture.talk.start': 'agents', 'venture.talk.hear': 'agents', 'venture.talk.say': 'agents',
+  // Wave 6 (6J2)
+  'venture.feedback.get': 'core', 'venture.feedback.consent': 'core', 'venture.feedback.send': 'core', 'venture.feedback.answer': 'core', 'venture.feedback.crash': 'core', 'venture.feedback.delete': 'core',
   // Wave 6 (6H3)
   'venture.layout.get': 'views', 'venture.layout.change': 'views',
   // Wave 6 (6H2)
@@ -5979,6 +6006,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   // Wave 6 (6H3): the owner's own layout change (the AI's go through its MCP tools, marked as the AI's).
   'venture.layout.change',
   'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  // Wave 6 (6J2): turning reports on, sending, answering, noting a crash and Delete my reports happen in the app.
+  'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   'venture.goals.set',
   'venture.policy.allowSession',
   'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set',
@@ -6361,6 +6390,8 @@ export type VenturePayloads = {
   'venture.layout.change': LayoutRequest;
   'venture.talk.get': Empty; 'venture.talk.consent': TalkConsentInput; 'venture.talk.setup': TalkSetupInput; 'venture.talk.start': Empty;
   'venture.talk.hear': { sessionId: string; audioBase64: string }; 'venture.talk.say': { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string };
+  'venture.feedback.get': Empty; 'venture.feedback.consent': FeedbackConsentInput; 'venture.feedback.send': { digest: string };
+  'venture.feedback.answer': FeedbackAnswerInput; 'venture.feedback.crash': FeedbackCrashInput; 'venture.feedback.delete': Empty;
   /** W6 6F8: {} reads; { service, key } saves the owner's own key; key null removes it. */
   'venture.people.services': { service?: 'happenstance' | 'probe42'; key?: string | null };
   /** W6 6F8: without digest, the exact lookup to approve; with it, the lookup once; searchId reads a Happenstance search. */
@@ -6778,6 +6809,8 @@ export type VentureResults = {
   'venture.layout.change': LayoutChangeResult;
   'venture.talk.get': TalkView; 'venture.talk.consent': TalkView; 'venture.talk.setup': TalkView; 'venture.talk.start': TalkStarted;
   'venture.talk.hear': TalkHeard; 'venture.talk.say': TalkSaid;
+  'venture.feedback.get': FeedbackView; 'venture.feedback.consent': FeedbackView; 'venture.feedback.send': FeedbackView;
+  'venture.feedback.answer': FeedbackView; 'venture.feedback.crash': FeedbackCrashKept; 'venture.feedback.delete': FeedbackView;
   'venture.people.services': import('./people/people-types.ts').PeopleSearchView;
   'venture.people.lookup': import('./people/people-types.ts').PeopleLookupView;
   'venture.crm.client': import('./crm/crm-data.ts').ClientCrmView;
@@ -6945,6 +6978,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
+  'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
   // Wave 6 (6H2): recorded flows.
   'FLOW_INVALID', 'FLOW_NOT_FOUND', 'FLOW_NOT_TESTED', 'FLOW_HELD', 'FLOW_BUSY', 'FLOW_BROWSER_UNAVAILABLE', 'FLOW_BROWSER_CLOSED',
   // Wave 6 (6C5, 6C6): hard stops, owner attestation and regulator switches.
@@ -7320,6 +7355,8 @@ export type VentureDeps = {
   flowBrowser?: import('./flows/replay.ts').FlowBrowserPort;
   /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
   localApps?: LocalAppPort;
+  /** Wave 6 (6J2, D47): the report services' keys and the app's version, from the build's environment (host-env.ts). Never a payload. */
+  feedback?: import('./core/feedback.ts').FeedbackPort;
 };
 
 /**
@@ -7404,6 +7441,8 @@ export type VentureHostOptions = {
   webRender?: import('./web/reader.ts').PageRenderPort;
   /** Wave 6 (6H2, D41): the desktop's browser window for recorded flows (flows/port.ts). Desktop only. */
   flowBrowser?: import('./flows/replay.ts').FlowBrowserPort;
+  /** Wave 6 (6J2): the report services' keys and the app version, from host-env.ts (VentureDeps.feedback). Never a payload. */
+  feedback?: import('./core/feedback.ts').FeedbackPort;
 };
 
 /**

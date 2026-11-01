@@ -61,6 +61,8 @@ const PLACES: { id: string; hash: string; receipted?: boolean }[] = [
   // W4 4G4: the approval page and Business > Notifications (their numbers are set at integration).
   { id: 'approve', hash: '#/approve/next' },
   { id: 'business/notifications', hash: '#/business/notifications' },
+  // W6 6J2: Business > Reports, the opt-in Send report (its budget is set from its first measure).
+  { id: 'business/reports', hash: '#/business/reports' },
   // W4 4J22a: Practice with drills, what the loop tried and the guidance report; Routines (numbers set at integration).
   { id: 'business/practice', hash: '#/business/practice' },
   { id: 'business/routines', hash: '#/business/routines' },

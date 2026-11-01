@@ -21,3 +21,5 @@ exports/
 Thumbs.db
 # The Ink screenshot walk's output (node scripts/ui-shots/walk.mjs); the board-matched shots are copied into docs.
 app/ui/.shots/
+# The Codex files staged for the beta installer (npm run package:codex; 6J1). Copied from a local Codex install.
+vendor/codex-bundle/

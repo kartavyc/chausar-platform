@@ -32,12 +32,12 @@ const SERVICES: Readonly<Record<string, Service>> = Object.freeze({
     why: 'Invoices and replies go from your own address. Chausar drafts, you send.',
   },
   telegram: {
+    // 6F6: built; the owner adds their own bot under Business, Notifications.
     id: 'telegram', name: 'Telegram alerts', connect: 'key', why: 'Your own Telegram bot tells your phone when something needs you.',
-    planned: { waitsOn: 'Waits on Chausar\'s Telegram alerts, which are not built yet.', meanwhile: 'Alerts show in the app on this computer.' },
   },
   tailscale: {
+    // 6F7: built; the phone access guide is docs/venture/phone-access.md.
     id: 'tailscale', name: 'Tailscale', connect: 'guide', why: 'Approve work from your phone when you are away from home.',
-    planned: { waitsOn: 'Waits on Chausar\'s phone pairing guide, which is not built yet.', meanwhile: 'Approve each card in the app on this computer.' },
   },
   happenstance: {
     id: 'happenstance', name: 'Happenstance', connect: 'key', why: 'Find people in your own network who could become clients.',
@@ -51,7 +51,8 @@ const SERVICES: Readonly<Record<string, Service>> = Object.freeze({
   },
   sunra: {
     id: 'sunra', name: 'Sunra', connect: 'key', why: 'Make images and short videos, with a cost shown before each one.',
-    planned: { waitsOn: 'Waits on Chausar\'s Sunra connection and your own account.', meanwhile: 'Make images in your own tools and add them as files.' },
+    // 6F9: built and fixture-tested through the MCP client; it waits on the owner's own account.
+    planned: { waitsOn: 'Fixture-tested, needs your own Sunra account: add it under Connections, MCP servers.', meanwhile: 'Make images in your own tools and add them as files.' },
   },
   'google-calendar': { id: 'google-calendar', name: 'Google Calendar', connectorId: 'google-calendar', connect: 'sign-in', why: 'Your classes and sessions show next to your own plans.' },
   'cal-com': { id: 'cal-com', name: 'Cal.com', connectorId: 'cal-com', connect: 'sign-in', why: 'Clients book a free slot on a page you control.' },

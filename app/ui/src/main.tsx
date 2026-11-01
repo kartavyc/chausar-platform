@@ -7,6 +7,7 @@ import './tokens/base.css';
 import { App } from './shell/App';
 import { createEngineClient } from './engine/client';
 import { browserPush, startHostedPush } from './shell/push';
+import { startCrashRelay } from './shell/crash-relay';
 import { pickLanguage } from './text';
 import type { EngineClient } from './engine/types';
 
@@ -26,6 +27,8 @@ async function start() {
   // The hosted app only (W4 4G4): the service worker for phone alerts, and this browser's subscription sent again so it
   // carries the session now signed in. It never asks the browser for permission; Business > Notifications does, on a press.
   void startHostedPush(client, browserPush());
+  // W6 6J2: an uncaught error goes to the engine, which keeps it only while crash reports are on (Business > Reports).
+  startCrashRelay(client);
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App client={client} language={lang} />

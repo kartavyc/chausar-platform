@@ -105,3 +105,7 @@ The factory benchmark emits a machine-readable report and fails on failed, cance
 | `docs/evidence/` | Actual current verification records |
 
 Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md), [enterprise setup](docs/enterprise.md), [release qualification](docs/releases.md) and [GitHub handoff](docs/github-handoff.md) before expanding deployment scope.
+
+## Licence
+
+Chausar is free software under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`); see [LICENSE](LICENSE). Third-party packages and their licences are listed in [NOTICE](NOTICE). To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).

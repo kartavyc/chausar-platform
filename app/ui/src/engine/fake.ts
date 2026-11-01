@@ -58,6 +58,8 @@ import { FakeCrmDesk } from './fake-crm';
 import { FakeMemoryDesk } from './fake-memory';
 // Wave 6 (6I1): push-to-talk (fake-talk.ts).
 import { FakeTalkDesk } from './fake-talk';
+// Wave 6 (6J2): feedback, the opt-in report with its preview (fake-feedback.ts).
+import { FakeFeedbackDesk } from './fake-feedback';
 import { AUTO_LOCKED_WORDS } from './fake-4j22a';
 import { fakeChecklist, fakeWays } from './fake-start';
 import { fakeKitForIdea, fakeKitPlan } from './fake-kit-plans';
@@ -428,6 +430,8 @@ export class FakeEngine {
       new FakeMemoryDesk({ ...waveHost, clients: () => this.clients[this.current] ?? [] }),
       // Wave 6 (6I1): push-to-talk, the notice, the services and reading an answer aloud.
       new FakeTalkDesk(waveHost),
+      // Wave 6 (6J2): feedback, the opt-in report, its preview, short questions and Delete my reports.
+      new FakeFeedbackDesk(waveHost),
     ];
     this.posting = new FakePostingDesk(waveHost, { fresh });
     this.practice = new FakePracticeDesk(waveHost, { fresh });

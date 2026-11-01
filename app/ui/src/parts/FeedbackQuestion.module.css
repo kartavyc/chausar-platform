@@ -1,0 +1,28 @@
+/* W6 6J2: a short question after a milestone. Tokens only. */
+
+.body {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  min-width: 0;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

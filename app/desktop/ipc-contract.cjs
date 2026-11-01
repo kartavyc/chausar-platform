@@ -118,6 +118,7 @@ const METHODS = Object.freeze([
   'venture.apps.list', 'venture.apps.get', 'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore',
   'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
   'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   'venture.models.cli.status', 'venture.models.roles',
   'venture.goals.get', 'venture.goals.set', 'venture.goals.suggest',
   'venture.decisions.list', 'venture.policy.allowSession',

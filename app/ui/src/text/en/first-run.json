@@ -8,7 +8,7 @@
   "first-run.stepOf": "Step {n} of 3",
 
   "first-run.ai.title": "Connect your AI",
-  "first-run.ai.sub": "Your Chausar team runs on your own AI plan. Pick one now; you can change it in Settings later.",
+  "first-run.ai.sub": "Your Chausar team runs on your own AI plan. Pick one now; you can change it later in Connections.",
   "first-run.ai.codex.name": "ChatGPT plan",
   "first-run.ai.codex.line": "Uses Codex on this computer.",
   "first-run.ai.claude.name": "Claude plan",

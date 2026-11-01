@@ -50,7 +50,7 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
 };
 /** push-methods.ts PUSH_WORDS and relay.ts RELAY_WORDS, as the engine says them. */
 const WORDS = {
-  desktop: 'Phone alerts need the hosted app. On this computer the tray shows the count.',
+  desktop: 'On this computer, phone alerts come by Telegram below; the tray shows the count.',
   on: 'Phone alerts are on for this browser. They carry a count only, never names or figures.',
   off: 'Phone alerts are off. The bell still lists everything.',
   endpoint: 'Phone alerts go only to a browser push service (Google, Mozilla, Microsoft or Apple) over https.',

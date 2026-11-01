@@ -213,6 +213,8 @@ export class VentureHost {
       ...(options.webRender && options.host === 'desktop' ? { webRender: options.webRender } : {}),
       // Wave 6 (6H2): the desktop's browser window for recorded flows; never elsewhere.
       ...(options.flowBrowser && options.host === 'desktop' ? { flowBrowser: options.flowBrowser } : {}),
+      // Wave 6 (6J2): the report services' keys from the build's environment; used only after the owner opts in.
+      ...(options.feedback ? { feedback: options.feedback } : {}),
     });
   }
 
@@ -262,6 +264,10 @@ export class VentureHost {
       // 4J2 (O22): a settings form's autosaved draft is cleared once its real method succeeded with the same values.
       if (SETTINGS_SAVE_METHODS.has(name)) await import('./core/settings-drafts.ts').then(drafts => drafts.clearSavedDraft(this.#deps, ctx, name, payload ?? {})).catch(() => false);
       return answer;
+    } catch (error) {
+      // Wave 6 (6J2): an error that is not one of Chausar's own refusals is noted as a crash, only while crash reports are on.
+      if (!(error instanceof ChausarError)) await import('./core/feedback.ts').then(feedback => feedback.noteEngineCrash(this.#deps, ctx, error, name)).catch(() => {});
+      throw error;
     } finally {
       // The centre looks at Today before the request answers, so a screen that reads it next sees what changed.
       if (this.#noticesDue) await this.#refreshNotices(ctx);

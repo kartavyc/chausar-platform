@@ -48,6 +48,8 @@ import { YourCa } from './YourCa';
 import { YourRules } from './YourRules';
 // W6 6G1: the chats archive (D42: it lives in Settings).
 import { SettledChats } from '../chats/SettledChats';
+// W6 6J2: reports, the opt-in Send report with its preview and Delete my reports.
+import { ReportsView } from './ReportsView';
 import s from './Business.module.css';
 
 const PAGES = [
@@ -77,6 +79,8 @@ const PAGES = [
   // W6 6G1 (D42): settled chats and the quiet days before one settles; from the business menu and the Chats list,
   // listed only while it is the page.
   { sub: 'chats', title: 'business.chats', View: SettledChats },
+  // W6 6J2 (D47): reports, off by default, from the business menu; listed only while it is the page.
+  { sub: 'reports', title: 'feedback.page', View: ReportsView },
 ] as const;
 
 /** The flagship playbook whose businesses have a CA of record. */
@@ -90,7 +94,7 @@ export function Place() {
   const { View } = page;
   const caFirm = venture.data?.playbook?.id === CA_FIRM;
   // W5 5A2: Go or no go opens from the business menu, and joins the pages only while it is the page (simple first).
-  const listed = PAGES.filter((p) => (p.sub !== 'ca' || caFirm) && (p.sub !== 'go-no-go' || page.sub === 'go-no-go') && (p.sub !== 'rules' || page.sub === 'rules') && (p.sub !== 'chats' || page.sub === 'chats'));
+  const listed = PAGES.filter((p) => (p.sub !== 'ca' || caFirm) && (p.sub !== 'go-no-go' || page.sub === 'go-no-go') && (p.sub !== 'rules' || page.sub === 'rules') && (p.sub !== 'chats' || page.sub === 'chats') && (p.sub !== 'reports' || page.sub === 'reports'));
   return (
     <>
       <PageTitle title={t(page.title)} line={venture.data?.venture.workingName} />

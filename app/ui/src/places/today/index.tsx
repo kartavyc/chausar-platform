@@ -40,6 +40,8 @@ import { Earlier } from './Earlier';
 // W4 4J22b: an agent's question card says the answer back on its send button; ideas and who waits on you, folded last.
 import { useAnswerLabel } from './QuestionsCard';
 import { IdeasFold } from './IdeasFold';
+// W6 6J2: a short question after a milestone, only while usage reports are on.
+import { FeedbackQuestion } from '../../parts/FeedbackQuestion';
 import { RUN_EVENTS, agentStateOf, runStateOf, useRunDetails } from './runs';
 import s from './Today.module.css';
 // W6 6H3 (D40): the page's layout as data, the AI's changes with Undo and Keep, and the Arrange sheet.
@@ -435,6 +437,7 @@ export function Place() {
         {slot(8)}
         {/* Waiting on you lists what waits on the owner: it shows when the layout hides Ideas too. */}
         {ideasHidden && <IdeasFold ideas={false} />}
+        <FeedbackQuestion />
       </div>
     </>
   );

@@ -2,6 +2,7 @@
   "name": "@chausar/semantic-qualification",
   "version": "0.1.0-synthetic",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "Deterministic synthetic qualification with explicit rights, independent controls and scoped evidence",
   "exports": "./src/index.ts",

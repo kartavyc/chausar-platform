@@ -57,6 +57,9 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   // W6 6I1: push-to-talk. Hearing may send the recording to Sarvam; reading aloud calls the owner's speech provider.
   'venture.talk.get': ['read', 'rui'], 'venture.talk.consent': ['approve', 'ui'], 'venture.talk.setup': ['approve', 'ui'], 'venture.talk.start': ['prepare', 'u'],
   'venture.talk.hear': ['approve', 'o'], 'venture.talk.say': ['approve', 'o'],
+  // W6 6J2: feedback. Turning reports on or off comes back with its opposite; Send report and Delete my reports reach PostHog and Sentry.
+  'venture.feedback.get': ['read', 'rui'], 'venture.feedback.consent': ['approve', 'ui'], 'venture.feedback.send': ['approve', 'o'],
+  'venture.feedback.answer': ['prepare', ''], 'venture.feedback.crash': ['prepare', ''], 'venture.feedback.delete': ['approve', 'o'],
   'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],

@@ -8,11 +8,13 @@ const require = createRequire(new URL('../../app/desktop/main.cjs', import.meta.
 const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string> } = {}) {
+// channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
-  const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>();
+  const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
+  app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); };
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
@@ -54,16 +56,16 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
     if (name === './money-export.cjs') return require('./money-export.cjs');
-    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}) }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
     return require(name);
-  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer,
+  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -329,4 +331,51 @@ test('Export for your CA: main answers the save channel for the app\'s own windo
   // The test engine answers no CSV, so the save stops before any dialog or file.
   const asked = await handler({ sender: window.webContents, senderFrame: window.webContents.mainFrame }, { month: '2026-10' });
   assert.deepEqual([asked.ok, asked.error.code], [false, 'REQUEST_FAILED']);
+});
+
+// ---------------------------------------------------------------------------
+// Wave 6, package 6J1 (D3, D36): the installed beta starts at login (hidden, in the tray) and keeps running in the
+// tray when its window closes; both are owner settings in the tray menu. Previews never register a login item.
+// ---------------------------------------------------------------------------
+
+test('the installed beta registers start at login once, starts real data, and keeps running in the tray (6J1)', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  assert.equal(d.errors.length, 0);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
+  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  const menu = d.menus.at(-1);
+  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start at login', true], ['Keep running in the tray', true]]);
+  d.windows[0].emit('closed'); await flush();
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
+  d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0, 'closing the window keeps Chausar in the tray');
+  assert.match(d.engines[0].options.environment.PATH, /codex[\\/]bin$/, 'the bundled Codex is the last place the engine looks');
+});
+
+test('a login start opens no window: Chausar waits in the tray until the owner opens it (6J1)', async () => {
+  const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta' });
+  assert.equal(d.trays.length, 1);
+  assert.equal(d.windows.length, 0);
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
+  d.app.emit('second-instance'); await flush();
+  assert.equal(d.windows.length, 1);
+});
+
+test('the owner can turn start at login and the tray off; off means the window closing quits Chausar (6J1)', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const ticks = () => d.menus.at(-1).filter((item: any) => item.type === 'checkbox');
+  ticks()[0].click({ checked: false }); await flush(); await flush();
+  assert.deepEqual(d.logins.at(-1), { openAtLogin: false, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' });
+  ticks()[1].click({ checked: false }); await flush(); await flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(ticks().map((item: any) => item.checked))), [false, false]);
+  d.windows[0].emit('closed'); await flush();
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: false });
+  d.app.emit('window-all-closed'); assert.equal(d.app.quits, 1);
+});
+
+test('previews and development runs never register a login item and their tray menu is unchanged (6J1)', async () => {
+  const d = await desktop([]);
+  assert.deepEqual(d.logins, []);
+  assert.equal(d.menus.at(-1).some((item: any) => item.type === 'checkbox'), false);
+  const hidden = await desktop(['--hidden']);
+  assert.equal(hidden.windows.length, 1, 'only the beta starts hidden');
 });

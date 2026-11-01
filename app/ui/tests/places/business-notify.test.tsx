@@ -70,7 +70,7 @@ describe('Business > Notifications on this computer', () => {
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
     await screen.findByText('The tray shows how many things need you. Quiet hours: 22:00 to 07:00. Daily digest at 08:00.');
     const reach = await region('How alerts reach you');
-    await within(reach).findByText('Phone alerts need the hosted app. On this computer the tray shows the count.');
+    await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     expect(within(reach).queryByRole('button', { name: 'Turn on phone alerts' })).toBeNull();
     expect((within(reach).getByRole('checkbox', { name: 'Show the count in the tray' }) as HTMLInputElement).checked).toBe(true);
     assertInkRules(document.body);
@@ -160,7 +160,7 @@ describe('Business > Notifications: what each setting means, and what the engine
   it('shows the tray and the relay only when the engine answers for the relay', async () => {
     start({ refuse: { 'venture.notify.relay': new EngineError('NOT_BUILT_YET', 'Not built yet.') } });
     const reach = await region('How alerts reach you');
-    await within(reach).findByText('Phone alerts need the hosted app. On this computer the tray shows the count.');
+    await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     await within(reach).findByText("Couldn't load this: Not built yet.");
     expect(within(reach).queryByRole('checkbox', { name: 'Show the count in the tray' })).toBeNull();
     expect(within(reach).queryByLabelText('Your relay address')).toBeNull();

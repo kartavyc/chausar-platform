@@ -1915,6 +1915,12 @@ export class Engine {
       case 'venture.talk.start':
       case 'venture.talk.hear':
       case 'venture.talk.say':
+      case 'venture.feedback.get':
+      case 'venture.feedback.consent':
+      case 'venture.feedback.send':
+      case 'venture.feedback.answer':
+      case 'venture.feedback.crash':
+      case 'venture.feedback.delete':
       case 'venture.models.cli.status':
       case 'venture.models.roles':
       case 'venture.goals.get':

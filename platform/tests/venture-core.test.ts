@@ -881,11 +881,11 @@ test('12. venture.events pages by sequence number', async () => {
   await assert.rejects(h.call('venture.events', { page: 2 }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
-test('13. the handler table holds exactly the twenty-one core methods; the pre-vault answers are functions', () => {
-  // The existing seventeen core methods, the wave 6 country suggestion, needs list (6C7) and compliance get and set (6C6).
+test('13. the handler table holds exactly the twenty-seven core methods; the pre-vault answers are functions', () => {
+  // The existing seventeen core methods, the wave 6 country suggestion, needs list (6C7), compliance get and set (6C6), and the six feedback methods (6J2).
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.suggest', 'venture.blueprint.update',
-    'venture.compliance.get', 'venture.compliance.set', 'venture.country.suggest', 'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
+    'venture.compliance.get', 'venture.compliance.set', 'venture.country.suggest', 'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.feedback.answer', 'venture.feedback.consent', 'venture.feedback.crash', 'venture.feedback.delete', 'venture.feedback.get', 'venture.feedback.send', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
     'venture.needs.list', 'venture.owner.get', 'venture.owner.set', 'venture.settings.draft', 'venture.settings.drafts',
   ]);
   assert.equal(typeof listCountries, 'function');

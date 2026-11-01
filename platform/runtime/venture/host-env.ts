@@ -18,5 +18,24 @@ export function ventureHostEnv(env: NodeJS.ProcessEnv, mode: { demo: boolean; ho
   // The website folder staged edits apply to: only a whole path on this computer, never one a request names.
   const site = env.CHAUSAR_SITE_FOLDER;
   if (site && isAbsolute(site)) options.siteFolder = site;
+  // Wave 6 (6J2, D47): the report services, only when the build sets them; never hard-coded (notes/6J2.md).
+  const feedback = feedbackEnv(env);
+  if (feedback) options.feedback = feedback;
   return options;
+}
+
+/**
+ * Wave 6 (6J2): the PostHog project key and host and the Sentry DSN for opt-in reports, from CHAUSAR_FEEDBACK_POSTHOG_KEY,
+ * CHAUSAR_FEEDBACK_POSTHOG_HOST and CHAUSAR_FEEDBACK_SENTRY_DSN (the desktop shell sets them from the build's
+ * feedback.json; a developer sets them in the shell). Absent: reports say they are not set up, and nothing can be sent.
+ */
+export function feedbackEnv(env: NodeJS.ProcessEnv): VentureHostOptions['feedback'] | undefined {
+  const key = env.CHAUSAR_FEEDBACK_POSTHOG_KEY, host = env.CHAUSAR_FEEDBACK_POSTHOG_HOST, dsn = env.CHAUSAR_FEEDBACK_SENTRY_DSN;
+  const https = (value: string | undefined) => typeof value === 'string' && /^https:\/\/[^\s]+$/.test(value);
+  const posthog = key && https(host) ? { key, host: host! } : undefined;
+  const sentry = https(dsn) ? { dsn: dsn! } : undefined;
+  if (!posthog && !sentry) return undefined;
+  const version = env.CHAUSAR_ENGINE_VERSION;
+  const os = process.platform === 'win32' ? 'windows' : process.platform === 'linux' ? 'linux' : process.platform === 'darwin' ? 'mac' : 'other';
+  return { ...(posthog ? { posthog } : {}), ...(sentry ? { sentry } : {}), ...(version && /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(version) ? { appVersion: version } : {}), os };
 }
