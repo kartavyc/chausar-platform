@@ -70,7 +70,8 @@ import { fakeLaunchAdvance, fakeLaunchStatus, type LaunchFacts } from './fake-la
 import { FakeRulesAttest } from './fake-rules-attest';
 import type { ComplianceLite } from './types';
 import type { TeamListView } from './types';
-import { SIDE_WORK_ANSWERS, complianceOf, professionCompliance } from '../../../../platform/runtime/venture/core/compliance-data';
+import { SIDE_WORK_ANSWERS, complianceOf, complianceSized, professionCompliance, readSizeFor, type ProfessionCompliance } from '../../../../platform/runtime/venture/core/compliance-data';
+import type { SizeAnswers } from '../../../../platform/runtime/venture/core/business-size';
 import { HARD_STOP_WORDS } from '../../../../platform/runtime/venture/policy/hard-stops';
 import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
 /** The business's own calendar day (as the engine's local-day.ts reads it from the country's time zone). */
@@ -677,24 +678,54 @@ export class FakeEngine {
     changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }),
   });
   private readonly complianceRecords = new Map<string, NonNullable<ComplianceLite['recorded']>>();
+  /** W6 (3 November 2026): the size answer kept with each business's compliance record, by business. */
+  private readonly complianceSizes = new Map<string, SizeAnswers | null>();
 
-  /** venture.compliance.get and .set, as core/compliance.ts answers them. */
+  /** venture.compliance.get and .set, as core/compliance.ts answers them (with the size, core/business-size.ts). */
   private compliance(method: string, p: Record<string, unknown>): ComplianceLite {
-    const allowed = method === 'venture.compliance.get' ? ['profession'] : ['profession', 'sideWork', 'digest'];
-    const required = method === 'venture.compliance.set' || !this.open ? (method === 'venture.compliance.set' ? allowed : ['profession']) : [];
-    if (!Object.keys(p).every((key) => allowed.includes(key)) || !required.every((key) => Object.hasOwn(p, key))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const keys = Object.keys(p);
+    const all = ['profession', 'sideWork', 'digest', 'size'];
+    const sizeOnly = method === 'venture.compliance.set' && keys.length === 1 && keys[0] === 'size';
+    const allowed = method === 'venture.compliance.get' ? ['profession', 'size'] : all;
+    const required = sizeOnly ? ['size'] : method === 'venture.compliance.set' ? ['profession', 'sideWork', 'digest'] : !this.open ? ['profession'] : [];
+    if (!keys.every((key) => allowed.includes(key)) || !required.every((key) => Object.hasOwn(p, key))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     const recorded = this.open ? this.complianceRecords.get(this.current) ?? null : null;
+    const saved = recorded ? this.complianceSizes.get(this.current) ?? null : null;
+    const sizeOf = (item: ProfessionCompliance, value: unknown): SizeAnswers => {
+      const read = readSizeFor(item, value);
+      if ('problem' in read) throw new EngineError('INVALID_VENTURE_REQUEST', read.problem);
+      return read.answers;
+    };
+    // The saved size counts only for the recorded profession; judge (a preview of picked ranges) is kept nowhere.
+    const viewOf = (item: ProfessionCompliance, record: typeof recorded, size: SizeAnswers | null, judge?: SizeAnswers): ComplianceLite => {
+      const own = record && record.professionId === item.id ? size : null;
+      return { ...complianceSized(item, own, judge ?? own), recorded: record ? { ...record } : null };
+    };
+    if (sizeOnly) {
+      if (!this.ventures.get(this.current)) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
+      if (!recorded) throw new EngineError('INVALID_VENTURE_REQUEST', 'Answer the side-work question first.');
+      const item = professionCompliance(recorded.professionId);
+      if (!item) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a profession.');
+      const size = sizeOf(item, p.size);
+      this.complianceSizes.set(this.current, size);
+      this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
+      return viewOf(item, recorded, size);
+    }
     const item = professionCompliance(p.profession ?? recorded?.professionId);
     if (!item) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a profession.');
     const pure = complianceOf(item);
-    if (method === 'venture.compliance.get') return { ...pure, recorded: recorded ? { ...recorded } : null };
+    if (method === 'venture.compliance.get') return viewOf(item, recorded, saved, p.size === undefined ? undefined : sizeOf(item, p.size));
     if (typeof p.sideWork !== 'string' || !(SIDE_WORK_ANSWERS as readonly string[]).includes(p.sideWork)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Answer the side-work question.');
+    const size = p.size === undefined ? undefined : sizeOf(item, p.size);
     if (p.digest !== pure.digest) throw new EngineError('APPROVAL_STALE', 'The rules for this profession changed. Read them again.');
     if (!this.ventures.get(this.current)) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
     const next = { professionId: item.id, sideWork: p.sideWork as 'allowed' | 'not-allowed' | 'not-sure', acknowledgedOn: localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }) };
+    // Left out, the size answer already saved for this profession is kept.
+    const kept = size ?? (recorded?.professionId === item.id ? saved : null);
     this.complianceRecords.set(this.current, next);
+    this.complianceSizes.set(this.current, kept);
     this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
-    return { ...pure, recorded: { ...next } };
+    return viewOf(item, next, kept);
   }
 
   /** The regulator's switch-offs, as core/compliance.ts refuseRegulatorForbidden refuses them. */

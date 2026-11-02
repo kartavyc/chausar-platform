@@ -9,8 +9,9 @@
 // says "Not checked against the official page yet". Pure and shared with the fake engine: no clock, no store, no Node
 // built-ins.
 import { HARD_STOPS, type HardStop } from '../policy/hard-stops.ts';
-import { CAUTIONS, PROFESSIONS, professionOf, sizeLine, type CautionSource, type Profession } from './professions.ts';
+import { CAUTIONS, PROFESSIONS, cautionOf, professionOf, sizeLine, type Caution, type CautionSource, type Profession } from './professions.ts';
 import { FAMILIES } from './families.ts';
+import { readSizeAnswers, sizeAskOf, sizeVerdict, type SizeAnswers, type SizeAsk } from './business-size.ts';
 
 export const SIDE_WORK_QUESTION = 'Does your employment contract allow side work? This is your responsibility.';
 export const SIDE_WORK_RESPONSIBILITY = 'Chausar does not read your contract. You decide, and you are responsible for it.';
@@ -103,4 +104,33 @@ export function complianceOf(item: ProfessionCompliance): CompliancePure {
     rules: item.rules.map(entry => ({ ...entry })), switchedOff: item.switchedOff.map(entry => ({ ...entry })), hardStops,
   };
   return { ...body, digest: 'compliance-' + fnv(JSON.stringify(body)) };
+}
+
+/** The statutes behind a profession's rules. */
+function cautionsOf(item: ProfessionCompliance): Caution[] {
+  return item.rules.map(rule => cautionOf(rule.id)).filter((caution): caution is Caution => caution !== null);
+}
+
+/** W6 (founder, 3 November 2026): the size question of a profession, with the saved answers, or null when no rule counts size. */
+export function sizeAskFor(item: ProfessionCompliance, saved: SizeAnswers | null | undefined): SizeAsk | null {
+  return sizeAskOf(cautionsOf(item), saved);
+}
+
+/** The owner's size answers for a profession, checked strictly (business-size.ts readSizeAnswers). */
+export function readSizeFor(item: ProfessionCompliance, value: unknown): { answers: SizeAnswers } | { problem: string } {
+  return readSizeAnswers(value, sizeAskFor(item, null));
+}
+
+export type ComplianceSized = Omit<CompliancePure, 'rules'> & { rules: (ProfessionRule & { verdict: string | null })[]; size: SizeAsk | null };
+
+/**
+ * What the screen shows with the size: complianceOf, each rule with its verdict line at the owner's size (null when it
+ * applies at any size), and the size question with the saved answers. judge: the answers the verdicts are judged by (a
+ * preview of picked ranges, or the saved ones). The digest is complianceOf's: the size is not part of the side-work words.
+ */
+export function complianceSized(item: ProfessionCompliance, saved: SizeAnswers | null | undefined, judge: SizeAnswers | null | undefined = saved): ComplianceSized {
+  const pure = complianceOf(item);
+  const cautions = cautionsOf(item);
+  const verdictOf = (id: string) => { const caution = cautionOf(id); return caution ? sizeVerdict(caution, cautions, judge) : null; };
+  return { ...pure, rules: pure.rules.map(rule => ({ ...rule, verdict: verdictOf(rule.id) })), size: sizeAskOf(cautions, saved) };
 }

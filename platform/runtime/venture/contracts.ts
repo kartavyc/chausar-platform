@@ -3488,12 +3488,17 @@ export type RuleLocksView = {
 export type ComplianceView = {
   profession: { id: string; label: string; family: string | null };
   question: string; responsibility: string;
-  /** W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. */
-  rules: { id: string; title: string; line: string; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: IsoDate | null; checkedDay: string | null; size: string | null }[];
+  /**
+   * W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. W6 (3 November
+   * 2026): verdict is the line at the owner's size for a statute with a size threshold, else null.
+   */
+  rules: { id: string; title: string; line: string; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: IsoDate | null; checkedDay: string | null; size: string | null; verdict: string | null }[];
   switchedOff: { tool: string; line: string }[];
   hardStops: { id: string; line: string }[];
   digest: string;
   recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
+  /** W6 (3 November 2026): the size question (core/business-size.ts), or null when no rule of the profession counts size. */
+  size: import('./core/business-size.ts').SizeAsk | null;
 };
 export interface RulesListView {
   playbook: { id: string; label: string; riskLevel: string; lastReviewed: IsoDate } | null;
@@ -5502,6 +5507,8 @@ export type PackRecord = RecordBase<'venture-pack'> & import('./packs/packs.ts')
 export type MediaGenerationRecord = RecordBase<'venture-media-generation'> & import('./media/sunra.ts').MediaGenerationBody;
 export type ComplianceRecord = RecordBase<'venture-compliance'> & {
   professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
+  /** W6 (3 November 2026): the owner's size ranges, by measure; null or left out (records before it) when none. */
+  size?: import('./core/business-size.ts').SizeAnswers | null;
 };
 
 export type AnyVentureRecord =
@@ -6278,8 +6285,10 @@ export type VenturePayloads = {
   'venture.rules.list': Empty;
   'venture.rules.locks': Empty;
   'venture.rules.attest': { ruleId: string; attest: boolean; digest?: string };
-  'venture.compliance.get': { profession?: string };
-  'venture.compliance.set': { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string };
+  /** size: picked ranges to judge the verdicts by, kept nowhere. */
+  'venture.compliance.get': { profession?: string; size?: { turnover?: string; headcount?: string } };
+  /** size alone changes only the size answer (Business settings); with the side-work answer, left out keeps the saved one. */
+  'venture.compliance.set': { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: { turnover?: string; headcount?: string } } | { size: { turnover?: string; headcount?: string } };
   'venture.judge.auto.get': Empty;
   /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
   'venture.judge.auto.set': { auto: boolean };

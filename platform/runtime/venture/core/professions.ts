@@ -310,7 +310,7 @@ export function cautionApplies(caution: Pick<Caution, 'size'>, business: Busines
 }
 
 /** Whole rupees from paise in Indian words: "₹1.5 crore", "₹12 lakh", "₹50,000". */
-function rupeeWords(minor: string): string {
+export function rupeeWords(minor: string): string {
   const rupees = BigInt(minor) / 100n;
   const scaled = (unit: bigint, word: string) => {
     const hundredths = (rupees * 100n) / unit;

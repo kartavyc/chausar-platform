@@ -70,6 +70,13 @@
   color: var(--mute);
 }
 
+/* W6 (3 November 2026): what applies at the owner's size, under the size line. */
+.verdict {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
 .subheading {
   margin: 0;
   font-size: var(--text-label);

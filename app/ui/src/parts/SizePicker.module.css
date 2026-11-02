@@ -1,0 +1,37 @@
+/* The business-size ranges (SizePicker.tsx, W6 3 November 2026): one quiet radio group per measure. Tokens only. */
+
+.picker {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.group {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group legend {
+  padding: 0;
+}
+
+.question {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.choice {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--mute);
+}

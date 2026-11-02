@@ -39,15 +39,15 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const [inVault, setInVault] = useState(false);
 
   /**
-   * The plan is in the vault: remember the field it was kept with (for Connections), record the side-work answer
-   * given before the business existed, then the services step. If that record fails, the question shows again and
-   * records itself.
+   * The plan is in the vault: remember the field it was kept with (for Connections), record the side-work answer (and
+   * any size ranges picked) given before the business existed, then the services step. If that record fails, the
+   * question shows again and records itself.
    */
   async function kept() {
     if (plan) await client.request('venture.owner.set', { familyId: plan.read.family.id }).catch(() => undefined);
     setInVault(true);
     if (sideWork) {
-      try { await client.request('venture.compliance.set', { profession: sideWork.profession, sideWork: sideWork.sideWork, digest: sideWork.digest }); }
+      try { await client.request('venture.compliance.set', { profession: sideWork.profession, sideWork: sideWork.sideWork, digest: sideWork.digest, ...(sideWork.size ? { size: sideWork.size } : {}) }); }
       catch { setStep('check'); return; }
     }
     setStep('needs');

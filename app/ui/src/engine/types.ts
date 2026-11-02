@@ -1101,9 +1101,19 @@ export interface RuleLocksLite { playbook: { id: string; label: string } | null;
 /** W6 6C6: `venture.compliance.get` and `.set`: the side-work question, the profession's rules and regulator switches. */
 export interface ComplianceLite {
   profession: { id: string; label: Display; family: string | null }; question: Display; responsibility: Display;
-  rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null; size: Display | null }[]; switchedOff: { tool: string; line: Display }[];
+  /** verdict (W6, 3 November 2026): the engine's line at the owner's size for a statute with a size threshold, else null. */
+  rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null; size: Display | null; verdict: Display | null }[]; switchedOff: { tool: string; line: Display }[];
   hardStops: { id: string; line: Display }[]; digest: string;
   recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: string } | null;
+  /** W6 (3 November 2026): the size question, asked only when a rule counts size (core/business-size.ts), else null. */
+  size: SizeAskLite | null;
+}
+/** The measures a size question asks, by measure: a range id each. */
+export type SizeAnswersLite = { turnover?: string; headcount?: string };
+/** W6 (3 November 2026): the size question: its ranges in the engine's words and the saved range id per measure. */
+export interface SizeAskLite {
+  measures: ('turnover' | 'headcount')[]; line: Display;
+  questions: { measure: 'turnover' | 'headcount'; question: Display; choices: { id: string; label: Display }[]; answer: string | null }[];
 }
 /** `venture.rules.list`: the dated platform rules a flagship playbook's checks rest on. */
 export interface PlatformRuleView {
@@ -2078,8 +2088,8 @@ export interface EngineMethods {
   'venture.rules.list': { params: Record<string, never>; result: RulesListView };
   'venture.rules.locks': { params: Record<string, never>; result: RuleLocksLite };
   'venture.rules.attest': { params: { ruleId: string; attest: boolean; digest?: string }; result: RuleLocksLite };
-  'venture.compliance.get': { params: { profession?: string }; result: ComplianceLite };
-  'venture.compliance.set': { params: { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string }; result: ComplianceLite };
+  'venture.compliance.get': { params: { profession?: string; size?: SizeAnswersLite }; result: ComplianceLite };
+  'venture.compliance.set': { params: { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: SizeAnswersLite } | { size: SizeAnswersLite }; result: ComplianceLite };
   'venture.judge.auto.get': { params: Record<string, never>; result: JudgeAutoView };
   /** The owner's, inside the app. auto: true records the standing consent for the judge's calls. */
   'venture.judge.auto.set': { params: { auto: boolean }; result: JudgeAutoView };
