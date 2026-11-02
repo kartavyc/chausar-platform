@@ -13,7 +13,9 @@ function fake() {
   return createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
 }
 
-describe('fake retire an agent (6G2)', () => {
+// Each fake request reads the whole sample business (about 0.1 s here, 0.7 s for the retire check), so the longer
+// cases pass 5 s on the slower Windows CI runner.
+describe('fake retire an agent (6G2)', { timeout: 20_000 }, () => {
   it('the check lists what the agent holds, what is in flight, the routines that switch off and who can take over', async () => {
     const client = fake();
     const routine = (await client.request('venture.routines.set', { routine: { name: 'Check in', agent: 'editor', prompt: PROMPT, schedule: HOURLY, on: true } })).routine;

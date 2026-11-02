@@ -56,7 +56,7 @@ test('desktop file authority backs up, restores, and opens with its recovery cod
   await reopened.close();
 });
 
-test('a killed writer halfway through a save preserves the last committed encrypted authority', { timeout: 20_000 }, async t => {
+test('a killed writer halfway through a save preserves the last committed encrypted authority', { timeout: 60_000 }, async t => {
   const directory = await scratch(t);
   const options = { directory, storage: 'experimental-file' as const, passphrase };
   const { vault } = await Vault.create({ ...options, name: 'Synthetic crash business' });
@@ -98,7 +98,7 @@ test('a killed writer halfway through a save preserves the last committed encryp
   t.after(() => { child.kill(); });
   const progress = await new Promise<{ partial: number; total: number }>((resolve, reject) => {
     let output = '', error = '';
-    const deadline = setTimeout(() => reject(new Error('The writer did not reach its partial save. ' + error)), 10_000);
+    const deadline = setTimeout(() => reject(new Error('The writer did not reach its partial save. ' + error)), 45_000); // a fresh Node loading the vault from source is slow on Windows CI
     child.stderr.on('data', chunk => { error = (error + chunk).slice(-2000); });
     child.stdout.on('data', chunk => {
       output += chunk;
