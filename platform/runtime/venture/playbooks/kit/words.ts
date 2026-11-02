@@ -31,7 +31,7 @@ export function standardWords(definition: Pick<PlaybookDefinition, 'registration
     ...(definition.boundaries ?? []).flatMap(row => [row.evidence, row.canSay, row.cannotSay]),
     ...definition.notBuilt,
     ...definition.scope.inScope, ...definition.scope.outOfScope, definition.scope.pointElsewhere,
-    tile.line, tile.youDo.line, tile.team.line, tile.pay.per,
+    tile.line, tile.youDo.line, tile.team.line, tile.pay?.per ?? '', tile.saves?.line ?? '',
   ].filter(text => typeof text === 'string' && text.length > 0))];
 }
 

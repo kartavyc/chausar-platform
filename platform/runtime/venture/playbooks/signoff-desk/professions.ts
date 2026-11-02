@@ -11,8 +11,11 @@ export type SignoffProfession=typeof SIGNOFF_PROFESSIONS[number];
 export const SIGNOFF_TOOLS=['outreach','advertising'] as const;
 export type SignoffTool=typeof SIGNOFF_TOOLS[number];
 
-/** One rule behind a limit. url is the regulator's own page; checked is true only when the rule text was read there on SIGNOFF_RULES_READ_ON. */
-export type SignoffRule={id:string;profession:SignoffProfession;topic:string;title:string;line:string;url:string;checked:boolean};
+/**
+ * One rule behind a limit. url is the regulator's own page; checked is true only when the rule text was read there on
+ * readOn (W6 F4: each rule keeps its own day; SIGNOFF_RULES_READ_ON is the first).
+ */
+export type SignoffRule={id:string;profession:SignoffProfession;topic:string;title:string;line:string;url:string;checked:boolean;readOn:string};
 export type ProfessionSpec={
  id:SignoffProfession;label:string;
  /** Who signs, inside a sentence: "your advocate". */
@@ -25,17 +28,19 @@ export type ProfessionSpec={
  refusedWords:readonly {id:string;pattern:RegExp;line:string;ruleId:string}[];
 };
 
-/** The day Chausar read (or tried to read) each rule on its regulator's page. */
+/** The day Chausar first read (or tried to read) each rule on its regulator's page. */
 export const SIGNOFF_RULES_READ_ON='2026-11-01';
+/** W6 F4: the day BCI Rule 36 and the Telemedicine Guidelines were read on their official sources. */
+const REREAD_ON='2026-11-02';
 export const SIGNOFF_RULES:readonly SignoffRule[]=Object.freeze([
- {id:'bci-rule-36',profession:'advocate',topic:'Advocates and solicitation',title:'Bar Council of India Rules, Part VI, Chapter II, Rule 36',line:'An advocate does not solicit work or advertise, directly or indirectly.',url:'https://www.barcouncilofindia.org/about/professional-standards/rules-on-professional-standards',checked:false},
- {id:'nmc-2002-6-1-1',profession:'doctor',topic:'Doctors and soliciting patients',title:'Code of Medical Ethics Regulations, 2002, clause 6.1.1',line:'Soliciting patients, directly or indirectly, is unethical.',url:'https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002',checked:true},
- {id:'nmc-2002-1-4-1',profession:'doctor',topic:'Registration number on prescriptions',title:'Code of Medical Ethics Regulations, 2002, clause 1.4.1',line:'A prescription carries the doctor\'s registration number.',url:'https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002',checked:true},
- {id:'telemedicine-2020',profession:'doctor',topic:'Who counsels and prescribes',title:'Telemedicine Practice Guidelines, 2020',line:'Only a registered medical practitioner counsels patients or prescribes; an AI tool does not.',url:'https://www.mohfw.gov.in/pdf/Telemedicine.pdf',checked:false},
- {id:'sebi-ia-2013',profession:'financial-planner',topic:'Investment advice',title:'SEBI (Investment Advisers) Regulations, 2013',line:'Investment advice needs a SEBI registration; returns are never assured.',url:'https://www.sebi.gov.in/legal/regulations/',checked:false},
- {id:'sebi-ra-2014',profession:'financial-planner',topic:'Research calls and target prices',title:'SEBI (Research Analysts) Regulations, 2014',line:'Buy or sell calls and target prices need a research analyst registration.',url:'https://www.sebi.gov.in/legal/regulations/',checked:false},
- {id:'cs-act-1980',profession:'company-secretary',topic:'Company secretaries and advertising',title:'Company Secretaries Act, 1980, First Schedule',line:'A company secretary in practice does not solicit clients by advertisement.',url:'https://www.icsi.edu/',checked:false},
- {id:'ca-act-1949',profession:'chartered-accountant',topic:'Chartered accountants and advertising',title:'Chartered Accountants Act, 1949, First Schedule',line:'A chartered accountant in practice does not solicit clients by advertisement.',url:'https://resource.cdn.icai.org/75789ca-act-61309.pdf',checked:false},
+ {id:'bci-rule-36',profession:'advocate',topic:'Advocates and solicitation',title:'Bar Council of India Rules, Part VI, Chapter II, Section IV, Rule 36',line:'An advocate does not solicit work or advertise, directly or indirectly.',url:'https://www.barcouncilofindia.org/info/bar-counci-g36acc',checked:true,readOn:REREAD_ON},
+ {id:'nmc-2002-6-1-1',profession:'doctor',topic:'Doctors and soliciting patients',title:'Code of Medical Ethics Regulations, 2002, clause 6.1.1',line:'Soliciting patients, directly or indirectly, is unethical.',url:'https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002',checked:true,readOn:SIGNOFF_RULES_READ_ON},
+ {id:'nmc-2002-1-4-1',profession:'doctor',topic:'Registration number on prescriptions',title:'Code of Medical Ethics Regulations, 2002, clause 1.4.1',line:'A prescription carries the doctor\'s registration number.',url:'https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002',checked:true,readOn:SIGNOFF_RULES_READ_ON},
+ {id:'telemedicine-2020',profession:'doctor',topic:'Who counsels and prescribes',title:'Telemedicine Practice Guidelines, 2020, sections 5.4 and 3.2.5',line:'Only a registered medical practitioner counsels patients or prescribes; an AI tool does not.',url:'https://esanjeevani.mohfw.gov.in/assets/guidelines/Telemedicine_Practice_Guidelines.pdf',checked:true,readOn:REREAD_ON},
+ {id:'sebi-ia-2013',profession:'financial-planner',topic:'Investment advice',title:'SEBI (Investment Advisers) Regulations, 2013',line:'Investment advice needs a SEBI registration; returns are never assured.',url:'https://www.sebi.gov.in/legal/regulations/',checked:false,readOn:SIGNOFF_RULES_READ_ON},
+ {id:'sebi-ra-2014',profession:'financial-planner',topic:'Research calls and target prices',title:'SEBI (Research Analysts) Regulations, 2014',line:'Buy or sell calls and target prices need a research analyst registration.',url:'https://www.sebi.gov.in/legal/regulations/',checked:false,readOn:SIGNOFF_RULES_READ_ON},
+ {id:'cs-act-1980',profession:'company-secretary',topic:'Company secretaries and advertising',title:'Company Secretaries Act, 1980, First Schedule',line:'A company secretary in practice does not solicit clients by advertisement.',url:'https://www.icsi.edu/',checked:false,readOn:SIGNOFF_RULES_READ_ON},
+ {id:'ca-act-1949',profession:'chartered-accountant',topic:'Chartered accountants and advertising',title:'Chartered Accountants Act, 1949, First Schedule',line:'A chartered accountant in practice does not solicit clients by advertisement.',url:'https://resource.cdn.icai.org/75789ca-act-61309.pdf',checked:false,readOn:SIGNOFF_RULES_READ_ON},
 ]);
 
 export const PROFESSION_SPECS:readonly ProfessionSpec[]=Object.freeze([

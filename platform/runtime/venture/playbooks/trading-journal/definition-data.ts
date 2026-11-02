@@ -20,8 +20,11 @@ const step = (id: string, title: string, kind: KitStep['kind'], role: string, fl
 
 export const TRADING_JOURNAL_DATA: PlaybookDefinition = {
   registration: TRADING_JOURNAL_REGISTRATION,
+  // W6 F4 (founder, 2 November 2026): the owner runs this desk for themselves, so it has no clients and no paid pilot,
+  // and its Start tile says what it saves the owner instead of what clients pay.
+  ownUse: true,
   offers: [{ id: 'own-journal', name: 'Your trading journal and CA pack', description: 'Charges, realised profit or loss and a tax pack for your CA, from your own tradebooks.', pricing: 'monthly', unit: 'per month',
-    price: 'owner-sets', stages: ['notes'], workflow: ['charges', 'pack', 'notes', 'approve'], includes: ['Every charge worked by code with a receipt', 'A tax pack for your CA'], pilotable: true, rights: [], intake: ['ca-ask'], audience: 'internal' }],
+    price: 'owner-sets', stages: ['notes'], workflow: ['charges', 'pack', 'notes', 'approve'], includes: ['Every charge worked by code with a receipt', 'A tax pack for your CA'], pilotable: false, rights: [], intake: ['ca-ask'], audience: 'internal' }],
   roles: [
     { id: 'writer', name: 'Writer', kind: 'agent', department: 'money', job: 'Writes plain notes for your CA from the receipts.' },
     { id: 'chausar', name: 'Chausar', kind: 'code', department: 'money', job: 'Code reads tradebooks and works charges, profit or loss and the tax pack.' },
@@ -66,7 +69,7 @@ export const TRADING_JOURNAL_DATA: PlaybookDefinition = {
   startTile: { category: 'money-and-tax', icon: 'calculator', line: 'Tradebooks become charges, profit or loss and a tax pack for your CA.',
     youDo: { hoursMin: 1, hoursMax: 4, line: 'Import tradebooks and share the pack with your CA.' },
     team: { roleIds: ['writer', 'chausar'], line: 'Code works every charge; notes for your CA.' },
-    pay: { minRupees: 500, maxRupees: 3000, per: 'a trader a month' } },
+    saves: { hoursMin: 2, hoursMax: 6, line: 'Charges, profit or loss and tax records kept straight for your CA.' } },
   scope: { inScope: ['Trading journals from broker tradebooks', 'Charges and realised profit or loss', 'A tax pack for your CA'],
     outOfScope: ['Stock tips or trade calls', 'Placing or automating trades', 'Copy trading', 'Promised returns', 'Connecting a broker that can place orders'],
     pointElsewhere: 'Trading decisions are yours; tax decisions are your CA\'s.' },

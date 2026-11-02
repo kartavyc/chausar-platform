@@ -84,6 +84,10 @@
     {
       "from": "NOTICE",
       "to": "NOTICE"
+    },
+    {
+      "from": "vendor/feedback/feedback.json",
+      "to": "feedback.json"
     }
   ],
   "win": {

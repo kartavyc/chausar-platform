@@ -11,9 +11,13 @@
 //   composes, app/desktop/web-render.cjs), at the same pace; elsewhere the read says so.
 // - A page read is kept for half an hour in memory, so a second look sends nothing. Nothing is written to disk.
 // - crawlSite reads a few pages of one site (at most ten, two links deep), its own links only, and stops the whole
-//   crawl at a CAPTCHA or a site's request to slow down.
+//   crawl at a CAPTCHA or a site's request to slow down. Crawlee's BasicCrawler (@crawlee/basic, Apache-2.0) holds the
+//   queue and readPage reads each page: no got-scraping, header or fingerprint generator, proxy or session pool.
 // Fetched text is data, never instructions; callers keep the label "From a public page, not confirmed".
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parse, parseFragment } from 'parse5';
 import { ChausarError, check } from '../../contracts.ts';
 import { pinnedSend } from '../core/net-guard.ts';
@@ -228,9 +232,26 @@ export const CRAWL_LIMITS = Object.freeze({ maxPages: 10, maxDepth: 2 });
 export type CrawlResult = { pages: PageReading[]; skipped: { url: string; code: string }[]; stopped: 'CAPTCHA_STOP' | 'SITE_PAUSED' | null };
 
 /**
+ * How Crawlee's BasicCrawler is set up (founder decision, 2 November 2026: small crawls use Crawlee, the honest way).
+ * It is only the queue: one page at a time, never retried, no session pool (so no session or cookie rotation), no
+ * robots.txt fetch or delay of its own (the polite reader does both), and long enough for a paced read to finish.
+ * BasicCrawler has no proxy setting, and no got-scraping client is ever given to it (REFUSING_CLIENT below).
+ */
+export const CRAWLER_SETTINGS = Object.freeze({ minConcurrency: 1, maxConcurrency: 1, maxRequestRetries: 0, useSessionPool: false, respectRobotsTxtFile: false, sameDomainDelaySecs: 0, requestHandlerTimeoutSecs: 300 });
+const CRAWL_REFUSED = 'A crawl reads pages only through Chausar\'s own polite reader.';
+/** In place of Crawlee's default got-scraping client (generated browser headers): every call is refused. */
+const REFUSING_CLIENT = Object.freeze({
+  async sendRequest(): Promise<never> { throw new ChausarError('FETCH_POLICY_REFUSED', CRAWL_REFUSED); },
+  async stream(): Promise<never> { throw new ChausarError('FETCH_POLICY_REFUSED', CRAWL_REFUSED); },
+});
+
+/**
  * Reads up to maxPages pages (at most ten) of the start page's own site, following its own links breadth first up to
  * maxDepth links deep (at most two). A page that may not or cannot be read is skipped with its reason; a CAPTCHA or a
  * request to slow down stops the whole crawl at once. Each page goes through readPage, so the pace and cache hold.
+ * Crawlee's BasicCrawler holds the queue (CRAWLER_SETTINGS). Its storage stays in memory, pointed at a new temporary
+ * folder that is removed afterwards, so nothing is kept on disk or carried from one crawl to the next; its own log is
+ * silent. Crawlee is loaded only when a crawl starts.
  */
 export async function crawlSite(start: string, options: ReaderOptions & { maxPages?: number; maxDepth?: number } = {}): Promise<CrawlResult> {
   const maxPages = options.maxPages ?? 5, maxDepth = options.maxDepth ?? 1;
@@ -240,24 +261,47 @@ export async function crawlSite(start: string, options: ReaderOptions & { maxPag
   first.hash = '';
   const origin = first.origin;
   const result: CrawlResult = { pages: [], skipped: [], stopped: null };
-  const queue: { url: string; depth: number }[] = [{ url: first.href, depth: 0 }];
   const seen = new Set([first.href]);
-  while (queue.length && result.pages.length < maxPages) {
-    const next = queue.shift()!;
-    let read: { reading: PageReading; links: string[] };
-    try { read = await readOne(next.url, options); } catch (error) {
-      const code = (error as { code?: string }).code ?? 'PAGE_NOT_READABLE';
-      if (code === 'CAPTCHA_STOP' || code === 'SITE_PAUSED') { result.stopped = code; break; }
-      result.skipped.push({ url: next.url, code });
-      continue;
-    }
-    result.pages.push(read.reading);
-    if (next.depth >= maxDepth) continue;
-    for (const link of read.links) {
-      if (new URL(link).origin !== origin || seen.has(link)) continue;
-      seen.add(link);
-      queue.push({ url: link, depth: next.depth + 1 });
-    }
+  const { BasicCrawler, Configuration, EventManager, log, LogLevel } = await import('@crawlee/basic');
+  const folder = await mkdtemp(join(tmpdir(), 'chausar-crawl-'));
+  try {
+    // Explicit storage options win over any CRAWLEE_ setting in the environment: in memory, in the temporary folder.
+    // A set memory ceiling and a plain event manager: otherwise Crawlee starts a process listing (PowerShell or ps) to
+    // measure memory at the start and every second after. One page at a time needs no autoscaling.
+    const config = new Configuration({ purgeOnStart: false, persistStorage: false, memoryMbytes: 1024, containerized: false, storageClientOptions: { localDataDirectory: folder, persistStorage: false, writeMetadata: false } });
+    config.useEventManager(new (class QuietEvents extends EventManager {})(config));
+    type Step = { href: string; depth: number };
+    const crawler = new BasicCrawler({
+      ...CRAWLER_SETTINGS,
+      httpClient: REFUSING_CLIENT as never,
+      log: log.child({ prefix: 'Chausar crawl', level: LogLevel.OFF }),
+      requestHandler: async ({ request }) => {
+        if (result.stopped || result.pages.length >= maxPages) return;
+        const step = request.userData as Step;
+        let read: { reading: PageReading; links: string[] };
+        try { read = await readOne(step.href, options); } catch (error) {
+          const code = (error as { code?: string }).code ?? 'PAGE_NOT_READABLE';
+          if (code === 'CAPTCHA_STOP' || code === 'SITE_PAUSED') { result.stopped = code; crawler.stop(); return; }
+          result.skipped.push({ url: step.href, code });
+          return;
+        }
+        result.pages.push(read.reading);
+        if (result.pages.length >= maxPages) { crawler.stop(); return; }
+        if (step.depth >= maxDepth) return;
+        const next: { url: string; uniqueKey: string; userData: Step }[] = [];
+        for (const link of read.links) {
+          if (new URL(link).origin !== origin || seen.has(link)) continue;
+          seen.add(link);
+          next.push({ url: link, uniqueKey: link, userData: { href: link, depth: step.depth + 1 } });
+        }
+        if (next.length) await crawler.addRequests(next);
+      },
+      // Only reached if a read outlasts the handler's time limit; it is skipped like any page that gave nothing.
+      failedRequestHandler: async ({ request }) => { result.skipped.push({ url: (request.userData as Step).href, code: 'PAGE_NOT_READABLE' }); },
+    }, config);
+    await crawler.run([{ url: first.href, uniqueKey: first.href, userData: { href: first.href, depth: 0 } }]);
+  } finally {
+    await rm(folder, { recursive: true, force: true });
   }
   return result;
 }

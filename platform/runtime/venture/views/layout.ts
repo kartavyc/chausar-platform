@@ -1,9 +1,9 @@
 // Chausar venture launcher, UI as data (wave 6, package 6H3, decision D40): each owner's layout of Today and Money,
-// stored as one record per change (the newest is in use), and the owner's AI asking the app to open a place. The rules
+// stored as one record per change (the newest is in use), and the owner's AI offering a place as a link. The rules
 // and the block library are in layout-core.ts, which the fake engine imports too.
 //
 // venture.layout.get { place } (read) answers the blocks in the order the page draws them, the saved views, the AI's
-// changes since the owner's own last change (with one Undo for all of them) and the AI's latest request to open a place.
+// changes since the owner's own last change (with one Undo for all of them) and the AI's latest offer of a place.
 // venture.layout.change { place, change } (prepare, app only) is the owner's change; the AI's changes come through the
 // MCP tools in agent-runtime/ui-tools.ts and are stored as made by the AI. Every change returns its exact Undo (a
 // restore to the layout before it) and emits queue.changed, which carries no words, so open screens read again. Nothing here touches a setting,
@@ -13,7 +13,7 @@ import type { LayoutGoRecord, LayoutRecord, VentureDeps, VentureRecord } from '.
 import { exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { readAs } from '../delivery/shared.ts';
 import {
-  applyChange, defaultLayout, describeBlocks, isCustom, KEEP_LINE, layoutPlace, LAYOUT_LIBRARY, navigation, normalizeLayout, parseChange, restoreLine,
+  applyChange, defaultLayout, describeBlocks, goLine, isCustom, KEEP_LINE, layoutPlace, LAYOUT_LIBRARY, navigation, normalizeLayout, parseChange, restoreLine,
   type LayoutBlockView, type LayoutBy, type LayoutChange, type LayoutPlace, type LayoutRequest, type LayoutState,
 } from './layout-core.ts';
 
@@ -24,7 +24,7 @@ export type LayoutView = {
   place: LayoutPlace; title: string; href: string; blocks: LayoutBlockView[]; views: { id: string; name: string }[]; custom: boolean;
   /** The AI's changes since the owner's own last change; undo puts back the layout from before the first of them. */
   ai: { count: number; lines: string[]; undo: LayoutRequest } | null;
-  /** The AI's latest request to open a place. The app opens it once, when it is new. */
+  /** The AI's latest offer of a place. The app shows it as a link when it is new; only the owner opens it. */
   go: { id: string; href: string; title: string; at: string } | null;
 };
 export type LayoutChangeResult = { layout: LayoutView; undo: LayoutRequest; line: string };
@@ -89,12 +89,13 @@ export async function layoutChangeHandler(deps: VentureDeps, ctx: Context, paylo
   return changeLayout(deps, ctx, place, change, 'owner');
 }
 
-/** The owner's AI asks the app to open a place (and a page in it). Stored as data; the app opens it once. */
+/** The owner's AI offers a place (and a page in it) as a link (founder, 2 November 2026). Stored as data; the app shows
+ * the link and never opens the page by itself. */
 export async function layoutGo(deps: VentureDeps, ctx: Context, place: unknown, sub: unknown): Promise<{ href: string; line: string }> {
   const target = navigation(place, sub);
   return ventureAction(deps, ctx, 'prepare', 'layout.go', tx => {
     tx.put<LayoutGoRecord>({ ...tx.base('venture-layout-go'), href: target.href, title: target.title });
     tx.emit('queue.changed', {});
-    return { href: target.href, line: `Your AI opened ${target.title}.` };
+    return { href: target.href, line: goLine(target.title) };
   });
 }

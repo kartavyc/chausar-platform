@@ -97,21 +97,22 @@ test('6C3 the gallery shows a sourced range in place of the model estimate only 
   }
   const ways = listWays({}).ways;
   const books = ways.find(way => way.id === 'bookkeeping-cfo')!;
-  assert.deepEqual([books.clientsPay.text, books.clientsPay.per, books.clientsPay.estimate, books.clientsPay.rangeId], ['₹499 to ₹15,000', 'per month', false, 'accountant-monthly-books']);
-  assert.equal(books.clientsPay.source, 'IndiaMART. Checked 1 Nov 2026.');
-  assert.equal(books.clientsPay.guide?.profession, 'accountant');
+  assert.deepEqual([books.clientsPay!.text, books.clientsPay!.per, books.clientsPay!.estimate, books.clientsPay!.rangeId], ['₹499 to ₹15,000', 'per month', false, 'accountant-monthly-books']);
+  assert.equal(books.clientsPay!.source, 'IndiaMART. Checked 1 Nov 2026.');
+  assert.equal(books.clientsPay!.guide?.profession, 'accountant');
   // ICAI's figures are minimums for single tasks, not the CA way's whole monthly service: the estimate stays, the guide rides along.
   const ca = ways.find(way => way.id === 'ca-firm')!;
-  assert.deepEqual([ca.clientsPay.estimate, ca.clientsPay.source, ca.clientsPay.guide?.profession, ca.clientsPay.rangeId], [true, WAY_SOURCE.en, 'chartered-accountant', undefined]);
+  assert.deepEqual([ca.clientsPay!.estimate, ca.clientsPay!.source, ca.clientsPay!.guide?.profession, ca.clientsPay!.rangeId], [true, WAY_SOURCE.en, 'chartered-accountant', undefined]);
   const youtube = ways.find(way => way.id === 'youtube')!;
-  assert.deepEqual([youtube.clientsPay.estimate, youtube.clientsPay.source, youtube.clientsPay.guide?.status], [true, WAY_SOURCE.en, 'no-reliable-data']);
+  assert.deepEqual([youtube.clientsPay!.estimate, youtube.clientsPay!.source, youtube.clientsPay!.guide?.status], [true, WAY_SOURCE.en, 'no-reliable-data']);
   // A profession with sourced ranges for a different service keeps the model estimate and shows the guide beside it.
   const narration = ways.find(way => way.id === 'narration-studio')!;
-  assert.deepEqual([narration.clientsPay.estimate, narration.clientsPay.guide?.status], [true, 'sourced']);
+  assert.deepEqual([narration.clientsPay!.estimate, narration.clientsPay!.guide?.status], [true, 'sourced']);
   const social = ways.find(way => way.id === 'social-agency')!;
-  assert.equal(social.clientsPay.guide, undefined);
+  assert.equal(social.clientsPay!.guide, undefined);
   assert.equal(wayPrice('social-agency'), null);
-  for (const way of ways) assert.equal(way.clientsPay.estimate, !(WAY_PRICES[way.playbook]?.range), `${way.id}: an estimate unless a sourced range fits`);
+  // W6 F4: a desk for the owner's own use shows what it saves, with no clients pay at all.
+  for (const way of ways) if (way.clientsPay) assert.equal(way.clientsPay.estimate, !(WAY_PRICES[way.playbook]?.range), `${way.id}: an estimate unless a sourced range fits`); else assert.ok(way.saves, way.id);
 });
 
 test('6C3 the plan carries its profession\'s guide, never a price: the owner\'s price is unaffected', () => {

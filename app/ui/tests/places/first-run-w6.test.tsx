@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
-import type { EngineClient } from '../../src/engine/types';
+import type { EngineClient, ModelStatusLite } from '../../src/engine/types';
+import { answerSideWork } from './first-run-steps';
 
 /**
  * W6 first run: Connect your AI (6C1), About you as A that becomes B (6C2, DECISIONS D16a) and Connect what your
@@ -139,6 +140,32 @@ describe('first run, step 2: About you, A that becomes B', () => {
   });
 });
 
+describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
+  it('asks it once the field is kept, locks Continue until answered, and records the answer after the business is made', async () => {
+    timeZone('Asia/Kolkata');
+    const { calls } = start();
+    await skipAi();
+    await press(/^Teaching and coaching/);
+    await press('Keep this plan');
+    const check = await screen.findByRole('region', { name: 'Day job and rules' }, { timeout: 4000 });
+    expect(screen.getByRole('heading', { level: 1, name: 'Day job and rules' })).toBeTruthy();
+    expect(within(check).getByRole('group', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
+    expect(within(check).getByText('Chausar does not read your contract. You decide, and you are responsible for it.')).toBeTruthy();
+    expect(calls.find(([method]) => method === 'venture.compliance.get')?.[1]).toEqual({ profession: 'teaching' });
+    // Nothing is kept yet: the vault waits for the answer.
+    expect(calls.some(([method]) => method === 'workspace.create')).toBe(false);
+    expect(within(check).getByRole('button', { name: 'Continue' }).getAttribute('aria-disabled')).toBe('true');
+    await act(async () => { fireEvent.click(within(check).getByRole('radio', { name: 'I am not sure' })); });
+    await act(async () => { fireEvent.click(within(check).getByRole('button', { name: 'Continue' })); });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 })).toBeTruthy();
+    const made = calls.findIndex(([method]) => method === 'venture.create');
+    const set = calls.findIndex(([method]) => method === 'venture.compliance.set');
+    expect(made).toBeGreaterThan(-1);
+    expect(set).toBeGreaterThan(made);
+    expect(calls[set]![1]).toMatchObject({ profession: 'teaching', sideWork: 'not-sure' });
+  }, 20000);
+});
+
 describe('first run, step 3: Connect what your business needs', () => {
   it('keeps the plan, saves the field, lists the services with honest labels, and skipping everything opens Today', async () => {
     timeZone('Asia/Kolkata');
@@ -146,6 +173,7 @@ describe('first run, step 3: Connect what your business needs', () => {
     await skipAi();
     await press(/^Teaching and coaching/);
     await press('Keep this plan');
+    await answerSideWork();
     // The fake computer keeps its key: no passphrase, and the recovery code only on hosted.
     expect(await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 })).toBeTruthy();
     expect(calls.find(([method]) => method === 'venture.create')?.[1]).toMatchObject({ idea: 'Tuition classes and lessons for students and adult learners', countryCode: 'IN' });
@@ -163,6 +191,39 @@ describe('first run, step 3: Connect what your business needs', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/today'));
     expect(await screen.findByRole('navigation', {}, { timeout: 4000 })).toBeTruthy();
   });
+});
+
+describe('the fresh first run, walked to Today (6J4 guide walk)', () => {
+  it('after Use Codex, Today has no Connect your AI card: the AI came along into the business', async () => {
+    timeZone('Asia/Kolkata');
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.signIn();
+    start(engine);
+    await press('Use Codex');
+    await press(/^Teaching and coaching/);
+    await press('Keep this plan');
+    await answerSideWork();
+    await press('Go to Today');
+    await waitFor(() => expect(window.location.hash).toBe('#/today'));
+    expect((await screen.findAllByText('Your plan is ready. Read it.', {}, { timeout: 4000 })).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Connect your AI')).toEqual([]);
+    // As the engine's handover does: the business has the AI, and the draft desk is wiped.
+    const models = await engine.request('venture.models.status', {}) as ModelStatusLite;
+    expect(models.tiers.main.presetId).toBe('codex-cli');
+    expect(models.connections.filter((c) => c.status === 'connected').map((c) => c.presetId)).toEqual(['codex-cli']);
+    expect(((await engine.request('venture.ai.status', {})) as ModelStatusLite).connections).toEqual([]);
+  }, 20000);
+
+  it('skipping the AI still leaves the Connect your AI card on Today', async () => {
+    timeZone('Asia/Kolkata');
+    start();
+    await skipAi();
+    await press(/^Teaching and coaching/);
+    await press('Keep this plan');
+    await answerSideWork();
+    await press('Go to Today');
+    expect((await screen.findAllByText('Connect your AI', {}, { timeout: 4000 })).length).toBeGreaterThan(0);
+  }, 20000);
 });
 
 describe('Connections: the services this business needs', () => {

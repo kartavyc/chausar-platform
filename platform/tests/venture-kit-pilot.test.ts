@@ -96,8 +96,10 @@ test('only an offer the playbook offers as a pilot can be one; hours are whole n
   assert.throws(() => pilotOf(FIXTURE, 'monthly-books', terms({ hypothesis: 'x'.repeat(201) })), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('every kit playbook that has landed offers at least one paid pilot', () => {
+test('every kit playbook that has landed offers at least one paid pilot, except a desk for your own use', () => {
   for (const definition of PLAYBOOK_DEFINITIONS) {
+    // W6 F4: a desk the owner runs for themselves has no clients, so it offers no pilot at all.
+    if (definition.ownUse) { assert.ok(!definition.offers.some(item => item.pilotable), `${definition.registration.id} is for own use`); continue; }
     assert.ok(definition.offers.some(item => item.pilotable), `${definition.registration.id} offers no pilot`);
   }
 });

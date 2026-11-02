@@ -12,8 +12,11 @@ import { NARROW } from '../src/shell/useNarrow';
  * (title, lang) belong to index.html; axe runs on the app's own root.
  */
 
-/** A step in `press`: a button's name to press, or a labelled field to type into first (w3 3G2: the passphrase steps). */
-type Press = string | RegExp | { fill: string; with: string };
+/**
+ * A step in `press`: a button's name to press, a labelled field to type into first (w3 3G2: the passphrase steps), or
+ * a radio to choose (W6 6C6: the side-work question).
+ */
+type Press = string | RegExp | { fill: string; with: string } | { choose: string };
 interface Case { name: string; hash: string; options?: FakeOptions; before?: (engine: FakeEngine) => Promise<unknown>; press?: Press[]; openFolds?: boolean }
 
 const ledgerline = (engine: FakeEngine) => engine.request('workspace.open', { folder: 'ledgerline' });
@@ -186,6 +189,11 @@ async function settle({ hash, options, before, press, openFolds }: Case): Promis
   const unfold = () => { if (openFolds) for (const fold of container.querySelectorAll('details')) fold.open = true; };
   for (const name of press ?? []) {
     unfold();
+    if (typeof name !== 'string' && !(name instanceof RegExp) && 'choose' in name) {
+      const [radio] = await screen.findAllByRole('radio', { name: name.choose });
+      await act(async () => { fireEvent.click(radio!); });
+      continue;
+    }
     if (typeof name !== 'string' && !(name instanceof RegExp)) {
       const [field] = await screen.findAllByLabelText(name.fill);
       fireEvent.change(field!, { target: { value: name.with } });
@@ -284,8 +292,8 @@ const OPENED: Case[] = [
   // w3 3G2: Start's examples, its country choice, and the box asking for more on the first run.
   { name: 'New business, an example chosen', hash: '#/onboarding', press: ['Wedding invitation videos'] },
   { name: 'New business, the country being changed', hash: '#/onboarding', press: ['Change'] },
-  // W6 6C1, 6C2, 6C7: the first run's steps: Connect your AI with Codex's own sign-in waiting, About you as A and as
-  // B, the box asking for more, the vault steps after Keep this plan, and the services step.
+  // W6 6C1, 6C2, 6C6, 6C7: the first run's steps: Connect your AI with Codex's own sign-in waiting, About you as A and
+  // as B, the box asking for more, the side-work question, the vault steps after it, and the services step.
   { name: 'First run, Codex sign-in waiting for its code', hash: '#/today', options: { fresh: true }, press: ['Sign in with Codex'] },
   { name: 'First run, About you', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates'] },
   { name: 'First run, About you asking for more', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', 'Send'] },
@@ -294,18 +302,22 @@ const OPENED: Case[] = [
     press: ['Skip for now: use templates', { fill: 'Tell Chausar about your work', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Send'],
   },
   { name: 'First run, a field tile straight to the plan', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/] },
+  { name: 'First run, the side-work question', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan'] },
   {
     name: 'First run, the passphrase step', hash: '#/today', options: { fresh: true, deviceKeys: false },
-    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan'],
+    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue'],
   },
   {
     name: 'First run, the recovery code step', hash: '#/today', options: { fresh: true, deviceKeys: false },
     press: [
-      'Skip for now: use templates', /^Money and tax/, 'Keep this plan',
+      'Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue',
       { fill: 'Passphrase', with: 'correct horse battery' }, { fill: 'Type it again', with: 'correct horse battery' }, 'Lock and start',
     ],
   },
-  { name: 'First run, what the business needs', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan'] },
+  {
+    name: 'First run, what the business needs', hash: '#/today', options: { fresh: true },
+    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue'],
+  },
 ];
 
 describe('axe on every sheet', () => {

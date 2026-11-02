@@ -1077,6 +1077,8 @@ export class FakeEngine {
         const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
         this.ventures.set(this.current, venture);
         this.interviews.set(this.current, this.templateInterview(country.code));
+        // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
+        this.desk.adoptDraft(this.current);
         return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };
       }
       case 'venture.interview.next': {
@@ -1304,10 +1306,15 @@ export class FakeEngine {
     const oneLiner = `A built-in ${SERVICE_LABELS[type].toLowerCase()} plan, not fitted to what you wrote.`;
     if (!this.rows.some((r) => r.id === `q-plan-${business.id}`)) {
       const base = { businessId: business.id, businessName: business.name, createdAt: at };
+      // views/queue.ts setupRows: the AI row only while templates serve both tiers, or while a connected AI cannot run.
+      const ai = this.desk.aiState(business.id);
+      const aiRow: Omit<QueueRow, 'digest'>[] = !ai ? [] : ai.kind === 'none'
+        ? [{ ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: NEW_BUSINESS_ROWS.ai.title, line: NEW_BUSINESS_ROWS.ai.line, actions: [{ id: 'connect', label: NEW_BUSINESS_ROWS.ai.action, primary: true }] }]
+        : [{ ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: 'Your AI needs attention', line: ai.reason, actions: [{ id: 'connect', label: 'Open', primary: true }] }];
       const seeds: Omit<QueueRow, 'digest'>[] = [
         { ...base, id: `q-plan-${business.id}`, kind: 'plan', title: NEW_BUSINESS_ROWS.plan.title, line: oneLiner, viewRef: { kind: 'plan', id: planId },
           actions: [{ id: 'read', label: NEW_BUSINESS_ROWS.plan.read, primary: false }, { id: 'approve', label: NEW_BUSINESS_ROWS.plan.accept, primary: true, requiresView: true }] },
-        { ...base, id: `q-setup-ai-${business.id}`, kind: 'setup', title: NEW_BUSINESS_ROWS.ai.title, line: NEW_BUSINESS_ROWS.ai.line, actions: [{ id: 'connect', label: NEW_BUSINESS_ROWS.ai.action, primary: true }] },
+        ...aiRow,
         { ...base, id: `q-setup-prices-${business.id}`, kind: 'setup', ...this.pricesRow(questions), },
       ];
       if (business.recovery === 'not-made') {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { cp, lstat, open, readFile, readdir, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, open, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -144,6 +144,49 @@ export function desktopPackagingEnvironment(mode, environment = process.env) {
   return result;
 }
 
+// Wave 6 founder follow-up (6J2, D47): the opt-in report keys. The founder sets CHAUSAR_FEEDBACK_POSTHOG_KEY,
+// CHAUSAR_FEEDBACK_POSTHOG_HOST and CHAUSAR_FEEDBACK_SENTRY_DSN when building; packaging writes them to
+// vendor/feedback/feedback.json (git-ignored), which the builder config ships as resources/feedback.json and
+// app/desktop/feedback-keys.cjs reads. Only write-only keys: PostHog's project key and Sentry's public DSN. No variables:
+// no file, and the app says reports are not set up. A value is never printed, logged or kept in the receipt.
+const FEEDBACK_VARIABLES = Object.freeze({ posthogKey: 'CHAUSAR_FEEDBACK_POSTHOG_KEY', posthogHost: 'CHAUSAR_FEEDBACK_POSTHOG_HOST', sentryDsn: 'CHAUSAR_FEEDBACK_SENTRY_DSN' });
+export const FEEDBACK_STAGED = 'vendor/feedback/feedback.json';
+const feedbackHttps = value => /^https:\/\/[^\s]+$/.test(value);
+const feedbackKeyish = value => /^[A-Za-z0-9_-]{8,200}$/.test(value);
+
+/** The feedback.json a build ships, or null when no variable is set. A half-set or malformed one is refused by name. */
+export function feedbackResource(environment = process.env) {
+  const value = name => typeof environment[name] === 'string' ? environment[name].trim() : '';
+  const [posthogKey, posthogHost, sentryDsn] = [FEEDBACK_VARIABLES.posthogKey, FEEDBACK_VARIABLES.posthogHost, FEEDBACK_VARIABLES.sentryDsn].map(value);
+  if (!posthogKey && !posthogHost && !sentryDsn) return null;
+  const result = {};
+  if (posthogKey || posthogHost) {
+    if (!posthogKey) throw new Error(`${FEEDBACK_VARIABLES.posthogKey} is missing; set it with ${FEEDBACK_VARIABLES.posthogHost}, or unset both`);
+    if (!posthogHost) throw new Error(`${FEEDBACK_VARIABLES.posthogHost} is missing; set it with ${FEEDBACK_VARIABLES.posthogKey}, or unset both`);
+    if (!feedbackKeyish(posthogKey)) throw new Error(`${FEEDBACK_VARIABLES.posthogKey} must be a PostHog project key (letters, digits, _ or -)`);
+    if (!feedbackHttps(posthogHost)) throw new Error(`${FEEDBACK_VARIABLES.posthogHost} must be an https address`);
+    Object.assign(result, { posthogKey, posthogHost });
+  }
+  if (sentryDsn) {
+    if (!feedbackHttps(sentryDsn)) throw new Error(`${FEEDBACK_VARIABLES.sentryDsn} must be an https Sentry DSN`);
+    result.sentryDsn = sentryDsn;
+  }
+  return result;
+}
+
+/** Write (or remove) the staged feedback.json. A stale file from an earlier build is always removed first, so a build
+ * without the variables, or a refused one, ships none. Answers only which services are set up. */
+export async function stageFeedbackKeys({ root = projectRoot, environment = process.env } = {}) {
+  const path = join(root, ...FEEDBACK_STAGED.split('/'));
+  await rm(path, { force: true });
+  const resource = feedbackResource(environment);
+  if (resource) {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(resource) + '\n', { flag: 'wx', mode: 0o600 });
+  }
+  return { posthog: Boolean(resource?.posthogKey), sentry: Boolean(resource?.sentryDsn) };
+}
+
 /** Both configurations ship the Ink build and none of its sources; nothing names the retired app/renderer. */
 export function validateInkPackagingConfig(config) {
   if (!Array.isArray(config.files) || !config.files.includes(inkBuildGlob)) throw new Error(`the package must include the Ink build (${inkBuildGlob})`);
@@ -170,6 +213,14 @@ function validatePreviewConfig(config) {
   }
 }
 
+/** The files a preview or beta build leaves. electron-builder names an AppImage by the AppImage architecture (x64 is
+ * x86_64); every other target keeps the Node name. Pure, so it is tested for every platform on any host. */
+export function expectedArtifactNames({ mode, platform, architecture, version }) {
+  const archFor = extension => extension === 'AppImage' && architecture === 'x64' ? 'x86_64' : architecture;
+  const named = (product, extensions) => extensions.map(extension => `Chausar-${product}-${version}-${artifactOS[platform]}-${archFor(extension)}.${extension}`);
+  return mode === 'preview' ? named('Preview', artifactExtensions[platform]) : mode === 'beta' ? named('Beta', betaArtifactExtensions[platform]) : [];
+}
+
 /** 6J1: the unsigned beta. Real data (no preview flag), NSIS per user without admin, AppImage and tar.gz, only the
  * staged Codex bundle and the notices as extra resources, the local Electron, no signing, hooks or publishing. */
 export function validateBetaConfig(config) {
@@ -183,7 +234,7 @@ export function validateBetaConfig(config) {
   const nsis = config.nsis ?? {};
   if (nsis.oneClick !== false || nsis.perMachine !== false || nsis.allowElevation !== false || nsis.deleteAppDataOnUninstall !== false || nsis.include !== 'app/desktop/installer.nsh') throw new Error('the beta installs per user without admin, keeps the owner data on uninstall and removes its login entry');
   const resources = JSON.stringify(config.extraResources);
-  if (resources !== JSON.stringify([{ from: 'vendor/codex-bundle/${os}-${arch}', to: 'codex', filter: ['**/*'] }, { from: 'app/desktop/notices', to: 'notices', filter: ['**/*'] }, { from: 'LICENSE', to: 'LICENSE' }, { from: 'NOTICE', to: 'NOTICE' }])) throw new Error('the beta carries only the staged Codex bundle, the notices, and the AGPL licence and NOTICE (6J3) as extra resources');
+  if (resources !== JSON.stringify([{ from: 'vendor/codex-bundle/${os}-${arch}', to: 'codex', filter: ['**/*'] }, { from: 'app/desktop/notices', to: 'notices', filter: ['**/*'] }, { from: 'LICENSE', to: 'LICENSE' }, { from: 'NOTICE', to: 'NOTICE' }, { from: FEEDBACK_STAGED, to: 'feedback.json' }])) throw new Error('the beta carries only the staged Codex bundle, the notices, the AGPL licence and NOTICE (6J3) and the staged report keys (6J2) as extra resources');
   for (const glob of ['app/desktop/**/*', inkBuildGlob, 'node_modules/**/*']) {
     if (!config.files?.includes(glob)) throw new Error(`beta package is missing ${glob}`);
   }
@@ -279,6 +330,8 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
       await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture });
     });
   }
+  // 6J2: half-set or malformed report keys block even a --check run, by variable name only.
+  if (plan.mode !== 'preview') await check('report keys (CHAUSAR_FEEDBACK_*)', () => { feedbackResource(environment); });
   if (plan.mode === 'final') {
     const { packagePreflight } = await import('./package-preflight.mjs');
     const final = await packagePreflight({ root, platform: plan.platform, architecture: plan.architecture, environment });
@@ -310,8 +363,7 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
     const priorOutput = await readdir(join(root, plan.output));
     if (priorOutput.length) throw new Error('packaging output directory is not empty; review and move or archive the previous output before another build');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`)
-    : plan.mode === 'beta' ? betaArtifactExtensions[plan.platform].map(extension => `Chausar-Beta-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`) : [];
+  const expectedArtifacts = expectedArtifactNames({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, version });
   return { receiptPath, expectedArtifacts };
 }
 
@@ -331,6 +383,8 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
   if (!prerequisites.ok || checkOnly) return { ...prerequisites, packaged: false, checkOnly };
   const { receiptPath, expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: prerequisites.version });
+  // 6J2: the report keys are staged before electron-builder copies the resources; the demo preview carries none.
+  const feedback = plan.mode !== 'preview' ? await stageFeedbackKeys({ root, environment }) : undefined;
   for (const command of desktopPackageCommands(plan, prerequisites)) {
     const status = await new Promise((accept, reject) => {
       const child = spawn(process.execPath, command.args, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
@@ -357,7 +411,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture });
     bundled = { codex: { version: codex.version, target: codex.target, licence: codex.licence, files: Object.keys(codex.files).length }, notices: 'notices/THIRD-PARTY-NOTICES.md' };
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}) };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }

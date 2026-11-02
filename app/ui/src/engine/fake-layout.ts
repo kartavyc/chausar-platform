@@ -8,7 +8,7 @@
  */
 
 import {
-  applyChange, defaultLayout, describeBlocks, isCustom, KEEP_LINE, layoutPlace, LAYOUT_LIBRARY, navigation, normalizeLayout, parseChange, restoreLine,
+  applyChange, defaultLayout, describeBlocks, goLine, isCustom, KEEP_LINE, layoutPlace, LAYOUT_LIBRARY, navigation, normalizeLayout, parseChange, restoreLine,
   type LayoutBy, type LayoutChange, type LayoutState,
 } from '../../../../platform/runtime/venture/views/layout-core';
 import { EngineError, type LayoutChangeResult, type LayoutPlace, type LayoutRequest, type LayoutView } from './types';
@@ -72,14 +72,14 @@ export class FakeLayoutDesk {
     return this.change(request.place, engine(() => parseChange(request.change)), 'ai');
   }
 
-  /** Stands in for ui_navigate. */
+  /** Stands in for ui_navigate: an offer of a place the owner opens, never a page opened for them. */
   go(place: string, sub = ''): { href: string; line: string } {
     const target = engine(() => navigation(place, sub));
     const list = this.goes.get(this.host.current()) ?? [];
     list.push({ id: `layoutgo_${++this.seq}`, href: target.href, title: target.title, at: this.host.now() });
     this.goes.set(this.host.current(), list);
     this.host.changed();
-    return { href: target.href, line: `Your AI opened ${target.title}.` };
+    return { href: target.href, line: goLine(target.title) };
   }
 
   private list(place: LayoutPlace): Change[] {

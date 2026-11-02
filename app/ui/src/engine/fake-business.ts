@@ -245,6 +245,31 @@ export class FakeBusinessDesk {
     return this.models[biz];
   }
 
+  /**
+   * venture.create's handover (core/venture.ts, draft/handover.ts): the AI connected before the vault comes into the
+   * new business, connected connections only, and the draft desk is wiped. Nothing connected: nothing changes.
+   */
+  adoptDraft(biz: string): void {
+    const connected = this.draftAi.connections.filter((c) => c.status === 'connected');
+    if (connected.length) {
+      const state = this.modelsOf(biz);
+      for (const connection of connected) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}` });
+      this.retier(state);
+    }
+    this.draftAi = clone(DRAFT_AI_STATUS);
+  }
+
+  /**
+   * Today's AI setup row, as views/queue.ts aiState decides it: 'none' while templates serve both tiers, a reason
+   * when a connected AI cannot be used now, null when an AI serves the business.
+   */
+  aiState(biz: string): { kind: 'none' } | { kind: 'attention'; reason: string } | null {
+    const { tiers } = this.modelsOf(biz);
+    if (tiers.main.presetId === 'built-in-templates' && tiers.fast.presetId === 'built-in-templates') return { kind: 'none' };
+    const broken = [tiers.main, tiers.fast].find((tier) => tier.presetId !== 'built-in-templates' && !tier.usable);
+    return broken ? { kind: 'attention', reason: broken.reason } : null;
+  }
+
   private connect(state: ModelStatusLite, p: Record<string, unknown>, biz: string | null): ModelStatusLite {
     const preset = this.presets().find((x) => x.id === p.presetId);
     if (!preset) throw invalid('Choose one of the listed AI options.');

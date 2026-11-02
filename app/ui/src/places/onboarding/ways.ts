@@ -67,7 +67,9 @@ export function wayData(way: WayView, language: 'en', categories: WaysView['cate
     youDo: way.youDo,
     team: { names: way.team.map((member) => member.role), line: way.teamLine },
     // W6 6C3: a sourced range keeps its guide and range id, so the tile shows its (i) in place of the estimate label.
-    pay: { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source, estimate: way.clientsPay.estimate, guide: way.clientsPay.guide, sourced: way.clientsPay.rangeId },
+    pay: way.clientsPay ? { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source, estimate: way.clientsPay.estimate, guide: way.clientsPay.guide, sourced: way.clientsPay.rangeId } : undefined,
+    // W6 F4: a desk for the owner's own use: what it saves them, in place of what clients pay.
+    saves: way.saves ? { range: way.saves.text, line: way.saves.line, source: way.saves.source } : undefined,
     needs: [way.needs.ai, way.needs.connections],
     starter: way.starter,
     families: way.families,

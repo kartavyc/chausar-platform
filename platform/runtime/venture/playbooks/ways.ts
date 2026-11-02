@@ -37,8 +37,13 @@ export type WayData = {
   category: WayCategory;
   /** Hours a week the owner puts in: a model estimate. */
   hours: { min: number; max: number };
-  /** What clients usually pay, in whole rupees: a model estimate. */
-  pay: { minRupees: number; maxRupees: number };
+  /** What clients usually pay, in whole rupees: a model estimate. Absent only on a desk for the owner's own use (saves). */
+  pay?: { minRupees: number; maxRupees: number };
+  /**
+   * W6 F4: a desk the owner runs for themselves (kit ownUse): the hours a month it saves the owner, a model estimate,
+   * and what it keeps straight, in words. Such a way has no pay.
+   */
+  saves?: { min: number; max: number; line: string };
   en: WayLanguage;
 
 
@@ -57,7 +62,7 @@ export type WayData = {
  */
 function fromTile(tile: StartTile, way: WayData): WayData {
   return {
-    ...way, category: tile.category, hours: { min: tile.youDo.hoursMin, max: tile.youDo.hoursMax }, pay: { minRupees: tile.pay.minRupees, maxRupees: tile.pay.maxRupees },
+    ...way, category: tile.category, hours: { min: tile.youDo.hoursMin, max: tile.youDo.hoursMax }, pay: tile.pay ? { minRupees: tile.pay.minRupees, maxRupees: tile.pay.maxRupees } : way.pay,
     en: { ...way.en, line: tile.line, youDo: tile.youDo.line, teamLine: tile.team.line },
     team: [...tile.team.roleIds],
   };
@@ -76,6 +81,11 @@ export const WAY_CATEGORIES: readonly { readonly id: WayCategory; readonly en: s
 export const WAY_SOURCE = Object.freeze({
   en: 'Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.',
 
+});
+
+/** W6 F4: the basis of what a desk for the owner's own use saves them. */
+export const WAY_SAVES_SOURCE = Object.freeze({
+  en: 'Model estimate, written by an AI in November 2026 from general knowledge of doing this work by hand. Not measured, and not a promise.',
 });
 
 /** What every way needs first: the owner's own AI, which the owner pays for (no credits). */

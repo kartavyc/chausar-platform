@@ -71,7 +71,9 @@ async function listTree(folder, prefix = '', found = []) {
 /** The vendor folder of the platform package inside an installed @openai/codex (the layout bin/codex.js reads). */
 export async function codexVendorFolder(packageRoot, platform, architecture) {
   const target = codexTarget(platform, architecture);
-  for (const candidate of [join(packageRoot, 'node_modules', '@openai', `codex-${platform}-${architecture}`, 'vendor', target), join(packageRoot, 'vendor', target)]) {
+  const platformPackage = `codex-${platform}-${architecture}`;
+  // Nested (a global install), beside @openai/codex (a local install hoists it), or the package's own vendor folder.
+  for (const candidate of [join(packageRoot, 'node_modules', '@openai', platformPackage, 'vendor', target), join(packageRoot, '..', platformPackage, 'vendor', target), join(packageRoot, 'vendor', target)]) {
     try { await realFolder(candidate); return candidate; } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   throw new Error(`no Codex ${target} files under ${packageRoot}; install @openai/codex@${CODEX_BUNDLE.version} for this platform first`);

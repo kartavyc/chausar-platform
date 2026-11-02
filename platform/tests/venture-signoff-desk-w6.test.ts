@@ -41,7 +41,8 @@ test('6E5 a rule is checked only with its regulator page; the rest say unchecked
     assert.equal(typeof rule.checked, 'boolean');
     for (const words of [rule.title, rule.line]) { assert.equal(words.includes(EM_DASH), false); assert.deepEqual(houseStyleFindings(words), [], words); }
   }
-  assert.deepEqual(SIGNOFF_RULES.filter(rule => rule.checked).map(rule => rule.id), ['nmc-2002-6-1-1', 'nmc-2002-1-4-1']);
+  // W6 F4: BCI Rule 36 and the Telemedicine Guidelines were read on their official sources on 2 November 2026.
+  assert.deepEqual(SIGNOFF_RULES.filter(rule => rule.checked).map(rule => rule.id), ['bci-rule-36', 'nmc-2002-6-1-1', 'nmc-2002-1-4-1', 'telemedicine-2020']);
   assert.deepEqual(professionSpec('advocate')!.refusedTools.map(item => item.tool), ['outreach', 'advertising']);
   assert.deepEqual(professionSpec('doctor')!.refusedTools.map(item => item.tool), ['outreach', 'advertising']);
 });

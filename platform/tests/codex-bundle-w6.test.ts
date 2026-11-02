@@ -93,6 +93,18 @@ test('staging copies the platform Codex layout with LICENSE, NOTICE and a manife
   assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), manifest);
 });
 
+test('a local npm install keeps the platform package beside @openai/codex, and that layout is found too', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'chausar-codex-hoisted-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  // `npm install @openai/codex` in a folder hoists the platform package: node_modules/@openai/codex-linux-x64 sits beside it.
+  const codex = join(root, 'node_modules/@openai/codex');
+  const vendor = join(root, 'node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl');
+  await mkdir(codex, { recursive: true });
+  await mkdir(vendor, { recursive: true });
+  assert.equal(await codexVendorFolder(codex, 'linux', 'x64'), vendor);
+  await assert.rejects(codexVendorFolder(codex, 'linux', 'arm64'), /no Codex aarch64-unknown-linux-musl files/);
+});
+
 test('staging refuses a different Codex version, a wrong target or architecture, links, and a folder already in use', async t => {
   const wrongVersion = await vendorFixture(t, { version: '0.155.0' });
   await assert.rejects(stageCodexBundle({ source: wrongVersion.root, destination: wrongVersion.destination, platform: 'win32', architecture: 'x64' }), /0\.154\.0/);

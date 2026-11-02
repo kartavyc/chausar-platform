@@ -23,3 +23,5 @@ Thumbs.db
 app/ui/.shots/
 # The Codex files staged for the beta installer (npm run package:codex; 6J1). Copied from a local Codex install.
 vendor/codex-bundle/
+# The report keys a build ships (resources/feedback.json), written by desktop-package.mjs from CHAUSAR_FEEDBACK_* (6J2).
+vendor/feedback/

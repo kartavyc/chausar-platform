@@ -9,7 +9,7 @@
 // says "Not checked against the official page yet". Pure and shared with the fake engine: no clock, no store, no Node
 // built-ins.
 import { HARD_STOPS, type HardStop } from '../policy/hard-stops.ts';
-import { CAUTIONS, PROFESSIONS, professionOf, type CautionSource, type Profession } from './professions.ts';
+import { CAUTIONS, PROFESSIONS, professionOf, sizeLine, type CautionSource, type Profession } from './professions.ts';
 import { FAMILIES } from './families.ts';
 
 export const SIDE_WORK_QUESTION = 'Does your employment contract allow side work? This is your responsibility.';
@@ -23,9 +23,10 @@ export type RegulatorTool = typeof REGULATOR_TOOLS[number];
 
 /**
  * One statute as the screen shows it; source is the official page read (the first, where several were) or null, and
- * checkedDay the day it was read in words ("1 Nov 2026"), so the screen formats nothing.
+ * checkedDay the day it was read in words ("1 Nov 2026"), so the screen formats nothing. W6 F4: size is what the
+ * statute's size threshold counts, with its figure, in words (professions.ts sizeLine), or null when it applies at any size.
  */
-export type ProfessionRule = { id: string; title: string; line: string; checked: boolean; source: CautionSource | null; checkedOn: string | null; checkedDay: string | null };
+export type ProfessionRule = { id: string; title: string; line: string; checked: boolean; source: CautionSource | null; checkedOn: string | null; checkedDay: string | null; size: string | null };
 export type ProfessionCompliance = {
   id: string; label: string; family: string | null;
   rules: readonly ProfessionRule[];
@@ -46,7 +47,7 @@ function ruleOf(id: string): ProfessionRule {
   const source = caution.sources[0];
   return Object.freeze({
     id, title: caution.title, line: caution.line, checked: caution.checked, source: source ? { ...source } : null,
-    checkedOn: caution.checkedOn, checkedDay: caution.checkedOn ? dayWords(caution.checkedOn) : null,
+    checkedOn: caution.checkedOn, checkedDay: caution.checkedOn ? dayWords(caution.checkedOn) : null, size: sizeLine(caution),
   });
 }
 

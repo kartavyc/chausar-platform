@@ -71,7 +71,10 @@ describe('6E5 sign-off desk', () => {
     const advocate = people.rows.find((row: any) => row.profession === 'advocate');
     expect(advocate.professional).toMatchObject({ name: 'Meera Joshi', registrationNumber: 'MAH/1234/2015' });
     expect(advocate.switchedOff.map((row: any) => row.tool)).toEqual(['outreach', 'advertising']);
-    expect(advocate.rules.every((rule: any) => rule.checked === false)).toBe(true);
+    // F4 (2 November 2026) read BCI Rule 36 on barcouncilofindia.org, so the advocate's rule is checked, with its source;
+    // a rule is only ever checked with a source to show for it.
+    expect(advocate.rules.some((rule: any) => rule.checked === true)).toBe(true);
+    for (const rule of advocate.rules) if (rule.checked) expect(JSON.stringify(rule)).toMatch(/barcouncilofindia\.org/);
     const run: any = await engine.request('venture.delivery.run', { orderId: order.id, useTemplate: true }).catch((error: any) => error);
     expect(run?.id, JSON.stringify(run)).toBeTruthy();
     await expect(engine.request('venture.delivery.review', { runId: run.id, verdict: 'accepted' })).rejects.toMatchObject({ code: 'SIGNOFF_REQUIRED' });

@@ -1443,11 +1443,11 @@
           }
         ],
         "teamLine": "Code works every charge; notes for your CA.",
-        "clientsPay": {
-          "text": "₹500 to ₹3,000",
-          "per": "a trader a month",
+        "saves": {
+          "text": "2 to 6 h a month",
+          "line": "Charges, profit or loss and tax records kept straight for your CA.",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in November 2026 from general knowledge of doing this work by hand. Not measured, and not a promise."
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",

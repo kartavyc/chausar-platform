@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { ComplianceCheck, type ComplianceAnswer } from '../../parts/ComplianceCheck';
 import { Icon } from '../../parts/Icon';
 import { Logo } from '../../parts/Logo';
 import { AboutYou, type KeptPlan } from './AboutYou';
@@ -11,13 +12,15 @@ import { Start } from './Start';
 import f from './FirstRun.module.css';
 import s from './Onboarding.module.css';
 
-type Step = 'ai' | 'about' | 'keep' | 'needs';
-const ORDER: readonly Step[] = ['ai', 'about', 'keep', 'needs'];
+type Step = 'ai' | 'about' | 'check' | 'keep' | 'needs';
+const ORDER: readonly Step[] = ['ai', 'about', 'check', 'keep', 'needs'];
 
 /**
- * The first run (W6 6C1, 6C2, 6C7; reference-ui/Main.dc.html and OnboardAB.dc.html): Connect your AI, then About you,
- * then the plan is kept (the vault, a passphrase only where this computer has no protected storage, the recovery code
- * the engine shows once), then Connect what your business needs, then Today. The top bar names the three steps.
+ * The first run (W6 6C1, 6C2, 6C6, 6C7; reference-ui/Main.dc.html and OnboardAB.dc.html): Connect your AI, then About
+ * you, then the side-work question and the field's rules (6C6, DECISIONS D5: asked once the field is picked, before
+ * anything is kept, and recorded right after venture.create), then the plan is kept (the vault, a passphrase only
+ * where this computer has no protected storage, the recovery code the engine shows once), then Connect what your
+ * business needs, then Today. The top bar names the three steps.
  *
  * Reached from Welcome back it also offers the way back to the businesses on this computer; on a computer with no
  * business yet it offers one quiet way to a business that already exists. Both ways away go once keeping has begun
@@ -32,10 +35,21 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const [connected, setConnected] = useState<string | null>(null);
   const [plan, setPlan] = useState<KeptPlan | null>(null);
   const [begun, setBegun] = useState(false);
+  const [sideWork, setSideWork] = useState<ComplianceAnswer | null>(null);
+  const [inVault, setInVault] = useState(false);
 
-  /** The plan is in the vault: remember the field it was kept with (for Connections), then the services step. */
+  /**
+   * The plan is in the vault: remember the field it was kept with (for Connections), record the side-work answer
+   * given before the business existed, then the services step. If that record fails, the question shows again and
+   * records itself.
+   */
   async function kept() {
     if (plan) await client.request('venture.owner.set', { familyId: plan.read.family.id }).catch(() => undefined);
+    setInVault(true);
+    if (sideWork) {
+      try { await client.request('venture.compliance.set', { profession: sideWork.profession, sideWork: sideWork.sideWork, digest: sideWork.digest }); }
+      catch { setStep('check'); return; }
+    }
     setStep('needs');
   }
 
@@ -56,7 +70,7 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
 
   const past = (target: Step) => ORDER.indexOf(step) > ORDER.indexOf(target);
   const mark = (n: number, done: boolean) => <span className={f.stepMark} aria-hidden="true">{done ? <Icon name="check" size={12} /> : n}</span>;
-  const away = !begun && (step === 'ai' || step === 'about');
+  const away = !begun && (step === 'ai' || step === 'about' || step === 'check');
   return (
     <div className={f.page}>
       <div>{status}</div>
@@ -68,12 +82,19 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
             <li className={f.step} aria-current={step === 'ai' ? 'step' : undefined} data-done={past('ai') ? '' : undefined}>
               {mark(1, past('ai'))}{step === 'ai' ? t('first-run.step.ai') : connected ? t('first-run.step.connected', { name: connected }) : t('first-run.step.templates')}
             </li>
-            <li className={f.step} aria-current={step === 'about' ? 'step' : undefined} data-done={past('about') ? '' : undefined}>{mark(2, past('about'))}{t('first-run.step.about')}</li>
+            <li className={f.step} aria-current={step === 'about' || step === 'check' ? 'step' : undefined} data-done={past('check') ? '' : undefined}>{mark(2, past('check'))}{t('first-run.step.about')}</li>
             <li className={f.step} aria-current={step === 'keep' || step === 'needs' ? 'step' : undefined}>{mark(3, false)}{t('first-run.step.business')}</li>
           </ol>
         </div>
         {step === 'ai' && <ConnectAi onDone={(name) => { setConnected(name); setStep('about'); }} onSkip={() => { setConnected(null); setStep('about'); }} />}
-        {step === 'about' && <AboutYou connected={connected !== null} onKeep={(next) => { setPlan(next); setStep('keep'); }} />}
+        {step === 'about' && <AboutYou connected={connected !== null} onKeep={(next) => { setPlan(next); setStep('check'); }} />}
+        {step === 'check' && plan && (
+          <div className={f.wrap}>
+            <h1 className={f.title}>{t('compliance.title')}</h1>
+            <ComplianceCheck profession={plan.read.family.id} record={inVault}
+              onDone={(answer) => { if (inVault) setStep('needs'); else { setSideWork(answer); setStep('keep'); } }} />
+          </div>
+        )}
         {step === 'keep' && plan && (
           <div className={f.wrap}>
             <Start variant="first-run" onStarted={onStarted} onBegin={setBegun} plan={{ idea: plan.read.idea, countryCode: plan.countryCode }} onKept={kept} />

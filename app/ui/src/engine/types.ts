@@ -1101,7 +1101,7 @@ export interface RuleLocksLite { playbook: { id: string; label: string } | null;
 /** W6 6C6: `venture.compliance.get` and `.set`: the side-work question, the profession's rules and regulator switches. */
 export interface ComplianceLite {
   profession: { id: string; label: Display; family: string | null }; question: Display; responsibility: Display;
-  rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null }[]; switchedOff: { tool: string; line: Display }[];
+  rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null; size: Display | null }[]; switchedOff: { tool: string; line: Display }[];
   hardStops: { id: string; line: Display }[]; digest: string;
   recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: string } | null;
 }
@@ -1241,7 +1241,7 @@ export interface ChiefSettleResult { days: number; undo: number; line: Display }
  * W6 6H3 (D40): a place's layout as data (platform/runtime/venture/views/layout-core.ts and layout.ts). Blocks come in
  * the order the page draws them; `keep` blocks (approvals, questions, stops, money totals) always show, keep their slot
  * and their name. `ai` lists the AI's changes since the owner's own last one, with one Undo; `go` is the AI's latest
- * request to open a place.
+ * offer of a place, shown as a link the owner opens (never opened by itself).
  */
 export type LayoutPlace = 'today' | 'money';
 export type LayoutKeep = 'approval' | 'question' | 'hard-stop' | 'money';
@@ -1541,7 +1541,10 @@ export interface WayView {
   hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
   team: { role: string; initials: string; department: DepartmentId }[]; teamLine: Display;
   /** W6 6C3: estimate is false where a sourced range for the way's own service replaced the model estimate; guide: the profession's sources or "No reliable data". */
-  clientsPay: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string }; needs: WayNeeds; starter: Display;
+  clientsPay?: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string };
+  /** W6 F4: a desk for the owner's own use: what it saves them (a model estimate), in place of clientsPay. */
+  saves?: { text: Display; line: Display; estimate: true; source: Display };
+  needs: WayNeeds; starter: Display;
   yours: { businessId: string; name: string }[];
   /** W6 6E6 (D2): the profession families this way serves, in the families' order. */
   families: string[];

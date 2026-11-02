@@ -175,6 +175,10 @@ export type KitPlanPicks = { offers: readonly string[]; approvals: readonly stri
  * The Start gallery's tile: category, icon, line, what the owner does and the hours a week, the team (at most four role
  * ids) and what clients usually pay. Hours and pay are a model estimate, always labelled so (wave 4's ways.ts WayData
  * is how the gallery shows them today; 5A1 maps one onto the other).
+ *
+ * W6 F4 (founder, 2 November 2026): a desk the owner runs for themselves (ownUse) has no clients, so its tile carries no
+ * pay. It carries saves instead: the hours a month it saves the owner, a model estimate labelled so, and what it keeps
+ * straight, in words (no figure). Every other desk carries pay and no saves; definePlaybook holds the two apart.
  */
 export type StartTile = {
   category: WayCategory;
@@ -182,7 +186,8 @@ export type StartTile = {
   line: string;
   youDo: { hoursMin: number; hoursMax: number; line: string };
   team: { roleIds: readonly string[]; line: string };
-  pay: { minRupees: number; maxRupees: number; per: string };
+  pay?: { minRupees: number; maxRupees: number; per: string };
+  saves?: { hoursMin: number; hoursMax: number; line: string };
 };
 
 /** What the honest exit (5A2 scopeOf) reads: phrases in and out of scope, and where to point the rest. */
@@ -192,6 +197,11 @@ export type KitScope = { inScope: readonly string[]; outOfScope: readonly string
 export type PlaybookDefinition = {
   /** Enables the shared version-bound client request room for this playbook. */
   clientRoom?: boolean;
+  /**
+   * W6 F4: true for a desk the owner runs for themselves (every offer internal, no paid pilot, a tile that says what it
+   * saves). A desk whose every offer is internal must say so; definePlaybook refuses it otherwise.
+   */
+  ownUse?: true;
   registration: PlaybookRegistration;
   offers: readonly KitOffer[];
   roles: readonly KitRole[];
@@ -235,6 +245,8 @@ const ROLE_KINDS: readonly KitRole['kind'][] = ['agent', 'code', 'person'];
 const WHO: readonly KitApproval['who'][] = ['owner', 'client', 'ca', 'other'];
 /** The most hours a week a tile may say the owner works. */
 export const TILE_MAX_HOURS = 60;
+/** W6 F4: the most hours a month an own-use tile may say it saves the owner (about a working month). */
+export const TILE_MAX_SAVED_HOURS = 160;
 /** The most roles a tile's team shows. */
 export const TILE_MAX_TEAM = 4;
 
@@ -291,6 +303,7 @@ export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = 
     throw new ChausarError('PLAYBOOK_DEFINITION_INVALID', `The ${id} work plan's ${field}: ${why}`);
   };
   if (definition.clientRoom !== undefined && typeof definition.clientRoom !== 'boolean') refuse('clientRoom', 'must be true or false.');
+  if (definition.ownUse !== undefined && definition.ownUse !== true) refuse('ownUse', 'must be true or left out.');
   try { validateRegistry([definition.registration]); } catch (error) { refuse('registration', (error as Error).message); }
 
   const roles = new Map<string, KitRole>();
@@ -347,7 +360,17 @@ export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = 
     for (const stage of offer.stages) if (!steps.has(stage)) refuse('offers', `the offer ${offer.id} names the step ${stage}, which does not exist.`);
     for (const field of offer.intake) if (!fields.has(field)) refuse('offers', `the offer ${offer.id} asks for ${field}, which is not one of its intake fields.`);
   }
-  if (!offers.some(offer => offer.pilotable)) refuse('offers', 'at least one offer can be a paid pilot.');
+  // W6 F4: a desk the owner runs for themselves has no clients, so no client offer and no paid pilot; and a desk whose
+  // every offer is internal is one, so it must carry the marker (its tile then says what it saves, never what clients pay).
+  if (definition.ownUse) {
+    const client = offers.find(offer => offer.audience !== 'internal');
+    if (client) refuse('offers', `the offer ${client.id} is for a client or the public, but this desk is for your own use.`);
+    const pilot = offers.find(offer => offer.pilotable);
+    if (pilot) refuse('offers', `the offer ${pilot.id} cannot be a paid pilot: a desk for your own use has no clients.`);
+  } else {
+    if (offers.every(offer => offer.audience === 'internal')) refuse('ownUse', 'every offer is for your own use, so mark the desk ownUse: true.');
+    if (!offers.some(offer => offer.pilotable)) refuse('offers', 'at least one offer can be a paid pilot.');
+  }
 
   for (const approval of definition.approvals ?? []) {
     if (!steps.has(approval.step)) refuse('approvals', `the approval ${approval.id} is on the step ${approval.step}, which does not exist.`);
@@ -380,8 +403,21 @@ export function definePlaybook(definition: PlaybookDefinition, today: IsoDate = 
   if (!Number.isInteger(hoursMin) || !Number.isInteger(hoursMax) || hoursMin < 1 || hoursMin > hoursMax || hoursMax > TILE_MAX_HOURS) {
     refuse('startTile', 'the hours a week are whole hours from one to sixty, the fewest first.');
   }
-  const { minRupees, maxRupees } = tile.pay;
-  if (!Number.isSafeInteger(minRupees) || !Number.isSafeInteger(maxRupees) || minRupees < 1 || minRupees > maxRupees) refuse('startTile', 'what clients pay is whole rupees above zero, the lowest first.');
+  if (definition.ownUse) {
+    // W6 F4: what an own-use desk saves the owner, never a price range.
+    if (tile.pay !== undefined) refuse('startTile', 'a desk for your own use shows no price range: say what it saves you instead.');
+    const saves = tile.saves ?? refuse('startTile', 'a desk for your own use says what it saves you: hours a month and what it keeps straight.');
+    if (!Number.isInteger(saves.hoursMin) || !Number.isInteger(saves.hoursMax) || saves.hoursMin < 1 || saves.hoursMax > TILE_MAX_SAVED_HOURS) {
+      refuse('startTile', `the hours a month it saves are whole hours from one to ${TILE_MAX_SAVED_HOURS}.`);
+    }
+    if (saves.hoursMin > saves.hoursMax) refuse('startTile', 'the hours a month it saves go the fewest first.');
+    if (typeof saves.line !== 'string' || !saves.line.trim()) refuse('startTile', 'say in words what it keeps straight for you.');
+  } else {
+    if (tile.saves !== undefined) refuse('startTile', 'a desk for clients shows what clients pay, not what it saves you.');
+    const pay = tile.pay ?? refuse('startTile', 'a desk for clients shows what clients pay.');
+    const { minRupees, maxRupees } = pay;
+    if (!Number.isSafeInteger(minRupees) || !Number.isSafeInteger(maxRupees) || minRupees < 1 || minRupees > maxRupees) refuse('startTile', 'what clients pay is whole rupees above zero, the lowest first.');
+  }
   if (tile.team.roleIds.length > TILE_MAX_TEAM) refuse('startTile', 'its team shows at most four roles.');
   for (const role of tile.team.roleIds) if (!roles.has(role)) refuse('startTile', `its team names ${role}, which is not one of its roles.`);
 

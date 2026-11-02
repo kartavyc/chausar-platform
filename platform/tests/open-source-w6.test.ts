@@ -74,11 +74,21 @@ test('NOTICE lists every direct production dependency at its pinned version and 
   }
   for (const name of ['react', 'react-dom', 'scheduler', 'lucide-react', 'electron']) assert.match(notice, new RegExp(`^${name} \\S+ `, 'm'), name);
   assert.match(notice, /Codex/);
-  assert.match(notice, /@anthropic-ai\/claude-agent-sdk 0\.3\.286 .*FLAG/);
+  // The founder's section 7 permission (2 November 2026) covers the Agent SDK, so it is listed but no longer flagged.
+  assert.match(notice, /^@anthropic-ai\/claude-agent-sdk 0\.3\.286 .*covered by the section 7 permission above/m);
+  assert.doesNotMatch(notice, /^@anthropic-ai\/claude-agent-sdk\S* \S+ .*FLAG/m);
   // Platform-specific builds and later transitive versions may differ on another machine, but no package may be missing.
   for (const item of shipped.filter((entry: { platformSpecific: boolean }) => !entry.platformSpecific)) {
     assert.match(notice, new RegExp(`^${item.name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')} \\S+ `, 'm'), `NOTICE lists ${item.name}`);
   }
+});
+
+test('a licence given as a list, or only in a reviewed licence file, is read rather than flagged', async () => {
+  const notice = await read('NOTICE');
+  // pause-stream declares ["MIT", "Apache2"]; map-stream declares nothing, and its LICENCE file is the MIT text.
+  assert.match(notice, /^pause-stream \S+ MIT OR Apache2$/m);
+  assert.match(notice, /^map-stream 0\.1\.0 MIT \(from its licence file\)$/m);
+  assert.match(notice, /^Flagged packages: 0$/m);
 });
 
 test('NOTICE renders deterministically from what is installed here', () => {
@@ -86,13 +96,26 @@ test('NOTICE renders deterministically from what is installed here', () => {
   assert.equal(renderNotice(shipped, root), renderNotice(shipped, root));
 });
 
-test('CONTRIBUTING keeps house style and leaves the DCO or CLA choice to the founder', async () => {
-  for (const path of ['CONTRIBUTING.md', 'NOTICE']) assert.deepEqual(houseStyleFindings(await read(path)), [], path);
+test('NOTICE names the copyright holder and carries the section 7 permission for the Agent SDK', async () => {
+  const notice = await read('NOTICE');
+  assert.match(notice, /^Copyright \(C\) 2026 Kartavy Chauhan$/m);
+  assert.doesNotMatch(notice, /The Chausar authors/);
+  assert.match(notice, /Additional permission under GNU AGPL version 3 section 7/);
+  assert.match(notice, /@anthropic-ai\/claude-agent-sdk/);
+  assert.match(notice, /Corresponding\s+Source[\s\S]*shall not include the source code for the parts of the Claude\s+Agent SDK/);
+});
+
+test('CONTRIBUTING and CLA: contributions come under the founder contributor licence agreement', async () => {
+  for (const path of ['CONTRIBUTING.md', 'NOTICE', 'CLA.md']) assert.deepEqual(houseStyleFindings(await read(path)), [], path);
   const contributing = await read('CONTRIBUTING.md');
   assert.match(contributing, /test first/i);
   assert.match(contributing, /em dash/i);
   assert.match(contributing, /AGPL/);
-  assert.match(contributing, /DCO/);
-  assert.match(contributing, /CLA/);
-  assert.match(contributing, /founder/i);
+  assert.match(contributing, /CLA\.md/);
+  assert.doesNotMatch(contributing, /not decided yet/);
+  const cla = await read('CLA.md');
+  assert.match(cla, /Kartavy Chauhan/);
+  assert.match(cla, /copyright licen[cs]e/i);
+  assert.match(cla, /patent licen[cs]e/i);
+  assert.match(cla, /I have read the CLA and I agree to it\./);
 });

@@ -3489,7 +3489,7 @@ export type ComplianceView = {
   profession: { id: string; label: string; family: string | null };
   question: string; responsibility: string;
   /** W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. */
-  rules: { id: string; title: string; line: string; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: IsoDate | null; checkedDay: string | null }[];
+  rules: { id: string; title: string; line: string; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: IsoDate | null; checkedDay: string | null; size: string | null }[];
   switchedOff: { tool: string; line: string }[];
   hardStops: { id: string; line: string }[];
   digest: string;
@@ -3687,7 +3687,7 @@ export type ChiefThreadRecord = RecordBase<'venture-chief-thread'> & {
 export type ChatSettleRecord = RecordBase<'venture-chat-settle'> & { days: number };
 /** W6 6H3 (D40): one change to an owner's layout of a place (views/layout-core.ts), who made it and its line. */
 export type LayoutRecord = RecordBase<'venture-layout'> & { place: LayoutPlace; state: LayoutState; by: LayoutBy; line: string; op: LayoutChange['op'] };
-/** W6 6H3: the owner's AI asked the app to open a place; the app opens it once. */
+/** W6 6H3: the owner's AI offered a place; the app shows a link the owner opens, never opening it by itself. */
 export type LayoutGoRecord = RecordBase<'venture-layout-go'> & { href: string; title: string };
 /** One message in a Chats thread (4C1): the owner's words, or the chief's typed answer with the receipts its tools returned. */
 export type ChiefMessageRecord = RecordBase<'venture-chief-message'> & {
@@ -5204,7 +5204,13 @@ export type WayView = {
    * guide: the profession's sourced ranges or "No reliable data"; absent when the way maps to no beta profession.
    * rangeId: which of the guide's ranges is shown, only when estimate is false.
    */
-  clientsPay: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string };
+  clientsPay?: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string };
+  /**
+   * W6 F4 (founder, 2 November 2026): a desk the owner runs for themselves (kit ownUse) has no clientsPay. saves says
+   * what it saves the owner instead: text the hours a month ("2 to 6 h a month"), always a model estimate with its basis
+   * (source), and line what it keeps straight, in words. Every other way has clientsPay and no saves.
+   */
+  saves?: { text: Display; line: Display; estimate: true; source: Display };
   needs: WayNeeds;
   starter: Display;
   yours: { businessId: string; name: string }[];

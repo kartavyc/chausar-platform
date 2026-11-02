@@ -28,9 +28,11 @@ export function kitWay(definition: PlaybookDefinition): WayData {
     playbook: id,
     category: tile.category,
     hours: { min: tile.youDo.hoursMin, max: tile.youDo.hoursMax },
-    pay: { minRupees: tile.pay.minRupees, maxRupees: tile.pay.maxRupees },
+    // W6 F4: a desk for the owner's own use says what it saves them, never what clients pay (kit define.ts ownUse).
+    ...(tile.pay ? { pay: { minRupees: tile.pay.minRupees, maxRupees: tile.pay.maxRupees } } : {}),
+    ...(tile.saves ? { saves: { min: tile.saves.hoursMin, max: tile.saves.hoursMax, line: tile.saves.line } } : {}),
     en: {
-      label: definition.registration.label, line: tile.line, youDo: tile.youDo.line, teamLine: tile.team.line, per: tile.pay.per,
+      label: definition.registration.label, line: tile.line, youDo: tile.youDo.line, teamLine: tile.team.line, per: tile.pay?.per ?? '',
       starter: `${head}: ${tile.line}`,
       needs: working.length ? `Works with ${listed(working.map(connector => connector.name), 'and')}.` : 'Nothing past your own AI and your files.',
     },

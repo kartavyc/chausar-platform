@@ -51,8 +51,8 @@ test('the start tile: hours in order and at most sixty, rupees above zero and in
   const tile = (change: Partial<PlaybookDefinition['startTile']>) => kitFixture({ startTile: { ...base.startTile, ...change } });
   refused(tile({ youDo: { ...base.startTile.youDo, hoursMin: 5, hoursMax: 4 } }), 'startTile', /fewest first/);
   refused(tile({ youDo: { ...base.startTile.youDo, hoursMin: 10, hoursMax: 61 } }), 'startTile', /one to sixty/);
-  refused(tile({ pay: { ...base.startTile.pay, minRupees: 0 } }), 'startTile', /above zero/);
-  refused(tile({ pay: { ...base.startTile.pay, minRupees: 20000, maxRupees: 15000 } }), 'startTile', /lowest first/);
+  refused(tile({ pay: { ...base.startTile.pay!, minRupees: 0 } }), 'startTile', /above zero/);
+  refused(tile({ pay: { ...base.startTile.pay!, minRupees: 20000, maxRupees: 15000 } }), 'startTile', /lowest first/);
   refused(tile({ team: { ...base.startTile.team, roleIds: ['researcher', 'stranger'] } }), 'startTile', /stranger/);
   const many = kitFixture({
     roles: [...base.roles, { id: 'checker', name: 'Checker', kind: 'agent', department: 'operations', job: 'Checks the posts.' }],

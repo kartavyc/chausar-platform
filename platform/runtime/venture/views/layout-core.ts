@@ -301,7 +301,10 @@ export function isCustom(place: LayoutPlace, state: LayoutState): boolean {
   return state.hidden.length > 0 || Object.keys(state.names).length > 0 || state.order.join() !== base.order.join();
 }
 
-/** Places the AI may open, and the sub-page words it may add (Money's pages, Business pages and the like). */
+/** The line for the AI's offer of a place (founder, 2 November 2026): the app shows a link; only the owner opens it. */
+export const goLine = (title: string) => `Your AI suggests ${title}.`;
+
+/** Places the AI may offer, and the sub-page words it may add (Money's pages, Business pages and the like). */
 export const NAV_PLACES: readonly { id: string; title: string }[] = Object.freeze([
   { id: 'today', title: 'Today' }, { id: 'chats', title: 'Chats' }, { id: 'team', title: 'Team' }, { id: 'work', title: 'Work' },
   { id: 'clients', title: 'Clients' }, { id: 'money', title: 'Money' }, { id: 'connections', title: 'Connections' }, { id: 'business', title: 'Business' },

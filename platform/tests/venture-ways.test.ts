@@ -86,13 +86,15 @@ test('ways: each way has its category, hours a week, the work plan\'s own AI tea
     assert.equal(way.hours, `${way.minHours} to ${way.maxHours} h a week`);
     assert.ok(Number.isInteger(way.minHours) && Number.isInteger(way.maxHours) && way.minHours >= 1 && way.minHours <= way.maxHours && way.maxHours <= 60);
     assert.equal(way.hoursEstimate, true, 'the hours are a model\'s too');
+    // W6 F4: a desk for the owner's own use says what it saves them instead of what clients pay.
+    if (way.saves) { assert.equal(way.clientsPay, undefined, way.id); assert.equal(way.saves.estimate, true); continue; }
     // W6 6C3: a credible range for the way's own service replaces the model estimate, with its publishers and date.
     const sourced = Boolean(WAY_PRICES[way.playbook]?.range);
-    assert.equal(way.clientsPay.estimate, !sourced);
-    if (sourced) assert.match(way.clientsPay.source, /\. Checked 1 Nov 2026\.$/);
-    else assert.equal(way.clientsPay.source, WAY_SOURCE.en);
-    if (!sourced) assert.match(way.clientsPay.text, /^₹[\d,]+ to ₹[\d,]+$/);
-    assert.ok(way.line.length > 0 && way.youDo.length > 0 && way.teamLine.length > 0 && way.clientsPay.per.length > 0);
+    assert.equal(way.clientsPay!.estimate, !sourced);
+    if (sourced) assert.match(way.clientsPay!.source, /\. Checked 1 Nov 2026\.$/);
+    else assert.equal(way.clientsPay!.source, WAY_SOURCE.en);
+    if (!sourced) assert.match(way.clientsPay!.text, /^₹[\d,]+ to ₹[\d,]+$/);
+    assert.ok(way.line.length > 0 && way.youDo.length > 0 && way.teamLine.length > 0 && way.clientsPay!.per.length > 0);
   }
   assert.deepEqual(byId(view, 'youtube'), {
     ...byId(view, 'youtube'),
@@ -106,10 +108,10 @@ test('ways: each way has its category, hours a week, the work plan\'s own AI tea
     clientsPay: { text: '₹5,000 to ₹30,000', per: 'per video', estimate: true, source: WAY_SOURCE.en, guide: priceGuide('video-editor') },
   });
   const ca = byId(view, 'ca-firm');
-  assert.deepEqual([ca.label, ca.category, ca.department, ca.hours, ca.maxHours, ca.clientsPay.text, ca.clientsPay.per], ['CA practice', 'money-and-tax', 'money', '6 to 10 h a week', 10, '₹5,000 to ₹20,000', 'a client a month']);
+  assert.deepEqual([ca.label, ca.category, ca.department, ca.hours, ca.maxHours, ca.clientsPay!.text, ca.clientsPay!.per], ['CA practice', 'money-and-tax', 'money', '6 to 10 h a week', 10, '₹5,000 to ₹20,000', 'a client a month']);
   assert.deepEqual(ca.team.map(member => member.initials), ['RE', 'TP']);
   const social = byId(view, 'social-agency');
-  assert.deepEqual([social.label, social.category, social.department, social.hours, social.maxHours, social.clientsPay.text, social.clientsPay.per], ['Social media agency', 'marketing', 'marketing', '4 to 6 h a week', 6, '₹8,000 to ₹25,000', 'a client a month']);
+  assert.deepEqual([social.label, social.category, social.department, social.hours, social.maxHours, social.clientsPay!.text, social.clientsPay!.per], ['Social media agency', 'marketing', 'marketing', '4 to 6 h a week', 6, '₹8,000 to ₹25,000', 'a client a month']);
   assert.deepEqual(social.team.map(member => member.role), ['Strategist', 'Writer', 'Creative']);
   const names = view.ways.flatMap(way => way.team.map(member => member.role));
   for (const codeRole of ['Chausar', 'Calculator', 'Checks']) assert.ok(!names.includes(codeRole), `${codeRole} is code, not an agent`);
@@ -194,8 +196,8 @@ test('ways: every way names a registered playbook that runs today; a way for an 
   assert.throws(() => validateWays([...WAYS, structuredClone(first) as WayData]), /twice/);
   assert.throws(() => validateWays(broken(way => ({ ...way, hours: { min: 9, max: 4 } }))), /hours/);
   assert.throws(() => validateWays(broken(way => ({ ...way, hours: { min: 4, max: 61 } }))), /hours/);
-  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay, minRupees: 0 } }))), /pay/);
-  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay, minRupees: 90000, maxRupees: 1000 } }))), /pay/);
+  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay!, minRupees: 0 } }))), /pay/);
+  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay!, minRupees: 90000, maxRupees: 1000 } }))), /pay/);
   assert.throws(() => validateWays(broken(way => ({ ...way, category: 'space' as WayData['category'] }))), /category/);
 
   assert.throws(() => validateWays(broken(way => ({ ...way, en: { ...way.en, starter: 'Something with no playbook words at all.' } }))), /starter/);

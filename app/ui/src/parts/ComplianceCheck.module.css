@@ -63,6 +63,13 @@
   color: var(--link);
 }
 
+/* W6 F4: what a statute's size threshold counts, under its line. */
+.size {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
 .subheading {
   margin: 0;
   font-size: var(--text-label);

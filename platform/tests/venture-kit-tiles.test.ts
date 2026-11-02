@@ -25,27 +25,27 @@ test('the three flagship tiles carry the plan\'s words, hours, team and pay, as 
   assert.equal(youtube.line, "Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.");
   assert.deepEqual([youtube.hours, youtube.youDo, youtube.teamLine], ['4 to 8 h a week', 'Record, watch each cut, meet sponsors.', 'Edits, shorts, titles and sponsor quotes.']);
   assert.deepEqual(youtube.team.map(member => [member.role, member.department]), [['Story editor', 'production'], ['Producer', 'sales'], ['Packager', 'marketing']]);
-  assert.deepEqual([youtube.clientsPay.text, youtube.clientsPay.per], ['₹5,000 to ₹30,000', 'per video']);
+  assert.deepEqual([youtube.clientsPay!.text, youtube.clientsPay!.per], ['₹5,000 to ₹30,000', 'per video']);
   const ca = byId('ca-firm');
   assert.equal(ca.line, 'Books, GST, TDS and income tax working papers for small businesses; your CA of record signs anything regulated.');
   assert.deepEqual([ca.category, ca.hours, ca.youDo, ca.teamLine], ['money-and-tax', '6 to 10 h a week', 'Meet clients, review drafts, work with your CA.', 'Books, workings, receipts for every figure.']);
   assert.deepEqual(ca.team.map(member => member.role), ['Reconciler', 'Tax preparer'], 'its code roles are never shown as AI');
-  assert.deepEqual([ca.clientsPay.text, ca.clientsPay.per], ['₹5,000 to ₹20,000', 'a client a month']);
+  assert.deepEqual([ca.clientsPay!.text, ca.clientsPay!.per], ['₹5,000 to ₹20,000', 'a client a month']);
   const social = byId('social-agency');
   assert.equal(social.line, 'Posts, replies, reels and monthly reports for local shops, clinics and coaches.');
   assert.deepEqual([social.category, social.hours, social.youDo, social.teamLine], ['marketing', '4 to 6 h a week', 'Approve drafts, talk to clients, post or hand off.', 'Calendars, posts, reply drafts, report figures from exports.']);
   assert.deepEqual(social.team.map(member => member.role), ['Strategist', 'Writer', 'Creative']);
-  assert.deepEqual([social.clientsPay.text, social.clientsPay.per], ['₹8,000 to ₹25,000', 'a client a month']);
+  assert.deepEqual([social.clientsPay!.text, social.clientsPay!.per], ['₹8,000 to ₹25,000', 'a client a month']);
   for (const way of [youtube, ca, social]) {
     assert.equal(way.hoursEstimate, true);
-    assert.equal(way.clientsPay.estimate, true);
-    assert.equal(way.clientsPay.source, WAY_SOURCE.en);
+    assert.equal(way.clientsPay!.estimate, true);
+    assert.equal(way.clientsPay!.source, WAY_SOURCE.en);
 
   }
   // Each flagship's tile is its tile.ts data, team roles included (at most four, code roles left off the avatars).
   for (const [tile, id] of [[YOUTUBE_TILE, 'youtube'], [CA_FIRM_TILE, 'ca-firm'], [SOCIAL_AGENCY_TILE, 'social-agency']] as const) {
     const way = WAYS.find(item => item.playbook === id)!;
-    assert.deepEqual([way.category, way.hours, way.pay, way.en.line, way.en.youDo, way.en.teamLine], [tile.category, { min: tile.youDo.hoursMin, max: tile.youDo.hoursMax }, { minRupees: tile.pay.minRupees, maxRupees: tile.pay.maxRupees }, tile.line, tile.youDo.line, tile.team.line]);
+    assert.deepEqual([way.category, way.hours, way.pay, way.en.line, way.en.youDo, way.en.teamLine], [tile.category, { min: tile.youDo.hoursMin, max: tile.youDo.hoursMax }, { minRupees: tile.pay!.minRupees, maxRupees: tile.pay!.maxRupees }, tile.line, tile.youDo.line, tile.team.line]);
     assert.ok(tile.team.roleIds.length <= 4);
   }
 });
@@ -61,7 +61,7 @@ test('a kit playbook gets one tile from its definition, in English, with both fi
     'Kit fixture studio', 'marketing', 'Voice sheets, calendars and posts for small shops.', '2 to 4 h a week', 'Approve drafts and talk to clients.', 'Research, voice sheets and posts.',
   ]);
   assert.deepEqual(kit.team.map(member => [member.role, member.department]), [['Researcher', 'marketing'], ['Writer', 'production']], 'Billing is code, never an AI avatar');
-  assert.deepEqual([kit.clientsPay.text, kit.clientsPay.per, kit.clientsPay.estimate, kit.hoursEstimate], ['₹5,000 to ₹15,000', 'a client a month', true, true]);
+  assert.deepEqual([kit.clientsPay!.text, kit.clientsPay!.per, kit.clientsPay!.estimate, kit.hoursEstimate], ['₹5,000 to ₹15,000', 'a client a month', true, true]);
 
 
 

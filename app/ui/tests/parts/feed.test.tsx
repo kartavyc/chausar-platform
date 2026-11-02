@@ -713,7 +713,7 @@ describe('GalleryTile', () => {
   });
 
   it("at rest: the hours with what you do; the rest, what you do and what the AI team does, one fold away (W4 4J21)", () => {
-    render(<GalleryTile way={{ ...WAY, needs: ['Your own AI, paid by you directly.'], pay: { ...WAY.pay, source: 'Model estimate, not a promise.' } }} onStart={() => {}} />);
+    render(<GalleryTile way={{ ...WAY, needs: ['Your own AI, paid by you directly.'], pay: { ...WAY.pay!, source: 'Model estimate, not a promise.' } }} onStart={() => {}} />);
     const tile = screen.getByRole('article', { name: 'Wedding videos' });
     expect(within(tile).getByText('Your time')).toBeTruthy();
     // The hours read as words, not as code (4Z2 cold review): body text, never the figure face.

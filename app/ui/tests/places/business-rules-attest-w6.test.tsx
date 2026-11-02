@@ -2,7 +2,7 @@
 // "I am responsible for this in my business" that records the date and can be withdrawn; then the hard stops, one line
 // each, with no tick. W6 6C6: the side-work and compliance check onboarding mounts (ComplianceCheck).
 import { describe, expect, it } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineProvider } from '../../src/engine/context';
@@ -76,7 +76,9 @@ describe('ComplianceCheck (6C6)', () => {
     expect(await screen.findByText('Does your employment contract allow side work? This is your responsibility.')).toBeTruthy();
     expect(screen.getByText('Advocates may not advertise or ask people for work, directly or through others.')).toBeTruthy();
     expect(screen.getByText('Outreach is off: Bar Council rules bar advocates from asking people for work.')).toBeTruthy();
-    expect(screen.getAllByText('Not checked against the official page yet').length).toBeGreaterThan(0);
+    // W6 F4: BCI Rule 36 was read on the Bar Council's own site on 2 November 2026.
+    expect(screen.getByRole('link', { name: 'Official text, checked 2 Nov 2026' }).getAttribute('href')).toBe('https://www.barcouncilofindia.org/info/bar-counci-g36acc');
+    expect(screen.queryByText('Not checked against the official page yet')).toBeNull();
     const go = screen.getByRole('button', { name: 'Continue' });
     expect(go.getAttribute('aria-disabled')).toBe('true');
     await act(async () => { fireEvent.click(screen.getByRole('radio', { name: 'I am not sure' })); });
@@ -93,5 +95,14 @@ describe('ComplianceCheck (6C6)', () => {
     expect(link.getAttribute('href')).toMatch(/^https:\/\/megscpcr\.gov\.in\//);
     expect(link.getAttribute('target')).toBe('_blank');
     expect(screen.queryByText('Not checked against the official page yet')).toBeNull();
+  });
+  it('W6 F4: a statute with a size threshold says what it counts, in the engine\'s words; one with none says nothing', async () => {
+    const client = createFakeClient(new FakeEngine());
+    render(<TextProvider language="en"><EngineProvider client={client}><ComplianceCheck profession="home-chef-tiffin" record={false} onDone={() => {}} /></EngineProvider></TextProvider>);
+    expect(await screen.findByText('Size counts yearly turnover. Above ₹1.5 crore: an FSSAI state licence. Up to it: an FSSAI registration.')).toBeTruthy();
+    cleanup();
+    render(<TextProvider language="en"><EngineProvider client={client}><ComplianceCheck profession="school-teacher" record={false} onDone={() => {}} /></EngineProvider></TextProvider>);
+    await screen.findByText('School teachers covered by the Right to Education Act may not take private tuition or do private teaching.');
+    expect(screen.queryByText(/^Size counts/)).toBeNull();
   });
 });

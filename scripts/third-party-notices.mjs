@@ -43,11 +43,16 @@ function readManifest(dir) {
   try { return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')); } catch { return null; }
 }
 
+// Packages that declare no licence in package.json but ship a licence file, read by hand: name@version to its licence.
+const LICENCE_FROM_FILE = { 'map-stream@0.1.0': 'MIT' };
+
 function declaredLicence(manifest) {
+  const listed = list => list.map(item => typeof item === 'string' ? item : item?.type).filter(Boolean).join(' OR ');
   if (typeof manifest.license === 'string') return manifest.license;
+  if (Array.isArray(manifest.license)) return listed(manifest.license);
   if (manifest.license && typeof manifest.license.type === 'string') return manifest.license.type;
-  if (Array.isArray(manifest.licenses)) return manifest.licenses.map(item => typeof item === 'string' ? item : item?.type).filter(Boolean).join(' OR ');
-  return '';
+  if (Array.isArray(manifest.licenses)) return listed(manifest.licenses);
+  return LICENCE_FROM_FILE[`${manifest.name}@${manifest.version}`] ?? '';
 }
 
 /** Node's lookup: the nearest node_modules/<name> from `fromDir` upward, never above `root`. */
@@ -77,6 +82,7 @@ function walk(root, startNames) {
       const manifest = readManifest(dir);
       if (!manifest) continue;
       const entry = { name: manifest.name ?? name, version: String(manifest.version ?? ''), license: declaredLicence(manifest),
+        fromFile: Boolean(LICENCE_FROM_FILE[`${manifest.name}@${manifest.version}`]),
         platformSpecific: Boolean(manifest.os || manifest.cpu), path: relative(root, dir).split(sep).join('/') };
       const key = `${entry.name}@${entry.version}`;
       if (!found.has(key)) found.set(key, entry);
@@ -104,26 +110,46 @@ const FLAG_DETAIL = {
 // Each platform build of the Agent SDK carries the same terms as the SDK itself.
 const flagDetail = name => FLAG_DETAIL[name] ?? (name.startsWith('@anthropic-ai/claude-agent-sdk-') ? FLAG_DETAIL['@anthropic-ai/claude-agent-sdk-win32-x64'] : null);
 
+// The founder's AGPL section 7 additional permission (2 November 2026) covers the Claude Agent SDK and its platform
+// builds, so they are listed with their own terms but are not flagged.
+const PERMITTED = name => name === '@anthropic-ai/claude-agent-sdk' || name.startsWith('@anthropic-ai/claude-agent-sdk-');
+const PERMITTED_NOTE = "  covered by the section 7 permission above; it stays under Anthropic's own terms";
+const flagged = item => !PERMITTED(item.name) && licenceVerdict(item.license).verdict !== 'compatible';
+
+const PERMISSION = [
+  'Additional permission under GNU AGPL version 3 section 7',
+  '',
+  'If you modify this Program, or any covered work, by linking or combining it with the Claude Agent SDK (the npm',
+  'packages @anthropic-ai/claude-agent-sdk and @anthropic-ai/claude-agent-sdk-<platform>, including the Claude Code',
+  "program file they contain) or a modified version of it, containing parts covered by the terms of Anthropic's own",
+  'licence, the licensor of this Program grants you additional permission to convey the resulting work. Corresponding',
+  'Source for a non-source form of such a combination shall not include the source code for the parts of the Claude',
+  "Agent SDK used. Those parts stay under Anthropic's terms; this permission does not grant any right in them.",
+];
+
 function line(item) {
+  if (PERMITTED(item.name)) return `${item.name} ${item.version} ${item.license || '(none declared)'}${PERMITTED_NOTE}`;
   const { verdict, reason } = licenceVerdict(item.license);
   const detail = flagDetail(item.name);
   const flag = verdict === 'compatible' ? '' : detail ? `  FLAG (proprietary): ${detail}` : `  FLAG (${verdict}): ${reason}`;
-  return `${item.name} ${item.version} ${item.license || '(none declared)'}${flag}`;
+  return `${item.name} ${item.version} ${item.license || '(none declared)'}${item.fromFile ? ' (from its licence file)' : ''}${flag}`;
 }
 
 /** NOTICE text. Deterministic: the same node_modules always gives the same file. */
 export function renderNotice(shipped, root) {
   const screens = walk(root, SCREEN_LIBRARIES);
   const electron = readManifest(join(root, 'node_modules', 'electron'));
-  const flagged = [...shipped, ...screens].filter(item => licenceVerdict(item.license).verdict !== 'compatible');
+  const flaggedItems = [...shipped, ...screens].filter(flagged);
   return [
     'Chausar',
-    'Copyright (C) 2026 The Chausar authors',
+    'Copyright (C) 2026 Kartavy Chauhan',
     '',
     'Chausar is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General',
     'Public License version 3 as published by the Free Software Foundation. It is distributed in the hope that it',
     'will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A',
     'PARTICULAR PURPOSE. See the GNU Affero General Public License in the LICENSE file for more details.',
+    '',
+    ...PERMISSION,
     '',
     'Chausar includes third-party software under its own licences, listed below as name, version and the licence the',
     'package declares. Each package\'s full licence text is in its folder inside the app (node_modules/<name>).',
@@ -131,7 +157,7 @@ export function renderNotice(shipped, root) {
     'the packaging machine, because platform-specific builds (DuckDB bindings, the Agent SDK binary) differ per system.',
     'A line marked FLAG has a licence that is not known to fit the AGPL and needs a decision before shipping.',
     '',
-    `Flagged packages: ${flagged.length}`,
+    `Flagged packages: ${flaggedItems.length}`,
     '',
     '== Packages shipped with the desktop app (production dependencies and theirs) ==',
     '',
@@ -152,8 +178,8 @@ export function renderNotice(shipped, root) {
     'Codex CLI (OpenAI, Apache-2.0) and the parts inside it (Ratatui, ripgrep, PCRE2) are bundled by the beta',
     'installer. Their notices are in app/desktop/notices/THIRD-PARTY-NOTICES.md with each licence text beside it',
     '(resources/notices in an installed app); Codex also keeps its own LICENSE and NOTICE in resources/codex.',
-    'Chausar does not install Claude Code itself. The Agent SDK platform package (flagged above) contains a Claude',
-    "Code program file under Anthropic's terms.",
+    'Chausar does not install Claude Code itself. The Agent SDK platform package (listed above, under the section 7',
+    "permission) contains a Claude Code program file under Anthropic's terms.",
     'PostgreSQL (PostgreSQL License) and Python (Python Software Foundation License) ship only in a native release,',
     'under runtime-binaries/, with their licence files listed in runtime-binaries/manifest.json.',
     '',

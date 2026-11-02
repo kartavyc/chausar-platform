@@ -26,7 +26,8 @@
   "layout.view.delete": "Delete {name}",
   "layout.reset": "Reset",
   "layout.loading": "Loading",
-  "layout.go.label": "Your AI opened a page",
-  "layout.go.back": "Go back",
-  "layout.go.line": "Your AI opened {title}."
+  "layout.go.label": "Your AI suggests a page",
+  "layout.go.line": "Your AI suggests {title}.",
+  "layout.go.open": "Open {title}",
+  "layout.go.dismiss": "Not now"
 }

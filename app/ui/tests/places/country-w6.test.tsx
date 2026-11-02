@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError } from '../../src/engine/types';
+import { answerSideWork } from './first-run-steps';
 
 function timeZone(zone: string) {
   const original = Intl.DateTimeFormat.prototype.resolvedOptions;
@@ -41,6 +42,7 @@ async function sendAndKeep(text: string, beforeKeep?: () => Promise<void>) {
   await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
   if (beforeKeep) await beforeKeep();
   fireEvent.click(screen.getByRole('button', { name: 'Keep this plan' }));
+  await answerSideWork();
 }
 
 describe('wave 6 country defaults', () => {

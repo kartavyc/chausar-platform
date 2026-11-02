@@ -17,7 +17,7 @@ import { PhoneTabs, TopBar } from './TopBar';
 import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
 import { BootScreen } from '../places/onboarding/BootScreen';
-// W6 6H3 (D40): the owner's AI asked to open a place; the frame opens it once and says so.
+// W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
 import { AiGo } from '../parts/layout/AiGo';
 import type { EngineClient } from '../engine/types';
 import s from './App.module.css';

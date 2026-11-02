@@ -129,6 +129,8 @@ Your country comes from your computer's time zone, for example **India, from you
 
 When the plan looks right, click **Keep this plan**.
 
+Chausar then asks **Day job and rules**: whether you also have a job, and any rules your field sets for side work. Answer it before you go on; nothing is kept until you do.
+
 Chausar may ask you for a passphrase (at least 12 characters; nobody can reset it). It may also show a **Recovery code**. Save the recovery code somewhere safe. You see it once, and it is the only way back in if you are locked out.
 
 ### Connect what your business needs (step 3 of 3)
@@ -333,6 +335,6 @@ A report never holds client names, client data, message text, files or prompts, 
 
 - **Ask Chausar anything**, at the top of every page, answers questions about your own business.
 - **Sending a report** (part 8) tells us what went wrong without sharing client data.
-- TODO(founder): the beta support contact (email, WhatsApp group or form).
+- **Write to us** at info@chausar.co.in. Say what you were doing and what you saw; never send passwords, keys or client details.
 
 If something in this guide does not match what you see, please tell us. The app changes often during the beta.

@@ -12,7 +12,7 @@ import { currentVenture, exactPayload } from '../records.ts';
 import { currentRegistry, pickPlaybook, type PlaybookRegistration } from '../playbooks/registry.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { departmentOfRole, departmentOfService } from '../playbooks/departments.ts';
-import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, type WayData } from '../playbooks/ways.ts';
+import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SAVES_SOURCE, WAY_SOURCE, WAYS, type WayData } from '../playbooks/ways.ts';
 import { kitDefinitions } from '../playbooks/kit/installed.ts';
 import { kitWay } from '../playbooks/kit/tile.ts';
 import { wayPrice } from './price-ranges.ts';
@@ -56,13 +56,16 @@ function wayView(way: WayData, registry: readonly PlaybookRegistration[], busine
   const shown = way.team ? way.team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles;
   const agents = shown.filter(role => role.kind === 'agent');
   const team = agents.map(role => ({ role: role.name, initials: initialsOf(role.name), department: departmentOfRole(delivery, role.id) }));
-  const pay = { en: `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`,  };
+  // W6 F4: a desk for the owner's own use shows what it saves them (a model estimate), never what clients pay.
+  const value: Pick<WayView, 'clientsPay' | 'saves'> = way.saves
+    ? { saves: { text: `${way.saves.min} to ${way.saves.max} h a month`, line: way.saves.line, estimate: true, source: WAY_SAVES_SOURCE.en } }
+    : way.pay ? { clientsPay: clientsPayOf(way, `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`) } : {};
   return {
     id: way.playbook, playbook: way.playbook, label: way.en.label, category: way.category,
     department: departmentOfService(registration.serviceType), line: way.en.line,
     hours: `${way.hours.min} to ${way.hours.max} h a week`, minHours: way.hours.min, maxHours: way.hours.max, hoursEstimate: true,
     youDo: way.en.youDo, team, teamLine: way.en.teamLine,
-    clientsPay: clientsPayOf(way, pay.en),
+    ...value,
     needs: { ai: WAY_AI_NEED.en, connections: way.en.needs },
     starter: way.en.starter,
     yours: businesses.filter(business => business.playbook === way.playbook).map(business => ({ businessId: business.businessId, name: business.name })),

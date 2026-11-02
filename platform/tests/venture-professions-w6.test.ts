@@ -1,10 +1,10 @@
 // W6 6E6 (D1, D2, D21): the 57-profession map. One data file (core/professions.ts) names each profession's family,
-// offers, the playbook that runs it, its cautions and size. Every profession resolves to a registered playbook that
+// offers, the playbook that runs it, its cautions and job shape. Every profession resolves to a registered playbook that
 // delivers; the price guide (6C3) and the compliance check (6C6) name the same professions; every listed statute is
 // either checked against an official source (link and date) or marked unchecked; and the gallery shows the families.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PROFESSIONS, CAUTIONS, PROFESSION_SIZES, professionOf, professionsForPlaybook, familiesForPlaybook, validateProfessions, PRICE_FAMILY_OF } from '../runtime/venture/core/professions.ts';
+import { PROFESSIONS, CAUTIONS, PROFESSION_JOB_SHAPES, professionOf, professionsForPlaybook, familiesForPlaybook, validateProfessions, PRICE_FAMILY_OF } from '../runtime/venture/core/professions.ts';
 import { FAMILY_IDS, familyOf } from '../runtime/venture/core/families.ts';
 import { PROFESSION_PRICES } from '../runtime/venture/core/price-ranges-data.ts';
 import { WAY_PRICES, validatePriceRanges } from '../runtime/venture/core/price-ranges.ts';
@@ -21,7 +21,7 @@ const TYPE_PENDING: Readonly<Record<string, string>> = Object.freeze({});
 
 const STATUTES = ['rte-s28', 'bci-rule-36', 'telemedicine-2020', 'sebi-ia-ra', 'coa-title', 'rera-agent', 'fssai', 'ncahp', 'trai-dnd'];
 
-test('6E6: fifty-seven professions in the eleven families, each with offers, a playbook, cautions and a size', () => {
+test('6E6: fifty-seven professions in the eleven families, each with offers, a playbook, cautions and a job shape', () => {
   assert.doesNotThrow(() => validateProfessions());
   assert.equal(PROFESSIONS.length, 57);
   assert.equal(new Set(PROFESSIONS.map(item => item.id)).size, 57);
@@ -30,7 +30,7 @@ test('6E6: fifty-seven professions in the eleven families, each with offers, a p
   assert.deepEqual(perFamily, { 'money-tax': 5, teaching: 8, creative: 6, writing: 6, 'local-services': 7, documents: 7, research: 5, people: 2, 'shop-office': 4, tech: 4, licensed: 3 });
   for (const item of PROFESSIONS) {
     assert.ok(item.offers.length >= 2, item.id);
-    assert.ok(PROFESSION_SIZES.includes(item.size), item.id);
+    assert.ok(PROFESSION_JOB_SHAPES.includes(item.jobShape), item.id);
     for (const words of [item.label, ...item.offers]) assert.doesNotMatch(words, /\d|₹|\$|—/, `${item.id}: ${words}`);
     for (const id of item.hardStops) assert.ok(HARD_STOPS.some(stop => stop.id === id), `${item.id}: ${id}`);
     for (const id of item.cautions) assert.ok(CAUTIONS.some(caution => caution.id === id), `${item.id}: ${id}`);
@@ -77,11 +77,12 @@ test('6E6: the nine statutes are carried, each checked against an official sourc
     assert.ok(caution.title && caution.line && caution.instrument, caution.id);
     assert.doesNotMatch(`${caution.title} ${caution.line} ${caution.note}`, /—/, caution.id);
     if (caution.checked) {
-      assert.equal(caution.checkedOn, '2026-11-01', caution.id);
+      // W6 F4: BCI Rule 36, the Telemedicine Guidelines and the FSSAI turnover limits were read on 2 November 2026.
+      assert.equal(caution.checkedOn, ['bci-rule-36', 'telemedicine-2020', 'fssai'].includes(caution.id) ? '2026-11-02' : '2026-11-01', caution.id);
       assert.ok(caution.section, caution.id);
       assert.ok(caution.sources.length > 0, caution.id);
       for (const source of caution.sources) {
-        assert.match(source.url, /^https:\/\/[^\s]+\.(gov\.in|nic\.in)\//, `${caution.id}: official host`);
+        assert.match(source.url, /^https:\/\/([^\s]+\.(gov\.in|nic\.in)|www\.barcouncilofindia\.org)\//, `${caution.id}: official host`);
         assert.ok(source.publisher && source.title, caution.id);
       }
     } else {
@@ -100,9 +101,9 @@ test('6E6: the nine statutes are carried, each checked against an official sourc
   assert.deepEqual(carriers('fssai'), ['home-chef-tiffin']);
   assert.deepEqual(carriers('ncahp'), ['physiotherapist']);
   assert.deepEqual(carriers('trai-dnd'), ['ai-receptionist']);
-  // Statutes with no checked source are honest about it.
+  // Statutes with no checked source are honest about it. W6 F4: the last two were read on 2 November 2026.
   const unchecked = CAUTIONS.filter(caution => !caution.checked).map(caution => caution.id);
-  assert.deepEqual(unchecked, ['bci-rule-36', 'telemedicine-2020']);
+  assert.deepEqual(unchecked, []);
 });
 
 test('6E6: the compliance check reads the map, so every profession answers and a checked statute carries its source', () => {
@@ -118,7 +119,7 @@ test('6E6: the compliance check reads the map, so every profession answers and a
   assert.match(teacher.rules[0]!.source!.url, /^https:\/\//);
   assert.equal(teacher.rules[0]!.checkedOn, '2026-11-01');
   const advocate = complianceOf(professionCompliance('advocate')!);
-  assert.deepEqual(advocate.rules.map(rule => [rule.id, rule.checked, rule.source]), [['bci-rule-36', false, null]]);
+  assert.deepEqual(advocate.rules.map(rule => [rule.id, rule.checked, rule.source?.publisher]), [['bci-rule-36', true, 'Bar Council of India']]);
   assert.deepEqual(advocate.switchedOff.map(entry => entry.tool), ['outreach', 'advertising']);
   // Ids recorded before the map keep answering.
   assert.equal(professionCompliance('architect')?.id, 'interior-designer-architect');

@@ -4288,7 +4288,7 @@
           "id": "bci-rule-36",
           "platform": "advocate",
           "rule": "An advocate does not solicit work or advertise, directly or indirectly.",
-          "checkedOn": "2026-11-01",
+          "checkedOn": "2026-11-02",
           "stale": false,
           "usedBy": [
             "check"
@@ -4297,16 +4297,16 @@
             "Chausar does not give legal, medical or investment advice; the professional decides."
           ],
           "source": {
-            "title": "Bar Council of India Rules, Part VI, Chapter II, Rule 36",
-            "url": "https://www.barcouncilofindia.org/about/professional-standards/rules-on-professional-standards"
+            "title": "Bar Council of India Rules, Part VI, Chapter II, Section IV, Rule 36",
+            "url": "https://www.barcouncilofindia.org/info/bar-counci-g36acc"
           },
           "sources": [
             {
-              "title": "Bar Council of India Rules, Part VI, Chapter II, Rule 36",
-              "url": "https://www.barcouncilofindia.org/about/professional-standards/rules-on-professional-standards"
+              "title": "Bar Council of India Rules, Part VI, Chapter II, Section IV, Rule 36",
+              "url": "https://www.barcouncilofindia.org/info/bar-counci-g36acc"
             }
           ],
-          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+          "line": "Current. Read on the regulator's own page."
         },
         {
           "id": "nmc-2002-6-1-1",
@@ -4360,7 +4360,7 @@
           "id": "telemedicine-2020",
           "platform": "doctor",
           "rule": "Only a registered medical practitioner counsels patients or prescribes; an AI tool does not.",
-          "checkedOn": "2026-11-01",
+          "checkedOn": "2026-11-02",
           "stale": false,
           "usedBy": [
             "check"
@@ -4369,16 +4369,16 @@
             "Chausar does not give legal, medical or investment advice; the professional decides."
           ],
           "source": {
-            "title": "Telemedicine Practice Guidelines, 2020",
-            "url": "https://www.mohfw.gov.in/pdf/Telemedicine.pdf"
+            "title": "Telemedicine Practice Guidelines, 2020, sections 5.4 and 3.2.5",
+            "url": "https://esanjeevani.mohfw.gov.in/assets/guidelines/Telemedicine_Practice_Guidelines.pdf"
           },
           "sources": [
             {
-              "title": "Telemedicine Practice Guidelines, 2020",
-              "url": "https://www.mohfw.gov.in/pdf/Telemedicine.pdf"
+              "title": "Telemedicine Practice Guidelines, 2020, sections 5.4 and 3.2.5",
+              "url": "https://esanjeevani.mohfw.gov.in/assets/guidelines/Telemedicine_Practice_Guidelines.pdf"
             }
           ],
-          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+          "line": "Current. Read on the regulator's own page."
         },
         {
           "id": "sebi-ia-2013",
@@ -4477,7 +4477,7 @@
           "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
         }
       ],
-      "summary": "3 current, 0 to recheck, 6 not confirmed against a source yet.",
+      "summary": "5 current, 0 to recheck, 4 not confirmed against a source yet.",
       "recipes": [
         {
           "id": "sign-before-send",
@@ -4519,8 +4519,8 @@
       },
       "bci-rule-36": {
         "topic": "Advocates and solicitation",
-        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
-        "read": "unconfirmed",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
         "window": 90,
         "needs": null,
         "confirmed": false
@@ -4543,8 +4543,8 @@
       },
       "telemedicine-2020": {
         "topic": "Who counsels and prescribes",
-        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
-        "read": "unconfirmed",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
         "window": 90,
         "needs": null,
         "confirmed": false

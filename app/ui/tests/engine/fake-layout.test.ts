@@ -63,7 +63,7 @@ describe('fake layout parity', () => {
     const kept = await change('today', { op: 'keep' });
     expect(kept.line).toBe("You kept your AI's changes.");
     expect(kept.layout.ai).toBeNull();
-    expect(engine.layoutDesk.go('money', 'invoices')).toEqual({ href: '#/money/invoices', line: 'Your AI opened Money.' });
+    expect(engine.layoutDesk.go('money', 'invoices')).toEqual({ href: '#/money/invoices', line: 'Your AI suggests Money.' });
     expect((await client.request('venture.layout.get', { place: 'today' })).go?.href).toBe('#/money/invoices');
   });
 });

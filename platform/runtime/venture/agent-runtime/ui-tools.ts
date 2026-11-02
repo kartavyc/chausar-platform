@@ -72,7 +72,7 @@ export function createLayoutTools(deps: VentureDeps, capability: UiToolCapabilit
     },
   }, {
     name: 'ui_navigate',
-    description: 'Ask the owner\'s app to open a place, and optionally a page in it (for example money and invoices). The app opens it and tells the owner you did.',
+    description: 'Offer the owner a link to a place, and optionally a page in it (for example money and invoices). The app shows an Open button; it never opens the page by itself, so the owner decides.',
     inputSchema: schema({ place: { type: 'string', enum: NAV_PLACES.map(item => item.id) }, sub: text(32) }, ['place']), readOnly: false,
     call: async args => {
       const result = await layoutGo(deps, ctx(), args.place, args.sub);

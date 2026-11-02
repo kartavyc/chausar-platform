@@ -4,9 +4,9 @@ Thanks for wanting to help. Chausar is a desktop app that helps ordinary profess
 
 ## The licence
 
-Chausar is free software under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). The full text is in [LICENSE](LICENSE), and third-party packages are listed in [NOTICE](NOTICE). By sending a change you agree that it is published under the same licence.
+Chausar is free software under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`), copyright Kartavy Chauhan. The full text is in [LICENSE](LICENSE), and third-party packages are listed in [NOTICE](NOTICE). NOTICE also carries one additional permission under section 7 of the AGPL, for linking the Claude Agent SDK.
 
-**Sign-off or contributor agreement: not decided yet.** The founder will choose between a Developer Certificate of Origin (DCO, a `Signed-off-by:` line on each commit) and a Contributor License Agreement (CLA, a one-time signed agreement). Until that choice is written here, please open an issue to talk about your change before you write a large one, so nothing you write has to wait.
+**Contributor License Agreement.** Before your first pull request can be merged, read [CLA.md](CLA.md) and write "I have read the CLA and I agree to it." with your full name in a comment on that pull request. You keep the copyright in your work; the agreement lets the project publish it under the AGPL and, if the maintainer chooses, under other licences too. One comment covers all your later pull requests.
 
 ## Before you start
 

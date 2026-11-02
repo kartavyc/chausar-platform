@@ -22,7 +22,8 @@ test('the side-work question and each profession rule are plain, unchecked statu
   assert.equal(advocate.question, SIDE_WORK_QUESTION);
   assert.equal(advocate.question, 'Does your employment contract allow side work? This is your responsibility.');
   assert.match(advocate.responsibility, /responsible/);
-  assert.deepEqual(advocate.rules.map(rule => [rule.id, rule.checked]), [['bci-rule-36', false]]);
+  // W6 F4: BCI Rule 36 was read on the Bar Council's own site on 2 November 2026.
+  assert.deepEqual(advocate.rules.map(rule => [rule.id, rule.checked]), [['bci-rule-36', true]]);
   assert.deepEqual(advocate.switchedOff.map(item => item.tool), ['outreach', 'advertising']);
   assert.deepEqual(advocate.hardStops.map(stop => stop.id), ['advocate-solicit']);
   assert.equal(advocate.recorded, null);

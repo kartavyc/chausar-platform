@@ -170,10 +170,15 @@ test('6H3: the AI reads the screen and changes it through its tools; each change
   assert.deepEqual(events.at(-1)!.data, {});
 });
 
-test('6H3: the AI navigates by asking the app to open a place; the app reads it as data', async () => {
-  const { call, tool } = await env();
+test('6H3: the AI offers a place as a link the owner opens (founder, 2 November 2026); the app reads it as data', async () => {
+  const { call, tool, tools } = await env();
   const went = await tool('ui_navigate', { place: 'money', sub: 'invoices' });
-  assert.deepEqual({ href: went.href, line: went.line }, { href: '#/money/invoices', line: 'Your AI opened Money.' });
+  assert.deepEqual({ href: went.href, line: went.line }, { href: '#/money/invoices', line: 'Your AI suggests Money.' });
+  // The AI is told plainly that the app only offers the link; nothing opens unless the owner clicks it.
+  const described = tools.find(item => item.name === 'ui_navigate')!.description;
+  assert.match(described, /offer/i);
+  assert.match(described, /never opens/i);
+  assert.doesNotMatch(described, /The app opens it/);
   const view = await call('venture.layout.get', { place: 'today' });
   assert.equal(view.go.href, '#/money/invoices');
   assert.equal(typeof view.go.id, 'string');

@@ -7,8 +7,8 @@ import { assertInkRules } from '../helpers/ink-rules';
 
 // UI as data (wave 6, package 6H3, D40): Today and Money draw their blocks from the owner's layout. The owner arranges a
 // page from its Arrange sheet; the owner's AI changes it through Chausar's MCP tools (here the fake's stand-in), and the
-// page says so with Undo and Keep. Approvals, questions, stops and money totals always show. The AI can open a place,
-// and the app says it did with Go back. A changed layout never shows more words at rest than the library's own.
+// page says so with Undo and Keep. Approvals, questions, stops and money totals always show. The AI can offer a place;
+// the app shows Open and Not now and never opens it by itself. A changed layout never shows more words at rest than the library's own.
 
 const NOW = '2026-10-23T10:00:00.000Z';
 
@@ -167,16 +167,35 @@ describe('the Arrange sheet', () => {
   });
 });
 
-describe('the AI opens a place', () => {
-  it('the app goes there once and says so, with Go back', async () => {
+describe('the AI offers a place (founder, 2 November 2026: offer a link, never open)', () => {
+  it('shows an Open button and stays on the page; only the owner\'s click opens it', async () => {
     const { engine } = await start('#/today');
     await act(async () => { engine.layoutDesk.go('money', 'invoices'); });
     await settle();
-    await waitFor(() => expect(window.location.hash).toBe('#/money/invoices'));
-    const notice = screen.getByRole('status', { name: 'Your AI opened a page' });
-    expect(notice.textContent).toContain('Your AI opened Money.');
-    await act(async () => { fireEvent.click(within(notice).getByRole('button', { name: 'Go back' })); });
+    const offer = await screen.findByRole('status', { name: 'Your AI suggests a page' });
+    expect(offer.textContent).toContain('Your AI suggests Money.');
     await settle();
-    await waitFor(() => expect(window.location.hash.startsWith('#/today')).toBe(true));
+    expect(window.location.hash).toBe('#/today');
+    await act(async () => { fireEvent.click(within(offer).getByRole('button', { name: 'Open Money' })); });
+    await settle();
+    expect(window.location.hash).toBe('#/money/invoices');
+    expect(screen.queryByRole('status', { name: 'Your AI suggests a page' })).toBeNull();
+  });
+
+  it('Not now puts the offer away without opening anything, and an old request is never offered again', async () => {
+    const { engine, view } = await start('#/today');
+    await act(async () => { engine.layoutDesk.go('clients'); });
+    await settle();
+    const offer = await screen.findByRole('status', { name: 'Your AI suggests a page' });
+    await act(async () => { fireEvent.click(within(offer).getByRole('button', { name: 'Not now' })); });
+    await settle();
+    expect(screen.queryByRole('status', { name: 'Your AI suggests a page' })).toBeNull();
+    expect(window.location.hash).toBe('#/today');
+    view.unmount();
+    render(<App client={createFakeClient(engine)} language="en" />);
+    await screen.findByRole('heading', { level: 1 });
+    await settle();
+    expect(screen.queryByRole('status', { name: 'Your AI suggests a page' })).toBeNull();
+    expect(window.location.hash).toBe('#/today');
   });
 });
