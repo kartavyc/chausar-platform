@@ -267,7 +267,7 @@ test('a share link on the hosted Chausar: the token once, only its hash kept, on
   const [link] = listRecords(env.store.read(), 'venture-report-share');
   assert.equal(link.views, 2);
   assert.equal(link.viewedAt, '2026-10-15T10:00:00.000Z');
-  assert.equal(await reportSharePage(deps, owner, `${token.slice(0, 31)}x`), null);
+  assert.equal(await reportSharePage(deps, owner, `${token.slice(0, 31)}${token[31] === 'x' ? 'y' : 'x'}`), null); // never the real character
 
   // A scope of August and LinkedIn shows the LinkedIn figure and not Instagram's.
   const august = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-08-31' });
