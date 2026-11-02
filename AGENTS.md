@@ -4,13 +4,17 @@ Chausar is a desktop app for ordinary professionals (India first, global too) wh
 
 ## Where the plan lives
 
-- Wave 6 (current): decisions `docs/superpowers/plans/w6/DECISIONS.md`, work packages `docs/superpowers/plans/w6/PACKAGES.md`, review checklist `docs/superpowers/plans/w6/REVIEW.md`, new screens `docs/superpowers/plans/w6/reference-ui/`. Where wave 6 decisions differ from older docs, wave 6 wins.
+Plans, specs, research and requirements are private. They live in the private repository `kartavyc/chausar-private`, checked out next to this one (`../chausar-private`), not in this public repository. Paths below are inside that checkout; older comments in the code that say `docs/superpowers/...` mean the same path there.
+
+- Wave 6 (current): decisions `docs/superpowers/plans/w6/DECISIONS.md`, work packages `docs/superpowers/plans/w6/PACKAGES.md`, review checklist `docs/superpowers/plans/w6/REVIEW.md`, notes `docs/superpowers/plans/w6/NOTES-6.md`, new screens `docs/superpowers/plans/w6/reference-ui/`. Where wave 6 decisions differ from older docs, wave 6 wins.
 - Spec: `docs/superpowers/designs/2026-10-23-chausar-ink-v2.md`.
 - Master plan and "How every wave runs": `docs/superpowers/plans/2026-10-23-chausar-ink-v2.md`.
 - Wave plans: `docs/superpowers/plans/2026-10-23-chausar-ink-v2-w{2,3,4,5}.md`.
 - Wave 5 working notes (briefs, review brief, what was actually built): `docs/superpowers/plans/w5/`.
-- What the app does and its known limits: `docs/venture/ink.md`, `docs/venture/*.md`.
 - Catalogue of research rows: `docs/research/harvest/cards2/CATALOGUE.md`.
+- The enterprise engine (formerly `enterprise/` here) is in that repository too.
+
+What the app does and its known limits stays public, in this repository: `docs/venture/ink.md`, `docs/venture/*.md`.
 
 ## Rules that never bend (the founder's)
 

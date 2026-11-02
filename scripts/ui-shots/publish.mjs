@@ -1,5 +1,6 @@
 // Pages the Ink walk writes: the local review page (app/ui/.shots/index.html, every shot beside its board) and, with
-// --publish, the founder's side-by-side page and WALK.md in docs/superpowers/designs/ink-v2-direction-d/, with the
+// --publish, the founder's side-by-side page and WALK.md in the private checkout's docs/superpowers/designs/ink-v2-direction-d/
+// (../chausar-private, or CHAUSAR_PRIVATE_DIR), with the
 // shots that match a board copied into walk/ (1280 light and 390 light only, to keep the repo small).
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -9,7 +10,9 @@ import { listedMd } from './accepted.mjs';
 import { BOARDS, FIXED, LISTED, WAVE4_FIRST_WALK } from './boards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const DESIGNS = join(ROOT, 'docs/superpowers/designs/ink-v2-direction-d');
+// The design boards are private: they live in the chausar-private checkout next to this repository.
+const PRIVATE = process.env.CHAUSAR_PRIVATE_DIR ? resolve(process.env.CHAUSAR_PRIVATE_DIR) : resolve(ROOT, '..', 'chausar-private');
+const DESIGNS = join(PRIVATE, 'docs/superpowers/designs/ink-v2-direction-d');
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const shotName = (id, width, theme) => `${id}--${width}-${theme}.png`;
