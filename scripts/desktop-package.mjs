@@ -13,7 +13,9 @@ const previewOutput = 'release/preview';
 // Wave 6 (6J1, D3): the unsigned beta, Windows and Linux only, with real data and the bundled Codex.
 const betaOutput = 'release/beta';
 const modes = Object.freeze({ preview: { config: 'app/desktop/builder.preview.json', output: previewOutput }, beta: { config: 'app/desktop/builder.beta.json', output: betaOutput }, final: { config: 'app/desktop/builder.json', output: 'release' } });
-const betaArtifactExtensions = { win32: ['exe'], linux: ['AppImage', 'tar.gz'] };
+// 2 Nov: the deb comes first on Linux. Its install script (electron-builder's own) adds an AppArmor profile on Ubuntu
+// 24.04 and later, or makes chrome-sandbox SUID root where user namespaces are off; without one, Electron will not start.
+const betaArtifactExtensions = { win32: ['exe'], linux: ['deb', 'AppImage', 'tar.gz'] };
 const CODEX_CHECK = 'bundled Codex with its LICENSE and NOTICE';
 // 6J1: electron-builder 26 depends on Electron's own node-gyp fork, which npm records as a Git source. It is a build-time
 // (dev) package, never shipped, and never run here (npmRebuild is off). Only this exact commit is accepted, still with
@@ -213,15 +215,17 @@ function validatePreviewConfig(config) {
   }
 }
 
-/** The files a preview or beta build leaves. electron-builder names an AppImage by the AppImage architecture (x64 is
- * x86_64); every other target keeps the Node name. Pure, so it is tested for every platform on any host. */
+/** The files a preview or beta build leaves. electron-builder names an AppImage and a deb by their own architecture
+ * names (x64 is x86_64 and amd64); every other target keeps the Node name. Pure, so it is tested for every platform on
+ * any host. */
 export function expectedArtifactNames({ mode, platform, architecture, version }) {
-  const archFor = extension => extension === 'AppImage' && architecture === 'x64' ? 'x86_64' : architecture;
+  const x64Names = { AppImage: 'x86_64', deb: 'amd64' };
+  const archFor = extension => architecture === 'x64' ? x64Names[extension] ?? architecture : architecture;
   const named = (product, extensions) => extensions.map(extension => `Chausar-${product}-${version}-${artifactOS[platform]}-${archFor(extension)}.${extension}`);
   return mode === 'preview' ? named('Preview', artifactExtensions[platform]) : mode === 'beta' ? named('Beta', betaArtifactExtensions[platform]) : [];
 }
 
-/** 6J1: the unsigned beta. Real data (no preview flag), NSIS per user without admin, AppImage and tar.gz, only the
+/** 6J1: the unsigned beta. Real data (no preview flag), NSIS per user without admin, deb, AppImage and tar.gz, only the
  * staged Codex bundle and the notices as extra resources, the local Electron, no signing, hooks or publishing. */
 export function validateBetaConfig(config) {
   if (config.appId !== 'in.chausar.desktop' || config.productName !== 'Chausar' || config.extraMetadata?.name !== 'chausar' || config.extraMetadata?.productName !== 'Chausar' || config.extraMetadata?.chausarReleaseChannel !== 'beta' || Object.hasOwn(config.extraMetadata ?? {}, 'chausarPreview')) throw new Error('the beta needs the Chausar identity, the beta release channel and no preview flag');
@@ -230,7 +234,9 @@ export function validateBetaConfig(config) {
   if (config.extends !== undefined || Object.keys(config).some(name => /^(before|after|artifactBuild|onNodeModule)/.test(name))) throw new Error('the beta cannot inherit another configuration or run custom build hooks');
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('the beta must use the verified local Electron distribution instead of another download');
   if (config.mac !== undefined) throw new Error('Mac is out of scope for the beta');
-  if (JSON.stringify(config.win?.target) !== JSON.stringify(['nsis']) || JSON.stringify(config.linux?.target) !== JSON.stringify(['AppImage', 'tar.gz'])) throw new Error('beta targets are the Windows installer (NSIS) and Linux AppImage and tar.gz');
+  if (JSON.stringify(config.win?.target) !== JSON.stringify(['nsis']) || JSON.stringify(config.linux?.target) !== JSON.stringify(['deb', 'AppImage', 'tar.gz'])) throw new Error('beta targets are the Windows installer (NSIS) and Linux deb, AppImage and tar.gz');
+  if (!/^[^<>]+ <[^@\s<>]+@[^@\s<>]+>$/.test(config.deb?.maintainer ?? '') || !/^https:\/\//.test(config.extraMetadata?.homepage ?? '')) throw new Error('the deb needs a maintainer with an email address and an https homepage');
+  if ([config.linux, config.deb].some(options => Object.keys(options ?? {}).some(name => /^(after|before)/.test(name)))) throw new Error('the deb keeps the install scripts electron-builder ships, which set up the Chromium sandbox');
   const nsis = config.nsis ?? {};
   if (nsis.oneClick !== false || nsis.perMachine !== false || nsis.allowElevation !== false || nsis.deleteAppDataOnUninstall !== false || nsis.include !== 'app/desktop/installer.nsh') throw new Error('the beta installs per user without admin, keeps the owner data on uninstall and removes its login entry');
   const resources = JSON.stringify(config.extraResources);

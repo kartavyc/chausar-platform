@@ -11,7 +11,8 @@
   "extraMetadata": {
     "name": "chausar",
     "productName": "Chausar",
-    "chausarReleaseChannel": "beta"
+    "chausarReleaseChannel": "beta",
+    "homepage": "https://www.chausar.co.in"
   },
   "files": [
     "app/desktop/**/*",
@@ -110,11 +111,15 @@
   },
   "linux": {
     "target": [
+      "deb",
       "AppImage",
       "tar.gz"
     ],
     "category": "Office",
     "executableName": "chausar"
+  },
+  "deb": {
+    "maintainer": "Kartavy Chauhan <info@chausar.co.in>"
   },
   "publish": null,
   "electronDist": "node_modules/electron/dist"

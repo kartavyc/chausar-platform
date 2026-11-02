@@ -23,6 +23,8 @@ function parseSettings(text, defaults) {
 }
 /** A desktop entry field holds one line; a path is quoted for Exec and its quotes and backslashes escaped. */
 function execQuoted(file) { return `"${String(file).replace(/[\r\n]/g, '').replace(/(["`$\\])/g, '\\$1')}"`; }
+/** TryExec takes the bare path, the same one line as Exec, with only its backslashes escaped. */
+function tryExecPath(file) { return String(file).replace(/[\r\n]/g, '').replace(/\\/g, '\\\\'); }
 
 /**
  * deps: app (Electron app), fs ({ readFile, writeFile, mkdir, rm }), platform, directory (the app's own folder),
@@ -52,7 +54,9 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (!enabled) { if (typeof fs.rm === 'function') await fs.rm(target, { force: true }); return; }
     // An AppImage runs from a temporary mount; APPIMAGE names the file the owner keeps, so login starts that one.
     const program = typeof env.APPIMAGE === 'string' && path.posix.isAbsolute(env.APPIMAGE) ? env.APPIMAGE : execPath;
-    const entry = ['[Desktop Entry]', 'Type=Application', 'Name=Chausar', 'Comment=Keeps your Chausar work going while you are signed in', `Exec=${execQuoted(program)} ${LOGIN_ARGS.join(' ')}`, 'Terminal=false', 'X-GNOME-Autostart-enabled=true', ''].join('\n');
+    const entry = ['[Desktop Entry]', 'Type=Application', 'Name=Chausar', 'Comment=Keeps your Chausar work going while you are signed in', `Exec=${execQuoted(program)} ${LOGIN_ARGS.join(' ')}`,
+      // TryExec: once the program is gone (a deleted AppImage, or a deb removed with apt) the desktop skips the entry.
+      `TryExec=${tryExecPath(program)}`, 'Terminal=false', 'X-GNOME-Autostart-enabled=true', ''].join('\n');
     await fs.mkdir(path.posix.dirname(target), { recursive: true });
     await fs.writeFile(target, entry, { mode: 0o600 });
   }

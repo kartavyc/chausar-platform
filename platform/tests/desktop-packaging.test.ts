@@ -278,16 +278,17 @@ test('beta packaging strips signing and service credentials from the build like 
   assert.deepEqual(desktopPackagingEnvironment('beta', source), { PATH: 'local-tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
 });
 
-test('the beta configuration: product Chausar, real data, unsigned NSIS per user, AppImage and tar.gz, Codex and notices bundled (6J1)', () => {
+test('the beta configuration: product Chausar, real data, unsigned NSIS per user, deb, AppImage and tar.gz, Codex and notices bundled (6J1)', () => {
   assert.equal(beta.appId, 'in.chausar.desktop');
   assert.equal(beta.productName, 'Chausar');
   assert.equal(beta.artifactName, 'Chausar-Beta-${version}-${os}-${arch}.${ext}');
-  assert.deepEqual(beta.extraMetadata, { name: 'chausar', productName: 'Chausar', chausarReleaseChannel: 'beta' });
+  assert.deepEqual(beta.extraMetadata, { name: 'chausar', productName: 'Chausar', chausarReleaseChannel: 'beta', homepage: 'https://www.chausar.co.in' });
   assert.equal(beta.forceCodeSigning, false);
   assert.equal(beta.win.signAndEditExecutable, false);
   assert.deepEqual(beta.win.target, ['nsis']);
   assert.deepEqual(beta.nsis, { oneClick: false, perMachine: false, allowElevation: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, createStartMenuShortcut: true, shortcutName: 'Chausar', deleteAppDataOnUninstall: false, runAfterFinish: true, include: 'app/desktop/installer.nsh' });
-  assert.deepEqual(beta.linux.target, ['AppImage', 'tar.gz']);
+  assert.deepEqual(beta.linux.target, ['deb', 'AppImage', 'tar.gz']);
+  assert.deepEqual(beta.deb, { maintainer: 'Kartavy Chauhan <info@chausar.co.in>' });
   assert.equal(beta.linux.executableName, 'chausar');
   assert.equal(beta.mac, undefined, 'Mac is out of scope for the beta');
   assert.deepEqual(beta.extraResources, [{ from: 'vendor/codex-bundle/${os}-${arch}', to: 'codex', filter: ['**/*'] }, { from: 'app/desktop/notices', to: 'notices', filter: ['**/*'] }, { from: 'LICENSE', to: 'LICENSE' }, { from: 'NOTICE', to: 'NOTICE' }, { from: 'vendor/feedback/feedback.json', to: 'feedback.json' }]);
@@ -321,6 +322,11 @@ test('beta checks refuse signing, publishing, the preview identity, other resour
     { ...beta, nsis: { ...beta.nsis, perMachine: true } },
     { ...beta, nsis: { ...beta.nsis, deleteAppDataOnUninstall: true } },
     { ...beta, linux: { ...beta.linux, target: ['deb'] } },
+    { ...beta, linux: { ...beta.linux, target: ['AppImage', 'tar.gz'] } },
+    { ...beta, deb: {} },
+    { ...beta, deb: { ...beta.deb, afterInstall: 'own-install.sh' } },
+    { ...beta, linux: { ...beta.linux, afterRemove: 'own-remove.sh' } },
+    { ...beta, extraMetadata: { ...beta.extraMetadata, homepage: undefined } },
     { ...beta, directories: { output: '../outside' } },
     { ...beta, files: (beta.files ?? []).map((entry: any) => entry?.from === 'platform/runtime' ? 'platform/runtime/**/*' : entry) },
   ];
@@ -340,19 +346,21 @@ test('beta prerequisites ask for the staged Codex bundle with its LICENSE and NO
   assert.match(codex.reason, /package:codex/);
 });
 
-test('beta artifact names: one Windows installer, or an AppImage and a tar.gz on Linux (6J1)', async t => {
+test('beta artifact names: one Windows installer, or a deb, an AppImage and a tar.gz on Linux (6J1)', async t => {
   const root = await fixture(t), plan = createDesktopPackagePlan({ mode: 'beta' });
   const { expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: pkg.version });
   if (process.platform === 'win32') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-win-${process.arch}.exe`]);
-  else if (process.platform === 'linux') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'x86_64' : process.arch}.AppImage`, `Chausar-Beta-${pkg.version}-linux-${process.arch}.tar.gz`]);
+  else if (process.platform === 'linux') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'amd64' : process.arch}.deb`, `Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'x86_64' : process.arch}.AppImage`, `Chausar-Beta-${pkg.version}-linux-${process.arch}.tar.gz`]);
 });
 
-test('Linux artifact names follow electron-builder: an AppImage says x86_64, a tar.gz says x64 (found on the VPS build)', async () => {
+test('Linux artifact names follow electron-builder: a deb says amd64, an AppImage x86_64, a tar.gz x64 (found on the VPS build)', async () => {
   const { expectedArtifactNames } = desktopPackage;
-  for (const [mode, name] of [['beta', 'Beta'], ['preview', 'Preview']]) {
-    assert.deepEqual(expectedArtifactNames({ mode, platform: 'linux', architecture: 'x64', version: '1.2.3' }),
-      [`Chausar-${name}-1.2.3-linux-x86_64.AppImage`, `Chausar-${name}-1.2.3-linux-x64.tar.gz`], mode);
-  }
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'linux', architecture: 'x64', version: '1.2.3' }),
+    ['Chausar-Beta-1.2.3-linux-amd64.deb', 'Chausar-Beta-1.2.3-linux-x86_64.AppImage', 'Chausar-Beta-1.2.3-linux-x64.tar.gz']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'linux', architecture: 'arm64', version: '1.2.3' }),
+    ['Chausar-Beta-1.2.3-linux-arm64.deb', 'Chausar-Beta-1.2.3-linux-arm64.AppImage', 'Chausar-Beta-1.2.3-linux-arm64.tar.gz']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'preview', platform: 'linux', architecture: 'x64', version: '1.2.3' }),
+    ['Chausar-Preview-1.2.3-linux-x86_64.AppImage', 'Chausar-Preview-1.2.3-linux-x64.tar.gz']);
   assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'win32', architecture: 'x64', version: '1.2.3' }), ['Chausar-Beta-1.2.3-win-x64.exe']);
 });
 

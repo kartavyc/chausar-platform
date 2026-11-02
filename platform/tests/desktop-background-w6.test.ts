@@ -67,6 +67,9 @@ test('on Linux the beta writes an XDG autostart file for the AppImage (or the un
   assert.match(text, /\nType=Application\n/);
   assert.match(text, /\nName=Chausar\n/);
   assert.match(text, /\nExec="\/home\/owner\/Apps\/Chausar Beta\.AppImage" --background --hidden\n/);
+  // TryExec lets the desktop skip the entry once the program is gone: a deleted AppImage, or a deb removed with apt,
+  // which cannot reach each owner's autostart folder (found on the VPS install, 2 Nov).
+  assert.match(text, /\nTryExec=\/home\/owner\/Apps\/Chausar Beta\.AppImage\n/);
   assert.match(text, /\nX-GNOME-Autostart-enabled=true\n/);
   assert.equal(text.includes('\u2014'), false);
   assert.deepEqual(app.logins, [], 'Electron has no Linux login items; the file is the login item');
@@ -76,6 +79,10 @@ test('on Linux the beta writes an XDG autostart file for the AppImage (or the un
   const unpacked = memoryFs();
   await createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/opt/chausar/chausar', env: { XDG_CONFIG_HOME: '/home/owner/cfg' } }), app, fs: unpacked }).apply();
   assert.match(unpacked.files.get('/home/owner/cfg/autostart/chausar.desktop')!, /\nExec="\/opt\/chausar\/chausar" --background --hidden\n/);
+  assert.match(unpacked.files.get('/home/owner/cfg/autostart/chausar.desktop')!, /\nTryExec=\/opt\/chausar\/chausar\n/);
+  const odd = memoryFs();
+  await createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/opt/a\\b\nName=x/chausar', env: {} }), app, fs: odd }).apply();
+  assert.ok(odd.files.get('/home/owner/.config/autostart/chausar.desktop')!.includes('\nTryExec=/opt/a\\\\bName=x/chausar\n'), 'a backslash or line break in the path cannot add a key');
 });
 
 test('previews, development runs and Mac never register a login item, whatever the settings file says (6J1)', async () => {

@@ -48,19 +48,33 @@ To remove Chausar: open Windows **Settings**, then **Apps**, find **Chausar** an
 
 ### Linux
 
-The Linux files are not ready yet in this beta. When they are, they will be called `Chausar-Beta-<version>-linux-x64.AppImage` and `Chausar-Beta-<version>-linux-x64.tar.gz`, and these are the steps.
+There are three Linux files. On Ubuntu, Debian or Linux Mint, use the `.deb`.
 
-1. Download the AppImage file.
+**The .deb (recommended)**
+
+1. Download `Chausar-Beta-<version>-linux-amd64.deb`.
+2. Open a terminal in the download folder and type `sudo apt install ./Chausar-Beta-*-linux-amd64.deb`. It asks for your password, because it installs Chausar for everyone on the computer.
+3. Open Chausar from your apps menu, or type `chausar` in a terminal.
+
+The .deb also sets up the sandbox that Chausar's window runs in. Ubuntu 24.04 and later block that sandbox unless the app installs a rule for it, and only the .deb can do that for you.
+
+To remove it, type `sudo apt remove chausar`. Your businesses stay in `~/.config/Chausar`.
+
+**The AppImage or the .tar.gz (other Linux)**
+
+These suit Fedora, Arch and other systems without `apt`. They do not start on Ubuntu 24.04 or later, because they cannot install the sandbox rule; use the .deb there.
+
+1. Download `Chausar-Beta-<version>-linux-x86_64.AppImage`.
 2. Make it executable. Either:
    - right-click the file, open **Properties**, then **Permissions**, and tick "Allow executing file as program"; or
    - open a terminal in the download folder and type `chmod +x Chausar*.AppImage`.
 3. Double-click the file to start Chausar.
 
-If it does not start on a newer Ubuntu, install the FUSE 2 library first (on Ubuntu 22.04 the package is `libfuse2`; on 24.04 it is `libfuse2t64`).
+If the AppImage says it needs FUSE, install the FUSE 2 library (often called `fuse2` or `fuse-libs`).
 
-If you prefer the `.tar.gz` file: unpack it (`tar -xzf Chausar-Beta-*.tar.gz` in a terminal), open the folder and run `./chausar`.
+If you prefer the `.tar.gz` file: unpack it (`tar -xzf Chausar-Beta-*.tar.gz` in a terminal), open the folder and run `./chausar`. To remove it, delete the AppImage file or the folder.
 
-On Linux, Chausar also starts when you sign in. To stop that, untick **Start at login** in the tray menu. To remove Chausar, delete the AppImage file or the folder. Your businesses stay in `~/.config/Chausar`.
+On Linux, Chausar also starts when you sign in. To stop that, untick **Start at login** in the tray menu. Once Chausar is removed, your desktop skips that entry by itself.
 
 ---
 
