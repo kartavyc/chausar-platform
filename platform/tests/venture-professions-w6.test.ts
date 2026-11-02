@@ -77,8 +77,10 @@ test('6E6: the nine statutes are carried, each checked against an official sourc
     assert.ok(caution.title && caution.line && caution.instrument, caution.id);
     assert.doesNotMatch(`${caution.title} ${caution.line} ${caution.note}`, /—/, caution.id);
     if (caution.checked) {
-      // W6 F4: BCI Rule 36, the Telemedicine Guidelines and the FSSAI turnover limits were read on 2 November 2026.
-      assert.equal(caution.checkedOn, ['bci-rule-36', 'telemedicine-2020', 'fssai'].includes(caution.id) ? '2026-11-02' : '2026-11-01', caution.id);
+      // W6 F4: BCI Rule 36, the Telemedicine Guidelines and the FSSAI turnover limits were read on 2 November 2026, and
+      // the SEBI regulations again, as amended, on 3 November.
+      const day = caution.id === 'sebi-ia-ra' ? '2026-11-03' : ['bci-rule-36', 'telemedicine-2020', 'fssai'].includes(caution.id) ? '2026-11-02' : '2026-11-01';
+      assert.equal(caution.checkedOn, day, caution.id);
       assert.ok(caution.section, caution.id);
       assert.ok(caution.sources.length > 0, caution.id);
       for (const source of caution.sources) {

@@ -73,6 +73,8 @@ export type Profession = {
 export const CAUTIONS_CHECKED_ON = '2026-11-01';
 /** W6 F4: the day BCI Rule 36, the Telemedicine Guidelines and the FSSAI turnover limits were read. */
 const RECHECKED_ON = '2026-11-02';
+/** The day the SEBI regulations were read again, as amended. */
+const SEBI_REREAD_ON = '2026-11-03';
 /** A statute that applies at any size. */
 const ANY_SIZE: CautionSize = Object.freeze({ measure: 'none' });
 
@@ -110,12 +112,12 @@ export const CAUTIONS: readonly Caution[] = Object.freeze([
     instrument: 'SEBI (Investment Advisers) Regulations, 2013 and SEBI (Research Analysts) Regulations, 2014', section: 'Regulation 3(1) of each',
     line: 'Investment advice and research reports need a SEBI registration. Without one, Chausar makes review packs only.',
     sources: [
-      { url: 'https://www.sebi.gov.in/sebi_data/attachdocs/1358779330956.pdf', publisher: 'SEBI', title: 'SEBI (Investment Advisers) Regulations, 2013' },
-      { url: 'https://www.sebi.gov.in/sebi_data/commondocs/RESEARCHANALYSTS-regulations_p.pdf', publisher: 'SEBI', title: 'SEBI (Research Analysts) Regulations, 2014' },
+      { url: 'https://www.sebi.gov.in/sebi_data/attachdocs/aug-2026/1785912187595.pdf', publisher: 'SEBI', title: 'SEBI (Investment Advisers) Regulations, 2013, as amended up to 25 November 2025' },
+      { url: 'https://www.sebi.gov.in/sebi_data/attachdocs/oct-2026/1792127227860.pdf', publisher: 'SEBI', title: 'SEBI (Research Analysts) Regulations, 2014, as amended up to 10 October 2026' },
     ],
-    note: 'Read in the regulations as first made. Later amendments were not read. Registration applies at any size; net worth limits are for getting registered.',
+    note: 'Read in the regulations as amended. Since December 2024 investment advice covers securities only, and research services include buy, sell or hold calls, price and stop-loss targets and trading calls. Registration applies at any size; net worth limits are for getting registered.',
     size: ANY_SIZE,
-  }),
+  }, SEBI_REREAD_ON),
   checked({
     id: 'coa-title', title: 'Architects Act title rule', instrument: 'Architects Act, 1972', section: 'Section 37(1)',
     line: 'Only an architect registered with the Council of Architecture may use the title architect. Interior design work itself is open.',

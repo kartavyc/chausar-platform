@@ -41,8 +41,18 @@ test('6E5 a rule is checked only with its regulator page; the rest say unchecked
     assert.equal(typeof rule.checked, 'boolean');
     for (const words of [rule.title, rule.line]) { assert.equal(words.includes(EM_DASH), false); assert.deepEqual(houseStyleFindings(words), [], words); }
   }
-  // W6 F4: BCI Rule 36 and the Telemedicine Guidelines were read on their official sources on 2 November 2026.
-  assert.deepEqual(SIGNOFF_RULES.filter(rule => rule.checked).map(rule => rule.id), ['bci-rule-36', 'nmc-2002-6-1-1', 'nmc-2002-1-4-1', 'telemedicine-2020']);
+  // W6 F4: BCI Rule 36 and the Telemedicine Guidelines were read on their official sources on 2 November 2026; the two
+  // SEBI regulations (as amended), the CS Act and the CA Act on 3 November. Every rule is now checked.
+  assert.deepEqual(SIGNOFF_RULES.filter(rule => rule.checked).map(rule => rule.id), ['bci-rule-36', 'nmc-2002-6-1-1', 'nmc-2002-1-4-1', 'telemedicine-2020', 'sebi-ia-2013', 'sebi-ra-2014', 'cs-act-1980', 'ca-act-1949']);
+  const ruleOf = (id: string) => SIGNOFF_RULES.find(rule => rule.id === id)!;
+  for (const id of ['sebi-ia-2013', 'sebi-ra-2014', 'cs-act-1980', 'ca-act-1949']) assert.equal(ruleOf(id).readOn, '2026-11-03', id);
+  assert.match(ruleOf('sebi-ia-2013').url, /^https:\/\/www\.sebi\.gov\.in\/sebi_data\/attachdocs\//);
+  assert.match(ruleOf('sebi-ra-2014').url, /^https:\/\/www\.sebi\.gov\.in\/sebi_data\/attachdocs\//);
+  assert.match(ruleOf('cs-act-1980').url, /^https:\/\/stimulate\.icsi\.edu\//);
+  assert.match(ruleOf('ca-act-1949').url, /^https:\/\/resource\.cdn\.icai\.org\//);
+  // The Acts allow a write-up under the institute's guidelines, so the lines no longer say advertising is barred outright.
+  assert.match(ruleOf('cs-act-1980').line, /write-up/);
+  assert.match(ruleOf('ca-act-1949').line, /write-up/);
   assert.deepEqual(professionSpec('advocate')!.refusedTools.map(item => item.tool), ['outreach', 'advertising']);
   assert.deepEqual(professionSpec('doctor')!.refusedTools.map(item => item.tool), ['outreach', 'advertising']);
 });

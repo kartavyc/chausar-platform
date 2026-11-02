@@ -93,5 +93,6 @@ test('F4: BCI Rule 36 and the Telemedicine Guidelines are checked on their offic
   assert.deepEqual([register('telemedicine-2020').read, register('telemedicine-2020').checkedOn], ['official', '2026-11-02']);
   // Rules not re-read keep the day they were read.
   assert.equal(register('nmc-2002-6-1-1').checkedOn, '2026-11-01');
-  assert.equal(register('sebi-ia-2013').read, 'unconfirmed');
+  // The SEBI, CS and CA rules were read on their official pages on 3 November.
+  assert.deepEqual([register('sebi-ia-2013').read, register('sebi-ia-2013').checkedOn], ['official', '2026-11-03']);
 });
