@@ -461,4 +461,4 @@ Waits on the founder:
 - Fake engine:
   - a "Connect your AI" card stays after Use Codex;
   - the 6C6 side-work question does not show in onboarding.
-- Before pushing: the VPS address is in `docs/superpowers/plans/w6/PROMPT.md` in this branch's history.
+- Before pushing (done, founder's go-ahead of 2 November): the VPS address was rewritten out of `docs/superpowers/plans/w6/PROMPT.md` in all 23 wave 6 commits, so no pushed commit holds it.
