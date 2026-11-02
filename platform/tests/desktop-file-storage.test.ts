@@ -56,7 +56,7 @@ test('desktop file authority backs up, restores, and opens with its recovery cod
   await reopened.close();
 });
 
-test('a killed writer halfway through a save preserves the last committed encrypted authority', { timeout: 60_000 }, async t => {
+test('a killed writer halfway through a save preserves the last committed encrypted authority', { timeout: 20_000 }, async t => {
   const directory = await scratch(t);
   const options = { directory, storage: 'experimental-file' as const, passphrase };
   const { vault } = await Vault.create({ ...options, name: 'Synthetic crash business' });
@@ -70,12 +70,14 @@ test('a killed writer halfway through a save preserves the last committed encryp
   const program = [
     "import fs from 'node:fs/promises';",
     "import { syncBuiltinESMExports } from 'node:module';",
-    "import { join } from 'node:path';",
+    "import { basename } from 'node:path';",
     'const options = ' + JSON.stringify(options) + ';',
     'const originalOpen = fs.open;',
     'fs.open = async function(path, ...args) {',
     '  const handle = await originalOpen.call(this, path, ...args);',
-    "  if (String(path).startsWith(join(options.directory, '.authority.encrypted.json.')) && String(path).endsWith('.tmp') && args[0] === 'wx') {",
+    // By file name only: the vault opens files under its real path, which can differ from the given one (a Windows
+    // short name such as RUNNER~1 in the CI temp folder).
+    "  if (basename(String(path)).startsWith('.authority.encrypted.json.') && String(path).endsWith('.tmp') && args[0] === 'wx') {",
     '    const write = handle.writeFile.bind(handle);',
     '    handle.writeFile = async function(content) {',
     "      const bytes = Buffer.from(content, 'utf8');",
@@ -98,7 +100,7 @@ test('a killed writer halfway through a save preserves the last committed encryp
   t.after(() => { child.kill(); });
   const progress = await new Promise<{ partial: number; total: number }>((resolve, reject) => {
     let output = '', error = '';
-    const deadline = setTimeout(() => reject(new Error('The writer did not reach its partial save. ' + error)), 45_000); // a fresh Node loading the vault from source is slow on Windows CI
+    const deadline = setTimeout(() => reject(new Error('The writer did not reach its partial save. ' + error)), 10_000);
     child.stderr.on('data', chunk => { error = (error + chunk).slice(-2000); });
     child.stdout.on('data', chunk => {
       output += chunk;

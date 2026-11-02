@@ -4,7 +4,7 @@
 // which keeps them only while crash reports are on. No real PostHog or Sentry is called.
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EngineProvider } from '../../src/engine/context';
 import { TextProvider } from '../../src/text';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -26,6 +26,8 @@ describe('Business > Reports (6J2)', () => {
   it('off by default with the notice; turning on shows the exact preview; Send report goes by its digest', async () => {
     const { request } = mount(<ReportsView />);
     expect(await screen.findByText(/Reports are off. Nothing leaves this computer./)).toBeTruthy();
+    // Let the page set the boxes to what is in force before ticking one (a slow runner can tick first otherwise).
+    await act(async () => {});
     expect(screen.getByText(/never holds names, client details, message text, file names, amounts or keys/)).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'What Send report sends' })).toBeNull();
     const usage = screen.getByRole('checkbox', { name: /Usage reports/ }) as HTMLInputElement;
