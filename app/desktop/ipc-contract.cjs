@@ -56,15 +56,18 @@ const METHODS = Object.freeze([
   'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.verify', 'updates.stage',
   'venture.countries', 'venture.preview',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.needs.list',
   'venture.create', 'venture.get', 'venture.events', 'venture.interview.next',
   'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
   'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
-  'venture.client.add', 'venture.client.list', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
+  'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
   'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.spend.list', 'venture.build.brief',
   'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
-  'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
-  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt', 'venture.delivery.delegate',
+  'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
+  'venture.files.add', 'venture.files.list', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
   'venture.delegate.get',
   'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
   'venture.evidence.list', 'venture.evidence.apply',
@@ -79,7 +82,7 @@ const METHODS = Object.freeze([
   'venture.delivery.judge', 'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe',
   'venture.posting.propose', 'venture.posting.signIn', 'venture.posting.checkSteps', 'venture.share.recordAnswer', 'venture.social.calendar',
   'venture.bank.ledger', 'venture.bank.apply', 'venture.bank.alerts.get', 'venture.bank.alerts.set',
-  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list',
+  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list', 'venture.rules.locks', 'venture.rules.attest', 'venture.compliance.get', 'venture.compliance.set',
   'venture.judge.auto.get', 'venture.judge.auto.set',
   'venture.posting.limits.get', 'venture.posting.limits.set',
   'venture.transcription.get', 'venture.transcription.set',
@@ -89,6 +92,12 @@ const METHODS = Object.freeze([
   'venture.agents.orders.list', 'venture.chats.consent',
   'venture.agents.notes.list', 'venture.agents.notes.edit', 'venture.agents.notes.forget', 'venture.agents.notes.undo',
   'venture.chief.threads', 'venture.chief.thread.list', 'venture.chief.thread.send', 'venture.chief.thread.pin', 'venture.chief.fit',
+  // W6 6G1: a chat's state and the quiet days before one settles.
+  'venture.chief.thread.state', 'venture.chief.settle.set',
+  // W6 6H3: a place's layout.
+  'venture.layout.get', 'venture.layout.change',
+  // Wave 6 (6H2): recorded flows
+  'venture.flows.list', 'venture.flows.act',
   'venture.proposals.raise', 'venture.proposals.dismiss',
   'venture.network.import', 'venture.network.importUndo', 'venture.network.merge', 'venture.network.split', 'venture.network.forget',
   'venture.network.hide', 'venture.network.people', 'venture.network.person', 'venture.network.sources',
@@ -101,7 +110,15 @@ const METHODS = Object.freeze([
   'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get',
   'venture.runs.allowWrites',
   'venture.notify.list', 'venture.notify.read', 'venture.notify.settings',
-  'venture.notify.push.key', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay',
+  'venture.notify.push.key', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay', 'venture.notify.telegram', 'venture.phone.access', 'venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup',
+  'venture.crm.client', 'venture.crm.client.edit', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.company.save', 'venture.crm.link', 'venture.crm.log', 'venture.crm.lists', 'venture.crm.list', 'venture.crm.list.save', 'venture.crm.list.place', 'venture.memory.list', 'venture.memory.add', 'venture.memory.replace', 'venture.memory.visibility', 'venture.memory.forget',
+  // Wave 6 (6G2): retiring an agent and Bring back
+  'venture.agents.retire.check', 'venture.agents.retire', 'venture.agents.restore',
+  // Wave 6 (6H1): mini apps and their MCP Apps bridge
+  'venture.apps.list', 'venture.apps.get', 'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore',
+  'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
+  'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   'venture.models.cli.status', 'venture.models.roles',
   'venture.goals.get', 'venture.goals.set', 'venture.goals.suggest',
   'venture.decisions.list', 'venture.policy.allowSession',
@@ -134,7 +151,7 @@ const METHODS = Object.freeze([
   'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
   'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable', 'venture.report.list',
   'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
-  'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
+  'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
 ]);
@@ -176,6 +193,8 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://shopify.dev',
   'https://developer.android.com',
   'https://docs.docker.com',
+  // Wave 6 (6C1): the sign-in pages the tools' own logins print (Codex device code; Claude Code's sign-in).
+  'https://auth.openai.com', 'https://claude.ai', 'https://claude.com',
 ]);
 const MAX_EXTERNAL_URL = 30_000;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);

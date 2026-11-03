@@ -7,7 +7,7 @@ import { TextProvider } from '../../src/text';
 import { EngineProvider } from '../../src/engine/context';
 import { createFakeClient,FakeEngine } from '../../src/engine/fake';
 const item={id:'order1',orderId:'order1',request:'Weekly posts',runId:'run1',inventory:{counts:{claims:2,numbers:1,stories:1,mistakes:0,quotes:0,total:4},items:[]},sourceProblem:null,cards:[{channel:'linkedin',format:'text',ready:true,trace:['text-supported','single-post'],posts:[{id:'run1.post-1',runId:'run1',channel:'linkedin',text:'We teach yoga.'}]},{channel:'instagram',format:'image-brief',ready:false,trace:['channel-needs-media','source-image-missing'],posts:[]},{channel:'x',format:'thread',ready:true,trace:['text-supported','bounded-thread-split'],posts:[]}]};
-function start(language:'en'|'hi'='en',paid=false,rows=[item],failure=''){
+function start(language:'en'='en',paid=false,rows=[item],failure=''){
  const client=createFakeClient(new FakeEngine());
  const request=vi.fn(async(method:string,p:any)=>{
   if(method==='venture.order.list')return [{id:'order1',request:'Weekly posts',status:'open'}];
@@ -30,9 +30,6 @@ it('shows channel cards, source counts and honest format traces, then refines on
  fireEvent.click(screen.getByRole('button',{name:'Preview this revision'}));
  await screen.findByText('The revision waits for your approval in Today.');
  expect(request.mock.calls.some(([method,p])=>method==='venture.desk.act'&&p.kind==='revision'&&p.action==='revise'&&p.payload.postId==='run1.post-1'&&p.payload.words==='Make the opening warmer.')).toBe(true);
-});
-it('shows Hindi canvas controls',async()=>{
- start('hi');expect(await screen.findByRole('button',{name:'केवल इसे सुधारें'})).not.toBeNull();expect(screen.getByText('दावे')).not.toBeNull();
 });
 
 it('shows the exact extra price and waits for a separate approval of that quote',async()=>{

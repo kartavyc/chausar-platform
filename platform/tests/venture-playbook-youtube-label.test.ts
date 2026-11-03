@@ -50,7 +50,7 @@ test('the instant plan names the YouTube channel playbook and plans it as a stud
   assert.equal('playbook' in plain, false, 'no playbook field when no flagship playbook fits');
 });
 
-test('the classifier takes the picked playbook\'s base type first, then keeps its keyword counts', () => {
+test('the classifier takes the picked work plan\'s base type first, then keeps its keyword counts', () => {
   assert.equal(classifyIdea('A faceless channel about chess openings'), 'studio');
   assert.equal(classifyIdea('YouTube channel reviewing phones'), 'studio');
   // "content" is a content keyword, but "content calendar" picks the social media agency, which plans as an agency.

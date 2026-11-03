@@ -2,6 +2,7 @@
   "name": "chausar-companion",
   "version": "0.1.0-preview.1",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "main": "index.js",
   "description": "Native iOS and Android remote companion for Chausar.",

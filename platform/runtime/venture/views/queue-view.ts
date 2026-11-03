@@ -82,7 +82,7 @@ function checksLine(run: DeliveryRunRecord): Display | undefined {
   if (!run.checks.length) return undefined;
   const counted = run.checks.filter(item => !item.notChecked);
   const passed = counted.filter(item => item.passed).length;
-  return `${passed} of ${counted.length} checks passed.${counted.length < run.checks.length ? ' The judge settled no rule, so its check is not counted.' : ''}`;
+  return `${passed} of ${counted.length} checks passed.${counted.length < run.checks.length ? ' The quality check settled no rule, so its check is not counted.' : ''}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -60,10 +60,7 @@ describe('Figure', () => {
     expect(container.querySelector('[data-receipt]')).toBeNull();
   });
 
-  it('says "model estimate" in Hindi too', () => {
-    const { container } = render(<TextProvider language="hi"><Figure value="18,000" estimate /></TextProvider>);
-    expect(container.querySelector('[data-estimate]')!.textContent).toBe('मॉडल का अनुमान');
-  });
+
 
   it('takes a receipt or the estimate label: both, or neither, does not compile', () => {
     // @ts-expect-error a model estimate never carries a receipt

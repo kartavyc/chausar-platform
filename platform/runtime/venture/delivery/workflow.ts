@@ -26,7 +26,7 @@ export function playbookForOrder(deps: VentureDeps, ctx: Context, state: State, 
   const ceiling = new Set(ids.flatMap(id => definition.steps.find(step => step.id === id)?.tools ?? []));
   const steps = ids.map(id => {
     const step = base.steps.find(item => item.id === id);
-    check(step, 'PLAYBOOK_ROUTE_INVALID', 'The current playbook is missing a declared workflow step.');
+    check(step, 'PLAYBOOK_ROUTE_INVALID', 'The current work instructions are missing a required step.');
     const declared = definition.steps.find(item => item.id === id)!;
     check(!declared.floor || step.kind === 'approve', 'PLAYBOOK_ROUTE_INVALID', 'The workflow approval floor cannot change.');
     return { ...step, tools: (step.tools ?? []).filter(tool => ceiling.has(tool)) };

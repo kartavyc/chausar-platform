@@ -45,5 +45,5 @@ export function cardLines(diff: readonly DiffLine[]): CardLine[] {
 export function dayWords(at: string, language: Language): string {
   const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T00:00:00.000Z` : at);
   if (Number.isNaN(date.getTime())) return at;
-  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', timeZone: /^\d{4}-\d{2}-\d{2}$/.test(at) ? 'UTC' : undefined }).format(date);
+  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: /^\d{4}-\d{2}-\d{2}$/.test(at) ? 'UTC' : undefined }).format(date);
 }

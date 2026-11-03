@@ -11,7 +11,7 @@ import g from './Guide.module.css';
 /** A day the engine sent ("2026-10-16") as the reader's calendar writes it, "16 Oct 2026". */
 function dayOf(day: string, language: string): string {
   const at = new Date(`${day}T00:00:00.000Z`);
-  return Number.isNaN(at.getTime()) ? day : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(at);
+  return Number.isNaN(at.getTime()) ? day : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(at);
 }
 
 /**

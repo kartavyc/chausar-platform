@@ -85,7 +85,6 @@ const TEAM_LINE = "The order's AI team shares one tool list: every agent that wo
 const APPROVAL = 'Anything that sends, spends, posts or changes a price still waits for your approval.';
 const NO_TOOLS_LINE = `It holds no tools of its own: it works from what the team found. ${APPROVAL}`;
 const PROVIDER = 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.';
-const NO_CLI = 'neither Claude Code nor Codex is set up on this computer.';
 const TOOL_WORDS = {
   'files.list': 'The list of files the client sent with the order.',
   'files.read': 'The files the client sent with the order: tables, PDF text and transcript lines.',
@@ -111,7 +110,7 @@ const OFF_WORDS = {
   write: "Can't change your records, files or connected services.",
 } as const;
 const WRITE_TAIL = 'You check the draft before anything leaves Chausar.';
-const JUDGE_ON = 'Code runs the checks, then an AI judge reads the draft on your own AI.';
+const JUDGE_ON = 'Code runs the checks, then an AI quality check reads the draft on your own AI.';
 
 /** What each sample step is, as the playbook's step kinds say (the fake's agents carry only id and purpose). */
 const STEP_KIND: Readonly<Record<string, 'gather' | 'work' | 'write' | 'verify' | 'floor'>> = {
@@ -524,7 +523,7 @@ export class FakeAgentExtras {
     try { raw = JSON.parse(body.text); } catch { throw invalid(NOT_A_FILE); }
     const file = raw as { format?: unknown; version?: unknown; agent?: { id?: unknown }; steps?: unknown; persona?: unknown; standingOrders?: unknown } | null;
     if (!file || typeof file !== 'object' || file.format !== 'chausar-agent' || file.version !== 1) throw invalid(NOT_A_FILE);
-    if (Object.keys(file).some((key) => !['format', 'version', 'agent', 'flagship', 'steps', 'persona', 'standingOrders'].includes(key))) throw invalid(`${NOT_A_FILE} It holds fields an agent file never has, such as tools, limits or a posture.`);
+    if (Object.keys(file).some((key) => !['format', 'version', 'agent', 'flagship', 'steps', 'persona', 'standingOrders'].includes(key))) throw invalid(`${NOT_A_FILE} It holds fields an agent file never has, such as tools, limits or an approval setting.`);
     if (!file.agent || typeof file.agent.id !== 'string' || !Array.isArray(file.standingOrders)) throw invalid(NOT_A_FILE);
     const screened = (text: string, field: string) => {
       if (INJECTION.test(text) || CHECKER.test(text)) throw new EngineError('UNTRUSTED_HELD', `The ${field} in this file has words aimed at an agent or a checker, or hidden characters, so nothing from it was imported.`);
@@ -840,7 +839,6 @@ export class FakeAgentExtras {
     // What is off: what nothing it does reaches, and the team tools this computer cannot run.
     const off = [item('off', 'effect:send', 'off', OFF_WORDS.send), item('off', 'effect:money', 'off', OFF_WORDS.money), ...(acts ? [] : [item('off', 'effect:write', 'off', OFF_WORDS.write)])];
     if (!kinds.some((kind) => kind !== 'floor')) off.push(item('off', 'effect:egress', 'off', "Can't take data off this computer or hand it to another program."));
-    if (acts) off.push(item('off', 'cli:agent.delegate', 'off', `${TOOL_WORDS['agent.delegate']} Off here: ${NO_CLI}`));
     items.push(...off);
     const of = (list: CapabilityItemView['list']) => items.filter((entry) => entry.list === list).map((entry) => entry.line);
     return { agent: agent.id, canSee: of('see'), canDo: of('do'), off: of('off'), items, line: acts ? TEAM_LINE : NO_TOOLS_LINE };
@@ -881,12 +879,11 @@ function learnVoice(samples: readonly string[]): { language: 'en' | 'hi'; howITa
   const openers = repeated(train.map((one) => one.opener));
   const closers = repeated(train.map((one) => one.closer));
   const lines = [...new Set([...openers, ...closers, ...repeated(train.flatMap((one) => one.body.split('\n')))])].slice(0, 6);
-  const hi = language === 'hi';
-  const howITalk = [...openers.slice(0, 2).map((line) => (hi ? `शुरुआत: "${line}"` : `Opens with: "${line}"`)), ...closers.slice(0, 2).map((line) => (hi ? `अंत: "${line}"` : `Signs off with: "${line}"`))];
+  const howITalk = [...openers.slice(0, 2).map((line) => `Opens with: "${line}"`), ...closers.slice(0, 2).map((line) => `Signs off with: "${line}"`)];
   const average = (texts: string[]) => { const all = texts.flatMap(sentencesOf); return all.length ? all.reduce((sum, item) => sum + item.split(/\s+/).length, 0) / all.length : 0; };
   const mean = average(train.map((one) => one.body));
   const size = mean <= 12 ? 0 : mean <= 20 ? 1 : 2;
-  const format = [hi ? ['छोटे वाक्य', 'मध्यम लंबाई के वाक्य', 'लंबे वाक्य'][size]! : ['Short sentences', 'Sentences of medium length', 'Long sentences'][size]!];
+  const format = [['Short sentences', 'Sentences of medium length', 'Long sentences'][size]!, ...(train.filter(one => /[?？]/u.test(one.body)).length * 2 > train.length ? ['Asks the reader questions'] : [])];
   const heldWords = new Set(wordsOf(held.body));
   const shared = wordsIUse.filter((word) => heldWords.has(word)).length;
   const heldMean = average([held.body]);

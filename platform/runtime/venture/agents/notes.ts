@@ -25,6 +25,7 @@ import { holdsIdNumber } from './answer.ts';
 import { chatAgent, type ChatAgent } from './roles.ts';
 import { ACT_STEP_KINDS, ALWAYS_LIMIT, holdsWords, maskNote, noteRefusal, noteText, scopeClient, screenIds, type NoteProblem } from './recall.ts';
 import { eraseKnowledgeHolding } from './knowledge.ts';
+import { RETIRED_LINE, retirementOf } from './retired.ts';
 
 export type { NoteProblem } from './recall.ts';
 
@@ -283,8 +284,25 @@ function eraseNote(tx: VentureTx, note: AgentNoteRecord): AgentNoteRecord {
     && ((note.source.messageId !== null && item.messageId === note.source.messageId) || (!!item.note?.text && keys.has(noteKey(item.note.text)))));
   for (const item of proposals) tx.replace<AgentProposalRecord>({ ...item, quote: '', quoteDigest: '', note: item.note ? { ...item.note, text: '' } : null });
   const sources = new Set([note.source.messageId, ...proposals.map(item => item.messageId)].filter((id): id is string => id !== null));
+  const nativeRuns = new Set(tx.list('venture-delivery-run').filter(run => run.agentJob?.recalled?.includes(note.id)).map(run => run.id));
+  for (const run of tx.list('venture-delivery-run')) {
+    if (!nativeRuns.has(run.id) || !run.agentJob) continue;
+    const messages = run.agentJob.messages.map(message => holds(message.text) ? { ...message, text: ERASED_MESSAGE } : message);
+    const copied = (value: unknown) => value !== undefined && holds(JSON.stringify(value));
+    const draftCopied = [run.deliverable, run.renderedText, run.editedText, run.revision, run.merge, run.agentJob.proposal].some(copied);
+    const pendingCopied = copied(run.agentJob.pendingApproval) || copied(run.agentJob.pendingFacts);
+    // These are model-produced copies. The owner's independent steering messages and answers retain their words.
+    const calculations = run.agentJob.calculations?.filter(call => !copied(call));
+    tx.replace({ ...run, ...(draftCopied ? { status: 'stopped' as const, deliverable: null, renderedText: null, editedText: null,
+      revision: null, merge: null, checks: [], playbookChecks: [], verdict: null } : pendingCopied ? { status: 'stopped' as const } : {}),
+      agentJob: { ...run.agentJob, messages, ...(calculations ? { calculations } : {}),
+        ...(draftCopied ? { draftDigest: null, proposal: null, reviewReady: false } : {}),
+        ...(pendingCopied ? { pendingApproval: undefined, pendingFacts: undefined } : {}) } });
+    tx.emit('run.step', { runId: run.id });
+    if (draftCopied || pendingCopied) tx.emit('queue.changed', {});
+  }
   for (const message of tx.list('venture-agent-message')) {
-    if (message.agent !== note.agent) continue;
+    if (message.agent !== note.agent && !(message.runId && nativeRuns.has(message.runId))) continue;
     const said = message.from === 'owner' ? sources.has(message.id) : holds(message.text) || message.parts.some(part => holds((part as { text?: unknown }).text));
     if (said) tx.replace({ ...message, text: ERASED_MESSAGE, parts: [{ kind: 'text' as const, text: ERASED_MESSAGE }] });
   }
@@ -455,6 +473,8 @@ export async function notesEditHandler(deps: VentureDeps, ctx: Context, payload:
   return ventureAction(deps, ctx, 'approve', 'agents.notes.edit', tx => {
     const venture = tx.venture!;
     const agent = chatAgent(tx.state, venture, agentId);
+    // W6 6G2: a retired agent's notes are on the read-only shelf; Forget and Undo still work there.
+    check(!retirementOf(tx.state, venture.id, agentId), 'AGENT_RETIRED', RETIRED_LINE);
     const current = noteId === null ? null : tx.find('venture-agent-note', noteId) ?? null;
     if (noteId !== null) {
       check(current && current.agent === agent.id, 'INVALID_VENTURE_REQUEST', NOT_FOUND);

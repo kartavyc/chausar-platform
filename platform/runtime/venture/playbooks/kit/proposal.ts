@@ -28,7 +28,8 @@ import { COUNTED_LINE, MAX_HANDOFF_URL, mailHandoff, whatsappUrl } from '../../n
 import { normalLinkedIn } from '../../network/extract-core.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../../views/queue-w4.ts';
 import type { KitOffer, PlaybookDefinition } from './define.ts';
-import { kitDefinitionOf, parkOutsideScope, scopeHi, scopeOf } from './exit.ts';
+import { kitDefinitionOf, parkOutsideScope, scopeOf } from './exit.ts';
+import { scopeInputPhrase } from './scope-input-phrases.ts';
 import { PILOT_AFTER_ASKS, PILOT_UNPRICED_LINE, pilotOf, type PilotTerms } from './pilot.ts';
 import type {
   SalesPilotTerms, SalesProposalBody, SalesProposalCheck, SalesProposalInvestment, SalesProposalScope, SalesProposalSection, SalesProposalSectionId,
@@ -365,7 +366,7 @@ export async function draftSalesProposal(deps: VentureDeps, ctx: Context, payloa
 
   // The honest exit, by code, for a business a kit playbook runs (kit/exit.ts).
   const definition = kitDefinitionOf(venture, definitions);
-  const verdict = definition && heard ? scopeOf(definition, heard, { hi: scopeHi(definition) }) : null;
+  const verdict = definition && heard ? scopeOf(definition, heard, { hi: phrase => scopeInputPhrase(definition.registration.id, phrase) }) : null;
   const scope: SalesProposalScope = verdict
     ? { verdict: verdict.verdict, rest: verdict.rest, reply: verdict.reply }
     : { verdict: definition ? 'unclear' : 'not-checked', rest: [], reply: null };

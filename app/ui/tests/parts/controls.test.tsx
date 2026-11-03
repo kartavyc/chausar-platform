@@ -53,7 +53,7 @@ describe('ConnectorLabel', () => {
     const labels = CONNECTORS.map(connectorLabelOf);
     expect(new Set(labels)).toEqual(new Set(['handoff', 'read', 'write', 'planned']));
     const { container } = render(<>{(['handoff', 'read', 'write', 'planned'] as const).map((l) => <ConnectorLabel key={l} label={l} />)}</>);
-    expect(container.textContent).toBe('HandoffReadsWritesPlanned');
+    expect(container.textContent).toBe('You send itReadsWritesPlanned');
   });
   it('a posting connector shows its mode and the risk line', () => {
     const { container } = render(<ConnectorLabel label="write" mode="owner-browser-session" />);
@@ -114,13 +114,7 @@ describe('Gate (Ink v2): D\'s two-word gate', () => {
     expect(words.map((w) => w.hasAttribute('data-on'))).toEqual([true, false]);
   });
 
-  it('the name holds both visible words, in Hindi too (label in name)', () => {
-    render(<TextProvider language="hi"><Gate purpose="एपिसोड काटें" gate="hold" floor={false} /></TextProvider>);
-    const name = screen.getByRole('switch').getAttribute('aria-label')!;
-    expect(name).toContain('अपने आप');
-    expect(name).toContain('रोकें');
-    expect(name.startsWith('एपिसोड काटें: ')).toBe(true);
-  });
+
 
   it('clicking the word that is on changes nothing; clicking the other word sets it', () => {
     const onChange = vi.fn();
@@ -204,10 +198,7 @@ describe('Provenance (Ink v2): honesty lines (catalogue U17)', () => {
     expect(screen.getByRole('button', { name: 'link not ready yet' })).toHaveProperty('disabled', true);
   });
 
-  it('in Hindi too', () => {
-    render(<TextProvider language="hi"><Provenance quoted linkPending>नमस्ते</Provenance></TextProvider>);
-    expect(document.body.textContent).not.toMatch(/provenance\./);
-  });
+
 });
 
 describe('ConnectorLabel (Ink v2): the honest labels stay unmistakable', () => {

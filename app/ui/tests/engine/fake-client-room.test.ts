@@ -7,3 +7,12 @@ it('purchase gives a code receipt while payment credentials are refused and neve
 it('registered tax and inclusive owner prices remain exact on the order receipt',async()=>{for(const [inclusive,total] of [[false,'590000'],[true,'500000']] as const){const f=await vaClient(true,inclusive),plan=await f.client.request('venture.blueprint.get',{});expect(plan!.blueprint.backOffice.taxRegistered.value).toBe(true);const receipt=await f.client.request('venture.receipt.get',{id:f.order.priceReceiptId});expect(receipt.totalMinor).toBe(total);expect(receipt.figures.some(v=>v.key==='cgst')).toBe(true);expect(receipt.figures.some(v=>v.key==='sgst')).toBe(true);}});
 
 it('order price proof never labels addition or tax rounding as multiplication',async()=>{const f=await vaClient(true),receipt=await f.client.request('venture.receipt.get',{id:f.order.priceReceiptId});expect(receipt.explanation).not.toContain('500000 × 90000 = 590000');expect(receipt.explanation).toContain('amount before tax plus tax; inputs: 500000, 90000; result: 590000 minor units');});
+
+it('old VA purchase copy retains the order currency after a country move',async()=>{
+ const {client,order}=await vaClient();
+ const plan=await client.request('venture.blueprint.update',{patch:{countryCode:'JP'}});
+ const queue=await client.request('venture.queue.list',{});const row=queue.rows.find(item=>item.viewRef?.kind==='plan'&&item.viewRef.id===plan.blueprint.id)!;
+ await client.request('venture.queue.decide',{id:row.id,digest:row.digest,action:'approve',viewed:true});
+ const p:any=await client.request('venture.desk.act',{playbook:'virtual-assistant',kind:'purchase',id:order.id,action:'preview',payload:{item:'Printer paper',quantity:'3',unitMinor:'12345',currency:'INR'}});
+ expect(p.result.totalMinor).toBe('37035');expect(p.result.purchased).toBe(false);
+});

@@ -94,7 +94,7 @@ export function sessionStepFloor(state: State, venture: VentureRecord, step: Pic
  */
 export async function setAgentPosture(deps: VentureDeps, ctx: Context, agentId: string, posture: Posture): Promise<AgentPostureRecord> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
-  check(POSTURES.includes(posture), 'INVALID_VENTURE_REQUEST', 'Choose rehearsal, shadow, approve each or auto with spot checks.');
+  check(POSTURES.includes(posture), 'INVALID_VENTURE_REQUEST', 'Choose practice, practice on real orders, approve each or spot checks.');
   return ventureAction(deps, ctx, 'approve', 'team.posture', tx => {
     check(agentId === AGENT_ID && acceptedBlueprintOrNull(tx.state, tx.venture!) !== null, 'AGENT_NOT_FOUND', 'That agent was not found.');
     return tx.put<AgentPostureRecord>({ ...tx.base('venture-agent-posture'), agentId, posture });

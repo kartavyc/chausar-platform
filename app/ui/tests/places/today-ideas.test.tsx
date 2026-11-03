@@ -146,9 +146,5 @@ describe('Today: who is waiting on you (W4 4J22b, from 4J18)', () => {
     assertInkRules(document.body);
   });
 
-  it('is worded in Hindi around the engine\'s own lines', async () => {
-    start({ language: 'hi' });
-    expect(await screen.findByText('आपका इंतज़ार', { selector: 'summary *' })).toBeTruthy();
-    expect(screen.getByText('सुझाव', { selector: 'summary *' })).toBeTruthy();
-  });
+
 });

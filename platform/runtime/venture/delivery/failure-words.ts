@@ -106,7 +106,11 @@ export type RunFailureView = { failure?: { kind: FailureKind; line: Display }; f
  * A run the breaker stopped gives the fix for the error that kept coming back; a failed run gives its AI call's
  * failure in the table's words, and the fix when the owner must act. Empty when there is nothing to say.
  */
-export function runFailure(state: State, run: Pick<DeliveryRunRecord, 'status' | 'callId' | 'harness' | 'at'>, dateOrder: DateOrder = 'day-month-year'): RunFailureView {
+export function runFailure(state: State, run: Pick<DeliveryRunRecord, 'status' | 'callId' | 'harness' | 'at' | 'agentJob'>, dateOrder: DateOrder = 'day-month-year'): RunFailureView {
+  if (run.status === 'failed' && run.agentJob?.failure) {
+    const words = run.agentJob.failure;
+    return { failure: { kind: words.kind, line: words.line }, ...(words.fix && words.fixKind ? { fix: words.fix, fixKind: words.fixKind } : {}) };
+  }
   const harness = run.harness;
   if (run.status === 'stopped' && harness?.breaker && harness.control?.line === harness.breaker.line) {
     const trip = harness.breaker;

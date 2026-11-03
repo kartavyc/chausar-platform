@@ -37,6 +37,11 @@ export class FakeNetworkDesk {
 
   recruitingBlocked(email:string|null,personId:string|null):boolean {return this.pipeline.isBlocked(email)||!!personId&&this.pipeline.personBlocked(personId);}
 
+  recordLeadSend(leadId: string): void { this.pipeline.recordLeadSend(leadId); }
+  rememberQuote(quote: import('./fake-pipeline').HeldPipelineQuote): void { this.pipeline.rememberQuote(quote); }
+  /** W6 6G3: the touches on a client's pipeline cards, for the client's timeline (fake-crm.ts). */
+  clientTouches(match: Parameters<FakePipelineDesk['clientTouches']>[0]) { return this.pipeline.clientTouches(match); }
+
   handles(method: string): boolean {
     return NETWORK_METHODS.has(method);
   }

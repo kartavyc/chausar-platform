@@ -142,11 +142,6 @@
   color: var(--fail);
 }
 
-/* Hindi words run longer: the chip may take two lines rather than push the name off the card. */
-.kind:lang(hi) {
-  white-space: normal;
-}
-
 .title {
   margin: var(--sp-4) 0 0;
   font-size: var(--text-tile);
@@ -244,8 +239,7 @@
   gap: var(--sp-3);
 }
 
-/* The buttons share the width and may shrink: a long label ("Approve and post", or Hindi) wraps inside its button
-   instead of running out of it. Busy buttons are native-disabled; locked ones stay in the Tab order (Button). */
+
 .acts > button {
   flex: 1 1 0;
   min-width: 0;

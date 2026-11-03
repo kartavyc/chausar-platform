@@ -1,11 +1,9 @@
 // Chausar venture launcher, delivery package (P5): what this build can and cannot do, in words.
 // Every row's state matches what the code does today. Planned work says planned; nothing is dressed up.
 import { authorize, type Context } from '../../contracts.ts';
-import { exactPayload, listRecords } from '../records.ts';
-import type { CapabilityState, CapabilityStatus, DelegateCli, ModelPreset, ModelStatusView, ModelTier, VentureDeps, VentureHostKind, VentureStorage } from '../contracts.ts';
-import { cachedDelegateAvailability, DELEGATE_LABELS, DELEGATE_NOT_CHECKED, delegatePorts, type DelegateAvailability } from './harness/delegate.ts';
-import { cachedContainerAvailability, HOSTED_NO_AGENT_CODE, HOSTED_NO_CONTAINERS, HOSTED_NO_OWNER_CLI, WASM_LITE_REASON, type TierAvailability } from './harness/sandbox.ts';
-import { readAs } from './shared.ts';
+import { exactPayload } from '../records.ts';
+import type { CapabilityState, CapabilityStatus, ModelPreset, ModelStatusView, ModelTier, VentureDeps, VentureHostKind, VentureStorage } from '../contracts.ts';
+import { cachedContainerAvailability, HOSTED_NO_AGENT_CODE, HOSTED_NO_CONTAINERS, WASM_LITE_REASON, type TierAvailability } from './harness/sandbox.ts';
 
 export const EXPERIMENTAL_STORAGE_NOTICE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 export const TEMPLATES_REASON = 'No AI connected; built-in templates write outlines.';
@@ -32,33 +30,13 @@ function modelRow(tier: ModelTier, status: ModelStatusView | undefined, presets:
 
 export const CONTAINER_NOT_CHECKED = 'Chausar has not checked this computer for Docker yet.';
 
-/** Heavy work, per tool: what the check found, and whether a run on a real order here finished. */
-export type DelegateCapability = { availability: DelegateAvailability; realRun: boolean };
-
-/**
- * One heavy-work row. Available only when the tool is found, passes its version check and has finished a run on a
- * real order here; found and checked but never run is unverified; anything else needs setup. Never on the hosted server.
- */
-function delegateRow(cli: DelegateCli, found: DelegateCapability | undefined, hosted: boolean): CapabilityStatus {
-  const id = cli === 'claude-code' ? 'tier-owner-claude' : 'tier-owner-codex';
-  const label = `Heavy work: ${DELEGATE_LABELS[cli]}`;
-  if (hosted) return { id, group: 'sandbox', label, state: 'unavailable', reason: HOSTED_NO_OWNER_CLI };
-  if (!found) return { id, group: 'sandbox', label, state: 'needs-setup', reason: DELEGATE_NOT_CHECKED };
-  const { availability, realRun } = found;
-  if (availability.state === 'needs-setup' || !availability.version) return { id, group: 'sandbox', label, state: 'needs-setup', reason: availability.reason };
-  if (realRun) {
-    return { id, group: 'sandbox', label, state: 'available', reason: `${DELEGATE_LABELS[cli]} ${availability.version} is on this computer and finished a job on a real order here. Each job still waits for you to approve its brief.` };
-  }
-  return { id, group: 'sandbox', label, state: 'unverified', reason: availability.reason };
-}
-
 /**
  * The capability list, in a fixed order. Without a model status both model rows say they need setup. Without a
  * container check the container row says it was not checked; the handler always checks, except on the hosted web
  * server. There ('hosted-web') the hosted rows say experimental, and what never runs on a shared server says so: no
  * containers, no agent-written code, no plugins and no PDF reading.
  */
-export function capabilityList(platform: string, modelStatus?: ModelStatusView, storage: VentureStorage = 'experimental-file', presets?: readonly ModelPreset[], container?: TierAvailability, host: VentureHostKind = 'desktop', delegate?: Partial<Record<DelegateCli, DelegateCapability>>): CapabilityStatus[] {
+export function capabilityList(platform: string, modelStatus?: ModelStatusView, storage: VentureStorage = 'experimental-file', presets?: readonly ModelPreset[], container?: TierAvailability, host: VentureHostKind = 'desktop'): CapabilityStatus[] {
   const row = (id: string, group: CapabilityStatus['group'], label: string, state: CapabilityState, reason: string): CapabilityStatus => ({ id, group, label, state, reason });
   const hosted = host === 'hosted-web';
   return [
@@ -70,9 +48,9 @@ export function capabilityList(platform: string, modelStatus?: ModelStatusView, 
     hosted
       ? row('hosted-actors', 'runtime', 'Hosted business actors', 'unverified', 'Experimental: one actor per business on this server. Not yet tested on a real deploy.')
       : row('hosted-actors', 'runtime', 'Hosted business actors', 'planned', 'The hosted web tier is written but not deployed; Rivet Actors are the candidate runtime.'),
-    row('tier-code', 'runtime', 'Code steps', 'available', 'The calculator, the checks and the agent loop run inside Chausar. Not a sandbox.'),
-    row('tier-actor', 'runtime', 'Agent turns', 'available', 'Agents call tools in a loop with limits on turns, tool calls and spend. On a real order each turn waits for you to approve its exact text. Not a sandbox.'),
-    row('improvement-loop', 'runtime', 'Improvement loop', 'available', 'Tries one playbook change at a time on your held-back cases and practice clients, and keeps it only if it wins. You adopt each change.'),
+    row('tier-code', 'runtime', 'Code steps', 'available', 'Chausar runs the calculators, source checks, receipts and approval checks.'),
+    row('agent-runtime', 'runtime', 'Your AI agent', hosted ? 'unavailable' : 'available', hosted ? 'Run Codex or Claude Code in the desktop app.' : 'Your Codex or Claude Code runs the job using scoped Chausar tools. Client data needs recorded consent; outside actions need your exact approval.'),
+    row('improvement-loop', 'runtime', 'Improvement loop', 'available', 'Tries one change to the work instructions at a time on your held-back cases and practice clients, and keeps it only if it wins. You adopt each change.'),
     storage === 'experimental-file'
       ? row('durable-storage', 'storage', 'Durable storage', 'planned', EXPERIMENTAL_STORAGE_NOTICE)
       : hosted
@@ -87,8 +65,6 @@ export function capabilityList(platform: string, modelStatus?: ModelStatusView, 
     hosted
       ? row('tier-container', 'sandbox', 'Containers', 'unavailable', HOSTED_NO_CONTAINERS)
       : row('tier-container', 'sandbox', 'Containers', container?.state ?? 'unverified', container?.reason ?? CONTAINER_NOT_CHECKED),
-    delegateRow('claude-code', delegate?.['claude-code'], hosted),
-    delegateRow('codex', delegate?.codex, hosted),
     row('tier-hosted', 'sandbox', 'Hosted sandboxes', 'planned', 'Needs your own E2B, Sail or Cloudflare account.'),
     modelRow('fast', modelStatus, presets),
     modelRow('main', modelStatus, presets),
@@ -113,24 +89,5 @@ export async function capabilitiesHandler(deps: VentureDeps, ctx: Context, paylo
   try { presets = deps.models.presets(); } catch { presets = undefined; }
   // The hosted server never checks for Docker: containers never run there, so there is nothing to look for.
   const container = deps.host === 'hosted-web' ? undefined : await cachedContainerAvailability(deps.sandbox, deps.clock().getTime());
-  // Nor does it look for the owner's command-line tools: they never start there.
-  const delegate = deps.host === 'hosted-web' ? undefined : await delegateCapabilities(deps, ctx);
-  return capabilityList(process.platform, status, deps.storage, presets, container, deps.host, delegate);
-}
-
-/** Each tool's check, and whether this business has a finished run of it on a real order. Works before a business exists. */
-async function delegateCapabilities(deps: VentureDeps, ctx: Context): Promise<Partial<Record<DelegateCli, DelegateCapability>> | undefined> {
-  const ports = delegatePorts(deps);
-  if (!ports) return undefined;
-  let finished: Set<DelegateCli>;
-  try {
-    const { state, venture } = readAs(deps, ctx, 'read');
-    finished = new Set(listRecords(state, 'venture-delegate-run', venture.id).filter(record => record.outcome === 'succeeded').map(record => record.cli));
-  } catch {
-    finished = new Set();
-  }
-  const nowMs = deps.clock().getTime();
-  const result: Partial<Record<DelegateCli, DelegateCapability>> = {};
-  for (const cli of ['claude-code', 'codex'] as const) result[cli] = { availability: await cachedDelegateAvailability(ports, cli, nowMs, deps.claudeCodeTerms), realRun: finished.has(cli) };
-  return result;
+  return capabilityList(process.platform, status, deps.storage, presets, container, deps.host);
 }

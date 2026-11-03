@@ -12,7 +12,17 @@ import { digest, listRecords, ventureAction } from '../runtime/venture/records.t
 import { handlers as views } from '../runtime/venture/views/index.ts';
 import { changeViews, joinParagraphs, mergeParagraphs, mergedText, paragraphs } from '../runtime/venture/delivery/merge.ts';
 import { clientDraft } from '../runtime/venture/build/draft-text.ts';
-import { approve, call, code, owner, phone, record, seedOrder, setup, type Env } from './venture-run-controls-env.ts';
+import { startNativeDraft, call, code, owner, phone, record, seedOrder, setup, type Env } from './venture-run-controls-env.ts';
+
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
+
+const draftsFor = new WeakMap<Env, () => unknown>();
+const setDraft = (env: Env, next: () => unknown) => draftsFor.set(env, next);
+
+async function revised(env: Env, runId: string): Promise<DeliveryRunView> {
+  await waitForAgentWork(env.store, runId);
+  return (await call<DeliveryRunView[]>(env, 'venture.delivery.list', {})).find(run => run.id === runId)!;
+}
 
 const part = (text: string) => ({ kind: 'text', text, ref: '' });
 const SUMMARY = 'Here is the plan for your September books.';
@@ -44,11 +54,12 @@ const ownerVersion = (text: string) => text.replace(DO, 'We will match every pay
 async function readyDraft(drafts: unknown[] = [report()]) {
   const env = await setup();
   let next = 0;
-  env.models.respond.delivery = () => drafts[Math.min(next++, drafts.length - 1)];
+  setDraft(env, () => drafts[Math.min(next++, drafts.length - 1)]);
+  const contexts: Record<string, unknown>[] = [];
   const order = await seedOrder(env);
-  const run = await approve(env, await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id }));
+  const run = await startNativeDraft(env, { order, draft: () => draftsFor.get(env)!(), observe: (name, value) => { if (name === 'read_business') contexts.push({ ...(value as Record<string, unknown>), savedRevision: listRecords(env.store.read(), 'venture-delivery-run').at(-1)?.revision }); } });
   assert.equal(run.status, 'ready-for-review');
-  return { env, run, row: await draftRow(env) };
+  return { env, run, row: await draftRow(env), contexts };
 }
 
 // ---------------------------------------------------------------------------
@@ -131,9 +142,9 @@ async function editedThenRevised() {
   const { env, run, row } = await readyDraft();
   const mine = ownerVersion(run.renderedText!);
   await edit(env, row, mine);
-  env.models.respond.delivery = () => report('A short plan for your September books.', 'We will match payments to bills each week.', 'Please send the bank statement and the bills.');
+  setDraft(env, () => report('A short plan for your September books.', 'We will match payments to bills each week.', 'Please send the bank statement and the bills.'));
   assert.equal((await sendBack(env, await draftRow(env), 'Make it shorter.')).outcome, 'done');
-  const landed = await approve(env, await runOf(env, run.id));
+  const landed = await revised(env, run.id);
   assert.equal(landed.status, 'ready-for-review');
   return { env, run: landed, mine };
 }
@@ -185,9 +196,9 @@ test('a stale replacement: Confirm replacement takes the agent\'s version whole;
 test('a revision with no edit of the owner\'s: the agent\'s changes are tracked, each one the owner can drop', async () => {
   const { env, run, row } = await readyDraft();
   assert.deepEqual(await changes(env, run.id), { changes: [] });
-  env.models.respond.delivery = () => report('A short plan for your September books.');
+  setDraft(env, () => report('A short plan for your September books.'));
   await sendBack(env, row, 'Shorter.');
-  const landed = await approve(env, await runOf(env, run.id));
+  const landed = await revised(env, run.id);
   const shown = await changes(env, landed.id);
   assert.equal(shown.line, 'The agent revised this. Each change it made is marked; drop any you do not want.');
   assert.equal(shown.replacement, undefined);
@@ -225,35 +236,62 @@ test('undo an edit after the draft moved on is too late', async () => {
   await assert.rejects(undo(env, row.id), code('UNDO_TOO_LATE'));
 });
 
-test('undo a send-back before its revision starts: the draft is back as it was; after the revision started it is too late', async () => {
+test('undo a native send-back before its session starts restores the draft; after starting it is too late', async () => {
   const { env, run, row } = await readyDraft();
-  await sendBack(env, row, 'Shorter.');
-  const waiting = await runOf(env, run.id);
-  const restored = await undo(env, row.id);
-  assert.equal(restored.line, 'Restored until you edit this again.');
-  const stored = record(env, run.id);
-  assert.deepEqual([stored.status, stored.revision ?? null, stored.preview], ['ready-for-review', null, null]);
-  assert.equal(stored.renderedText, run.renderedText);
-  assert.ok(await draftRow(env), 'the review row is back');
-  assert.ok(listRecords(env.store.read(), 'venture-decision').some(item => item.action === 'undo' && item.subject === `run:${run.id}`));
-  // The revision's text can no longer be sent.
-  await assert.rejects(approve(env, waiting), code('DELIVERY_NOT_WAITING'));
-  // Send it back again and approve the revision: then Undo is too late.
+  const route = env.deps.agentRoute!;
+  let release!: () => void, entered!: () => void, driverOpens = 0;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const selecting = new Promise<void>(resolve => { entered = resolve; });
+  env.deps.agentRoute = async (...args) => {
+    entered(); await held;
+    const selected = await route(...args);
+    return { ...selected, driver: { async open(input) { driverOpens++; return selected.driver.open(input); } } };
+  };
+  const pending = sendBack(env, row, 'Shorter.');
+  const pendingResult = pending.then(value => ({ value }), error => ({ error }));
+  await selecting;
+  try {
+    const restored = await undo(env, row.id);
+    assert.equal(restored.line, 'Restored until you edit this again.');
+    const stored = record(env, run.id);
+    assert.deepEqual([stored.status, stored.revision ?? null, stored.preview], ['ready-for-review', null, null]);
+    assert.equal(stored.renderedText, run.renderedText);
+    assert.ok(await draftRow(env));
+  } finally { release(); }
+  const abandoned = await pendingResult;
+  assert.ok('error' in abandoned);
+  assert.equal(abandoned.error.code, 'JOB_CLOSED');
+  assert.equal(driverOpens, 0, 'Undo before launch never opens the native driver');
+  let releaseRun!: () => void, opened!: () => void;
+  const runHeld = new Promise<void>(resolve => { releaseRun = resolve; });
+  const running = new Promise<void>(resolve => { opened = resolve; });
+  env.deps.agentRoute = async (...args) => {
+    const selected = await route(...args);
+    return { ...selected, driver: { async open(input) {
+      const session = await selected.driver.open(input);
+      return { ...session, async run(prompt) { opened(); await runHeld; return session.run(prompt); } };
+    } } };
+  };
   const again = await draftRow(env);
   await sendBack(env, again, 'Shorter.');
-  await approve(env, await runOf(env, run.id));
-  await assert.rejects(undo(env, again.id), code('UNDO_TOO_LATE'));
+  await running;
+  try {
+    const live = record(env, run.id);
+    assert.equal(live.revision!.callId, live.agentJob!.scope.jobId, 'the start marker is bound to this exact job');
+    await assert.rejects(undo(env, again.id), code('UNDO_TOO_LATE'));
+  } finally { releaseRun(); }
+  await revised(env, run.id);
 });
 
-test('undo never undoes something that went out, and a row never decided has nothing to undo', async () => {
-  const env = await setup();
-  env.models.respond.delivery = () => report();
-  const order = await seedOrder(env);
-  await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  const send = (await queue(env)).rows.find(item => item.kind === 'quote')!;
-  await assert.rejects(undo(env, send.id), code('UNDO_NOTHING'));
-  assert.equal((await call<QueueDecision>(env, 'venture.queue.decide', { id: send.id, digest: send.digest, action: 'approve', viewed: true })).outcome, 'done');
-  await assert.rejects(undo(env, send.id), code('UNDO_OUTSIDE_EFFECT'));
+test('undo never undoes an exact outside-action decision, and an undecided row has nothing to undo', async () => {
+  const { env, row } = await readyDraft();
+  await assert.rejects(undo(env, row.id), code('UNDO_NOTHING'));
+  // A persisted exact post approval is irreversible. No real post is sent by this test.
+  const rowId = 'post:test:approved';
+  await ventureAction(env.deps, owner, 'prepare', 'test.outside-decision', tx => {
+    tx.put({ ...tx.base('venture-queue-decision'), rowId, digest: 'a'.repeat(64), subject: 'post:test', action: 'approve', decidedBy: owner.memberId, receiptId: null, line: 'Published the exact approved post.', undoneAt: null });
+  });
+  await assert.rejects(undo(env, rowId), code('UNDO_OUTSIDE_EFFECT'));
 });
 
 // ---------------------------------------------------------------------------
@@ -261,13 +299,14 @@ test('undo never undoes something that went out, and a row never decided has not
 // ---------------------------------------------------------------------------
 
 test('a revision after an edit revises the owner\'s version; the agent\'s own draft stays the merge base', async () => {
-  const { env, run, row } = await readyDraft();
+  const { env, run, row, contexts } = await readyDraft();
   const mine = ownerVersion(run.renderedText!);
   await edit(env, row, mine);
   await sendBack(env, await draftRow(env), 'Make it shorter.');
-  const input = env.models.previewed.at(-1)!.input as Record<string, unknown>;
+  await revised(env, run.id);
+  const input = contexts.at(-1)!.revision as { previousDraft: string };
   assert.equal(input.previousDraft, mine, 'the agent revises what the owner sees');
-  assert.equal(record(env, run.id).revision?.base, run.renderedText, 'the merge base is the agent\'s own draft');
+  assert.equal((contexts.at(-1)!.savedRevision as { base: string }).base, run.renderedText, 'the merge base is the agent\'s own draft');
 });
 
 test('taking or dropping a change gives Today\'s review row a new version', async () => {
@@ -285,9 +324,9 @@ test('an owner edit that only moves blank lines or spaces is not an edit of thei
   const { env, run, row } = await readyDraft();
   const spaced = run.renderedText!.split('\n\n').join('\n\n\n');
   await edit(env, row, spaced);
-  env.models.respond.delivery = () => report('A short plan for your September books.');
+  setDraft(env, () => report('A short plan for your September books.'));
   await sendBack(env, await draftRow(env), 'Shorter.');
-  await approve(env, await runOf(env, run.id));
+  await revised(env, run.id);
   const shown = await changes(env, run.id);
   assert.equal(shown.line, 'The agent revised this. Each change it made is marked; drop any you do not want.');
   assert.equal(shown.replacement, undefined);
@@ -309,7 +348,7 @@ test('an edit keeps the files a reopen named; a draft the judge is reading says 
   });
   const refusal = await edit(judged.env, await draftRow(judged.env), 'My own words.');
   assert.equal(refusal.reason, 'NOT_OFFERED');
-  assert.equal(refusal.line, 'The judge is reading this draft. Accept it once its answer is in.');
+  assert.equal(refusal.line, 'The quality check is reading this draft. Accept it once its answer is in.');
 });
 
 // ---------------------------------------------------------------------------
@@ -342,4 +381,40 @@ test('copy refuses a draft that has not gone out, a practice draft and an unknow
   await assert.rejects(copy(env, run.id), code('PRACTICE_DRAFT'));
   await assert.rejects(copy(env, 'delivery_missing'), code('DELIVERY_NOT_FOUND'));
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 1, 'nothing was made');
+});
+
+
+test('an undone pending launch cannot start a later revision after route selection resumes', async () => {
+  const { env, run, row, contexts } = await readyDraft();
+  const route = env.deps.agentRoute!;
+  let opens = 0;
+  const gates = [0, 1].map(() => {
+    let entered!: () => void, release!: () => void;
+    return { entering: new Promise<void>(resolve => { entered = resolve; }), held: new Promise<void>(resolve => { release = resolve; }), enter: () => entered(), release: () => release() };
+  });
+  let selected = 0;
+  env.deps.agentRoute = async (...args) => {
+    const gate = gates[selected++]!; gate.enter(); await gate.held;
+    const next = await route(...args);
+    return { ...next, driver: { async open(input) { opens++; return next.driver.open(input); } } };
+  };
+  const first = sendBack(env, row, 'First revision.').then(value => ({ value }), error => ({ error }));
+  await gates[0].entering;
+  await undo(env, row.id);
+  const current = await draftRow(env);
+  const second = sendBack(env, current, 'Second revision.').then(value => ({ value }), error => ({ error }));
+  await gates[1].entering;
+  try {
+    gates[0].release();
+    const obsolete = await first;
+    assert.ok('error' in obsolete, 'the cancelled launch must not adopt the new revision');
+    assert.equal(obsolete.error.code, 'JOB_CLOSED');
+    assert.equal(opens, 0);
+    assert.equal(record(env, run.id).revision!.words, 'Revise this to: Second revision.');
+  } finally { gates[0].release(); gates[1].release(); }
+  const result = await second;
+  assert.ok('value' in result);
+  await revised(env, run.id);
+  assert.equal(opens, 1);
+  assert.equal((contexts.at(-1)!.revision as { words: string }).words, 'Revise this to: Second revision.');
 });

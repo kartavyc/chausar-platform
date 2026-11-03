@@ -13,6 +13,7 @@ import type { CountryProfile, IsoDate, PlaybookCheckResult } from '../../contrac
 import { validDate } from '../../../memory.ts';
 import { localDayAt } from '../../local-day.ts';
 import type { DatedRule, RuleRead } from './define.ts';
+import { NO_ATTESTATIONS, ruleCleared, type AttestedRules } from './attestation.ts';
 
 export type { DatedRule, RuleRead } from './define.ts';
 
@@ -79,7 +80,7 @@ export function validateRules(rules: readonly DatedRule[], owner: RuleOwner, tod
     if (rule.value !== undefined) refuse(words(rule.value) && words(rule.unit), 'has an empty value or unit');
     refuse(Array.isArray(rule.usedBy) && rule.usedBy.length > 0, 'needs the steps or checks that use it');
     const unknown = rule.usedBy.filter(id => !targets.has(id));
-    refuse(!unknown.length, `is used by ${unknown.join(', ')}, which the playbook has no step or check for`);
+    refuse(!unknown.length, `is used by ${unknown.join(', ')}, which the work plan has no step or check for`);
     refuse(words(rule.limitations), 'needs a line on what it does not cover');
     refuse(rule.recheckAfterDays === undefined || (Number.isInteger(rule.recheckAfterDays) && rule.recheckAfterDays >= 1 && rule.recheckAfterDays <= RULE_RECHECK_MAX_DAYS),
       `has a recheck window that is not a whole number of days from 1 to ${RULE_RECHECK_MAX_DAYS}`);
@@ -177,10 +178,11 @@ export type RuleUse = 'client' | 'rehearsal';
  * (confirmedBy null), the way the CA firm's rate tables work in rehearsal only until the CA confirms them. used: the
  * step and check ids the work ran. A rehearsal goes on, and so does a rule that needs no such confirmation.
  */
-export function requireConfirmedRules(rules: readonly DatedRule[], used: Iterable<string>, use: RuleUse): void {
+export function requireConfirmedRules(rules: readonly DatedRule[], used: Iterable<string>, use: RuleUse, attested: AttestedRules = NO_ATTESTATIONS): void {
   if (use === 'rehearsal') return;
   const ran = new Set(used);
-  const waiting = rules.find(rule => waitsForConfirmation(rule) && rule.usedBy.some(id => ran.has(id)));
+  // W6 6C5: a rule the owner attested (these exact words, not withdrawn) no longer holds the work.
+  const waiting = rules.find(rule => waitsForConfirmation(rule) && !ruleCleared(rule, attested) && rule.usedBy.some(id => ran.has(id)));
   check(!waiting, 'RULE_UNCONFIRMED', waiting
     ? `A ${WHO[waiting.needs!]} has not confirmed the rule "${waiting.topic}" yet. It works in practice runs only until they do.`
     : '');

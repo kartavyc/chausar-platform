@@ -24,6 +24,7 @@ import { outreachView } from './outreach.ts';
 import { mailboxOf, mailboxView } from './mailbox.ts';
 import { calendarFeedOf, calendarView } from './calendar-feed.ts';
 import { chatConsentState } from '../agents/consent.ts';
+import { savedWebSearch } from '../web/search.ts';
 
 /** The most people one list answers with; total says how many matched. */
 const LIST_LIMIT = 500;
@@ -112,7 +113,8 @@ export async function networkSources(deps: VentureDeps, ctx: Context, payload: u
     });
   }
   const bands = bandsNow(state, venture);
-  const webSearch = deps.webSearch ? 'set-up' as const : 'not-set-up' as const; // 4D4
+  // 4D4; 6F3: the host's own search or the owner's saved Brave, Exa or Tavily key (web/search.ts).
+  const webSearch = (await savedWebSearch(deps)) ? 'set-up' as const : 'not-set-up' as const;
   // 4E4: the mailbox's and the calendar address's state, as their own methods answer it; the hosted app reads neither.
   const hosted = deps.host === 'hosted-web';
   const reads = {

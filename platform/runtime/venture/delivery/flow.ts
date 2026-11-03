@@ -84,7 +84,7 @@ function checkStepFields(step: PlaybookStep, kinds: ReadonlyMap<string, Playbook
       check(edge && typeof edge === 'object' && EDGE_OUTCOMES.includes(edge.on) && typeof edge.to === 'string', 'INVALID_VENTURE_REQUEST', `The step ${id} has an edge Chausar can't read.`);
       if (seen.has(edge.on)) refuse(`The step ${id} has two edges for ${edge.on}.`);
       seen.add(edge.on);
-      check(ids.has(edge.to), 'STEP_NOT_FOUND', `The step ${id} leads to ${edge.to}, which is not in this playbook.`);
+      check(ids.has(edge.to), 'STEP_NOT_FOUND', `The step ${id} leads to ${edge.to}, which is not in this work plan.`);
       if (kinds.get(edge.to) === 'operator' && !(step.kind === 'approve' && edge.on === 'done')) refuse(outside(edge.to));
     }
   }
@@ -101,7 +101,7 @@ function checkStepFields(step: PlaybookStep, kinds: ReadonlyMap<string, Playbook
     for (const to of step.failover) {
       check(typeof to === 'string', 'INVALID_VENTURE_REQUEST', `The step ${id} has a fail-over Chausar can't read.`);
       if (to === id) refuse(`The step ${id} can't fail over to itself.`);
-      check(ids.has(to), 'STEP_NOT_FOUND', `The step ${id} fails over to ${to}, which is not in this playbook.`);
+      check(ids.has(to), 'STEP_NOT_FOUND', `The step ${id} fails over to ${to}, which is not in this work plan.`);
       if (kinds.get(to) === 'operator') refuse(outside(to));
     }
   }
@@ -203,7 +203,7 @@ export type FlowState = {
 
 /** A run's path at its start: on the first step, attempt 1. deadlineMs (the playbook's limits) sets the deadline. */
 export function startFlow(steps: readonly PlaybookStep[], limits: Pick<HarnessLimits, 'deadlineMs'> | undefined, startedAt: number): FlowState {
-  check(steps.length >= 1, 'INVALID_VENTURE_REQUEST', 'A playbook needs at least one step.');
+  check(steps.length >= 1, 'INVALID_VENTURE_REQUEST', 'A work plan needs at least one step.');
   const first = steps[0].id;
   return {
     stepId: first, attempts: { [first]: 1 }, timeouts: {}, trail: [{ stepId: first, attempt: 1, outcome: null }], startedAt,
@@ -252,7 +252,7 @@ export function advanceFlow(steps: readonly PlaybookStep[], flow: FlowState, res
   }
   if (done.deadlineAt !== null && nowMs > done.deadlineAt) return ended(done, 'blocked', DEADLINE_LINE, step.id);
   const target = steps.find(item => item.id === to);
-  check(target, 'STEP_NOT_FOUND', `The step ${to} is not in this playbook.`);
+  check(target, 'STEP_NOT_FOUND', `The step ${to} is not in this work plan.`);
   const before = done.attempts[target.id] ?? 0;
   if (before > 0 && target.maxLoops !== undefined && before > target.maxLoops) {
     return ended(done, target.onExceeded ?? 'blocked', `The run came back to ${target.id} ${target.maxLoops} ${target.maxLoops === 1 ? 'time' : 'times'}, its limit.`, step.id);

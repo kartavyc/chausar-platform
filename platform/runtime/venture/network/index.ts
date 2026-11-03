@@ -17,6 +17,9 @@ import { networkSearch, networkSearchMore } from './search.ts';
 import { networkSaveSearch } from './saved-searches.ts';
 import { networkResearch } from './research.ts';
 import { outreachDraft, outreachOpen, outreachRestricted, outreachSent } from './outreach.ts';
+import { webRead, webSearchHandler } from '../web/methods.ts';
+import { peopleLookup, peopleServices } from '../people/services.ts';
+import { crmClient, crmClientEdit, crmCompanies, crmCompany, crmCompanySave, crmLink, crmList, crmListPlace, crmLists, crmListSave, crmLog } from '../crm/crm.ts';
 
 /** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
@@ -61,6 +64,15 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.inbound.confirm': inboundConfirm,
   'venture.network.calendar': networkCalendar,
   'venture.meeting.digest': meetingDigest,
+  // Wave 6 (6F3) web search and the polite page reader; (6F8) people search on the owner's own keys
+  'venture.web.search': webSearchHandler,
+  'venture.web.read': webRead,
+  'venture.people.services': peopleServices,
+  'venture.people.lookup': peopleLookup,
+  // Wave 6 (6G3) the CRM: field history, companies, timelines and lists (crm/crm.ts)
+  'venture.crm.client': crmClient, 'venture.crm.client.edit': crmClientEdit, 'venture.crm.companies': crmCompanies, 'venture.crm.company': crmCompany,
+  'venture.crm.company.save': crmCompanySave, 'venture.crm.link': crmLink, 'venture.crm.log': crmLog, 'venture.crm.lists': crmLists,
+  'venture.crm.list': crmList, 'venture.crm.list.save': crmListSave, 'venture.crm.list.place': crmListPlace,
 });
 
 // The reads of people the network packages share (package 4-0).

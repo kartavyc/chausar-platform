@@ -105,7 +105,7 @@ class ScriptPort implements ModelPort {
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
     this.#previews.set(callId, { digest: digest(payloadText), task, used: false });
     await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
-    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-18T10:30:00.000Z' };
+    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010' };
   }
   async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
     if (ctx.channel !== 'desktop') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
@@ -222,17 +222,6 @@ function fakeFigures(): unknown[] {
   ];
 }
 
-async function toBrief(env: Env): Promise<DeliveryRunView> {
-  const order = await orderWithFiles(env);
-  script(env, [DELEGATE, DONE]);
-  const run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  assert.equal(run.status, 'waiting-for-you');
-  return call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-}
-const brief = (run: DeliveryRunView) => run.harness!.delegations!.at(-1)!;
-const decide = (env: Env, run: DeliveryRunView, decision: 'approve' | 'decline', ctx: Context = owner, briefDigest = brief(run).digest) =>
-  call<DeliveryRunView>(env, 'venture.delivery.delegate', { runId: run.id, digest: briefDigest, decision }, ctx);
-
 // ---------------------------------------------------------------------------
 // 1. The version check and the capability rows
 // ---------------------------------------------------------------------------
@@ -259,14 +248,8 @@ test('availability: offered only when the tool is found and answers its version 
     assert.match(missing.reason, /Install Claude Code and sign in/);
   } finally { rmSync(empty, { recursive: true, force: true }); }
 
-  const row = (rows: CapabilityStatus[], id: string) => rows.find(item => item.id === id)!;
-  const unverified = { availability: { cli: 'claude-code' as const, state: 'unverified' as const, reason: 'Claude Code 2.1.0 is on this computer.', executable: '/x/claude', version: '2.1.0' }, realRun: false };
-  assert.equal(row(capabilityList('win32', undefined, 'experimental-file', undefined, undefined, 'desktop', { 'claude-code': unverified }), 'tier-owner-claude').state, 'unverified');
-  assert.equal(row(capabilityList('win32', undefined, 'experimental-file', undefined, undefined, 'desktop', { 'claude-code': { ...unverified, realRun: true } }), 'tier-owner-claude').state, 'available');
-  assert.equal(row(capabilityList('win32'), 'tier-owner-codex').state, 'needs-setup');
-  const hosted = capabilityList('linux', undefined, 'postgres', undefined, undefined, 'hosted-web', { 'claude-code': { ...unverified, realRun: true } });
-  assert.deepEqual([row(hosted, 'tier-owner-claude').state, row(hosted, 'tier-owner-claude').reason], ['unavailable', HOSTED_NO_OWNER_CLI]);
-  assert.equal(row(hosted, 'tier-owner-codex').state, 'unavailable');
+  assert.equal(capabilityList('win32').some(row=>row.id.startsWith('tier-owner-')),false);
+
 });
 
 test('the Claude Code terms gate: while it is pending heavy work never looks for, offers or starts Claude Code; Codex is not affected', async () => {
@@ -274,7 +257,7 @@ test('the Claude Code terms gate: while it is pending heavy work never looks for
   const looked: string[] = [];
   const ports: DelegatePorts = { locate: async cli => { looked.push(cli); return fake.ports.locate(cli); }, process: request => fake.ports.process(request) };
   try {
-    for (const terms of [undefined, 'pending'] as const) {
+    for (const terms of ['pending'] as const) {
       const closed = await delegateAvailability(ports, 'claude-code', terms);
       assert.deepEqual([closed.state, closed.reason, closed.executable], ['needs-setup', DELEGATE_CLAUDE_TERMS, null], String(terms));
     }
@@ -282,9 +265,7 @@ test('the Claude Code terms gate: while it is pending heavy work never looks for
     const env = await setup(ports, 'desktop', 'pending');
     assert.deepEqual(await delegateOffer(env.deps), [], 'not offered; the fake is no Codex, so nothing is');
     const rows = await call<CapabilityStatus[]>(env, 'venture.capabilities');
-    const claude = rows.find(item => item.id === 'tier-owner-claude')!;
-    assert.deepEqual([claude.state, claude.reason], ['needs-setup', DELEGATE_CLAUDE_TERMS]);
-    assert.equal(rows.find(item => item.id === 'tier-owner-codex')!.state, 'needs-setup');
+    assert.equal(rows.some(row=>row.id.startsWith('tier-owner-')),false);
     assert.deepEqual([...new Set(looked)], ['codex'], 'only Codex was looked for');
     const codex = installFake({ kind: 'codex' });
     try {
@@ -292,15 +273,6 @@ test('the Claude Code terms gate: while it is pending heavy work never looks for
       assert.deepEqual((await delegateOffer(codexOnly.deps)).map(item => item.cli), ['codex'], 'Codex is offered with the gate pending');
     } finally { codex.cleanup(); }
 
-    // A gate that closes after the brief was written: the approval is refused and nothing starts.
-    const open = await setup(fake.ports, 'desktop', 'accepted');
-    const run = await toBrief(open);
-    assert.equal(run.status, 'brief-waiting');
-    assert.equal(brief(run).cli, 'claude-code');
-    (open.deps as { claudeCodeTerms?: string }).claudeCodeTerms = 'pending';
-    await assert.rejects(decide(open, run, 'approve'), (error: any) => error.code === 'TIER_UNAVAILABLE' && error.message.startsWith(DELEGATE_CLAUDE_TERMS));
-    assert.equal(fake.spy(), null, 'Claude Code was never started');
-    assert.equal(listRecords(open.store.read(), 'venture-delegate-run', open.venture.id).length, 0);
   } finally { fake.cleanup(); }
 });
 
@@ -336,181 +308,15 @@ test('arguments: on Windows Codex runs with its own Windows sandbox on, so works
 // 2. A real order: the brief, the approval, the locked folder, untrusted output, receipts
 // ---------------------------------------------------------------------------
 
-test('real order: nothing starts before the owner approves the exact brief; the tool works in a locked folder; figures get receipts', async () => {
-  const fake = installFake({ kind: 'claude', behavior: 'work', figures: fakeFigures(), extras: true });
-  process.env.ANTHROPIC_API_KEY = 'sk-ant-should-never-pass';
-  process.env.CHAUSAR_VAULT_PASSPHRASE = 'never-pass';
-  try {
-    const env = await setup(fake.ports);
-    const first = env.models.previewed;
-    let run = await toBrief(env);
-    assert.ok((first[0].input as any).tools.some((tool: any) => tool.tool === 'agent.delegate'), 'offered once the tool is found');
 
-    // The run waits for the brief. Nothing has started.
-    assert.equal(run.status, 'brief-waiting');
-    assert.equal(run.harness!.phase, 'brief');
-    assert.equal(run.callId, null);
-    assert.ok(run.awaitingYou && !run.canApprove);
-    const request = brief(run);
-    assert.equal(request.status, 'waiting');
-    assert.equal(request.cli, 'claude-code');
-    assert.ok(request.briefText.includes(BRIEF));
-    for (const file of FILES) assert.ok(request.briefText.includes(`inputs/${file.name}`), file.name);
-    assert.deepEqual(run.harness!.toolCalls.map(item => [item.tool, item.outcome]), [['agent.delegate', 'succeeded'], ['files.list', 'cancelled']]);
-    assert.equal(fake.spy(), null, 'nothing ran before approval');
-    assert.ok(listRecords(env.store.read(), 'venture-event').some(event => event.name === 'delivery-brief-waiting'));
 
-    await assert.rejects(decide(env, run, 'approve', phone), code('APP_APPROVAL_REQUIRED'));
-    await assert.rejects(decide(env, run, 'approve', owner, 'f'.repeat(64)), code('APPROVAL_STALE'));
-    await assert.rejects(call(env, 'venture.delivery.approve', { runId: run.id, digest: request.digest }), code('DELIVERY_NOT_WAITING'));
-    env.models.sendPolicy = 'nothing';
-    await assert.rejects(decide(env, run, 'approve'), code('SEND_DISABLED'));
-    env.models.sendPolicy = 'shape';
-    assert.equal(fake.spy(), null);
 
-    run = await decide(env, run, 'approve');
-    assert.equal(run.status, 'waiting-for-you');
-    assert.equal(run.harness!.phase, 'act');
-    await assert.rejects(decide(env, { ...run, harness: { ...run.harness!, delegations: [request] } }, 'approve'), code('DELIVERY_NOT_BRIEFING'), 'a second approval starts nothing');
-    // 4J13 (H30): the heavy work reported into this run once, under the brief's fixed id; its sources are the order's
-    // files it read, so no warning; the second approval delivered nothing more.
-    const reported = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!.reports!;
-    assert.deepEqual(reported.map(report => [report.messageId, report.from, report.sources, report.warning]),
-      [[`brief:${request.toolCallId}`, 'heavy-work', FILES.map(file => file.name), null]]);
-    assert.match(reported[0].line, /^Claude Code reported back\. /);
 
-    // The folder held only the brief and copies of the order's files; the environment held no key and no vault setting.
-    const spy = fake.spy();
-    assert.deepEqual(spy.entries, ['BRIEF.md', 'inputs', ...FILES.map(file => `inputs/${file.name}`).sort(), 'outputs', 'tmp']);
-    assert.equal(spy.stdin, request.briefText, 'the tool got exactly the approved text');
-    assert.ok(!spy.envNames.includes('ANTHROPIC_API_KEY') && !spy.envNames.some((name: string) => name.startsWith('CHAUSAR')), spy.envNames.join(','));
-    assert.ok(spy.args.includes('--disallowedTools'));
-    assert.equal(existsSync(spy.cwd), false, 'the folder is removed after the run');
 
-    // What it left is stored as untrusted data, with the calculator's checks on its figures.
-    const [record] = listRecords(env.store.read(), 'venture-delegate-run') as DelegateRunRecord[];
-    assert.equal(record.outcome, 'succeeded');
-    const handedOver = listRecords(env.store.read(), 'venture-asset').filter(asset => asset.runId === run.id);
-    assert.deepEqual(handedOver.map(asset => asset.name).sort(), record.outputs.map(output => output.name).sort(), 'every delegated output is recorded by the approval flow');
-    assert.ok(handedOver.every(asset => asset.source.kind === 'unknown' && asset.licence === null));
-    assert.equal(mediaAcceptBlock(env.store.read(), env.venture, { id: run.id, orderId: run.orderId })?.code, 'ASSET_LICENCE_UNKNOWN', 'Accept holds unknown delegated outputs');
-    assert.equal(record.untrusted, true);
-    assert.equal(record.approvedDigest, request.digest);
-    assert.equal(record.reportedCost, 'USD 0.0421');
-    // The spend ledger held Claude Code's own limit (2,000,000 micros) before it started, then settled at what it printed.
-    const spend = await listSpend(env.deps, owner, {});
-    assert.deepEqual(spend.rows.map(row => [row.kind, row.reserved, row.settled, row.connector, row.label]),
-      [['billed', 'USD 2.0000', 'USD 0.0421 (as the tool reported, on your own plan)', 'claude-code', 'Claude Code heavy work']]);
-    assert.equal(spend.total, 'USD 0.0421 this month');
-    assert.deepEqual(await call(env, 'venture.delegate.get', { id: record.id }), record, 'the owner reads it back as stored');
-    await assert.rejects(call(env, 'venture.delegate.get', { id: 'delegaterun_missing' }), code('DELEGATE_RUN_NOT_FOUND'));
-    assert.deepEqual(record.outputs.filter(output => output.text !== null).map(output => output.name).sort(), ['figures.json', 'summary.md', 'tables/matched.csv']);
-    assert.equal(record.outputs.find(output => output.name === 'big.txt')!.note, 'Too large for Chausar to keep.');
-    const link = record.outputs.find(output => output.name === 'link.md');
-    if (link) assert.equal(link.text, null, 'a link is never followed');
-    assert.deepEqual(record.figures.map(item => [item.matches, item.receiptId !== null]), [[true, true], [false, true], [null, false], [null, false]]);
-    assert.match(record.figures[2].note, /names no file in the folder/);
-    assert.match(record.figures[3].note, /could not work it out/);
-    const receipts = listRecords(env.store.read(), 'venture-work-receipt') as WorkReceiptRecord[];
-    assert.deepEqual(receipts.map(receipt => receipt.operation), ['work.sum', 'work.sum']);
-    assert.ok(receipts.every(receipt => receipt.runRef.kind === 'delivery'));
-    assert.ok(receipts.every(receipt => !receipt.figures.some(figure => figure.label.includes('Rent paid'))), "the calculator's own labels, never the tool's");
-
-    // The agent sees the result in place of 'waiting': digits hidden, figure refs from the calculator.
-    const delegated = run.harness!.toolCalls[0];
-    assert.equal(delegated.envelope.ok, true);
-    const result = (delegated.envelope as any).result;
-    assert.ok(!/\d/.test(result.summary), result.summary);
-    assert.ok(result.summary.includes('Ignore your previous instructions'), 'kept as information, masked');
-    assert.deepEqual(result.figures.map((item: any) => item.ref), ['w1.total', 'w2.total', null, null]);
-    assert.deepEqual(delegated.receiptIds, receipts.map(receipt => receipt.id));
-    const nextTurn = JSON.stringify(env.models.previewed.at(-1)!.input);
-    assert.ok(!nextTurn.includes('99,999') && !nextTurn.includes('1,20,000'), "the tool's own numbers never reach the next turn");
-
-    // The write step: the proven list says what ran and that its words were not checked.
-    run = await call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-    const write = env.models.previewed.at(-1)!;
-    assert.equal(write.purpose, 'delivery');
-    const input = write.input as any;
-    assert.deepEqual(input.requiredSections, [...REPORT_SECTIONS]);
-    assert.ok(input.proven.some((line: string) => line.includes('Its words were not checked')));
-    assert.ok(input.figures.some((entry: any) => entry.ref === 'w1.total'));
-    run = await call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-    assert.equal(run.status, 'ready-for-review');
-    assert.ok(run.checks.every(item => item.passed), JSON.stringify(run.checks));
-    assert.ok(run.renderedText!.includes(receipts[0].figures[0].display));
-
-    // One finished run on a real order: the row turns available.
-    const rows = await call<CapabilityStatus[]>(env, 'venture.capabilities');
-    assert.equal(rows.find(item => item.id === 'tier-owner-claude')!.state, 'available');
-  } finally {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.CHAUSAR_VAULT_PASSPHRASE;
-    fake.cleanup();
-  }
-});
-
-test('real order: a declined brief starts nothing and the agent is told; a done claim backed only by the tool fails', async () => {
-  const fake = installFake({ kind: 'claude', behavior: 'work' });
-  try {
-    const env = await setup(fake.ports);
-    let run = await toBrief(env);
-    run = await decide(env, run, 'decline');
-    assert.equal(run.status, 'waiting-for-you');
-    assert.equal(brief(run).status, 'declined');
-    assert.equal(fake.spy(), null, 'nothing started');
-    const envelope = run.harness!.toolCalls[0].envelope;
-    assert.equal(envelope.ok, false);
-    assert.equal(!envelope.ok && envelope.error.code, 'DELEGATE_DECLINED');
-    assert.equal(listRecords(env.store.read(), 'venture-delegate-run').length, 0);
-    await assert.rejects(decide(env, run, 'decline'), code('DELIVERY_NOT_BRIEFING'));
-  } finally { fake.cleanup(); }
-  const delegated = [{ kind: 'delegated' as const, toolCallId: 't1.1', receiptId: null, tableId: null }];
-  for (const phrase of ['we have prepared', 'we reconciled', 'we matched', 'we checked']) assert.equal(claimBacked(phrase, delegated), false, phrase);
-});
-
-test('real order: the time limit stops the tool and its whole process tree; a failed tool proves nothing', async () => {
-  const fake = installFake({ kind: 'claude', behavior: 'hang' }, { timeoutMs: 1500 });
-  try {
-    const env = await setup(fake.ports);
-    let run = await toBrief(env);
-    const started = Date.now();
-    run = await decide(env, run, 'approve');
-    assert.ok(Date.now() - started < 20000, 'stopped near its limit');
-    const [record] = listRecords(env.store.read(), 'venture-delegate-run') as DelegateRunRecord[];
-    assert.equal(record.outcome, 'timedOut');
-    assert.match(record.reason, /ran past its 10 minute limit and was stopped/);
-    // It printed no cost, so it settles at its limit and says that is an estimate; it is never counted as free.
-    const [held] = (await listSpend(env.deps, owner, {})).rows;
-    assert.deepEqual([held.kind, held.settled], ['estimate', 'USD 2.0000 (estimate)']);
-    assert.deepEqual(record.outputs.map(output => output.name), ['started.md']);
-    const envelope = run.harness!.toolCalls[0].envelope;
-    assert.equal(!envelope.ok && envelope.error.code, 'TOOL_TIMEOUT');
-    assert.ok(!run.harness!.proofs.some(proof => proof.kind === 'delegated'));
-    const pid = fake.spy().pid;
-    let alive = true;
-    for (let tries = 0; tries < 50 && alive; tries += 1) {
-      try { process.kill(pid, 0); await new Promise(done => setTimeout(done, 100)); } catch { alive = false; }
-    }
-    assert.equal(alive, false, 'the fake tool was stopped');
-
-    fake.setMode({ kind: 'claude', behavior: 'fail' });
-    script(env, [DELEGATE, DONE]);
-    const order2 = listRecords(env.store.read(), 'venture-order')[0];
-    let again = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order2.id });
-    again = await call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: again.id, digest: again.preview!.digest });
-    again = await decide(env, again, 'approve');
-    const failed = (listRecords(env.store.read(), 'venture-delegate-run') as DelegateRunRecord[]).find(item => item.runId === again.id)!;
-    assert.equal(failed.outcome, 'failed');
-    assert.match(failed.log, /something went wrong/);
-    const failedEnvelope = again.harness!.toolCalls[0].envelope;
-    assert.equal(!failedEnvelope.ok && failedEnvelope.error.code, 'DELEGATE_FAILED');
-  } finally { fake.cleanup(); }
-});
 
 /** One approved run straight through runDelegation, against the fake tool in the given behaviour. */
-async function runFake(kind: 'claude' | 'codex', behavior: FakeMode['behavior']) {
-  const fake = installFake({ kind, behavior });
+async function runFake(kind: 'claude' | 'codex', behavior: FakeMode['behavior'], timeoutMs?: number) {
+  const fake = installFake({ kind, behavior }, { timeoutMs });
   try {
     const offer = await delegateAvailability(fake.ports, kind === 'claude' ? 'claude-code' : 'codex', 'accepted');
     const file = { id: 'upload_1', name: FILES[0].name, format: 'csv' as const, bytes: 1, digest: digest(FILES[0].content), contentBase64: b64(FILES[0].content), clientData: true };
@@ -518,6 +324,17 @@ async function runFake(kind: 'claude' | 'codex', behavior: FakeMode['behavior'])
     return await runDelegation(fake.ports, { ...draft, toolCallId: 't1.1', turn: 1 }, [file], { currency: 'INR', dateOrder: 'day-month-year', runRef: { kind: 'delivery', runId: 'run_x' } });
   } finally { fake.cleanup(); }
 }
+
+test('retained developer helper stops a timed-out process and records failure without treating it as work', async () => {
+  const started = Date.now();
+  const timed = await runFake('claude', 'hang', 1500);
+  assert.equal(timed.outcome, 'timedOut');
+  assert.ok(Date.now() - started < 20000);
+  assert.deepEqual(timed.figures, []);
+  const failed = await runFake('claude', 'fail');
+  assert.equal(failed.outcome, 'failed');
+  assert.match(failed.log, /something went wrong/);
+});
 
 test('real order: a tool that exits cleanly but says it was blocked, or leaves no files, did not succeed', async () => {
   for (const kind of ['codex', 'claude'] as const) {
@@ -553,9 +370,8 @@ test('hosted server: heavy work is not offered, refused before its input is read
     const refused = await callTool(toolEnv(env.deps, { kind: 'delivery', runId: 'delivery_1' }, offer), ['agent.delegate'], 1, 0, { tool: 'agent.delegate', input: '{not json' });
     assert.equal(!refused.record.envelope.ok && refused.record.envelope.error.code, 'TIER_UNAVAILABLE');
     assert.equal(!refused.record.envelope.ok && refused.record.envelope.error.message, HOSTED_NO_OWNER_CLI);
-    await assert.rejects(call(env, 'venture.delivery.delegate', { runId: 'delivery_1', digest: 'a'.repeat(64), decision: 'approve' }), code('TIER_UNAVAILABLE'));
     const rows = await call<CapabilityStatus[]>(env, 'venture.capabilities');
-    assert.equal(rows.find(item => item.id === 'tier-owner-claude')!.state, 'unavailable');
+    assert.equal(rows.some(row=>row.id.startsWith('tier-owner-')),false);
     assert.equal(delegatePorts(env.deps), null, 'no port on the hosted server, even an injected one');
     assert.deepEqual(await delegateOffer(env.deps), []);
     assert.equal(fake.located, 0, 'the hosted server never looks for the tool');
@@ -580,30 +396,3 @@ test('rehearsal: heavy work is never offered without a found tool and is refused
 });
 
 // 4J11 (H31): one delegated script per computer at a time.
-test('one at a time: two briefs approved together; the second is refused before its claim, with nothing reserved, and can run after', async () => {
-  const fake = installFake({ kind: 'claude', behavior: 'hang' }, { timeoutMs: 1500 });
-  try {
-    const env = await setup(fake.ports);
-    const first = await toBrief(env);
-    const second = await toBrief(env);
-    assert.equal(first.status, 'brief-waiting');
-    assert.equal(second.status, 'brief-waiting');
-    const settled = await Promise.allSettled([decide(env, first, 'approve'), decide(env, second, 'approve')]);
-    const refused = settled.findIndex(item => item.status === 'rejected');
-    assert.notEqual(refused, -1, 'one of the two is refused');
-    assert.equal(settled.filter(item => item.status === 'rejected').length, 1, 'only one is refused');
-    assert.equal((settled[refused] as PromiseRejectedResult).reason?.code, 'DELEGATE_BUSY');
-    const loser = [first, second][refused];
-    const stored = listRecords(env.store.read(), 'venture-delivery-run').find(run => run.id === loser.id)!;
-    assert.equal(stored.status, 'brief-waiting', 'its brief still waits for the owner');
-    assert.equal(stored.harness!.delegations!.at(-1)!.status, 'waiting', 'never claimed');
-    const spend = await listSpend(env.deps, owner, {});
-    assert.equal(spend.rows.length, 1, 'only the run that started holds a reservation');
-    assert.equal(delegateBusy(), false, 'the slot is free once the first run is done');
-    // Approved again now, it starts: nothing was lost by the refusal.
-    fake.setMode({ kind: 'claude', behavior: 'fail' });
-    const again = await decide(env, loser, 'approve');
-    assert.notEqual(again.status, 'brief-waiting');
-    assert.equal((await listSpend(env.deps, owner, {})).rows.length, 2);
-  } finally { fake.cleanup(); }
-});

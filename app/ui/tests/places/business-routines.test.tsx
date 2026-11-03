@@ -14,7 +14,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
 
-function start(intercept: Partial<Record<MethodName, (params: unknown) => unknown>> = {}, language: 'en' | 'hi' = 'en') {
+function start(intercept: Partial<Record<MethodName, (params: unknown) => unknown>> = {}, language: 'en' = 'en') {
   window.location.hash = '#/business/routines';
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
   const calls: Call[] = [];
@@ -55,7 +55,9 @@ describe('Business > Routines (4J22a)', () => {
     await act(async () => { fold.open = true; fold.dispatchEvent(new Event('toggle')); });
     await waitFor(() => expect(fold.querySelectorAll('li')).toHaveLength(2));
     const lines = [...fold.querySelectorAll('li')].map((li) => li.textContent);
-    expect(lines[0]).toBe('Delivered, 20 Oct 2026');
+    // W6 6G5: a delivered run that asked the AI carries its model receipt under the line.
+    expect(lines[0]).toMatch(/^Delivered, 20 Oct 2026Model receipt/);
+    expect(lines[0]).toContain('On your plan');
     expect(lines[1]).toMatch(/^Missed: Missed once while Chausar was closed\./);
     expect(fold.textContent).not.toMatch(/\bDone\b/);
   });
@@ -141,12 +143,5 @@ describe('Business > Routines (4J22a)', () => {
     expect(screen.getAllByRole('status').map((el) => el.textContent)).toContain('Weekly review is removed. Its history stays.');
   });
 
-  it('in Hindi, the schedule is worded from its codes', async () => {
-    start({}, 'hi');
-    const item = await screen.findByRole('article', { name: 'Weekly review' });
-    expect(item.querySelector('[data-when]')!.textContent).toBe('हर सोमवार 09:00, Asia/Kolkata');
-    // The next run is worded from its codes too, so no English shows; Chausar stays Chausar.
-    expect(item.querySelector('[data-routine-line]')!.textContent).toMatch(/^अगला रन /);
-    expect(item.querySelector('[data-asks]')!.textContent).toBe('Chausar से पूछता है');
-  });
+
 });

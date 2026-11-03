@@ -1,5 +1,5 @@
 /**
- * Text. One JSON file per place and language (text/en/<place>.json, text/hi/<place>.json, plus common.json),
+ * Text. One JSON file per place and supported language (text/en/<place>.json, plus common.json),
  * merged here. A place file holds only keys that start with its own name, so phase 2 agents never collide.
  *
  * A message is a string with {named} values, or plural forms { zero?, one, other } chosen from the exact digits of
@@ -9,7 +9,7 @@
 
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 
-export type Language = 'en' | 'hi';
+export type Language = 'en';
 export type Message = string | { zero?: string; one: string; other: string };
 export type Catalogue = Readonly<Record<string, Message>>;
 export type TextValues = Readonly<Record<string, string | number>>;
@@ -22,15 +22,13 @@ function merge(files: Record<string, unknown>): Catalogue {
 
 export const CATALOGUES: Readonly<Record<Language, Catalogue>> = Object.freeze({
   en: merge(import.meta.glob('./en/*.json', { eager: true, import: 'default' })),
-  hi: merge(import.meta.glob('./hi/*.json', { eager: true, import: 'default' })),
 });
 
-/** English: one for exactly 1. Hindi: one for 0 and 1. Anything that is not plain digits is other. */
-export function pluralForm(digits: string, language: Language): 'one' | 'other' {
+/** English: one for exactly 1. Anything that is not plain digits is other. */
+export function pluralForm(digits: string, _language: Language): 'one' | 'other' {
   if (!/^\d+$/.test(digits)) return 'other';
   const trimmed = digits.replace(/^0+(?=\d)/, '');
   if (trimmed === '1') return 'one';
-  if (trimmed === '0' && language === 'hi') return 'one';
   return 'other';
 }
 
@@ -55,14 +53,14 @@ export function placeholders(message: Message | undefined): string[] {
   return [...names].sort();
 }
 
-export function pickLanguage(preferred: readonly string[] = typeof navigator === 'undefined' ? [] : navigator.languages ?? []): Language {
-  return preferred.some((tag) => tag.toLowerCase().startsWith('hi')) ? 'hi' : 'en';
+export function pickLanguage(_preferred: readonly string[] = []): Language {
+  return 'en';
 }
 
 const LanguageContext = createContext<Language>('en');
 
-export function TextProvider({ language, children }: { language: Language; children: ReactNode }) {
-  return <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>;
+export function TextProvider({ children }: { language: Language; children: ReactNode }) {
+  return <LanguageContext.Provider value="en">{children}</LanguageContext.Provider>;
 }
 
 export function useLanguage(): Language {

@@ -10,10 +10,14 @@ import type {
 import type { FootageRights, RightsBasis } from './delivery/rights.ts';
 import type { BankAlert, BankAlertRule, BankAlertRuleInput } from './build/bank.ts';
 import type { NetResolver, PinnedSender } from './core/net-guard.ts';
+import type { FamilyId, NeedsList } from './core/first-run-types.ts';
 import type { TlsConnector } from './network/imap.ts';
 import type { SectionRef, TableStamp } from './playbooks/ca-firm/rates.ts';
 import type { CaEngine, CaReceiptStep } from './playbooks/ca-firm/receipt.ts';
 import type { SocialChannel } from './playbooks/social/channels.ts';
+import type { PriceGuideView } from './core/price-ranges.ts';
+import type { LayoutBy, LayoutChange, LayoutPlace, LayoutRequest, LayoutState } from './views/layout-core.ts';
+import type { LayoutChangeResult, LayoutView } from './views/layout.ts';
 import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 // Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
@@ -29,6 +33,7 @@ import type { PrintPort, ReportBody, ReportFormat, ReportListView, ReportShareBo
 import type { FormsBrowserPort } from './playbooks/data-entry-desk/browser-types.ts';
 import type {
   LocalAppBody, LocalAppPort, LocalAppsView, MailAttachment, MailImportView, MailThreadsView, MonitorBody, MonitorInput, MonitorsView, MonitorView, SpeechProvidersView, WebhookKind, WebhookView,
+  WebhookSendView,
 } from './build/records-connect.ts';
 import type { YoutubeDictionaryBody, YoutubeEditBody, YoutubeStyleBody } from './playbooks/youtube/records.ts';
 import type {
@@ -56,7 +61,15 @@ import type { TestFindingBody } from './playbooks/app-testing/records.ts';
 import type { DevPermissionBody } from './playbooks/dev-agency/records.ts';
 import type { TriageChannelBody } from './playbooks/it-triage/records.ts';
 import type { WatchSourceBody } from './playbooks/monitored-data/records.ts';
+// Wave 6 (6E4, 6E5): the document desk and the sign-off desk.
+import type { DocumentBody } from './playbooks/document-desk/records.ts';
+import type { SignoffBody } from './playbooks/signoff-desk/records.ts';
+// Wave 6 (6E7): the trading journal.
+import type { TradeJournalBody } from './playbooks/trading-journal/records.ts';
 import type { CallLogBody } from './playbooks/phone-receptionist/records.ts';
+// Wave 6 (6E2, 6E3): the lesson desk and the booking desk.
+import type { LessonBatchRecordBody } from './playbooks/lesson-desk/records.ts';
+import type { BookingRecordBody, BookingSlotRecordBody } from './playbooks/booking-desk/records.ts';
 import type { DeskActPayload, DeskActView, DeskGetPayload, DeskItemView, DeskListPayload, DeskListView } from './playbooks/desk-types.ts';
 
 export const VENTURE_CONTRACT_VERSION = 'chausar.dev/venture/v1alpha1' as const;
@@ -87,29 +100,8 @@ export type Labelled<T> = { value: T; label: LineLabel; by: LineAuthor; estimate
 // 2. Countries (data owned by P1, copied into the venture record at create)
 // ---------------------------------------------------------------------------
 
-export type CountryCode = string; // ISO 3166-1 alpha-2, upper case; 'XX' is "another country"
-export type TaxMode = 'gst' | 'vat' | 'sales-tax' | 'none';
-export type DateOrder = 'day-month-year' | 'month-day-year' | 'year-month-day';
-export type CountryProfile = {
-  code: CountryCode;
-  name: string;
-  currency: string; // ISO 4217
-  minorDigits: number; // from currencyMinorDigits(currency)
-  region: 'india' | 'global';
-  tax: {
-    mode: TaxMode;
-    label: string; // 'GST', 'VAT', 'Sales tax', 'Consumption tax', 'Tax'
-    standardRateBps: BpsString; // prefill for the owner's rate; '0' when it varies by place or is unknown
-    registrationNote: string; // plain sentence, never advice
-    idLabel: string; // 'GSTIN', 'VAT number', 'ABN' ...; '' when invoiceKind is 'invoice'
-    idPattern: string | null; // RegExp source for the registration number; null for IN (GSTIN checksum) and when idLabel is ''
-    invoiceKind: 'tax-invoice' | 'invoice'; // 'tax-invoice' for gst and vat countries
-    checkedOn: IsoDate;
-  };
-  paymentRails: string[]; // connector ids, first is the default
-  dateOrder: DateOrder;
-  complianceNotes: string[];
-};
+import type { CountryCode, TaxMode, DateOrder, CountryProfile } from './core/country-types.ts';
+export type { CountryCode, TaxMode, DateOrder, CountryProfile } from './core/country-types.ts';
 
 /** India GST state codes (first two digits of a GSTIN) and their names. Used for place of supply. */
 export const INDIA_STATES: Readonly<Record<string, string>> = Object.freeze({
@@ -126,12 +118,15 @@ export const INDIA_STATES: Readonly<Record<string, string>> = Object.freeze({
 // 3. Service types, the venture record, terms, checklist
 // ---------------------------------------------------------------------------
 
-export const SERVICE_TYPES = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'other'] as const;
+// W6 6E1 (D2): teaching, local services and licensed work have their own types, listed before 'other' so a keyword tie
+// still goes to the older type (core/service-types.ts classifyIdea).
+export const SERVICE_TYPES = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'teaching', 'local-services', 'licensed', 'other'] as const;
 export type ServiceType = typeof SERVICE_TYPES[number];
 /** Plain labels for each service type. P1 uses them in templates, P4 in brief line one, P7 on screens. */
 export const SERVICE_TYPE_LABELS: Readonly<Record<ServiceType, string>> = Object.freeze({
   agency: 'Marketing agency', studio: 'Creative studio', consulting: 'Consulting practice', bookkeeping: 'Bookkeeping studio',
-  research: 'Research desk', content: 'Content shop', support: 'Support team for hire', other: 'Service business',
+  research: 'Research desk', content: 'Content shop', support: 'Support team for hire',
+  teaching: 'Teaching and coaching', 'local-services': 'Local service business', licensed: 'Licensed practice', other: 'Service business',
 });
 
 export const LAUNCH_STAGES = ['rehearsal', 'shadow', 'approve-each', 'approve-sample', 'auto-spot-check'] as const;
@@ -183,6 +178,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-judge-setting',
   // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer; the newest is in use.
   'venture-transcription-setup',
+  // Wave 6 (6I1): push-to-talk settings and each recording's receipt
+  'venture-talk-setting', 'venture-talk-heard',
   // Ink v2 wave 4 (named by package 4-0, section 9e; each package fills its own). Keeper's runs (4A1); agent threads,
   // proposals and the chat consent (4B1); notes and their changes (4B2); Chats and proposals (4C1); people, imports and
   // forgotten people (4D1); ties (4D2); searches (4D3); pipeline cards and settings (4E1); outreach drafts (4E2); the
@@ -195,6 +192,11 @@ export const VENTURE_RECORD_KINDS = [
   'venture-agent-message', 'venture-agent-proposal', 'venture-chat-consent',
   'venture-agent-note', 'venture-agent-note-change',
   'venture-chief-thread', 'venture-chief-message', 'venture-proposal',
+  // Wave 6 (6G1, D42): the owner's number of quiet days before a chat settles on its own; the newest is in use.
+  'venture-chat-settle',
+  // Wave 6 (6H3, D40): each owner's layout of a place, one record per change (the newest is in use), and the AI's
+  // requests to open a place.
+  'venture-layout', 'venture-layout-go',
   'venture-person', 'venture-network-import', 'venture-forgotten',
   'venture-tie', 'venture-network-search',
   'venture-opportunity', 'venture-pipeline-settings',
@@ -264,6 +266,28 @@ export const VENTURE_RECORD_KINDS = [
   'venture-dev-permission',
   'venture-watch-source', 'venture-triage-channel',
   'venture-call-log',
+  // Wave 6 (6C5, 6C6): owner attestations of locked rules, and the profession and side-work answer.
+  'venture-rule-attestation', 'venture-compliance',
+  // Wave 6 (6F2, 6F9): an added playbook pack; one Sunra image or video generation with its rupee quote and rights.
+  'venture-pack', 'venture-media-generation',
+  // Wave 6 (6E7): the owner's trading journal (imports, opening holdings, tax packs).
+  'venture-trade-journal',
+  // Wave 6 (6E4, 6E5): a client document on the document desk; the sign-off desk's professionals, requests and signatures.
+  'venture-document', 'venture-signoff',
+  // Wave 6 (6E2, 6E3): a lesson batch on the lesson desk; the booking desk's open slots and bookings.
+  'venture-lesson-batch', 'venture-booking-slot', 'venture-booking',
+  // Wave 6 (6G3, D44): field history, companies and their links, timeline entries the owner logged, lists and their
+  // entries (crm/crm-data.ts). 6G4: dated memory facts (memory/facts-data.ts).
+  'venture-crm-change', 'venture-company', 'venture-crm-link', 'venture-crm-entry', 'venture-crm-list', 'venture-crm-list-item',
+  'venture-memory-fact',
+  // Wave 6 (6G2, D43): an agent the owner retired, who took over its work, and when it was brought back.
+  'venture-agent-retirement',
+  // Wave 6 (6H1, D39): a mini app the owner's AI wrote, with its versions, grant, pin and own notes (apps/apps.ts).
+  'venture-mini-app',
+  // Wave 6 (6H2, D41): one version of a recorded flow, and one dry run or run of it (flows/records.ts).
+  'venture-flow', 'venture-flow-run',
+  // Wave 6 (6J2, D47): the owner's report choices (newest wins) and each crash or answer waiting for Send report (core/feedback.ts).
+  'venture-feedback-setting', 'venture-feedback-item',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -278,10 +302,15 @@ export type RecordBase<K extends VentureRecordKind> = {
 };
 
 export type VentureRecord = RecordBase<'venture-record'> & {
+  aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
+  /** Host-owned revocation generations; owner settings never accept these counters. */
+  aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   idea: string;
   ideaDigest: string;
   workingName: string;
   country: CountryProfile;
+  /** Profile for immutable plans made before the first owner-approved country change. */
+  originalCountry?: CountryProfile;
   serviceType: ServiceType | null;
   status: VentureStatus;
   launchStage: LaunchStage;
@@ -304,6 +333,12 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   journalHead?: { seq: number; digest: string; mac?: string };
   /** 4J10 (H26): when this business first signed a receipt, HMAC'd like journalHead: an unsigned receipt made after it was changed. */
   signingSince?: { at: IsoTime; mac?: string };
+  /** Wave 6 (6D1, 6D2): the owner's billing settings (money/billing.ts); absent fields read as the defaults. */
+  billing?: Partial<import('./money/billing-types.ts').BillingSettings>;
+  /** Wave 6 (6F3): the owner's own web search key: which provider, its last four characters, when (web/search.ts). The key is in protected storage. */
+  webSearchKey?: import('./web/search-types.ts').SavedSearchKey | null;
+  /** Wave 6 (6F8): which people search services have the owner's own key saved (people/services.ts). Keys are in protected storage. */
+  peopleKeys?: import('./people/people-types.ts').SavedPeopleKeys;
 };
 
 export type TermLifecycle = 'proposed' | 'active' | 'retired';
@@ -457,6 +492,8 @@ export type BackOffice = {
   invoicePrefix: string; // 'INV'
 };
 export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
+  /** Frozen profile used by this plan's prices, tax rules and historical documents. */
+  country?: CountryProfile;
   version: number;
   status: 'draft' | 'accepted';
   source: 'model' | 'template';
@@ -487,6 +524,7 @@ export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
 
 /** Owner edits. Every field optional; at least one required. Creates a new draft version. */
 export type BlueprintPatch = {
+  countryCode?: CountryCode;
   name?: string;
   oneLiner?: string;
   customer?: string;
@@ -512,7 +550,15 @@ export type BlueprintView = {
   playbook?: PlaybookPick;
   /** What an order for each offer asks at intake, by offer id; absent when no offer asks anything. Not part of the record. */
   intake?: Record<string, OfferIntakeAsk>;
+  /**
+   * W6 6C3 (D17): what clients pay for this business's profession, from credible sources with the date checked, or "No
+   * reliable data". Information only: it never sets or changes a price. Absent when the plan maps to no beta profession.
+   */
+  priceGuide?: PriceGuideView;
 };
+
+/** W6 6C3 (D17): the price range views, defined beside their code (core/price-ranges.ts) so the app's fake engine can use them. */
+export type { PriceGuideView, PriceRangeView, PriceSourceView } from './core/price-ranges.ts';
 
 /** venture.preview: the instant plan shown before any vault exists. Template words only; nothing is stored. */
 export type PlanPreview = {
@@ -555,19 +601,11 @@ export const APPROVAL_COUNT = 2;
 export const INTERVIEW_IDS = Object.freeze({ first: 'q_1', second: 'q_2', pricingModel: 'q_pricing_model', price: 'q_price', tax: 'q_tax', taxRate: 'q_tax_rate' } as const);
 export const SECOND_OFFER_MODEL: Readonly<Record<ServiceType, PricingModel>> = Object.freeze({
   agency: 'project', studio: 'hourly', consulting: 'project', bookkeeping: 'project',
-  research: 'hourly', content: 'project', support: 'hourly', other: 'project',
+  research: 'hourly', content: 'project', support: 'hourly',
+  teaching: 'hourly', 'local-services': 'project', licensed: 'project', other: 'project',
 });
 /** Headings promise work ahead, never work done: agents in this build only draft from the client's message. */
-export const REQUIRED_SECTIONS: Readonly<Record<ServiceType, readonly string[]>> = Object.freeze({
-  agency: ['Summary', 'Plan', 'Drafts', 'Next steps'],
-  studio: ['Summary', 'What we will make', 'Questions on the brief', 'Next steps'],
-  consulting: ['Summary', 'What we heard', 'Recommendations', 'Next steps'],
-  bookkeeping: ['Summary', 'What we will do', 'What we need from you', 'Next steps'],
-  research: ['Summary', 'Method', 'What we will look for', 'Sources to check'],
-  content: ['Summary', 'Draft', 'Notes for review', 'Next steps'],
-  support: ['Summary', 'Replies drafted', 'Escalations', 'Next steps'],
-  other: ['Summary', 'What we will do', 'Questions', 'Next steps'],
-});
+export { REQUIRED_SECTIONS } from './delivery/template-outline.ts';
 export const SCENARIO_KINDS = ['clean', 'messy', 'pushback'] as const;
 export type ScenarioKind = typeof SCENARIO_KINDS[number];
 /** Starter connectors; '<payment-rail>' is replaced with country.paymentRails[0]. */
@@ -577,7 +615,7 @@ export const STARTER_CONNECTORS = Object.freeze(['lovable', 'github', '<payment-
 // 5. Models (P2): presets, connections, calls, the model port
 // ---------------------------------------------------------------------------
 
-export const MODEL_PRESET_IDS = ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5', 'openai-gpt-6-luna', 'claude-code-cli', 'codex-cli', 'built-in-templates'] as const;
+export const MODEL_PRESET_IDS = ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5', 'openai-gpt-6-luna', 'openrouter', 'claude-code-cli', 'codex-cli', 'built-in-templates'] as const;
 export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
 export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
 export type ModelTier = 'fast' | 'main';
@@ -615,7 +653,7 @@ export type ModelPreset = {
   label: string;
   kind: ModelRouteKind;
   model: string | null; // provider model id; null for templates
-  modelEditable: boolean; // true only for GPT-6 Luna: the owner types the model id
+  modelEditable: boolean; // OpenAI key and Codex options let the owner type an available model id
   tiers: ModelTier[]; // which jobs it is suggested for
   needsKey: boolean;
   keyHint: string | null; // where to create a key, plain words
@@ -662,6 +700,10 @@ export type ModelStatusView = {
 
 export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   purpose: ModelPurpose;
+  agentId?: string; // trusted task role for owner-set spending limits
+  agentJobId?: string; // exact native job receiving this quality charge
+  /** W6 6G5: the routine and the routine run this call was made for (agents/routine-scope.ts); absent outside a routine. */
+  routineId?: string; routineRunId?: string;
   tier: ModelTier;
   presetId: ModelPresetId;
   connectionId: string | null;
@@ -672,7 +714,7 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
    * 'owner-file-drop' (4J8): a call that carried a file the owner dropped beside their own words (core/attachment.ts),
    * sent because they asked with it; no approval of the call is recorded, as nobody gave one (approvedBy stays null).
    */
-  consent: 'standing' | 'approved-preview' | 'standing-judge' | 'owner-file-drop';
+  consent: 'standing' | 'approved-preview' | 'standing-judge' | 'owner-file-drop' | 'client-ai';
   endpoint: string; // 'https://api.anthropic.com/v1/messages', 'cli://claude', 'cli://codex'
   payloadText: string; // exact request body or stdin sent; never a key
   payloadDigest: string;
@@ -701,6 +743,8 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
 /** One unit of model work. Built by P1, P4 and P5; executed by P2. */
 export type ModelTask<T> = {
   purpose: ModelPurpose;
+  agentId?: string; // set by trusted job composition, never model input
+  agentJobId?: string; // stable job identity across repeated quality checks
   instructions: string; // system text
   input: Json; // user content, serialized as JSON text
   schemaName: string; // [a-z][a-z0-9-]{0,40}
@@ -723,6 +767,8 @@ export type ModelOutcome<T> = {
   answeredBy?: string | null;
 };
 export type ModelPreview = {
+  /** Trusted client permission captured when a scoped desk request is prepared. */
+  clientAi?: import('./clients/ai-consent-core.ts').ClientAiContextBinding;
   callId: string;
   payloadText: string;
   digest: string;
@@ -731,7 +777,6 @@ export type ModelPreview = {
   endpoint: string;
   estimatedMaxCostMicros: MicroString;
   estimatedMaxCostDisplay: string; // adds '(estimate, price unconfirmed)' when the table is unconfirmed
-  expiresAt: IsoTime; // 30 minutes
   /** Ink v2 wave 4 (4F2, M7): who pays for this call, in words ('Paid by your Anthropic key'); absent on older previews. */
   payer?: string;
 };
@@ -761,7 +806,7 @@ export interface ModelPort {
    * recorded as that and never as the owner's approval of the call. 'owner-file-drop' (4J8): a call that carries a file
    * the owner dropped with their own words, recorded as that, again never as an approval.
    */
-  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop'; beforeDispatch?: () => void }): Promise<ModelOutcome<T>>;
+  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' | 'client-ai'; clientAi?: { clientId: string; consentId: string; consentRevision: number }; beforeDispatch?: () => void }): Promise<ModelOutcome<T>>;
   /**
    * Ink v2 wave 4 (4H1): looks at the owner's Claude Code or Codex on this computer through the transport (version,
    * help and, when its help lists one, its own sign-in status command) and keeps what it found for availability. Never
@@ -913,6 +958,10 @@ export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
     blueprintDigest: string; // digest of the blueprint version priced, draft or accepted
     /** 4J5 (M15): the unit price already includes the tax, so code splits it; absent on every other receipt. */
     taxInclusive?: true;
+    /** Wave 6 (6D1): this receipt prices one part of an order, cut from the whole order's receipt (money/invoice-parts.ts). */
+    part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; shareBps: BpsString | null; basisReceiptId: string; earlierMinor: MinorString };
+    /** Wave 6 (6D4): priced in the order's own currency at the owner's own price for a client abroad. */
+    currencyBy?: 'order';
   };
   steps: PriceStep[];
   figures: PriceFigure[];
@@ -923,7 +972,24 @@ export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
   stale: boolean; // true when the offer price or tax setting changed later
 };
 
+export type ClientAiConsent = {
+  id: string;
+  revision: number;
+  disclosureDigest: string;
+  grantedAt: IsoTime;
+  grantedBy: string;
+  withdrawnAt: IsoTime | null;
+};
+export type ClientAiConsentView = {
+  clientId: string;
+  clientName: string;
+  status: 'required' | 'agreed' | 'withdrawn';
+  disclosure: string;
+  disclosureDigest: string;
+  consent: ClientAiConsent | null;
+};
 export type ClientRecord = RecordBase<'venture-client'> & {
+  aiConsent?: ClientAiConsent;
   /** The one owner shop identity; never a paying customer. */
   self?: true;
   name: string; // one line
@@ -971,6 +1037,10 @@ export type OrderRecord = RecordBase<'venture-order'> & {
    * rest lists what the playbook does not do, and reply the fixed words for the client. Absent when all of it is in scope.
    */
   outOfScope?: { rest: string[]; reply: string };
+  /** Wave 6 (6D1): when the whole order is due to be paid, owner-set; the final invoice is due then unless told otherwise. */
+  dueDate?: IsoDate;
+  /** Wave 6 (6D4): the owner's own price in the client's currency, for a client abroad. Never converted. */
+  foreignPrice?: import('./money/billing-types.ts').ForeignPrice;
 };
 /**
  * A flagship offer's intake, checked by code when the order is made. rights: the rights to the footage, required for
@@ -1050,6 +1120,14 @@ export type InvoiceRecord = RecordBase<'venture-invoice'> & {
   booksNote: string | null; // why booksReceiptId is null, in words
   paidMinor: MinorString;
   balanceMinor: MinorString;
+  /** Wave 6 (6D1): the part of its order this invoice bills; absent on a whole-order invoice. */
+  part?: import('./money/billing-types.ts').InvoicePart;
+  /** Wave 6 (6D1): the owner's payment terms line, as saved when drafted; absent when they set none. */
+  terms?: string;
+  /** Wave 6 (6D1): this invoice's own reminder days late; absent: its schedule's, else the business default. */
+  reminderDays?: number[];
+  /** Wave 6 (6D3): the Razorpay Payment Link made for it, on the owner's approval. */
+  payLink?: import('./money/billing-types.ts').PayLinkState;
 };
 /** 'cheque' (4J5, M11): pending until the owner clears it or a bank row pays it. */
 export type PaymentMethod = 'bank-transfer' | 'upi' | 'card' | 'cash' | 'payment-link' | 'other' | 'cheque';
@@ -1083,6 +1161,8 @@ export type InvoiceTimelineEntry = {
   line: Display;
 };
 export type InvoiceView = {
+  /** Profile saved with this invoice's price, even if the owner later moves. */
+  country?: CountryProfile;
   invoice: InvoiceRecord;
   client: ClientRecord;
   receipt: PriceReceiptRecord;
@@ -1097,6 +1177,10 @@ export type InvoiceView = {
   credits?: CreditNoteView[];
   /** 4J20: an open invoice past its due day, as invoice.list rows say it; absent otherwise. */
   late?: { days: number; line: Display };
+  /** Wave 6 (6D1): how much of the order is billed, when the order is billed in parts. */
+  billed?: import('./money/billing-types.ts').OrderBilledView;
+  /** Wave 6 (6D2, 6D3): how the client pays this invoice, built by code from its balance. */
+  howToPay?: import('./money/billing-types.ts').HowToPayView;
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
@@ -1474,7 +1558,7 @@ export type PostLogEntry = { id: string; connectorId: string; at: IsoTime; print
  * One posting history per computer (build/post-log.ts), kept beside the browser profiles, so two businesses signed in
  * to the same account are counted together by the risk gate (Ink v2 wave 2, K5).
  */
-export type PostLogPort = { read(connectorId: string): PostLogEntry[]; append(entry: PostLogEntry): void };
+export type PostLogPort = { read(connectorId: string): PostLogEntry[]; append(entry: PostLogEntry): void; remove(connectorId: string, ids: readonly string[]): void };
 export type ConnectorPorts = {
   browser?: BrowserPort;
   /** Connector ids whose API app review is recorded (the real host reads CHAUSAR_APP_REVIEWED). */
@@ -1610,6 +1694,8 @@ export const EXTERNAL_ORIGINS = Object.freeze([
   'https://shopify.dev',
   'https://developer.android.com',
   'https://docs.docker.com',
+  // Wave 6 (6C1): the sign-in pages the tools' own logins print (Codex device code; Claude Code's sign-in).
+  'https://auth.openai.com', 'https://claude.ai', 'https://claude.com',
 ] as const);
 
 // ---------------------------------------------------------------------------
@@ -1803,6 +1889,31 @@ export type DeliveryWorkflow = {
   dictionary: { id: string; kind: 'term' | 'offer' | 'step' | 'approval' | 'setting' | 'definition' | 'concept'; name: string; meaning: string; aliases: string[] }[];
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
+  agentJob?: {
+    scope: import('./agent-runtime/driver-types.ts').AgentJobScope;
+    sourceDigest: string;
+    draftDigest: string | null;
+    /** The native tool and automatic quality review settled before owner acceptance. */
+    reviewReady?: boolean;
+    failure?: import('./delivery/failure-words.ts').FailureWords;
+    recalled?: string[];
+    sourcesRead?: { id: string; version: string }[];
+    screens?: { tool: string; note: ScreenNote }[];
+    proposal: import('./agent-runtime/job-tools.ts').JobProposal | null;
+    proposalAt?: string;
+    messages: { id: string; text: string; label: 'model-estimate'; chatId?: string }[];
+    ownerNotes?: { text: string; at: string; by: string }[];
+    calculations?: ToolCallRecord[];
+    pendingFacts?: { digest: string; missing: import('./playbooks/ca-firm/needs-facts.ts').MissingFact[]; question: string; callId: string; at: string };
+    factAnswers?: { digest: string; question: string; answer: string; at: string; by: string; turn: number }[];
+    tools: { id: string; name: string; status: 'running' | 'done' | 'failed' }[];
+    model?: string;
+    usage?: import('./agent-runtime/driver-types.ts').AgentUsage;
+    cost?: { display: string; state: 'priced' | 'unknown'; spendId: string; receiptId?: string };
+    /** W6 6G5: the AI the job ran on, written when it started: the preset (absent when the host did not name one), the model asked for and the tier. */
+    route?: { presetId?: ModelPresetId; model: string; tier: ModelTier };
+    pendingApproval?: { request: import('./agent-runtime/driver-types.ts').AgentApprovalRequest; digest: string };
+  };
   careerPackBinding?: string;
   /** Exact owner-approved room brief this VA delivery read. */
   devReportBinding?: string;
@@ -1950,13 +2061,13 @@ export type ImprovementReadiness = {
   reason: string;
   status: 'available' | 'planned'; // 'available' since the gated improvement loop (venture.improve.*) landed
 };
+/**
+ * Wave 6 (6C4 / D19): the two stages the owner sees, Practice and Live (you approve each). The vault keeps its older
+ * stage names (core/launch-stage.ts maps them); the unfinished stages are never listed.
+ */
 export type LaunchStatus = {
-  stage: LaunchStage;
-  stages: { stage: LaunchStage; allowed: boolean; reason: string; status: 'available' | 'planned' }[];
-  /** Newest run per template scenario for the current playbook; judged means a model wrote and a judge answered. */
-  rehearsal: { scenarioId: string; runId: string | null; passed: boolean | null; judged: boolean }[];
-  lastRunId: string | null;
-  lastRunPassed: boolean | null;
+  stage: 'practice' | 'live';
+  stages: { stage: 'practice' | 'live'; allowed: boolean; reason: string; current: boolean }[];
   acceptedDeliveries: number;
   improvement: ImprovementReadiness;
 };
@@ -2303,7 +2414,9 @@ export type Reconciliation = {
  * receipt. 'social.report': the report figures from a platform's exports (tools-social.ts), each kept in report.
  */
 export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
-  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute';
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'seo.claim' | 'ca.engine' | 'social.report' | 'seller.compute' | 'youtube.compute'
+    // W6 6F2: a calculator from an owner-added pack (packs/packs.ts)
+    | 'pack.calc';
   runRef: WorkRunRef;
   currency: string;
   inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
@@ -2498,6 +2611,8 @@ export type Display = string;
  */
 export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
 export type SpendRate = {
+  /** Exact provider model this token price covers; required for gateways and model overrides. */
+  model?: string;
   item: string; // 'model:<preset id>', 'delegate:<tool>' or 'connector:<id>'
   unit: SpendRateUnit;
   inputMicrosPerMillion: MicroString | null;
@@ -2514,6 +2629,9 @@ export type SpendRate = {
 /** reserved: the charge record, written before the call. unknown: the answer never came, so it stays held. */
 export type SpendPhase = 'reserved' | 'settled' | 'unknown' | 'released' | 'refused';
 export type SpendRecord = RecordBase<'venture-spend'> & {
+  agentUsage?: { provider: 'codex' | 'claude'; model: string; usage: import('./agent-runtime/driver-types.ts').AgentUsage };
+  /** W6 6G5: the routine this call worked for, so its own monthly limit holds; absent outside a routine run. */
+  routine?: string;
   /** SEO4: the delivery article whose atomic cost reservation this charge shares. */
   articleOrderId?: string;
   key: string; // the idempotency key: one per thing asked for, so a retry never pays twice
@@ -2556,7 +2674,8 @@ export type SpendPolicyRecord = RecordBase<'venture-spend-policy'> & {
   dailyCapMicros?: MicroString | null; // a cap per day on the owner's calendar across every paid call
   alertPermille?: number; // Today tells the owner once a month at this share of the monthly limit; absent: 800
   agentCaps?: { agent: string; capMicros: MicroString }[]; // an agent's own monthly limit: past it only that agent pauses
-  writeCaps?: Partial<Record<WriteCapKind, number>>; // the owner's lower daily caps on agent writes (never above the default)
+  routineCaps?: { routine: string; capMicros: MicroString }[]; // W6 6G5: a routine's own monthly limit: past it only that routine pauses
+  writeCaps?: Partial<Record<WriteCapKind, number>>; // the owner's daily caps on agent writes
   currencyLead?: CurrencyLead; // 4Z3: which currency leads spend; absent: 'auto'
 };
 /**
@@ -2601,6 +2720,7 @@ export interface SpendRow {
  * Each figure comes once: in US dollars as typed (up to six decimals; the engine converts) or in micro units.
  */
 export type SpendRateInput = {
+  model?: string;
   item: string; unit: SpendRateUnit; inputMicrosPerMillion?: MicroString | null; outputMicrosPerMillion?: MicroString | null; microsPerCall?: MicroString | null;
   inputUsdPerMillion?: string | null; outputUsdPerMillion?: string | null; usdPerCall?: string | null;
   source: string; checkedOn: IsoDate;
@@ -2633,6 +2753,8 @@ export interface SpendPolicyView {
   alertPermille?: number; alert?: Display;
   meter?: SpendMeterView | null; limitReached?: LimitReachedView; keyLimits?: LimitReachedView[];
   agentCaps?: AgentCapView[]; writeCaps?: WriteCapView[]; card?: RateCardLine[];
+  /** W6 6G5 (D44): this month's spend of each agent and each routine, with the owner's cap on each. */
+  meters?: SpendMetersView;
   /** 4Z3: the owner's choice of which currency leads spend, and the currency that leads now (dollars without a rate). */
   currencyLead?: CurrencyLead; leads?: 'INR' | 'USD';
   /** 4Z3: the monthly limit and the ask-first figure as the owner's currency leads them; absent with no limit. */
@@ -2652,10 +2774,36 @@ export interface SpendMeterView {
  * (raise it, or wait). key: one key's own limit, where connecting another key is a way on too.
  */
 export interface LimitReachedView { scope: 'business' | 'key'; presetId?: string; line: Display; options: { id: 'raise' | 'connect' | 'wait'; label: Display }[] }
+/**
+ * W6 6G5 (D44): one agent's or one routine's spend this month (UTC, as the limits count it), worked out in code from the
+ * charge records, with the sum receipt behind it. plan: runs on the owner's own Codex or Claude plan, counted, never
+ * priced, and never in rupees. media: images and video Sunra quoted for this agent's runs this month, shown beside the
+ * AI spend and not held against its cap (each already has its own approval card with its cost). cap: the owner's own
+ * monthly limit, null when none; usedPermille null without one. paused: at or past it. line: where it stands in words.
+ */
+export interface SpendMeterRowView {
+  scope: 'agent' | 'routine'; id: string; name: Display;
+  used: Display; usedLead: SpendLead; receiptId: string;
+  plan: Display | null; media?: Display;
+  cap: Display | null; capUsd: string | null; capRupees?: Display; usedPermille: number | null; paused: boolean; line: Display;
+}
+export interface SpendMetersView { month: string; agents: SpendMeterRowView[]; routines: SpendMeterRowView[] }
+/**
+ * W6 6G5 (D44): what one run used, from its own records: the tool or model, the tier, the tokens the provider reported
+ * (or that none were), and the cost when it is known. state: 'plan', on the owner's own Codex or Claude plan (cost says
+ * so and carries no figure, never rupees); 'priced', code priced the reported use (receiptId behind it); 'estimate', held
+ * at its estimate; 'unknown', not known yet; 'none', no AI was used. agent: who ran it, '(retired)' once off the team.
+ * line: every part in one line, as the screen shows it.
+ */
+export interface ModelReceiptView {
+  tool: Display; model: Display; tier: Display; usage: Display; cost: Display;
+  state: 'plan' | 'priced' | 'estimate' | 'unknown' | 'none';
+  receiptId?: string; costLead?: SpendLead; agent?: Display; line: Display;
+}
 /** 4F2 (M5): one agent's own monthly limit; past it only that agent is paused. */
 export interface AgentCapView { agent: string; name: Display; capMicros: MicroString; capUsd: string; cap: Display; used: Display; paused: boolean; capRupees?: Display; usedRupees?: Display }
 /** 4F2 (H32): one daily write cap: today's cap (raised once when the owner allowed more), what agents made today, in words. */
-export interface WriteCapView { kind: WriteCapKind; cap: number; used: number; raised: boolean; line: Display }
+export interface WriteCapView { kind: WriteCapKind; configuredCap: number; cap: number; used: number; raised: boolean; line: Display }
 /**
  * 4F2 (M6): one price on the rate card. confirmed: the owner's checked rate with its source and date; list: Chausar's
  * list price with the day it was checked. Prompt-cache reads and writes are lines of their own.
@@ -2671,6 +2819,7 @@ export const VENTURE_EVENTS = [
   'model-connected', 'model-disconnected', 'send-policy-changed',
   'price-quoted', 'client-added', 'order-created', 'order-delivered', 'invoice-prepared', 'invoice-issued', 'payment-recorded',
   'brief-ready', 'handoff-prepared', 'handoff-opened', 'repo-linked', 'repo-synced',
+  'rule-attested', 'rule-attestation-withdrawn', 'compliance-recorded',
   'playbook-ready', 'simulation-finished', 'launch-stage-changed', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'signal-recorded',
   'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
   'delivery-brief-waiting', 'delegate-finished',
@@ -2882,10 +3031,20 @@ export interface RunSummary {
  * the round gate (O2); live, the calls of the turn in flight, from the run.call events (U7).
  */
 export interface RunDetail extends RunSummary {
+  agentProgress?: {
+    canResume?: boolean;
+    cost?: {display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};
+    messages: { id: string; text: string; label: 'model-estimate' }[];
+    tools: { id: string; name: string; status: 'running' | 'done' | 'failed' }[];
+    model?: string;
+    pendingApproval?: { request: import('./agent-runtime/driver-types.ts').AgentApprovalRequest; digest: string };
+  };
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
   scope?: RunScopeView; steer?: { text: Display; at: IsoTime; line: Display }[];
   gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: RoundGateReason; line: Display } | null };
   live?: { callId: string; state: 'start' | 'done' | 'error' }[];
+  /** W6 6G5 (D44): the run's model receipt, on its own sheet (venture.runs.get) for delivery runs. */
+  modelReceipt?: ModelReceiptView;
   /** 4F2 (O14): "How to fix it", only when the owner must act on a failed or breaker-stopped run. */
   fix?: Display;
   /** 4F2 (O14): the failure in the table's plain words, and codes for the screen's own words (English and Hindi). */
@@ -3077,6 +3236,11 @@ export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: stri
  * it beside price receipts. unit 'micros' is micro-USD (spend); 'minor' is the venture currency's minor unit.
  */
 export type SumReceiptSubject =
+  | { type: 'agent-cost'; spendId: string }
+  | { type: 'agent-job-cost'; runId: string }
+  // W6 6G5: spend of one agent or one routine this UTC month, or of one routine run or one delivery run (month null).
+  | { type: 'spent-by'; scope: 'agent' | 'routine' | 'routine-run' | 'run'; id: string; month: string | null }
+  | { type: 'tax-total'; from: IsoDate; to: IsoDate; currency: string; taxLabel: string }
   | { type: 'owed'; clientId: string | null }
   | { type: 'received'; from: IsoDate; to: IsoDate }
   | { type: 'spent'; month: string }
@@ -3116,7 +3280,10 @@ export type SumReceiptSubject =
   | { type: 'across'; what: AcrossFigureId; month: string | null; currency: string; open: boolean; others: { businessId: string; name: string; asOf: IsoTime; amount: string }[] }
   // The total quote of a set the owner approved in one go (4J2, O9): each picked row in order, with what approving it
   // can cost in micro-dollars as code worked it out then (the subject holds it, so the receipt never drifts).
-  | { type: 'set'; items: { rowId: string; label: string; micros: MicroString }[] };
+  | { type: 'set'; items: { rowId: string; label: string; micros: MicroString }[] }
+  // W6 6H1: an amount a mini app asked the calculator for: the operation and its inputs in minor units, so the receipt
+  // never drifts (apps/calc.ts).
+  | { type: 'app-calc'; appId: string; operation: 'add' | 'times' | 'percent-off'; amounts: string[]; count: string | null; percentBps: string | null; currency: string };
 /** 4J6. The figures a snapshot keeps and the across views show. */
 export type AcrossFigureId = 'invoiced' | 'received' | 'owed' | 'spend';
 export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
@@ -3189,7 +3356,7 @@ export type ShareComment = { item: string; text: string; at: IsoTime; recordedFo
  * venture.delivery.judge: the rules judge's call on one ready real-order draft, previewed and waiting for the owner to
  * send it (venture.delivery.judgeSend with this digest). It carries the client's words, so it never goes on its own.
  */
-export interface DeliveryJudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; expiresAt: IsoTime; containsClientData: true }
+export interface DeliveryJudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; containsClientData: true }
 /** venture.posting.propose: the post waits on Today for the owner's approval. line says so; warnings are the risk gate's. */
 export interface PostingProposal { postId: string; connectorId: string; draftId: string; part: number | null; state: ConnectorPostState; line: Display; warnings: Display[] }
 /**
@@ -3218,13 +3385,13 @@ export interface ShareAnswerView { draftId: string; decision: 'approved' | 'chan
  */
 export interface DraftPostView { draftId: string; channel: string; name: string; connectorId: string | null; text: string }
 /**
- * The posting limits the owner may tighten for one channel, in the owner's units (playbooks/social/post-limits.ts):
+ * The posting limits the owner may set for one channel, in the owner's units (playbooks/social/post-limits.ts):
  * posts in 24 hours, minutes between posts, warm-up days, the near-duplicate threshold in whole percent, the link streak.
  */
 export type OwnerPostingLimitsView = { capPer24h: number; minGapMinutes: number; warmUpDays: number; duplicatePercent: number; linkStreak: number };
-/** The owner's stricter limits for one channel (venture.posting.limits.set). An empty set means Chausar's own limits. */
+/** The owner's limits for one channel (venture.posting.limits.set). An empty set means Chausar's own limits. */
 export type PostingLimitsRecord = RecordBase<'venture-posting-limits'> & { connectorId: string; limits: Partial<OwnerPostingLimitsView> };
-/** venture.posting.limits.*: per channel, Chausar's own limits, the owner's stricter ones, and the ones the risk gate uses. */
+/** venture.posting.limits.*: per channel, Chausar's own limits, the owner's settings, and the ones the risk gate uses. */
 export interface PostingLimitsView {
   channels: { connectorId: string; name: string; house: OwnerPostingLimitsView; owner: Partial<OwnerPostingLimitsView>; inUse: OwnerPostingLimitsView }[];
   line: Display;
@@ -3307,6 +3474,32 @@ export interface BoundaryView { evidence: Display; canSay: Display; cannotSay: D
  * venture.rules.list: the playbook's rules with their freshness, its risk level and when it was last reviewed; for a kit
  * playbook (5A3) also its recipes and its measurement boundaries (empty for the flagships). Empty with no playbook.
  */
+/** Wave 6 (6C5): one locked rule as its attestation screen shows it. */
+export type LockedRuleView = {
+  id: string; playbook: string; topic: string; rule: string; limitations: string; needs: 'lawyer' | 'ca';
+  sources: { title: string; url: string }[]; digest: string; attestable: boolean; attestedOn: IsoDate | null; line: string;
+};
+/** venture.rules.locks and venture.rules.attest: the business's locked rules, the words the owner ticks, and the hard stops. */
+export type RuleLocksView = {
+  playbook: { id: string; label: string } | null; rules: LockedRuleView[]; words: string; line: string;
+  hardStops: { id: string; line: string }[];
+};
+/** Wave 6 (6C6): a profession's side-work question, rules and regulator switches, and the recorded answer. */
+export type ComplianceView = {
+  profession: { id: string; label: string; family: string | null };
+  question: string; responsibility: string;
+  /**
+   * W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. W6 (3 November
+   * 2026): verdict is the line at the owner's size for a statute with a size threshold, else null.
+   */
+  rules: { id: string; title: string; line: string; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: IsoDate | null; checkedDay: string | null; size: string | null; verdict: string | null }[];
+  switchedOff: { tool: string; line: string }[];
+  hardStops: { id: string; line: string }[];
+  digest: string;
+  recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
+  /** W6 (3 November 2026): the size question (core/business-size.ts), or null when no rule of the profession counts size. */
+  size: import('./core/business-size.ts').SizeAsk | null;
+};
 export interface RulesListView {
   playbook: { id: string; label: string; riskLevel: string; lastReviewed: IsoDate } | null;
   rules: PlatformRuleView[];
@@ -3327,6 +3520,42 @@ export interface JudgeAutoView { auto: boolean; consentAt: IsoTime | null; line:
  * opens (platform/runtime/speech.ts restoreLocal). Never on the hosted server.
  */
 export type TranscriptionSetupRecord = RecordBase<'venture-transcription-setup'> & { command: string | null; model: string | null };
+
+/**
+ * W6 6I1 (D45): push-to-talk settings, newest wins: the notice agreed by its digest (null until agreed or after a
+ * withdraw), whether recordings are kept (off by default), the service that turns speech into words, and Sarvam's
+ * approved rate (its digest) with the owner's monthly limit in paise.
+ */
+export type TalkSettingRecord = RecordBase<'venture-talk-setting'> & {
+  consentDigest: string | null; consentAt: IsoTime | null; keepAudio: boolean; listen: 'whisper-local' | 'sarvam'; capMinor: string; rateDigest: string | null;
+};
+/** W6 6I1: one recording turned into words: its service, length and cost in paise; its audio only when kept; never its words. */
+export type TalkHeardRecord = RecordBase<'venture-talk-heard'> & {
+  provider: 'whisper-local' | 'sarvam'; durationMs: number; costMinor: string; phase: 'sending' | 'done' | 'failed';
+  audioBase64: string; audioDigest: string; erasedAt: IsoTime | null;
+};
+/** W6 6I1: the views and inputs live in the browser-safe agents/talk-core.ts, so the app reads the same shapes. */
+export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from './agents/talk-core.ts';
+import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from './agents/talk-core.ts';
+/**
+ * W6 6J2 (D47): the owner's report choices, newest wins: the notice agreed by its digest (null until agreed, after a
+ * withdraw or a deletion request), usage and crash reports each on or off, the random report id, the milestones and
+ * questions already sent or asked, the last send's answers, and the last deletion request.
+ */
+export type FeedbackSettingRecord = RecordBase<'venture-feedback-setting'> & {
+  consentDigest: string | null; consentAt: IsoTime | null; usage: boolean; crashes: boolean; reportId: string | null;
+  milestonesSent: string[]; asked: string[]; sentAny: boolean;
+  lastSend: import('./core/feedback-core.ts').FeedbackSend | null;
+  deletion: { at: IsoTime; reportId: string; line: string } | null;
+};
+/** W6 6J2: one scrubbed crash or one fixed answer waiting for Send report; its words are erased once sent or dropped. */
+export type FeedbackItemRecord = RecordBase<'venture-feedback-item'> & {
+  item: 'crash' | 'answer'; status: 'queued' | 'sent' | 'dropped';
+  crash: import('./core/feedback-core.ts').KeptCrash | null; answer: { question: string; answer: string } | null;
+};
+/** W6 6J2: the views and inputs live in the browser-safe core/feedback-core.ts, so the app reads the same shapes. */
+export type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackPreview, FeedbackView } from './core/feedback-core.ts';
+import type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackView } from './core/feedback-core.ts';
 /**
  * venture.transcription.get and .set: the setup's honest status (set up, not set up, or its files are not where they
  * were set up, checked on disk each time), its paths, whether ffmpeg is on this computer too, and a plain line.
@@ -3454,7 +3683,17 @@ export type AgentNoteChangeRecord = RecordBase<'venture-agent-note-change'> & {
 };
 
 /** A Chats thread with Chausar as chief of staff (4C1), in the open business's vault. routine: the routine that posts into it (4J13). */
-export type ChiefThreadRecord = RecordBase<'venture-chief-thread'> & { title: string; pinned: boolean; routine: string | null; lastAt: IsoTime };
+export type ChiefThreadRecord = RecordBase<'venture-chief-thread'> & {
+  title: string; pinned: boolean; routine: string | null; lastAt: IsoTime;
+  /** W6 6G1 (D42): the owner's snooze (its wake time), their Settle, and when they last changed the chat's state. */
+  snoozedUntil?: IsoTime | null; settledAt?: IsoTime | null; stateAt?: IsoTime | null;
+};
+/** W6 6G1: the owner's number of quiet days before a chat settles on its own (0 is never); the newest is in use. */
+export type ChatSettleRecord = RecordBase<'venture-chat-settle'> & { days: number };
+/** W6 6H3 (D40): one change to an owner's layout of a place (views/layout-core.ts), who made it and its line. */
+export type LayoutRecord = RecordBase<'venture-layout'> & { place: LayoutPlace; state: LayoutState; by: LayoutBy; line: string; op: LayoutChange['op'] };
+/** W6 6H3: the owner's AI offered a place; the app shows a link the owner opens, never opening it by itself. */
+export type LayoutGoRecord = RecordBase<'venture-layout-go'> & { href: string; title: string };
 /** One message in a Chats thread (4C1): the owner's words, or the chief's typed answer with the receipts its tools returned. */
 export type ChiefMessageRecord = RecordBase<'venture-chief-message'> & {
   /** Regenerable private source summary; Forget removes it rather than retaining anonymous copied text. */
@@ -3468,6 +3707,8 @@ export type ChiefMessageRecord = RecordBase<'venture-chief-message'> & {
   receiptIds: string[];
   proposalIds: string[];
   routedTo: string | null; // the agent a message beginning with its name went to (A15)
+  /** W6 6G1: the chief's question back ("Which agent...?"), waiting for the owner until they write again. */
+  ask?: string | null;
   read: boolean;
   /** 4C1: the receipted figures the answer quotes, for the "Worked by the calculator" table. */
   worked?: { label: string; value: string; receiptId: string }[];
@@ -3489,7 +3730,9 @@ export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | '
 /** A proposal (4C1): drafted, raised to Today, then approved or dismissed. input: what the engine method for its kind takes. */
 export type ProposalRecord = RecordBase<'venture-proposal'> & {
   proposalKind: ProposalKind;
-  source: 'chief' | 'agent' | 'meeting' | 'idea';
+  /** W6 6H1: 'app', a mini app proposed it (appId); it is raised on Today at once and decided like any other. */
+  source: 'chief' | 'agent' | 'meeting' | 'idea' | 'app';
+  appId?: string | null;
   threadId: string | null;
   messageId: string | null;
   agent: string | null;
@@ -3721,8 +3964,8 @@ export type PipelineSettingsRecord = RecordBase<'venture-pipeline-settings'> & {
 };
 /** The send governor's lanes (4E2): LinkedIn notes and messages count apart; a call is not governed. */
 export type OutreachLane = 'linkedin-note' | 'linkedin-message' | 'whatsapp' | 'email';
-/** 4E1's people a day and a week; channels (4E2): the owner's lower daily caps per lane, never above Chausar's own. */
-export type PipelineCaps = { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>> };
+/** Owner-set daily and weekly outreach caps, per-lane caps, and five weekly warm-up percentages. */
+export type PipelineCaps = { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] };
 
 /** What a drafted message is (4E2). 'reminder': 4J5's invoice reminder, handed off the same way. */
 export const OUTREACH_KINDS = ['intro-request', 'double-opt-in', 'connection-note', 'follow-up', 'reply', 'cold-email', 'reminder'] as const;
@@ -3904,6 +4147,8 @@ export type NotifySettingsRecord = RecordBase<'venture-notify-settings'> & {
   push: boolean;
   tray: boolean;
   relay: string | null;
+  /** W6 6F6: the owner's own Telegram bot is set (its token and chat id live in protected storage, never here); details: titles opt-in. */
+  telegram?: { details: boolean; savedAt: IsoTime } | null;
 };
 /**
  * One browser push subscription on a known push service (4G3), tied to the hosted session that made it: sessionHash is
@@ -3961,7 +4206,7 @@ export type DraftEditRecord = RecordBase<'venture-draft-edit'> & {
  * 4J2 (O5): the owner sent a draft back with words, or asked the agent to fix failed checks. words: what the revision
  * turn is told, beginning "Revise this to: "; previous: the text the owner saw, which the agent revises (their edit,
  * else the agent's draft); base: the agent's own draft, the merge base when the revision lands; callId: the revision
- * turn's call; prior: the run's call and loop phase before, so Undo puts the draft back while the revision has not
+ * job ID once native work starts (blank before launch); prior: the saved run state, so Undo restores the draft before work has
  * started. checks: a fix's targets.
  */
 export type DraftRevision = {
@@ -4063,7 +4308,11 @@ export type FileRequestRecord = RecordBase<'venture-file-request'> & {
 };
 
 /** The owner's profile (4J9): first name for the greeting, and services the business does not sell (C21). */
-export type OwnerProfileRecord = RecordBase<'venture-owner-profile'> & { firstName: string | null; excludedServices: string[] };
+export type OwnerProfileRecord = RecordBase<'venture-owner-profile'> & {
+  firstName: string | null; excludedServices: string[];
+  /** Wave 6 (6C2, 6C7): the profession family the plan was kept with (core/families.ts); absent in older records. */
+  familyId?: FamilyId | null;
+};
 /**
  * 4J8. An offer the owner added to the plan: its stable plan offer id (offer_own_1 upward, never reused), its words and
  * how it is charged, kept in step with the plan's words; removedAt once the owner took it out. Never a price: that is
@@ -4297,7 +4546,74 @@ export interface TeamListView {
   totals?: { doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; held: MoneyFigureView | null };
   /** 4A1: a quarantine no single agent can claim (one cause, one digest; Clear quarantine with agentId 'team'). */
   teamHealth?: AgentHealth;
+  /** W6 6G2: the Retired shelf, oldest first; sent only when an agent is retired. */
+  retired?: RetiredAgentView[];
 }
+/**
+ * W6 6G2 (D43): an agent the owner retired. to: the agent that took over its steps, or the owner. routines: the ids
+ * retiring switched off, which Bring back switches on again. digest: the check screen the owner saw. restoredAt: set
+ * by Bring back; the record stays as history.
+ */
+export type AgentRetirementRecord = RecordBase<'venture-agent-retirement'> & {
+  agent: string; name: string; to: string; routines: string[]; digest: string; restoredAt: IsoTime | null;
+};
+/** W6 6G2. One agent on the Retired shelf; to is null when the owner took over its work. */
+export type RetiredAgentView = { id: string; name: string; role: Display; department?: DepartmentId; at: IsoTime; to: { id: string; name: string } | null; line: Display };
+/** W6 6G2. One item still moving that the check screen names: a run, the agent's question, a proposal in its chat, a Today card. */
+export type RetireInFlight = { id: string; kind: 'run' | 'question' | 'proposal' | 'today'; line: Display };
+/**
+ * W6 6G2. What the owner reads before retiring an agent: what it holds, what is in flight, the routines that switch off,
+ * who can take over (the owner always can, as 'owner'), the fixed promise of what is kept, why it cannot retire (the
+ * last AI agent) or null, and the digest venture.agents.retire takes.
+ */
+export interface RetireCheckView {
+  agent: { id: string; name: string; role: Display };
+  holds: { steps: Display[]; instructions: number; notes: number; messages: number };
+  inFlight: RetireInFlight[];
+  routines: { id: string; name: string; when: Display }[];
+  to: { id: string; name: string }[];
+  kept: Display;
+  blocked: Display | null;
+  digest: string;
+}
+/** W6 6H1 (D39): a mini app's permission, tool names and versions live in the browser-safe apps/frame.ts. */
+export type { AppPermission } from './apps/frame.ts';
+import type { AppPermission } from './apps/frame.ts';
+/** W6 6H1: one version of a mini app: the HTML the owner's AI wrote (data, never run outside the frame), what its code needs. */
+export type MiniAppVersion = { version: number; at: IsoTime; html: string; summary: string; permissions: AppPermission[]; ask: string; callId: string | null; digest: string };
+export type MiniAppMessage = { at: IsoTime; from: 'owner' | 'chausar'; text: string; version: number | null };
+/**
+ * W6 6H1: a mini app. current: the version in use. grant: what the owner allowed on the permission screen (its digest
+ * binds the app, the version shown and those permissions), null until allowed or after Turn off. notes: the app's own
+ * notes (key to text), deleted with it.
+ */
+export type MiniAppRecord = RecordBase<'venture-mini-app'> & {
+  name: string; versions: MiniAppVersion[]; current: number;
+  grant: { permissions: AppPermission[]; version: number; digest: string; at: IsoTime } | null;
+  pinned: boolean; notes: Record<string, string>; messages: MiniAppMessage[];
+};
+export type MiniAppPermissionView = { id: AppPermission; verb: 'Read' | 'Keep' | 'Use' | 'Propose'; line: Display };
+/** W6 6H1: an app on the Apps place. reads: the chips that say what it reads or uses. allowed: it may run now. */
+export type MiniAppCard = { id: string; name: string; version: number; summary: Display; reads: Display[]; pinned: boolean; madeAt: IsoTime; allowed: boolean };
+/**
+ * W6 6H1: one app, opened. document: the frame document (policy, bridge, then the app's HTML). tools: the bridge tools
+ * that answer now (what the current version uses and the owner allowed). ask: the permission screen, when the current
+ * version needs something not allowed yet (first: nothing allowed yet), with the digest venture.apps.grant takes.
+ */
+export type MiniAppView = MiniAppCard & {
+  uri: string; document: string;
+  versions: { version: number; at: IsoTime; summary: Display; current: boolean }[];
+  permissions: MiniAppPermissionView[];
+  grant: { permissions: AppPermission[]; at: IsoTime } | null;
+  ask: { digest: string; added: AppPermission[]; first: boolean } | null;
+  tools: string[];
+  messages: MiniAppMessage[];
+  never: Display;
+};
+/** W6 6H1: what the bridge answers for a tools/call, in the MCP CallToolResult shape. */
+export type MiniAppCallResult = { content: { type: 'text'; text: string }[]; structuredContent: Json; isError: false };
+export interface AgentRetired { retired: RetiredAgentView; line: Display }
+export interface AgentRestored { agent: AgentView; routines: number; line: Display }
 
 /** 4B1. needed: the consent sheet shows text and digest; stale: the AI connection changed; not-needed: templates only. */
 export type ChatConsentView = { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: IsoTime | null };
@@ -4330,6 +4646,8 @@ export interface AgentThreadView {
   waiting: AgentWaiting | null;
   more: boolean;
   consent: ChatConsentView;
+  /** W6 6G2: set while the agent is retired; the thread is read only on the Retired shelf. */
+  retired?: { at: IsoTime; line: Display };
 }
 export interface AgentSendResult { added: AgentThreadItem[]; line: Display | null }
 export interface AgentProposalDecision { proposal: AgentProposalView; line: Display; playbook?: { id: string; version: number } }
@@ -4361,10 +4679,32 @@ export interface AgentNoteChange { note: AgentNoteView | null; change: NoteChang
  * units, with its receipt, so the screen wraps exactly that span in a Figure. lastLine is never cut inside one.
  */
 export type ChiefLineAmount = { text: Display; start: number; length: number; receiptId: string };
-export type ChiefThreadSummary = { id: string; title: string; pinned: boolean; lastAt: IsoTime; lastLine: Display; amounts: ChiefLineAmount[]; unread: number };
-export type ChiefThreadGroupKey = 'pinned' | 'today' | 'this-week' | 'last-week' | 'earlier';
+export type ChiefThreadSummary = {
+  id: string; title: string; pinned: boolean; lastAt: IsoTime; lastLine: Display; amounts: ChiefLineAmount[]; unread: number;
+  /**
+   * W6 6G1 (D42): the chat's one state; snoozedUntil while snoozed; settled says when and whether by the owner or after
+   * the quiet days; waiting: a step or the chief's question waits for the owner, so it is never hidden.
+   */
+  state: ChiefThreadState; snoozedUntil: IsoTime | null; settled: { at: IsoTime; by: 'owner' | 'auto' } | null; waiting: boolean;
+};
+export type ChiefThreadGroupKey = 'pinned' | 'today' | 'this-week' | 'last-week' | 'earlier' | 'snoozed';
+/** W6 6G1 (D42). */
+export type ChiefThreadState = 'pinned' | 'active' | 'snoozed' | 'settled';
+export type ChiefSnoozePreset = 'later' | 'tomorrow' | 'next-week';
+/** W6 6G1: a snooze choice, its wake time worked out by the engine on the owner's clock. */
+export type ChiefSnoozeOption = { id: ChiefSnoozePreset; until: IsoTime };
+/** W6 6G1: what venture.chief.thread.state takes; a snooze names a preset or an exact future time (Undo sends that). */
+export type ChiefThreadStateInput = { threadId: string; state: ChiefThreadState; preset?: ChiefSnoozePreset; until?: IsoTime };
+/** W6 6G1: undo: the request that puts the chat back exactly as it was; line: the engine's words for what happened. */
+export interface ChiefThreadStateResult { thread: ChiefThreadSummary; undo: ChiefThreadStateInput; line: Display }
+/** W6 6G1: the owner's quiet days (0 is never), the number before (for Undo), and the engine's words. */
+export interface ChiefSettleResult { days: number; undo: number; line: Display }
 /** 4C2 review: consent is the business's one chat consent now (agents/consent.ts), so the screen agrees to exactly that text and digest. */
-export interface ChiefThreadsView { groups: { key: ChiefThreadGroupKey; label: Display; threads: ChiefThreadSummary[] }[]; consent: ChatConsentView }
+export interface ChiefThreadsView {
+  groups: { key: ChiefThreadGroupKey; label: Display; threads: ChiefThreadSummary[] }[]; consent: ChatConsentView;
+  /** W6 6G1: the archive (settled chats, the latest settled first) and the owner's quiet days before a chat settles. */
+  settled: ChiefThreadSummary[]; settleAfterDays: number;
+}
 /** 4C1. secondAsk: Approve asks once more because it spends or sends. what (4C2 review): the step's own line; line says where it stands. */
 export type ProposalView = {
   id: string; at: IsoTime; kind: ProposalKind; status: ProposalStatus; title: Display; line: Display; what: Display;
@@ -4377,7 +4717,8 @@ export type ChiefMessageView = {
   /** 4C2 review: the counts by code, or null. */
   counted: ChiefCounted | null;
 };
-export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean }
+/** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
+export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean; snooze: ChiefSnoozeOption[] }
 /** 4C1. ask: the chief's question back ("Which agent: Editor or Researcher?"); it never guesses. */
 export interface ChiefSendResult { thread: ChiefThreadSummary; added: ChiefMessageView[]; ask: Display | null }
 /** 4C1. One way to earn that fits, labelled a model estimate. */
@@ -4597,6 +4938,15 @@ export type PushSubscriptionInput = { endpoint: string; keys: { p256dh: string; 
 export interface PushKeyView { publicKey: string }
 export interface PushStateView { subscribed: boolean; line: Display }
 export interface RelayView { relay: Display | null; line: Display }
+/** W6 6F6. said: what a test alert did, only on a test. */
+export interface TelegramView { connected: boolean; details: boolean; line: Display; said?: Display }
+/** W6 6F7. Phone access on this Wi-Fi (or Tailscale): the listener's state, a one-time pairing link when one was asked for. */
+export interface PhoneAccessView {
+  on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number;
+  link: string | null; expiresAt: IsoTime | null; line: Display;
+  /** The pairing link as a QR code the phone's camera can read (money/qr.ts), or null. */
+  qr: { size: number; rows: string[] } | null;
+}
 
 /** 4H1. Never signedIn 'yes' without evidence; state stays 'unverified' until one real task succeeded. */
 export type CliStatusView = {
@@ -4844,30 +5194,41 @@ export interface FileRequestView { id: string; orderId: string; url: string | nu
  * promise. department: the playbook's own (its service type's, 4A1), for the icon tint. team: the playbook's agents
  * only (code is never shown as AI), with their departments. starter: a sentence a tile's Start puts in the one-sentence
  * box (never sent by itself); it picks this playbook. yours: the businesses of this kind the host named (the open one;
- * 4J6 adds the others), never from a payload. hi: the same words in Hindi, machine-drafted for a native reviewer.
+ * 4J6 adds the others), never from a payload.
  */
 export type WayCategory = 'content' | 'marketing' | 'money-and-tax' | 'shops-and-firms';
 /** needs: what the way needs in plain words, besides the owner's time (hours): the owner's own AI, and the connections that work today. */
 export type WayNeeds = { ai: Display; connections: Display };
-export type WayWords = {
-  label: Display; line: Display; hours: Display; youDo: Display; team: Display[]; teamLine: Display;
-  pay: Display; per: Display; source: Display; starter: Display; needs: WayNeeds;
-};
 export type WayView = {
   id: string; playbook: string; label: Display; category: WayCategory; department: DepartmentId; line: Display;
   hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
   team: { role: string; initials: string; department: DepartmentId }[]; teamLine: Display;
-  clientsPay: { text: Display; per: Display; estimate: true; source: Display };
+  /**
+   * W6 6C3 (D17): where the way's profession has a credible range for this service, text and per are that range's,
+   * estimate is false and source names its publishers and date; otherwise they are the model estimate as before.
+   * guide: the profession's sourced ranges or "No reliable data"; absent when the way maps to no beta profession.
+   * rangeId: which of the guide's ranges is shown, only when estimate is false.
+   */
+  clientsPay?: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string };
+  /**
+   * W6 F4 (founder, 2 November 2026): a desk the owner runs for themselves (kit ownUse) has no clientsPay. saves says
+   * what it saves the owner instead: text the hours a month ("2 to 6 h a month"), always a model estimate with its basis
+   * (source), and line what it keeps straight, in words. Every other way has clientsPay and no saves.
+   */
+  saves?: { text: Display; line: Display; estimate: true; source: Display };
   needs: WayNeeds;
   starter: Display;
   yours: { businessId: string; name: string }[];
-  hi: WayWords;
+  /** W6 6E6 (D2): the profession families this way serves (core/professions.ts), in the families' order. */
+  families: FamilyId[];
 };
 /** categories: only those with a way, with counts; upTo: the "Up to 5 h a week" filter (maxHours at most 5) and its count. */
 export interface WaysView {
   ways: WayView[];
-  categories: { id: WayCategory; label: Display; hi: Display; count: number }[];
-  upTo: { maxHours: number; label: Display; hi: Display; count: number };
+  categories: { id: WayCategory; label: Display; count: number }[];
+  upTo: { maxHours: number; label: Display; count: number };
+  /** W6 6E6 (D2): the families that have a way, in the families' order, each with its count of ways. */
+  families: { id: FamilyId; label: Display; count: number }[];
 }
 /**
  * 4J8. One change a plan suggestion makes, in plain words: before and after (empty before for an offer added).
@@ -4895,7 +5256,7 @@ export interface PlanSuggestionView {
 }
 
 /** 4J9. kept: only on the answer that removed a stored name, Forget's backups line (earlier backups still hold it). */
-export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[] }
+export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[]; familyId?: FamilyId | null }
 
 /** 4J10. reason (4J22a): only 'changed' and 'unsigned-since' are mismatches; the others are not confirmed. */
 export type ReceiptVerifyReason = 'signed' | 'changed' | 'unsigned-since' | 'unsigned-old' | 'no-key' | 'key-gone';
@@ -4918,7 +5279,8 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
  * for a role that may change routines (owner, cofounder). */
 export type RoutineView = { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
-export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display };
+/** receipt (W6 6G5): the model receipt of a run that asked an AI; absent before it ran. */
+export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView };
 export interface RoutineRunsView { runs: RoutineRunView[] }
 export type RoutineInput = { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; recordReport?: 'va-morning'|'va-weekly' };
 
@@ -5114,6 +5476,40 @@ export type DevPermissionRecord = RecordBase<'venture-dev-permission'> & DevPerm
 export type TriageChannelRecord = RecordBase<'venture-triage-channel'> & TriageChannelBody;
 export type WatchSourceRecord = RecordBase<'venture-watch-source'> & WatchSourceBody;
 export type CallLogRecord = RecordBase<'venture-call-log'> & CallLogBody;
+/** Wave 6 (6C5 / D20): the owner ticked "I am responsible for this in my business" for one locked rule, on a day. Withdrawn by setting withdrawnAt. */
+export type RuleAttestationRecord = RecordBase<'venture-rule-attestation'> & {
+  ruleId: string; playbookId: string; digest: string; attestedOn: IsoDate; memberId: string; withdrawnAt: string | null; withdrawnOn: IsoDate | null;
+};
+/** Wave 6 (6C6 / D5): the owner's profession, their answer to the side-work question, and what its regulator switches off. */
+/** Wave 6 (6E4): one client document on the document desk (playbooks/document-desk/records.ts). */
+export type DocumentRecord = RecordBase<'venture-document'> & DocumentBody;
+/** Wave 6 (6E5): one sign-off desk entry (playbooks/signoff-desk/records.ts). */
+export type SignoffRecord = RecordBase<'venture-signoff'> & SignoffBody;
+/** Wave 6 (6E2): one lesson batch with its learners, classes, work and parent messages (playbooks/lesson-desk/records.ts). */
+export type LessonBatchRecord = RecordBase<'venture-lesson-batch'> & LessonBatchRecordBody;
+/** Wave 6 (6E3): an open slot and a booking on the booking desk (playbooks/booking-desk/records.ts). */
+export type BookingSlotRecord = RecordBase<'venture-booking-slot'> & BookingSlotRecordBody;
+export type BookingRecord = RecordBase<'venture-booking'> & BookingRecordBody;
+/** Wave 6 (6G3, D44): one field change, a company, a company link, a logged timeline entry, a list and a list entry. */
+export type CrmChangeRecord = RecordBase<'venture-crm-change'> & import('./crm/crm-data.ts').CrmChangeBody;
+export type CompanyRecord = RecordBase<'venture-company'> & import('./crm/crm-data.ts').CompanyBody;
+export type CrmLinkRecord = RecordBase<'venture-crm-link'> & import('./crm/crm-data.ts').CrmLinkBody;
+export type CrmEntryRecord = RecordBase<'venture-crm-entry'> & import('./crm/crm-data.ts').CrmEntryBody;
+export type CrmListRecord = RecordBase<'venture-crm-list'> & import('./crm/crm-data.ts').CrmListBody;
+export type CrmListItemRecord = RecordBase<'venture-crm-list-item'> & import('./crm/crm-data.ts').CrmListItemBody;
+/** Wave 6 (6G4, D44): one dated fact Chausar remembers (memory/facts-data.ts). */
+export type MemoryFactRecord = RecordBase<'venture-memory-fact'> & import('./memory/facts-data.ts').MemoryFactBody;
+/** Wave 6 (6E7): one trading journal entry (playbooks/trading-journal/records.ts). */
+export type TradeJournalRecord = RecordBase<'venture-trade-journal'> & TradeJournalBody;
+/** Wave 6 (6F2): an owner-added playbook pack (packs/packs.ts). */
+export type PackRecord = RecordBase<'venture-pack'> & import('./packs/packs.ts').PackRecordBody;
+/** Wave 6 (6F9): one Sunra generation, its code-computed rupee quote and rights record (media/sunra.ts). */
+export type MediaGenerationRecord = RecordBase<'venture-media-generation'> & import('./media/sunra.ts').MediaGenerationBody;
+export type ComplianceRecord = RecordBase<'venture-compliance'> & {
+  professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
+  /** W6 (3 November 2026): the owner's size ranges, by measure; null or left out (records before it) when none. */
+  size?: import('./core/business-size.ts').SizeAnswers | null;
+};
 
 export type AnyVentureRecord =
   | VentureRecord | InterviewRecord | BlueprintRecord | TermRecord | ModelConnectionRecord | ModelCallRecord
@@ -5135,11 +5531,17 @@ export type AnyVentureRecord =
   | PostingStepsRecord | BankMatchRecord | PostingLimitsRecord
   | JudgeSettingRecord
   | TranscriptionSetupRecord
+  | TalkSettingRecord
+  | TalkHeardRecord
+  | FeedbackSettingRecord
+  | FeedbackItemRecord
   // Ink v2 wave 4 (section 9e)
   | KeeperRunRecord | HealthClearRecord
   | AgentMessageRecord | AgentProposalRecord | ChatConsentRecord
   | AgentNoteRecord | AgentNoteChangeRecord
   | ChiefThreadRecord | ChiefMessageRecord | ProposalRecord
+  | ChatSettleRecord
+  | LayoutRecord | LayoutGoRecord
   | PersonRecord | NetworkImportRecord | ForgottenRecord
   | TieRecord | NetworkSearchRecord
   | OpportunityRecord | PipelineSettingsRecord
@@ -5176,7 +5578,15 @@ export type AnyVentureRecord =
   | PromiseToPayRecord | CollectionStageRecord | BooksPostingRecord
   | ArticleLedgerRecord | LeadSourceRecord | NewsletterIssueRecord | NewsletterContactRecord | TenderQuestionRecord
   | SiteRequirementRecord | SiteReleaseRecord | NarrationSegmentRecord | RoomBriefRecord | EntryRecordRecord
-  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord;
+  | TestFindingRecord | DemoProjectRecord | DevPermissionRecord | WatchSourceRecord | TriageChannelRecord | CallLogRecord
+  | RuleAttestationRecord | ComplianceRecord | TradeJournalRecord
+  | PackRecord | MediaGenerationRecord
+  | DocumentRecord | SignoffRecord
+  | LessonBatchRecord | BookingSlotRecord | BookingRecord
+  | CrmChangeRecord | CompanyRecord | CrmLinkRecord | CrmEntryRecord | CrmListRecord | CrmListItemRecord | MemoryFactRecord
+  | AgentRetirementRecord
+  | MiniAppRecord
+  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5300,7 +5710,7 @@ export const W5_METHODS = [
   'venture.report.list',
   // 5A6 monitors, mail import, the owner's local apps, the webhook handoff and speech providers (build)
   'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
-  'venture.localApps.list', 'venture.webhook.set', 'venture.speechOut.providers',
+  'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
   // 5C1 the citations table and the stored sign-off; 5C2 differential cases and the ITR data pack
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   // Every business's own records, through its desk (playbooks/desks.ts and desk-types.ts)
@@ -5315,9 +5725,15 @@ export const VENTURE_METHODS = [
   'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept',
   // P2 models
   'venture.models.presets', 'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls',
+  'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set',
+  // Wave 6 (6F1, 6F2): the curated MCP server list, OAuth sign-in to a server, and playbook packs (models)
+  'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove',
   // P3 money
   'venture.price.quote', 'venture.receipt.get',
   'venture.client.add', 'venture.client.list',
+  'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
+  // Wave 6 money (6D1 to 6D4): billing settings, an invoice's PDF and share links, Razorpay Payment Links
+  'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
@@ -5329,13 +5745,14 @@ export const VENTURE_METHODS = [
   // P5 delivery, rehearsal, launch, capabilities
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal',
   'venture.launch.status', 'venture.launch.advance',
-  'venture.delivery.run', 'venture.delivery.approve', 'venture.delivery.review', 'venture.delivery.list',
+  'venture.delivery.run', 'venture.delivery.review', 'venture.delivery.list',
+  'venture.agentApproval.decide',
   'venture.capabilities',
   // P5 delivery harness: client files, hand-off answers, work receipts, the gated improvement loop
-  'venture.files.add', 'venture.files.list', 'venture.delivery.answer', 'venture.work.get',
+  'venture.files.add', 'venture.files.list', 'venture.work.get',
   'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
   // Heavy work: the owner approves or declines a brief for their own Claude Code or Codex, then reads what it left
-  'venture.delivery.delegate', 'venture.delegate.get',
+  'venture.delegate.get',
   // Ink frontend views (P1-A): Today's queue, runs, the team and its gates
   'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
   // Evidence ledger (P2-evidence): what backs each client and business field, and the owner applying a suggestion
@@ -5358,13 +5775,37 @@ export const VENTURE_METHODS = [
   'venture.delivery.judge', 'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe',
   'venture.posting.propose', 'venture.posting.signIn', 'venture.posting.checkSteps', 'venture.share.recordAnswer', 'venture.social.calendar',
   'venture.bank.ledger', 'venture.bank.apply', 'venture.bank.alerts.get', 'venture.bank.alerts.set',
-  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list',
+  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list', 'venture.rules.locks', 'venture.rules.attest',
+  'venture.compliance.get', 'venture.compliance.set',
   // Ink v2 wave 2 (2C1): whether the judge runs on its own on drafts for a client or the public (judgeAuto)
   'venture.judge.auto.get', 'venture.judge.auto.set',
-  // Ink v2 wave 2 (2B1): the owner's stricter posting limits per channel, tighten only
+  // Ink v2 wave 2 (2B1): the owner's posting limits per channel
   'venture.posting.limits.get', 'venture.posting.limits.set',
   // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer
   'venture.transcription.get', 'venture.transcription.set',
+  // Wave 6 (6F6, 6F7): Telegram alerts from the owner's own bot, and phone access on this Wi-Fi or Tailscale (notify)
+  'venture.notify.telegram', 'venture.phone.access',
+  // Wave 6 (6F3, 6F8): web search and the polite page reader; people search on the owner's own keys (network)
+  'venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup',
+  // Wave 6 (6G3): the CRM, field history, companies, timelines and lists (network); 6G4: dated memory (agents)
+  'venture.crm.client', 'venture.crm.client.edit', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.company.save', 'venture.crm.link',
+  'venture.crm.log', 'venture.crm.lists', 'venture.crm.list', 'venture.crm.list.save', 'venture.crm.list.place',
+  'venture.memory.list', 'venture.memory.add', 'venture.memory.replace', 'venture.memory.visibility', 'venture.memory.forget',
+  // Wave 6 (6G1, D42): a chat's state (pinned, active, snoozed, settled) and the quiet days before one settles (chief)
+  'venture.chief.thread.state', 'venture.chief.settle.set',
+  // Wave 6 (6G2, D43): the check before retiring an agent, retiring it, and Bring back (agents)
+  'venture.agents.retire.check', 'venture.agents.retire', 'venture.agents.restore',
+  // Wave 6 (6H1, D39): mini apps, their permission screen, versions, pin, export and the MCP Apps bridge (views)
+  'venture.apps.list', 'venture.apps.get', 'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore',
+  'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
+  // Wave 6 (6I1, D45): push-to-talk (agents)
+  'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  // Wave 6 (6J2, D47): feedback, an opt-in Send report with its preview, short questions, crash notes and Delete my reports (core)
+  'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
+  // Wave 6 (6H3, D40): a place's layout, read and changed by the owner; the AI's own changes come through the MCP tools (views)
+  'venture.layout.get', 'venture.layout.change',
+  // Wave 6 (6H2, D41): recorded flows, record once and run with no AI (build)
+  'venture.flows.list', 'venture.flows.act',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -5372,13 +5813,18 @@ export const VENTURE_METHODS = [
   // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
+  // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault; 6C7: what the business needs.
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
+  'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.needs.list',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
  * Answered without a vault, a model or any write. The engine routes them before its vault check. venture.playbooks.list
  * (Ink v2 wave 4, 4J8) is the Start gallery's list of ways to earn.
  */
-export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['venture.countries', 'venture.preview', 'venture.playbooks.list'] as const);
+export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['venture.countries', 'venture.preview', 'venture.playbooks.list', 'venture.compliance.get'] as const);
 /**
  * Answered by the engine's draft desk before the vault check. They may call a model and write the in-memory draft
  * store, never the vault. The same nine as ONBOARDING_METHODS in onboarding-contracts.ts (a test pins them equal).
@@ -5386,6 +5832,9 @@ export const PRE_VAULT_METHODS: readonly VentureMethod[] = Object.freeze(['ventu
 export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
+  'venture.about.read', 'venture.about.pick', 'venture.about.families',
 ] as const);
 
 /**
@@ -5398,7 +5847,11 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.interview.next': 'core', 'venture.interview.answer': 'core',
   'venture.blueprint.draft': 'core', 'venture.blueprint.get': 'core', 'venture.blueprint.update': 'core', 'venture.blueprint.accept': 'core',
   'venture.models.presets': 'models', 'venture.models.connect': 'models', 'venture.models.disconnect': 'models', 'venture.models.status': 'models', 'venture.models.calls': 'models',
+  'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
+  'venture.mcpRegistry.list': 'models', 'venture.mcpOAuth.start': 'models', 'venture.packs.list': 'models', 'venture.packs.add': 'models', 'venture.packs.remove': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
+  'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
+  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money',
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
   'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
   'venture.payment.record': 'money', 'venture.books.summary': 'money',
@@ -5407,11 +5860,12 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.connectors.list': 'build',
   'venture.delivery.playbook': 'delivery', 'venture.simulation.scenarios': 'delivery', 'venture.simulation.run': 'delivery', 'venture.simulation.get': 'delivery', 'venture.simulation.fromSignal': 'delivery',
   'venture.launch.status': 'delivery', 'venture.launch.advance': 'delivery',
-  'venture.delivery.run': 'delivery', 'venture.delivery.approve': 'delivery', 'venture.delivery.review': 'delivery', 'venture.delivery.list': 'delivery',
+  'venture.delivery.run': 'delivery', 'venture.delivery.review': 'delivery', 'venture.delivery.list': 'delivery',
+  'venture.agentApproval.decide': 'delivery',
   'venture.capabilities': 'delivery',
-  'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.delivery.answer': 'delivery', 'venture.work.get': 'delivery',
+  'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.work.get': 'delivery',
   'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
-  'venture.delivery.delegate': 'delivery', 'venture.delegate.get': 'delivery',
+  'venture.delegate.get': 'delivery',
   'venture.queue.list': 'views', 'venture.queue.decide': 'views', 'venture.runs.list': 'views', 'venture.runs.get': 'views', 'venture.team.list': 'views', 'venture.team.gate': 'views',
   'venture.evidence.list': 'core', 'venture.evidence.apply': 'core',
   'venture.journal.list': 'views', 'venture.journal.resolve': 'views',
@@ -5424,10 +5878,32 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.delivery.judge': 'delivery', 'venture.delivery.judgeSend': 'delivery', 'venture.improve.rollback': 'delivery', 'venture.files.transcribe': 'delivery',
   'venture.posting.propose': 'build', 'venture.posting.signIn': 'build', 'venture.posting.checkSteps': 'build', 'venture.share.recordAnswer': 'build', 'venture.social.calendar': 'build',
   'venture.bank.ledger': 'build', 'venture.bank.apply': 'build', 'venture.bank.alerts.get': 'build', 'venture.bank.alerts.set': 'build',
-  'venture.ca.receipt': 'views', 'venture.ca.explainDiff': 'views', 'venture.rules.list': 'views',
+  'venture.ca.receipt': 'views', 'venture.ca.explainDiff': 'views', 'venture.rules.list': 'views', 'venture.rules.locks': 'views', 'venture.rules.attest': 'views',
+  'venture.compliance.get': 'core', 'venture.compliance.set': 'core',
   'venture.judge.auto.get': 'delivery', 'venture.judge.auto.set': 'delivery',
   'venture.posting.limits.get': 'build', 'venture.posting.limits.set': 'build',
   'venture.transcription.get': 'delivery', 'venture.transcription.set': 'delivery',
+  // Wave 6 (6F6, 6F7, 6F3, 6F8): kept in VENTURE_METHODS order.
+  'venture.notify.telegram': 'notify', 'venture.phone.access': 'notify',
+  'venture.web.search': 'network', 'venture.web.read': 'network', 'venture.people.services': 'network', 'venture.people.lookup': 'network',
+  'venture.crm.client': 'network', 'venture.crm.client.edit': 'network', 'venture.crm.companies': 'network', 'venture.crm.company': 'network', 'venture.crm.company.save': 'network', 'venture.crm.link': 'network',
+  'venture.crm.log': 'network', 'venture.crm.lists': 'network', 'venture.crm.list': 'network', 'venture.crm.list.save': 'network', 'venture.crm.list.place': 'network',
+  'venture.memory.list': 'agents', 'venture.memory.add': 'agents', 'venture.memory.replace': 'agents', 'venture.memory.visibility': 'agents', 'venture.memory.forget': 'agents',
+  // Wave 6 (6G1)
+  'venture.chief.thread.state': 'chief', 'venture.chief.settle.set': 'chief',
+  // Wave 6 (6G2)
+  'venture.agents.retire.check': 'agents', 'venture.agents.retire': 'agents', 'venture.agents.restore': 'agents',
+  // Wave 6 (6H1)
+  'venture.apps.list': 'views', 'venture.apps.get': 'views', 'venture.apps.make': 'views', 'venture.apps.grant': 'views', 'venture.apps.revoke': 'views',
+  'venture.apps.restore': 'views', 'venture.apps.pin': 'views', 'venture.apps.export': 'views', 'venture.apps.call': 'views', 'venture.apps.remove': 'views',
+  // Wave 6 (6I1)
+  'venture.talk.get': 'agents', 'venture.talk.consent': 'agents', 'venture.talk.setup': 'agents', 'venture.talk.start': 'agents', 'venture.talk.hear': 'agents', 'venture.talk.say': 'agents',
+  // Wave 6 (6J2)
+  'venture.feedback.get': 'core', 'venture.feedback.consent': 'core', 'venture.feedback.send': 'core', 'venture.feedback.answer': 'core', 'venture.feedback.crash': 'core', 'venture.feedback.delete': 'core',
+  // Wave 6 (6H3)
+  'venture.layout.get': 'views', 'venture.layout.change': 'views',
+  // Wave 6 (6H2)
+  'venture.flows.list': 'build', 'venture.flows.act': 'build',
   // Ink v2 wave 4
   'venture.team.keeper': 'views', 'venture.team.clearQuarantine': 'views',
   'venture.agents.thread.list': 'agents', 'venture.agents.thread.send': 'agents', 'venture.agents.proposal.decide': 'agents', 'venture.agents.version.undo': 'agents',
@@ -5480,19 +5956,31 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.report.render': 'playbooks', 'venture.report.share': 'playbooks', 'venture.report.shareRotate': 'playbooks', 'venture.report.shareDisable': 'playbooks',
   'venture.report.list': 'playbooks',
   'venture.monitors.list': 'build', 'venture.monitors.add': 'build', 'venture.monitors.remove': 'build', 'venture.mail.import': 'build', 'venture.mail.threads': 'build',
-  'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.speechOut.providers': 'build',
+  'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.webhook.send': 'build', 'venture.speechOut.providers': 'build',
   'venture.ca.confirmCitations': 'playbooks', 'venture.ca.signoff.get': 'playbooks', 'venture.ca.differential.add': 'playbooks', 'venture.ca.dataPack.export': 'playbooks',
   'venture.desk.list': 'playbooks', 'venture.desk.get': 'playbooks', 'venture.desk.act': 'playbooks',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
+  'venture.country.suggest': 'core',
+  'venture.ai.tools': 'models', 'venture.ai.login.start': 'models', 'venture.ai.login.cancel': 'models',
+  'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
+  'venture.needs.list': 'core',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
+  'venture.agentApproval.decide',
+  'venture.agentSettings.set', 'venture.mcpCredential.set',
+  'venture.mcpOAuth.start', 'venture.packs.add', 'venture.packs.remove',
+  'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
+  'venture.rules.attest', 'venture.compliance.set',
+  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
-  'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.approve', 'venture.delivery.review',
-  'venture.files.add', 'venture.delivery.answer', 'venture.improve.adopt', 'venture.delivery.delegate',
+  'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.review',
+  'venture.files.add', 'venture.improve.adopt',
   'venture.ai.connect', 'venture.compose.decide', 'venture.compose.fill',
+  'venture.country.suggest',
+  'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read',
   'venture.queue.decide', 'venture.team.gate',
   'venture.evidence.apply',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.apply', 'venture.site.revert', 'venture.leads.recordSend',
@@ -5520,6 +6008,19 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set',
   'venture.runs.allowWrites',
   'venture.notify.settings', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay',
+  'venture.notify.telegram', 'venture.phone.access',
+  'venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup',
+  'venture.crm.client.edit', 'venture.crm.company.save', 'venture.crm.link', 'venture.crm.log', 'venture.crm.list.save', 'venture.crm.list.place',
+  'venture.memory.visibility', 'venture.memory.forget',
+  'venture.chief.thread.state', 'venture.chief.settle.set',
+  'venture.agents.retire', 'venture.agents.restore',
+  // Wave 6 (6H1): making, allowing, changing, exporting and running a mini app happen in the app.
+  'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore', 'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
+  // Wave 6 (6H3): the owner's own layout change (the AI's go through its MCP tools, marked as the AI's).
+  'venture.layout.change',
+  'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
+  // Wave 6 (6J2): turning reports on, sending, answering, noting a crash and Delete my reports happen in the app.
+  'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   'venture.goals.set',
   'venture.policy.allowSession',
   'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set',
@@ -5541,7 +6042,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   // venture.network.import is).
   'venture.ideas.add', 'venture.brandKit.set', 'venture.voiceConsent.record', 'venture.voiceConsent.revoke',
   'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
-  'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set',
+  'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set', 'venture.webhook.send',
   'venture.ca.confirmCitations', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.act',
 ] as const);
@@ -5605,7 +6106,7 @@ export const W5_METHOD_LEVELS: Readonly<Record<W5Method, MethodLevel>> = Object.
   'venture.report.render': 'prepare', 'venture.report.share': 'approve', 'venture.report.shareRotate': 'approve', 'venture.report.shareDisable': 'approve',
   'venture.report.list': 'read',
   'venture.monitors.list': 'read', 'venture.monitors.add': 'approve', 'venture.monitors.remove': 'approve', 'venture.mail.import': 'approve', 'venture.mail.threads': 'read',
-  'venture.localApps.list': 'read', 'venture.webhook.set': 'approve', 'venture.speechOut.providers': 'read',
+  'venture.localApps.list': 'read', 'venture.webhook.set': 'approve', 'venture.webhook.send': 'approve', 'venture.speechOut.providers': 'read',
   'venture.ca.confirmCitations': 'approve', 'venture.ca.signoff.get': 'read', 'venture.ca.differential.add': 'approve', 'venture.ca.dataPack.export': 'approve',
   'venture.desk.list': 'read', 'venture.desk.get': 'read', 'venture.desk.act': 'approve',
 });
@@ -5638,18 +6139,35 @@ export type VenturePayloads = {
   'venture.price.quote': { offerId: string; quantity?: string };
   'venture.receipt.get': { id: string };
   'venture.client.add': { name: string; email?: string; countryCode?: CountryCode; taxId?: string; stateCode?: string; note?: string };
+  'venture.client.aiConsent.get': { clientId: string };
+  'venture.agentSettings.get': Empty;
+  'venture.agentSettings.set': { settings: import('./agent-runtime/settings.ts').AiSettings; approveMcpConfiguration?: true };
+  'venture.mcpCredential.set': { serverId: string; token: string | null };
+  'venture.mcpRegistry.list': Record<string, never>;
+  'venture.mcpOAuth.start': { serverId: string };
+  'venture.packs.list': Record<string, never>;
+  'venture.packs.add': { pack: unknown; digest?: string };
+  'venture.packs.remove': { packId: string };
+  'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
+  'venture.client.aiConsent.withdraw': { clientId: string };
+  'venture.billing.get': Empty;
+  'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay'>> & { razorpayKeys?: { keyId: string; keySecret: string } | null };
+  'venture.invoice.pdf': { invoiceId: string };
+  'venture.invoice.payLink': { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' };
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
   'venture.order.create': {
     clientId?: string; offerId: string; quantity?: string; request: string;
+    /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
+    dueDate?: IsoDate; currency?: string; unitPrice?: string;
     intakeFiles?: Record<string, { name: string; contentBase64: string }>;
-    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyRupees?: Record<string, string> };
+    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyAmounts?: Record<string, string> };
     /** 4J5 (M15): the price includes the tax. */
     taxInclusive?: boolean;
   };
   'venture.order.list': Empty;
   'venture.order.deliver': { orderId: string; deliveredOn: IsoDate };
-  'venture.invoice.prepare': { orderId: string; dueInDays?: number; issueDate?: IsoDate };
+  'venture.invoice.prepare': { orderId: string; dueInDays?: number; issueDate?: IsoDate; reminderDays?: number[]; part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; label?: string; percent?: string; amount?: string } };
   'venture.invoice.issue': { invoiceId: string; digest: string };
   'venture.invoice.get': { invoiceId: string };
   'venture.invoice.list': Empty;
@@ -5667,6 +6185,8 @@ export type VenturePayloads = {
   'venture.spend.policy.get': Empty;
   'venture.spend.policy.set': {
     capUsd?: string | null; askFirstUsd?: string | null; cap?: MicroString | null; askFirst?: MicroString | null; rates?: SpendRateInput[]; inrPerUsd?: string | null;
+    /** W6 6G5: each routine's own monthly limit in US dollars; the list replaces the one in force. */
+    routineCaps?: { routine: string; capUsd: string }[];
     // 4F2: the day's cap, the alert share in permille, each agent's own monthly limit, and lower daily write caps.
     dailyCapUsd?: string | null; dailyCap?: MicroString | null; alertPermille?: number; agentCaps?: { agent: string; capUsd: string }[];
     writeCaps?: Partial<Record<WriteCapKind, number>>;
@@ -5686,16 +6206,14 @@ export type VenturePayloads = {
   'venture.simulation.get': { runId: string };
   'venture.simulation.fromSignal': { signalId: string };
   'venture.launch.status': Empty;
-  'venture.launch.advance': { to: LaunchStage };
+  'venture.launch.advance': { to: 'practice' | 'live' };
   'venture.delivery.run': { orderId: string; useTemplate?: boolean };
-  'venture.delivery.approve': { runId: string; digest: string };
+  'venture.agentApproval.decide': { runId: string; digest: string; decision: 'approve' | 'deny'; content?: Record<string, unknown> };
   'venture.delivery.review': { runId: string; verdict: 'accepted' | 'edited' | 'rejected'; reason?: DeliveryReason; editedText?: string };
   'venture.delivery.list': Empty;
   'venture.capabilities': Empty;
   'venture.files.add': { orderId: string; name: string; contentBase64: string };
   'venture.files.list': { orderId?: string };
-  'venture.delivery.answer': { runId: string; answer: string };
-  'venture.delivery.delegate': { runId: string; digest: string; decision: 'approve' | 'decline' };
   'venture.delegate.get': { id: string };
   'venture.work.get': { id: string };
   'venture.improve.status': Empty;
@@ -5765,11 +6283,17 @@ export type VenturePayloads = {
   'venture.ca.receipt': { id: string };
   'venture.ca.explainDiff': { receiptId: string; key: string; note: string; membershipNo: string };
   'venture.rules.list': Empty;
+  'venture.rules.locks': Empty;
+  'venture.rules.attest': { ruleId: string; attest: boolean; digest?: string };
+  /** size: picked ranges to judge the verdicts by, kept nowhere. */
+  'venture.compliance.get': { profession?: string; size?: { turnover?: string; headcount?: string } };
+  /** size alone changes only the size answer (Business settings); with the side-work answer, left out keeps the saved one. */
+  'venture.compliance.set': { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: { turnover?: string; headcount?: string } } | { size: { turnover?: string; headcount?: string } };
   'venture.judge.auto.get': Empty;
   /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
   'venture.judge.auto.set': { auto: boolean };
   'venture.posting.limits.get': Empty;
-  /** limits: only stricter numbers than Chausar's own (POSTING_LIMIT_LOOSER otherwise); a number left out is Chausar's own. */
+  /** limits: owner-set numbers; a number left out uses Chausar's default. */
   'venture.posting.limits.set': { connectorId: string; limits: Partial<OwnerPostingLimitsView> };
   'venture.transcription.get': Empty;
   'venture.transcription.set': { command: string; model: string } | { clear: true };
@@ -5822,7 +6346,7 @@ export type VenturePayloads = {
   'venture.pipeline.add': { personId: string; trigger: { kind: OpportunityTrigger['kind']; ref?: string }; votes?: CardVote[] };
   'venture.pipeline.setNext': { id: string; text: string; due: IsoDate };
   'venture.pipeline.move': { id: string; stage: PipelineStage; reason?: LostReason; evidence?: PipelineEvidenceInput };
-  'venture.pipeline.settings': { weekdays?: number[]; sendTime?: string; caps?: { newPerDay?: number; perWeek?: number; channels?: Partial<Record<OutreachLane, number>> }; scoreRules?: ScoreRule[] };
+  'venture.pipeline.settings': { weekdays?: number[]; sendTime?: string; caps?: { newPerDay?: number; perWeek?: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] }; scoreRules?: ScoreRule[] };
   /**
    * 4E2. basis: the lawful basis a cold email needs (kept on the card); limit: a connection note's 200 (free) or 300
    * (Premium); introduce: who a double opt-in introduces; about: the owner's own words; postalAddress: as leads.draft.
@@ -5860,6 +6384,54 @@ export type VenturePayloads = {
   'venture.notify.push.unsubscribe': { endpoint: string };
   /** url: the owner's own https address; null clears it. */
   'venture.notify.relay': { url: string | null };
+  'venture.notify.telegram': { bot?: { token: string; chatId: string } | null; details?: boolean; test?: true };
+  'venture.phone.access': { action?: 'link' | 'stop'; via?: 'wifi' | 'tailscale'; hours?: number };
+  /** W6 6F3: {} reads; { provider, key, consentDigest } saves the owner's own search key; { provider: null } removes it. */
+  'venture.web.search': { provider?: import('./web/search-types.ts').SearchProviderId | null; key?: string; consentDigest?: string };
+  'venture.web.read': { url: string };
+  /** W6 6G1: one chat's state; a snooze takes a preset or an exact future time. */
+  'venture.chief.thread.state': ChiefThreadStateInput;
+  /** W6 6G1: the quiet days before a chat settles on its own, 0 to 365 (0 is never). */
+  'venture.chief.settle.set': { days: number };
+  /** W6 6G2: the check before retiring; to is another AI agent's id or 'owner'; Bring back. */
+  'venture.agents.retire.check': { agent: string };
+  'venture.agents.retire': { agent: string; to: string; digest: string };
+  'venture.agents.restore': { agent: string };
+  'venture.apps.list': Empty; 'venture.apps.get': { app: string }; 'venture.apps.make': { ask: string; app?: string };
+  'venture.apps.grant': { app: string; digest: string }; 'venture.apps.revoke': { app: string }; 'venture.apps.restore': { app: string; version: number };
+  'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
+  'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
+  'venture.layout.get': { place: LayoutPlace };
+  'venture.layout.change': LayoutRequest;
+  'venture.talk.get': Empty; 'venture.talk.consent': TalkConsentInput; 'venture.talk.setup': TalkSetupInput; 'venture.talk.start': Empty;
+  'venture.talk.hear': { sessionId: string; audioBase64: string }; 'venture.talk.say': { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string };
+  'venture.feedback.get': Empty; 'venture.feedback.consent': FeedbackConsentInput; 'venture.feedback.send': { digest: string };
+  'venture.feedback.answer': FeedbackAnswerInput; 'venture.feedback.crash': FeedbackCrashInput; 'venture.feedback.delete': Empty;
+  /** W6 6F8: {} reads; { service, key } saves the owner's own key; key null removes it. */
+  'venture.people.services': { service?: 'happenstance' | 'probe42'; key?: string | null };
+  /** W6 6F8: without digest, the exact lookup to approve; with it, the lookup once; searchId reads a Happenstance search. */
+  'venture.people.lookup': { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string };
+  /** W6 6G3 (D44): one client's company, field history, timeline and list places; edits go through the evidence ledger. */
+  'venture.crm.client': { clientId: string };
+  'venture.crm.client.edit': { clientId: string; field: 'name' | 'email' | 'note'; value: string };
+  'venture.crm.companies': Empty;
+  'venture.crm.company': { companyId: string };
+  /** Without companyId a new company (name needed); with it, the fields to change (null clears domain or note). */
+  'venture.crm.company.save': { companyId?: string; name?: string; domain?: string | null; note?: string | null };
+  /** companyId null takes the client or person out of its company. */
+  'venture.crm.link': { companyId: string | null; member: string };
+  'venture.crm.log': { clientId: string; kind: import('./crm/crm-data.ts').CrmEntryKind; on: IsoDate; text: string };
+  'venture.crm.lists': Empty;
+  'venture.crm.list': { listId: string };
+  'venture.crm.list.save': { listId?: string; name: string; stages: string[] };
+  /** stage null takes the member out of the list. */
+  'venture.crm.list.place': { listId: string; member: string; stage: string | null };
+  /** W6 6G4 (D44): dated facts. The app reads every fact; an AI caller reads only current facts an AI may see. */
+  'venture.memory.list': { subject?: string };
+  'venture.memory.add': { subject: string; topic: string; text: string; since?: IsoDate; visibility?: import('./memory/facts-data.ts').FactVisibility };
+  'venture.memory.replace': { factId: string; text: string; since?: IsoDate };
+  'venture.memory.visibility': { factId: string; visibility: import('./memory/facts-data.ts').FactVisibility };
+  'venture.memory.forget': { factId: string };
   /** fresh: true looks at each tool again (Your AI's "Check again"); left out, a look from the last minute is reused. */
   'venture.models.cli.status': { fresh?: boolean };
   'venture.models.roles': Empty;
@@ -5913,7 +6485,7 @@ export type VenturePayloads = {
   'venture.blueprint.suggest': { text: string; attachment?: { name: string; text: string } };
   'venture.owner.get': Empty;
   /** firstName null takes the owner's name back (minimum data). */
-  'venture.owner.set': { firstName?: string | null; excludedServices?: string[] };
+  'venture.owner.set': { firstName?: string | null; excludedServices?: string[]; familyId?: FamilyId | null };
   'venture.receipt.verify': { id: string };
   'venture.journal.chain': Empty;
   /** digest: the recorded break the owner accepts; a new chain starts with a line that says so. */
@@ -5985,7 +6557,8 @@ export type VenturePayloads = {
   'venture.localApps.list': Empty;
   /** url null clears it. */
   /** 5A6: test: send the fixed test item (shown first) once, journalled, before the address is kept. */
-  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null; test?: boolean };
+  'venture.webhook.set': { kind: 'n8n' | 'make'; url: string | null; secret?: string; test?: boolean };
+  'venture.webhook.send': { kind: 'n8n' | 'make'; subject: string; payload: unknown; digest?: string };
   'venture.speechOut.providers': Empty;
   /** As venture.ca.confirmRates: the CA of record's membership number and the citations table version confirmed. */
   'venture.ca.confirmCitations': { version: number; membershipNo: string };
@@ -5995,11 +6568,21 @@ export type VenturePayloads = {
   'venture.desk.list': DeskListPayload;
   'venture.desk.get': DeskGetPayload;
   'venture.desk.act': DeskActPayload;
+  'venture.flows.list': Empty;
+  'venture.flows.act': import('./flows/records.ts').FlowsActPayload;
   'venture.ai.options': OnboardingPayloads['venture.ai.options'];
   'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
   'venture.ai.status': OnboardingPayloads['venture.ai.status'];
   'venture.ai.calls': OnboardingPayloads['venture.ai.calls'];
+  'venture.country.suggest': OnboardingPayloads['venture.country.suggest'];
+  'venture.ai.tools': OnboardingPayloads['venture.ai.tools'];
+  'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
+  'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
+  'venture.about.read': OnboardingPayloads['venture.about.read'];
+  'venture.about.pick': OnboardingPayloads['venture.about.pick'];
+  'venture.about.families': OnboardingPayloads['venture.about.families'];
+  'venture.needs.list': Record<string, never>;
   'venture.compose.decide': OnboardingPayloads['venture.compose.decide'];
   'venture.compose.fill': OnboardingPayloads['venture.compose.fill'];
   'venture.compose.get': OnboardingPayloads['venture.compose.get'];
@@ -6030,6 +6613,21 @@ export type VentureResults = {
   /** A price receipt, a sum receipt (owed, received, spent) that code made from venture records, or a tie's receipt (4D2). */
   'venture.receipt.get': (PriceReceiptRecord | SumReceiptRecord | TieReceipt | RowFigureReceipt) & { signature?: ReceiptSignature };
   'venture.client.add': ClientRecord;
+  'venture.client.aiConsent.get': ClientAiConsentView;
+  'venture.agentSettings.get': import('./agent-runtime/settings.ts').AiSettingsView;
+  'venture.agentSettings.set': import('./agent-runtime/settings.ts').AiSettingsView;
+  'venture.mcpCredential.set': { serverId: string; saved: boolean };
+  'venture.mcpRegistry.list': import('./agent-runtime/mcp-registry.ts').CuratedMcpView;
+  'venture.mcpOAuth.start': { serverId: string; authorizationUrl: string };
+  'venture.packs.list': { packs: import('./packs/pack-format.ts').PackView[] };
+  'venture.packs.add': { added: boolean; digest: string; pack: import('./packs/pack-format.ts').PackView };
+  'venture.packs.remove': { removed: boolean };
+  'venture.client.aiConsent.agree': ClientAiConsentView;
+  'venture.client.aiConsent.withdraw': ClientAiConsentView;
+  'venture.billing.get': import('./money/billing-types.ts').BillingView;
+  'venture.billing.set': import('./money/billing-types.ts').BillingView;
+  'venture.invoice.pdf': import('./money/invoice-pdf.ts').InvoicePdfView;
+  'venture.invoice.payLink': InvoiceView;
   'venture.client.list': ClientListRow[];
   'venture.order.create': OrderRecord;
   /** 4J3: each order with its stage steps and what waits on the owner (money/order-steps.ts). */
@@ -6059,14 +6657,12 @@ export type VentureResults = {
   'venture.launch.status': LaunchStatus;
   'venture.launch.advance': LaunchStatus;
   'venture.delivery.run': DeliveryRunView;
-  'venture.delivery.approve': DeliveryRunView;
+  'venture.agentApproval.decide': { runId: string; decision: 'approve' | 'deny' };
   'venture.delivery.review': DeliveryRunView;
   'venture.delivery.list': DeliveryRunView[];
   'venture.capabilities': CapabilityStatus[];
   'venture.files.add': UploadView;
   'venture.files.list': UploadView[];
-  'venture.delivery.answer': DeliveryRunView;
-  'venture.delivery.delegate': DeliveryRunView;
   'venture.delegate.get': DelegateRunRecord;
   'venture.work.get': WorkReceiptRecord & { coverage?: CoverageView }; // 4J14 (Q6): fraction first where code counts it
   'venture.improve.status': ImprovementStatus;
@@ -6130,6 +6726,10 @@ export type VentureResults = {
   'venture.ca.receipt': CaReceiptView;
   'venture.ca.explainDiff': { explanation: CaDiffExplanation };
   'venture.rules.list': RulesListView;
+  'venture.rules.locks': RuleLocksView;
+  'venture.rules.attest': RuleLocksView;
+  'venture.compliance.get': ComplianceView;
+  'venture.compliance.set': ComplianceView;
   'venture.judge.auto.get': JudgeAutoView;
   'venture.judge.auto.set': JudgeAutoView;
   'venture.posting.limits.get': PostingLimitsView;
@@ -6206,6 +6806,44 @@ export type VentureResults = {
   'venture.notify.push.subscribe': PushStateView;
   'venture.notify.push.unsubscribe': PushStateView;
   'venture.notify.relay': RelayView;
+  'venture.notify.telegram': TelegramView;
+  'venture.phone.access': PhoneAccessView;
+  'venture.web.search': import('./web/search-types.ts').WebSearchView;
+  'venture.web.read': import('./web/search-types.ts').WebReadView;
+  'venture.chief.thread.state': ChiefThreadStateResult;
+  'venture.chief.settle.set': ChiefSettleResult;
+  'venture.agents.retire.check': RetireCheckView;
+  'venture.agents.retire': AgentRetired;
+  'venture.agents.restore': AgentRestored;
+  'venture.apps.list': { apps: MiniAppCard[]; ideas: Display[]; never: Display }; 'venture.apps.get': { app: MiniAppView };
+  'venture.apps.make': { app: MiniAppView; line: Display }; 'venture.apps.grant': { app: MiniAppView; line: Display };
+  'venture.apps.revoke': { app: MiniAppView; line: Display }; 'venture.apps.restore': { app: MiniAppView; undo: { version: number }; line: Display };
+  'venture.apps.pin': { app: MiniAppView; undo: { pinned: boolean }; line: Display }; 'venture.apps.export': { fileName: string; document: string; mediaType: 'text/html' };
+  'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
+  'venture.layout.get': LayoutView;
+  'venture.layout.change': LayoutChangeResult;
+  'venture.talk.get': TalkView; 'venture.talk.consent': TalkView; 'venture.talk.setup': TalkView; 'venture.talk.start': TalkStarted;
+  'venture.talk.hear': TalkHeard; 'venture.talk.say': TalkSaid;
+  'venture.feedback.get': FeedbackView; 'venture.feedback.consent': FeedbackView; 'venture.feedback.send': FeedbackView;
+  'venture.feedback.answer': FeedbackView; 'venture.feedback.crash': FeedbackCrashKept; 'venture.feedback.delete': FeedbackView;
+  'venture.people.services': import('./people/people-types.ts').PeopleSearchView;
+  'venture.people.lookup': import('./people/people-types.ts').PeopleLookupView;
+  'venture.crm.client': import('./crm/crm-data.ts').ClientCrmView;
+  'venture.crm.client.edit': import('./crm/crm-data.ts').ClientCrmView;
+  'venture.crm.companies': import('./crm/crm-data.ts').CompanyRow[];
+  'venture.crm.company': import('./crm/crm-data.ts').CompanyView;
+  'venture.crm.company.save': import('./crm/crm-data.ts').CompanyView;
+  'venture.crm.link': import('./crm/crm-data.ts').CrmMemberView;
+  'venture.crm.log': import('./crm/crm-data.ts').ClientCrmView;
+  'venture.crm.lists': import('./crm/crm-data.ts').CrmListRow[];
+  'venture.crm.list': import('./crm/crm-data.ts').CrmListView;
+  'venture.crm.list.save': import('./crm/crm-data.ts').CrmListView;
+  'venture.crm.list.place': import('./crm/crm-data.ts').CrmListView;
+  'venture.memory.list': import('./memory/facts-data.ts').MemoryView;
+  'venture.memory.add': import('./memory/facts-data.ts').MemoryChange;
+  'venture.memory.replace': import('./memory/facts-data.ts').MemoryChange;
+  'venture.memory.visibility': import('./memory/facts-data.ts').MemoryChange;
+  'venture.memory.forget': import('./memory/facts-data.ts').MemoryChange;
   'venture.models.cli.status': CliStatusList;
   'venture.models.roles': RoleModelsView;
   'venture.goals.get': GoalView;
@@ -6314,6 +6952,7 @@ export type VentureResults = {
   'venture.mail.threads': MailThreadsView;
   'venture.localApps.list': LocalAppsView;
   'venture.webhook.set': WebhookView;
+  'venture.webhook.send': WebhookSendView;
   'venture.speechOut.providers': SpeechProvidersView;
   'venture.ca.confirmCitations': CitationsConfirmView;
   'venture.ca.signoff.get': SignoffCheckView;
@@ -6322,11 +6961,21 @@ export type VentureResults = {
   'venture.desk.list': DeskListView;
   'venture.desk.get': DeskItemView;
   'venture.desk.act': DeskActView;
+  'venture.flows.list': import('./flows/records.ts').FlowsListView;
+  'venture.flows.act': import('./flows/records.ts').FlowsActView;
   'venture.ai.options': OnboardingResults['venture.ai.options'];
   'venture.ai.connect': OnboardingResults['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
   'venture.ai.status': OnboardingResults['venture.ai.status'];
   'venture.ai.calls': OnboardingResults['venture.ai.calls'];
+  'venture.country.suggest': OnboardingResults['venture.country.suggest'];
+  'venture.ai.tools': OnboardingResults['venture.ai.tools'];
+  'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
+  'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
+  'venture.about.read': OnboardingResults['venture.about.read'];
+  'venture.about.pick': OnboardingResults['venture.about.pick'];
+  'venture.about.families': OnboardingResults['venture.about.families'];
+  'venture.needs.list': NeedsList;
   'venture.compose.decide': OnboardingResults['venture.compose.decide'];
   'venture.compose.fill': OnboardingResults['venture.compose.fill'];
   'venture.compose.get': OnboardingResults['venture.compose.get'];
@@ -6344,6 +6993,30 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
+  'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
+  // Wave 6 (6H2): recorded flows.
+  'FLOW_INVALID', 'FLOW_NOT_FOUND', 'FLOW_NOT_TESTED', 'FLOW_HELD', 'FLOW_BUSY', 'FLOW_BROWSER_UNAVAILABLE', 'FLOW_BROWSER_CLOSED',
+  // Wave 6 (6C5, 6C6): hard stops, owner attestation and regulator switches.
+  'HARD_STOP', 'RULE_NOT_FOUND', 'RULE_NOT_ATTESTABLE', 'REGULATOR_FORBIDS',
+  // Wave 6 (6G3, 6G4): a company that is not here; a fact kept already, replaced already, or not found.
+  'COMPANY_NOT_FOUND', 'FACT_EXISTS', 'FACT_REPLACED', 'FACT_NOT_FOUND',
+  // Wave 6 (6E7): the trading journal.
+  'TRADEBOOK_INVALID', 'TRADEBOOK_DUPLICATE', 'OPENING_INVALID', 'JOURNAL_EMPTY', 'TAX_YEAR_UNSUPPORTED',
+  // Wave 6 (6E4, 6E5): the document desk and the sign-off desk.
+  'DOCUMENT_NOT_FOUND', 'DOCUMENT_INPUT_INVALID', 'DOCUMENT_SOURCE_REQUIRED', 'DOCUMENT_BRIEF_REQUIRED', 'DOCUMENT_SECTION_REQUIRED', 'DOCUMENT_FIGURE_UNRECEIPTED', 'DOCUMENT_APPROVAL_REQUIRED',
+  'SIGNOFF_REQUIRED', 'SIGNOFF_REGISTRATION_INVALID', 'SIGNOFF_SIGNER_MISMATCH', 'SIGNOFF_SIGNER_REQUIRED', 'SIGNOFF_PAPERS_NOT_READY', 'SIGNOFF_DECIDED',
+  // Wave 6 (6E2, 6E3): the lesson desk, the booking desk and the owner's own message handoff.
+  'LESSON_BATCH_NOT_FOUND', 'LESSON_LEARNER_NOT_FOUND', 'LESSON_SESSION_NOT_FOUND', 'LESSON_WORK_NOT_FOUND', 'LESSON_NOT_A_QUIZ', 'LESSON_ORDER_REQUIRED',
+  'LESSON_ORDER_MISMATCH', 'LESSON_MESSAGE_NOT_FOUND', 'OWNER_MESSAGE_NO_ADDRESS',
+  'BOOKING_NOT_FOUND', 'BOOKING_SLOT_NOT_FOUND', 'BOOKING_SLOT_CLASH', 'BOOKING_SLOT_TAKEN', 'BOOKING_SLOT_REQUIRED', 'BOOKING_ORDER_MISMATCH', 'BOOKING_ORDER_TAKEN',
+  'BOOKING_QUOTE_REQUIRED', 'BOOKING_DEPOSIT_EXISTS', 'BOOKING_DEPOSIT_REQUIRED', 'BOOKING_DEPOSIT_NOT_ISSUED', 'BOOKING_NOT_HELD', 'BOOKING_NOT_CONFIRMED', 'BOOKING_CLOSED',
+  'BOOKING_MESSAGE_NOT_FOUND',
+  // Wave 6: scoped native jobs and owner-configured external tools.
+  'JOB_BUSY', 'JOB_CLOSED', 'JOB_FILE_CHANGED', 'JOB_FILE_FORBIDDEN', 'JOB_RECIPIENT_FORBIDDEN', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED',
+  'MODEL_SEND_BLOCKED',
+  'AGENT_ABORTED', 'AGENT_PROMPT_INVALID', 'AGENT_SHELL_UNAVAILABLE', 'AGENT_TURN_BUSY',
+  'MCP_CALL_DECLINED', 'MCP_CONFIGURATION_APPROVAL_REQUIRED', 'MCP_CONFIGURATION_CHANGED', 'MCP_CONNECTION_FAILED', 'MCP_RESPONSE_INVALID', 'MCP_SERVER_NOT_FOUND', 'MCP_TOOL_CHANGED',
   'CALL_LOG_NOT_FOUND',
   // 5R5: exact monitored sources and one-channel triage.
   'SLACK_DISTRIBUTION_UNCONFIRMED', 'SLACK_RESPONSE_INVALID', 'SLACK_SEND_STOPPED', 'SLACK_SEND_UNCONFIRMED', 'TRIAGE_ADMIN_REQUIRED', 'TRIAGE_CHANNEL_MISMATCH', 'TRIAGE_CLAIM_UNSUPPORTED', 'TRIAGE_INPUT_INVALID', 'TRIAGE_SETUP_REQUIRED', 'TRIAGE_SOURCE_HELD', 'TRIAGE_SUMMARY_REQUIRED', 'WATCH_DESKTOP_REQUIRED', 'WATCH_FETCH_FAILED', 'WATCH_INPUT_INVALID', 'WATCH_PRICE_AMBIGUOUS', 'WATCH_SELECTOR_DRIFT', 'WATCH_SELECTOR_UNCHECKED', 'WATCH_SOURCE_NOT_FOUND', 'WATCH_TERMS_REQUIRED',
@@ -6388,9 +7061,11 @@ export const VENTURE_ERRORS = [
   'INVALID_VENTURE_REQUEST', 'INVALID_AMOUNT', 'INVALID_TAX_RATE', 'INVALID_TAX_ID', 'VENTURE_NOT_FOUND', 'VENTURE_EXISTS', 'UNKNOWN_COUNTRY',
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',
   'BLUEPRINT_NOT_FOUND', 'BLUEPRINT_NOT_ACCEPTED',
-  'NO_MODEL_CONNECTED', 'MODEL_CONSENT_REQUIRED', 'MODEL_KEY_MISSING', 'MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE',
+  'NO_MODEL_CONNECTED', 'MODEL_CONSENT_REQUIRED', 'MODEL_KEY_MISSING', 'MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE', 'CREDENTIAL_INVALID', 'CREDENTIAL_UNAVAILABLE',
   'MODEL_FAILED', 'MODEL_TIMEOUT', 'BUDGET_REACHED', 'CLIENT_DATA_NEEDS_APPROVAL', 'SEND_DISABLED', 'FIXTURE_MISSING', 'CLI_UNAVAILABLE', 'PRESET_UNAVAILABLE',
   'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
+  'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED',
+  'AI_SETTING_UNSUPPORTED',
   'RECEIPT_NOT_FOUND', 'BRIEF_NOT_FOUND', 'BRIEF_LINT_FAILED', 'HANDOFF_NOT_FOUND', 'REPO_NOT_LINKED', 'INVALID_REPO', 'TOKEN_NOT_FINE_GRAINED',
   'GITHUB_UNAUTHORIZED', 'GITHUB_NOT_FOUND', 'GITHUB_RATE_LIMITED', 'GITHUB_READ_FAILED',
   'PLAYBOOK_NOT_FOUND', 'SCENARIO_NOT_FOUND', 'SIMULATION_NOT_FOUND', 'SIGNAL_NOT_FOUND',
@@ -6458,6 +7133,10 @@ export const VENTURE_ERRORS = [
   'CALENDAR_NOT_A_SOCIAL_DRAFT', 'CALENDAR_NO_SLOTS',
   // Ink v2 wave 4 (named by package 4-0 from the package texts). Departments, Keeper and health (4A1)
   'DEPARTMENT_MISSING', 'AGENT_QUARANTINED', 'AGENT_IS_CODE',
+  // Wave 6 (6G2): a retired agent's read-only shelf, and the last AI agent of a team, which cannot retire
+  'AGENT_RETIRED', 'AGENT_LAST_ONE',
+  // Wave 6 (6H1): mini apps.
+  'APP_NOT_FOUND', 'APP_NEEDS_AI', 'APP_CODE_REFUSED', 'APP_NOT_PASSED', 'APP_NOT_ALLOWED', 'APP_TOOL_UNKNOWN', 'APP_NOTES_FULL', 'APP_PROPOSALS_FULL', 'APP_PROPOSAL_REFUSED',
   // Agent chat, "from now on" changes, versions and notes (4B1, 4B2)
   'CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE', 'CHAT_KEY_REFUSED', 'PATCH_OWNER_OP', 'PATCH_NOT_YOUR_STEP',
   'PROPOSAL_STALE', 'PROPOSAL_DECIDED', 'UNDO_NOTHING', 'UNDO_CONFLICT', 'NOTE_CHANGED', 'NOTES_FULL',
@@ -6471,13 +7150,15 @@ export const VENTURE_ERRORS = [
   // 4E3: a mailbox that refused the app password, one not connected (or whose password is not loaded), one that failed
   'MAILBOX_LOGIN_FAILED', 'MAILBOX_NOT_CONNECTED', 'MAILBOX_FAILED',
   // Run controls, breakers, write caps and who pays (4F1, 4F2)
-  'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED', 'RUN_CAPABILITY_MISSING', 'WRITE_CAP_REACHED', 'PAYER_AMBIGUOUS',
+  'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_RESTART_REQUIRED', 'RUN_CONTROL_UNAVAILABLE', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED', 'RUN_CAPABILITY_MISSING', 'WRITE_CAP_REACHED', 'PAYER_AMBIGUOUS',
   // Notifications and push (4G1, 4G3), the CLI status (4H1), goals (4I1)
   'NOTIFY_PAUSE_TOO_LONG', 'PUSH_ENDPOINT_REFUSED', 'PUSH_NOT_SUBSCRIBED', 'CLI_FLAGS_UNSUPPORTED', 'GOAL_INVALID', 'GOAL_MONTH_PAST',
   // Approvals, edits and set approval (4J1, 4J2)
   'ALLOW_SESSION_FLOOR', 'FILE_CHANGED', 'SEND_BACK_EMPTY', 'UNDO_TOO_LATE', 'UNDO_OUTSIDE_EFFECT', 'SET_KIND_REFUSED', 'SET_NEEDS_PICK',
   // Previews, money views, bills and credits (4J3 to 4J5)
   'POSTER_NOT_AVAILABLE', 'EXPORT_EXISTS', 'PAGING_LOOP', 'BILL_PAYMENT_TOO_LARGE', 'QUOTE_ALREADY_INVOICED', 'CREDIT_TOO_LARGE',
+  // Wave 6 money (6D1 to 6D4)
+  'ORDER_OVER_INVOICED', 'INVALID_UPI_ID', 'INVALID_BANK_DETAILS', 'FOREIGN_NEEDS_LUT', 'RAZORPAY_NOT_CONNECTED', 'RAZORPAY_FAILED',
   // Connector truth, file requests and the owner profile (4J7, 4J9)
   'CONNECTOR_FIELD_UNSUPPORTED', 'ROUTINE_NEEDS_CHECK', 'SHARE_USED', 'SHARE_EXPIRED', 'OWNER_NAME_INVALID',
   // The chained journal and journalled-action extras (4J10), execution places (4J11), step edges and contracts (4J12)
@@ -6548,7 +7229,7 @@ export type VentureErrorCode = typeof VENTURE_ERRORS[number];
  */
 export type SecretName = `model:${ModelPresetId}` | `github:${string}` | 'network:forget' | 'mailbox:password' | 'network:calendar' | 'receipt:signing' | 'journal:head'
   // 5A6: the owner's n8n or Make webhook address (it is a key in itself), and a speech provider's key, held the same way.
-  | `webhook:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}` | `shopify:${string}` | `storefront:${string}`;
+  | `webhook:${WebhookKind}` | `webhook-signing:${WebhookKind}` | `speech:${string}` | `seo:${string}` | `books:${string}` | `site:${string}` | `open-post:${string}` | `youtube:${string}` | `shopify:${string}` | `storefront:${string}`;
 /** Memory-only secrets. Never written to state, logs, payloads or the renderer. Cleared on lock. */
 export interface SecretShelf {
   get(name: SecretName): string | null;
@@ -6583,13 +7264,28 @@ export type VentureStorage = 'experimental-file' | 'postgres';
 /** Where the engine runs: the desktop window, local web mode, the experimental hosted web server, or a test. */
 export type VentureHostKind = 'desktop' | 'local-web' | 'hosted-web' | 'test';
 /**
- * Whether money screens say "practice": with file storage anywhere, and on the hosted web server with any storage until
- * a real deploy has been tested (docs/venture/hosted.md).
+ * Desktop encrypted file storage is beta-grade. Other file hosts and the hosted web tier retain the practice label.
  */
 export function experimentalStorage(deps: { storage: VentureStorage; host: VentureHostKind }): boolean {
-  return deps.storage === 'experimental-file' || deps.host === 'hosted-web';
+  return deps.host === 'hosted-web' || (deps.storage === 'experimental-file' && deps.host !== 'desktop');
+}
+/**
+ * W6 6F7: the host's phone listener (platform/runtime/phone-access.ts). status().addresses: where this computer can be
+ * reached on its home network or Tailscale, whether or not the listener runs. link(): starts it when needed and makes a
+ * one-time pairing link. stop(): closes it and ends every phone session. Trusted host composition only.
+ */
+export interface PhoneAccessPort {
+  status(): { on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number };
+  link(input: { via: 'wifi' | 'tailscale'; hours: number; minutes: number }): Promise<{ link: string; expiresAt: IsoTime }>;
+  stop(): Promise<void>;
 }
 export type VentureDeps = {
+  /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
+  credentials?: import('./models/credential-port.ts').HostCredentialPort;
+  /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
+  phoneAccess?: PhoneAccessPort;
+  /** Trusted test or desktop composition. Never accepted from an engine request. */
+  agentRoute?: (ctx: Context, agentId: string) => Promise<import('./agent-runtime/route-types.ts').AgentRoute>;
   store: StateStore;
   clock: () => Date;
   models: ModelPort;
@@ -6605,7 +7301,7 @@ export type VentureDeps = {
   delegate?: DelegatePorts;
   /** The engine's draft desk, so venture.create can adopt the AI and plan made before the vault. Absent on hosted. */
   draft?: DraftHandoverPort;
-  /** Whether Chausar has accepted Anthropic's terms for running Claude Code. Absent means 'pending'. */
+  /** Claude Code is enabled by default. Explicit 'pending' disables it. */
   claudeCodeTerms?: 'accepted' | 'pending';
   /** Posting ports. Absent means the real ones: a Playwright probe that installs nothing, and no API clients. */
   connectors?: ConnectorPorts;
@@ -6626,6 +7322,8 @@ export type VentureDeps = {
   closing?: VentureClosingPort;
   /** The network guard's lookup and sender for requests the engine makes itself (bank alert counts). Absent means the real ones; tests inject stubs. */
   net?: { resolve?: NetResolver; send?: PinnedSender; tls?: TlsConnector };
+  /** Wave 6 (6D3): the HTTPS port payment providers are asked through. Tests pass recorded responses; absent: fetch. */
+  paymentHttp?: import('./money/billing-types.ts').PaymentHttp;
   /** Called once with the events a venture action committed, after the commit. A listener's failure never undoes it. */
   publish?: (events: VentureEventRecord[]) => void;
   /**
@@ -6666,8 +7364,14 @@ export type VentureDeps = {
   print?: PrintPort;
   /** Desktop-only trusted owner-browser port. Never supplied by a renderer or model. */
   formsBrowser?: FormsBrowserPort;
+  /** Wave 6 (6F3): the desktop's hidden window for reading a page that needs JavaScript (web/render-port.ts). Desktop only. */
+  webRender?: import('./web/reader.ts').PageRenderPort;
+  /** Wave 6 (6H2, D41): the desktop's browser window for recorded flows (flows/port.ts). Desktop only. */
+  flowBrowser?: import('./flows/replay.ts').FlowBrowserPort;
   /** 5A6 (K13): the owner's own programs on PATH (build/local-apps.ts). Absent means the real one; never on hosted. */
   localApps?: LocalAppPort;
+  /** Wave 6 (6J2, D47): the report services' keys and the app's version, from the build's environment (host-env.ts). Never a payload. */
+  feedback?: import('./core/feedback.ts').FeedbackPort;
 };
 
 /**
@@ -6691,7 +7395,7 @@ export type ModelPortOptions = {
   host: VentureHostKind;
   demo: boolean;
   codexCli?: unknown; // { capabilities, mode } from the trusted Codex host profile, when present
-  /** The Claude Code terms gate; absent is 'pending'. */
+  /** The Claude Code gate; absent is 'accepted', explicit 'pending' disables it. */
   claudeCodeTerms?: 'accepted' | 'pending';
   /** 4H1: finds a command on this computer's search path (an absolute one where it says). Absent means the real search; tests inject one. */
   locateCli?: (command: string) => string | null;
@@ -6699,6 +7403,11 @@ export type ModelPortOptions = {
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */
 export type VentureHostOptions = {
+  /** Trusted host composition for a tool driver, never supplied by an engine request. */
+  agentRoute?: VentureDeps['agentRoute'];
+  credentials?: import('./models/credential-port.ts').HostCredentialPort;
+  /** W6 6F7: the host's phone listener, never supplied by an engine request. */
+  phoneAccess?: PhoneAccessPort;
   modelTransport?: ModelTransport;
   /** A transport, or a factory the host calls once with its store (fixtures use it to fill {{briefId}}). */
   githubTransport?: GitHubTransport | ((store: StateStore) => GitHubTransport);
@@ -6713,7 +7422,7 @@ export type VentureHostOptions = {
   delegate?: DelegatePorts; // tests inject a port to a fake command-line tool
   /** Trusted host composition, never from a payload: the engine's draft desk handover. */
   draft?: DraftHandoverPort;
-  /** From CHAUSAR_CLAUDE_CODE_TERMS ('accepted' opens it). Absent or anything else is 'pending': Claude Code needs setup. */
+  /** From CHAUSAR_CLAUDE_CODE_TERMS. Absent defaults to accepted; pending disables Claude Code. */
   claudeCodeTerms?: 'accepted' | 'pending';
   /** Trusted host composition, never from a payload: the businesses on this computer (VentureWorkspacePort). */
   workspace?: VentureWorkspacePort;
@@ -6743,6 +7452,12 @@ export type VentureHostOptions = {
   print?: PrintPort;
   /** Desktop host composition for exact approved native HTML form requests. */
   formsBrowser?: FormsBrowserPort;
+  /** Wave 6 (6F3): the desktop's hidden window for reading a page that needs JavaScript (web/render-port.ts). Desktop only. */
+  webRender?: import('./web/reader.ts').PageRenderPort;
+  /** Wave 6 (6H2, D41): the desktop's browser window for recorded flows (flows/port.ts). Desktop only. */
+  flowBrowser?: import('./flows/replay.ts').FlowBrowserPort;
+  /** Wave 6 (6J2): the report services' keys and the app version, from host-env.ts (VentureDeps.feedback). Never a payload. */
+  feedback?: import('./core/feedback.ts').FeedbackPort;
 };
 
 /**

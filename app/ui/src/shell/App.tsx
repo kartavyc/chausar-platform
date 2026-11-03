@@ -17,6 +17,8 @@ import { PhoneTabs, TopBar } from './TopBar';
 import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
 import { BootScreen } from '../places/onboarding/BootScreen';
+// W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
+import { AiGo } from '../parts/layout/AiGo';
 import type { EngineClient } from '../engine/types';
 import s from './App.module.css';
 
@@ -79,7 +81,7 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
             in the top bar and Chats has a tab. */}
         <ShellToolsContext.Provider value={shellTools}>
           {/* W4 4J21: a business started on the hosted app without an account says so above every place. */}
-          <div className={s.page}><TrialBanner /><Place key={route.place} /></div>
+          <div className={s.page}><TrialBanner /><AiGo /><Place key={route.place} /></div>
         </ShellToolsContext.Provider>
       </main>
       {sheet && SheetKind && (

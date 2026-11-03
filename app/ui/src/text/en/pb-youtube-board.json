@@ -46,7 +46,7 @@
   "pb-youtube-board.error.RIGHTS_REQUIRED": "Record your rights to use this footage first.",
   "pb-youtube-board.error.INTERCHANGE_INVALID": "The editor file is not a supported, valid cut list.",
   "pb-youtube-board.error.INTERCHANGE_UNSUPPORTED": "Use a flat video cut list without effects, gaps or retiming.",
-  "pb-youtube-board.checks": "Checks and editor handoff",
+  "pb-youtube-board.checks": "Checks and editor copy",
   "pb-youtube-board.beats": "Speaking beats",
   "pb-youtube-board.beatLines": "One spoken line per row",
   "pb-youtube-board.speakingRate": "Words per minute",

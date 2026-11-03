@@ -102,7 +102,7 @@ export function cardView(record: GoNoGoRecord): GoNoGoCardView {
  */
 export async function goNoGoCard(deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoNoGoCardView> {
   const body = exactPayload(payload, ['playbook', 'subject', 'inputs'], ['playbook', 'subject', 'inputs']);
-  check(typeof body.playbook === 'string' && PLAYBOOK_ID.test(body.playbook), 'INVALID_VENTURE_REQUEST', 'Name the playbook by its short id, or general.');
+  check(typeof body.playbook === 'string' && PLAYBOOK_ID.test(body.playbook), 'INVALID_VENTURE_REQUEST', 'Name the work plan by its short id, or general.');
   const playbook = body.playbook;
   const subject = singleLine(body.subject, 'What you are deciding', { min: 2, max: 120 });
   return ventureAction(deps, ctx, 'prepare', 'goNoGo.card', tx => {

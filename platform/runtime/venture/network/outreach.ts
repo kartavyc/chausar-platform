@@ -17,6 +17,7 @@
 // - venture.outreach.restricted pauses a channel for 72 hours when the owner says the platform restricted the account.
 // No LinkedIn page is read and nothing is automated there; Chausar never sends a message of any kind.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { refuseRegulatorForbidden } from '../core/compliance.ts';
 import { OUTREACH_KINDS } from '../contracts.ts';
 import type {
   IsoDate, IsoTime, Json, LawfulBasis, LeadRecord, LeadSettingsRecord, ModelTask, OpportunityRecord, OutreachChannel, OutreachHandoff, OutreachKind,
@@ -389,6 +390,8 @@ function postalAddressOf(state: State, venture: VentureRecord, given: string | n
  */
 export async function outreachDraft(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ draft: OutreachView; line: string }> {
   requireAppChannel(ctx, 'venture.outreach.draft');
+  // W6 6C6: a tool the profession's regulator forbids is refused whatever the settings (advocates: BCI Rule 36).
+  refuseRegulatorForbidden(deps.store.read(), 'outreach');
   const request = draftRequest(payload);
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const now = deps.clock().toISOString();
@@ -482,6 +485,7 @@ function governed(state: State, venture: VentureRecord, record: Pick<OutreachRec
  */
 export async function outreachOpen(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OutreachHandoff> {
   requireAppChannel(ctx, 'venture.outreach.open');
+  refuseRegulatorForbidden(deps.store.read(), 'outreach');
   const body = exactPayload(payload, ['draftId'], ['draftId']);
   const draftId = identifier(body.draftId, 'draftId');
   const { state, venture } = readAs(deps, ctx, 'read');

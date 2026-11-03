@@ -43,11 +43,15 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-posting-steps': 'postingsteps', 'venture-bank-match': 'bankmatch', 'venture-posting-limits': 'postinglimits',
   'venture-judge-setting': 'judgesetting',
   'venture-transcription-setup': 'transcribesetup',
+  'venture-talk-setting': 'talksetting', 'venture-talk-heard': 'talkheard',
   // Ink v2 wave 4 (contracts.ts section 9e)
   'venture-keeper-run': 'keeperrun', 'venture-health-clear': 'healthclear',
   'venture-agent-message': 'agentmsg', 'venture-agent-proposal': 'agentprop', 'venture-chat-consent': 'chatconsent',
   'venture-agent-note': 'note', 'venture-agent-note-change': 'notechange',
   'venture-chief-thread': 'chiefthread', 'venture-chief-message': 'chiefmsg', 'venture-proposal': 'proposal',
+  'venture-chat-settle': 'chatsettle',
+  // Wave 6 (6H3)
+  'venture-layout': 'layout', 'venture-layout-go': 'layoutgo',
   'venture-person': 'person', 'venture-network-import': 'netimport', 'venture-forgotten': 'forgotten',
   'venture-tie': 'tie', 'venture-network-search': 'netsearch',
   'venture-opportunity': 'opp', 'venture-pipeline-settings': 'pipesettings',
@@ -86,6 +90,26 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-newsletter-contact': 'nlcontact', 'venture-tender-question': 'tenderq', 'venture-site-requirement': 'sitereq', 'venture-site-release': 'siterelease',
   'venture-narration-segment': 'narrseg', 'venture-room-brief': 'roombrief', 'venture-entry-record': 'entry', 'venture-test-finding': 'testfinding', 'venture-demo-project': 'demoproject',
   'venture-dev-permission': 'devperm', 'venture-triage-channel': 'triage', 'venture-watch-source': 'watchsource', 'venture-call-log': 'calllog',
+  // Wave 6 (6C5, 6C6)
+  'venture-rule-attestation': 'ruleattest', 'venture-compliance': 'compliance',
+  // W6 6E4, 6E5: the document desk and the sign-off desk.
+  'venture-document': 'document', 'venture-signoff': 'signoff',
+  // W6 6E7: the trading journal.
+  'venture-trade-journal': 'tradejournal',
+  'venture-pack': 'pack', 'venture-media-generation': 'mediagen',
+  // Wave 6 (6E2, 6E3)
+  'venture-lesson-batch': 'lessonbatch', 'venture-booking-slot': 'bookslot', 'venture-booking': 'booking',
+  // Wave 6 (6G3, 6G4)
+  'venture-crm-change': 'crmchange', 'venture-company': 'company', 'venture-crm-link': 'crmlink', 'venture-crm-entry': 'crmentry',
+  'venture-crm-list': 'crmlist', 'venture-crm-list-item': 'crmitem', 'venture-memory-fact': 'fact',
+  // Wave 6 (6G2)
+  'venture-agent-retirement': 'retirement',
+  // Wave 6 (6H1)
+  'venture-mini-app': 'miniapp',
+  // Wave 6 (6H2)
+  'venture-flow': 'flowver', 'venture-flow-run': 'flowrun',
+  // Wave 6 (6J2)
+  'venture-feedback-setting': 'fbset', 'venture-feedback-item': 'fbitem',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
@@ -346,6 +370,8 @@ import {percentBps,bpsPercent} from './money/rate-core.ts';
  * web app ('web'). Never phone or MCP, and never a request whose source text is tainted.
  */
 import {isAppChannel} from '../portable.ts';
+// W6 6E7 (D49): every model text passes the securities guard.
+import {assertNoSecuritiesAdvice} from './policy/securities-guard.ts';
 export {isAppChannel} from '../portable.ts';
 
 /** Owner approvals happen inside the app, never phone or MCP. */
@@ -627,6 +653,7 @@ export function modelWords(value: unknown, field: string, max = 400, options: Mo
   const words = tidyWords(value, options.multiline === true);
   check(words.length >= 1 && words.length <= max, 'MODEL_OUTPUT_REJECTED', `The ${field} was empty or too long.`);
   check(!/^#/m.test(words), 'MODEL_OUTPUT_REJECTED', `The ${field} tried to start a heading.`);
+  assertNoSecuritiesAdvice(words, field);
   if (options.numbers === 'refuse') assertNoNumbers(words, field, options.allowed ?? []);
   else assertNoMoney(words, field, options.allowed ?? []);
   return words;

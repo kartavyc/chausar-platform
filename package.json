@@ -2,6 +2,7 @@
   "name": "chausar-desktop",
   "version": "0.1.0-preview.1",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Local business intelligence: every number has a receipt.",
   "type": "module",
   "main": "app/desktop/main.cjs",
@@ -31,6 +32,8 @@
     "desktop:smoke": "node scripts/desktop-smoke.mjs",
     "package:preview": "node scripts/desktop-package.mjs --mode preview",
     "package:check": "node scripts/desktop-package.mjs --mode preview --check",
+    "package:codex": "node scripts/codex-bundle.mjs",
+    "package:beta": "node scripts/desktop-package.mjs --mode beta",
     "phone:preview": "node scripts/phone-web-preview.mjs",
     "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json",
     "dev:ui": "vite --config app/ui/vite.config.ts --mode fake",
@@ -40,10 +43,14 @@
     "typecheck:ui": "tsc --noEmit -p app/ui/tsconfig.json"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.286",
+    "@crawlee/basic": "3.18.2",
     "@duckdb/node-api": "1.5.5-r.3",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@mozilla/readability": "0.6.0",
     "@noble/hashes": "2.0.1",
-    "pg": "8.23.0",
     "parse5": "8.0.1",
+    "pg": "8.23.0",
     "tldts": "7.4.19"
   },
   "devDependencies": {

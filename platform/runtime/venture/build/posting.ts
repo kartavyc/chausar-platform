@@ -1,4 +1,5 @@
 import {publishingSends} from '../network/governor.ts';
+import { refuseRegulatorForbidden } from '../core/compliance.ts';
 import {socialLegalBlock} from '../playbooks/social/legal-confirmation.ts';
 import {OPEN_PLATFORMS,isOpenPlatform,connectedOpenAccount,openAccountIdentity} from './open-posting-accounts.ts';
 import {sendOpenPost} from './open-posting.ts';
@@ -36,7 +37,7 @@ import type {
   Display, JournalEntry, PostLogPort, PostingModeName, PostingOption, PostingProposal, VentureDeps,
 } from '../contracts.ts';
 import { promptLeakLine, promptLeaks } from '../playbooks/prompt-leak.ts';
-import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
+import { regulatedSignoff } from '../playbooks/kit/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
 import { SOCIAL_CHANNELS, channelCapability, type SocialChannel } from '../playbooks/social/channels.ts';
 import { socialPostBlocks } from '../playbooks/social/post-lines.ts';
@@ -45,7 +46,7 @@ import { draftApprovalsOfRun, needsClientApproval, parsePostId, scheduleReasons 
 import { resolveKit } from '../playbooks/kit/brand-kit-read.ts';
 import { postPrint, postingRisk, type RiskResult, type SentPost } from '../playbooks/social/risk-gate.ts';
 import { diskPostLog } from './post-log.ts';
-import { gateUnits, tightenedLimits, type OwnerPostingLimits } from '../playbooks/social/post-limits.ts';
+import { gateUnits, effectivePostingLimits, type OwnerPostingLimits } from '../playbooks/social/post-limits.ts';
 import type { FileLike } from '../delivery/harness/files.ts';
 import {
   currentVenture, digest, exactPayload, houseStyleFindings, identifier, isAppChannel, listRecords, requireAppChannel, singleLine, ventureAction,
@@ -212,7 +213,7 @@ export function postHandoff(connectorId: string, text: string): { url: string; c
 
 /** Why a draft's post may not go out, with the code a refusal carries. */
 export type DraftPostReason = {
-  code: 'POST_DRAFT_UNCHECKED' | 'POST_CLIENT_NOT_APPROVED' | 'POST_DRAFT_CHANGED' | 'DELIVERY_NOT_READY' | 'PRACTICE_DRAFT' | 'CA_SIGNOFF_REQUIRED';
+  code: 'POST_DRAFT_UNCHECKED' | 'POST_CLIENT_NOT_APPROVED' | 'POST_DRAFT_CHANGED' | 'DELIVERY_NOT_READY' | 'PRACTICE_DRAFT' | 'CA_SIGNOFF_REQUIRED' | 'SIGNOFF_REQUIRED';
   line: string;
 };
 /**
@@ -290,7 +291,7 @@ function checkFindings(state: State, run: DeliveryRunRecord, post: DraftPost): C
     const failed = run.checks.find(item => !item.passed && !item.notChecked); // an unsettled judge is no failure
     if (failed) found.push({ kind: 'failed', line: `The draft failed a check: ${failed.detail}` });
     if (flagship) {
-      if (!run.playbookChecks?.length) found.push({ kind: 'not-run', line: "The playbook's checks have not run on this draft." });
+      if (!run.playbookChecks?.length) found.push({ kind: 'not-run', line: "The work plan's checks have not run on this draft." });
       const own = run.playbookChecks?.find(item => item.outcome === 'fail');
       if (own) found.push({ kind: 'failed', line: `The draft failed a check: ${own.detail}` });
     }
@@ -357,8 +358,9 @@ export function draftPostGate(state: State, input: { draftId: string; connectorI
   }
   if (flagshipOf(state, run) === SOCIAL_AGENCY_ID) reasons.push(...clientReasons(state, run, current));
   // AI-native CA firm: regulated papers go out only as the CA of record signed them, the owner's edit included.
-  const unsigned = venture ? caSignoffBlock(state, venture, run) : null;
-  if (unsigned) reasons.push({ code: 'CA_SIGNOFF_REQUIRED', line: unsigned });
+  // W6 6E5: and a sign-off desk output only as its professional of record signed it.
+  const unsigned = venture ? regulatedSignoff(state, venture, run) : null;
+  if (unsigned) reasons.push({ code: unsigned.code, line: unsigned.line });
   return { allowed: reasons.length === 0, reasons, text, channel: post.channel, draftDigest: current };
 }
 
@@ -366,6 +368,8 @@ export function draftPostGate(state: State, input: { draftId: string; connectorI
 const REFUSAL_CODES: readonly string[] = [
   'POST_DRAFT_UNCHECKED', 'POST_CLIENT_NOT_APPROVED', 'POST_DRAFT_CHANGED', 'DELIVERY_NOT_READY', 'PRACTICE_DRAFT', 'CA_SIGNOFF_REQUIRED', 'CHANNEL_CHALLENGED', 'CHANNEL_FROZEN',
   'POST_RISK_BLOCKED',
+  // W6 6E5: a sign-off desk output waits for its professional of record.
+  'SIGNOFF_REQUIRED',
 ];
 
 /** Throws the first reason's code with every reason's words, so each refused post says all that is wrong with it. */
@@ -392,7 +396,7 @@ function channelOfConnector(connectorId: string): SocialChannel {
   return SOCIAL_CHANNELS.find(channel => channelCapability(channel).connectorId === connectorId) ?? 'linkedin';
 }
 
-/** The owner's stricter limits for one channel as they set them last (venture.posting.limits.set); {} for none. */
+/** The owner's limits for one channel as they set them last (venture.posting.limits.set); {} for none. */
 export function ownerPostingLimits(state: State, connectorId: string): Partial<OwnerPostingLimits> {
   const venture = currentVenture(state);
   return (venture ? listRecords(state, 'venture-posting-limits', venture.id) : []).filter(record => record.connectorId === connectorId).at(-1)?.limits ?? {};
@@ -421,7 +425,7 @@ function logPost(deps: VentureDeps, post: ConnectorPostRecord): void {
 }
 
 /**
- * The risk of one post on its channel now, at the house limits or the owner's stricter ones, from every post on that
+ * The risk of one post on its channel now, at the house limits or the owner's settings, from every post on that
  * connector this computer knows: the vault's, whichever business made it, and the per-computer log's (two businesses
  * signed in to one account are counted together). A log entry for a post this vault holds, in any state, is left to the
  * vault: one the owner resolved as "did not go out" no longer counts. except: the post being decided.
@@ -437,7 +441,7 @@ function postRisk(state: State, input: { connectorId: string; channel: SocialCha
   } catch {
     logged = [];
   }
-  const limits = tightenedLimits(gateUnits(ownerPostingLimits(state, input.connectorId)));
+  const limits = effectivePostingLimits(gateUnits(ownerPostingLimits(state, input.connectorId)));
   return postingRisk({ channel: input.channel, name: nameOf(input.connectorId), text: input.text, now: nowIso, history: [...history, ...logged], limits });
 }
 
@@ -950,6 +954,8 @@ function refuseWith(reasons: { code: string; line: string }[]): void {
  */
 export async function postingPropose(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PostingProposal> {
   const body = exactPayload(payload, ['draftId', 'account'], ['draftId']);
+  // W6 6C6: a tool the profession's regulator forbids is refused whatever the settings (advocates: BCI Rule 36).
+  refuseRegulatorForbidden(deps.store.read(), 'advertising');
   const named = parsePostId(body.draftId);
   check(named, 'POST_NOT_A_POST', NOT_A_POST_LINE);
   const account = body.account === undefined ? undefined : singleLine(body.account, 'account', { max: 80 });

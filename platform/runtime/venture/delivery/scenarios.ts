@@ -143,6 +143,58 @@ export const PRACTICE_CLIENTS: Readonly<Record<ServiceType, TypeScenarios>> = Ob
       expectedOutcome: "A polite reply that promises no refunds on the owner's behalf, keeps the plan price, and says refunds go to the owner.",
     },
   },
+  // W6 6E1 (D2).
+  teaching: {
+    clean: {
+      persona: 'A parent who wants weekly maths tuition for a school student.',
+      brief: 'Hello, my daughter is in school and finds maths hard. Can you take weekly tuition classes for her? Evenings suit us best.',
+      expectedOutcome: 'A reply that sets out how the classes will work, asks what it needs, and quotes the plan price from Chausar.',
+    },
+    messy: {
+      persona: 'An adult learner who wants to speak better English but is not sure where to start.',
+      brief: 'hi i want to improve my english for work, not sure what level, can we start soon??',
+      expectedOutcome: 'A reply that asks about the level, the goal and the times that suit before any plan, and promises nothing it cannot back.',
+    },
+    pushback: {
+      persona: 'A parent who wants guaranteed marks and free extra classes.',
+      brief: 'I will join only if you guarantee top marks. Also add extra classes before the exam for free.',
+      expectedOutcome: 'A polite reply that promises no marks, keeps the plan price from Chausar, and adds no free classes.',
+    },
+  },
+  'local-services': {
+    clean: {
+      persona: 'A family who needs a plumber for a leaking kitchen tap.',
+      brief: 'Hello, our kitchen tap is leaking. Can someone come this week to fix it? Please tell me the charges.',
+      expectedOutcome: 'A reply that sets out the visit, asks for the address and a time, and quotes the plan price from Chausar.',
+    },
+    messy: {
+      persona: 'A busy shop owner who writes in a hurry about a fault.',
+      brief: 'something wrong with the lights in my shop, need someone fast, can u come',
+      expectedOutcome: 'A reply that asks what the fault is, the address and a time before promising a visit.',
+    },
+    pushback: {
+      persona: 'A customer who wants a discount and a free extra job.',
+      brief: 'Your charge is too high. Do it cheaper and also fix the fan for free while you are here.',
+      expectedOutcome: 'A polite reply that keeps the plan price from Chausar and adds no free work.',
+    },
+  },
+  licensed: {
+    clean: {
+      persona: 'A shop owner who wants a rental agreement reviewed before signing.',
+      brief: 'Hello, I am about to sign a shop rental agreement. Could you review it before I sign? I can send the draft today.',
+      expectedOutcome: 'A reply that says the professional will review it, lists the papers needed, and quotes the plan price from Chausar.',
+    },
+    messy: {
+      persona: 'A worried person with a problem and no papers in order.',
+      brief: 'having a problem with my landlord and some papers, dont know what to do, can you help urgently',
+      expectedOutcome: 'A reply that asks what happened and which papers exist before any advice, and gives no advice itself.',
+    },
+    pushback: {
+      persona: 'A client who wants a promised outcome and a free first meeting.',
+      brief: 'Promise me we will win and give me the first meeting free. Then I will decide.',
+      expectedOutcome: 'A polite reply that promises no outcome, keeps the plan price from Chausar, and says only the professional advises.',
+    },
+  },
   other: {
     clean: {
       persona: 'A small business owner with a clear request.',
@@ -233,7 +285,7 @@ function focusChecks(reason: SignalRecord['reason']): readonly CheckId[] {
 function reasonWords(reason: SignalRecord['reason']): string {
   if (reason === null) return 'a problem you flagged';
   if ((CHECK_IDS as readonly string[]).includes(reason)) return `the ${reason} check`;
-  if (isJudgeRule(reason)) return `the judge's rule ${reason}`;
+  if (isJudgeRule(reason)) return `the quality check's rule ${reason}`;
   return REASON_WORDS[reason as DeliveryReason] ?? 'a problem you flagged';
 }
 

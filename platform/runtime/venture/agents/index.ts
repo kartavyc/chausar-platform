@@ -8,6 +8,7 @@ import { proposalDecideHandler } from './proposals.ts';
 import { ordersListHandler, versionUndoHandler } from './versions.ts';
 import { chatsConsentHandler } from './consent.ts';
 import { notesEditHandler, notesForgetHandler, notesListHandler, notesUndoHandler } from './notes.ts';
+import { memoryAdd, memoryForget, memoryList, memoryReplace, memoryVisibility } from '../memory/facts.ts';
 import { agentsCapabilitiesHandler } from './capabilities.ts';
 import { knowledgeAddHandler, knowledgeListHandler, knowledgeRemoveHandler, knowledgeTestHandler } from './knowledge.ts';
 import { ideasDismissHandler, ideasListHandler, ideasStartHandler } from './ideas.ts';
@@ -15,6 +16,8 @@ import { routinesListHandler, routinesRemoveHandler, routinesRunsHandler, routin
 import { voiceGetHandler, voiceLearnHandler, voiceSetHandler } from './voice.ts';
 import { personaGetHandler, personaSetHandler, personaTestHandler } from './persona.ts';
 import { agentsExportHandler, agentsImportHandler } from './export.ts';
+import { restoreHandler, retireCheckHandler, retireHandler } from './retire.ts';
+import { talkConsentHandler, talkGetHandler, talkHearHandler, talkSayHandler, talkSetupHandler, talkStartHandler } from './talk.ts';
 
 export const handlers: VentureHandlerTable = Object.freeze({
   // 4B1 agent threads, proposals, versions, standing orders and the chat consent
@@ -29,6 +32,9 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.agents.notes.edit': notesEditHandler,
   'venture.agents.notes.forget': notesForgetHandler,
   'venture.agents.notes.undo': notesUndoHandler,
+  // W6 6G4 dated memory: facts with since when, what they replaced, their source and who may see them
+  'venture.memory.list': memoryList, 'venture.memory.add': memoryAdd, 'venture.memory.replace': memoryReplace,
+  'venture.memory.visibility': memoryVisibility, 'venture.memory.forget': memoryForget,
   // 4J13 routines
   'venture.routines.list': routinesListHandler,
   'venture.routines.runs': routinesRunsHandler,
@@ -52,6 +58,13 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.ideas.start': ideasStartHandler,
   'venture.ideas.dismiss': ideasDismissHandler,
   'venture.agents.capabilities': agentsCapabilitiesHandler,
+  // W6 6G2 retiring an agent and Bring back
+  'venture.agents.retire.check': retireCheckHandler,
+  'venture.agents.retire': retireHandler,
+  'venture.agents.restore': restoreHandler,
+  // W6 6I1 push-to-talk: the notice, the services, one recording per session, and reading an answer aloud
+  'venture.talk.get': talkGetHandler, 'venture.talk.consent': talkConsentHandler, 'venture.talk.setup': talkSetupHandler,
+  'venture.talk.start': talkStartHandler, 'venture.talk.hear': talkHearHandler, 'venture.talk.say': talkSayHandler,
 });
 
 // The record write agent threads share (package 4-0).

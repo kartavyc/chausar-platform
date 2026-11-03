@@ -136,10 +136,10 @@ export class JudgePort implements ModelPort {
     const estimate = this.estimateFor?.(task) ?? '1000';
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-haiku-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: estimate, estimatedMaxCostDisplay: estimate === '1000' ? 'USD 0.0010' : `estimate ${estimate}`, expiresAt: EXPIRES,
+      estimatedMaxCostMicros: estimate, estimatedMaxCostDisplay: estimate === '1000' ? 'USD 0.0010' : `estimate ${estimate}`,
     };
   }
-  async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' }): Promise<ModelOutcome<T>> {
+  async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
     if (ctx.channel !== 'desktop') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
     const held = this.#previews.get(callId);
@@ -154,7 +154,9 @@ export class JudgePort implements ModelPort {
       const call = state.conversations.find(record => record?.id === callId);
       if (call) { call.status = status; if (status !== 'dispatching') call.costMicros = '200'; }
     });
+    options?.beforeDispatch?.();
     await setCall('dispatching');
+    options?.beforeDispatch?.();
     this.sent += 1;
     if (this.onSend) await this.onSend(held.task);
     if (this.failNextSend) {
@@ -221,24 +223,4 @@ export async function business(idea: string, stage: 'rehearsal' | 'shadow' | 'ap
     deps, call, models, store, client, offers: priced.blueprint.offers as { id: string; playbookOffer?: string }[],
     setNow(iso: string) { now = new Date(iso); },
   };
-}
-
-/**
- * Approves a run's waiting turn the way the owner does on Today: the row's own digest binds what the row showed, the
- * judge's notice included, so that is where the judge's standing consent is given (judge-run.ts). Returns the run.
- */
-export async function approveFromToday(env: Business, runId: string): Promise<any> {
-  const row = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'quote' && item.viewRef?.id === runId);
-  assert.ok(row, `no approval row for ${runId}`);
-  const decided = await env.call('venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve', viewed: true });
-  assert.equal(decided.outcome, 'done', JSON.stringify(decided));
-  return (await env.call('venture.delivery.list')).find((item: any) => item.id === runId);
-}
-
-/** One agent draft for one order, ready for review: delivery.run previews, the owner approves it on Today. */
-export async function readyDraft(env: Business, request = 'Please look at my pricing for the new product line and advise.', offerId = 'offer_1'): Promise<any> {
-  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId, request });
-  const waiting = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(waiting.status, 'waiting-for-you');
-  return approveFromToday(env, waiting.id);
 }

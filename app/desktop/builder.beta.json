@@ -1,0 +1,126 @@
+{
+  "appId": "in.chausar.desktop",
+  "productName": "Chausar",
+  "artifactName": "Chausar-Beta-${version}-${os}-${arch}.${ext}",
+  "directories": {
+    "output": "release/beta"
+  },
+  "asar": true,
+  "forceCodeSigning": false,
+  "npmRebuild": false,
+  "extraMetadata": {
+    "name": "chausar",
+    "productName": "Chausar",
+    "chausarReleaseChannel": "beta",
+    "homepage": "https://www.chausar.co.in"
+  },
+  "files": [
+    "app/desktop/**/*",
+    "app/ui/dist/**/*",
+    "!app/ui/src/**/*",
+    "!app/ui/tests/**/*",
+    "!app/ui/public/**/*",
+    "!app/ui/assets/**/*",
+    "!app/ui/node_modules/**/*",
+    "!app/ui/index.html",
+    "!app/ui/README.md",
+    "!app/ui/tsconfig.json",
+    "!app/ui/vite.config.ts",
+    "!app/ui/vitest.config.ts",
+    {
+      "from": "platform/runtime",
+      "to": "platform/runtime",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "platform/semantic-qualification/src",
+      "to": "platform/semantic-qualification/src",
+      "filter": [
+        "**/*"
+      ]
+    },
+    "platform/semantic-qualification/package.json",
+    {
+      "from": "platform/helpers",
+      "to": "platform/helpers",
+      "filter": [
+        "**/*"
+      ]
+    },
+    "scripts/postgres-runtime.mjs",
+    "fixtures/**/*",
+    "package.json",
+    "node_modules/**/*"
+  ],
+  "asarUnpack": [
+    "package.json",
+    "node_modules/**/*",
+    "platform/runtime/**/*",
+    "platform/semantic-qualification/src/**/*",
+    "platform/semantic-qualification/package.json",
+    "platform/helpers/**/*",
+    "scripts/postgres-runtime.mjs"
+  ],
+  "extraResources": [
+    {
+      "from": "vendor/codex-bundle/${os}-${arch}",
+      "to": "codex",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "app/desktop/notices",
+      "to": "notices",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "LICENSE",
+      "to": "LICENSE"
+    },
+    {
+      "from": "NOTICE",
+      "to": "NOTICE"
+    },
+    {
+      "from": "vendor/feedback/feedback.json",
+      "to": "feedback.json"
+    }
+  ],
+  "win": {
+    "target": [
+      "nsis"
+    ],
+    "signAndEditExecutable": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowElevation": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Chausar",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true,
+    "include": "app/desktop/installer.nsh"
+  },
+  "linux": {
+    "target": [
+      "deb",
+      "AppImage",
+      "tar.gz"
+    ],
+    "category": "Office",
+    "executableName": "chausar"
+  },
+  "deb": {
+    "maintainer": "Kartavy Chauhan <info@chausar.co.in>"
+  },
+  "publish": null,
+  "electronDist": "node_modules/electron/dist"
+}

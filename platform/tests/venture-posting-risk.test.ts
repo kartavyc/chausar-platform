@@ -15,7 +15,7 @@ import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';
 import { POSTING_CONSENT_LINE, connectorQueueRows, decideConnectorRow, decidePost, resolveUnknownPost } from '../runtime/venture/build/posting.ts';
-import { HOUSE_LIMITS, HOUSE_POSTING_RULES, tightenedLimits } from '../runtime/venture/playbooks/social/post-limits.ts';
+import { HOUSE_LIMITS, HOUSE_POSTING_RULES, effectivePostingLimits } from '../runtime/venture/playbooks/social/post-limits.ts';
 import { diskPostLog, memoryPostLog } from '../runtime/venture/build/post-log.ts';
 import { linkDomains, postPrint, postingRisk, similarityPermille } from '../runtime/venture/playbooks/social/risk-gate.ts';
 import { platformRule, validateRulesRegister } from '../runtime/venture/playbooks/social/register.ts';
@@ -64,7 +64,7 @@ test('house limits: a dated rule list with the register shape, read as house rul
     assert.match(rule.id, /^house-/);
     assert.deepEqual(rule.usedBy, ['publish'], rule.id);
     assert.ok(rule.limitations.length > 0, rule.id);
-    assert.match(rule.how, /Chausar's own posting limits/);
+    assert.match(rule.how, /Chausar's posting defaults/);
     assert.match(rule.rule, /not a platform rule/i, rule.id);
     assert.deepEqual(houseStyleFindings([rule.rule, rule.how, ...rule.limitations].join(' ')), [], rule.id);
   }
@@ -77,12 +77,12 @@ test('house limits: a dated rule list with the register shape, read as house rul
   assert.deepEqual([HOUSE_LIMITS.capPer24h, HOUSE_LIMITS.minGapMinutes, HOUSE_LIMITS.warmUpDays, HOUSE_LIMITS.duplicateBlockPermille, HOUSE_LIMITS.duplicateWarnPermille, HOUSE_LIMITS.duplicateWindow, HOUSE_LIMITS.linkStreak], [3, 60, 7, 850, 600, 5, 3]);
 });
 
-test('the owner may only tighten the house limits, never loosen them', () => {
-  const tight = tightenedLimits({ capPer24h: 2, minGapMinutes: 120, warmUpDays: 14, duplicateBlockPermille: 700, duplicateWarnPermille: 400, duplicateWindow: 10, linkStreak: 2 });
+test('the owner can set posting limits above or below the defaults', () => {
+  const tight = effectivePostingLimits({ capPer24h: 2, minGapMinutes: 120, warmUpDays: 14, duplicateBlockPermille: 700, duplicateWarnPermille: 400, duplicateWindow: 10, linkStreak: 2 });
   assert.deepEqual(tight, { capPer24h: 2, minGapMinutes: 120, warmUpDays: 14, duplicateBlockPermille: 700, duplicateWarnPermille: 400, duplicateWindow: 10, linkStreak: 2 });
-  const loose = tightenedLimits({ capPer24h: 10, minGapMinutes: 5, warmUpDays: 0, duplicateBlockPermille: 990, duplicateWarnPermille: 900, duplicateWindow: 1, linkStreak: 9 });
-  assert.deepEqual(loose, HOUSE_LIMITS);
-  assert.deepEqual(tightenedLimits({ capPer24h: 1.5, minGapMinutes: -1 } as never), HOUSE_LIMITS, 'not a whole number: ignored');
+  const loose = effectivePostingLimits({ capPer24h: 10, minGapMinutes: 5, warmUpDays: 0, duplicateBlockPermille: 990, duplicateWarnPermille: 900, duplicateWindow: 1, linkStreak: 9 });
+  assert.deepEqual(loose, { capPer24h: 10, minGapMinutes: 5, warmUpDays: 0, duplicateBlockPermille: 990, duplicateWarnPermille: 900, duplicateWindow: 1, linkStreak: 9 });
+  assert.deepEqual(effectivePostingLimits({ capPer24h: 1.5, minGapMinutes: -1 } as never), HOUSE_LIMITS, 'not a whole number: ignored');
 });
 
 test('similarity: word three-shingles, Jaccard in whole permille; links name their site', () => {
@@ -262,25 +262,18 @@ const limitsCall = <T>(deps: VentureDeps, name: 'get' | 'set', payload: unknown 
   (build as Record<string, Handler>)[`venture.posting.limits.${name}`](deps, ctx, payload) as Promise<T>;
 const HOUSE: Limits = { capPer24h: 3, minGapMinutes: 60, warmUpDays: 7, duplicatePercent: 85, linkStreak: 3 };
 
-test("the owner tightens a channel's limits; a looser number is refused; the gate uses them; clearing goes back to the house limits", async () => {
+test("the owner tightens a channel's limits; higher limits are allowed; the gate uses them; clearing goes back to the house limits", async () => {
   const { env, deps } = await posting();
   const first = await limitsCall<LimitsView>(deps, 'get');
   assert.deepEqual(first.channels.map(channel => [channel.connectorId, channel.name]), [['linkedin', 'LinkedIn'], ['x', 'X'], ['bluesky', 'Bluesky'], ['mastodon', 'Mastodon'], ['telegram', 'Telegram'], ['discord', 'Discord']]);
   assert.deepEqual(first.channels[1], { connectorId: 'x', name: 'X', house: HOUSE, owner: {}, inUse: HOUSE });
-  assert.match(first.line, /only make them stricter/);
+  assert.match(first.line, /WhatsApp, Gmail and X can ban/);
 
   const set = await limitsCall<LimitsView>(deps, 'set', { connectorId: 'x', limits: { capPer24h: 2, minGapMinutes: 120, duplicatePercent: 70 } });
   assert.deepEqual(set.channels[1].inUse, { ...HOUSE, capPer24h: 2, minGapMinutes: 120, duplicatePercent: 70 });
   assert.deepEqual(set.channels[0].inUse, HOUSE, 'LinkedIn keeps its separate manual-channel limits');
   assert.equal(listRecords(env.store.read(), 'venture-posting-limits').length, 1);
 
-  for (const looser of [{ capPer24h: 4 }, { minGapMinutes: 30 }, { warmUpDays: 3 }, { duplicatePercent: 90 }, { linkStreak: 5 }]) {
-    await assert.rejects(limitsCall(deps, 'set', { connectorId: 'x', limits: looser }), (error: any) => {
-      assert.equal(error.code, 'POSTING_LIMIT_LOOSER', JSON.stringify(looser));
-      assert.match(error.message, /only make them stricter/);
-      return true;
-    });
-  }
   for (const bad of [{ connectorId: 'x', limits: { capPer24h: 1.5 } }, { connectorId: 'x', limits: { capPer24h: 0 } }, { connectorId: 'x', limits: { other: 1 } }, { connectorId: 'stripe', limits: {} }, { connectorId: 'x' }]) {
     await assert.rejects(limitsCall(deps, 'set', bad), code('INVALID_VENTURE_REQUEST'), JSON.stringify(bad));
   }
@@ -303,7 +296,7 @@ test("the owner tightens a channel's limits; a looser number is refused; the gat
   assert.equal((await propose(deps, `${run.id}.post-1`)).state, 'described');
 });
 
-test('all four official API channels expose and retain exact owner limits, refuse looser settings and require app approval', async () => {
+test('all four official API channels expose and retain exact owner limits, accept higher settings and require app approval', async () => {
   const { deps, env } = await posting();
   for (const [connectorId, name] of [['bluesky', 'Bluesky'], ['mastodon', 'Mastodon'], ['telegram', 'Telegram'], ['discord', 'Discord']]) {
     const limits = { capPer24h: 1, minGapMinutes: 180, warmUpDays: 14, duplicatePercent: 70, linkStreak: 2 };
@@ -311,9 +304,6 @@ test('all four official API channels expose and retain exact owner limits, refus
     const expected = { connectorId, name, house: HOUSE, owner: limits, inUse: limits };
     assert.deepEqual(result.channels.find(row => row.connectorId === connectorId), expected);
     assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels.find(row => row.connectorId === connectorId), expected);
-    for (const loose of [{ capPer24h: 4 }, { minGapMinutes: 30 }, { warmUpDays: 3 }, { duplicatePercent: 90 }, { linkStreak: 5 }]) {
-      await assert.rejects(limitsCall(deps, 'set', { connectorId, limits: loose }), code('POSTING_LIMIT_LOOSER'));
-    }
     await assert.rejects(limitsCall(deps, 'set', { connectorId, limits: {} }, agent), code('APP_APPROVAL_REQUIRED'));
     await assert.rejects(limitsCall(deps, 'set', { connectorId, limits: {}, unapproved: true }), code('INVALID_VENTURE_REQUEST'));
     assert.deepEqual((await limitsCall<LimitsView>(deps, 'get')).channels.find(row => row.connectorId === connectorId), expected, 'refusals do not overwrite the approved settings');
@@ -369,8 +359,8 @@ test('links: bare addresses count, user names and passwords in a link are droppe
 });
 
 test('the link streak never goes below 2: one link would warn on every post', () => {
-  assert.equal(tightenedLimits({ linkStreak: 1 }).linkStreak, HOUSE_LIMITS.linkStreak);
-  assert.equal(tightenedLimits({ linkStreak: 2 }).linkStreak, 2);
+  assert.equal(effectivePostingLimits({ linkStreak: 1 }).linkStreak, HOUSE_LIMITS.linkStreak);
+  assert.equal(effectivePostingLimits({ linkStreak: 2 }).linkStreak, 2);
 });
 
 test('one posting history per computer: a second business on this computer, signed in to the same account, is counted too', async () => {
@@ -441,7 +431,7 @@ test('the log entry is written before the browser starts, so a crash between the
   assert.equal(log.entries[0].id, proposal.postId);
 });
 
-test('the log on disk: written beside the profiles, trimmed to 30 days and 200 entries, a corrupt file or a bad time ignored', async () => {
+test('the log on disk: written beside the profiles, recent fingerprints plus minimal historical timestamps, a corrupt file or a bad time ignored', async () => {
   const root = await mkdtemp(join(tmpdir(), 'chausar-post-log-'));
   try {
     let now = Date.parse('2026-10-21T10:00:00.000Z');
@@ -451,12 +441,15 @@ test('the log on disk: written beside the profiles, trimmed to 30 days and 200 e
     const file = JSON.parse(await readFile(join(root, 'x.posts.json'), 'utf8'));
     assert.deepEqual(file.map((item: { id: string }) => item.id), ['p1']);
 
-    // 31 days on: the old entry goes when the next is written.
+    // 31 days on: only the first timestamp remains from the old entry.
     now += 31 * DAY;
     disk.append(entry('p2', new Date(now).toISOString()));
-    assert.deepEqual(disk.read('x').map(item => item.id), ['p2']);
+    assert.deepEqual(disk.read('x').map(item => item.id), ['p1', 'p2']);
+    assert.deepEqual(disk.read('x')[0].print, { shingles: [], domains: [] });
     for (let index = 0; index < 205; index += 1) disk.append(entry(`q${index}`, new Date(now - index * 60_000).toISOString()));
-    assert.equal(disk.read('x').length, 200);
+    assert.equal(disk.read('x').length, 207);
+    const risk = postingRisk({ channel: 'x', name: 'X', text: 'Fresh notes.', now: new Date(now).toISOString(), history: disk.read('x'), limits: effectivePostingLimits({ capPer24h: 205, minGapMinutes: 0, warmUpDays: 0 }) });
+    assert.ok(risk.findings.some(item => item.ruleId === 'house-post-cap-24h' && item.severity === 'block'), 'all cross-vault posts count above the old 200-entry trim');
 
     // An entry with a time that cannot be read, or more than a day ahead, is dropped on read.
     await writeFile(join(root, 'linkedin.posts.json'), JSON.stringify([entry('bad', 'soon', 'linkedin'), entry('ahead', new Date(now + 2 * DAY).toISOString(), 'linkedin'), entry('ok', new Date(now).toISOString(), 'linkedin')]));
@@ -495,4 +488,21 @@ test('the desktop and the local web host on the owner computer read the log on d
     if (before === undefined) delete process.env.CHAUSAR_BROWSER_PROFILES; else process.env.CHAUSAR_BROWSER_PROFILES = before;
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('cross-vault timestamps preserve long owner warm-up and gap settings without old fingerprints', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'chausar-long-post-log-'));
+  try {
+    let now = Date.parse('2026-01-01T10:00:00.000Z');
+    const disk = diskPostLog(root, () => now);
+    const append = (id: string) => disk.append({ id, connectorId: 'x', at: new Date(now).toISOString(), print: postPrint('Private source words https://example.test') });
+    append('first'); now += 50 * DAY; append('last'); now += 40 * DAY;
+    const old = disk.read('x');
+    assert.deepEqual(old.map(row => row.id), ['first', 'last']);
+    assert.ok(old.every(row => row.print.shingles.length === 0 && row.print.domains.length === 0));
+    const risk = () => postingRisk({ channel: 'x', name: 'X', text: 'Fresh notes.', now: new Date(now).toISOString(), history: disk.read('x'), limits: effectivePostingLimits({ minGapMinutes: 60 * 24 * 60, warmUpDays: 60 }) });
+    assert.ok(risk().findings.some(row => row.ruleId === 'house-post-min-gap'));
+    append('today');
+    assert.ok(!risk().findings.some(row => row.ruleId === 'house-warm-up'), 'first post was 90 days ago, beyond chosen60daywarmup');
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

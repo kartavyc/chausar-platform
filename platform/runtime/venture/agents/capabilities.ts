@@ -1,8 +1,8 @@
 // Chausar venture launcher, agents (Ink v2 wave 4, package 4J18, catalogue A16): the capability page, what one agent can
 // see, what it can do, and what is off ("If it is off here, it can't do it"). Everything on it is worked out by code
-// from what a run really obeys. A run has one act loop whose grant is the union of its act steps' tools
-// (delivery/harness/loop.ts playbookGrant), offered as this host can run them and with agent.delegate only when the
-// owner's Claude Code or Codex is set up here; so every AI role that owns an act step shows that one team list, and the
+// from what a run really obeys. The scoped job's grant is the union of its work steps' tools, offered as this host can
+// run them. Primary work uses the owner's AI agent directly, so agent.delegate is not advertised here. Each AI role
+// that owns a work step shows that one team list, and the
 // page says the team shares it. What each turn carries (the client's request, file names, the dictionary, answers,
 // notes and sources from what the AI knows, which can hold other clients' work) is on "can see"; each turn going to the
 // owner's own AI provider is on "can do". Steps say what they really do: the fixed steps' hands-on work is the owner's
@@ -21,7 +21,6 @@ import { acceptedBlueprintOrNull, readAs } from '../delivery/shared.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { playbookGrant } from '../delivery/harness/loop.ts';
 import { hostRefusal } from '../delivery/harness/tools.ts';
-import { delegateOffer } from '../delivery/harness/delegate.ts';
 import { judgeAutoOf } from '../delivery/judge-run.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { YOUTUBE_STEPS } from '../playbooks/youtube/playbook.ts';
@@ -229,19 +228,17 @@ export const TEAM_LINE = "The order's AI team shares one tool list: every agent 
 /** The line of an AI role with no act step: it holds no tools. */
 export const NO_TOOLS_LINE = `It holds no tools of its own: it works from what the team found. ${APPROVAL}`;
 const CODE_LINE = (name: string) => `${name} is code, not AI: it does the same steps the same way every time. ${APPROVAL}`;
-/** Why agent.delegate is off when neither CLI is set up on this computer. */
-export const NO_CLI = 'neither Claude Code nor Codex is set up on this computer.';
 const PROVIDER = 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.';
-const JUDGE_PROVIDER = 'The AI judge sends each draft it reads to your own AI provider.';
+const JUDGE_PROVIDER = 'The AI quality check sends each draft it reads to your own AI provider.';
 const NOTHING_SEEN = 'Nothing: none of its steps gives it anything to read.';
 const NOTHING_DONE = 'Nothing: none of its steps lets it work, ask or propose anything.';
 const NOTHING_OFF = `Nothing is off: every kind of action is open to it. ${APPROVAL}`;
 const WRITE_TAIL = 'You check the draft before anything leaves Chausar.';
 const CODE_TAIL = 'Code does this, with no AI.';
-const JUDGE_ON = 'Code runs the checks, then an AI judge reads the draft on your own AI.';
-const JUDGE_OFF = 'Code runs the checks. The AI judge is off for this business.';
+const JUDGE_ON = 'Code runs the checks, then an AI quality check reads the draft on your own AI.';
+const JUDGE_OFF = 'Code runs the checks. The AI quality check is off for this business.';
 /** judge-run.ts judgeAudience: papers gathered for the CA of record are an internal note, never judged. */
-const JUDGE_CA = 'Code runs the checks. Papers for your CA of record never go to the AI judge; only a draft that goes to a client does, on your own AI.';
+const JUDGE_CA = 'Code runs the checks. Papers for your CA of record never go to the AI quality check; only a draft that goes to a client does, on your own AI.';
 const SPEND_PLANNED = "Paying for it is planned: Chausar can't buy it yet, so nothing is spent.";
 const OUTBOX_MAIL = 'Propose an email for your approval. Nothing is sent: Chausar records it, and you send it yourself from your own mail app.';
 const OUTBOX_LINK = 'Propose a payment link for your approval. Planned: no payment link connector is built, so the proposal is only recorded.';
@@ -271,7 +268,7 @@ export type CapabilityTeam = {
   flagshipId?: string | null;
 };
 /** This computer: the host, whether Claude Code or Codex is set up here, and whether the AI judge is on. */
-export type CapabilityOptions = { host: VentureHostKind | undefined; delegate: boolean; judge: boolean };
+export type CapabilityOptions = { host: VentureHostKind | undefined; judge: boolean };
 
 const item = (list: CapabilityItemView['list'], key: string, state: CapabilityItemView['state'], line: string): CapabilityItemView => ({ list, key, state, line });
 const sentence = (text: string) => { const words = text.trim(); return /[.!?]$/.test(words) ? words : `${words}.`; };
@@ -311,8 +308,8 @@ export function capabilityPage(role: CapabilityRole, team: CapabilityTeam, optio
   const judged = options.judge && role.steps.some(step => step.kind === 'verify');
   // The run's one grant, the team's: only a role that owns an act step works in the loop that holds it.
   const grant = acts ? new Set<ToolName>(playbookGrant({ steps: [...team.steps] })) : new Set<ToolName>();
-  const tools = TOOL_NAMES.filter(name => grant.has(name));
-  const refusal = (name: ToolName) => hostRefusal(options.host, name) ?? (name === 'agent.delegate' && !options.delegate ? NO_CLI : null);
+  const tools = TOOL_NAMES.filter(name => name !== 'agent.delegate' && grant.has(name));
+  const refusal = (name: ToolName) => hostRefusal(options.host, name);
   const usable = tools.filter(name => refusal(name) === null);
   const reached = new Set<EffectKind>();
   const seeing: CapabilityItemView[] = [];
@@ -419,6 +416,5 @@ export async function agentsCapabilitiesHandler(deps: VentureDeps, ctx: Context,
   const agentId = identifier(body.agent, 'Agent');
   const { state, venture } = readAs(deps, ctx, 'read');
   const { role, team } = capabilityRole(state, venture, agentId);
-  const delegate = (await delegateOffer(deps)).length > 0;
-  return capabilityPage(role, team, { host: deps.host, delegate, judge: judgeAutoOf(state, venture.id).auto });
+  return capabilityPage(role, team, { host: deps.host, judge: judgeAutoOf(state, venture.id).auto });
 }

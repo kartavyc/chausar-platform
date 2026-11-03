@@ -20,13 +20,14 @@ import type {
   Json, ModelPort, ModelTask, NetworkSearchRecord, NetworkSearchResult, NetworkSearchView, PersonRecord, SearchField, SearchFilters, SearchTrait,
   SearchWebState, TieBand, TraitCheck, VentureDeps, VentureRecord,
 } from '../contracts.ts';
-import { exactPayload, identifier, plainText, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
+import { exactPayload, findRecord, identifier, plainText, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt, ownerToday } from '../local-day.ts';
 import { readAs } from '../delivery/shared.ts';
 import { screenUntrusted } from '../policy/untrusted.ts';
 import { checkUrl } from '../core/net-guard.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { chatCall, holdsIdNumber } from '../agents/answer.ts';
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { requireChatConsent, type ChatRoute } from '../agents/consent.ts';
 import { maskContacts, maskProtected, namesProtectedTrait, profileHost, PROTECTED_LINE, protectedTerm } from './protected.ts';
 import {
@@ -34,6 +35,7 @@ import {
   searchFields, searchView, termHits, unshownFitting, usable, viewContext, type FieldValue, type ViewContext,
 } from './saved-searches.ts';
 import { count, fold, plural } from './text.ts';
+import { savedWebSearch } from '../web/search.ts';
 
 export const MAX_TRAITS = 5;
 /** At most this many candidates go to one scoring call, and at most this many scoring calls go out for one search or Find more. */
@@ -136,7 +138,7 @@ function queryOf(output: TraitsOutput): { traits: SearchTrait[]; filters: Search
 // ---------------------------------------------------------------------------
 
 /** A candidate for the scoring calls: a person with the fields the AI may read, or a public page. */
-type Candidate = { ref: string; person: PersonRecord | null; fields: FieldValue[]; sent: { field: string; text: string }[]; exact: TraitCheck[]; page?: WebPage };
+type Candidate = { ref: string; person: PersonRecord | null; fields: FieldValue[]; sent: { field: string; text: string }[]; exact: TraitCheck[]; page?: WebPage; clientAi?: { clientId: string; consentId: string; consentRevision: number } };
 type WebPage = { url: string; title: string; text: string; host: string };
 
 /**
@@ -160,26 +162,44 @@ function promptFields(fields: readonly FieldValue[]): { field: string; text: str
  * search's one name mask), and with count true no one is: Find more counts what waits that way. waiting: how many more
  * there are past the first 200.
  */
-export function gather(view: ViewContext, filters: SearchFilters, exclude: ReadonlySet<string>, count = false): { candidates: Candidate[]; waiting: number; found: number } {
-  const found: { person: PersonRecord; fields: FieldValue[]; exact: TraitCheck[]; hits: number }[] = [];
+export function gather(view: ViewContext, filters: SearchFilters, exclude: ReadonlySet<string>, count = false, needsAi = false): { candidates: Candidate[]; waiting: number; found: number } {
+  const found: { person: PersonRecord; fields: FieldValue[]; exact: TraitCheck[]; hits: number; clientAi?: Candidate['clientAi'] }[] = [];
   for (const person of view.people.values()) {
     if (person.hidden || exclude.has(person.id)) continue;
+    let clientAi: Candidate['clientAi'];
+    if (needsAi && person.clientId) {
+      const client = findRecord(view.state, 'venture-client', person.clientId);
+      const consent = client?.ventureId === view.venture.id ? client.aiConsent : undefined;
+      if (!consent || consent.withdrawnAt) continue;
+      clientAi = { clientId: person.clientId, consentId: consent.id, consentRevision: consent.revision };
+    }
     const exact = filterChecks(person, view.ties.get(person.id), filters, view.today, view.venture);
     if (!exact) continue;
     const fields = searchFields(person, view.imports);
     const hits = termHits(fields, filters);
     if (filters.terms.length && hits === 0) continue;
-    found.push({ person, fields, exact, hits });
+    found.push({ person, fields, exact, hits, clientAi });
   }
   if (count) return { candidates: [], waiting: found.length, found: found.length };
   const chosen = orderPeople(view, found, item => item.hits, item => item.person).slice(0, MAX_CANDIDATES);
   return {
     candidates: chosen.map((item, i) => {
       const fields = maskFields(item.person, item.fields, view.names());
-      return { ref: `c${i + 1}`, person: item.person, fields, sent: promptFields(fields), exact: item.exact };
+      return { ref: `c${i + 1}`, person: item.person, fields, sent: promptFields(fields), exact: item.exact, clientAi: item.clientAi };
     }),
     waiting: found.length - chosen.length, found: found.length,
   };
+}
+
+/** A new client link or a replacement grant cannot authorize already prepared scoring input. */
+function requireCandidatePermissions(state: State, ventureId: string, candidates: readonly Candidate[]): void {
+  for (const item of candidates) {
+    if (!item.person) continue;
+    const person = findRecord(state, 'venture-person', item.person.id);
+    check(person && !person.hidden && person.ventureId === ventureId && person.clientId === item.person.clientId,
+      'JOB_SOURCE_CHANGED', 'This network person changed or was removed. Search again.');
+    if (item.clientAi) requireClientAiConsent(state, ventureId, item.clientAi.clientId, item.clientAi);
+  }
 }
 
 type WebPart = { pages: WebPage[]; line: string; state: SearchWebState };
@@ -191,11 +211,13 @@ type WebPart = { pages: WebPage[]; line: string; state: SearchWebState };
  * emails, phone numbers and protected words in what is kept are masked.
  */
 async function webPages(deps: VentureDeps, text: string): Promise<WebPart> {
-  if (!deps.webSearch) return { pages: [], line: `${NOT_SET_UP} Only your network was searched.`, state: 'not-set-up' };
+  // 6F3: the host's own search, else the owner's saved Brave, Exa or Tavily key (web/search.ts).
+  const web = await savedWebSearch(deps);
+  if (!web) return { pages: [], line: `${NOT_SET_UP} Only your network was searched.`, state: 'not-set-up' };
   if (holdsIdNumber(text)) return { pages: [], line: 'Your words hold a card, bank account, Aadhaar or one-time code number, so they were not sent to the web search. Only your network was searched.', state: 'skipped' };
   let found: { url: string; title: string; snippet: string }[];
   try {
-    found = await deps.webSearch.search(screenReadback(text).text, { limit: MAX_WEB * 2 });
+    found = await web.search(screenReadback(text).text, { limit: MAX_WEB * 2 });
   } catch {
     return { pages: [], line: 'The web search did not answer, so only your network was searched.', state: 'failed' };
   }
@@ -309,7 +331,7 @@ function scoredResult(candidate: Candidate, traits: readonly SearchTrait[], scor
   return { personId: candidate.person!.id, url: null, fitBp, checks: [...checks, ...candidate.exact], by: 'model', callId };
 }
 
-type Round = { results: NetworkSearchResult[]; batches: { callId: string; people: string[] }[]; calls: number; unchecked: number };
+type Round = { results: NetworkSearchResult[]; batches: { callId: string; people: string[] }[]; calls: number; unchecked: number; guard?: (state: State) => void };
 const emptyRound = (): Round => ({ results: [], batches: [], calls: 0, unchecked: 0 });
 
 /**
@@ -348,6 +370,8 @@ async function scoreRound(deps: VentureDeps, seen: readonly string[], ctx: Conte
     return round;
   }
   check(route, 'NO_MODEL_CONNECTED', NO_AI_LINE);
+  const ventureId = readAs(deps, ctx, 'prepare').venture.id;
+  round.guard = state => requireCandidatePermissions(state, ventureId, candidates);
   for (let start = 0, sent = 0; start < candidates.length && sent < MAX_SCORE_CALLS; start += PER_CALL, sent += 1) {
     const batch = candidates.slice(start, start + PER_CALL);
     const task: ModelTask<Scored> = {
@@ -361,10 +385,10 @@ async function scoreRound(deps: VentureDeps, seen: readonly string[], ctx: Conte
     };
     let answered: { value: Scored; callId: string | null } | null;
     try {
-      answered = await chatCall(deps, ctx, route, task);
+      answered = await chatCall(deps, ctx, route, task, () => round.guard!(deps.store.read()));
     } catch (error) {
       carried(seen.length > before ? seen[seen.length - 1] : null);
-      if (!round.results.length || (error as { code?: string }).code === 'CHAT_CONSENT_STALE') throw error;
+      if (!round.results.length || ['CHAT_CONSENT_STALE', 'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED', 'CLIENT_NOT_FOUND', 'JOB_SOURCE_CHANGED'].includes((error as { code?: string }).code ?? '')) throw error;
       round.unchecked += candidates.slice(start).filter(item => item.person).length;
       break;
     }
@@ -476,7 +500,7 @@ export async function networkSearch(deps: VentureDeps, ctx: Context, payload: un
     check(asked, 'MODEL_OUTPUT_REJECTED', NOT_USED);
     const { traits, filters } = queryOf(asked.value);
     const view = viewContext(deps.store.read(), venture, ownerToday(deps.clock, venture.country));
-    const gathered = gather(view, filters, new Set());
+    const gathered = gather(view, filters, new Set(), false, traits.some(item => item.id.startsWith('t')));
     const web = body.web !== true ? null : webLeftOut(filters) ?? await webPages(deps, text);
     const people = gathered.candidates.slice(0, MAX_SCORE_CALLS * PER_CALL - (web?.pages.length ?? 0));
     const candidates = [...people, ...(web?.pages ?? []).map((page, i): Candidate => ({ ref: `w${i + 1}`, person: null, fields: [], sent: [{ field: 'page', text: `${page.title}: ${page.text}` }], exact: [], page }))];
@@ -489,6 +513,7 @@ export async function networkSearch(deps: VentureDeps, ctx: Context, payload: un
   const { asked, traits, filters, gathered, people, web, round } = made;
   return ventureAction(deps, ctx, 'prepare', 'network.search', tx => {
     const now = viewContext(tx.state, tx.venture!, localDayAt(tx.now, tx.venture!.country));
+    round.guard?.(tx.state);
     const batches = settleBatches(tx, round.batches);
     // Someone forgotten or hidden while the AI read is left out now.
     const results = round.results.filter(result => result.personId === null || usable(now, result.personId));
@@ -506,7 +531,7 @@ export async function networkSearch(deps: VentureDeps, ctx: Context, payload: un
       summary: summaryOf({ fit: fitting.length, calls: round.calls + 1, knownWell: knownWell(now, fitting), unchecked: round.unchecked, read: record.candidates }),
       more: more || gathered.waiting > 0 || round.unchecked > 0 || people.length < gathered.candidates.length, webLine: web?.line ?? null, web: webState,
     });
-  });
+  }).catch(async error => { await eraseStopped(deps, ctx, seen); throw error; });
 }
 
 /**
@@ -529,7 +554,7 @@ export async function networkSearchMore(deps: VentureDeps, ctx: Context, payload
     const exclude = new Set(search.results.flatMap(result => (result.personId ? [result.personId] : [])));
     // What waits is served first: then code only counts who is left, and masks no one.
     const waits = unshownFitting(view, search).length > 0;
-    const gathered = gather(view, search.filters, exclude, waits);
+    const gathered = gather(view, search.filters, exclude, waits, search.traits.some(item => item.id.startsWith('t')));
     waiting = gathered.found;
     if (!waits && gathered.candidates.length) {
       const people = gathered.candidates.slice(0, MAX_SCORE_CALLS * PER_CALL);
@@ -548,6 +573,7 @@ export async function networkSearchMore(deps: VentureDeps, ctx: Context, payload
   return ventureAction(deps, ctx, 'prepare', 'network.searchMore', tx => {
     const current = listSearch(tx.state, tx.venture!, searchId);
     const now = viewContext(tx.state, tx.venture!, localDayAt(tx.now, tx.venture!.country));
+    round.guard?.(tx.state);
     const batches = settleBatches(tx, round.batches);
     const known = new Set(current.results.flatMap(result => (result.personId ? [result.personId] : [])));
     const added = round.results.filter(result => result.personId !== null && !known.has(result.personId) && usable(now, result.personId));
@@ -564,7 +590,7 @@ export async function networkSearchMore(deps: VentureDeps, ctx: Context, payload
       summary: summaryOf({ fit: fitting.length, calls: round.calls, knownWell: knownWell(now, fitting), unchecked: round.unchecked, read: record.candidates }),
       more: more || waiting > 0 || round.unchecked > 0, webLine: null, web: 'off',
     });
-  });
+  }).catch(async error => { await eraseStopped(deps, ctx, round.batches.map(batch => batch.callId)); throw error; });
 }
 
 function listSearch(state: State, venture: VentureRecord, id: string): NetworkSearchRecord {

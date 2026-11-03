@@ -734,7 +734,7 @@ function writeJobChanges(tx: VentureTx): void {
 export function eraseCallText(tx: VentureTx, ids: ReadonlySet<string>, words: string, test: (call: { purpose: string; payloadText: string }) => boolean = () => false): number {
   let erased = 0;
   for (const call of tx.list('venture-model-call')) {
-    if (call.erasedAt || call.status === 'dispatching' || !(ids.has(call.id) || test(call))) continue;
+    if (call.erasedAt || !(ids.has(call.id) || test(call))) continue;
     const texts = Object.fromEntries(Object.entries(call).filter(([key, value]) => key.endsWith('Text') && typeof value === 'string').map(([key]) => [key, words]));
     tx.replace({
       ...call, ...texts, payloadText: words, ...(call.error ? { error: { ...call.error, message: words } } : {}), ...(call.status === 'preview' ? { status: 'expired' as const } : {}),

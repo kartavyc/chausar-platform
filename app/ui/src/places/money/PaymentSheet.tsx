@@ -60,7 +60,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const ready = amount.trim() !== '' && receivedOn !== '' && (!split || allocations.length > 0);
   // TDS is an Indian tax: offered by the business's country, whatever the invoice's currency.
   const business = useResource('venture.get', {});
-  const india = business.data?.venture.country?.code === 'IN';
+  const india = (current?.country?.code ?? business.data?.venture.country?.code) === 'IN';
   const numberOf = (invoiceId: string) => (invoiceId === id ? current?.invoice.number : others.find((other) => other.id === invoiceId)?.number) ?? '';
   const locked = phase !== 'form';
 

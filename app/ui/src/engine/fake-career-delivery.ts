@@ -1,5 +1,6 @@
 // Original local approved-career-pack delivery. The browser never invents a client approval or an AI call.
 import {digest} from '../../../../platform/runtime/portable';
+import {fakeAttested} from './fake-rules-attest';
 import {careerPackDeliverable} from '../../../../platform/runtime/venture/playbooks/job-search-desk/pack';
 import {careerDraftCheck} from '../../../../platform/runtime/venture/playbooks/job-search-desk/draft-check';
 import {exact,clientRule} from './fake-job-search-desk-core';
@@ -16,12 +17,12 @@ export class FakeCareerDelivery {
  start(order:OrderLite,id:string,p:Record<string,unknown>):Run|null{
   if(this.host.plan()?.playbook?.id!=='job-search-desk')return null;
   exact(p,['orderId','useTemplate'],['orderId']);need(p.useTemplate===undefined||typeof p.useTemplate==='boolean','INVALID_VENTURE_REQUEST','useTemplate must be true or false.');
-  const source=this.host.careerSource!(order.id);clientRule();
+  const source=this.host.careerSource!(order.id);clientRule(fakeAttested(this.host.ask?.bind(this.host)));
   const deliverable=careerPackDeliverable(source.text),checks=careerDraftCheck({careerPack:source,deliverable}),run:Run={id,orderId:order.id,at:this.host.now(),status:'ready-for-review',practice:false,practiceNow:false,servedBy:'template',deliverable,verdict:null,awaitingYou:true,checks:[],playbookChecks:checks,canAccept:checks.every(c=>c.outcome==='pass'),acceptBlocked:null,writtenBy:null,renderedText:source.text};
   this.bindings.set(this.key(id),{orderId:order.id,digest:source.sourceBinding});this.hooks.keep(run);this.queue(run);return structuredClone(run);
  }
  request(method:string,p:Record<string,unknown>):DeliveryLite{
-  exact(p,method==='venture.delivery.approve'?['runId','digest']:['runId','verdict','reason','editedText'],method==='venture.delivery.approve'?['runId','digest']:['runId','verdict']);
+  exact(p,['runId','verdict','reason','editedText'],['runId','verdict']);
   if(method==='venture.delivery.review'){
    need(['accepted','edited','rejected'].includes(String(p.verdict))&&typeof p.verdict==='string','INVALID_VENTURE_REQUEST','Choose accept, edit or reject.');
    if(p.reason!==undefined)need(typeof p.reason==='string'&&['wrong-fact','missing-fact','missing-section','off-brief','tone','format','too-long','too-short','wrong-number','late','claims-work-not-done','other'].includes(p.reason),'INVALID_VENTURE_REQUEST','Choose a reason from the list.');
@@ -29,9 +30,9 @@ export class FakeCareerDelivery {
    if(p.verdict==='rejected')need(p.reason!==undefined,'INVALID_VENTURE_REQUEST','Choose why you reject this draft.');if(p.verdict==='accepted')need(p.reason===undefined,'INVALID_VENTURE_REQUEST','An accepted draft needs no reason.');
   }
   const run=this.hooks.deliveries().find(r=>r.id===p.runId) as Run|undefined;need(run,'DELIVERY_NOT_FOUND','That draft reply was not found.');const r=run!;
-  if(method==='venture.delivery.approve')throw new EngineError('DELIVERY_NOT_WAITING','This draft reply is not waiting for your approval.');
+
   need(r.status==='ready-for-review','DELIVERY_NOT_READY','This draft reply is not ready for review.');const binding=this.bindings.get(this.key(r.id))!;
-  if(p.verdict!=='rejected'){clientRule();const source=this.host.careerSource!(binding.orderId);need(source.sourceBinding===binding.digest,'CAREER_SOURCE_CHANGED','The rendered career pack changed. Start a new delivery from its approved files.');need(r.renderedText===source.text&&(!r.editedText||r.editedText===source.text),'CAREER_CLAIM_BOUNDARY','Use the exact approved career pack text.');throw new EngineError('CAREER_CLIENT_APPROVAL_REQUIRED','The client must approve the current rendered pack through its review link.');}
+  if(p.verdict!=='rejected'){clientRule(fakeAttested(this.host.ask?.bind(this.host)));const source=this.host.careerSource!(binding.orderId);need(source.sourceBinding===binding.digest,'CAREER_SOURCE_CHANGED','The rendered career pack changed. Start a new delivery from its approved files.');need(r.renderedText===source.text&&(!r.editedText||r.editedText===source.text),'CAREER_CLAIM_BOUNDARY','Use the exact approved career pack text.');throw new EngineError('CAREER_CLIENT_APPROVAL_REQUIRED','The client must approve the current rendered pack through its review link.');}
   r.status='rejected';r.verdict={choice:'rejected',at:this.host.now()};r.awaitingYou=false;r.editedText=null;this.clear(r.id);this.host.emit({type:'run.done',businessId:this.host.current(),runId:r.id,at:this.host.now()});return structuredClone(r);
  }
  eraseOrders(biz:string,ids:readonly string[]){for(const [key,binding]of this.bindings)if(key.startsWith(biz+':')&&ids.includes(binding.orderId)){this.bindings.delete(key);if(biz===this.host.current())this.clear(key.slice(biz.length+1));}}

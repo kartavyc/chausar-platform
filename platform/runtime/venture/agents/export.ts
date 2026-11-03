@@ -143,7 +143,7 @@ function readFile(text: string): { agentId: string; persona: unknown; orders: { 
   check(!!file && typeof file === 'object' && !Array.isArray(file) && file.format === AGENT_FILE_FORMAT && file.version === AGENT_FILE_VERSION, 'INVALID_VENTURE_REQUEST', NOT_A_FILE);
   // Only the fields an export writes: a file that brings tools, a posture, limits, grants or anything else is refused,
   // and a step may carry only its id, kind, title and guidance (shown for reading; an import never changes a step).
-  check(Object.keys(file).every(key => (FILE_FIELDS as readonly string[]).includes(key)), 'INVALID_VENTURE_REQUEST', `${NOT_A_FILE} It holds fields an agent file never has, such as tools, limits or a posture.`);
+  check(Object.keys(file).every(key => (FILE_FIELDS as readonly string[]).includes(key)), 'INVALID_VENTURE_REQUEST', `${NOT_A_FILE} It holds fields an agent file never has, such as tools, limits or an approval setting.`);
   check(Array.isArray(file.steps) && file.steps.every(step => !!step && typeof step === 'object' && !Array.isArray(step) && Object.keys(step).every(key => (STEP_FIELDS as readonly string[]).includes(key))),
     'INVALID_VENTURE_REQUEST', `${NOT_A_FILE} A step in it holds more than its id, kind, title and guidance.`);
   check(!!file.agent && typeof file.agent === 'object' && typeof file.agent.id === 'string' && Object.keys(file.agent).every(key => ['id', 'name', 'job'].includes(key)), 'INVALID_VENTURE_REQUEST', NOT_A_FILE);

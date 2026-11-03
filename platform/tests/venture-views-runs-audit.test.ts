@@ -109,14 +109,14 @@ test('runs: an improvement run is listed with one step per round, its time, and 
   }));
   const [listed] = await runs(env);
   assert.deepEqual(listed, {
-    runId: improvement.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: 'Improve the playbook from your feedback', state: 'done',
-    startedAt: '2026-10-15T09:57:00.000Z', elapsed: '3m', result: 'Kept your current playbook: the change did not do better.',
+    runId: improvement.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: 'Improve how the work is done from your feedback', state: 'done',
+    startedAt: '2026-10-15T09:57:00.000Z', elapsed: '3m', result: 'Kept your current work instructions: the change did not do better.',
   });
   const detail = await get(env, improvement.id);
   assert.deepEqual(detail.steps.map(step => [step.id, step.purpose, step.state]), [
     ['round-1', 'Try a change for the tone', 'done'],
     ['round-2', 'Look for another change to try', 'done'],
   ]);
-  assert.deepEqual(detail.steps[0].tools, [{ name: 'Compared with your current playbook', line: 'The change lost one practice client and won none.' }]);
+  assert.deepEqual(detail.steps[0].tools, [{ name: 'Compared with your current work instructions', line: 'The change lost one practice client and won none.' }]);
   assert.deepEqual(detail.steps[1].tools, [{ name: 'Looked for a change', line: 'No other failure has a change Chausar can try.' }]);
 });

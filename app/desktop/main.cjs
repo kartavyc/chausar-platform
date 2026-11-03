@@ -1,21 +1,28 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification } = require('electron');
-const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
+const { app, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
+const { readFile, writeFile } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
-const { randomBytes } = require('node:crypto');
-const { pathToFileURL } = require('node:url');
-const { createServer } = require('node:net');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
-let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
 let hostAwake = false;
-const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;}});
+const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;},verifyTalk:async sessionId=>{const view=await engine.request('venture.talk.get',{});return view?.desktop===true&&view.consent?.given===true&&view.session?.id===sessionId;}});
 const formsBrowser = require('./owner-browser-host.cjs').createFormsHost({BrowserWindow,WebContentsView,session,window:()=>window,onClosed:()=>stopFormsBrowser()});
 function stopFormsBrowser() { void formsBrowser.close(); engine?.closeForms?.(); }
+// Wave 6 (6H2, D41): the window for recorded flows, page JavaScript allowed; nothing that may send leaves before the approved press.
+const flowBrowser = require('./flow-browser.cjs').createFlowBrowser({ BrowserWindow, session });
+// Wave 6 (6H1, D39): the mini app sandbox proxy's own policy, and where frames inside the window may go.
+const { policyFor, subframeAllowed } = require('./mini-frame.cjs');
 const backgroundRequested = process.argv.includes('--background');
+// Wave 6 (6J1, D3, D36): the installed beta (release channel "beta") starts at login hidden in the tray (--hidden) and
+// keeps running in the tray when the window closes; both are owner settings in the tray menu (background.cjs). The
+// bundled Codex goes last on the engine's PATH. Previews and development runs keep the behaviour they had.
+let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { startAtLogin: false, keepRunning: false };
+const hiddenStart = process.argv.includes('--hidden');
+const runsInBackground = () => backgroundRequested || ownerKeepsRunning;
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
 const inkRoot = join(root, 'app/ui/dist');
@@ -41,7 +48,7 @@ async function listInkFiles() {
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
 function reportJobLifecycle() {
   if (engine?.state !== 'ready') return Promise.resolve();
-  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && backgroundRequested });
+  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && runsInBackground() });
 }
 function lifecycleChanged() {
   void reportJobLifecycle().catch(error => {
@@ -54,23 +61,18 @@ async function startEngine() {
   if (stopping) return;
   const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
   if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
+  releaseBeta = app.isPackaged && metadata.chausarReleaseChannel === 'beta' && metadata.chausarPreview !== true;
+  if (releaseBeta) await startBackground();
+  if (stopping) return;
   const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
-  const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
-  if (!demo && !environment.CHAUSAR_POSTGRES_URL) {
-    const { startBundledPostgres } = await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href);
-    const privateFolder = join(app.getPath('userData'), 'database'); await mkdir(privateFolder, { recursive: true, mode: 0o700 });
-    const passwordFile = join(privateFolder, 'database-password');
-    try { const stat = await lstat(passwordFile); if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('The database credential file is unsafe.'); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; await writeFile(passwordFile, randomBytes(32).toString('base64url'), { flag: 'wx', mode: 0o600 }); }
-    const password = (await readFile(passwordFile, 'utf8')).trim();
-    if (!/^[A-Za-z0-9_-]{43}$/.test(password)) throw new Error('The local database credential file is invalid.');
-    const selector = createServer();
-    await new Promise((accept, reject) => { selector.once('error', reject); selector.listen(0, '127.0.0.1', accept); });
-    const port = selector.address().port; await new Promise((accept, reject) => selector.close(error => error ? reject(error) : accept()));
-    const suffix = process.platform === 'win32' ? '.exe' : '';
-    database = await startBundledPostgres({ postgresBinary: join(binaries, 'postgres/bin/postgres' + suffix), initdbBinary: join(binaries, 'postgres/bin/initdb' + suffix), pgCtlBinary: join(binaries, 'postgres/bin/pg_ctl' + suffix), dataDirectory: join(privateFolder, 'cluster'), passwordFile, user: 'chausar', port });
-    environment.CHAUSAR_POSTGRES_URL = `postgresql://chausar:${encodeURIComponent(password)}@127.0.0.1:${port}/postgres`;
+  // Wave 6 (6J2): the opt-in report keys, from this shell's environment or the build's feedback.json; never hard-coded.
+  Object.assign(environment, require('./feedback-keys.cjs').feedbackKeys({ env: process.env, packaged: app.isPackaged, resources: process.resourcesPath, read: path => require('node:fs').readFileSync(path, 'utf8') }));
+  if (releaseBeta) {
+    const program = join(process.resourcesPath, 'codex', 'bin', process.platform === 'win32' ? 'codex.exe' : 'codex');
+    const there = await require('node:fs/promises').lstat(program).then(info => info.isFile() && !info.isSymbolicLink(), () => false);
+    Object.assign(environment, require('./background.cjs').bundledCodexEnvironment(environment, { resourcesPath: process.resourcesPath, platform: process.platform, exists: () => there }));
   }
+  const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000 });
@@ -79,6 +81,16 @@ async function startEngine() {
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
   engine.on('print', (request, answer) => { require('./report-print.cjs').printReport(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
+  // Wave 6 (6F3): a page that needs JavaScript, read in a hidden window after the engine's own checks (web-render.cjs).
+  engine.on('render', (request, answer) => { require('./web-render.cjs').renderPage(request, { BrowserWindow, session }).then(answer, () => answer(null)); });
+  // Wave 6 (6H2): one step of a recorded flow in its window (flow-browser.cjs); the window closes when the engine stops.
+  engine.on('flows', (request, answer) => flowBrowser.handle(request, answer));
+  engine.on('status', status => { if (status?.state !== 'ready') void flowBrowser.close(); });
+  const credentials = require('./credential-store.cjs').createCredentialStore({ directory: join(app.getPath('userData'), 'credentials'), safeStorage });
+  engine.on('credential', (request, answer) => {
+    credentials[request.op](request.workspaceId, request.name, request.value)
+      .then(value => answer({ ok: true, value: value ?? null }), error => answer({ ok: false, code: error?.code }));
+  });
   engine.on('forms', (request, answer, verify) => formsBrowser.handle(request, answer, verify));
   await engine.start();
   await reportJobLifecycle();
@@ -109,8 +121,23 @@ function trayTooltip() {
 function trayMenu() {
   return Menu.buildFromTemplate([
     ...(trayCount > 0 ? [{ label: needYou(trayCount), click: () => openApprovals() }, { type: 'separator' }] : []),
-    { label: 'Open Chausar', click: () => openWindow() }, { type: 'separator' }, { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
+    { label: 'Open Chausar', click: () => openWindow() }, { type: 'separator' },
+    ...(background ? [...background.menuItems(backgroundValue, changeBackground), { type: 'separator' }] : []),
+    { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
   ]);
+}
+/** 6J1: the beta's owner settings; the first run registers the default login item. A failure never stops the start. */
+async function startBackground() {
+  background = require('./background.cjs').createBackground({ app, fs: require('node:fs/promises'), platform: process.platform, directory: app.getPath('userData'), home: app.getPath('home'), env: process.env, execPath: process.execPath, beta: true });
+  backgroundValue = await background.settings(); ownerKeepsRunning = backgroundValue.keepRunning;
+  try { await background.apply(); } catch (error) { console.error(publicError(error).message); }
+}
+function changeBackground(update) {
+  if (!background) return;
+  void background.change(update).then(value => {
+    backgroundValue = value; ownerKeepsRunning = value.keepRunning;
+    tray?.setContextMenu(trayMenu()); lifecycleChanged();
+  }, error => console.error(publicError(error).message));
 }
 function setTrayCount(count) {
   if (count === trayCount) return;
@@ -159,7 +186,7 @@ function openWindow(hash = '') {
 function openApprovals() { openWindow(APPROVE_HASH); }
 /** Once ever, on Windows in the background: the window closed, and Chausar keeps running. */
 function noteStillRunning() {
-  if (!backgroundRequested || stopping || stillRunningAsked || process.platform !== 'win32' || !tray || typeof tray.displayBalloon !== 'function') return;
+  if (!runsInBackground() || stopping || stillRunningAsked || process.platform !== 'win32' || !tray || typeof tray.displayBalloon !== 'function') return;
   stillRunningAsked = true;
   writeFile(join(app.getPath('userData'), STILL_RUNNING_FILE), 'shown', { flag: 'wx', mode: 0o600 })
     .then(() => { tray?.displayBalloon({ title: 'Chausar', content: STILL_RUNNING, iconType: 'info' }); },
@@ -179,6 +206,10 @@ function createWindow(hash = '') {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
+  // Wave 6 (6J2): a window that stopped is noted for the next report, only while the owner has crash reports on.
+  window.webContents.on('render-process-gone', (_event, details) => { if (details?.reason !== 'clean-exit' && engine?.state === 'ready') void engine.request('venture.feedback.crash', { source: 'desktop', name: 'WindowGone', message: `The window stopped: ${String(details?.reason ?? 'unknown').replace(/[^a-z-]/g, '')}` }).catch(() => {}); });
+  // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
+  window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
   window.once('ready-to-show', () => window.show());
   window.loadURL(TRUSTED_DOCUMENT + hash);
   window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
@@ -211,14 +242,14 @@ if (singleInstance) app.whenReady().then(async () => {
     const url = new URL(request.url); const file = inkFiles.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(inkRoot, file));
-    return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
+    return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': policyFor(url.pathname, "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"), 'X-Content-Type-Options': 'nosniff' } });
   });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
-      if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();
+      if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
       const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
@@ -241,16 +272,16 @@ if (singleInstance) app.whenReady().then(async () => {
   const socialProjects = require('./social-project.cjs').createSocialProject();
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); createWindow(); }
+  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
 app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
 app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
-app.on('window-all-closed', () => { if (!backgroundRequested) app.quit(); });
+app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true;
   startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
-  }).catch(error => console.error(publicError(error).message)).then(() => database?.close()).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
+  }).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
 });

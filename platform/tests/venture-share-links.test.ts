@@ -89,7 +89,8 @@ test('on the hosted web server the address carries the token once; the vault kee
   const page = await sharePage(deps, owner, token);
   assert.ok(page);
   assert.deepEqual([page.businessName, page.title, page.text, page.expires, page.decision], ['Ledger Cafe Books', 'September books', TEXT, '17 Oct 2026', null]);
-  assert.equal(await sharePage(deps, owner, `${token.slice(0, 31)}x`), null, 'a wrong token opens nothing');
+  // The changed character must differ from the real one, or about 1 run in 64 "changes" it to itself.
+  assert.equal(await sharePage(deps, owner, `${token.slice(0, 31)}${token[31] === 'x' ? 'y' : 'x'}`), null, 'a wrong token opens nothing');
   await assert.rejects(shareDecide(deps, owner, token, { decision: 'approved', digest: 'f'.repeat(64) }), code('APPROVAL_STALE'));
   await assert.rejects(shareDecide(deps, owner, token, { decision: 'maybe', digest: page.digest }), code('INVALID_VENTURE_REQUEST'));
   const answered = await shareDecide(deps, owner, token, { decision: 'changes', comment: 'Please add the GST total.', digest: page.digest });

@@ -2,6 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {kitBusiness,owner} from './fixtures/venture/kit-business.ts';
+import {consentForOrder} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 import {runFlagshipChecks,type FlagshipCheckInput} from '../runtime/venture/playbooks/draft-checks.ts';
 const draft=(plan:string[]=[])=>({title:'Useful posts',sections:[{heading:'Drafts',parts:[{kind:'text' as const,text:'LinkedIn: Practise slowly.',ref:''},{kind:'text' as const,text:'Facebook: Breathe calmly.',ref:''}]},{heading:'Post plan',parts:plan.map(text=>({kind:'text' as const,text,ref:''}))}],questionsForClient:[]});
 const input=(plan:string[]=[],fields:Record<string,unknown>={})=>({flagship:'social-agency',offerKey:'community-replies',stageId:'drafts',servedBy:'model',deliverable:draft(plan),request:'Helpful replies.',intake:{rights:null,format:'long',aiVoice:false,aiPresenter:false,paidPromotion:false,cutFile:null,fields:{communityRules:'Be helpful.',communityPromotion:false,communityLinks:false,...fields}},files:[],receipts:[],known:[],mode:'client',today:'2026-10-27',dateOrder:'day-month-year'} as FlagshipCheckInput);
@@ -23,16 +25,29 @@ test('selling share reads the owner cap and one goal/action per actual post; hoo
 import {ventureAction,listRecords,requireVenture,digest} from '../runtime/venture/records.ts';
 import {renderDeliverable} from '../runtime/venture/delivery/deliverable.ts';
 async function socialEnv(){return kitBusiness({now:new Date('2026-10-27T10:00:00Z')},{idea:'A content calendar service for shops'});}
-async function ready(env:Awaited<ReturnType<typeof socialEnv>>,hook='Question',clientId=env.client.id,due?:string){
+async function ready(env:Awaited<ReturnType<typeof socialEnv>>,hook='Question',clientId=env.client.id,due?:string,custom?:ReturnType<typeof draft>){
  const offer=env.offers.find(o=>o.playbookOffer==='community-replies')!;
  const order=await env.call('venture.order.create',{clientId,offerId:offer.id,request:'Helpful community posts.',intake:{fields:{communityRules:'Be helpful.',communityPromotion:false,communityLinks:false,...(due?{revisionDue:due}:{})}}});
- const waiting=await env.call('venture.delivery.run',{orderId:order.id});
- const delivered=draft([plans[0].replace('Hook: Question','Hook: '+hook),plans[1]]);
- await ventureAction(env.deps,owner,'prepare','test.social.ready',tx=>{
-  const record=tx.find('venture-delivery-run',waiting.id)!;const own=tx.find('venture-order',order.id)!;
-  tx.replace({...own,chainStage:2});
-  tx.replace({...record,chainStage:2,status:'ready-for-review',servedBy:'owner',practice:false,deliverable:delivered,renderedText:renderDeliverable(delivered,[],tx.venture!.country),checks:[],playbookChecks:[],preview:null,callId:null});
- });return {order,run:waiting};
+ await env.call('venture.judge.auto.set',{auto:false});
+ await env.deps.services.trust.updatePolicy(owner,{send:'shape'});
+ await consentForOrder(env.deps,owner,order.id);
+ const delivered=custom??draft([plans[0].replace('Hook: Question','Hook: '+hook),plans[1]]);
+ if(!delivered.sections.some(section=>section.heading==='Alt text'))delivered.sections.push({heading:'Alt text',parts:[{kind:'text',text:'A calm scene.',ref:''}]});
+ delivered.sections.push({heading:'Hashtags',parts:[{kind:'text',text:'Suggested tags: #Practice.',ref:''}]});
+ const initial=await env.call('venture.delivery.run',{orderId:order.id});
+ let pending=initial;
+ if(initial.chainStage===1){
+  env.models.queueAgentDraft({title:'Voice sheet',sections:[{heading:'Voice',parts:[{kind:'text',text:'Warm and clear.',ref:''}]},{heading:'Pillars',parts:[{kind:'text',text:'Helpful advice.',ref:''}]},{heading:'Words to avoid',parts:[{kind:'text',text:'Avoid inflated claims.',ref:''}]}],questionsForClient:[]});
+  await waitForAgentWork(env.store,initial.id);
+  env.models.queueAgentDraft(delivered);
+  env.clock.now=new Date(env.clock.now.getTime()+1);
+  await env.call('venture.delivery.review',{runId:initial.id,verdict:'accepted'});
+  pending=listRecords(env.store.read(),'venture-delivery-run').filter(run=>run.orderId===order.id).at(-1)!;
+ }else env.models.queueAgentDraft(delivered);
+ await waitForAgentWork(env.store,pending.id);
+ const current=listRecords(env.store.read(),'venture-delivery-run').find(run=>run.id===pending.id)!;
+ assert.equal(current.status,'ready-for-review',JSON.stringify(env.models.agentReads.filter(row=>row.name==='tool_error')));
+ return {order,run:current};
 }
 test('Accept stamps exact code-owned history, blocks cached concurrent reuse, and isolates clients',async()=>{
  const env=await socialEnv();const first=await ready(env);
@@ -41,7 +56,7 @@ test('Accept stamps exact code-owned history, blocks cached concurrent reuse, an
  assert.equal(own.socialPostHistory?.length,2);
  assert.equal(own.socialPostHistory?.[0].textDigest,digest({channel:'linkedin',text:'Practise slowly.'}));
  const second=await ready(env);
- await assert.rejects(env.call('venture.delivery.review',{runId:second.run.id,verdict:'accepted'}),{code:'SOCIAL_POST_PLAN_INVALID'});
+ await assert.rejects(env.call('venture.delivery.review',{runId:second.run.id,verdict:'accepted'}),{code:'INVALID_VENTURE_REQUEST',message:/Use different hook formulas/});
  const other=await env.call('venture.client.add',{name:'Another shop',countryCode:'IN'});
  const separate=await ready(env,'Question',other.id);
  await env.call('venture.delivery.review',{runId:separate.run.id,verdict:'accepted'});
@@ -49,10 +64,11 @@ test('Accept stamps exact code-owned history, blocks cached concurrent reuse, an
 });
 test('same post revision may keep its hook, but a changed post plan and missing metadata refuse at approval',async()=>{
  const env=await socialEnv();const first=await ready(env);await env.call('venture.delivery.review',{runId:first.run.id,verdict:'accepted'});
- await ventureAction(env.deps,owner,'prepare','test.social.reopen',tx=>{const run=tx.find('venture-delivery-run',first.run.id)!;tx.replace({...run,status:'ready-for-review'});});
- await env.call('venture.delivery.review',{runId:first.run.id,verdict:'accepted'});
- await ventureAction(env.deps,owner,'prepare','test.social.reopen',tx=>{const run=tx.find('venture-delivery-run',first.run.id)!;tx.replace({...run,status:'ready-for-review'});});
- await assert.rejects(env.call('venture.delivery.review',{runId:first.run.id,verdict:'edited',editedText:'LinkedIn: A changed post without its plan.'}),{code:'SOCIAL_POST_PLAN_INVALID'});
+ await ventureAction(env.deps,owner,'prepare','test.social.same-post-history',tx=>keepSocialPostPlan(tx,tx.find('venture-delivery-run',first.run.id)!));
+ assert.equal(listRecords(env.store.read(),'venture-order').find(row=>row.id===first.order.id)!.socialPostHistory!.length,2,'the same post keeps its own hook and history identity');
+ const other=await env.call('venture.client.add',{name:'Revision shop',countryCode:'IN'});
+ const fresh=await ready(env,'Question',other.id);
+ await assert.rejects(env.call('venture.delivery.review',{runId:fresh.run.id,verdict:'edited',editedText:'LinkedIn: A changed post without its plan.'}),{code:'SOCIAL_POST_PLAN_INVALID'});
 });
 test('monthly revision due dates appear in the real Today queue and disappear when delivered',async()=>{
  const env=await socialEnv();const current=await ready(env,'Question',env.client.id,'2026-10-27');
@@ -64,6 +80,7 @@ test('monthly revision due dates appear in the real Today queue and disappear wh
  assert.equal((await env.call('venture.queue.list',{})).rows.filter((r:any)=>r.id.includes('social-revision:')).length,0);
 });
 
+import {keepSocialPostPlan} from '../runtime/venture/playbooks/social/slots-live.ts';
 import {postPlanLines,readPostPlan} from '../runtime/venture/playbooks/social/post-plan.ts';
 test('rendered metadata is scoped to its section and malformed rows are not hidden',()=>{
  const text='# Drafts\n\n## Post 1 | Story\nLinkedIn: Practise slowly.\n\n## POST PLAN\n'+plans.join('\n')+'\n\n## Notes\nPost 3 | not metadata';
@@ -92,7 +109,7 @@ test('two simultaneous approvals cannot both stamp the same client hook; seven d
  const results=await Promise.allSettled([first,second].map(item=>env.call('venture.delivery.review',{runId:item.run.id,verdict:'accepted'})));
  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
  assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.code==='SOCIAL_POST_PLAN_INVALID').length,1);
- env.clock.now=new Date('2026-11-03T10:00:00Z');
+ env.clock.now=new Date(env.clock.now.getTime()+7*24*60*60*1000);
  const next=await ready(env);await env.call('venture.delivery.review',{runId:next.run.id,verdict:'accepted'});
  assert.equal(listRecords(env.store.read(),'venture-order').filter(order=>order.id!==next.order.id).flatMap(order=>order.socialPostHistory??[]).length,0);
 });
@@ -102,14 +119,14 @@ import {canvasPosts} from '../runtime/venture/playbooks/social/canvas.ts';
 import {socialDraftPosts} from '../runtime/venture/playbooks/social/draft-posts.ts';
 import {draftPostLines} from '../runtime/venture/build/posting.ts';
 test('alt text before Drafts cannot shift actual post ids across checks, approval, canvas and posting',async()=>{
- const env=await socialEnv();const first=await ready(env);const value=draft(plans);
+ const env=await socialEnv();const value=draft(plans);
  value.sections.unshift({heading:'Alt text',parts:[{kind:'text',text:'LinkedIn: A calm scene.',ref:''}]});
+ const first=await ready(env,'Question',env.client.id,undefined,value);
  const text=renderDeliverable(value,[],requireVenture(env.store.read()).country);
  assert.deepEqual(postsOfText(first.run.id,text).map(post=>post.n),[1,2]);
  assert.deepEqual(socialDraftPosts(value).map(post=>post.id),['post-1','post-2']);
  assert.deepEqual(draftPostLines(text,'linkedin'),['Practise slowly.']);
  const canvas=canvasPosts(first.run.id,text);assert.equal(canvas.length,2);assert.equal(canvas[0].plan?.goals[0],'Teach breathing');
- await ventureAction(env.deps,owner,'prepare','test.social.reordered',tx=>{const run=tx.find('venture-delivery-run',first.run.id)!;tx.replace({...run,deliverable:value,renderedText:text});});
  await env.call('venture.delivery.review',{runId:first.run.id,verdict:'accepted'});
  const view=await env.call('venture.desk.get',{playbook:'social-agency',kind:'canvas',id:first.order.id});
  const actual=view.item.cards.flatMap((card:any)=>card.posts);assert.equal(actual.length,2);assert.ok(actual.some((post:any)=>post.id===first.run.id+'.post-1'&&post.plan.goals[0]==='Teach breathing'));

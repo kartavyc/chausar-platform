@@ -1,0 +1,298 @@
+/* W6 6H1 (D39): the Apps place and one app opened, from reference-ui/AppsA and AppsB in the existing Ink look.
+   Tokens only; no boxes beyond the tiles, the app's own locked box and its frame. */
+
+.quiet {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.make {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.summary {
+  margin: 0;
+  padding: var(--sp-3);
+  min-height: calc(var(--target) * 2);
+  border-radius: var(--r-button);
+  background: var(--inner);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.cardName {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+}
+
+.open {
+  composes: hit from '../../parts/touch.module.css';
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button-sm);
+  font-size: var(--text-read);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.open:hover {
+  background: var(--hover);
+}
+
+.rules {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.rulesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+}
+
+.rulesGrid dt {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.rulesGrid dd {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+/* One app, opened */
+
+.view {
+  align-items: start;
+}
+
+.chat,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.back {
+  align-self: flex-start;
+  font-size: var(--text-read);
+  color: var(--link);
+}
+
+.thread {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bubble {
+  max-width: 85%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-card);
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.bubble[data-from='owner'] {
+  justify-self: end;
+  background: var(--inner);
+}
+
+.bubble[data-from='chausar'] {
+  justify-self: start;
+  border: var(--hair) solid var(--line);
+}
+
+.box {
+  display: grid;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  overflow: hidden;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.barName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: var(--surface);
+}
+
+.locked {
+  margin: 0;
+  padding: var(--sp-6) var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--mute);
+  text-align: center;
+}
+
+.actions,
+.allowRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.said {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.composer {
+  margin-top: auto;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.allowTitle {
+  margin: 0;
+  font-size: var(--text-section);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.perms,
+.versions,
+.pinnedList {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.perm,
+.version,
+.pinnedItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.perm b {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.never {
+  padding: var(--sp-3);
+  border-radius: var(--r-button);
+  background: var(--inner);
+}
+
+.neverTitle {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.neverLine {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.versionName {
+  color: var(--fg);
+}
+
+.removeAsk {
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.removeAsk p {
+  margin: 0;
+}
+
+.pinned {
+  display: grid;
+  gap: var(--sp-2);
+}

@@ -17,7 +17,7 @@ import { hindiNumberWords, resolveBlocks, type SourceReceipt } from '../runtime/
 import { renderReportHtml } from '../runtime/venture/playbooks/kit/report/render-html.ts';
 import { manifestOf, writeReportFolder } from '../runtime/venture/playbooks/kit/report/manifest.ts';
 import { PDF_WORDS, type PrintPort, type PrintRequest } from '../runtime/venture/playbooks/kit/report/pdf.ts';
-import { REPORT_SHARE_WORDS, reportSharePage } from '../runtime/venture/playbooks/kit/report/share.ts';
+import { REPORT_SHARE_WORDS, reportSharePage, reportPageText } from '../runtime/venture/playbooks/kit/report/share.ts';
 import { readDocx, readXlsx } from '../runtime/venture/playbooks/kit/ooxml/read.ts';
 import type { ReportListView, ReportShareView, ReportView } from '../runtime/venture/playbooks/kit/records-report.ts';
 import { papersDigest } from '../runtime/venture/playbooks/ca-firm/signoff-gate.ts';
@@ -69,6 +69,43 @@ async function reportRun(env: Env, words = 'We posted every week. Reach grew by 
   return { run: stored, receipt, order, client };
 }
 
+test('wave 6: client report exports omit internal receipt IDs while the vault keeps figure provenance', async t => {
+  const env = await setup();
+  const { run, receipt } = await reportRun(env);
+  const print = printer();
+  const view = await call<ReportView>(desktop(env, print), 'venture.report.render', { runId: run.id, formats: ['html', 'pdf', 'docx', 'xlsx'] });
+  const file = (format: string) => bytesOf(view.files.find(item => item.format === format)!);
+  const shared = await call<ReportShareView>(hosted(env), 'venture.report.share', { reportId: view.id, from: '2026-08-01', to: '2026-09-30' });
+  const page = await reportSharePage(hosted(env), owner, shared.url!.slice(-32), { preview: true });
+  assert.ok(page);
+  const artifacts = {
+    html: Buffer.from(file('html')).toString('utf8'),
+    pdfSource: print.asked[0].html,
+    docx: readDocx(file('docx')).paragraphs.join('\n'),
+    xlsx: JSON.stringify(readXlsx(file('xlsx')).sheets),
+    sharedText: page.text,
+  };
+  for (const [format, text] of Object.entries(artifacts)) await t.test(format, () => {
+    assert.equal(text.includes(receipt.id), false, `${format} exposes an internal receipt ID`);
+    assert.match(text, /12,?400/);
+  });
+  const record = listRecords(env.store.read(), 'venture-report').find(item => item.id === view.id)!;
+  assert.deepEqual(record.receiptIds, [receipt.id]);
+  assert.ok(record.blocks.some(block => block.kind === 'metric' && block.receiptId === receipt.id && block.key === 'w1.views'));
+});
+
+test('wave 6: client report bars do not expose receipt IDs or internal figure keys', () => {
+  const sources: SourceReceipt[] = [{ id: 'internal-work-receipt', figures: [{ key: 'private-figure-key', label: 'Views', display: '42', minor: '42', unit: 'count', scope: { channel: null, from: null, to: null } }] }];
+  const blocks = resolveBlocks([{ kind: 'bars', label: 'Views', bars: [{ label: 'Public channel', receiptId: sources[0].id, key: sources[0].figures[0].key }] }], sources);
+  const html = renderReportHtml({ title: 'Views report', business: 'Fictional Studio', asOf: '30 Oct 2026', blocks });
+  const text = reportPageText(blocks, { from: '2026-10-01', to: '2026-10-30', channels: [] }, iso => iso);
+  for (const output of [html, text]) {
+    assert.equal(output.includes(sources[0].id), false);
+    assert.equal(output.includes(sources[0].figures[0].key), false);
+    assert.ok(output.includes('42'));
+  }
+});
+
 test('the five report methods belong to the playbooks package and are built; share, rotate and disable are approvals inside the app', async () => {
   for (const method of ['venture.report.render', 'venture.report.list', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable'] as const) {
     assert.equal(METHOD_OWNERS[method], 'playbooks');
@@ -109,7 +146,7 @@ test('a metric or a bar without a receipt the run has refuses to render; prose w
   assert.equal((html.match(/Model estimate/g) ?? []).length, 1, 'prose with no number carries no label');
   assert.match(html, /Loved the reels!/);
   assert.match(html, /Shown as written/);
-  assert.match(html, /Receipt receipt_a/);
+  assert.match(html, /Calculated in Chausar/);
 });
 
 test('the HTML is one file with no outside address, every value escaped, and the same bytes for the same input', () => {
@@ -160,13 +197,13 @@ test('render on the desktop makes the HTML, the PDF through the print port, DOCX
   assert.equal(view.manifest.sha256, sha256(bytesOf(view.manifest)));
   const text = Buffer.from(html).toString('utf8');
   assert.ok(text.includes('September report for &lt;Cafe Aroma&gt;'));
-  assert.ok(text.includes('12,400') && text.includes(`Receipt ${receipt.id}`));
+  assert.ok(text.includes('12,400') && text.includes('Calculated in Chausar'));
   assert.ok(readDocx(docx).paragraphs.includes('September report for <Cafe Aroma>'));
-  assert.ok(readDocx(docx).paragraphs.includes(`Instagram views: 12,400 (receipt ${receipt.id})`));
+  assert.ok(readDocx(docx).paragraphs.includes('Instagram views: 12,400 (Calculated in Chausar)'));
   assert.deepEqual(readXlsx(xlsx).sheets[0].rows, [
-    ['Figure', 'Value', 'Channel', 'From', 'To', 'Receipt'],
-    ['Instagram views', '12400', 'instagram', '2026-09-01', '2026-09-30', receipt.id],
-    ['LinkedIn views', '3100', 'linkedin', '2026-08-01', '2026-08-31', receipt.id],
+    ['Figure', 'Value', 'Channel', 'From', 'To', 'Source'],
+    ['Instagram views', '12400', 'instagram', '2026-09-01', '2026-09-30', 'Calculated in Chausar'],
+    ['LinkedIn views', '3100', 'linkedin', '2026-08-01', '2026-08-31', 'Calculated in Chausar'],
   ]);
   const [record] = listRecords(env.store.read(), 'venture-report');
   assert.equal(record.id, view.id);
@@ -230,7 +267,7 @@ test('a share link on the hosted Chausar: the token once, only its hash kept, on
   const [link] = listRecords(env.store.read(), 'venture-report-share');
   assert.equal(link.views, 2);
   assert.equal(link.viewedAt, '2026-10-15T10:00:00.000Z');
-  assert.equal(await reportSharePage(deps, owner, `${token.slice(0, 31)}x`), null);
+  assert.equal(await reportSharePage(deps, owner, `${token.slice(0, 31)}${token[31] === 'x' ? 'y' : 'x'}`), null); // never the real character
 
   // A scope of August and LinkedIn shows the LinkedIn figure and not Instagram's.
   const august = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-08-31' });
@@ -375,7 +412,7 @@ test('a report rendered after an owner edit uses only the current words, without
   assert.match(html, /Reach may double\.<\/p><p class="note">Model estimate<\/p>/);
   assert.ok(readDocx(bytesOf(report.files[1])).paragraphs.includes('Corrected owner words.'));
   assert.deepEqual(readXlsx(bytesOf(report.files[2])).sheets[0].rows, [
-    ['Figure', 'Value', 'Channel', 'From', 'To', 'Receipt'], ['This report has no figures.'],
+    ['Figure', 'Value', 'Channel', 'From', 'To', 'Source'], ['This report has no figures.'],
   ]);
   assert.deepEqual(report.channels, []);
   const link = await call<ReportShareView>(deps, 'venture.report.share', { reportId: report.id, from: '2026-08-01', to: '2026-09-30' });

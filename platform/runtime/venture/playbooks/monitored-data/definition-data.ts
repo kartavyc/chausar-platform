@@ -83,7 +83,7 @@ const data={
       "name": "You",
       "kind": "person",
       "department": "operations",
-      "job": "Approves exact source use and every handoff."
+      "job": "Approves exact source use and every file you send."
     },
     {
       "id": "watcher",

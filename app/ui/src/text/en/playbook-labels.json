@@ -21,5 +21,10 @@
   "playbook-labels.dev-agency": "Dev agency: maintenance, QA and security reviews",
   "playbook-labels.monitored-data": "Monitored data service",
   "playbook-labels.it-triage": "IT triage desk",
-  "playbook-labels.phone-receptionist": "AI phone receptionist"
+  "playbook-labels.phone-receptionist": "AI phone receptionist",
+  "playbook-labels.lesson-desk": "Lesson desk for tutors and teachers",
+  "playbook-labels.booking-desk": "Booking desk for local services",
+  "playbook-labels.signoff-desk": "Sign-off desk",
+  "playbook-labels.document-desk": "Document desk",
+  "playbook-labels.trading-journal": "Trading journal"
 }

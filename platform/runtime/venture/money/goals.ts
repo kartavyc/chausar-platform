@@ -24,6 +24,7 @@ import {
   requireGoalCurrency, taxRegistered,
 } from './goal-plans.ts';
 import { nextBestStep } from './next-step.ts';
+import { creditsElsewhere, invoicesElsewhere, paymentsElsewhere } from './figure-kinds.ts';
 
 const REJECTED = 'MODEL_OUTPUT_REJECTED';
 /** A goal is a whole number of minor units above zero, at most 15 digits. */
@@ -109,7 +110,9 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
   const chosen = month ?? current;
   const away = monthsBetween(current, chosen);
   check(away >= -MONTHS_BACK && away <= MONTHS_AHEAD, 'INVALID_VENTURE_REQUEST', 'Choose a month from two years back to one year ahead.');
-  const goal = goalInUse(state, venture.id, chosen);
+  const previousGoal = goalInUse(state, venture.id, chosen);
+  const movedGoal = !!venture.originalCountry && previousGoal !== null && previousGoal.currency !== currency;
+  const goal = movedGoal ? null : previousGoal;
   if (goal) requireGoalCurrency(goal, venture);
   const isCurrent = chosen === current;
   // Today's pace: the days gone out of the month's days, today counted as gone. A month over is all gone; a later one, none.
@@ -120,6 +123,9 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
   const issuedPlan = invoicedPlan(state, venture, { type: 'invoiced', month: chosen, which: 'issued' });
   const readyPlan = invoicedPlan(state, venture, { type: 'invoiced', month: chosen, which: 'ready' });
   const period = calendarMonth(chosen);
+  const comparison = !goal ? calendarMonth(previousMonth(chosen)) : null;
+  const otherCurrencies = invoicesElsewhere(state, venture, period.from, period.to) + paymentsElsewhere(state, venture, period.from, period.to) + creditsElsewhere(state, venture, period.from, period.to)
+    + (comparison ? invoicesElsewhere(state, venture, comparison.from, comparison.to) + creditsElsewhere(state, venture, comparison.from, comparison.to) : 0);
   const invoiced = await figureFor(deps, ctx, venture.id, issuedPlan);
   const ready = await figureFor(deps, ctx, venture.id, readyPlan);
   const received = await figureFor(deps, ctx, venture.id, receivedPlan(state, venture, period.from, period.to));
@@ -161,7 +167,9 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
     invoicedPermille, readyPermille, pacePermille, pace, paceReceiptId,
     invoicedPercent, pacePercent: Math.floor(pacePermille / 10), past: pastBy !== null, pastBy, paceBy,
     elapsedDays: elapsed, monthDays: days, daysLeft: days - elapsed, lastDay: isCurrent && elapsed === days, lastMonth,
-    line: goalLine(chosen, goal, invoicedMinor, pace, pacePermille, taxRegistered(state, venture)), ...ahead,
+    line: [goalLine(chosen, goal, invoicedMinor, pace, pacePermille, taxRegistered(state, venture)),
+      ...(movedGoal ? [`Your previous goal is in ${previousGoal!.currency}. Set a new goal in ${currency}.`] : []),
+      ...(otherCurrencies ? [`Totals are in ${currency}; other currencies are excluded without conversion.`] : [])].join(' '), ...ahead,
   };
 }
 

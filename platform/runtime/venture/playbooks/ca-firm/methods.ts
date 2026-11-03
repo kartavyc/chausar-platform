@@ -71,7 +71,7 @@ function latestPapers(state: State, venture: VentureRecord): CaLatestPapers | nu
   for (const run of runs) {
     const papers = regulatedPapersOf(state, venture, run.orderId);
     if (!papers) continue;
-    const receiptIds = (run.harness?.workReceiptIds ?? []).filter(id => caReceiptOf(state, venture.id, id) !== null);
+    const receiptIds = listRecords(state, 'venture-work-receipt', venture.id).filter(row => row.runRef.kind === 'delivery' && row.runRef.runId === run.id).map(row => row.id).filter(id => caReceiptOf(state, venture.id, id) !== null);
     if (!receiptIds.length) continue;
     const order = findRecord(state, 'venture-order', run.orderId);
     const client = order ? findRecord(state, 'venture-client', order.clientId) : undefined;

@@ -15,8 +15,3 @@ export const SOCIAL_AGENCY_TILE: StartTile = Object.freeze({
 });
 
 /** The tile's lines in Hindi (machine-drafted, needs a native reviewer). */
-export const SOCIAL_AGENCY_TILE_HI = Object.freeze({
-  line: 'लोकल दुकानों, क्लिनिक और कोच के लिए पोस्ट, जवाब, रील और महीने की रिपोर्ट।',
-  youDo: 'ड्राफ़्ट मंज़ूर करें, क्लाइंट से बात करें, ख़ुद पोस्ट करें या क्लाइंट को सौंपें।',
-  teamLine: 'कैलेंडर, पोस्ट, जवाबों के ड्राफ़्ट, और एक्सपोर्ट से रिपोर्ट के आँकड़े।',
-});

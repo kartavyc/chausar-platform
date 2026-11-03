@@ -8,7 +8,7 @@ test('all finance source tools refuse revoked consent and cancelled orders befor
  const env=await kitBusiness({now:new Date('2026-10-28T12:00:00Z')},{idea:'bookkeeping and CFO service'});
  const order=await env.call('venture.order.create',{clientId:env.client.id,offerId:env.offers[0]!.id,request:'Keep these client books.',intake:{fields:{'data-consent':true,period:'October 2026'}}});
  const cycle=await env.call('venture.desk.act',{playbook:'bookkeeping-cfo',kind:'finance',id:'new',action:'create-cycle',payload:{orderId:order.id,system:'tally',companyId:'Client books',from:'2026-04-01',to:'2027-03-31'}});
- const run=await env.call('venture.delivery.run',{orderId:order.id});
+ const run=await env.call('venture.delivery.run',{orderId:order.id,useTemplate:true});
  const cases=[['vouchers.draft','id,on,description,debitAccount,creditAccount,amount\nrent,2026-10-28,Rent,rent,bank,100'],['books.setup','kind,id,name,source,debitRupees,creditRupees\ncategory,bank,Bank,Statement,,\ncategory,equity,Equity,Statement,,\nopening,bank,,Statement,100,0\nopening,equity,,Statement,0,100'],['seller.books','kind,orderId,on,source,expectedRupees,paidRupees,detail\norder,one,2026-10-27,Orders,,,\nsettlement,one,2026-10-28T10:00:00Z,Settlements,100,100,']] as const;
  for(const [name,csv] of cases){
   await ventureAction(env.deps,owner,'approve','test.restore-consent',tx=>{const current=tx.find('venture-order',order.id)!;tx.replace({...current,status:order.status,intake:{...current.intake!,fields:{...current.intake?.fields,'data-consent':true}}});});

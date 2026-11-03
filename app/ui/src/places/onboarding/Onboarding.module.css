@@ -138,6 +138,12 @@
 }
 
 /* W4 4J21: a filter with no way in it. */
+.waysMore {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--sp-3);
+}
+
 .waysNone {
   font-size: var(--text-read);
   color: var(--fg2);
@@ -326,6 +332,13 @@
 .sentence {
   font-size: var(--text-read);
   line-height: 1.5;
+  color: var(--fg2);
+}
+
+.countryEvidence {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-read);
   color: var(--fg2);
 }
 

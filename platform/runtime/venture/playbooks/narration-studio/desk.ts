@@ -1,5 +1,6 @@
 // Original source-bound narration desk. Manuscript preparation is separate from owner-approved paid production.
 import type {DeskHandlers,DeskKindTypes} from '../desk-types.ts';
+import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import {check} from '../../../contracts.ts';
 import type {NarrationSegmentRecord} from '../../contracts.ts';
 import {digest,exactPayload,identifier,listRecords,readVenture,requireAppChannel,ventureAction} from '../../records.ts';
@@ -30,7 +31,7 @@ export const NARRATION_STUDIO_DESK:DeskHandlers={job:{
     if(p.action==='markup')result=await ownerNarrationMarkup(tx,rows,p.payload);
     else if(p.action==='listen')result=await listenNarration(tx,rows,p.payload);
     else if(p.action==='export')result=await exportNarration(tx,rows,p.payload);
-    else {check(p.action==='quote','INVALID_VENTURE_REQUEST','Choose a narration action.');const b=exactPayload(p.payload,['segmentId'],['segmentId']),row=rows.find(r=>r.id===b.segmentId);check(row,'NARRATION_NOT_FOUND','Choose a current narration segment.');const source=await currentNarrationSource(tx,row,tx.now);check(source.order.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','Private narration needs a qualified local voice route.');requireNarrationClientRule();const key=deps.secrets.get('speech:google-tts');check(key,'SPEECH_PLANNED','Connect your Google Cloud key first.');const quote=narrationSpendQuote(speechQuote(SPEECH_PROVIDERS.find(provider=>provider.id==='google-tts')!,row.segment.voice,row.segment.text),tx.list('venture-spend-policy'));const next=tx.replace({...row,...quoteNarration(row,quote,digest(key),tx.now)});result={pending:next.pending};}
+    else {check(p.action==='quote','INVALID_VENTURE_REQUEST','Choose a narration action.');const b=exactPayload(p.payload,['segmentId'],['segmentId']),row=rows.find(r=>r.id===b.segmentId);check(row,'NARRATION_NOT_FOUND','Choose a current narration segment.');const source=await currentNarrationSource(tx,row,tx.now);check(source.order.intake?.fields?.private===false,'PRIVATE_NEEDS_LOCAL','Private narration needs a qualified local voice route.');requireNarrationClientRule(attestedNow(deps));const key=deps.secrets.get('speech:google-tts');check(key,'SPEECH_PLANNED','Connect your Google Cloud key first.');const quote=narrationSpendQuote(speechQuote(SPEECH_PROVIDERS.find(provider=>provider.id==='google-tts')!,row.segment.voice,row.segment.text),tx.list('venture-spend-policy'));const next=tx.replace({...row,...quoteNarration(row,quote,digest(key),tx.now)});result={pending:next.pending};}
    }
    tx.emit('desk.changed',{playbook:'narration-studio'});tx.emit('queue.changed',{});return reply(orderId,result);
   });

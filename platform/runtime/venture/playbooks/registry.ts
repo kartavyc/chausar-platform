@@ -77,15 +77,15 @@ export function validateRegistry(registry: readonly PlaybookRegistration[] = cur
   const ids = new Set<string>();
   const phrases = new Map<string, string>();
   for (const entry of registry) {
-    if (!ID.test(entry.id)) throw new Error(`The playbook id ${JSON.stringify(entry.id)} is not a short lowercase name.`);
-    if (ids.has(entry.id)) throw new Error(`The playbook ${entry.id} is registered twice.`);
+    if (!ID.test(entry.id)) throw new Error(`The work plan id ${JSON.stringify(entry.id)} is not a short lowercase name.`);
+    if (ids.has(entry.id)) throw new Error(`The work plan ${entry.id} is registered twice.`);
     ids.add(entry.id);
-    if (typeof entry.label !== 'string' || !entry.label.trim()) throw new Error(`The playbook ${entry.id} has no label.`);
-    if (!RISK_LEVELS.includes(entry.riskLevel)) throw new Error(`The playbook ${entry.id} needs a risk level: low, medium or high.`);
-    if (!realDay(entry.lastReviewed)) throw new Error(`The playbook ${entry.id} needs the day it was last reviewed, like 2026-10-23.`);
-    if (!entry.picks.length) throw new Error(`The playbook ${entry.id} has no phrases that pick it.`);
+    if (typeof entry.label !== 'string' || !entry.label.trim()) throw new Error(`The work plan ${entry.id} has no label.`);
+    if (!RISK_LEVELS.includes(entry.riskLevel)) throw new Error(`The work plan ${entry.id} needs a risk level: low, medium or high.`);
+    if (!realDay(entry.lastReviewed)) throw new Error(`The work plan ${entry.id} needs the day it was last reviewed, like 2026-10-23.`);
+    if (!entry.picks.length) throw new Error(`The work plan ${entry.id} has no phrases that pick it.`);
     for (const phrase of entry.picks) {
-      if (phrase !== phrase.toLowerCase().trim() || !phrase) throw new Error(`The playbook ${entry.id} has a phrase that is not lower case: ${JSON.stringify(phrase)}.`);
+      if (phrase !== phrase.toLowerCase().trim() || !phrase) throw new Error(`The work plan ${entry.id} has a phrase that is not lower case: ${JSON.stringify(phrase)}.`);
       const other = phrases.get(phrase);
       if (other && other !== entry.id) throw new Error(`The phrase ${JSON.stringify(phrase)} picks both ${other} and ${entry.id}.`);
       phrases.set(phrase, entry.id);

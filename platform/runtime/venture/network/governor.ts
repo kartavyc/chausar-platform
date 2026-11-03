@@ -1,6 +1,6 @@
 // Chausar venture launcher, network (Ink v2 wave 4, package 4E2): the send governor for the owner's own accounts
 // (catalogue C14). It never sends and never hides anything: it decides only whether Chausar opens the owner's app for
-// one more message today. Per lane, a daily cap the owner may lower but never raise (LinkedIn notes 10 a day and 50 a
+// one more message today. Per lane, owner daily and weekly settings with defaults (LinkedIn notes 10 a day and 50 a
 // week, LinkedIn messages 20, WhatsApp 20, email 30); a warm-up from the first recorded send on that lane (25, 40, 60,
 // 80, then 100 percent of the cap over five weeks); the owner's sending days for first notes and follow-ups (a reply
 // or an invoice reminder opens any day); and a pause of 72 hours when the owner says the platform restricted the
@@ -18,32 +18,23 @@ import { exactPayload, formatVentureDate, listRecords, type VentureTx } from '..
 import { localDayAt } from '../local-day.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { suppressedUntil } from './bounces.ts';
-import { addDays, daysBetween, isoWeekday, nextAllowedDay, shortDay, weekStart } from './followups.ts';
+import { addDays, isoWeekday, nextAllowedDay, shortDay, weekStart } from './followups.ts';
 import { cardsOf, pipelineSettings } from './pipeline.ts';
 
-export const OUTREACH_LANES: readonly OutreachLane[] = Object.freeze(['linkedin-note', 'linkedin-message', 'whatsapp', 'email']);
-/** Chausar's own caps per lane: the loosest it ever opens at. */
-export const HOUSE_CAPS: Readonly<Record<OutreachLane, { day: number; week: number | null }>> = Object.freeze({
-  'linkedin-note': { day: 10, week: 50 }, 'linkedin-message': { day: 20, week: null }, whatsapp: { day: 20, week: null }, email: { day: 30, week: null },
-});
-/** The share of each cap in the first, second, third, fourth and fifth week from the lane's first recorded send. */
-export const WARMUP_PERCENT: readonly number[] = Object.freeze([25, 40, 60, 80, 100]);
+import { effectiveLaneLimits, LANE_WORDS as WORDS, type LaneLimits } from './limit-settings.ts';
+export { HOUSE_CAPS, WARMUP_PERCENT, OUTREACH_LANES, warmupPercent, channelCapsInput } from './limit-settings.ts';
+export type { LaneLimits } from './limit-settings.ts';
 /** How long a restricted account's channel stays paused. */
 export const PAUSE_HOURS = 72;
 /** Kinds that open on any day: answering someone who wrote, and a client's invoice reminder. */
 const ANY_DAY: ReadonlySet<OutreachKind> = new Set<OutreachKind>(['reply', 'reminder']);
 
-const WORDS: Readonly<Record<OutreachLane, readonly [string, string]>> = Object.freeze({
-  'linkedin-note': ['LinkedIn note', 'LinkedIn notes'], 'linkedin-message': ['LinkedIn message', 'LinkedIn messages'],
-  whatsapp: ['WhatsApp message', 'WhatsApp messages'], email: ['email', 'emails'],
-});
 /** The app Chausar opens for a channel, in a line's words. */
 export const CHANNEL_APP: Readonly<Record<OutreachChannel, string>> = Object.freeze({ email: 'your mail app', linkedin: 'LinkedIn', whatsapp: 'WhatsApp' });
 /** The channel's connector, which a pause holds (LinkedIn's is the posting connector's too). */
 export const CHANNEL_CONNECTOR: Readonly<Record<OutreachChannel, string>> = Object.freeze({ email: 'mail-app', linkedin: 'linkedin', whatsapp: 'whatsapp' });
 const CHANNEL_SITE: Readonly<Record<OutreachChannel, string>> = Object.freeze({ email: 'your mail provider', linkedin: 'linkedin.com', whatsapp: 'whatsapp.com' });
 const WHO_RESTRICTED: Readonly<Record<OutreachChannel, string>> = Object.freeze({ email: 'your mail provider', linkedin: 'LinkedIn', whatsapp: 'WhatsApp' });
-const WEEK_WORDS = ['first', 'second', 'third', 'fourth', 'fifth'];
 
 const counted = (n: number, lane: OutreachLane) => `${n} ${WORDS[lane][n === 1 ? 0 : 1]}`;
 
@@ -56,12 +47,6 @@ export function laneOf(kind: OutreachKind | null, channel: OutreachChannel | Out
 }
 
 /** The warm-up share of a cap in percent: 25 before any send and in the first week, rising each week to 100. */
-export function warmupPercent(firstOn: IsoDate | null, today: IsoDate): number {
-  if (!firstOn) return WARMUP_PERCENT[0];
-  const week = Math.floor(Math.max(0, daysBetween(firstOn, today)) / 7);
-  return WARMUP_PERCENT[Math.min(week, WARMUP_PERCENT.length - 1)];
-}
-
 /** Whether the network shows someone as one of the owner's LinkedIn connections (a fact from their Connections export). */
 export const isConnection = (person: Pick<PersonRecord, 'facts'> | null | undefined): boolean => !!person?.facts.some(fact => fact.kind === 'connection');
 
@@ -105,18 +90,12 @@ export function laneSends(state: State, venture: VentureRecord, today: IsoDate):
   return sends;
 }
 
-export type LaneLimits = { day: number; week: number | null; percent: number; house: { day: number; week: number | null }; owner: number | null };
-
 function limitsFrom(state: State, venture: VentureRecord, lane: OutreachLane, today: IsoDate, sends: readonly { lane: OutreachLane; on: IsoDate }[]): LaneLimits {
-  const house = HOUSE_CAPS[lane];
-  const owner = pipelineSettings(state, venture.id).caps.channels?.[lane] ?? null;
   const firstOn = sends.filter(send => send.lane === lane).map(send => send.on).sort()[0] ?? null;
-  const percent = warmupPercent(firstOn, today);
-  const share = (cap: number) => Math.max(1, Math.floor((cap * percent) / 100));
-  return { day: share(owner === null ? house.day : Math.min(owner, house.day)), week: house.week === null ? null : share(house.week), percent, house: { ...house }, owner };
+  return effectiveLaneLimits(pipelineSettings(state, venture.id).caps, lane, firstOn, today);
 }
 
-/** A lane's caps today: Chausar's own, the owner's lower one, and the warm-up share of the lower of the two. */
+/** A lane's caps today: defaults, owner settings and the chosen warm-up share. */
 export function laneLimits(state: State, venture: VentureRecord, lane: OutreachLane, today: IsoDate): LaneLimits {
   return limitsFrom(state, venture, lane, today, laneSends(state, venture, today));
 }
@@ -164,8 +143,8 @@ export function openRefusal(state: State, venture: VentureRecord, input: { kind:
   if (input.kind === 'reminder') return null;
   const lane = input.lane;
   const { limits, day, week } = laneToday(state, venture, lane, today);
-  const cap = limits.owner === null ? limits.house.day : Math.min(limits.owner, limits.house.day);
-  const warming = limits.percent < 100 ? ` while this account warms up (${limits.percent} percent of ${cap} a day in its ${WEEK_WORDS[WARMUP_PERCENT.indexOf(limits.percent)]} week)` : '';
+  const cap = limits.owner ?? limits.house.day;
+  const warming = limits.percent < 100 ? ` while this account warms up (${limits.percent} percent of ${cap} a day)` : '';
   if (day >= limits.day) return { code: 'OUTREACH_DAILY_CAP', line: `You've sent ${counted(day, lane)} today, your limit${warming}. Chausar opens ${app} again tomorrow.` };
   if (limits.week !== null && week >= limits.week) return { code: 'OUTREACH_DAILY_CAP', line: `You've sent ${counted(week, lane)} this week, your limit${warming}. Chausar opens ${app} again on Monday.` };
   return null;
@@ -181,23 +160,6 @@ export function sentLimitLine(state: State, venture: VentureRecord, lane: Outrea
   if (day === limits.day) return ` That reaches your limit of ${counted(limits.day, lane)} for today.`;
   if (day > limits.day) return ` That makes ${counted(day, lane)} today, over your limit of ${limits.day}.`;
   return '';
-}
-
-/**
- * The owner's lower daily caps per lane (venture.pipeline.settings caps.channels): each a whole number from 1 up to
- * Chausar's own cap; a higher one is refused, naming Chausar's own limit.
- */
-export function channelCapsInput(value: unknown): Partial<Record<OutreachLane, number>> {
-  const given = exactPayload(value, OUTREACH_LANES);
-  const caps: Partial<Record<OutreachLane, number>> = {};
-  for (const lane of OUTREACH_LANES) {
-    const cap = given[lane];
-    if (cap === undefined) continue;
-    check(Number.isInteger(cap) && (cap as number) >= 1, 'INVALID_VENTURE_REQUEST', `A daily limit for ${WORDS[lane][1]} is a whole number from 1.`);
-    check((cap as number) <= HOUSE_CAPS[lane].day, 'INVALID_VENTURE_REQUEST', `Chausar's own limit for ${WORDS[lane][1]} is ${HOUSE_CAPS[lane].day} a day. You can only make it lower.`);
-    caps[lane] = cap as number;
-  }
-  return caps;
 }
 
 /**

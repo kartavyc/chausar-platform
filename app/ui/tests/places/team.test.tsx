@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -16,7 +16,7 @@ function wrap(base: FakeClient, intercept: Intercept): EngineClient {
   };
 }
 
-function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept } = {}) {
+function start(hash = '#/team', options: { language?: 'en'; intercept?: Intercept } = {}) {
   window.location.hash = hash;
   const base = createFakeClient(new FakeEngine());
   const client = options.intercept ? wrap(base, options.intercept) : base;
@@ -105,84 +105,30 @@ describe('Team: one row per agent', () => {
 });
 
 describe('Team: the agent sheet', () => {
-  it('says its posture in words and what that means in one sentence', async () => {
+  it('each agent links to the current AI review settings', async () => {
     start();
-    const editor = await openAgent('Editor');
-    expect(within(editor).getByText('Approve each')).toBeTruthy();
-    expect(within(editor).getByText('Asks you to approve each piece of work before it goes out.')).toBeTruthy();
-    // Ink v2 (3D): the agent panel's close button says whose panel it closes.
-    await click(screen.getByRole('button', { name: 'Close Editor' }));
-    const researcher = await openAgent('Researcher');
-    expect(within(researcher).getByText('Shadow')).toBeTruthy();
-    expect(within(researcher).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
+    const editor=await openAgent('Editor');
+    expect(within(editor).getByRole('link',{name:'AI review settings'}).getAttribute('href')).toBe('#/connections');
+    expect(within(editor).queryByRole('radio')).toBeNull();
+    await click(screen.getByRole('button',{name:'Close Editor'}));
+    const researcher=await openAgent('Researcher');
+    expect(within(researcher).getByRole('link',{name:'AI review settings'})).toBeTruthy();
   });
 
-  it('offers the four postures, the current one chosen', async () => {
-    start();
-    const sheet = await openAgent('Editor');
-    const group = within(sheet).getByRole('group', { name: 'Posture' });
-    const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
-    expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(['Rehearsal', 'Shadow', 'Approve each', 'Auto with spot checks']);
-    expect(radios.filter((r) => r.checked).map((r) => r.value)).toEqual(['approve-each']);
-  });
 
-  it('choosing a posture asks the engine, is disabled while it answers, and keeps its answer', async () => {
-    let answer: (value: unknown) => void = () => {};
-    const { base } = start('#/team', {
-      intercept: (method, params) => method === 'venture.team.posture'
-        ? new Promise((resolve) => { answer = resolve; }).then(() => base.request('venture.team.posture', params as never)) : undefined,
-    });
-    const sheet = await openAgent('Editor');
-    const group = within(sheet).getByRole('group', { name: 'Posture' }) as HTMLFieldSetElement;
-    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Shadow' })); });
-    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(true);
-    expect(group.disabled).toBe(true);
-    await act(async () => { answer(undefined); });
-    await waitFor(() => expect(group.disabled).toBe(false));
-    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(true);
-    expect(within(sheet).getByText('Works on real orders, but anything outside Chausar is only simulated.')).toBeTruthy();
-    const stored = (await base.request('venture.team.list', {})).agents.find((a) => a.id === 'editor')!;
-    expect(stored.posture).toBe('shadow');
-  });
 
-  it('a posture above what the business has earned is refused in the engine words and the choice goes back', async () => {
-    // W4 4J22a: auto is built but locked (team-readiness.test.tsx), so the stage refusal is shown on another posture.
-    // Engine-shaped (views/team.ts): a business at rehearsal lets an agent work at rehearsal or tighter, so Shadow is refused.
-    const line = 'The business is at rehearsal, so this agent can work at rehearsal or tighter. Move the business up first.';
-    start('#/team', {
-      intercept: (method) => (method === 'venture.team.posture' ? Promise.reject(new EngineError('POSTURE_ABOVE_STAGE', line)) : undefined),
-    });
-    const sheet = await openAgent('Editor');
-    const group = within(sheet).getByRole('group', { name: 'Posture' });
-    await act(async () => { fireEvent.click(within(group).getByRole('radio', { name: 'Shadow' })); });
-    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe(line));
-    expect((within(group).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
-    expect((within(group).getByRole('radio', { name: 'Shadow' }) as HTMLInputElement).checked).toBe(false);
-  });
 
-  it('any other posture refusal says what the engine said', async () => {
-    start('#/team', {
-      intercept: (method) => method === 'venture.team.posture' ? Promise.reject(new EngineError('OFFLINE', 'The engine is not answering.')) : undefined,
-    });
-    const sheet = await openAgent('Editor');
-    await act(async () => { fireEvent.click(within(sheet).getByRole('radio', { name: 'Rehearsal' })); });
-    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe("Couldn't change the posture: The engine is not answering."));
-    expect((within(sheet).getByRole('radio', { name: 'Approve each' }) as HTMLInputElement).checked).toBe(true);
-  });
 
-  it('lists only its assigned playbook steps, each with a gate', async () => {
+
+
+
+
+  it('lists only its assigned work steps without inactive gate switches', async () => {
     start();
     const sheet = await openAgent('Editor');
     const steps = within(sheet).getByRole('list', { name: 'Steps' });
-    // Ink v2 (3B5b): a gate draws both words, Auto and Hold, with the one in force marked data-on.
-    expect(within(steps).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Cut the episodeAutoHold', 'Cut shorts from the episodeAutoHold', 'Finishing checkAutoHold',
-    ]);
-    expect(within(steps).getAllByRole('listitem').map((li) => li.querySelector('[data-on]')?.textContent ?? null)).toEqual(['Auto', 'Auto', 'Hold']);
-    expect(within(steps).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true');
-    expect(within(steps).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('false');
-    expect(within(steps).queryByRole('switch', { name: /Publish to YouTube/ })).toBeNull();
-    expect(within(steps).getAllByRole('switch')).toHaveLength(3);
+    expect(within(steps).getAllByRole('listitem').map(li=>li.textContent)).toEqual(['Cut the episode','Cut shorts from the episode','Finishing check']);
+    expect(within(steps).queryByRole('switch')).toBeNull();
   });
 
   it('the assigned Billing issue step always asks and has no switch', async () => {
@@ -192,50 +138,17 @@ describe('Team: the agent sheet', () => {
     const sheet = await openAgent('Billing');
     const steps = within(sheet).getByRole('list', { name: 'Steps' });
     expect(within(steps).getAllByRole('listitem').map(li => li.textContent)).toEqual([
-      'Draft invoicesAutoHold', 'Issue an invoice to a clientAlways asks you',
+      'Draft invoices', 'Issue an invoice to a clientAlways asks you',
     ]);
     expect(within(steps).queryByRole('switch', { name: /Issue an invoice/ })).toBeNull();
-    expect(within(steps).getAllByRole('switch')).toHaveLength(1);
+    expect(within(steps).queryByRole('switch')).toBeNull();
   });
 
-  it('switching a gate asks the engine and keeps its answer', async () => {
-    const { base } = start();
-    const spy = vi.spyOn(base.engine, 'request');
-    const sheet = await openAgent('Editor');
-    const finish = within(sheet).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' });
-    await act(async () => { fireEvent.click(finish); });
-    expect(spy).toHaveBeenCalledWith('venture.team.gate', { agentId: 'editor', stepId: 'finish', gate: 'auto' });
-    await waitFor(() => expect(within(sheet).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true'));
-    const stored = (await base.request('venture.team.list', {})).agents.find((a) => a.id === 'editor')!;
-    expect(stored.steps.find((s) => s.id === 'finish')!.gate).toBe('auto');
-  });
 
-  it('a GATE_FLOOR refusal is said in plain words and the switch snaps back', async () => {
-    let refuse: (error: unknown) => void = () => {};
-    start('#/team', {
-      intercept: (method, params) => method === 'venture.team.gate' && params.stepId === 'finish'
-        ? new Promise((_resolve, reject) => { refuse = reject; }) : undefined,
-    });
-    const sheet = await openAgent('Editor');
-    const finish = () => within(sheet).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' });
-    await act(async () => { fireEvent.click(finish()); });
-    expect(finish().getAttribute('aria-checked')).toBe('true');
-    await act(async () => { refuse(new EngineError('GATE_FLOOR', 'GATE_FLOOR: floor')); });
-    await waitFor(() => expect(finish().getAttribute('aria-checked')).toBe('false'));
-    const alert = within(sheet).getByRole('alert');
-    expect(alert.textContent).toBe("This step always asks you, so it can't run on its own.");
-    expect(alert.closest('li')!.textContent).toContain('Finishing check');
-  });
 
-  it('any other refusal says what the engine said and the switch snaps back', async () => {
-    start('#/team', {
-      intercept: (method) => method === 'venture.team.gate' ? Promise.reject(new EngineError('OFFLINE', 'The engine is not answering.')) : undefined,
-    });
-    const sheet = await openAgent('Editor');
-    await act(async () => { fireEvent.click(within(sheet).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' })); });
-    await waitFor(() => expect(within(sheet).getByRole('alert').textContent).toBe("Couldn't change this: The engine is not answering."));
-    expect(within(sheet).getByRole('switch', { name: 'Cut the episode: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('true');
-  });
+
+
+
 
   // Ink v2 (3D): the engine sends an agent's spend with no receipt, and a money figure always carries one (or "model
   // estimate"), so the panel no longer prints it; the spend, call by call with receipts, is one link away in Money.
@@ -327,12 +240,5 @@ describe('Team: live and empty', () => {
     expect(within(main()).queryByText('No team yet.')).toBeNull();
   });
 
-  it('speaks Hindi', async () => {
-    const { base } = start('#/team', { language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'टीम' })).toBeTruthy();
-    await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
-    const sheet = await openAgent('Billing');
-    expect(within(sheet).getByText('हर काम पर मंज़ूरी')).toBeTruthy();
-    expect(within(sheet).getByText('हमेशा आपसे पूछता है')).toBeTruthy();
-  });
+
 });

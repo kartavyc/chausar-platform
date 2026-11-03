@@ -129,6 +129,8 @@ Before a business is kept, the engine holds everything in a **draft desk**, in m
 
 The nine draft methods are `venture.ai.options`, `venture.ai.connect`, `venture.ai.disconnect`, `venture.ai.status`, `venture.ai.calls`, `venture.compose.decide`, `venture.compose.fill`, `venture.compose.get` and `venture.compose.update`. The engine answers them before its vault check. The local server lets only the trusted owner's bootstrap session use them, and the hosted server answers `HOSTED_NOT_AVAILABLE`. `venture.ai.connect`, `decide` and `fill` are app-only: a phone or a tainted context is refused.
 
+Wave 6 (6C1, 6C2) adds six more draft methods for the new first run. `venture.ai.tools` reads whether Codex and Claude Code are installed and signed in, from each tool's own status command. `venture.ai.login.start` and `venture.ai.login.cancel` open and stop that tool's own sign-in; Chausar never shows a sign-in of its own and never reads the tool's login files. `venture.about.read` turns a few lines about the owner, a resume PDF or a LinkedIn export into a family and up to three offers, checked by a strict schema; `venture.about.pick` takes a family the owner picks; `venture.about.families` lists the families. Notes: `docs/superpowers/plans/w6/notes/6C1.md` and `6C2.md`.
+
 **Handover.** `venture.create` gains `composeId` and `composedDigest`, sent together or not at all. The renderer never sends the plan itself. The engine checks the held plan's digest (else `APPROVAL_STALE`), checks the plan again, then writes in one action: the business, the composition record, the answered interview, plan version 1, the adopted connections and calls (same ids and times, so "What was sent" in the vault lists the calls made before it), and the events `venture-created`, `plan-composed`, `interview-updated`, `blueprint-drafted` and `model-connected`. Only after that commit are the keys copied to the vault's memory-only shelf. An AI connected before the vault is adopted even when the owner chose a built-in plan.
 
 ## The open box
@@ -181,6 +183,8 @@ The AI picks two to four views from this fixed list: one lead view, first, then 
 The lead view is open at rest with only its lead items. The first support view is a closed fold. Everything else sits in one fold, "More of your plan". The right-hand preview shows the plan in real words (see "Keeping the plan, Welcome back and the live preview" above); while the AI writes, its website card outlines only the page list when the picks include `pages`, and `notes` adds one badge to the card.
 
 ## The composer contract
+
+`venture.country.suggest` accepts the owner's description and asks the connected AI for a country suggestion. The time-zone default stays selected until the owner confirms a change; computer language is never used to choose the country.
 
 ```
 venture.compose.decide { text, countryCode }

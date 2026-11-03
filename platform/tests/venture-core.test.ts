@@ -124,6 +124,25 @@ async function interviewed(h: Harness, options: { country?: string; idea?: strin
 
 // ---------------------------------------------------------------------------
 
+test('w6 rewriting a country-change draft cannot restore old prices or tax registration', async () => {
+  const h = setup();
+  await interviewed(h);
+  const initial = await h.call('venture.blueprint.draft', { useTemplate: true });
+  await h.call('venture.blueprint.accept', { digest: initial.blueprint.digest });
+  await h.call('venture.blueprint.update', { patch: { countryCode: 'JP' } });
+  const rewritten = await h.call('venture.blueprint.draft', { useTemplate: true });
+  assert.equal(rewritten.blueprint.country.code, 'JP');
+  assert.equal(rewritten.blueprint.backOffice.currency, 'JPY');
+  assert.equal(rewritten.blueprint.backOffice.taxRegistered.value, false);
+  assert.ok(rewritten.blueprint.offers.every((offer: any) => offer.pricing.unitPriceMinor === null));
+  const current = await h.call('venture.get');
+  assert.equal(current.venture.country.code, 'IN', 'draft country remains uncommitted');
+  const priced = await h.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', unitPrice: '125' }] } });
+  assert.equal(priced.blueprint.offers[0].pricing.unitPriceMinor, '125', 'JPY has no decimal minor units');
+  await h.call('venture.blueprint.accept', { digest: priced.blueprint.digest });
+  assert.equal((await h.call('venture.get')).venture.country.code, 'JP');
+});
+
 test('1. listCountries: fifteen rows with the pinned tax and currency facts', () => {
   const rows = listCountries();
   assert.equal(rows.length, 15);
@@ -862,12 +881,12 @@ test('12. venture.events pages by sequence number', async () => {
   await assert.rejects(h.call('venture.events', { page: 2 }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
-test('13. the handler table holds exactly the seventeen core methods; the pre-vault answers are functions', () => {
-  // Twelve, and the five Ink v2 wave 4 added (the owner profile, 4J9; settings drafts, 4J2; the plan suggestion, 4J8).
+test('13. the handler table holds exactly the twenty-seven core methods; the pre-vault answers are functions', () => {
+  // The existing seventeen core methods, the wave 6 country suggestion, needs list (6C7), compliance get and set (6C6), and the six feedback methods (6J2).
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.blueprint.accept', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.suggest', 'venture.blueprint.update',
-    'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
-    'venture.owner.get', 'venture.owner.set', 'venture.settings.draft', 'venture.settings.drafts',
+    'venture.compliance.get', 'venture.compliance.set', 'venture.country.suggest', 'venture.create', 'venture.events', 'venture.evidence.apply', 'venture.evidence.dismiss', 'venture.evidence.list', 'venture.feedback.answer', 'venture.feedback.consent', 'venture.feedback.crash', 'venture.feedback.delete', 'venture.feedback.get', 'venture.feedback.send', 'venture.get', 'venture.interview.answer', 'venture.interview.next',
+    'venture.needs.list', 'venture.owner.get', 'venture.owner.set', 'venture.settings.draft', 'venture.settings.drafts',
   ]);
   assert.equal(typeof listCountries, 'function');
   assert.equal(typeof previewPlan, 'function');
@@ -875,7 +894,7 @@ test('13. the handler table holds exactly the seventeen core methods; the pre-va
 
 test('every error code the core package throws is a declared venture code or an engine code it reuses', () => {
   const folder = new URL('../runtime/venture/core/', import.meta.url);
-  const reused = new Set(['UNKNOWN_PACK']); // the ontology's own code for a missing starter pack
+  const reused = new Set(['UNKNOWN_PACK', 'HOSTED_NOT_AVAILABLE']); // ontology and host boundary codes
   const found = new Set<string>();
   for (const name of readdirSync(folder)) {
     if (!name.endsWith('.ts')) continue;

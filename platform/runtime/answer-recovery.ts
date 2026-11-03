@@ -81,7 +81,9 @@ function receiptScope(request: CalculationRequest, receipt: CalculationReceipt) 
   for (const value of [receipt.period, receipt.comparePeriod]) if (value !== null) period(value);
   check(request.operation === receipt.operation && hash(request.period ?? null) === hash(receipt.period)
     && hash(request.comparePeriod ?? null) === hash(receipt.comparePeriod) && (request.branch ?? null) === receipt.branch
-    && hash(request.sourceIds ?? null) === hash(receipt.requestedSourceIds ?? null),
+    && hash(request.sourceIds ?? null) === hash(receipt.requestedSourceIds ?? null)
+    && (request.currency ?? null) === (receipt.requestedCurrency ?? null)
+    && (request.currency === undefined || request.currency === receipt.currency),
     'ANSWER_RECOVERY_SOURCE_CHANGED', 'The saved request and original receipt must have the same operation and scope.');
   if (request.operation === 'aging' && request.onDate !== undefined) check(request.onDate === receipt.assumptions.onDate,
     'ANSWER_RECOVERY_SOURCE_CHANGED', 'The saved aging date must match its original receipt.');
@@ -96,7 +98,7 @@ function sourceEvidence(evidence: AnswerRecoveryEvidence): AnswerRecoverySource 
     && receipt.id === answer.receiptId && answer.id !== receipt.id && id(receipt.memberId) && Number.isSafeInteger(receipt.epoch) && receipt.epoch >= 1,
     'ANSWER_RECOVERY_SOURCE_CHANGED', 'Resolve the exact original saved answer and private receipt in this workspace.');
   dataOnly(answer.request, 64 * 1024);
-  keys(answer.request, ['operation', 'period', 'comparePeriod', 'onDate', 'sourceIds', 'branch', 'customerId', 'orderId', 'assumptions', 'asOf'], ['operation']);
+  keys(answer.request, ['operation', 'currency', 'period', 'comparePeriod', 'onDate', 'sourceIds', 'branch', 'customerId', 'orderId', 'assumptions', 'asOf'], ['operation']);
   check(!Object.hasOwn(answer.request, 'asOf'), 'ANSWER_RECOVERY_NOT_UNPINNED', 'This recovery path is only for a saved request without a retained knowledge cutoff.');
   const request = answer.request;
   check(typeof request.operation === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.operation), 'INVALID_ANSWER_RECOVERY', 'Choose a saved published calculation.');

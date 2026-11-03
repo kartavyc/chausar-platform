@@ -173,7 +173,7 @@
   },
   {
     "id": "triage-copy",
-    "name": "Help-channel manual handoff",
+    "name": "Reply you send yourself",
     "category": "docs-ops",
     "categoryLabel": "Docs and ops",
     "modes": [

@@ -20,7 +20,7 @@ type Intercept = (method: string, params: Record<string, unknown>, base: FakeCli
 
 const RATE = 'at ₹83.50 per $1 (your rate, set 15 Oct 2026)';
 
-function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept } = {}) {
+function start(hash = '#/team', options: { language?: 'en'; intercept?: Intercept } = {}) {
   window.location.hash = hash;
   const base = createFakeClient(new FakeEngine());
   const spy = vi.fn();
@@ -168,7 +168,7 @@ describe('Team w4: jobs done this week', () => {
 });
 
 describe('Team w4: one department', () => {
-  it('#/team?dept=prod: the hero with three stat boxes and the rupees beside the spend, how it runs with its gates and the version a change makes, recent work', async () => {
+  it('#/team?dept=prod: the hero with three stat boxes and the rupees beside the spend, how it runs with its step descriptions and the version a change makes, recent work', async () => {
     start('#/team?dept=prod');
     const hero = await within(main()).findByRole('region', { name: 'Production' });
     expect(hero.querySelectorAll('[data-count]')).toHaveLength(2);
@@ -179,8 +179,11 @@ describe('Team w4: one department', () => {
     // The rate once on the page: beside the hero's figure, not again after the held words.
     expect(main().textContent!.split('per $1').length - 1).toBe(1);
     const flow = await within(main()).findByRole('region', { name: 'How Production runs' });
+    expect(within(flow).getByText('Your AI reviews routine steps. You approve each outside action.')).toBeTruthy();
+    expect(flow.textContent).not.toMatch(/Auto steps run|Hold steps wait|Locked steps always/);
     expect(within(flow).queryByText('Publish to YouTube')).toBeNull();
-    expect(within(flow).getByRole('switch', { name: 'Finishing check: Auto runs without asking, Hold waits for you' }).getAttribute('aria-checked')).toBe('false');
+    expect(within(flow).getByText('Finishing check')).toBeTruthy();
+    expect(within(flow).queryByRole('switch')).toBeNull();
     await waitFor(() => expect(flow.textContent).toMatch(/An instruction change makes version \d+\. You can undo it\./));
     expect(await within(main()).findByRole('region', { name: 'Recent work' })).toBeTruthy();
     await settle();
@@ -256,7 +259,7 @@ describe('Team w4: Keeper', () => {
     expect(within(sheet).getByText('Runs as code, not AI')).toBeTruthy();
     expect(await within(sheet).findByRole('list', { name: "Keeper's jobs" })).toBeTruthy();
     expect(within(sheet).queryByRole('radiogroup')).toBeNull();
-    expect(within(sheet).queryByRole('group', { name: 'Posture' })).toBeNull();
+    expect(within(sheet).queryByRole('group', { name: 'How much it asks you' })).toBeNull();
   });
 });
 
@@ -308,12 +311,12 @@ describe('Team w4: health', () => {
   });
 
   it('degraded says its reason in wait words; healthy says nothing', async () => {
-    start('#/team', { intercept: withHealth('researcher', { status: 'degraded', reason: "The playbook is producing work people don't want. Revise it." }) });
+    start('#/team', { intercept: withHealth('researcher', { status: 'degraded', reason: "The work plan is producing work people don't want. Revise it." }) });
     const researcher = await cardOf('Researcher');
     await waitFor(() => expect(researcher.querySelector('[data-health]')).not.toBeNull());
     const health = researcher.querySelector('[data-health]') as HTMLElement;
     expect(health.querySelector('[data-tone="wait"]')?.textContent).toBe('Needs a look');
-    expect(health.textContent).toContain("The playbook is producing work people don't want. Revise it.");
+    expect(health.textContent).toContain("The work plan is producing work people don't want. Revise it.");
     expect(within(researcher).queryByRole('button', { name: 'Clear quarantine' })).toBeNull();
     expect((await cardOf('Editor')).querySelector('[data-health]')).toBeNull();
   });
@@ -344,12 +347,12 @@ describe('Team w4: health', () => {
 describe('Team w4: the stats tiles from the team totals', () => {
   it('"Done this week" counts the jobs with the departments\' bars beside; the AI spend is Money\'s own figure, the rupees beside and the held line under its receipt', async () => {
     start();
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
     const done = (await within(glance).findByText('Done this week')).closest('[data-card]') as HTMLElement;
     expect(done.querySelector('[data-count]')?.textContent).toBe('8');
     expect(done.textContent).not.toContain('jobs across five departments');
     expect([...done.querySelectorAll('svg rect')].map((bar) => bar.getAttribute('height'))).toEqual(['250', '750', '1000', '0', '0']);
-    const spend = within(glance).getByText('AI spend this month').closest('[data-card]') as HTMLElement;
+    const spend = within(glance).getByText('Monthly AI spend').closest('[data-card]') as HTMLElement;
     // 4Z3: rupees lead, the dollars beneath with two decimals and the rate.
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
     expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
@@ -377,11 +380,5 @@ describe('Team w4: axe and Hindi', () => {
     });
   }
 
-  it('speaks Hindi: the Keeper chip, its outcome words and the stats with no key showing as text', async () => {
-    start('#/team', { language: 'hi' });
-    const keeper = await cardOf('Keeper');
-    await within(keeper).findByRole('list');
-    expect(main().textContent).not.toMatch(/\b(team|chart|dept)\.[a-zA-Z.]+/);
-    expect(keeper.textContent).not.toContain('Runs as code, not AI');
-  });
+
 });

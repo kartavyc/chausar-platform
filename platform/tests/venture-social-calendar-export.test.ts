@@ -5,6 +5,8 @@
 // with every reason, and the post ids are the ones posting takes ('<run>.post-<n>', counted over post lines only).
 // Times in the file are the business's own clock (India), never UTC by default.
 import test from 'node:test';
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
@@ -293,7 +295,7 @@ class DraftPort implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-21T10:30:00.000Z',
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -342,15 +344,21 @@ test('through a real run: the drafted posts reach the file by their numbers, eac
   const env = await socialBusiness();
   assert.equal(env.offers[0].playbookOffer, 'content-calendar');
   const order = await env.run('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Posts for our morning yoga classes in Goa this month.', intake: { calendar: CALENDAR } });
-  let waiting = await env.run('venture.delivery.run', { orderId: order.id });
-  for(const headings of [['Voice','Pillars','Words to avoid'],['Calendar','Topics and hooks']]){env.models.drafts.push({title:'Studio guidance',questionsForClient:[],sections:headings.map(heading=>({heading,parts:[{kind:'text',text:'Clear useful studio guidance.',ref:''}]}))});const ready=await env.run('venture.delivery.approve',{runId:waiting.id,digest:waiting.preview.digest});await env.run('venture.delivery.review',{runId:ready.id,verdict:'accepted'});waiting=(env.deps.store.read().conversations as any[]).filter(r=>r.kind==='venture-delivery-run'&&r.orderId===order.id).at(-1)!;}
-
+  await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,order.id);
   const sections = [{ heading: 'Post plan', lines: ['Question','Contrast','Lesson','Story','How to','Mistake'].map((hook,i)=>`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${hook}`) },{ heading: 'Drafts', lines: DRAFTS }, { heading: 'Alt text', lines: [ALT] }, { heading: 'Hashtags', lines: ['Use #yoga and #goa on every post.'] }];
-  env.models.drafts.push({
-    title: 'Posts for November', questionsForClient: [],
-    sections: sections.map(section => ({ heading: section.heading, parts: section.lines.map(text => ({ kind: 'text', text, ref: '' })) })),
-  });
-  const ready: DeliveryRunView = await env.run('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  const draft={title:'Posts for November',questionsForClient:[],sections:sections.map(section=>({heading:section.heading,parts:section.lines.map(text=>({kind:'text',text,ref:''}))}))};
+  env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>{
+   const stage=(env.deps.store.read().conversations as any[]).find(row=>row.kind==='venture-order'&&row.id===order.id).chainStage;
+   return stage<3?{title:'Studio guidance',questionsForClient:[],sections:(stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>({heading,parts:[{kind:'text',text:'Clear useful studio guidance.',ref:''}]}))}:draft;
+  })});
+  let waiting=await env.run('venture.delivery.run',{orderId:order.id});
+  for(let stage=1;stage<3;stage++){
+   await waitForAgentWork(env.deps.store,waiting.id);
+   await env.run('venture.delivery.review',{runId:waiting.id,verdict:'accepted'});
+   waiting=(env.deps.store.read().conversations as any[]).filter(row=>row.kind==='venture-delivery-run'&&row.orderId===order.id).at(-1);
+  }
+  await waitForAgentWork(env.deps.store,waiting.id);
+  const ready:DeliveryRunView=(await env.run('venture.delivery.list')).find((row:DeliveryRunView)=>row.id===waiting.id);
   assert.equal(ready.canAccept, true, ready.acceptBlocked ?? '');
 
   const before = await env.run('venture.social.calendar', { runId: ready.id }) as SocialCalendarFile;

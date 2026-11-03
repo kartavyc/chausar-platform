@@ -112,6 +112,8 @@ export type FlagshipCheckInput = {
   toolCalls?: readonly ToolCallRecord[];
   /** The CA of record's explanations of portal differences so far (ca-firm/signoff.ts diffExplanations); none in rehearsal. */
   caCitationUse?: import('./ca-firm/citations.ts').CitationUse;
+  /** W6 6C5: the owner's standing rule attestations in this business (rule id to the digest of the words ticked). */
+  attestedRules?: import('./kit/attestation.ts').AttestedRules;
   caExplanations?: readonly { receiptId: string; key: string; note: string }[];
   caHealthReviews?: readonly Pick<import('./ca-firm/work-core.ts').CaWorkingBody,'receiptId'|'receiptDigest'|'decisions'>[];
 };
@@ -168,7 +170,7 @@ function kitChecks(kit: PlaybookDefinition, input: FlagshipCheckInput, definitio
   return rules ? [...results, { playbook: input.flagship, check: rules.check, outcome: rules.outcome, detail: rules.detail }] : results;
 }
 
-const TEMPLATE_NOT_RUN = "not run: this playbook's checks read an agent's draft, and this is a template outline.";
+const TEMPLATE_NOT_RUN = "not run: this work plan's checks read an agent's draft, and this is a template outline.";
 
 async function playbookOwnChecks(input: FlagshipCheckInput): Promise<PlaybookCheckResult[]> {
   const as = (check: string, outcome: PlaybookCheckResult['outcome'], detail: string): PlaybookCheckResult => ({ playbook: input.flagship, check, outcome, detail });

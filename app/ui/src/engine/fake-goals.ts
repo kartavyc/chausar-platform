@@ -15,12 +15,16 @@
 import { EngineError, type BlueprintViewLite, type BooksSummaryLite, type GoalFigure, type GoalSuggestion, type GoalView, type InvoiceLite, type InvoiceViewLite, type ModelStatusLite, type NextBestStep, type QueueRow, type ReceiptLite } from './types';
 import { BOOKS, RECEIPTS } from './fixtures';
 import { inr } from './fake-money';
+import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
+import { decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import type { VentureViewLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 
 export const FAKE_4I2_METHODS: readonly string[] = ['venture.goals.get', 'venture.goals.set', 'venture.goals.suggest'];
 
-interface HeldGoal { id: string; businessId: string; month: string; amountMinor: string; at: string }
-const SEED: readonly Omit<HeldGoal, 'at'>[] = [{ id: 'goal-lumen-2026-10', businessId: 'lumen', month: '2026-10', amountMinor: '15000000' }];
+interface HeldGoal { id: string; businessId: string; month: string; amountMinor: string; currency: string; at: string }
+const SEED: readonly Omit<HeldGoal, 'at'>[] = [{ id: 'goal-lumen-2026-10', businessId: 'lumen', month: '2026-10', amountMinor: '15000000', currency: 'INR' }];
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const GOAL_AMOUNT = /^[1-9]\d{0,14}$/;
@@ -48,13 +52,9 @@ function monthText(value: unknown): string {
 }
 
 /** The owner's typed goal in paise, as goals.ts typedGoal reads it (the samples are all in rupees): GOAL_INVALID otherwise. */
-function typedGoal(value: unknown): string {
-  const words = 'Type the goal like 150000 or 150000.50, in INR.';
-  const cleaned = typeof value === 'string' && value.length <= 40 ? value.replace(/[\s,]/g, '') : '';
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(cleaned);
-  const fraction = (match?.[2] ?? '').replace(/0+$/, '');
-  if (!match || fraction.length > 2) throw new EngineError('GOAL_INVALID', words);
-  return (BigInt(match[1]!) * 100n + BigInt(fraction.padEnd(2, '0'))).toString();
+function typedGoal(value: unknown, currency: string): string {
+  try { if (typeof value !== 'string' || value.length > 40) throw new Error('Type an amount.'); return decimalMinor(value.replace(/[\s,]/g, ''), currency).toString(); }
+  catch { throw new EngineError('GOAL_INVALID', `Type the goal like 150000 or 150000.50, in ${currency}.`); }
 }
 
 function exact(p: Record<string, unknown>, allowed: readonly string[], required: readonly string[] = []): void {
@@ -74,6 +74,9 @@ export class FakeGoals {
   }
 
   /** A receipt this desk made, for venture.receipt.get. */
+  private venture() { return this.host.ask('venture.get', {}) as VentureViewLite | null; }
+  private country() { return countryProfile(this.venture()?.venture.country?.code ?? 'IN'); }
+  private money(minor: number) { const currency = this.country().currency; return currency === 'INR' ? inr(minor) : formatMinor(String(minor), currency); }
   receipt(id: string): ReceiptLite | undefined {
     const found = this.receipts.find((receipt) => receipt.id === id);
     return found ? structuredClone(found) : undefined;
@@ -93,7 +96,7 @@ export class FakeGoals {
 
   /** Today on the owner's calendar in Kolkata (UTC+05:30). */
   private today(): string {
-    return new Date(Date.parse(this.host.now()) + 330 * 60_000).toISOString().slice(0, 10);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: COUNTRY_TIME_ZONES[this.country().code], year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(this.host.now()));
   }
 
   private inUse(month: string): HeldGoal | null {
@@ -103,16 +106,16 @@ export class FakeGoals {
   /** One receipt per distinct sum: the same lines give the same id, as the engine keeps one per digest. */
   private sum(label: string, lines: { label: string; minor: number }[], none: string): GoalFigure {
     const total = lines.reduce((sum, line) => sum + line.minor, 0);
-    if (!lines.length) return { display: inr(0), receiptId: null };
-    const explanation = `${lines.length} ${lines.length === 1 ? 'item' : 'items'}: ${lines.map((line) => `${line.label} ${inr(line.minor)}`).join('; ')}. Added together: ${inr(total)}.`;
+    if (!lines.length) return { display: this.money(0), receiptId: null };
+    const explanation = `${lines.length} ${lines.length === 1 ? 'item' : 'items'}: ${lines.map((line) => `${line.label} ${this.money(line.minor)}`).join('; ')}. Added together: ${this.money(total)}.`;
     const key = `${label}|${explanation}`;
     let id = this.made.get(key);
     if (!id) {
       id = `R-${this.seq++}`;
       this.made.set(key, id);
-      this.receipts.push({ id, at: this.host.now(), explanation: explanation || none, stale: false, figures: [{ key: 'total', label, display: inr(total) }] });
+      this.receipts.push({ id, at: this.host.now(), explanation: explanation || none, stale: false, figures: [{ key: 'total', label, display: this.money(total) }] });
     }
-    return { display: inr(total), receiptId: id };
+    return { display: this.money(total), receiptId: id };
   }
 
   /** The month's invoices before tax (the subtotal), issued ones or drafts ready to issue, oldest first. */
@@ -124,8 +127,8 @@ export class FakeGoals {
       .map((invoice) => {
         const view = this.host.ask('venture.invoice.get', { invoiceId: invoice.id }) as InvoiceViewLite;
         const subtotal = view.figures.find((figure) => figure.key === 'subtotal')?.display ?? '0';
-        return { invoice, minor: paise(subtotal), client: view.client.name };
-      });
+        return { invoice, minor: paise(subtotal), client: view.client.name, currency: view.invoice.currency };
+      }).filter(item => item.currency === this.country().currency);
   }
 
   private view(month: string | null): GoalView {
@@ -134,7 +137,12 @@ export class FakeGoals {
     const chosen = month ?? current;
     const away = monthsBetween(current, chosen);
     if (away < -MONTHS_BACK || away > MONTHS_AHEAD) throw invalid('Choose a month from two years back to one year ahead.');
-    const goal = this.inUse(chosen);
+    const prior = this.inUse(chosen), currency = this.country().currency;
+    const moved = !!this.venture()?.venture.originalCountry && prior !== null && prior.currency !== currency;
+    if (prior && !moved && prior.currency !== currency) throw new EngineError('CURRENCY_CONFLICT', 'The goal and business use different currencies.');
+    const goal = moved ? null : prior;
+    const months = new Set(goal ? [chosen] : [chosen, previousMonth(chosen)]);
+    const otherCurrencies = (this.host.ask('venture.invoice.list', {}) as InvoiceLite[]).some(invoice => invoice.issueDate && months.has(invoice.issueDate.slice(0, 7)) && (this.host.ask('venture.invoice.get', { invoiceId: invoice.id }) as InvoiceViewLite).invoice.currency !== currency);
     const isCurrent = chosen === current;
     const days = daysInMonth(chosen);
     const elapsed = today.slice(0, 7) < chosen ? 0 : today.slice(0, 7) > chosen ? days : Number(today.slice(8, 10));
@@ -148,9 +156,10 @@ export class FakeGoals {
     const invoiced = this.sum(`Invoiced in ${words}`, issued.map(({ invoice, minor, client }) => ({ label: `${invoice.number} for ${client}`, minor })), `Nothing was invoiced in ${words}.`);
     const readyFigure = this.sum(`Ready to issue in ${words}`, ready.map(({ invoice, minor, client }) => ({ label: `Draft for ${client}, dated ${invoice.issueDate}`, minor })), `No drafts are ready to issue in ${words}.`);
     // The books' own received figure for this month (the sample books are this month's).
-    const books: BooksSummaryLite | null = isCurrent ? BOOKS[this.host.current()] ?? null : null;
+    const changedCountry = !!this.venture()?.venture.originalCountry || currency !== 'INR';
+    const books: BooksSummaryLite | null = isCurrent ? changedCountry ? this.host.ask('venture.books.summary', { period: chosen }) as BooksSummaryLite | null : BOOKS[this.host.current()] ?? null : null;
     const received = books?.figures.find((figure) => figure.operation === 'received');
-    const receivedSoFar: GoalFigure = received ? { display: received.display, receiptId: received.receiptId } : { display: inr(0), receiptId: null };
+    const receivedSoFar: GoalFigure = received ? { display: received.display, receiptId: received.receiptId } : { display: this.money(0), receiptId: null };
 
     let goalFigure: GoalView['goal'] = null, stillToInvoice: GoalView['stillToInvoice'] = null, lastMonth: GoalView['lastMonth'] = null;
     let invoicedPermille: number | null = null, readyPermille: number | null = null, pace: GoalView['pace'] = null, paceReceiptId: string | null = null;
@@ -162,7 +171,7 @@ export class FakeGoals {
       const steps = invoicedMinor > goalMinor
         ? this.sum('Past the goal by', [...lines, { ...target, minor: -goalMinor }], '')
         : this.sum('Still to invoice toward the goal', [target, ...lines.map((line) => ({ label: `Less ${line.label}`, minor: -line.minor }))], '');
-      goalFigure = { display: inr(goalMinor), receiptId: steps.receiptId! };
+      goalFigure = { display: this.money(goalMinor), receiptId: steps.receiptId! };
       stillToInvoice = invoicedMinor < goalMinor ? { display: steps.display, receiptId: steps.receiptId! } : null;
       pastBy = invoicedMinor > goalMinor ? { display: steps.display, receiptId: steps.receiptId! } : null;
       invoicedPercent = invoicedMinor > 0 ? Math.floor((invoicedMinor * 100) / goalMinor) : 0;
@@ -172,7 +181,7 @@ export class FakeGoals {
       if (isCurrent) {
         const paceMinor = Math.ceil((goalMinor * elapsed) / days);
         const when = `day ${elapsed} of ${days}`;
-        const paceLine = { label: `Today's pace: ${when} of the ${inr(goalMinor)} goal`, minor: paceMinor };
+        const paceLine = { label: `Today's pace: ${when} of the ${this.money(goalMinor)} goal`, minor: paceMinor };
         pace = invoicedMinor >= paceMinor ? 'ahead' : 'behind';
         const by = pace === 'ahead'
           ? this.sum(`Ahead of today's pace (${when}) by`, [...lines, { ...paceLine, minor: -paceMinor }], '')
@@ -192,7 +201,7 @@ export class FakeGoals {
       invoicedPermille, readyPermille, pacePermille, pace, paceReceiptId,
       invoicedPercent, pacePercent: Math.floor(pacePermille / 10), past: pastBy !== null, pastBy, paceBy,
       elapsedDays: elapsed, monthDays: days, daysLeft: days - elapsed, lastDay: isCurrent && elapsed === days, lastMonth,
-      line: this.line(chosen, goal, invoicedMinor, pace, pacePermille), ...ahead,
+      line: [this.line(chosen, goal, invoicedMinor, pace, pacePermille), ...(moved ? [`Your previous goal is in ${prior!.currency}. Set a new goal in ${currency}.`] : []), ...(otherCurrencies ? [`Totals are in ${currency}; other currencies are excluded without conversion.`] : [])].join(' '), ...ahead,
     };
   }
 
@@ -219,8 +228,10 @@ export class FakeGoals {
       const receipt = RECEIPTS.find((item) => item.id === id) ?? this.receipt(id);
       if (!receipt || receipt.stale) continue;
       const total = receipt.figures.find((figure) => figure.key === 'total') ?? receipt.figures.at(-1);
+      const currency = total?.display.startsWith('₹') ? 'INR' : /^([A-Z]{3})\s/.exec(total?.display ?? '')?.[1];
+      if (currency !== this.country().currency) continue;
       const minor = total ? paise(total.display) : 0;
-      if (minor > 0) return { minor, display: inr(minor), receiptId: id };
+      if (minor > 0) return { minor, display: this.money(minor), receiptId: id };
     }
     return null;
   }
@@ -272,14 +283,14 @@ export class FakeGoals {
     exact(p, ['month', 'amountMinor', 'amount'], ['month']);
     if ((p.amount === undefined) === (p.amountMinor === undefined)) throw invalid('Send the goal as amount (typed) or amountMinor, not both.');
     const month = monthText(p.month);
-    const amountMinor = p.amountMinor === undefined ? typedGoal(p.amount) : p.amountMinor;
+    const amountMinor = p.amountMinor === undefined ? typedGoal(p.amount, this.country().currency) : p.amountMinor;
     if (typeof amountMinor !== 'string' || !GOAL_AMOUNT.test(amountMinor)) {
       throw new EngineError('GOAL_INVALID', 'A goal must be a whole amount above zero, at most 15 digits in the smallest unit of your currency.');
     }
     const today = this.today();
     if (month < today.slice(0, 7)) throw new EngineError('GOAL_MONTH_PAST', `${monthWords(month)} is over. Choose this month or a later one.`);
     if (monthsBetween(today.slice(0, 7), month) > MONTHS_AHEAD) throw invalid('Choose this month or one up to a year ahead.');
-    this.goals.push({ id: `goal-${this.host.current()}-${this.goals.length + 1}`, businessId: this.host.current(), month, amountMinor, at: this.host.now() });
+    this.goals.push({ id: `goal-${this.host.current()}-${this.goals.length + 1}`, businessId: this.host.current(), month, amountMinor, currency: this.country().currency, at: this.host.now() });
     this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.host.now() });
     return this.view(month);
   }
@@ -298,7 +309,7 @@ export class FakeGoals {
     if (!fast || fast.presetId === 'built-in-templates' || fast.usable === false) return null;
     // The fake's model answers a round figure: five of the first priced offer, in whole rupees.
     const amountMinor = String(Number(priced[0]!.pricing.unitPriceMinor) * 5);
-    const display = inr(Number(amountMinor));
-    return { amountMinor, display, estimate: true, line: SUGGEST_LINE, typed: display.replace(/[₹,]/g, '') };
+    const display = this.money(Number(amountMinor));
+    return { amountMinor, display, estimate: true, line: SUGGEST_LINE, typed: display.replace(/[^\d.-]/g, '') };
   }
 }

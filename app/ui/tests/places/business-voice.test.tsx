@@ -149,10 +149,7 @@ describe('Business > Your voice (W4 4J22b, from 4J17)', () => {
     expect(within(learn).queryByRole('button', { name: 'Add a text' })).toBeNull();
   });
 
-  it('is in Hindi too', async () => {
-    start('#/business/voice', { language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'आवाज़' })).toBeTruthy();
-  });
+
 });
 
 describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {

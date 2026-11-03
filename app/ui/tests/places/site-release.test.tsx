@@ -3,7 +3,7 @@ import {render,screen} from '@testing-library/react';
 import {TextProvider} from '../../src/text';
 import {SiteRelease} from '../../src/places/work/desks/SiteRelease';
 import type {SiteView} from '../../src/places/work/desks/site-types';
-it('every release status is owner language rather than an internal code in Hindi',()=>{const states=['prepared','previewing','preview','healthy','releasing','released','needs-inspection','rolling-back','rolled-back'];const item={id:'s',stale:false,connection:null,releases:states.map(state=>({id:state,state}))} as unknown as SiteView;render(<TextProvider language="hi"><SiteRelease item={item} digest="d" busy={false} act={vi.fn()}/></TextProvider>);for(const state of states)expect(screen.queryByText(state,{exact:true})).toBeNull();expect(screen.getByText('जाँच बाकी है')).toBeTruthy();});
+
 
 import {SiteChecks} from '../../src/places/work/desks/SiteChecks';
 import {applySiteAudit} from '../../../../platform/runtime/venture/playbooks/website-studio/requirements';

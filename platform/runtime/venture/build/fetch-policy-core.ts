@@ -59,3 +59,9 @@ export function fetchPolicySite(url: URL): FetchPolicyRule | null {
   const found = SITES.find(item => item.hosts.some(name => host === name || host.endsWith(`.${name}`)) && (!item.pages || item.pages(url)));
   return found?.rule ?? null;
 }
+
+/**
+ * 6F3: the hosts of the sites whose terms bar automated reading of the whole site (product-page rules are left to the
+ * engine's own check), for the desktop's hidden window, which refuses every request to them.
+ */
+export const FETCH_POLICY_HOSTS: readonly string[] = Object.freeze(SITES.filter(item => !item.pages).flatMap(item => [...item.hosts]));

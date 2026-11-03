@@ -620,16 +620,16 @@
       "steps": [
         "1. Finish source review, the owner-approved outline and the article draft.",
         "2. Complete the required client-use review and approve the exact final article and companion text.",
-        "3. Copy the approved handoff into the client publishing account and publish it yourself."
+        "3. Copy the approved article into the client publishing account and publish it yourself."
       ],
-      "skipped": "A changed article needs fresh approval. No publishing password belongs in this handoff.",
+      "skipped": "A changed article needs fresh approval. No publishing password belongs in this copy.",
       "charges": {
         "line": "No charge.",
         "checkedOn": null
       },
-      "checks": "Chausar checks the saved source and exact approval before preparing the handoff. It does not check a publishing account or prove publication.",
+      "checks": "Chausar checks the saved source and exact approval before preparing your copy. It does not check a publishing account or prove publication.",
       "sends": "Sends: nothing to a publisher. Copy and publish the approved article yourself.",
-      "agentLimits": "Agents cannot publish or mark a manual handoff as a confirmed live article.",
+      "agentLimits": "Agents cannot publish or mark a copy you send as a confirmed live article.",
       "missing": null
     },
     "capabilities": []
@@ -851,11 +851,11 @@
   "discord": {
     "guide": {
       "steps": [
-        "1. Create an incoming webhook in the exact Discord server channel that you own or may manage.",
+        "1. Create an incoming message address in the exact Discord server channel that you own or may manage.",
         "2. In Connections, open More ways to connect, then Open networks. Enter the exact account and credential and approve its connection check.",
         "3. Review and accept the draft. Record the client approval where required, then approve each exact destination on Today."
       ],
-      "skipped": "Use the incoming webhook address for that channel. Chausar disables automatic mentions and waits for a returned message.",
+      "skipped": "Use the incoming message address for that channel. Chausar disables automatic mentions and waits for a returned message.",
       "charges": {
         "line": "Chausar has not checked its prices. Read its own pricing page before you sign up.",
         "checkedOn": null
@@ -941,7 +941,7 @@
       ],
       "skipped": "A technical pass is not acceptance. ACX and unqualified external Google Play synthetic narration remain blocked.",
       "charges": {
-        "line": "No charge for the local handoff. Check the distributor current terms before using its service.",
+        "line": "No charge for preparing your copy. Check the distributor current terms before using its service.",
         "checkedOn": null
       },
       "checks": "Chausar checks source, actual audio, owner listening and current rights before export. It does not check a distributor login.",

@@ -120,13 +120,13 @@ export function docx(title: string, lines: string[]): Uint8Array {
 function xlsx(figures: readonly SampleFigure[]): Uint8Array {
   const main = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
   const cell = (ref: string, text: string) => `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
-  const head = ['Figure', 'Value', 'Channel', 'From', 'To', 'Receipt'].map((text, index) => cell(`${'ABCDEF'[index]}1`, text)).join('');
+  const head = ['Figure', 'Value', 'Channel', 'From', 'To', 'Source'].map((text, index) => cell(`${'ABCDEF'[index]}1`, text)).join('');
   return storedZip([
     { name: '[Content_Types].xml', text: `${HEAD}<Types xmlns="${TYPES}">${DEFAULTS}<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>` },
     { name: '_rels/.rels', text: `${HEAD}<Relationships xmlns="${PKG}"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
     { name: 'xl/workbook.xml', text: `${HEAD}<workbook xmlns="${main}" xmlns:r="${REL}"><sheets><sheet name="Figures" sheetId="1" r:id="rId1"/></sheets></workbook>` },
     { name: 'xl/_rels/workbook.xml.rels', text: `${HEAD}<Relationships xmlns="${PKG}"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
-    { name: 'xl/worksheets/sheet1.xml', text: `${HEAD}<worksheet xmlns="${main}"><sheetData><row r="1">${head}</row>${figures.length ? figures.map((figure, index) => `<row r="${index + 2}">${[figure.label, figure.display.replace(/,/g, ''), figure.channel, figure.from, figure.to, figure.receiptId ?? ''].map((text, column) => cell(`${'ABCDEF'[column]}${index + 2}`, text)).join('')}</row>`).join('') : `<row r="2">${cell('A2', 'This report has no figures.')}</row>`}</sheetData></worksheet>` },
+    { name: 'xl/worksheets/sheet1.xml', text: `${HEAD}<worksheet xmlns="${main}"><sheetData><row r="1">${head}</row>${figures.length ? figures.map((figure, index) => `<row r="${index + 2}">${[figure.label, figure.display.replace(/,/g, ''), figure.channel, figure.from, figure.to, 'Calculated in Chausar'].map((text, column) => cell(`${'ABCDEF'[column]}${index + 2}`, text)).join('')}</row>`).join('') : `<row r="2">${cell('A2', 'This report has no figures.')}</row>`}</sheetData></worksheet>` },
   ]);
 }
 
@@ -205,12 +205,12 @@ export class FakeKitReportDesk {
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><main><h1>${escapeHtml(title)}</h1>`
       + (estimate(title) ? '<p class="note">Model estimate</p>' : '')
       + paragraphs.map((line) => `<p>${escapeHtml(line)}</p>${estimate(line) ? '<p class="note">Model estimate</p>' : ''}`).join('')
-      + figures.map((figure) => `<div class="metric"><p>${escapeHtml(figure.label)}</p><p>${escapeHtml(figure.display)}</p><p class="src">Receipt ${figure.receiptId ?? ''}</p></div>`).join('')
+      + figures.map((figure) => `<div class="metric"><p>${escapeHtml(figure.label)}</p><p>${escapeHtml(figure.display)}</p><p class="src">Calculated in Chausar</p></div>`).join('')
       + '</main></body></html>\n';
     const name = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'report';
     const made: { format: ReportFormat; bytes: Uint8Array }[] = [{ format: 'html', bytes: utf8(html) }];
     const notes: string[] = formats.includes('pdf') ? [WORDS.hosted] : [];
-    if (formats.includes('docx')) made.push({ format: 'docx', bytes: docx(estimate(title) ? `${title} (model estimate)` : title, [...paragraphs.map(line => estimate(line) ? `${line} (model estimate)` : line), ...figures.map((figure) => `${figure.label}: ${figure.display} (receipt ${figure.receiptId ?? ''})`)]) });
+    if (formats.includes('docx')) made.push({ format: 'docx', bytes: docx(estimate(title) ? `${title} (model estimate)` : title, [...paragraphs.map(line => estimate(line) ? `${line} (model estimate)` : line), ...figures.map((figure) => `${figure.label}: ${figure.display} (Calculated in Chausar)`)]) });
     if (formats.includes('xlsx')) made.push({ format: 'xlsx', bytes: xlsx(figures) });
     const files: ReportFileView[] = made.map((file) => {
       const content = base64(file.bytes);

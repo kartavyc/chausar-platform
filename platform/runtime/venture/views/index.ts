@@ -12,6 +12,8 @@ import { untrustedModeHandler, untrustedReleaseHandler } from '../policy/untrust
 import { queueViewHandler } from './queue-view.ts';
 import { caConfirmRates, caExplainDiff, caGet, caReceipt, caRecordSignoff, caSetOfRecord } from '../playbooks/ca-firm/methods.ts';
 import { rulesListHandler } from '../playbooks/rules-view.ts';
+// Wave 6 (6C5): owner attestation of locked rules, and the hard stops.
+import { rulesAttestHandler, rulesLocksHandler } from '../playbooks/rules-attest.ts';
 import { businessPauseHandler, runsResumeHandler, runsRoundGateHandler, runsSteerHandler, runsStopHandler } from '../delivery/run-controls.ts';
 import { awayGetHandler, awaySetHandler } from '../delivery/away.ts';
 import { runsAllowWritesHandler } from '../delivery/harness/write-caps.ts';
@@ -23,12 +25,19 @@ import { autoReadinessHandler } from '../policy/auto-gate.ts';
 import { shadowSummaryHandler } from '../delivery/shadow-summary.ts';
 import { queueEditHandler, queueSendBackHandler, queueSetHandler, queueSetPreviewHandler, queueUndoHandler } from './queue-actions.ts';
 import { triagePreviewHandler, triageSetHandler } from './triage.ts';
+// Wave 6 (6H3, D40): a place's layout as data.
+import { layoutChangeHandler, layoutGetHandler } from './layout.ts';
+// Wave 6 (6H1, D39): mini apps and their MCP Apps bridge.
+import { APP_HANDLERS } from '../apps/apps.ts';
 
 /** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
   'venture.queue.list': queueListHandler,
+  // Wave 6 (6H3, D40): Today's and Money's layout, read and changed by the owner (the AI changes it through MCP tools).
+  'venture.layout.get': layoutGetHandler,
+  'venture.layout.change': layoutChangeHandler,
   'venture.queue.decide': queueDecideHandler,
   'venture.runs.list': runsListHandler,
   'venture.runs.get': runsGetHandler,
@@ -53,6 +62,8 @@ export const handlers: VentureHandlerTable = {
   'venture.ca.receipt': caReceipt,
   'venture.ca.explainDiff': caExplainDiff,
   'venture.rules.list': rulesListHandler,
+  'venture.rules.locks': rulesLocksHandler,
+  'venture.rules.attest': rulesAttestHandler,
   // Ink v2 wave 4 (package 4-0 registered these; each package replaces its own lines). 4A1 Keeper and health.
   'venture.team.keeper': teamKeeperHandler,
   'venture.team.clearQuarantine': teamClearQuarantineHandler,
@@ -82,6 +93,8 @@ export const handlers: VentureHandlerTable = {
   'venture.journal.acceptBreak': journalAcceptBreakHandler,
   'venture.auto.readiness': autoReadinessHandler,
   'venture.shadow.summary': shadowSummaryHandler,
+  // Wave 6 (6H1): mini apps (apps/apps.ts).
+  ...APP_HANDLERS,
 };
 
 export { questionRowId } from './queue.ts';

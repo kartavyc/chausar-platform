@@ -21,6 +21,8 @@ import { Webhooks } from './Webhooks';
 import { SpeechOut } from './SpeechOut';
 import {OpenPosting} from './OpenPosting';
 import { SeoConnections } from './SeoConnections';
+import { WebSearch } from './WebSearch';
+import { PeopleSearch } from './PeopleSearch';
 import s from './Mailbox.module.css';
 import k from './KitConnect.module.css';
 
@@ -35,7 +37,8 @@ export function codeWords(error: unknown, t: T): string {
 
 function SearchPublishing(){return <SeoConnections embedded/>;}
 
-type Part = { id: string; title: string; label: ConnectorLabelName; Body: ComponentType };
+/** W6 6F3, 6F8: a part built but not yet run on a real account says fixture-tested in words, never a live label. */
+type Part = { id: string; title: string; label: ConnectorLabelName | 'fixture-tested'; Body: ComponentType };
 
 /** Connectors in the order the owner meets them; each opens below its row, one at a time. */
 export function KitConnect() {
@@ -52,6 +55,9 @@ export function KitConnect() {
     { id: 'apps', title: t('kit-connect.apps.title'), label: apps.data?.apps.some((app) => app.found) ? 'write' : 'planned', Body: LocalApps },
     { id: 'webhook', title: t('kit-connect.webhook.title'), label: 'write', Body: Webhooks },
     { id: 'speech', title: t('kit-connect.speech.title'), label: speech.data?.providers.some((item) => item.label === 'write') ? 'write' : 'planned', Body: SpeechOut },
+    // W6 6F3: Chausar's polite page reader reads (run live); 6F8: people search waits on the owner's own keys.
+    { id: 'web-search', title: t('web-people.search.title'), label: 'read', Body: WebSearch },
+    { id: 'people-search', title: t('web-people.people.title'), label: 'fixture-tested', Body: PeopleSearch },
   ];
   return (
     <Tile as="section" labelledBy={titleId} className={s.card} data-kit-connect="">
@@ -68,7 +74,7 @@ export function KitConnect() {
                     <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={16} />
                     <span>{part.title}</span>
                   </button>
-                  <ConnectorLabel label={part.label} />
+                  {part.label === 'fixture-tested' ? <span className={k.small}>{t('web-people.fixture')}</span> : <ConnectorLabel label={part.label} />}
                 </div>
                 {expanded && <Body />}
               </li>

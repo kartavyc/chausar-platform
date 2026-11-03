@@ -69,7 +69,6 @@ describe('state words for wave 4 (4J22a): drift against the engine lists', () =>
       for (const value of values) {
         const word = stateWord(kind as StateKind, value);
         expect(CATALOGUES.en[word.key], word.key).toBeDefined();
-        expect(CATALOGUES.hi[word.key], word.key).toBeDefined();
         expect(STATE_TONES).toContain(word.tone);
       }
     }

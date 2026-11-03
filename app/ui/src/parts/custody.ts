@@ -40,7 +40,7 @@ export function groupsOf(code: string): string[] {
 /** A moment as the reader's calendar writes it: "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
 export function momentOf(at: string, language: string): string {
   const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 /**

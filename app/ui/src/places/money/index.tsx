@@ -18,6 +18,8 @@ import { useT } from '../../text';
 import { setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
 import { PageTitle } from '../../parts/PageTitle';
+// W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
+import { ArrangeButton } from '../../parts/layout/ArrangeButton';
 import { Segmented, type SegmentLink } from '../../parts/Segmented';
 import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
@@ -28,6 +30,7 @@ import { Bills } from './Bills';
 import { Books } from './Books';
 import { ExportButton } from './ExportButton';
 import { InvoiceSheet } from './InvoiceSheet';
+import { BillingSheet } from './BillingSheet';
 import { Invoices } from './Invoices';
 import { Journal } from './Journal';
 import { LimitSheet } from './LimitSheet';
@@ -71,7 +74,7 @@ export function Place() {
 
   return (
     <>
-      <PageTitle title={t('place.money')} line={sub === undefined ? t('money.line') : undefined} />
+      <PageTitle title={t('place.money')} line={sub === undefined ? t('money.line') : undefined} tools={sub === undefined ? <ArrangeButton place="money" /> : undefined} />
       <StorageNotice />
       <div className={s.toolbar}>
         <Segmented mode="links" label={t('money.nav')} value={sub ?? 'overview'} options={links} />
@@ -131,4 +134,6 @@ function MonthPicker({ month }: { month: string }) {
 
 export const sheets: Readonly<Record<string, SheetComponent>> = {
   invoice: InvoiceSheet, payment: PaymentSheet, limit: LimitSheet, accountant: AccountantSheet,
+  // Wave 6 (6D2): how clients pay, the owner's billing settings.
+  billing: BillingSheet,
 };

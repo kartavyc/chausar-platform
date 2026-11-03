@@ -45,7 +45,7 @@
   "pb-translation-media.group": "Group",
   "pb-translation-media.quota": "Provider allowance reached. No further sentence will be sent.",
   "pb-translation-media.resume": "I checked the allowance. Resume.",
-  "pb-translation-media.handoff": "Disclosed audio handoff",
+  "pb-translation-media.handoff": "Audio copy with AI disclosure",
   "pb-translation-media.handoffHelp": "Listen to the complete track. Tell the client this is an AI stock voice. You upload it yourself; nothing is posted here.",
   "pb-translation-media.disclose": "Include AI voice disclosure and YouTube altered-content checklist",
   "pb-translation-media.export": "Download disclosed track",

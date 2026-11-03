@@ -54,9 +54,9 @@ export function microsAsUsd(micros: MicroString): string {
   return `${value / 1_000_000n}.${fraction}`;
 }
 
-/** Owner-typed monthly limit of one AI connection in US dollars ('5', '12.50') to micros ('12500000'). 0.01 to 1000. */
+/** Owner-typed monthly limit of one AI connection, within the shared money representation. */
 export function monthlyCapMicros(value: unknown): MicroString {
-  return usdToMicros(value, { field: 'Monthly limit', decimals: 2, min: '10000', max: '1000000000' });
+  return usdToMicros(value, { field: 'Monthly limit', decimals: 2, min: '10000' });
 }
 
 export const ESTIMATE_WORDS = ' (estimate, price unconfirmed)';

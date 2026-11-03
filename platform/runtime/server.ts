@@ -12,14 +12,28 @@ import { SSE_HEADERS, SSE_HEARTBEAT, SSE_PREAMBLE, sseFrame } from './venture/vi
 import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
+import { createPhoneAccess, privatePeer } from './phone-access.ts';
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
   ...CUSTODY_METHODS]);
 
 /** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */
 export type InkBuild = { folder: string; files: Record<string, string> };
+/**
+ * W6 6F7: the phone listener's side of this server (phone-access.ts makes it). bind: the address it listens on. hosts:
+ * the host:port names a phone may use (this computer's home network and Tailscale addresses). pair: exchanges a one-time
+ * code from a pairing link for a member session. accepts: whether a bearer is a phone session this listener issued.
+ */
+export type PhoneListener = { bind: string; hosts(port: number): string[]; pair(code: unknown): Promise<{ token: string; expiresAt: string }>; accepts(token: string): boolean };
+/**
+ * Methods a phone never sends, on top of the bootstrap-only ones: sessions, invitations, members, the companion's pairing,
+ * the trust settings and the workspace itself (it may read the workspace status).
+ */
+const PHONE_REFUSED = /^(auth|phone|members|trust)\.|^workspace\.(?!status$)/;
 const validToken = (actual: string, expected: string) => Buffer.byteLength(actual) === Buffer.byteLength(expected) && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -43,9 +57,16 @@ async function body(req: IncomingMessage) {
  * The owner's loopback server: the Ink app at / and the named requests at /api/rpc. The entrypoint always passes the Ink
  * build, listed before the engine opens; without it (tests of the API alone) every application file answers 404.
  */
-export function createLocalServer(engine: Engine, options: { token?: string; port?: number; ink?: InkBuild } = {}) {
+export function createLocalServer(engine: Engine, options: { token?: string; port?: number; ink?: InkBuild; phone?: PhoneListener } = {}) {
   const token = options.token ?? randomBytes(32).toString('hex'); let origin = ''; let closing = false;
   const ink = options.ink ?? null;
+  // W6 6F7: in phone mode this server is the phone listener: home-network peers only, phone sessions only, channel 'phone'.
+  const phone = options.phone ?? null;
+  const phoneContext = (bearer: string) => {
+    check(phone!.accepts(bearer), 'UNAUTHENTICATED', 'Pair this phone again from the Chausar app on your computer.');
+    try { return engine.contextForSession(bearer, 'phone'); }
+    catch { throw Object.assign(new Error('This phone session ended. Pair again from the Chausar app on your computer.'), { code: 'UNAUTHENTICATED' }); }
+  };
   // Open /api/events streams: closing the server ends them, so a shutdown never waits on a page that stays open.
   const streams = new Set<ServerResponse>();
   const server = createServer(async (req, res) => {
@@ -54,14 +75,29 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     try {
       const host = req.headers.host ?? ''; const expectedHost = new URL(origin).host;
-      check(req.socket.remoteAddress === '127.0.0.1' || req.socket.remoteAddress === '::ffff:127.0.0.1', 'INVALID_HOST', 'The owner instance accepts loopback clients only.');
-      check(host === expectedHost, 'INVALID_HOST', 'Only this loopback address is allowed.');
-      check(!req.headers.origin || req.headers.origin === origin, 'INVALID_ORIGIN', 'Cross-origin requests are blocked.');
+      if (phone) {
+        check(privatePeer(req.socket.remoteAddress), 'INVALID_HOST', 'Phone access accepts phones on this home network or Tailscale only.');
+        check(phone.hosts(Number(new URL(origin).port)).includes(host), 'INVALID_HOST', 'Open the pairing link exactly as Chausar made it.');
+        check(!req.headers.origin || req.headers.origin === `http://${host}`, 'INVALID_ORIGIN', 'Cross-origin requests are blocked.');
+      } else {
+        check(req.socket.remoteAddress === '127.0.0.1' || req.socket.remoteAddress === '::ffff:127.0.0.1', 'INVALID_HOST', 'The owner instance accepts loopback clients only.');
+        check(host === expectedHost, 'INVALID_HOST', 'Only this loopback address is allowed.');
+        check(!req.headers.origin || req.headers.origin === origin, 'INVALID_ORIGIN', 'Cross-origin requests are blocked.');
+      }
       check(req.headers['sec-fetch-site'] !== 'cross-site', 'INVALID_ORIGIN', 'Cross-site browser requests are blocked.');
       const url = new URL(req.url ?? '/', origin);
       // Client share links open only on the hosted web server (hosted/server.ts); this computer serves none, and no
       // client's file request page (/share/<token>/upload, 4J7) either.
       check(url.pathname !== '/share' && !url.pathname.startsWith('/share/'), 'NOT_FOUND', 'Share links open only on the hosted Chausar.');
+      // The phone listener never serves the desktop's own routes: the companion protocol, the bootstrap session or MCP.
+      check(!phone || !['/api/companion/rpc', '/api/session', '/mcp'].includes(url.pathname), 'NOT_FOUND', 'This address is not served to phones.');
+      if (phone && url.pathname === '/api/phone/pair') {
+        check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use POST to pair a phone.');
+        check((req.headers['content-type'] ?? '').startsWith('application/json'), 'INVALID_CONTENT_TYPE', 'Use a JSON request.');
+        const data = await body(req);
+        check(data && typeof data === 'object' && typeof data.code === 'string' && Object.keys(data).length === 1, 'INVALID_REQUEST', 'Send the pairing code from the link.');
+        return send(200, await phone.pair(data.code));
+      }
       if (url.pathname === '/api/companion/rpc') {
         check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
         return await engine.handleCompanionHttp(req, res);
@@ -79,8 +115,9 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         const auth = req.headers.authorization ?? '';
         check(auth.startsWith('Bearer '), 'UNAUTHENTICATED', 'This request needs a current local session.');
         // The owner's own stream (the bootstrap token, or a session with the owner's role) is the owner watching (4G1).
-        let ownerStream = validToken(auth.slice(7), token);
-        if (!ownerStream) {
+        let ownerStream = !phone && validToken(auth.slice(7), token);
+        if (phone) ownerStream = phoneContext(auth.slice(7)).role === 'owner';
+        else if (!ownerStream) {
           try { ownerStream = engine.contextForSession(auth.slice(7)).role === 'owner'; }
           catch { throw Object.assign(new Error('This workspace session expired or was revoked.'), { code: 'UNAUTHENTICATED' }); }
         }
@@ -98,9 +135,10 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use POST for named requests.');
         const auth = req.headers.authorization ?? '';
         check(auth.startsWith('Bearer '), 'UNAUTHENTICATED', 'This request needs a current local session.');
-        const suppliedToken = auth.slice(7); const bootstrap = validToken(suppliedToken, token);
+        const suppliedToken = auth.slice(7); const bootstrap = !phone && validToken(suppliedToken, token);
         let context;
-        if (bootstrap) context = engine.bootstrapContext();
+        if (phone) context = phoneContext(suppliedToken);
+        else if (bootstrap) context = engine.bootstrapContext();
         else {
           try { context = engine.contextForSession(suppliedToken); }
           catch { throw Object.assign(new Error('This workspace session expired or was revoked.'), { code: 'UNAUTHENTICATED' }); }
@@ -109,6 +147,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         const data = await body(req);
         if (url.pathname === '/mcp') return send(200, await engine.requestAs(context, 'mcp.handle', data));
         if (BOOTSTRAP_ONLY_METHODS.includes(data.method)) check(bootstrap, 'FORBIDDEN', 'This operation requires the trusted local owner bootstrap session.');
+        check(!phone || !PHONE_REFUSED.test(String(data.method)), 'FORBIDDEN', 'Do this in the Chausar app on your computer.');
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
@@ -125,8 +164,19 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
   return {
     server, token,
     async listen() {
-      await new Promise<void>((resolveListen, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', () => { server.off('error', reject); resolveListen(); }); });
-      const address = server.address(); check(address && typeof address === 'object', 'SERVER_FAILED', 'No local port was assigned.'); origin = `http://127.0.0.1:${address.port}`; return { origin, token };
+      const bind = phone?.bind ?? '127.0.0.1';
+      await new Promise<void>((resolveListen, reject) => { server.once('error', reject); server.listen(options.port ?? 0, bind, () => { server.off('error', reject); resolveListen(); }); });
+      const address = server.address(); check(address && typeof address === 'object', 'SERVER_FAILED', 'No local port was assigned.'); origin = `http://${bind}:${address.port}`; return { origin, token };
+    },
+    /** W6 6F7: closes this listener only (the phone listener), never the engine: open streams end, then connections. */
+    async stopListening(timeoutMs = 5000) {
+      closing = true;
+      for (const stream of [...streams]) stream.end();
+      await new Promise<void>(resolveClose => {
+        const timer = setTimeout(() => server.closeAllConnections(), timeoutMs); timer.unref();
+        server.close(() => { clearTimeout(timer); resolveClose(); });
+        server.closeIdleConnections();
+      });
     },
     async close(timeoutMs = 70000) {
       check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded local server shutdown deadline.');
@@ -148,7 +198,10 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
 export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
   const demo = args.includes('--demo');
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}) } });
+  // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
+  let engine: Engine | null = null;
+  const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }) });
+  return engine = new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}), phoneAccess } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

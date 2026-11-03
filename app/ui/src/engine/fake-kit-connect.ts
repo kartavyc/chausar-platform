@@ -12,7 +12,7 @@ import {SPEECH_PROVIDER_METADATA} from './speech-provider-metadata';
 import { EngineError } from './types';
 import type {
   LocalAppView, LocalAppsView, MailImportView, MailThreadView, MailThreadsView, MonitorKind, MonitorView, MonitorsView, SpeechProviderView,
-  SpeechProvidersView, WebhookKind, WebhookView,
+  SpeechProvidersView, WebhookKind, WebhookSendView, WebhookView,
 } from './types';
 import type { W4DeskHost } from './fake-w4';
 
@@ -24,6 +24,7 @@ const METHODS = new Set<string>([
   'venture.mail.threads',
   'venture.localApps.list',
   'venture.webhook.set',
+  'venture.webhook.send',
   'venture.speechOut.providers',
 ]);
 
@@ -49,7 +50,8 @@ const WORDS = {
   apps: 'Apps on your computer run only in the desktop app.',
   install: 'Install it yourself; Chausar never installs it.',
   choose: 'Choose n8n or Make.',
-  https: 'Use the https address n8n or Make gives the webhook.',
+  https: 'Use the https receiving address n8n or Make gives you.',
+  secret: 'Add a signing secret of 16 to 256 characters with no spaces, the same one your check in n8n or Make uses.',
   speech: "Add your Google Cloud key in the narration desk. Other providers remain planned; make audio in their own site meanwhile.",
 } as const;
 const MAX_MAIL_FILE_BYTES = 25 * 1024 * 1024;
@@ -85,7 +87,7 @@ function checkedUrl(raw: unknown, reading = true): URL {
 
 interface Monitor extends MonitorView { at: string }
 interface Mail { id: string; messageId: string; references: string[]; from: string; subject: string; date: string; source: 'mailbox' | 'file-import'; held: boolean; text?: string | null; to?: string[] }
-interface Book { monitors: Monitor[]; mail: Mail[]; webhooks: Partial<Record<WebhookKind, string>> }
+interface Book { monitors: Monitor[]; mail: Mail[]; webhooks: Partial<Record<WebhookKind, string>>; sent: Set<string> }
 
 const LOCAL_APPS: readonly { id: LocalAppView['id']; name: string; note: string; licence: string }[] = [
   { id: 'baocut', name: 'BaoCut', note: 'Video cutting and dubbing on this computer, through its public command line.', licence: 'Source-available (BaoCut Community License): Chausar never bundles it and drives only a copy you installed.' },
@@ -170,7 +172,7 @@ export class FakeKitConnectDesk {
     const business = this.host.current();
     let book = this.books.get(business);
     if (!book) {
-      book = { monitors: [], mail: [], webhooks: {} };
+      book = { monitors: [], mail: [], webhooks: {}, sent: new Set() };
       if (!this.fresh) {
         const at = this.host.now();
         book.monitors.push({
@@ -196,6 +198,7 @@ export class FakeKitConnectDesk {
       case 'venture.mail.threads': return this.mailThreads(p);
       case 'venture.localApps.list': return this.localApps(p);
       case 'venture.webhook.set': return this.webhookSet(p);
+      case 'venture.webhook.send': return this.webhookSend(p);
       case 'venture.speechOut.providers': exact(p, [], []); return clone({ providers: [...SPEECH], line: WORDS.speech } satisfies SpeechProvidersView);
       default: throw new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.');
     }
@@ -361,23 +364,69 @@ export class FakeKitConnectDesk {
   }
 
   private webhookSet(p: Record<string, unknown>): WebhookView {
-    exact(p, ['kind', 'url', 'test'], ['kind', 'url']);
+    exact(p, ['kind', 'url', 'secret', 'test'], ['kind', 'url']);
     if (p.kind !== 'n8n' && p.kind !== 'make') throw invalid(WORDS.choose);
     const kind = p.kind;
     if (p.test !== undefined && typeof p.test !== 'boolean') throw invalid('test is true or false.');
     const book = this.book();
     if (p.url === null) {
+      if (p.secret !== undefined) throw invalid('Clearing the address needs no secret.');
       delete book.webhooks[kind];
-      return { kind, set: false, host: null, line: `No ${NAMES[kind]} webhook is set. Chausar sends nothing there.`, test: null };
+      return { kind, set: false, host: null, line: `No ${NAMES[kind]} connection is set. Chausar sends nothing there.`, test: null };
     }
-    if (typeof p.url !== 'string' || p.url.length > 2000) throw invalid('Paste the webhook address from n8n or Make.');
+    // W6 6F4: the signing secret is checked before the address, as the engine checks it.
+    if (typeof p.secret !== 'string' || !/^[\x21-\x7e]{16,256}$/.test(p.secret)) throw invalid(WORDS.secret);
+    if (typeof p.url !== 'string' || p.url.length > 2000) throw invalid('Paste the receiving address from n8n or Make.');
     const url = checkedUrl(p.url, false);
     if (url.protocol !== 'https:') throw invalid(WORDS.https);
     book.webhooks[kind] = url.href;
-    const kept = `Your ${NAMES[kind]} webhook at ${url.hostname} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`;
+    const kept = `Your ${NAMES[kind]} connection at ${url.hostname} is set. Chausar sends an item there only after you approve that exact item. It keeps the address only while the app is open.`;
     if (p.test !== true) return { kind, set: true, host: url.hostname, line: kept, test: null };
-    return { kind, set: true, host: url.hostname, line: `The test item reached your ${NAMES[kind]} webhook. ${kept}`, test: 'answered' };
+    return { kind, set: true, host: url.hostname, line: `The test item reached your ${NAMES[kind]} connection. ${kept}`, test: 'answered' };
   }
+
+  /**
+   * W6 6F4: build/webhook-handoff.ts webhookSend. Without digest, the preview; with it, the send of exactly that text to
+   * the registered address, refused APPROVAL_STALE when either changed and JOURNAL_ALREADY_DECIDED for a subject already
+   * sent. The fake sends nothing: its receiving end always takes the item on the first try.
+   */
+  private webhookSend(p: Record<string, unknown>): WebhookSendView {
+    exact(p, ['kind', 'subject', 'payload', 'digest'], ['kind', 'subject', 'payload']);
+    if (p.kind !== 'n8n' && p.kind !== 'make') throw invalid(WORDS.choose);
+    const kind: WebhookKind = p.kind;
+    if (typeof p.subject !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(p.subject)) throw invalid('The subject must be a known identifier.');
+    if (p.digest !== undefined && typeof p.digest !== 'string') throw invalid('Send back the digest you were shown.');
+    const book = this.book();
+    const href = book.webhooks[kind];
+    if (!href) throw new EngineError('WEBHOOK_NOT_SET', `No ${NAMES[kind]} connection is set. Set its address under Connections first.`);
+    const host = new URL(href).hostname;
+    const text = JSON.stringify(canonicalJson(p.payload));
+    if (typeof text !== 'string') throw invalid('Send an item to deliver.');
+    if (new TextEncoder().encode(text).length > 64 * 1024) throw invalid('This item is too large to send. Keep it under 64 KB.');
+    const digest = fakeDigest(`${kind}\n${href}\n${text}`);
+    const view = { kind, host, text, digest };
+    if (p.digest === undefined) return { ...view, state: 'preview', status: null, deliveryId: null, attempts: 0, entryId: null, line: `This exact item goes to your ${NAMES[kind]} connection at ${host}, signed, once you approve it.` };
+    if (p.digest !== digest) throw new EngineError('APPROVAL_STALE', 'This item or its address changed since you saw it. Look at it again before sending.');
+    const subject = `${kind}:${p.subject}`;
+    if (book.sent.has(subject)) throw new EngineError('JOURNAL_ALREADY_DECIDED', 'This was already decided. Chausar never does the same thing twice.');
+    book.sent.add(subject);
+    const entryId = `journal_fake${book.sent.size}`;
+    const deliveryId = `${entryId}.once`;
+    return { ...view, state: 'applied', status: 200, deliveryId, attempts: 1, entryId, line: `Your ${NAMES[kind]} connection took it (200). Delivery ${deliveryId}, try 1.` };
+  }
+}
+
+/** The engine's canonical JSON: keys in order, so the same item is always the same text. */
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalJson((value as Record<string, unknown>)[key])]));
+  return value;
+}
+/** A stable digest for the fake (FNV-1a, hex); the engine's is SHA-256. Only equality matters to callers. */
+function fakeDigest(text: string): string {
+  let hash = 0x811c9dc5;
+  for (const char of text) { hash ^= char.codePointAt(0)!; hash = Math.imul(hash, 0x01000193) >>> 0; }
+  return hash.toString(16).padStart(8, '0');
 }
 
 /** Reuse the fake network policy in desks that read public sites. */

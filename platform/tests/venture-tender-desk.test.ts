@@ -1,3 +1,4 @@
+import {consentForOrder} from './fixtures/venture/scripted-agent.ts';
 // Real public desk approval and source-erasure fences, no portal or network stand-ins.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,6 +32,7 @@ test('owner commercial authorship never exempts certifications or figures from s
 });
 test('AI preview binds exact question and actual sources, sends only after approval and consumes that approval',async()=>{
  const f=await fixture();await f.act('import',f.selection);let view=await f.get();const questionId=view.item.rows.find((r:any)=>!r.question.ownerOnly).question.id;let calls=0;
+ await consentForOrder(f.env.deps,owner,f.order.id);
  f.env.deps.models.preview=(async(_ctx:any,task:any)=>({callId:'tender-call',payloadText:JSON.stringify(task.input),digest:'exact-request',presetId:'anthropic-sonnet-5-5',model:'fixture',endpoint:'https://example.com/model',estimatedMaxCostMicros:'1000',estimatedMaxCostDisplay:'USD 0.0010',expiresAt:'2026-10-16T00:00:00Z'})) as any;
  f.env.deps.models.runPreview=(async(_ctx:any,_id:any,_digest:any,validate:any)=>{calls++;return {value:validate({answer:'We provide support.'})};}) as any;
  const preview=await f.act('ai-preview',{questionId},view.digest) as any;assert.equal(calls,0);assert.match(preview.result.preview.payloadText,/We provide support/);

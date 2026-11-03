@@ -18,7 +18,7 @@ const FRIDAY = '2026-10-23T10:00:00.000Z';
 const THURSDAY = '2026-10-29T10:00:00.000Z';
 
 /** later: the fake's clock moves on to this moment once its sample is made (the sample is dated from its first moment). */
-async function start(hash = '#/clients/pipeline', options: { later?: string; language?: 'en' | 'hi'; prepare?: (client: Fake) => Promise<void>; override?: (client: Fake) => void } = {}) {
+async function start(hash = '#/clients/pipeline', options: { later?: string; language?: 'en'; prepare?: (client: Fake) => Promise<void>; override?: (client: Fake) => void } = {}) {
   window.location.hash = hash;
   const clock = { now: FRIDAY };
   const fake = createFakeClient(new FakeEngine({ now: () => clock.now }));
@@ -328,7 +328,7 @@ describe('Pipeline: the card sheet', () => {
     } catch (error) { refused = error as { code?: string }; }
     expect(refused.code).toBe('PIPELINE_NOT_A_QUOTE');
     await start('#/clients/pipeline?sheet=card:opp_seed_vikram&tab=move-proposal', {
-      language: 'hi',
+      language: 'en',
       override: (client) => {
         const base = client.request.bind(client) as (m: string, p?: unknown) => Promise<unknown>;
         client.request = (async (m: string, p?: unknown) => {
@@ -342,7 +342,7 @@ describe('Pipeline: the card sheet', () => {
     fireEvent.change(evidence, { target: { value: 'R-pipe-quote-reel' } });
     await click(sheet.querySelector('form button[type="submit"]') as HTMLElement);
     await settle();
-    expect(sheet.querySelector('[data-moved]')?.textContent).toBe('यह रसीद किसी ऑर्डर या बिल की है, कोटेशन की नहीं। अपना बनाया कोटेशन चुनें, या लिखें कि आपने क्या पेश किया।');
+    expect(sheet.querySelector('[data-moved]')?.textContent).toBe('That receipt is for an order or an invoice, not a quote. Choose a quote you made, or note what you offered.');
   });
 
   it('a note for Proposal keeps Move locked until it has words', async () => {
@@ -389,37 +389,15 @@ describe('Pipeline: the card sheet', () => {
   });
 });
 
-describe('Pipeline in Hindi, and with nobody on it', () => {
-  it('renders in Hindi with no key showing as text', async () => {
-    const { container } = await start('#/clients/pipeline', { language: 'hi' });
-    await screen.findByRole('button', { name: 'Tara Iyer' });
-    expect(container.textContent).not.toMatch(/clients\.[a-z]/);
-    expect(container.textContent).not.toMatch(/(board|state)\.[a-z]/);
-  });
-
-  it('in Hindi, card lines the engine gives in parts read from those parts: the day, the draft\'s channel, how long since they wrote', async () => {
-    await start('#/clients/pipeline', { language: 'hi' });
-    await screen.findByRole('heading', { level: 3, name: 'Tara Iyer' });
-    const root = document.body;
-    const tara = await waitFor(() => cardOf(root, 'Tara Iyer'));
-    const next = tara.querySelector('[data-next]')!.textContent!;
-    expect(next).toMatch(/^Follow up, \d+ /);
-    expect(next).not.toMatch(/Oct|due/);
-    expect(cardOf(root, 'Kabir Sethi').querySelector('[data-draft]')!.textContent).toBe('मेल के लिए ड्राफ़्ट');
-    await click(within(cardOf(root, 'Vikram Bhat')).getByRole('button', { name: 'Vikram Bhat' }));
-    const sheet = await screen.findByRole('complementary', { name: 'Vikram Bhat' });
-    expect(sheet.querySelector('[data-thread]')!.textContent).toBe('बातचीत जारी है: उन्होंने 3 दिन पहले लिखा।');
-  });
-
-  it('an empty pipeline says so in one sentence, with its ways forward', async () => {
+describe('Pipeline empty and failed states in English', () => {
+it('an empty pipeline says so in one sentence, with its ways forward', async () => {
     await start('#/clients/pipeline', { prepare: async (client) => { await client.request('workspace.open', { folder: 'ledgerline' }); } });
     expect(await screen.findByText('Nobody is in your pipeline yet.')).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Pipeline board' })).toBeNull();
     assertInkRules(document.body);
     assertOnePrimary(document.body);
   });
-
-  it('says so when the board cannot be read, and draws no board', async () => {
+it('says so when the board cannot be read, and draws no board', async () => {
     await start('#/clients/pipeline', {
       override: (client) => {
         const base = client.request.bind(client) as (m: string, p?: unknown) => Promise<unknown>;

@@ -12,7 +12,7 @@ const source = { label: 'words.json', durationMs: 10000, words: [
   { id: 'w1', text: 'We', startMs: 0, endMs: 1000 }, { id: 'w2', text: 'make', startMs: 1000, endMs: 2000 }, { id: 'w3', text: 'coffee', startMs: 2000, endMs: 3000 },
 ] };
 afterEach(() => vi.unstubAllGlobals());
-function start(language: 'en' | 'hi' = 'en') {
+function start(language: 'en' = 'en') {
   let sourceFingerprint = 'source-bytes';
   const orders = [{ id: 'order1', request: 'Our coffee video', status: 'open', intake: { rights: { basis: 'own-footage', holder: 'Asha' } } }];
   const host = { current: () => 'b1', now: () => '2026-10-27T10:00:00Z', hosted: () => false, uploadFingerprint: () => sourceFingerprint, digest: (value: unknown) => JSON.stringify(value), emit: () => {}, ask: (method: string) => method === 'venture.files.list' ? [{id:'upload_source',name:'source.srt',at:'2026-10-27',bytes:30,format:'transcript',scope:{kind:'order',orderId:'order1'}}] : method === 'venture.assets.list' ? {assets:[]} : orders } as unknown as W4DeskHost;
@@ -68,9 +68,5 @@ describe('YouTube word editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo request' }));
     await waitFor(() => expect(screen.queryByText('Cut 1 passage, 3 s shorter.')).toBeNull());
   });
-  it('shows the desk and its import path in Hindi', async () => {
-    start('hi');
-    expect(await screen.findByRole('heading', { name: 'शब्दों से वीडियो संपादित करें' })).not.toBeNull();
-    expect(screen.getByLabelText('मापे गए शब्द समय की जेएसओएन फ़ाइल')).not.toBeNull();
-  });
+
 });

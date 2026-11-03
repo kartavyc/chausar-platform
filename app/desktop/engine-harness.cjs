@@ -4,6 +4,7 @@ const { randomUUID } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
 const { createFormsRelay } = require('./owner-browser-relay.cjs');
+const { createCredentialRelay } = require('./credential-relay.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 /**
@@ -23,6 +24,50 @@ function printRelay(harness, child, message) {
   const scripts = Array.isArray(message.scripts) ? message.scripts : [];
   if (harness.listenerCount('print') === 0 || typeof message.html !== 'string' || message.html.length > 2_000_000 || !scripts.every(script => script === 'latin' || script === 'devanagari')) { answer(null); return; }
   try { harness.emit('print', Object.freeze({ html: message.html, scripts: [...scripts] }), answer); } catch { answer(null); }
+}
+/**
+ * Wave 6 (6F3): a page the engine asks to read with JavaScript. Checked here (an id, an http or https address, a deadline,
+ * the barred hosts), passed to main's 'render' listener with one answer function (web-render.cjs), and answered to the
+ * worker once as { kind: 'host-render-result', renderId, ok, html, finalUrl | reason }. No listener or a bad ask: failed.
+ */
+function renderRelay(harness, child, message) {
+  const renderId = typeof message.renderId === 'string' && /^[0-9a-f-]{36}$/.test(message.renderId) ? message.renderId : null;
+  if (!renderId) return;
+  let answered = false;
+  const answer = result => {
+    if (answered) return; answered = true;
+    const ok = result && result.ok === true && typeof result.html === 'string' && result.html.length <= 2 * 1024 * 1024 && typeof result.finalUrl === 'string';
+    const reply = ok ? { ok: true, html: result.html, finalUrl: result.finalUrl } : { ok: false, reason: result?.reason === 'refused' || result?.reason === 'timeout' ? result.reason : 'failed' };
+    try { if (child.connected) child.send({ kind: 'host-render-result', renderId, ...reply }, () => {}); } catch { /* the engine is gone; its port times out */ }
+  };
+  const hosts = Array.isArray(message.blockedHosts) ? message.blockedHosts : null;
+  const plain = typeof message.url === 'string' && message.url.length <= 2048 && /^https?:\/\//i.test(message.url);
+  if (harness.listenerCount('render') === 0 || !plain || !hosts || hosts.length > 200 || !hosts.every(host => typeof host === 'string' && host.length <= 253) || !Number.isFinite(message.timeoutMs)) { answer(null); return; }
+  try { harness.emit('render', Object.freeze({ url: message.url, timeoutMs: message.timeoutMs, blockedHosts: [...hosts] }), answer); } catch { answer(null); }
+}
+/**
+ * Wave 6 (6H2, D41): one step of a recorded flow the engine asks the desktop's flow window to take (flow-browser.cjs).
+ * Checked here (an id, a run, a known step, a payload within bounds), passed to main's 'flows' listener with one answer
+ * function, and answered to the worker once as { kind: 'host-flows-result', callId, ok, result | code }. No listener,
+ * or an ask out of bounds: FLOW_BROWSER_UNAVAILABLE, and main never sees it.
+ */
+const FLOW_OPS = new Set(['record', 'open', 'find', 'fill', 'click', 'facts', 'controls', 'close']);
+function flowsRelay(harness, child, message) {
+  const callId = typeof message.callId === 'string' && /^[0-9a-f-]{36}$/.test(message.callId) ? message.callId : null;
+  if (!callId) return;
+  let answered = false;
+  const answer = result => {
+    if (answered) return; answered = true;
+    let reply = { ok: false, code: 'FLOW_BROWSER_CLOSED' };
+    try { if (result && result.ok === true && JSON.stringify(result.result ?? null).length <= 2_000_000) reply = { ok: true, result: result.result ?? null }; else if (typeof result?.code === 'string' && /^FLOW_[A-Z_]{1,40}$/.test(result.code)) reply = { ok: false, code: result.code }; } catch { /* an answer that cannot be read is a closed window */ }
+    try { if (child.connected) child.send({ kind: 'host-flows-result', callId, ...reply }, () => {}); } catch { /* the engine is gone; its port times out */ }
+  };
+  let encoded = null;
+  try { encoded = JSON.stringify(message.payload); } catch { encoded = null; }
+  const plain = typeof message.runId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(message.runId) && FLOW_OPS.has(message.op) && message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload) && encoded && encoded.length <= 200_000;
+  if (!plain) return;
+  if (harness.listenerCount('flows') === 0) { answer({ ok: false, code: 'FLOW_BROWSER_UNAVAILABLE' }); return; }
+  try { harness.emit('flows', Object.freeze({ runId: message.runId, op: message.op, payload: JSON.parse(encoded) }), answer); } catch { answer(null); }
 }
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
@@ -45,6 +90,8 @@ class EngineHarness extends EventEmitter {
         const child = this.options.forkProcess(this.options.workerPath, [], { execPath: this.options.execPath, execArgv: ['--experimental-strip-types'], windowsHide: true, shell: false, env: { ...this.options.environment, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
         this.worker = child;
         const forms = createFormsRelay(this, child);
+        const credentials = createCredentialRelay(this, child);
+        child.once('disconnect', () => credentials.close()); child.once('exit', () => credentials.close());
         child.once('disconnect', () => forms.close()); child.once('exit', () => forms.close());
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
@@ -53,6 +100,11 @@ class EngineHarness extends EventEmitter {
           if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
           // Ink v2 wave 5 (5A5): the engine asks main to print a report's HTML to PDF (report-print.cjs); answered once.
           if (message.kind === 'host-print' && message.id === undefined) { printRelay(this, child, message); return; }
+          // Wave 6 (6F3): the engine asks main to read a page with JavaScript in a hidden window (web-render.cjs).
+          if (message.kind === 'host-render' && message.id === undefined) { renderRelay(this, child, message); return; }
+          // Wave 6 (6H2): the engine asks main's flow window to take one step of a recorded flow (flow-browser.cjs).
+          if (message.kind === 'host-flows' && message.id === undefined) { flowsRelay(this, child, message); return; }
+          if (message.kind === 'host-credential' && message.id === undefined) { credentials.receive(message); return; }
           if ((message.kind === 'host-forms' || message.kind === 'host-forms-verified') && message.id === undefined) { forms.receive(message); return; }
           if (typeof message.id !== 'string') return;
           const pending = this.waiting.get(message.id); if (!pending) return;

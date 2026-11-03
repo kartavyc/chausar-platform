@@ -13,6 +13,6 @@ export function landedKitRules(id:string,today:string):RulesListView|null{
   rule.line=rule.stale?meta.topic+' was checked '+age+' days ago, on '+rule.checkedOn+'. Check it again'+(meta.read==='house'?'':' on its source page')+' before relying on it.'+waiting:(meta.read==='unconfirmed'?'Not confirmed against a source yet. ':'Current. ')+meta.how+waiting;
  }
  const stale=out.rules.filter(r=>r.stale).length,unsure=out.rules.filter(r=>!r.stale&&saved.metadata[r.id]!.read==='unconfirmed').length;
- out.summary=out.rules.length?`${out.rules.length-stale-unsure} current, ${stale} to recheck${unsure?`, ${unsure} not confirmed against a source yet`:''}.`:'This playbook rests on no dated platform rules.';
+ out.summary=out.rules.length?`${out.rules.length-stale-unsure} current, ${stale} to recheck${unsure?`, ${unsure} not confirmed against a source yet`:''}.`:'These work instructions have no dated platform rules.';
  return out;
 }

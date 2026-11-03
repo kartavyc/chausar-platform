@@ -9,7 +9,7 @@ import { EngineError, type CustodyViewLite, type EngineClient } from '../../src/
 const MORNING = () => new Date(2026, 9, 23, 10, 0);
 const TODAY = 'Good morning';
 
-function start(hash = '#/today', language: 'en' | 'hi' = 'en') {
+function start(hash = '#/today', language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(new FakeEngine());
   const view = render(<ClockProvider now={MORNING}><App client={client} language={language} /></ClockProvider>);
@@ -18,14 +18,14 @@ function start(hash = '#/today', language: 'en' | 'hi' = 'en') {
 const go = async (hash: string) => { await act(async () => { window.location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 
 describe('shell', () => {
-  it('shows the rail with the business, seven places (W4 4C2 added Chats) and the needs-you count, and says the data is a sample', async () => {
+  it('shows the rail with the business, eight places (W4 4C2 added Chats, W6 6H1 Apps) and the needs-you count, and says the data is a sample', async () => {
     start();
     const nav = screen.getByRole('navigation', { name: 'Places' });
     await waitFor(() => expect(within(nav).getByText('Lumen Studio')).toBeTruthy());
     expect(within(nav).getByText('YouTube channel')).toBeTruthy();
     const [brand, ...links] = within(nav).getAllByRole('link');
     expect(brand!.getAttribute('href')).toBe('#/today');
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/connections']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
     await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today13, 13 need you$/));
     expect(screen.getByRole('status').textContent).toBe('Sample data. Nothing here is real.');
@@ -86,12 +86,6 @@ describe('shell', () => {
     await waitFor(() => expect(screen.getByText(/Moved to later/)).toBeTruthy());
   });
 
-  it('speaks Hindi when asked', async () => {
-    start('#/today', 'hi');
-    expect(await screen.findByRole('heading', { level: 1, name: 'सुप्रभात' })).toBeTruthy();
-    // Exactly the rail's place: Today's team tile also links to Team (Ink v2, 3C).
-    expect(screen.getByRole('link', { name: 'टीम' })).toBeTruthy();
-  });
 });
 
 // Catalogue U14: the experimental storage notice is back beyond Keep. Today, Work and Money say it under the header.
@@ -113,7 +107,7 @@ describe('the experimental storage notice', () => {
     let read = false;
     const client: EngineClient = {
       ...fake,
-      transport: transport ?? fake.transport,
+      transport: transport ?? 'web',
       request: (async (method: string, params?: unknown) => {
         methods.push(method);
         const reply = await request(method as never, params as never);
@@ -149,6 +143,15 @@ describe('the experimental storage notice', () => {
       await settled(read);
       expect(screen.getByRole('heading', { level: 1, name: title })).toBeTruthy();
       expect(screen.queryByRole('note')).toBeNull();
+      expect(screen.queryByText(EXPERIMENTAL)).toBeNull();
+    });
+  }
+
+  for (const transport of ['desktop', 'fake'] as const) {
+    it(`hides the experimental warning on the ${transport} desktop file store`, async () => {
+      const { methods } = startWith('#/today', 'experimental-file', transport);
+      expect(await screen.findByRole('heading', { level: 1, name: TODAY })).toBeTruthy();
+      await waitFor(() => expect(methods()).toContain('venture.queue.list'));
       expect(screen.queryByText(EXPERIMENTAL)).toBeNull();
     });
   }

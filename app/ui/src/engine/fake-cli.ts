@@ -3,8 +3,7 @@
  * engine's codes, shapes, order and words (platform/runtime/venture/models/cli-status.ts, handlers.ts and roles.ts).
  *
  * The CLI status is this fake desktop's look, the same one the preset list already tells (fixtures-business.ts):
- * Claude Code is located but, while Chausar has not accepted Anthropic's terms for running it, never run, so nothing
- * more is known about it; Codex answers its version, help and sign-in commands, but this computer has no reviewed
+ * Claude Code is enabled and answers its version, help and sign-in commands; Codex does too, but this computer has no reviewed
  * Codex host profile, so Chausar does not run it. Neither has done a real task, so neither is ready. The hosted app
  * looks at nothing (TIER_UNAVAILABLE). Check again ({fresh: true}) looks again and finds the same.
  *
@@ -22,8 +21,8 @@ export const FAKE_4H2_METHODS: readonly string[] = ['venture.models.cli.status',
 
 /** The engine's words, word for word (CLI_STATUS_WORDS, ROLE_WORDS). */
 const HOSTED = 'The hosted app uses keys only.';
-/** cliListLine: only Codex ran (Claude Code is located, never run, behind the terms gate), and its help listed a sign-in command. */
-const LIST = 'Chausar ran only the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.';
+/** cliListLine: both tools answered their version, help and sign-in commands. */
+const LIST = 'Chausar ran only the version, help and sign-in commands of Claude Code and Codex on this computer. It never reads their sign-in files or keys.';
 const ONE_AGENT = 'Your team runs as one agent, so each role uses the AI that serves its kind of job: fast for the work, main for checking and writing. Choose them under Your AI. A different AI for each role is not offered.';
 const CONNECT = 'Connect your AI: until then, agents that need it wait.';
 const TEMPLATES = 'Free. Nothing is sent to any AI.';
@@ -31,9 +30,9 @@ const TEMPLATES = 'Free. Nothing is sent to any AI.';
 /** This fake desktop's look at its two tools (see the file head). */
 const LOOK: readonly CliStatusView[] = [
   {
-    cli: 'claude-code', label: 'Claude Code', found: true, path: '~\\.local\\bin\\claude.exe', version: null, flags: 'unknown', missingFlags: [],
-    signedIn: 'unknown', terms: 'pending', lastTask: null, state: 'needs-setup',
-    line: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code.", fix: 'Use an Anthropic key for now.',
+    cli: 'claude-code', label: 'Claude Code', found: true, path: '~\\.local\\bin\\claude.exe', version: '2.3.1', flags: 'match', missingFlags: [],
+    signedIn: 'yes', terms: 'accepted', lastTask: null, state: 'unverified',
+    line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
   },
   {
     cli: 'codex', label: 'Codex', found: true, path: 'C:\\Tools\\codex\\codex.exe', version: '0.131.0', flags: 'match', missingFlags: [],

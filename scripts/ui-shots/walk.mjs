@@ -2,11 +2,11 @@
 // The Ink screenshot walk and real-browser checks (w3 package 3I; catalogue U14 and Q24).
 //
 // For every case in scripts/ui-shots/cases.mjs it opens the app on the fake engine of `npm run dev:ui` in headless
-// Chrome, at 1280 and 390 wide, in the light and the dark theme (and in Hindi at 390, light), and:
-//   - takes a full-height screenshot into app/ui/.shots/ (gitignored): <case>--<width>-<theme>[-hi].png;
+// Chrome, at 1280 and 390 wide, in the light and the dark theme, and:
+//   - takes a full-height screenshot into app/ui/.shots/ (gitignored): <case>--<width>-<theme>.png;
 //   - runs axe-core (from node_modules) on the page with colour contrast ON; any violation fails the walk;
 //   - checks what jsdom cannot: no page-wide sideways scroll, no text that is a text key, no console error, and in
-//     Hindi that every count is set in the body face (base.css, `:lang(hi) [data-count]`);
+//     every count remains readable;
 //   - presses through the focus plan (J and K, the second ask, a sheet, the business menu) and checks where focus lands.
 // It writes app/ui/.shots/report.json, report.md and index.html (the boards beside the shots), and exits 1 when any
 // check fails, except the findings scripts/ui-shots/accepted.mjs lists with their reasons (reported, not failed).
@@ -17,7 +17,7 @@
 // Usage (from the repo root):
 //   node scripts/ui-shots/walk.mjs [--base=http://localhost:5178] [--port=5179] [--cdp=9481] [--workers=4]
 //                                  [--out=app/ui/.shots] [--profiles=<dir>] [--chrome=<path>] [--only=today,team]
-//                                  [--no-hindi] [--publish | --publish-only]
+//                                  [--publish | --publish-only]
 // Without --base it starts its own dev server (vite --mode fake) on --port and stops it at the end. Each worker is
 // one Chrome on its own debugging port (--cdp, --cdp+1, ...) with its own profile under --profiles (default: inside
 // --out, so on the repo's drive), removed when the walk ends.
@@ -43,7 +43,6 @@ const PROFILES = resolve(String(option('profiles', join(OUT, '.profiles'))));
 const CDP = Number(option('cdp', 9481));
 const WORKERS = Math.max(1, Math.min(8, Number(option('workers', 4))));
 const ONLY = option('only', '') ? String(option('only')).split(',') : null;
-const HINDI = !option('no-hindi', false);
 const PHONE_HEIGHT = 844;
 const DESK_HEIGHT = 860;
 const MAX_HEIGHT = 9000;
@@ -81,17 +80,16 @@ function jobsOf() {
   const jobs = [];
   for (const c of all) {
     for (const width of c.widths ?? [1280, 390]) {
-      for (const theme of ['light', 'dark']) jobs.push({ kind: 'shot', case: c, width, theme, hindi: false });
+      for (const theme of ['light', 'dark']) jobs.push({ kind: 'shot', case: c, width, theme });
     }
-    if (HINDI && c.hindi) jobs.push({ kind: 'shot', case: c, width: 390, theme: 'light', hindi: true });
   }
   for (const c of INTERACTIONS.filter((i) => !ONLY || ONLY.includes(i.id))) {
-    for (const width of c.widths ?? [1280]) jobs.push({ kind: 'focus', case: c, width, theme: 'light', hindi: false });
+    for (const width of c.widths ?? [1280]) jobs.push({ kind: 'focus', case: c, width, theme: 'light' });
   }
   return jobs;
 }
 
-const fileOf = (job) => `${job.case.id}--${job.width}-${job.theme}${job.hindi ? '-hi' : ''}.png`;
+const fileOf = (job) => `${job.case.id}--${job.width}-${job.theme}.png`;
 
 // ----------------------------------------------------------------------------------------------- in-page helpers
 
@@ -136,7 +134,7 @@ const OVERFLOW = `(() => {
 })()`;
 
 /** The checks jsdom cannot make. */
-const PAGE_CHECKS = (width, hindi) => `(() => {
+const PAGE_CHECKS = (width) => `(() => {
   const problems = [];
   const doc = document.scrollingElement;
   if (doc.scrollWidth > ${width} + 1) problems.push('the page scrolls sideways: ' + doc.scrollWidth + ' px wide in a ' + ${width} + ' px window');
@@ -156,10 +154,7 @@ const PAGE_CHECKS = (width, hindi) => `(() => {
     if (shown && keyLike.test(t) && !n.parentElement.closest('script, style, [data-content], code, .mono')) problems.push('a text key shows as text: ' + t);
     if (/\\u2014/.test(t)) problems.push('an em dash in: ' + t.slice(0, 60));
   }
-  ${hindi ? `for (const c of document.querySelectorAll('[data-count]')) {
-    const face = getComputedStyle(c).fontFamily;
-    if (!/^"?Instrument Sans/.test(face)) { problems.push('a Hindi count is not in the body face: "' + c.textContent.trim() + '" in ' + face); break; }
-  }` : ''}
+
   return problems;
 })()`;
 
@@ -174,14 +169,13 @@ async function axe(b) {
   }))`);
 }
 
-async function stepsOf(b, steps, hindi = false) {
-  const common = JSON.parse(readFileSync(join(ROOT, 'app/ui/src/text', hindi ? 'hi' : 'en', 'common.json'), 'utf8'));
+async function stepsOf(b, steps) {
+  const common = JSON.parse(readFileSync(join(ROOT, 'app/ui/src/text', 'en', 'common.json'), 'utf8'));
   const switchWords = common['business.switchTo'];
   const switchPattern = new RegExp(switchWords.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$');
   for (const step of steps ?? []) {
     if (step.press !== undefined) {
-      // In Hindi a button carries its Hindi name (`hi`), when the case gives one.
-      const name = hindi && step.hi !== undefined ? step.hi : step.press;
+      const name = step.press;
       await b.click(button(name, step.in ?? 'document'), `"${name}"${step.in ? ` in ${step.in}` : ''}`);
       await sleep(500);
     } else if (step.business) {
@@ -206,10 +200,10 @@ async function stepsOf(b, steps, hindi = false) {
 // ---------------------------------------------------------------------------------------------------------- worker
 
 async function runJob(b, base, job) {
-  const { width, theme, hindi } = job;
+  const { width, theme } = job;
   const c = job.case;
   const height = width < 760 ? PHONE_HEIGHT : DESK_HEIGHT;
-  const result = { id: c.id, kind: job.kind, width, theme, hindi, file: job.kind === 'shot' ? fileOf(job) : null, problems: [], axe: [], listed: [], contrastUnsure: [], console: [], covered: false };
+  const result = { id: c.id, kind: job.kind, width, theme, file: job.kind === 'shot' ? fileOf(job) : null, problems: [], axe: [], listed: [], contrastUnsure: [], console: [], covered: false };
   const errors = [];
   let offReload = () => {};
   const off = b.on((m) => {
@@ -219,9 +213,8 @@ async function runJob(b, base, job) {
   try {
     await b.viewport(width, height);
     await b.theme(theme === 'dark');
-    // W4 4Z: Hindi comes from the computer's languages, the way the app picks it (never `?lang=hi`, which hung a shot),
-    // and a case may start on a later day (`clock`).
-    await b.languages(hindi ? 'hi-IN,hi' : 'en-US,en');
+    // Screens use English; a case may start on a later day (`clock`).
+    await b.languages('en-US,en');
     await b.clock(c.clock ?? null);
     const page = c.page ?? '';
     const hashAt = c.path.indexOf('#');
@@ -232,15 +225,15 @@ async function runJob(b, base, job) {
     offReload = b.on((m) => { if (m.method === 'Page.frameNavigated' && !m.params.frame.parentId) result.reloaded = true; });
     if (!(await b.evaluate(SETTLED))) throw new Error('the page did not show its place within 120 s');
     const lang = await b.evaluate('document.documentElement.lang');
-    if (lang !== (hindi ? 'hi' : 'en')) result.problems.push(`the app chose the language "${lang}", not ${hindi ? 'Hindi' : 'English'}`);
+    if (lang !== 'en') result.problems.push(`the app chose the language "${lang}", not English`);
     await sleep(400);
     if (job.kind === 'focus') {
       result.problems.push(...await c.run(b, { sleep, button }));
       return result;
     }
-    await stepsOf(b, c.steps, hindi);
+    await stepsOf(b, c.steps);
     await sleep(450); // motion settles in 400 ms or less
-    result.problems.push(...await b.evaluate(PAGE_CHECKS(width, hindi)));
+    result.problems.push(...await b.evaluate(PAGE_CHECKS(width)));
     const found = await axe(b);
     result.covered = await b.evaluate(`Boolean(document.querySelector('[data-cover] aside'))`);
     for (const finding of found.violations) {
@@ -314,13 +307,13 @@ async function main() {
         results.push(result);
         done += 1;
         const bad = result.axe.length + result.problems.length;
-        process.stdout.write(`${String(done).padStart(3)}/${jobs.length} ${bad ? 'FAIL' : 'ok  '} ${result.id} ${result.width} ${result.theme}${result.hindi ? ' hi' : ''}${bad ? ` (${result.axe.length} axe, ${result.problems.length} other)` : ''}\n`);
+        process.stdout.write(`${String(done).padStart(3)}/${jobs.length} ${bad ? 'FAIL' : 'ok  '} ${result.id} ${result.width} ${result.theme}${bad ? ` (${result.axe.length} axe, ${result.problems.length} other)` : ''}\n`);
       }
     }));
   } finally {
     await stopAll();
   }
-  const order = (r) => [all.findIndex((c) => c.id === r.id), r.kind, r.width, r.theme, r.hindi];
+  const order = (r) => [all.findIndex((c) => c.id === r.id), r.kind, r.width, r.theme];
   results.sort((a, z) => JSON.stringify(order(a)).localeCompare(JSON.stringify(order(z))));
   const report = { at: new Date().toISOString(), base: server.base, cases: all.length, jobs: results.length, failed: results.filter((r) => r.axe.length || r.problems.length).length, results };
   writeFileSync(join(OUT, 'report.json'), JSON.stringify(report, null, 1));
@@ -335,7 +328,7 @@ function reportMd(report) {
   const lines = [`# Ink walk, ${report.at}`, '', `${report.jobs} checks over ${report.cases} cases; ${report.failed} with a problem.`, ''];
   for (const r of report.results) {
     if (!r.axe.length && !r.problems.length) continue;
-    lines.push(`## ${r.id}, ${r.width}, ${r.theme}${r.hindi ? ', Hindi' : ''}`);
+    lines.push(`## ${r.id}, ${r.width}, ${r.theme}`);
     for (const v of r.axe) lines.push(`- axe ${v.id} (${v.impact}): ${v.help} at \`${v.target}\`. ${v.summary}`);
     for (const p of r.problems) lines.push(`- ${p}`);
     lines.push('');

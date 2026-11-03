@@ -1,5 +1,7 @@
 # Enterprise deployment and boundaries
 
+The enterprise engine is no longer in this public repository. Since 2 November 2026 its code (formerly `enterprise/`) lives in the private repository `kartavyc/chausar-private`. This page is kept as a record of its boundaries.
+
 The desktop workspace and the enterprise service follow the same published-definition and evidence principles. Their current receipt and persistence types are separate implementations; no automatic schema/receipt compatibility or desktop-to-enterprise migration is claimed. The enterprise implementation under `enterprise/platform/` is a recovered service layer, including source queries through Cube, investigation coordination through Temporal, PostgreSQL authority, and a disclosure-controlled model gateway. Shared Python semantic-validation contracts live under `enterprise/architecture/contracts/`. Original evidence, runtime directories, credentials and fleet records were not copied into the product tree.
 
 ## Deployment components

@@ -130,10 +130,10 @@ function ruleItem(rule: JudgeRuleResult): ReportItem {
 function judgeAbsent(judge: JudgeStanding): { item: ReportItem; open: boolean } {
   switch (judge.state) {
     // 4J13 (H30): a judge waiting to go on its own carries its "Waiting: ..." line; either way the review is open.
-    case 'waiting': return { item: item('rules-judge', 'not-run', judge.line ?? "the judge's call waits for you to send it."), open: true };
-    case 'pending': return { item: item('rules-judge', 'not-run', 'the judge is due and has not read this draft yet.'), open: true };
-    case 'failed': return { item: item('rules-judge', 'not-run', `the judge's call failed. ${checkDetail(judge.line ?? 'It did not finish.')}`), open: true };
-    default: return { item: item('rules-judge', 'not-run', 'no AI judge looked at this draft.'), open: false };
+    case 'waiting': return { item: item('rules-judge', 'not-run', judge.line ?? "the quality check's call waits for you to send it."), open: true };
+    case 'pending': return { item: item('rules-judge', 'not-run', 'the quality check is due and has not read this draft yet.'), open: true };
+    case 'failed': return { item: item('rules-judge', 'not-run', `the quality check's call failed. ${checkDetail(judge.line ?? 'It did not finish.')}`), open: true };
+    default: return { item: item('rules-judge', 'not-run', 'no AI quality check looked at this draft.'), open: false };
   }
 }
 
@@ -168,7 +168,7 @@ export function deliverableReport(input: ReportInput): DeliverableReport {
   const covered = input.coverage === null || input.coverage.complete;
   const complete = covered && decided.verdict !== null;
   const verdict = complete ? decided.verdict : null;
-  const verdictLine = !complete ? REVIEW_INCOMPLETE : judge ? decided.line : `${decided.line} No AI judge looked at it.`;
+  const verdictLine = !complete ? REVIEW_INCOMPLETE : judge ? decided.line : `${decided.line} No AI quality check looked at it.`;
   const stamp = reportStamp(input.generatedAt, input.draftAt);
   return {
     measured, lookedAt, needsHuman, findings, verdict, verdictLine,

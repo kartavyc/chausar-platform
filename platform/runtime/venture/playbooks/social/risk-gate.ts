@@ -5,7 +5,7 @@
 // the same website. The hashtag cap and engagement bait come from the social checks (checks.ts) and their dated rules.
 // A block stops the post before any connector is called; a warning goes on the owner's Today row. Each line names its
 // rule, so it points back to a dated rule. A rule the gate rests on that is past its recheck on the posting day is a
-// warning naming it, never a block. The owner may tighten the limits per channel (venture.posting.limits.set). No
+// warning naming it, never a block. The owner may change the limits per channel (venture.posting.limits.set). No
 // model runs here.
 //
 // Idea taken, code written here: yominpost (MIT), platform_risk.py and its tests: the same checks before Publish.

@@ -35,7 +35,7 @@ export const IT_TRIAGE_CATALOGUE:readonly CatalogueEntry[]=Object.freeze([
   },
   {
     "id": "triage-copy",
-    "name": "Help-channel manual handoff",
+    "name": "Reply you send yourself",
     "category": "docs-ops",
     "auth": "Owner-reviewed permitted channel evidence",
     "regions": [

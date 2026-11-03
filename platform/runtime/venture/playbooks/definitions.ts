@@ -23,6 +23,11 @@ import { DEV_AGENCY_DEFINITION } from './dev-agency/definition.ts';
 import { MONITORED_DATA_DEFINITION } from './monitored-data/definition.ts';
 import { IT_TRIAGE_DEFINITION } from './it-triage/definition.ts';
 import { PHONE_RECEPTIONIST_DEFINITION } from './phone-receptionist/definition.ts';
+import { TRADING_JOURNAL_DEFINITION } from './trading-journal/definition.ts'; // W6 6E7
+import { LESSON_DESK_DEFINITION } from './lesson-desk/definition.ts'; // W6 6E2
+import { BOOKING_DESK_DEFINITION } from './booking-desk/definition.ts'; // W6 6E3
+import { SIGNOFF_DESK_DEFINITION } from './signoff-desk/definition.ts'; // W6 6E5
+import { DOCUMENT_DESK_DEFINITION } from './document-desk/definition.ts'; // W6 6E4
 
 const ALL: readonly (PlaybookDefinition | null)[] = [
   SEO_VISIBILITY_DEFINITION,
@@ -45,6 +50,11 @@ const ALL: readonly (PlaybookDefinition | null)[] = [
   MONITORED_DATA_DEFINITION,
   IT_TRIAGE_DEFINITION,
   PHONE_RECEPTIONIST_DEFINITION,
+  TRADING_JOURNAL_DEFINITION,
+  LESSON_DESK_DEFINITION,
+  BOOKING_DESK_DEFINITION,
+  SIGNOFF_DESK_DEFINITION,
+  DOCUMENT_DESK_DEFINITION,
 ];
 
 /** The wave 5 kit definitions landed so far, in package order; a stub still null is not listed. */

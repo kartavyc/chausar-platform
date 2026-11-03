@@ -6,6 +6,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
+import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
@@ -229,7 +231,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: new Date(this.now().getTime() + 30 * 60_000).toISOString(),
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -277,25 +279,27 @@ async function business(idea: string) {
   return { deps, call, models, client, clock, idea, offers: priced.blueprint.offers as {id:string;playbookOffer?:string}[] };
 }
 
-/** One draft for one order: delivery.run previews, delivery.approve answers with the queued draft. */
+/** One draft for one order, completed through the scoped scripted-agent fixture. */
 async function deliver(env: Awaited<ReturnType<typeof business>>, orderId: string, answer: Draft): Promise<DeliveryRunView> {
+  await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,orderId);
+  const order=(env.deps.store.read().conversations as any[]).find(row=>row.kind==='venture-order'&&row.id===orderId);
+  const stages=env.idea===SOCIAL_IDEA?socialStages(env.offers.find(offer=>offer.id===order.offerId)?.playbookOffer):[];
+  const final=structuredClone(answer);
+  if(env.idea===SOCIAL_IDEA){const count=socialDraftPosts(final as never).length;final.sections.push(...draft('Plan',{'Post plan':Array.from({length:count},(_,i)=>`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${HOOK_FORMULAS[i%HOOK_FORMULAS.length]}`)}).sections);}
+  env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>{
+    const current=(env.deps.store.read().conversations as any[]).find(row=>row.kind==='venture-order'&&row.id===orderId),stage=current.chainStage??1;
+    return stage<stages.length?draft(stage===1?'Voice sheet':'Calendar',Object.fromEntries((stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>[heading,['Clear, useful guidance for the studio.']]))):final;
+  })});
   let waiting = await env.call('venture.delivery.run', { orderId });
   assert.equal(waiting.status, 'waiting-for-you');
-  if(env.idea===SOCIAL_IDEA){
-    const order=(env.deps.store.read().conversations as any[]).find(row=>row.kind==='venture-order'&&row.id===orderId);
-    const stages=socialStages(env.offers.find(offer=>offer.id===order.offerId)?.playbookOffer);
-    while((waiting.chainStage??1)<stages.length){
-      const stage=waiting.chainStage??1;
-      env.models.drafts.push(draft(stage===1?'Voice sheet':'Calendar',Object.fromEntries((stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>[heading,['Clear, useful guidance for the studio.']]))));
-      const ready=await env.call('venture.delivery.approve',{runId:waiting.id,digest:waiting.preview.digest});
+  while((waiting.chainStage??1)<stages.length){
+      await waitForAgentWork(env.deps.store,waiting.id);
+      const ready=(await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
       await env.call('venture.delivery.review',{runId:ready.id,verdict:'accepted'});
       waiting=(env.deps.store.read().conversations.filter((row:any)=>row.kind==='venture-delivery-run'&&row.orderId===orderId) as any[]).at(-1)!;
-    }
-    const copy=structuredClone(answer),count=socialDraftPosts(copy as never).length;
-    copy.sections.push(...draft('Plan',{'Post plan':Array.from({length:count},(_,i)=>`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${HOOK_FORMULAS[i%HOOK_FORMULAS.length]}`)}).sections);
-    env.models.drafts.push(copy);
-  }else env.models.drafts.push(answer);
-  return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  }
+  await waitForAgentWork(env.deps.store,waiting.id);
+  return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -356,7 +360,7 @@ test('venture.rules.list: a YouTube business sees its rules from the YouTube reg
   const none: RulesListView = await plain.call('venture.rules.list');
   assert.equal(none.playbook, null);
   assert.deepEqual(none.rules, []);
-  assert.match(none.summary, /no playbook/i);
+  assert.match(none.summary, /no work instructions/i);
 
   const ca = await business(CA_IDEA);
   const firm: RulesListView = await ca.call('venture.rules.list');
@@ -372,7 +376,7 @@ test('venture.rules.list: a YouTube business sees its rules from the YouTube reg
 
 const PACKAGE = draft('Episode package: hidden bank fees', {
   Summary: ['Hook: Why your savings shrink before you notice, and how to stop it.', 'Hook: Your bank charges you for things you never asked for. Here is how to stop it.', 'A plain episode on the bank fees the client asked about.'],
-  'Title and thumbnail': ['Title: Hidden bank fees cost you 5 things a year', 'Thumbnail: STOP PAYING THIS'],
+  'Title and thumbnail': ['Title: The 5 fees hiding in your bank statement', 'Thumbnail: STOP PAYING THIS'],
   'Description and chapters': ['Description: A plain guide to the bank fees the client named, and how to stop paying them.', '0:00 Why fees matter', '1:30 The fees to check', '4:00 How to stop them'],
   'Next steps': ['You watch the cut, then you or the client publish it.'],
 });

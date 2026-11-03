@@ -5,9 +5,10 @@ import {execFileSync} from 'node:child_process';
 import {serialize,deserialize} from 'node:v8';
 import { FakeEngine } from '../../src/engine/fake';
 import { FakeWorkDesk } from '../../src/engine/fake-work';
+import { fakeClientAiConsent } from '../../src/engine/fake-client-ai-consent';
 import metadata from '../../src/engine/fixtures-social-plan.json';
 const socialIntakeFields = (key: string) => structuredClone(metadata.offers.find(offer => offer.id === key)?.intake);
-import type { BlueprintViewLite, OrderLite, RunDetail } from '../../src/engine/types';
+import type { BlueprintViewLite, ClientLite, OrderLite, RunDetail } from '../../src/engine/types';
 async function onboard() {
  const engine = new FakeEngine({ fresh: true });
  await engine.request('workspace.create', { name: 'Social studio', pack: 'services' });
@@ -19,7 +20,11 @@ const keys = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-repor
 function desk(key: string, legacy = false) {
  const runs: RunDetail[] = [];
  const view = { playbook: { id: 'social-agency', label: 'Social media agency' }, blueprint: {  backOffice: {currency:'INR',taxRegistered:{value:false}}, offers: [{ id: 'offer_social', playbookOffer: key, name: { value: 'Social service' }, pricing: { unitPriceMinor: '10000', defaultQuantity: '1' } }] }, offerReceipts: {}, intake: { offer_social: { rights: [], fields: ['clientRules'], kit: socialIntakeFields(key)?.map(field => legacy ? { ...field, required: false } : field) } } } as unknown as BlueprintViewLite;
- const work = new FakeWorkDesk({ current: () => 'business', now: () => '2026-10-27T10:00:00.000Z', clients: () => [{ id: 'client', name: 'Shop' }] as never, country:()=>({code:'IN',currency:'INR'}), plan: () => view, runs: () => runs, agentName: () => 'Writer', emit: () => {} }, { fresh: true });
+ const clients=[{id:'client',name:'Shop',email:null,countryCode:'IN',taxId:null,stateCode:null,note:null}] as ClientLite[];
+ const permission={clients,ventureId:'business',now:()=> '2026-10-27T10:00:00.000Z',changed:()=>{}};
+ const disclosure=fakeClientAiConsent('venture.client.aiConsent.get',{clientId:'client'},permission);
+ fakeClientAiConsent('venture.client.aiConsent.agree',{clientId:'client',disclosureDigest:disclosure.disclosureDigest},permission);
+ const work = new FakeWorkDesk({ current: () => 'business', now: permission.now, clients: () => clients, country:()=>({code:'IN',currency:'INR'}), plan: () => view, runs: () => runs, agentName: () => 'Writer', emit: () => {} }, { fresh: true });
  const create = (intake: unknown = {}, intakeFiles?: unknown) => work.request('venture.order.create', { clientId: 'client', offerId: 'offer_social', request: 'Draft my social work', intake, ...(intakeFiles ? { intakeFiles } : {}) }) as OrderLite;
  return { work, runs, create, start: (order: OrderLite) => work.request('venture.delivery.run', { orderId: order.id }) };
 }
@@ -45,36 +50,36 @@ it('normalizes calendar, exact client lists and new fields together', () => {
  expect(() => create({ aiVoice: 'yes' })).toThrowError(expect.objectContaining({ code: 'INVALID_VENTURE_REQUEST' }));
  expect(() => create({ fields: { unknown: 'x' } })).toThrowError(expect.objectContaining({ code: 'INVALID_VENTURE_REQUEST' }));
 });
-it('blocks missing rules and no-go community drafts before creating any run', () => {
+it('blocks missing rules and no-go community drafts before creating any run', async () => {
  expect(() => desk('community-replies').create()).toThrowError(expect.objectContaining({ code: 'INTAKE_FIELD_REQUIRED' }));
  const { create, start, runs } = desk('community-replies', true);
- expect(() => start(create())).toThrowError(expect.objectContaining({ code: 'COMMUNITY_RULES_REQUIRED' }));
- expect(() => start(create({ fields: { communityRules: 'No self-promotion.', communityPromotion: true, communityLinks: false } }))).toThrowError(expect.objectContaining({ code: 'COMMUNITY_NO_GO' }));
+ await expect(start(create())).rejects.toMatchObject({ code: 'COMMUNITY_RULES_REQUIRED' });
+ await expect(start(create({ fields: { communityRules: 'No self-promotion.', communityPromotion: true, communityLinks: false } }))).rejects.toMatchObject({ code: 'COMMUNITY_NO_GO' });
  expect(runs).toHaveLength(0);
- expect(() => start(create({ fields: { communityRules: 'Be kind.', communityPromotion: false, communityLinks: false } }))).not.toThrow();
+ await expect(start(create({ fields: { communityRules: 'Be kind.', communityPromotion: false, communityLinks: false } }))).resolves.toMatchObject({status:'waiting-for-you'});
  expect(runs).toHaveLength(1);
 });
-it('counts actual bound transcript content, excluding timestamps, before repurposing', () => {
+it('counts actual bound transcript content, excluding timestamps, before repurposing', async () => {
  const { create, start, runs } = desk('repurpose-pack');
  const fields = { channels: ['x', 'linkedin', 'facebook'] };
- expect(() => start(create({ fields }, source(['One claim'])))).toThrowError(expect.objectContaining({ code: 'SOURCE_THIN' }));
+ await expect(start(create({ fields }, source(['One claim'])))).rejects.toMatchObject({ code: 'SOURCE_THIN' });
  expect(runs).toHaveLength(0);
  const good = create({ fields }, source(['Claim one', 'Fact two', 'Story three', 'Lesson four']));
- expect(() => start(good)).not.toThrow();
+ await expect(start(good)).resolves.toMatchObject({status:'waiting-for-you'});
  expect(runs).toHaveLength(1);
  expect(() => create({ fields: { ...fields, sourceFile: good.intake!.fields!.sourceFile } })).toThrowError(expect.objectContaining({ code: 'UPLOAD_NOT_FOUND' }));
 });
-it('rejects unsupported source content and invalid channel routing with engine codes', () => {
+it('rejects unsupported source content and invalid channel routing with engine codes', async () => {
  const { create, start, runs } = desk('repurpose-pack');
- expect(() => start(create({ fields: { channels: ['x', 'linkedin', 'facebook'] } }, { sourceFile: { name: 'source.csv', contentBase64: btoa('number\n1\n2\n3\n4') } }))).toThrowError(expect.objectContaining({ code: 'SOCIAL_SOURCE_INVALID' }));
- expect(() => start(create({ fields: { channels: ['x'] } }, source(['One', 'Two', 'Three', 'Four'])))).toThrowError(expect.objectContaining({ code: 'SOCIAL_INPUT_INVALID' }));
+ await expect(start(create({ fields: { channels: ['x', 'linkedin', 'facebook'] } }, { sourceFile: { name: 'source.csv', contentBase64: btoa('number\n1\n2\n3\n4') } }))).rejects.toMatchObject({ code: 'SOCIAL_SOURCE_INVALID' });
+ await expect(start(create({ fields: { channels: ['x'] } }, source(['One', 'Two', 'Three', 'Four'])))).rejects.toMatchObject({ code: 'SOCIAL_INPUT_INVALID' });
  expect(runs).toHaveLength(0);
 });
-it('keeps ghostwriting price in paise and refuses a selling cap outside the range before a run', () => {
+it('keeps ghostwriting price in paise and refuses a selling cap outside the range before a run', async () => {
  const { create, start, runs } = desk('linkedin-ghostwriting');
- const order = create({ fields: { postCount: '8', sellingCap: '101' }, moneyRupees: { extraRoundPrice: '125.50' }, clientRules: {} });
+ const order = create({ fields: { postCount: '8', sellingCap: '101' }, moneyAmounts: { extraRoundPrice: '125.50' }, clientRules: {} });
  expect(order.intake?.fields?.extraRoundPrice).toBe('12550');
- expect(() => start(order)).toThrowError(expect.objectContaining({ code: 'SOCIAL_INPUT_INVALID' }));
+ await expect(start(order)).rejects.toMatchObject({ code: 'SOCIAL_INPUT_INVALID' });
  expect(runs).toHaveLength(0);
 });
 

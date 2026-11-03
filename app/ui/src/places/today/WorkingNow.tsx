@@ -31,6 +31,8 @@ export interface WorkingNowProps {
   /** The card that answers a waiting run, when one is listed. */
   rowForRun: (runId: string) => string | undefined;
   goToRow: (rowId: string) => void;
+  /** W6 6H3: the name the owner (or their AI) gave this block; left out, its own. */
+  title?: string | undefined;
 }
 
 /**
@@ -42,7 +44,7 @@ export interface WorkingNowProps {
  * W4 4F3: each running row has Stop ("Stop run 31") and its small dialog; a run the engine says is stopping reads
  * Stopping, and one it stopped (the owner, or Chausar) reads Stopped or Interrupted with its line, never "Failed".
  */
-export function WorkingNow({ runs, details, rowForRun, goToRow }: WorkingNowProps) {
+export function WorkingNow({ runs, details, rowForRun, goToRow, title }: WorkingNowProps) {
   const t = useT();
   const headingId = useId();
   const running = runs.filter((run) => run.state !== 'failed').length;
@@ -53,7 +55,7 @@ export function WorkingNow({ runs, details, rowForRun, goToRow }: WorkingNowProp
   ].join(' · ');
   return (
     <Tile as="section" labelledBy={headingId} className={s.listTile}>
-      <TileHead id={headingId} title={t('jobs.active')} meta={runs.length > 0 ? meta : undefined} more={{ href: '#/work', label: t('today.working.open') }} />
+      <TileHead id={headingId} title={title ?? t('jobs.active')} meta={runs.length > 0 ? meta : undefined} more={{ href: '#/work', label: t('today.working.open') }} />
       {runs.length === 0 ? (
         <EmptyState title={t('jobs.none')} />
       ) : (

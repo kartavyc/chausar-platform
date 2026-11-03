@@ -13,6 +13,7 @@ import { ChausarError, check, type Context, type State } from '../../contracts.t
 import { decimalMinor, formatMinor } from '../../currency.ts';
 import { amountText, digest, exactPayload, formatVentureDate, listRecords, plainText, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
+import { invoiceCountry } from '../core/country-history.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
 import { digestOf, journalled, type ApplyHandle } from '../journal/journal.ts';
 import { insertBooksFact, type BooksFactInput } from './facts.ts';
@@ -88,10 +89,11 @@ export function creditRowId(note: CreditNoteRecord, invoice: InvoiceRecord): str
 /** One credit note as the screens show it. */
 export function creditNoteView(state: State, venture: VentureRecord, note: CreditNoteRecord): CreditNoteView {
   const invoice = listRecords(state, 'venture-invoice', venture.id).find(item => item.id === note.invoiceId);
+  const country = invoice ? invoiceCountry(state, venture, invoice) : venture.country;
   const amount = formatMinor(note.amountMinor, note.currency);
   const line = note.status === 'waiting' ? 'Waiting on Today for you to issue it.'
     : note.status === 'cancelled' ? 'Cancelled. Nothing changed.'
-      : `Issued on ${formatVentureDate(localDayAt(note.issuedAt as string, venture.country), venture.country.dateOrder)}. Takes ${amount} off ${invoice?.number ?? 'its invoice'}.`;
+      : `Issued on ${formatVentureDate(localDayAt(note.issuedAt as string, country), country.dateOrder)}. Takes ${amount} off ${invoice?.number ?? 'its invoice'}.`;
   return {
     id: note.id, invoiceId: note.invoiceId, amount, reason: note.reason, state: note.status, number: note.number,
     rowId: note.status === 'waiting' && invoice ? creditRowId(note, invoice) : null, line,
@@ -244,7 +246,7 @@ function paidRows(state: State, venture: VentureRecord, now: string): W4RowItem[
   for (const payment of cleared) {
     const invoice = invoices.get(payment.invoiceId);
     if (!invoice || invoice.number === null || Date.parse(cameIn(payment)) < since) continue;
-    const day = formatVentureDate(payment.receivedOn, venture.country.dateOrder);
+    const day = formatVentureDate(payment.receivedOn, invoiceCountry(state, venture, invoice).dateOrder);
     const how = payment.chequeOn !== undefined ? `by cheque, cleared on ${day}` : `by ${METHOD_WORDS[payment.method]} on ${day}`;
     const latest = cleared.filter(item => item.invoiceId === invoice.id)
       .sort((a, b) => a.receivedOn.localeCompare(b.receivedOn) || cameIn(a).localeCompare(cameIn(b))).at(-1);

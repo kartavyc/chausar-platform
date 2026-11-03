@@ -1,0 +1,7 @@
+Order history report
+Synthetic sample for tests. Not real account data.
+
+Stock name,Symbol,ISIN,Type,Quantity,Value,Exchange,Exchange Order Id,Execution date and time,Order status
+Infosys,INFY,INE009A01021,BUY,10,15000.00,NSE,1300000000000001,02-06-2025 09:20 AM,Executed
+Infosys,INFY,INE009A01021,SELL,10,15100.00,NSE,1300000000000002,02-06-2025 02:10 PM,Executed
+Infosys,INFY,INE009A01021,BUY,5,7500.00,NSE,1300000000000003,02-06-2025 02:30 PM,Cancelled

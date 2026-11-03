@@ -11,6 +11,7 @@ import { Tile } from '../../parts/Tile';
 import type { ModelAvailability, ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
 import { useCliChecks } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
+import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
 
 /** The built-in templates' preset id: no AI, nothing sent (Your AI and the agent panel's Its AI). */
@@ -165,6 +166,7 @@ export function YourAi({ focus }: { focus: boolean }) {
           </>
         )}
         {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
+        {data && !draft && <AgentSettings key={venture.data?.venture.id} />}
         {presets.length > 0 && (
           <>
             <h3 className={s.subheading}>{t('connections.ai.add')}</h3>

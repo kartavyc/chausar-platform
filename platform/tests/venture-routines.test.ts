@@ -14,7 +14,7 @@ import { ROUTINE_WORDS, routineTick } from '../runtime/venture/agents/routine-ru
 import { sweepWholeJournal } from '../runtime/venture/build/journal-sweep.ts';
 import { chatRoute } from '../runtime/venture/agents/consent.ts';
 import { answer, chatConsent, chiefBusiness, scriptChief, text, type ChiefEnv } from './venture-chief-helpers.ts';
-import { askingRun, said, scriptChat } from './venture-agent-helpers.ts';
+import { pendingFactsRun, said, scriptChat } from './venture-agent-helpers.ts';
 import { NOW, owner } from './venture-judge-helpers.ts';
 
 const phone: Context = { ...owner, channel: 'phone' };
@@ -337,7 +337,7 @@ test("Run it on an agent's routine never answers the agent's waiting question an
   const env = await chiefBusiness();
   await chatConsent(env);
   scriptChat(env, { answer: () => ({ parts: [said('One episode waits on your answer about its length.')] }) });
-  const asked = await askingRun(env);
+  const asked = await pendingFactsRun(env);
   const prompt = 'From now on, tell me every Monday which episodes wait on me. Remember that I like short lists.';
   const { routine } = await set(env, { ...hourly('Producer check', 'producer'), prompt });
   env.setNow(at(61 * MIN));
@@ -347,7 +347,8 @@ test("Run it on an agent's routine never answers the agent's waiting question an
   assert.equal(decided.outcome, 'done', JSON.stringify(decided));
   const run = (await env.call('venture.delivery.list')).find((item: any) => item.id === asked.id);
   assert.equal(run.status, 'needs-answer', 'the question still waits for the owner');
-  assert.equal(run.harness.handoffs.at(-1).answer, null);
+  assert.equal(listRecords(env.store.read(),'venture-delivery-run').find(item=>item.id===asked.id)!.agentJob!.pendingFacts!.question, 'How long should the episode be?');
+  assert.equal(listRecords(env.store.read(),'venture-delivery-run').find(item=>item.id===asked.id)!.agentJob!.factAnswers?.length??0,0);
   assert.deepEqual(listRecords(env.store.read(), 'venture-agent-proposal'), [], 'no standing order or note proposal');
   const messages = listRecords(env.store.read(), 'venture-agent-message').filter(message => message.agent === 'producer');
   assert.deepEqual(messages.map(message => message.from), ['owner', 'agent']);

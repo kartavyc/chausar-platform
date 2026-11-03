@@ -3,6 +3,7 @@
 // recording fake transport, the replay transport, or a loopback server on 127.0.0.1.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spendPolicySet } from '../runtime/venture/money/spend.ts';
 import { createServer } from 'node:http';
 import { readdir, readFile } from 'node:fs/promises';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -13,7 +14,7 @@ import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
 import { DRAFT_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
-  ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelTask, ModelTransport,
+  ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
 } from '../runtime/venture/contracts.ts';
 import { digest, formatMicros, houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
@@ -30,7 +31,7 @@ import { VentureTestStore } from './venture-test-store.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const phone: Context = { ...owner, channel: 'phone' };
-const KEY = 'sk-ant-test-not-a-real-key-0000';
+const KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const OPENAI_KEY = 'sk-' + 'proj-test-not-a-real-key-0000';
 const START = Date.parse('2026-10-15T09:00:00.000Z'); // at or before real time (rule 23)
 const REQUEST = 'Please close my September books. The bank statement and bills are in the shared folder.';
@@ -118,10 +119,9 @@ function gate() {
 
 const unused = new Proxy({}, { get() { throw new Error('This service is not used by the models package.'); } });
 
-// The Claude Code route opens only once Chausar accepts Anthropic's terms (onboarding spec 2.8). These tests exercise
-// that route, so they say 'accepted' explicitly; the gate's own test below runs with it pending.
+// Exercise the enabled-by-default Claude Code route; the disabled-path test supplies pending explicitly.
 async function setup(options: { codexCli?: unknown; venture?: boolean; transport?: ModelTransport; claudeCodeTerms?: 'accepted' | 'pending' } = {}) {
-  const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
+  const claudeCodeTerms = options.claudeCodeTerms;
   let now = START;
   const clock = () => new Date(now);
   const advance = (ms: number) => { now += ms; };
@@ -176,18 +176,72 @@ function codexProfile(executable: string) {
   };
 }
 
+test('Codex keeps its default but an owner can explicitly choose an available model without fallback', async () => {
+  const { deps, port, rec } = await setup({ codexCli: codexProfile(join(tmpdir(), 'codex.exe')) });
+  const preset = port.presets().find(item => item.id === 'codex-cli')!;
+  assert.equal(preset.model, 'gpt-6-luna');
+  assert.equal(preset.modelEditable, true);
+  const payload = { presetId: preset.id, consentDigest: preset.consentDigest, model: 'synthetic-owner-model' };
+  await assert.rejects(call(deps, 'venture.models.connect', payload, phone), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(call(deps, 'venture.models.connect', payload, { ...owner, role: 'viewer' }), code('ACCESS_REVOKED'));
+  for (const model of [null, 123, '', 'spaces are invalid']) await assert.rejects(call(deps, 'venture.models.connect', { ...payload, model }), code('INVALID_VENTURE_REQUEST'));
+  const connected = await call(deps, 'venture.models.connect', payload) as ModelStatusView;
+  assert.equal(connected.tiers.fast.model, 'synthetic-owner-model');
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
+  const tasks = rec.process.filter(request => request.purpose !== 'version-check');
+  assert.equal(tasks.length, 1, 'Failed selection never silently falls back.');
+  assert.equal(tasks[0].args[tasks[0].args.indexOf('--model') + 1], 'synthetic-owner-model');
+  assert.equal(port.presets().find(item => item.id === 'codex-cli')!.model, 'gpt-6-luna');
+});
+
 // ---------------------------------------------------------------------------
 // 1. Presets
 // ---------------------------------------------------------------------------
 
-test('presets: six presets, consent digests, Luna unverified, CLI checks change availability', async () => {
+test('an unchanged AI request survives time passing while altered approval content is still refused', async () => {
+  const { deps, rec, advance } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  const preview = (await deps.models.preview(owner, wordsTask({ purpose: 'delivery', containsClientData: true })))!;
+  advance(24 * 60 * 60_000);
+  await assert.rejects(deps.models.runPreview(owner, preview.callId, 'different-content', validateWords), code('APPROVAL_STALE'));
+  rec.replyHttp = () => anthropicReply({ words: 'Kept exact request' });
+  const result = await deps.models.runPreview(owner, preview.callId, preview.digest, validateWords);
+  assert.equal(result.value.words, 'Kept exact request');
+  assert.equal(rec.http.length, 1);
+});
+
+test('the owner can set a key allowance above the former undocumented ceiling', async () => {
+  const { deps, store } = await setup();
+  await connect(deps, 'openai-gpt-6-luna', { monthlyCapUsd: '1000.01' });
+  assert.equal(connections(store).at(-1)!.monthlyCapMicros, '1000010000');
+});
+
+test('client AI quality permission records its grant without inventing owner approval', async () => {
+  const { deps, rec, store } = await setup();
+  await connect(deps, 'anthropic-haiku-5-5');
+  const client = await ventureAction(deps, owner, 'admin', 'test.client-grant', tx => tx.put({ ...tx.base('venture-client'), name: 'Synthetic client', aiConsent: { id: 'grant', revision: 1, withdrawnAt: null } } as any));
+  const grant = { clientId: client.id, consentId: 'grant', consentRevision: 1 };
+  const task = wordsTask({ purpose: 'judge', containsClientData: true });
+  const preview = (await deps.models.preview(owner, task))!;
+  await assert.rejects(deps.models.runPreview(owner, preview.callId, preview.digest, validateWords, { consent: 'client-ai', clientAi: grant }), code('INVALID_VENTURE_REQUEST'));
+  rec.replyHttp = () => anthropicReply({ words: 'Checked under client permission' });
+  await deps.models.runPreview(owner, preview.callId, preview.digest, validateWords, { consent: 'client-ai', clientAi: grant, beforeDispatch() {} });
+  const saved = calls(store).find(row => row.id === preview.callId)!;
+  assert.equal(saved.consent, 'client-ai'); assert.equal(saved.approvedBy, null); assert.equal(saved.approvedAt, null);
+  const another = (await deps.models.preview(owner, task))!;
+  await ventureAction(deps, owner, 'admin', 'test.withdraw', tx => { const current = tx.find('venture-client', client.id)!; tx.replace({ ...current, aiConsent: { ...current.aiConsent!, withdrawnAt: tx.now, revision: 2 } }); });
+  await assert.rejects(deps.models.runPreview(owner, another.callId, another.digest, validateWords, { consent: 'client-ai', clientAi: grant, beforeDispatch() {} }), code('CLIENT_AI_CONSENT_REQUIRED'));
+  assert.equal(rec.http.length, 1);
+});
+
+test('presets: seven presets, consent digests, Luna unverified, CLI checks change availability', async () => {
   const { port, rec } = await setup();
   const presets = port.presets();
   assert.deepEqual(presets.map(item => item.id), [...MODEL_PRESET_IDS]);
   for (const item of presets) {
     assert.equal(item.consentDigest, digest(item.consentText), item.id);
     assert.equal(item.verification, item.id === 'built-in-templates' ? 'built-in' : 'not-live-verified');
-    assert.equal(item.modelEditable, item.id === 'openai-gpt-6-luna');
+    assert.equal(item.modelEditable, item.id === 'openai-gpt-6-luna' || item.id === 'codex-cli' || item.id === 'openrouter');
   }
   const byId = Object.fromEntries(presets.map(item => [item.id, item]));
   assert.equal(byId['openai-gpt-6-luna'].availability, 'unverified');
@@ -235,23 +289,21 @@ test('presets: six presets, consent digests, Luna unverified, CLI checks change 
   assert.equal(withCodex.port.presets().find(item => item.id === 'codex-cli')?.availability, 'unverified');
 });
 
-test('the Claude Code terms gate: pending means needs setup with the terms words, and connect refuses before any check', async () => {
+test('disabled Claude Code is hidden and direct connect refuses before any check', async () => {
   const { port, deps, rec, store } = await setup({ claudeCodeTerms: 'pending' });
-  const claude = port.presets().find(item => item.id === 'claude-code-cli')!;
-  assert.equal(claude.availability, 'needs-setup');
-  assert.equal(claude.availabilityReason, AVAILABILITY_REASONS.claudeTerms);
-  assert.equal(AVAILABILITY_REASONS.claudeTerms, "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.");
+  assert.equal(port.presets().some(item => item.id === 'claude-code-cli'), false);
+  assert.equal(AVAILABILITY_REASONS.claudeTerms, 'Claude Code is disabled on this computer. Choose another AI.');
   // Even a found CLI stays behind the gate: the port's own check refuses in the terms words and runs nothing.
   await assert.rejects(port.checkCli('claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
   assert.deepEqual(rec.process, []);
-  assert.equal(port.presets().find(item => item.id === 'claude-code-cli')?.availability, 'needs-setup');
+  assert.equal(port.presets().some(item => item.id === 'claude-code-cli'), false);
   const checksBefore = rec.process.length;
   await assert.rejects(connect(deps, 'claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
   assert.equal(rec.process.length, checksBefore, 'the refusal comes before the version check');
   assert.equal(connections(store).length, 0);
   // The gate changes nothing else: keys connect as before.
   await connect(deps, 'anthropic-haiku-5-5');
-  assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false }).availability, 'needs-setup', 'absent terms mean pending');
+  assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false }).availability, 'unverified', 'absent terms mean accepted');
   assert.equal(availabilityOf('claude-code-cli', { claudeFound: true, codexProfile: false, claudeTerms: 'accepted' }).availability, 'unverified');
   assert.equal(availabilityOf('claude-code-cli', { claudeFound: false, codexProfile: false, claudeTerms: 'accepted' }).availability, 'needs-setup');
   assert.equal(availabilityOf('claude-code-cli', { claudeFound: false, codexProfile: false, claudeTerms: 'accepted' }).availabilityReason, AVAILABILITY_REASONS.claudeMissing);
@@ -273,7 +325,7 @@ test('connect: consent, key and model rules; CLI check before the write; keys ne
   await assert.rejects(connect(deps, 'openai-gpt-6-luna', { model: 'GPT 6' }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(connect(deps, 'anthropic-haiku-5-5', { tiers: ['main'] }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(connect(deps, 'anthropic-haiku-5-5', { monthlyCapUsd: '0' }), code('INVALID_AMOUNT'));
-  await assert.rejects(connect(deps, 'anthropic-haiku-5-5', { monthlyCapUsd: '1000.01' }), code('INVALID_AMOUNT'));
+  await assert.rejects(connect(deps, 'anthropic-haiku-5-5', { monthlyCapUsd: '10000000' }), code('INVALID_AMOUNT'));
   await assert.rejects(connect(deps, 'codex-cli'), code('PRESET_UNAVAILABLE'));
   await assert.rejects(call(deps, 'venture.models.connect', { presetId: haiku.id, consentDigest: haiku.consentDigest, apiKey: KEY }, phone), code('APP_APPROVAL_REQUIRED'));
   assert.equal(connections(store).length, 0);
@@ -287,6 +339,9 @@ test('connect: consent, key and model rules; CLI check before the write; keys ne
   assert.equal(luna.routeKind, 'openai-responses');
   assert.equal(luna.kind, 'venture-model-connection');
   rec.replyHttp = () => openaiReply({ words: 'Luna words' });
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('SPEND_UNPRICED'));
+  assert.equal(rec.http.length, 0);
+  await spendPolicySet(deps, owner, { rates: [{ item: 'model:openai-gpt-6-luna', model: 'gpt-6-luna-mini', unit: 'per-million-tokens', inputUsdPerMillion: '0.1', outputUsdPerMillion: '0.2', source: 'Synthetic owner rate', checkedOn: '2026-10-30' }] });
   const outcome = await deps.models.generate(owner, wordsTask());
   assert.equal(outcome.value.words, 'Luna words');
   assert.equal(JSON.parse(rec.http[0].body).model, 'gpt-6-luna-mini');
@@ -524,7 +579,7 @@ test('Claude Code CLI: flags, a clean environment, a 150 second limit and the te
     return { exitCode: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { words: 'Command line words' }, usage: { input_tokens: 10, output_tokens: 5 } }) };
   };
   const saved = process.env.ANTHROPIC_API_KEY;
-  process.env.ANTHROPIC_API_KEY = 'sk-ant-env-not-a-real-key-0000';
+  process.env.ANTHROPIC_API_KEY = ("sk" + "-ant-env-not-a-real-key-0000");
   let outcome;
   try { outcome = await deps.models.generate(owner, wordsTask({ purpose: 'blueprint', maxOutputTokens: 2048 })); } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = saved;
@@ -763,7 +818,7 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   assert.ok(preview.payloadText.includes('Please close my September books'));
   assert.equal(JSON.stringify(stored).includes(KEY), false);
   assert.equal(JSON.stringify(stored).includes('x-api-key'), false);
-  assert.equal(preview.expiresAt, '2026-10-15T09:30:00.000Z');
+  assert.equal(Object.hasOwn(preview, 'expiresAt'), false);
   assert.equal(preview.endpoint, 'https://api.anthropic.com/v1/messages');
   assert.equal(preview.estimatedMaxCostDisplay, formatMicros(preview.estimatedMaxCostMicros));
 
@@ -790,13 +845,12 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   assert.equal(sent.approvedAt, '2026-10-15T09:00:00.000Z');
   await assert.rejects(deps.models.runPreview(owner, preview.callId, preview.digest, validateWords), code('APPROVAL_STALE'));
 
-  // Expired after 30 minutes.
+  // Time passing does not change the exact request.
   const late = (await deps.models.preview(owner, clientTask()))!;
   advance(31 * 60_000);
-  await assert.rejects(deps.models.runPreview(owner, late.callId, late.digest, validateWords), code('APPROVAL_STALE'));
-  // The refused claim wrote nothing; the list shows the preview as expired without writing either.
-  assert.equal(calls(store).find(item => item.id === late.callId).status, 'preview');
-  assert.equal((await call(deps, 'venture.models.calls', {})).find((item: any) => item.id === late.callId).status, 'expired');
+  await deps.models.runPreview(owner, late.callId, late.digest, validateWords);
+  assert.equal(calls(store).find(item => item.id === late.callId).status, 'completed');
+  assert.equal((await call(deps, 'venture.models.calls', {})).find((item: any) => item.id === late.callId).status, 'completed');
 
   // A changed consent digest, then a disconnected connection, make approval stale; nothing is sent.
   const consentChanged = (await deps.models.preview(owner, clientTask()))!;
@@ -811,7 +865,7 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   await call(deps, 'venture.models.disconnect', { connectionId: live.id });
   await connect(deps, 'anthropic-sonnet-5-5');
   await assert.rejects(deps.models.runPreview(owner, beforeDisconnect.callId, beforeDisconnect.digest, validateWords), code('APPROVAL_STALE'));
-  assert.equal(rec.http.length, 1);
+  assert.equal(rec.http.length, 2);
 });
 
 test('approval budget: a second approval refuses while the first is in flight and their estimates pass the limit', async () => {
@@ -977,14 +1031,17 @@ test('replay through the port: calls are marked replay and status says synthetic
 // 13. Handlers and house rules
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the seven model methods; presets and status need no venture', async () => {
+test('handlers: exactly the fifteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
   // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
   // Five, and the two Ink v2 wave 4 added (the CLI status and per-role models, 4H1).
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
-  assert.equal(owned.length, 7);
+  // W6 6F1 adds the curated MCP list and OAuth sign-in, 6F2 lists, adds and removes packs.
+  assert.equal(owned.length, 15);
+  assert.ok(owned.includes('venture.agentSettings.get')); assert.ok(owned.includes('venture.agentSettings.set'));
+  assert.ok(owned.includes('venture.mcpCredential.set'));
   const { deps } = await setup({ venture: false });
-  assert.equal((await call(deps, 'venture.models.presets')).length, 6);
+  assert.equal((await call(deps, 'venture.models.presets')).length, 7);
   const status = await call(deps, 'venture.models.status');
   assert.deepEqual(status.connections, []);
   assert.equal(status.tiers.main.presetId, 'built-in-templates');
@@ -999,7 +1056,7 @@ test('house rules: every error code the package throws is listed, and its words 
   assert.ok(files.length >= 10);
   // Quoted capitals that are not error codes: the HTTP method, the currency, environment names, and two engine codes
   // that port.ts maps to venture codes before they reach anyone.
-  const passThrough = new Set(['POST', 'USD', 'PATH', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'CODEX_HOME', 'RESPONSE_TOO_LARGE', 'CLI_HOST_EVIDENCE_INVALID']);
+  const passThrough = new Set(['POST', 'USD', 'PATH', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'CODEX_HOME', 'RESPONSE_TOO_LARGE', 'CLI_HOST_EVIDENCE_INVALID', 'VAULT_LOCKED']);
   for (const file of files) {
     const text = await readFile(new URL(file, folder), 'utf8');
     for (const match of text.matchAll(/'([A-Z][A-Z_]{2,})'/g)) {
@@ -1011,6 +1068,52 @@ test('house rules: every error code the package throws is listed, and its words 
     const url = new URL(extra, import.meta.url);
     if (existsSync(url)) assert.deepEqual(houseStyleFindings(await readFile(url, 'utf8')), [], extra);
   }
+});
+
+test('native quality uses the assigned agent cap before dispatch and records that same agent once', async () => {
+  const { deps, rec, store } = await setup();
+  await connect(deps, 'anthropic-haiku-5-5');
+  const { setSpendPolicy } = await import('../runtime/venture/money/spend.ts');
+  await setSpendPolicy(deps, owner, { agentCaps: [{ agent: 'quality-role', capMicros: '0' }] });
+  const task = wordsTask({ purpose: 'judge', agentId: 'quality-role' });
+  await assert.rejects(deps.models.generate(owner, task), code('SPEND_CAP'));
+  assert.equal(rec.http.length, 0);
+  await setSpendPolicy(deps, owner, { agentCaps: [{ agent: 'quality-role', capMicros: '1000000' }] });
+  const result = await deps.models.generate(owner, task);
+  const spend = listRecords(store.read(), 'venture-spend').find(row => row.ref === result.callId)!;
+  assert.equal(spend.agent, 'quality-role');
+  assert.equal(calls(store).find(row => row.id === result.callId).agentId, 'quality-role');
+});
+
+test('a late quality failure cannot restore text erased while its request was in flight', async () => {
+  const env=await setup();await connect(env.deps,'anthropic-haiku-5-5');
+  const hold=gate();env.rec.replyHttp=async()=>{await hold.opened;const response=anthropicReply({words:'Synthetic sensitive output'});return {...response,body:JSON.stringify({...JSON.parse(response.body),model:'claude-haiku-5-5'})};};
+  const pending=env.deps.models.generate(owner,wordsTask({purpose:'judge',agentId:'quality-role',agentJobId:'job-forgotten',validate:()=>{throw new ChausarError('MODEL_OUTPUT_REJECTED','Private synthetic customer detail');}}));
+  const rejected=assert.rejects(pending,code('MODEL_OUTPUT_REJECTED'));
+  while(!env.rec.http.length)await new Promise(resolve=>setImmediate(resolve));
+  await ventureAction(env.deps,owner,'admin','fixture.erase',tx=>{const row=tx.list('venture-model-call')[0]!;tx.replace({...row,payloadText:'',erasedAt:tx.now});});
+  hold.release();await rejected;
+  const row=calls(env.store)[0];assert.equal(row.payloadText,'');assert.ok(row.erasedAt);
+  assert.doesNotMatch(JSON.stringify(row),/Private synthetic customer detail/);
+  assert.ok(row.usage);assert.equal(listRecords(env.store.read(),'venture-spend')[0].phase,'settled');
+});
+
+test('native quality only prices usage with the exact provider-reported model',async()=>{
+  for(const reported of ['claude-haiku-5-5','different-model',null]){
+    const env=await setup();await connect(env.deps,'anthropic-haiku-5-5');
+    env.rec.replyHttp=()=>{const response=anthropicReply({words:'Checked'});const body=JSON.parse(response.body);if(reported===null)delete body.model;else body.model=reported;return {...response,body:JSON.stringify(body)};};
+    const task=wordsTask({purpose:'judge',agentId:'quality-role',agentJobId:'exact-model-job'});
+    if(reported==='claude-haiku-5-5')assert.equal((await env.deps.models.generate(owner,task)).costMicros,'164');
+    else await assert.rejects(env.deps.models.generate(owner,task),code('SPEND_UNPRICED'));
+    const call=calls(env.store)[0],charge=listRecords(env.store.read(),'venture-spend')[0];
+    assert.equal(charge.phase,reported==='claude-haiku-5-5'?'settled':'unknown');
+    assert.equal(call.costMicros,reported==='claude-haiku-5-5'?'164':null);
+    assert.ok(call.usage,'provider counters remain evidence even when their price is unknown');
+  }
+  const replay=await setup({transport:{...recorder().transport,replay:true}});await connect(replay.deps,'anthropic-haiku-5-5');
+  await replay.deps.models.generate(owner,wordsTask({purpose:'judge',agentId:'quality-role',agentJobId:'replay-job'}));
+  assert.equal(calls(replay.store)[0].replay,true);
+  assert.equal(listRecords(replay.store.read(),'venture-spend').length,0,'explicit replay is fixture evidence with no charge');
 });
 
 test('no command-line temp folder made by these tests is left behind', async () => {

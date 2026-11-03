@@ -36,17 +36,3 @@
   font-display: swap;
   src: url('../../assets/fonts/DMMono-500.woff2') format('woff2');
 }
-@font-face {
-  font-family: 'Noto Sans Devanagari';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('../../assets/fonts/NotoSansDevanagari-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans Devanagari';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('../../assets/fonts/NotoSansDevanagari-500.woff2') format('woff2');
-}

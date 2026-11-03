@@ -22,7 +22,7 @@ import {
 } from '../../../records.ts';
 import { runView } from '../../../delivery/runs.ts';
 import { clientDraft } from '../../../build/draft-text.ts';
-import { caSignoffBlock } from '../../ca-firm/signoff-gate.ts';
+import { regulatedSignoff } from '../signoff-gate.ts';
 import { blocksInScope } from './blocks.ts';
 import type { ReportBlock, ReportShareView } from '../records-report.ts';
 
@@ -78,8 +78,8 @@ function checkSharable(state: State, venture: VentureRecord, report: ReportRecor
   check(!view.practiceNow && !run.practice, 'PRACTICE_DRAFT', 'A practice draft never goes to a client.');
   check(view.status !== 'ready-for-review' || view.canAccept, 'DELIVERY_NOT_READY', view.acceptBlocked ?? REPORT_SHARE_WORDS.notReady);
   check(clientDraft(run).digest === report.draftDigest, 'REPORT_STALE', REPORT_SHARE_WORDS.stale);
-  const unsigned = caSignoffBlock(state, venture, run);
-  if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
+  const unsigned = regulatedSignoff(state, venture, run);
+  if (unsigned) throw new ChausarError(unsigned.code, unsigned.line);
 }
 
 /**
@@ -157,15 +157,15 @@ export type ReportSharePage = {
   decision: null; kind: 'report'; canAnswer: false; items: []; comments: [];
 };
 
-/** The blocks as the page's text: headings, words (a model estimate says so), each figure with its receipt, quotes as written. */
+/** The client page shows figures and estimates without the vault's receipt identifiers. */
 export function reportPageText(blocks: readonly ReportBlock[], scope: { from: IsoDate; to: IsoDate; channels: readonly string[] }, dates: (iso: string) => string): string {
   const lines = [`Covers ${dates(scope.from)} to ${dates(scope.to)}${scope.channels.length ? `, for ${scope.channels.join(', ')}` : ''}.`];
   for (const block of blocksInScope(blocks, scope)) {
     switch (block.kind) {
       case 'heading': lines.push('', block.estimate ? `${block.text} (model estimate)` : block.text); break;
       case 'prose': lines.push(block.estimate ? `${block.text} (model estimate)` : block.text); break;
-      case 'metric': lines.push(`${block.label}: ${block.display}. Receipt ${block.receiptId}.`); break;
-      case 'bars': lines.push(`${block.label}:`, ...block.bars.map(bar => `${bar.label}: ${bar.display}. Receipt ${bar.receiptId}.`)); break;
+      case 'metric': lines.push(`${block.label}: ${block.display}. Calculated in Chausar.`); break;
+      case 'bars': lines.push(`${block.label}:`, ...block.bars.map(bar => `${bar.label}: ${bar.display}. Calculated in Chausar.`)); break;
       case 'quote': lines.push(`"${block.text}"${block.by ? `, ${block.by}` : ''} (shown as written)`); break;
     }
   }

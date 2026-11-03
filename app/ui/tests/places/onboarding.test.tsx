@@ -4,11 +4,18 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
 import { createStatusStore } from '../../src/engine/client';
 import { EngineError, type EngineClient, type Transport } from '../../src/engine/types';
+import { ABOUT_BOX, keepPlan, skipAi, toToday } from './first-run-steps';
 
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
+function timeZone(zone: string) {
+  const original = Intl.DateTimeFormat.prototype.resolvedOptions;
+  vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (this: Intl.DateTimeFormat) {
+    return { ...original.call(this), timeZone: zone };
+  });
+}
 
 /** The fake engine behind a client that writes down every request, and can refuse the next call of a method once. */
-function start(options: FakeOptions = { fresh: true }, { hash = '#/today', language = 'en', transport }: { hash?: string; language?: 'en' | 'hi'; transport?: Transport } = {}) {
+function start(options: FakeOptions = { fresh: true }, { hash = '#/today', language = 'en', transport }: { hash?: string; language?: 'en'; transport?: Transport } = {}) {
   window.location.hash = hash;
   const engine = new FakeEngine(options);
   const fake = createFakeClient(engine);
@@ -46,42 +53,49 @@ function inOrder(nodes: HTMLElement[]) {
 }
 
 describe('onboarding: first run', () => {
-  it('shows only the name, one box, the country from the browser and Start', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-IN');
+  // W6 6C1/6C2: the first run opens on Connect your AI; About you holds the box and the country from the time zone.
+  it('opens on Connect your AI, then About you with one box and the country and currency from the time zone', async () => {
+    timeZone('Asia/Kolkata');
     start();
-    expect(await box()).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Connect your AI' }, { timeout: 4000 })).toBeTruthy();
     expect(screen.getByText('Chausar')).toBeTruthy();
-    expect(await screen.findByText('Based in India')).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();
     const main = screen.getByRole('main');
     // A computer with no business yet also offers one quiet way to a business that exists elsewhere (moved, restored).
-    expect(within(main).getAllByRole('button').map((b) => b.textContent)).toEqual(['Change', 'Start', 'Open a business you already have']);
-    expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What do you want to start?');
+    expect(within(main).getByRole('button', { name: 'Open a business you already have' })).toBeTruthy();
+    await skipAi();
+    expect(await screen.findByText('India, from your time zone')).toBeTruthy();
+    expect(screen.getByText('INR')).toBeTruthy();
+    expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What do you do today?');
   });
 
-  it('lets the owner change the country, and uses "another country" when the browser is somewhere Chausar has no table for', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValue('pt-BR');
+  it('lets the owner change the country, and uses "another country" for an unsupported time zone', async () => {
+    timeZone('America/Sao_Paulo');
     const { flow } = start();
-    expect(await screen.findByText('Based in Another country (prices in US dollars)')).toBeTruthy();
+    await skipAi();
+    expect(await screen.findByText('Another country (prices in US dollars)')).toBeTruthy();
     await press('Change');
     const country = screen.getByRole('combobox', { name: 'Country' }) as HTMLSelectElement;
     expect(country.value).toBe('XX');
     fireEvent.change(country, { target: { value: 'GB' } });
-    await type(IDEA);
-    await press('Start');
+    await keepPlan(IDEA);
+    await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     expect(flow()[0]).toEqual(['venture.preview', { idea: IDEA, countryCode: 'GB' }]);
   });
 
-  it('on Start: preview, the vault, create, the template interview and the plan, in the engine order; then Today with the plan first', async () => {
-    vi.spyOn(navigator, 'language', 'get').mockReturnValue('en-IN');
+  it('on Keep this plan: preview, the vault, create, the template interview and the plan, in the engine order; then Today with the plan first', async () => {
+    timeZone('Asia/Kolkata');
     const { flow } = start();
-    await screen.findByText('Based in India');
-    await type(`  ${IDEA}  `);
-    await press('Start');
+    await skipAi();
+    await screen.findByText('India, from your time zone');
+    await keepPlan(`  ${IDEA}  `);
+    await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     expect(window.location.hash).toBe('#/today');
+    // About you names the plan with the engine's preview first; keeping it previews again, then makes the vault.
     expect(flow()).toEqual([
+      ['venture.preview', { idea: IDEA, countryCode: 'IN' }],
       ['venture.preview', { idea: IDEA, countryCode: 'IN' }],
       ['workspace.status', {}],
       ['workspace.create', { name: 'Bookkeeping studio', pack: 'services', folder: null }],
@@ -92,22 +106,23 @@ describe('onboarding: first run', () => {
       ['venture.interview.answer', { questionId: 'q_price', answer: { skipped: true } }],
       ['venture.interview.answer', { questionId: 'q_tax', answer: { yes: false, assumed: true } }],
       ['venture.blueprint.draft', { useTemplate: true }],
-      ...flow().slice(10),
+      ...flow().slice(11),
     ]);
-    expect(flow().slice(10).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
+    expect(flow().slice(11).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
     await screen.findAllByText('Your plan is ready. Read it.');
     inOrder(titles(['Your plan is ready. Read it.', 'Connect your AI', 'Confirm your prices and tax', 'Keep this business']));
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio/ })).toBeTruthy());
   });
 
-  it('Enter in the box starts; Shift+Enter does not', async () => {
+  it('Enter in the About you box sends; Shift+Enter does not', async () => {
     const { calls } = start();
-    await type(IDEA);
-    fireEvent.keyDown(await box(), { key: 'Enter', shiftKey: true });
-    expect(calls.some(([m]) => m === 'venture.preview')).toBe(false);
-    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
-    await screen.findByRole('navigation', { name: 'Places' });
-    expect(calls.some(([m]) => m === 'venture.preview')).toBe(true);
+    const about = await skipAi();
+    fireEvent.change(about, { target: { value: IDEA } });
+    fireEvent.keyDown(about, { key: 'Enter', shiftKey: true });
+    expect(calls.some(([m]) => m === 'venture.about.read')).toBe(false);
+    await act(async () => { fireEvent.keyDown(about, { key: 'Enter' }); });
+    expect(await screen.findByRole('region', { name: 'Talk to Chausar' })).toBeTruthy();
+    expect(calls.some(([m]) => m === 'venture.about.read')).toBe(true);
   });
 });
 
@@ -126,10 +141,10 @@ describe('onboarding: an engine that is still starting', () => {
     };
     render(<App client={client} language="en" />);
     expect((await screen.findByRole('status')).textContent).toBe('The engine is starting.');
-    expect(screen.queryByRole('textbox', { name: 'What do you want to start?' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Connect your AI' })).toBeNull();
     up = true;
     await act(async () => { status.set({ state: 'ok' }); });
-    expect(await box()).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Connect your AI' }, { timeout: 4000 })).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();
   });
 });
@@ -137,38 +152,36 @@ describe('onboarding: an engine that is still starting', () => {
 describe('onboarding: errors in plain words under the box', () => {
   it('checks the sentence before asking the engine', async () => {
     const { calls } = start();
-    await box();
-    await press('Start');
+    const about = await skipAi();
+    await press('Send');
     expect(screen.getByRole('alert').textContent).toBe('Write one sentence about what you want to start.');
-    await type('Dogs');
-    await press('Start');
+    fireEvent.change(about, { target: { value: 'Dogs' } });
+    await press('Send');
     expect(screen.getByRole('alert').textContent).toBe('Say a little more: at least 10 characters.');
-    await type('x'.repeat(2001));
-    await press('Start');
+    fireEvent.change(about, { target: { value: 'x'.repeat(2001) } });
+    await press('Send');
     expect(screen.getByRole('alert').textContent).toBe('Keep it shorter: at most 2000 characters.');
-    expect(calls.some(([m]) => m === 'venture.preview')).toBe(false);
-    expect(screen.getByRole('textbox').getAttribute('aria-invalid')).toBe('true');
+    expect(calls.some(([m]) => m === 'venture.about.read' || m === 'venture.preview')).toBe(false);
+    expect(screen.getByRole('textbox', { name: ABOUT_BOX }).getAttribute('aria-invalid')).toBe('true');
   });
 
   it("shows the engine's own words, and Start works again", async () => {
     const { refuse } = start();
     refuse('workspace.create', new EngineError('VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.'));
-    await type(IDEA);
-    await press('Start');
+    await keepPlan(IDEA);
     expect((await screen.findByRole('alert')).textContent).toBe('A workspace operation is in progress. Wait for it to finish.');
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(IDEA);
     await press('Start');
+    await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
   });
 
   it('a failure after the vault exists keeps the sentence, and Try again never makes a second vault', async () => {
     const { refuse, flow } = start();
     refuse('venture.blueprint.draft', new EngineError('VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.'));
-    await type(IDEA);
-    await press('Start');
+    await keepPlan(IDEA);
     expect((await screen.findByRole('alert')).textContent).toBe('A workspace operation is in progress. Wait for it to finish.');
-    expect(screen.getByRole('textbox').hasAttribute('readonly')).toBe(true);
     await press('Try again');
+    await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     expect(flow().filter(([m]) => m === 'workspace.create')).toHaveLength(1);
     expect(flow().filter(([m]) => m === 'venture.interview.answer')).toHaveLength(4);
@@ -178,8 +191,7 @@ describe('onboarding: errors in plain words under the box', () => {
 describe('onboarding: what the engine forces before a vault', () => {
   it('no protected storage: one passphrase step under the box, then the recovery code once, then Today', async () => {
     const { flow } = start({ fresh: true, deviceKeys: false });
-    await type(IDEA);
-    await press('Start');
+    await keepPlan(IDEA);
     const reason = await screen.findByText(/This computer has no keyring Chausar can use/);
     expect(reason.textContent).toBe('This computer has no keyring Chausar can use, so Chausar asks for a passphrase. Choose one of at least 12 characters. Nobody can reset it.');
     const first = screen.getByLabelText('Passphrase') as HTMLInputElement;
@@ -220,6 +232,7 @@ describe('onboarding: what the engine forces before a vault', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'I saved it somewhere safe' }));
     expect(go.hasAttribute('aria-disabled')).toBe(false);
     await press('Continue');
+    await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     await screen.findAllByText('Your plan is ready. Read it.');
     expect(screen.getByText('Connect your AI')).toBeTruthy();
@@ -253,14 +266,5 @@ describe('onboarding: New business from the business menu', () => {
     await waitFor(() => expect(cardTitle('Your plan is ready. Read it.')).toHaveLength(2));
     // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio.*Switch business/ })).toBeTruthy());
-  });
-});
-
-describe('onboarding: Hindi', () => {
-  it('speaks Hindi on the first run', async () => {
-    start({ fresh: true }, { language: 'hi' });
-    expect(await screen.findByRole('textbox', { name: 'आप क्या शुरू करना चाहते हैं?' })).toBeTruthy();
-    expect(screen.getByText('चौसर')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'शुरू करें' })).toBeTruthy();
   });
 });

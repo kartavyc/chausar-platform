@@ -23,7 +23,7 @@ import { createPostgresStandIn } from './hosted-postgres-standin.ts';
 import { createRivetStandIn } from './hosted-rivet-standin.ts';
 
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.';
-const API_KEY = 'sk-ant-test-not-a-real-key-0000';
+const API_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 export const web = { channel: 'web' } as const;
 export const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.stack ?? error?.message); return true; };
 

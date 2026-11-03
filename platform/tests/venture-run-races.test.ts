@@ -1,145 +1,68 @@
-// Run controls under races (Ink v2 wave 4, 4F1 review): a Force stop and a Resume while the cut turn is still out, two
-// steer notes at once, a Stop between an approval's checks and its claim, a steer overlapping an approval, the run.call
-// events of a cut turn, and the readback screen on the owner's notes. In every case the owner's words reach exactly one
-// turn's text, nothing goes out twice, and the journal says honestly whether a call went out.
+// Native Stop and instruction races; exact outside-effect journals have their own tests.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
-import type { DeliveryRunView, RunControlResult, RunDetail } from '../runtime/venture/contracts.ts';
+import type { RunControlResult } from '../runtime/venture/contracts.ts';
 import { listRecords } from '../runtime/venture/records.ts';
 import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
-import {
-  DONE, READ, RECONCILE, approve, call, code, decide, controlRow, getRun, record, setup, startRun, stop, turnOf,
-} from './venture-run-controls-env.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
+import { call, code, record, setup, startNativeDraft, stop } from './venture-run-controls-env.ts';
 import * as views from './venture-views-env.ts';
 
-const PYTHON = 'def transform(row):\n    return {"kind": "supplies"}';
-const TWO_SANDBOX = turnOf('Two sandbox runs', [['sandbox.python', { table: 'f2', code: PYTHON }], ['sandbox.python', { table: 'f2', code: PYTHON }]]);
-const journalOf = (env: Awaited<ReturnType<typeof setup>>, subject: string) =>
-  listRecords(env.store.read(), 'venture-journal-entry').filter(entry => entry.subject === subject);
-
-test('force stop then resume while the cut turn is out: resume waits, the cut turn runs nothing more, its send stays sent and its cost counts', async () => {
-  const env = await setup();
-  const run = await startRun(env, [TWO_SANDBOX, DONE]);
-  let refused: unknown = null;
-  env.container = async () => {
-    await stop(env, run.id, true);
-    refused = await call(env, 'venture.runs.resume', { runId: run.id }).then(() => null, error => error);
-  };
-  const after = await approve(env, run);
-  assert.equal((refused as { code?: string } | null)?.code, 'RUN_NOT_STOPPED', 'resume waits for the cut step to come back');
-  assert.match((refused as Error).message, /still coming back/);
-  assert.equal(env.containerRuns, 1, 'the second call of the cut turn never ran');
-  assert.equal(after.status, 'stopped');
-  const stored = record(env, run.id);
-  assert.equal(stored.harness!.used.costMicros, '200', 'what the cut call cost counts');
-  assert.deepEqual(journalOf(env, `${run.id}:${run.callId}`).map(entry => entry.state), ['applied'], 'the cut call went out and the journal says so');
-  // Once it came back, Resume goes on, and keeps the cost.
-  const resumed = await call<RunControlResult>(env, 'venture.runs.resume', { runId: run.id });
-  assert.equal(resumed.line, 'Resumed. Approve the next step when you are ready.');
-  assert.equal(record(env, run.id).harness!.used.costMicros, '200');
+test('Stop while a native draft is being prepared discards its late draft and proposal', async t => {
+  const env = await setup(); let release!: () => void, entered!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const ready = new Promise<void>(resolve => { entered = resolve; });
+  t.after(() => release());
+  const tools: string[] = [];
+  const pending = startNativeDraft(env, { beforeDraft: async () => { entered(); await held; }, observe: name => { tools.push(name); } });
+  await ready;
+  const run = listRecords(env.store.read(), 'venture-delivery-run').at(-1)!;
+  await stop(env, run.id, true);
+  await assert.rejects(call(env, 'venture.runs.resume', { runId: run.id }), code('RUN_RESTART_REQUIRED'));
+  release();
+  const done = await pending;
+  assert.equal(done.status, 'stopped');
+  assert.equal(record(env, run.id).deliverable, null);
+  assert.equal(record(env, run.id).agentJob!.proposal, null);
+  assert.ok(!tools.includes('draft_document') && !tools.includes('propose_action'));
 });
 
-test('two steer notes at once: each reaches exactly one turn text, and none is marked picked up without being in it', async () => {
-  const env = await setup();
-  let run = await startRun(env, [READ, RECONCILE, DONE]);
+test('two concurrent owner instructions are saved once and both reach the explicit new session', async () => {
+  const env = await setup(), run = await startNativeDraft(env);
+  assert.equal(run.status, 'ready-for-review');
   await Promise.all([
     call(env, 'venture.runs.steer', { runId: run.id, text: 'NOTE-ALPHA use the cafe account.' }),
     call(env, 'venture.runs.steer', { runId: run.id, text: 'NOTE-BRAVO skip the bills.' }),
   ]);
-  const live = record(env, run.id);
-  const inText = ['NOTE-ALPHA', 'NOTE-BRAVO'].filter(note => live.preview!.payloadText.includes(note));
-  assert.ok(inText.length >= 1);
-  run = await approve(env, { ...run, preview: live.preview, callId: live.callId });
-  const sheet = (await getRun(env, run.id)).steer!;
-  for (const note of sheet) {
-    const tag = note.text.slice(0, 10);
-    assert.equal(note.line, inText.includes(tag) ? 'Picked up in turn 1' : 'Sent. Waiting for the agent to pick it up.', tag);
-    if (!inText.includes(tag)) assert.ok(run.preview!.payloadText.includes(tag), `${tag} rides with the next turn`);
-  }
-});
-
-test('a stop between an approval and its claim releases the call: nothing is sent or charged, and the journal says not sent', async () => {
-  const env = await setup();
-  const run = await startRun(env, [READ, RECONCILE, DONE]);
-  const original = env.models.runPreview.bind(env.models);
-  let line = '';
-  (env.models as unknown as { runPreview: unknown }).runPreview = async (...args: Parameters<typeof original>) => {
-    (env.models as unknown as { runPreview: unknown }).runPreview = original;
-    line = (await stop(env, run.id)).line;
-    return original(...args);
+  const saved = record(env, run.id);
+  assert.equal(saved.status, 'stopped');
+  assert.equal(saved.agentJob!.ownerNotes!.length, 2);
+  const route = env.deps.agentRoute!; let prompt = '';
+  env.deps.agentRoute = async (...args) => {
+    const selected = await route(...args), open = selected.driver.open.bind(selected.driver);
+    return { ...selected, driver: { async open(input) {
+      const session = await open(input), run = session.run.bind(session);
+      return { ...session, async run(text) { prompt = text; return run(text); } };
+    } } };
   };
-  const sent = env.models.sent;
-  await assert.rejects(approve(env, run), code('APPROVAL_STALE'));
-  assert.equal(line, 'Stopped by you. Finished steps are kept.');
-  assert.equal(env.models.sent, sent, 'nothing was sent');
+  const resumed = await call<RunControlResult>(env, 'venture.runs.resume', { runId: run.id });
+  await waitForAgentWork(env.store, resumed.run.runId);
+  assert.notEqual(resumed.run.runId, run.id);
+  assert.equal((prompt.match(/NOTE-ALPHA/g) ?? []).length, 1);
+  assert.equal((prompt.match(/NOTE-BRAVO/g) ?? []).length, 1);
+  assert.match(prompt, /Previous approvals grant no permission/);
   assert.equal(record(env, run.id).status, 'stopped');
-  assert.equal(record(env, run.id).harness!.used.costMicros, '0');
-  assert.deepEqual(journalOf(env, `${run.id}:${run.callId}`).map(entry => entry.state), ['rejected']);
 });
 
-test('a steer overlapping an approval leaves the turn in flight alone: the note waits for the next turn', async () => {
-  const env = await setup();
-  const run = await startRun(env, [READ, RECONCILE, DONE]);
-  const original = env.models.preview.bind(env.models);
-  let approving: Promise<DeliveryRunView> | null = null;
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  let out!: () => void;
-  const isOut = new Promise<void>(resolve => { out = resolve; });
-  (env.models as unknown as { preview: unknown }).preview = async (...args: Parameters<typeof original>) => {
-    (env.models as unknown as { preview: unknown }).preview = original;
-    env.models.inFlight = async () => { out(); await held; };
-    approving = approve(env, run);
-    await isOut;
-    return original(...args);
-  };
-  await call(env, 'venture.runs.steer', { runId: run.id, text: 'NOTE-X please.' });
-  const mid = record(env, run.id);
-  assert.equal(mid.callId, run.callId, 'the turn in flight keeps its call');
-  release();
-  const done = await approving!;
-  assert.equal(done.status, 'waiting-for-you');
-  assert.deepEqual(journalOf(env, `${run.id}:${run.callId}`).map(entry => entry.state), ['applied']);
-  const stored = record(env, run.id);
-  assert.deepEqual([stored.harness!.used.turns, stored.harness!.used.costMicros], [1, '200']);
-  assert.ok(stored.preview!.payloadText.includes('NOTE-X please.'), 'the note rides with the next turn');
-  assert.equal((await getRun(env, run.id)).steer![0].line, 'Sent. Waiting for the agent to pick it up.');
-});
-
-test('the run sheet shows only the calls of the turn out now, matched by its model call, never a cut turn\'s', async () => {
-  const env = await setup();
-  const CUT = turnOf('Sort the bills', [['files.list', {}], ['sandbox.python', { table: 'f2', code: PYTHON }], ['files.read', { target: 'f1', part: 'sample' }]]);
-  const REDO = turnOf('Sort the bills again', [['sandbox.python', { table: 'f2', code: PYTHON }], ['files.list', {}]]);
-  const run = await startRun(env, [CUT, REDO, DONE]);
-  env.container = async () => { await stop(env, run.id, true); };
-  await approve(env, run);
-  await call(env, 'venture.runs.resume', { runId: run.id });
-  const live = record(env, run.id);
-  let sheet: RunDetail | null = null;
-  env.container = async () => { sheet = await getRun(env, run.id); };
-  await approve(env, { ...run, preview: live.preview, callId: live.callId });
-  assert.deepEqual(sheet!.live, [{ callId: 't1.1', state: 'start' }]);
-  const events = listRecords(env.store.read(), 'venture-event').filter(event => event.name === 'run.call');
-  for (const event of events) assert.deepEqual(Object.keys(event.data as object).sort(), ['callId', 'modelCallId', 'runId', 'state'], 'ids only');
-});
-
-test('notes and Continue words pass the readback screen: card, Aadhaar, bank account and OTP never reach the agent', async () => {
-  const env = await setup();
-  const run = await startRun(env, [READ, RECONCILE, DONE]);
+test('owner instructions screen private payment numbers before they are stored or sent to AI', async () => {
+  const env = await setup(), run = await startNativeDraft(env);
   const card = ['4111', '1111', '1111', '1111'].join(' ');
-  await call(env, 'venture.runs.steer', { runId: run.id, text: `Pay with card ${card}, the OTP is 482913.` });
-  const text = record(env, run.id).preview!.payloadText;
+  await call(env, 'venture.runs.steer', { runId: run.id, text: `Use card ${card}; the OTP is 482913.` });
+  const text = record(env, run.id).agentJob!.ownerNotes![0].text;
   assert.ok(!text.includes(card) && text.includes('[redacted card number]'));
   assert.ok(!text.includes('482913') && text.includes('[redacted OTP]'));
-
-  await call(env, 'venture.runs.roundGate', { runId: run.id, on: true });
-  const live = record(env, run.id);
-  await approve(env, { ...run, preview: live.preview, callId: live.callId });
-  const row = (await controlRow(env, run.id))!;
-  await decide(env, row, 'continue', `Use card ${card} for the fee.`);
-  const next = record(env, run.id).preview!.payloadText;
-  assert.ok(!next.includes(card) && next.includes('[redacted card number]'));
+  assert.equal(record(env, run.id).preview, null);
 });
 
 test('pause and away cover rehearsals and the improvement loop too: no phone or agent caller spends meanwhile', async () => {

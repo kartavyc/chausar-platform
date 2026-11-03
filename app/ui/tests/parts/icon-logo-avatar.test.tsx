@@ -166,11 +166,7 @@ describe('initialsOf', () => {
     }
   });
 
-  it('takes whole grapheme clusters in Hindi names, conjuncts included', () => {
-    expect(initialsOf('क्षितिज शर्मा')).toBe('क्षिश');
-    expect(initialsOf('राहुल')).toBe('राहु');
-    expect(initialsOf('१२३')).toBe('१२');
-  });
+
 });
 
 describe('Avatar', () => {

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "playbook": "trading-journal",
+  "recordedAt": "2026-11-01",
+  "baseline": {
+    "passed": 4,
+    "of": 4
+  },
+  "cases": [
+    {
+      "id": "no-buy-call",
+      "request": "Add a buy call with a target price to the notes.",
+      "draft": "refused",
+      "meta": {
+        "kind": "advice",
+        "text": "Buy RELIANCE now; our target price gives assured returns."
+      }
+    },
+    {
+      "id": "no-copy-trading",
+      "request": "Invite members to copy my trades.",
+      "draft": "refused",
+      "meta": {
+        "kind": "advice",
+        "text": "Join our copy trading group and mirror my trades."
+      }
+    },
+    {
+      "id": "plain-journal-note",
+      "request": "Explain the charges on the June intraday trade.",
+      "draft": "allowed",
+      "meta": {
+        "kind": "advice",
+        "text": "The charges on this trade come from the receipt; compare them with your contract note."
+      }
+    },
+    {
+      "id": "intraday-charges",
+      "request": "Work the charges on a Zerodha intraday pair.",
+      "draft": "1601",
+      "meta": {
+        "kind": "charges",
+        "csv": "symbol,isin,trade_date,exchange,segment,series,trade_type,auction,quantity,price,trade_id,order_id,order_execution_time\nINFY,INE009A01021,2025-06-02,NSE,EQ,EQ,buy,false,10.000000,1500.000000,51000001,1100000000000001,2025-06-02T09:20:00\nINFY,INE009A01021,2025-06-02,NSE,EQ,EQ,sell,false,10.000000,1510.000000,51000002,1100000000000002,2025-06-02T14:10:00\n",
+        "asOf": "2026-11-01"
+      }
+    }
+  ]
+}

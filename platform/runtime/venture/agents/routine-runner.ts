@@ -33,6 +33,10 @@ import { short } from '../views/shared.ts';
 import { teamAgents } from '../chief/routing.ts';
 import { chatRoute } from './consent.ts';
 import { requireConnectorChecked } from '../build/connector-check.ts';
+// W6 6G5 (D44): a routine past its own limit, its agent's or the month's is refused before it starts; its AI calls name it.
+import { keyedPreset, routineCapError } from '../money/spend-meter.ts';
+import { routineStartRefusal } from '../money/agent-meters.ts';
+import { withRoutineScope } from './routine-scope.ts';
 
 /** How late a run may start: an occurrence older than this is missed. */
 export const CATCH_UP_MS = 60 * 60_000;
@@ -52,6 +56,7 @@ export const ROUTINE_WORDS = Object.freeze({
   gone: 'Skipped: the agent it asks is no longer on the team.',
   delivered: (where: string) => `Delivered to ${where}.`,
   failed: (why: string) => `Could not run: ${why}`,
+  overLimit: (why: string) => `Skipped: ${why}`,
 });
 
 /** The routine runs this process is making ready now; any other run found running was cut by a crash. */
@@ -88,7 +93,7 @@ function settleOld(tx: VentureTx, nowMs: number): void {
  * One routine at a sweep: its missed occurrences become one missed run, and the newest inside the catch-up window is
  * skipped (paused, overlap, agent gone) or claimed. Answers the run it claimed, or null.
  */
-function planRoutine(tx: VentureTx, routine: RoutineRecord, nowMs: number): RoutineRunRecord | null {
+function planRoutine(tx: VentureTx, routine: RoutineRecord, nowMs: number, keyed = false): RoutineRunRecord | null {
   const runs = runsOf(tx.state, tx.venture!.id, routine.id);
   const last = runs.reduce((latest, run) => Math.max(latest, Date.parse(run.dueAt)), Date.parse(routine.at));
   const due = occurrencesBetween(routine.schedule, last, nowMs);
@@ -104,6 +109,9 @@ function planRoutine(tx: VentureTx, routine: RoutineRecord, nowMs: number): Rout
     putRun(tx, routine, due.latest, 'skipped', ROUTINE_WORDS.gone);
     return null;
   }
+  // W6 6G5: on a key, a routine whose own limit, agent's limit or the month's limit is used is skipped with the reason.
+  const over = keyed && !routine.recordReport ? routineStartRefusal(tx.state, tx.venture!, routine, tx.now) : null;
+  if (over) { putRun(tx, routine, due.latest, 'skipped', ROUTINE_WORDS.overLimit(over)); return null; }
   const claimed = putRun(tx, routine, due.latest, 'running', ROUTINE_WORDS.running);
   MAKING.add(claimed.id);
   return claimed;
@@ -137,12 +145,14 @@ export async function runRoutines(deps: VentureDeps, ctx: Context): Promise<numb
     return runnable(tx.state, tx.venture!.id).map(routine => routine.id);
   });
   let parked = 0;
+  let keyed = false;
+  try { keyed = keyedPreset(chatRoute(deps.models.status(ctx))?.presetId); } catch { keyed = false; }
   for (const routineId of ids) {
     let claimed: RoutineRunRecord | null = null;
     try {
       claimed = await ventureAction(deps, ctx, 'prepare', 'routines.sweep', tx => {
         const routine = tx.find('venture-routine', routineId);
-        return routine && routine.on && routine.setBy === 'owner' && routine.removedAt === null ? planRoutine(tx, routine, Date.parse(tx.now)) : null;
+        return routine && routine.on && routine.setBy === 'owner' && routine.removedAt === null ? planRoutine(tx, routine, Date.parse(tx.now), keyed) : null;
       });
     } catch (error) {
       await recordFailure(deps, ctx, routineId, error);
@@ -249,6 +259,12 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
   const route = chatRoute(deps.models.status(ctx));
   const pending=listRecords(before,'venture-routine-run',venture?.id).find(r=>r.id===runId),routine=pending?listRecords(before,'venture-routine',venture?.id).find(r=>r.id===pending.routineId):null;
   if (venture && route&&!routine?.recordReport) requireConnectorChecked(before, venture.id, `model:${route.presetId}`);
+  // W6 6G5 (D44): a run that would pass the owner's cap is refused before it starts, with the reason; nothing is sent
+  // and the card keeps waiting, so the owner can raise the limit and run it.
+  if (venture && routine && !routine.recordReport && keyedPreset(route?.presetId)) {
+    const over = routineStartRefusal(before, venture, routine, deps.clock().toISOString());
+    if (over) throw routineCapError(over);
+  }
   // Marked as this process's own before the claim commits, so a sweep in between never takes it for a crash.
   MAKING.add(runId);
   try {
@@ -279,10 +295,11 @@ export async function decideRoutine(deps: VentureDeps, ctx: Context, decision: W
         });
       }else if (claimed.threadId) {
         const { threadSendHandler } = await import('../chief/threads.ts');
-        await threadSendHandler(deps, ctx, { threadId: claimed.threadId, text: claimed.routine.prompt }, { routine: true });
+        const threadId = claimed.threadId;
+        await withRoutineScope({ routineId: claimed.routine.id, runId }, () => threadSendHandler(deps, ctx, { threadId, text: claimed.routine.prompt }, { routine: true }));
       } else {
         const { threadSendHandler } = await import('./threads.ts');
-        await threadSendHandler(deps, ctx, { agent: claimed.routine.agent, text: claimed.routine.prompt }, { routine: true });
+        await withRoutineScope({ routineId: claimed.routine.id, runId }, () => threadSendHandler(deps, ctx, { agent: claimed.routine.agent, text: claimed.routine.prompt }, { routine: true }));
       }
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;

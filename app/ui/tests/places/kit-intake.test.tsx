@@ -15,11 +15,11 @@ const kit: NonNullable<OfferIntakeLite['kit']> = [
   { id: 'budget', label: 'Client budget', help: 'Their budget.', kind: 'money', required: false },
 ];
 
-async function open(fields = kit) {
+async function open(fields = kit, draftCurrency = 'INR') {
   const engine = new FakeEngine();
   await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '8000' }] } });
   const base = await engine.request('venture.blueprint.get', {}) as BlueprintViewLite;
-  const view: BlueprintViewLite = { ...base, intake: { offer_shorts: { rights: [], fields: [], kit: fields } } };
+  const view: BlueprintViewLite = { ...base, blueprint: {...base.blueprint,backOffice:{...base.blueprint.backOffice,currency:draftCurrency}}, intake: { offer_shorts: { rights: [], fields: [], kit: fields } } };
   const client = createFakeClient(engine);
   const request = client.request.bind(client);
   const orders: unknown[] = [];
@@ -72,7 +72,7 @@ describe('kit fields in New order', () => {
     complete(sheet);
     fireEvent.change(within(sheet).getByLabelText('Client budget'), { target: { value: '125.50' } });
     await act(async () => { fireEvent.click(submit()); });
-    expect(orders[0]).toMatchObject({ intake: { moneyRupees: { budget: '125.50' } } });
+    expect(orders[0]).toMatchObject({ intake: { moneyAmounts: { budget: '125.50' } } });
     expect((orders[0] as { intake: { fields: object } }).intake.fields).not.toHaveProperty('budget');
   });
 });
@@ -101,17 +101,26 @@ it('accepts a client file while creating the first order and sends it for atomic
 import { KitIntakeFields } from '../../src/places/work/KitIntakeFields';
 import { EngineProvider } from '../../src/engine/context';
 import { TextProvider } from '../../src/text';
-import sellerHindi from '../../../../platform/runtime/venture/playbooks/online-seller/hi.json';
+import { NewOrderSheet } from '../../src/places/work/NewOrderSheet';
 
-it('renders kit labels help and options in Hindi while preserving raw submitted option values', () => {
-  const field = { id: 'adsSalesBasis', label: 'Ads sales basis', help: 'Choose the sales basis used by the ads export.', kind: 'choice' as const, required: true, options: ['gst-inclusive', 'taxable'] };
-  let answer: unknown;
-  render(<EngineProvider client={createFakeClient(new FakeEngine())}><TextProvider language="hi"><KitIntakeFields ask={{ rights: [], fields: [], kit: [field] }} answers={{}} onChange={value => { answer = value; }} /></TextProvider></EngineProvider>);
-  const translated = sellerHindi as Record<string, string>;
-  const select = screen.getByLabelText(translated[field.label]!);
-  expect(screen.getByText(translated[field.help]!)).toBeTruthy();
-  expect(within(select).getByRole('option', { name: translated['gst-inclusive']! })).toBeTruthy();
-  fireEvent.change(select, { target: { value: 'gst-inclusive' } });
-  expect(answer).toEqual({ adsSalesBasis: 'gst-inclusive' });
-  expect(screen.queryByText(field.label)).toBeNull();
+it('shows a country-read failure instead of leaving an unexplained locked order form', async () => {
+  const client = createFakeClient(new FakeEngine());
+  const request = client.request.bind(client);
+  client.request = ((method: MethodName, params: unknown) => method === 'venture.get'
+    ? Promise.reject(new Error('Business country could not be loaded.'))
+    : request(method, params as never)) as typeof client.request;
+  render(<EngineProvider client={client}><TextProvider language="en"><NewOrderSheet id="new" onClose={() => {}} returnFocus={() => {}} /></TextProvider></EngineProvider>);
+  expect(await screen.findByText(/Business country could not be loaded/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Add order' })).toBeNull();
+});
+
+it('money intake labels the accepted order currency without changing typed amounts',()=>{
+ render(<EngineProvider client={createFakeClient(new FakeEngine())}><TextProvider language="en"><KitIntakeFields ask={{rights:[],fields:[],kit:[{id:'budget',label:'Budget',help:'Client budget',kind:'money',required:false}]}} answers={{budget:'250'}} onChange={()=>{}} currency="JPY" /></TextProvider></EngineProvider>);
+ expect(screen.getByText(/Enter JPY/)).toBeTruthy();expect((screen.getByLabelText('Budget') as HTMLInputElement).value).toBe('250');expect(screen.queryByText(/Enter rupees/)).toBeNull();
+});
+
+it('a pending country draft cannot change the currency label on a new order',async()=>{
+ const {sheet}=await open(kit,'JPY');
+ expect(within(sheet).getByText(/Enter INR/)).toBeTruthy();
+ expect(within(sheet).queryByText(/Enter JPY/)).toBeNull();
 });

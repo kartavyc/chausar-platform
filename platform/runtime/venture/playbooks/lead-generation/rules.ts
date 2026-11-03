@@ -1,5 +1,5 @@
 // Chausar leadgen dated rules. Official protocols read on build day; legal interpretation awaits a lawyer.
-import type { DatedRule } from '../kit/define.ts';
+import type { DatedRule } from '../kit/rule-type.ts';
 const ordinary = (id: string, topic: string, rule: string, url: string, usedBy: string[], legal = false): DatedRule => ({ id, scope: 'lead-generation', topic, rule, sources: [{ title: topic, url }], checkedOn: '2026-10-27', read: legal ? 'unconfirmed' : 'official', how: legal ? 'Source located; a lawyer must confirm its application.' : 'Read the official provider documentation on build day.', usedBy, limitations: 'Permission to read a source is not permission to contact someone.', needs: legal ? 'lawyer' : null, ...(legal ? { confirmedBy: null } : {}) });
 export const LEAD_RULES: readonly DatedRule[] = [
   ordinary('osm-licence', 'OpenStreetMap attribution', 'Keep attribution and the database licence with each prospect; publish derived databases only under the required licence.', 'https://www.openstreetmap.org/copyright', ['source', 'lead-has-source']),
@@ -11,7 +11,7 @@ export const LEAD_RULES: readonly DatedRule[] = [
   ordinary('gmail-senders', 'Gmail sender requirements', 'The owner checks sender authentication and provider requirements before using their mail app.', 'https://support.google.com/a/answer/81126', ['draft']),
   ordinary('can-spam', 'United States commercial email', 'A lawyer must confirm the message, disclosure, address and opt-out rules before client use.', 'https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business', ['outreach-allowed'], true),
   ordinary('dpdp-contact-data', 'Contact data privacy', 'Keep only necessary contact data and honour withdrawal and Forget; a lawyer confirms the applicable notice and basis.', 'https://www.meity.gov.in/content/digital-personal-data-protection-act-2023-0', ['outreach-allowed'], true),
-  ordinary('linkedin-handoff', 'LinkedIn handoff', 'Only copy the text and open the profile; no automated reading or messaging.', 'https://www.linkedin.com/legal/user-agreement', ['send']),
+  ordinary('linkedin-handoff', 'Copy for LinkedIn', 'Only copy the text and open the profile; no automated reading or messaging.', 'https://www.linkedin.com/legal/user-agreement', ['send']),
   ordinary('reddit-access', 'Community API access', 'Reddit API reading waits for access; use owner-pasted posts under community rules meanwhile.', 'https://redditinc.com/policies/data-api-terms', ['report']),
   { ...ordinary('happenstance-price', 'Happenstance search credits', 'Show the dated credit cost and obtain exact approval before a paid search.', 'https://developer.happenstance.ai/openapi.json', ['source']), value: '2', unit: 'credits per search' },
 ];

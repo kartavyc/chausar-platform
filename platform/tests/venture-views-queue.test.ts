@@ -127,44 +127,7 @@ test('queue: a draft reply waits for a read, then Approve runs venture.delivery.
   assert.equal(byKind((await list(env)).rows, 'draft').length, 0);
 });
 
-test('queue: a turn waiting to go to the AI is a quote row; a hand-off is a question that needs an answer', async () => {
-  const env = await setup();
-  const plan = await seedBlueprint(env, { price2: '1500000' });
-  const { order } = await seedOrder(env, plan);
-  await setStage(env, 'approve-each');
-  env.models.connected = true;
-  const playbook = await delivery['venture.delivery.playbook']!(env.deps, owner, {}) as { id: string; hash: string };
-  const runFields = { playbookId: playbook.id, playbookHash: playbook.hash };
-  const preview = {
-    callId: 'call_1', payloadText: '{"system":"..."}', digest: 'c'.repeat(64), presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5',
-    endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-15T10:30:00.000Z',
-  };
-  const asking = await seedRun(env, order, {
-    ...runFields, status: 'needs-answer', harness: harness({ phase: 'needs-answer', handoffs: [{ to: 'owner', question: 'Which bank account is the main one?', turn: 1, answer: null, answeredBy: null }] }),
-  });
-  const waiting = await seedRun(env, order, { ...runFields, status: 'waiting-for-you', callId: 'call_1', preview, harness: harness() });
-  const rows = (await list(env)).rows;
-  const [quote] = byKind(rows, 'quote');
-  assert.equal(quote.title, `Send the next step for ${CLIENT_NAME} to your AI`);
-  assert.deepEqual(quote.change, { label: 'Most it can cost', after: 'USD 0.0010' }, 'worked out by code, so neither a receipt nor a model estimate');
-  assert.deepEqual(quote.viewRef, { kind: 'run', id: waiting.id });
-  assert.equal(quote.actions.find(action => action.id === 'approve')?.requiresView, true);
-  const [question] = byKind(rows, 'question');
-  assert.equal(question.line, 'Which bank account is the main one?');
-  assert.deepEqual(question.actions.map(action => action.id), ['answer']);
-  assert.deepEqual(question.viewRef, { kind: 'run', id: asking.id });
-  const empty = await decide(env, question, 'answer');
-  assert.deepEqual([empty.outcome, empty.reason], ['refused', 'ANSWER_REQUIRED']);
-  // The engine method refuses (the stub port previews nothing): the decision is refused with its code, and nothing is recorded.
-  const refused = await decide(env, question, 'answer', { answer: 'The HDFC current account.' });
-  assert.deepEqual([refused.outcome, refused.reason], ['refused', 'NO_MODEL_CONNECTED']);
-  assert.equal(listRecords(env.store.read(), 'venture-queue-decision').length, 0);
-  // Approving the quote reaches venture.delivery.approve; the stub refuses the text as no longer available, the engine
-  // marks the spent turn failed, and the decision comes back stale with the new version of the row.
-  const stale = await decide(env, quote, 'approve', { viewed: true });
-  assert.equal(stale.outcome, 'stale');
-  assert.equal(stale.latest?.title, `The draft for ${CLIENT_NAME} failed`);
-});
+
 
 test('queue: an invoice draft is a row with its receipted total; Issue takes the second ask and runs venture.invoice.issue', async () => {
   const env = await setup();
@@ -289,4 +252,13 @@ test('queue.list: the prices row asks to confirm tax while the tax answer is an 
     ['Confirm your tax', 'Chausar assumed you do not charge GST. Say whether you do.', [['set-prices', 'Confirm tax', true]]]);
   // Every price set and tax the owner's own: no row.
   assert.equal(await setupRow({ price2: '1500000' }), undefined);
+});
+
+test('queue: retired per-turn records cannot create a new approval or spending window', async () => {
+  const env = await setup();
+  const { order } = await seedOrder(env, await seedBlueprint(env));
+  await setStage(env, 'approve-each');
+  await seedRun(env, order, { status: 'waiting-for-you', callId: null, preview: null });
+  const rows = (await list(env)).rows;
+  assert.equal(rows.some(row => row.kind === 'quote' && row.viewRef?.kind === 'run'), false);
 });

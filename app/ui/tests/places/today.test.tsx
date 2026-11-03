@@ -12,7 +12,7 @@ type Seed = Omit<QueueRow, 'digest'>;
 /** Today's title is the greeting for the hour (Ink v2, 3C): these tests read the page at 10:00 on this computer's clock. */
 const MORNING = () => new Date(2026, 9, 23, 10, 0);
 
-function start({ engine = new FakeEngine(), client, hash = '#/today', language = 'en' }: { engine?: FakeEngine; client?: EngineClient; hash?: string; language?: 'en' | 'hi' } = {}) {
+function start({ engine = new FakeEngine(), client, hash = '#/today', language = 'en' }: { engine?: FakeEngine; client?: EngineClient; hash?: string; language?: 'en' } = {}) {
   window.location.hash = hash;
   const used = client ?? createFakeClient(engine);
   const view = render(<ClockProvider now={MORNING}><App client={used} language={language} /></ClockProvider>);
@@ -446,14 +446,5 @@ describe('Today: keys', () => {
     await act(async () => { press('a'); press('d'); });
     expect(row.textContent).not.toContain("can't be undone");
     expect(spy.mock.calls.some(([m]) => m === 'venture.queue.decide')).toBe(false);
-  });
-});
-
-describe('Today in Hindi', () => {
-  it('speaks Hindi', async () => {
-    start({ language: 'hi' });
-    // Ink v2 (3C): the page title is the greeting for the hour.
-    expect(screen.getByRole('heading', { level: 1, name: 'सुप्रभात' })).toBeTruthy();
-    expect(await screen.findByRole('heading', { level: 2, name: 'अभी चल रहा है' })).toBeTruthy();
   });
 });

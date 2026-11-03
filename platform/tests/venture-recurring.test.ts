@@ -233,7 +233,7 @@ test('every invoice has one next action by its state and a short timeline: issue
   // Left: 2330500 - 500000 - 233050 = 1597450 (INR 15,974.50); the cheque for 100000 waits.
   assert.deepEqual(view.timeline?.map(item => [item.what, item.on, item.line]), [
     ['issued', '2026-10-01', 'Issued on 01 Oct 2026'],
-    ['paid', '2026-10-05', 'Paid INR 5,000.00 by UPI on 05 Oct 2026'],
+    ['paid', '2026-10-05', 'Paid INR 5,000.00 by UPI on 05 Oct 2026, marked paid by you'],
     ['cheque', '2026-10-12', 'Cheque for INR 1,000.00 received on 12 Oct 2026, waiting to clear'],
     ['credited', '2026-10-23', 'Credit note CN-0001 for INR 2,330.50 on 23 Oct 2026'],
     ['reminded', '2026-10-23', 'Reminder sent on 23 Oct 2026'],

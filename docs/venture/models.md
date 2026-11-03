@@ -1,6 +1,12 @@
 # Venture launcher: models (P2)
 
-The models package lets an owner bring their own AI: an Anthropic or OpenAI key, or Claude Code or Codex already signed in on this computer. Cheap models are the default, and every step also works without any AI, through built-in templates that say so. Every call is written down before it is sent, with the exact text and a cost worked out by code. The workspace privacy setting rules every send, and client details leave only after the owner approves the exact text.
+The owner can use signed-in Codex or Claude Code, or an OpenAI, Anthropic or OpenRouter key. Wave 6 delivery uses the installed AI tool as the agent through `agent-runtime/`, with a scoped Chausar MCP connection. The older model port below still serves structured interview and planning calls. Client data in agent jobs needs recorded client consent; outside effects still need exact owner approval.
+
+Desktop keys are protected with Electron safeStorage and saved outside the vault in files scoped to the workspace and credential name. The engine restores connected keys after reopening, and disconnect deletes their protected copy. Plaintext Linux storage and unavailable OS protection are refused. No renderer API reads a saved key. Pre-business onboarding keys remain temporary until Keep this plan persists them in the new workspace; failed persistence keeps the draft and does not claim success. Memory-only test hosts are fixtures.
+
+OpenRouter uses the fixed `https://openrouter.ai/api/v1` Responses endpoint and the exact provider/model ID selected on its connection. It needs an owner-entered price for that exact model. A changed direct-provider model also cannot borrow the preset model's price. RapidRouter is not enabled: written provider confirmation is still missing.
+
+Key-backed agent jobs reserve the owner's remaining applicable allowance atomically across active jobs. Reported usage is priced with saved input, output and cache rates in BigInt micro-USD, with a code receipt. Plan-backed jobs make no API-spend reservation. Usage reports can arrive after a provider call has already spent money, so a cap is not a provider-side hard ceiling. Reaching the allowance stops further work; missing final usage or an unpriced reported model/category keeps the allowance held and displays unknown cost.
 
 Code: `platform/runtime/venture/models/`. Tests: `platform/tests/venture-models.test.ts`. Fixture: `platform/tests/fixtures/venture/models/replay.json` (a synthetic recording).
 
@@ -8,24 +14,25 @@ Code: `platform/runtime/venture/models/`. Tests: `platform/tests/venture-models.
 
 | Method | Level | What it does |
 | --- | --- | --- |
-| `venture.models.presets` | read | The six AI options with their availability as of now. Works before a business exists |
-| `venture.models.connect` | admin, app only | Connects an option after the owner accepts its consent text; keeps the key in memory only |
+| `venture.models.presets` | read | The seven options with current availability. Works before a business exists |
+| `venture.models.connect` | admin, app only | Connects after consent and successful protected desktop key storage |
 | `venture.models.disconnect` | admin | Marks a connection disconnected and forgets the key when nothing else uses it |
 | `venture.models.status` | read | Which option does each job, whether it can run, this month's spend, the send setting, replay mode |
 | `venture.models.calls` | read | The "What was sent" list: newest first, with the exact stored text of each call |
 
 `index.ts` also exports `createModelPort`, `defaultModelTransport`, `createReplayTransport`, and for tests `PRESETS`, `assertSchemaSafe`, `callCostMicros`, `estimateMaxCostMicros` and `clientDataFindings`.
 
-## The six options
+## The seven options
 
 | Option | Model | Jobs | Key | Price per million tokens (in / out) | Availability |
 | --- | --- | --- | --- | --- | --- |
 | Claude Haiku 5.5 | `claude-haiku-5-5` | fast | yes | USD 0.10 / 0.50, Anthropic list price for prompts up to 100K tokens | ready |
 | Claude Sonnet 5.5 | `claude-sonnet-5-5` | main | yes | USD 2 / 10, Anthropic list price | ready |
 | GPT-6 Luna | `gpt-6-luna`, or the id the owner types | fast, main | yes | USD 0.10 / 0.50, from a third-party tracker, not confirmed by OpenAI | unverified |
-| Claude Code on this computer | `claude-sonnet-5-5` | fast, main | no | none (your own plan) | needs setup while the terms gate is closed (the default); once open, needs setup until found, then unverified |
-| Codex on this computer | `gpt-6-luna` | fast, main | no | none (your own plan) | needs the reviewed host profile, then unverified |
+| Claude Code on this computer | owner-selected model | fast, main | no | none (your own plan) | enabled by default; checks the installed tool and its sign-in |
+| Codex on this computer | owner-selected model (preset default `gpt-6-luna`) | fast, main | no | none (your own plan) | needs the reviewed host profile; tested versions are recorded in the notes |
 | Built-in templates (no AI) | none | fast, main | no | none | ready |
+| OpenRouter | owner-selected exact provider/model ID | fast, main | yes | owner-entered exact model rates | fixture-tested until a real key check passes |
 
 Prices were typed in by hand on 15 October 2026 and are stored in micro-USD (millionths of a dollar). Fast jobs are the interview, made-up rehearsal clients and judging; main jobs are plan words, build briefs and draft replies (`PURPOSE_TIER` in the contracts).
 
@@ -40,7 +47,7 @@ generate (standing consent)                     preview, then runPreview (client
   tier -> newest connection, or templates         tier -> newest connection, or null (templates)
   send setting "nothing" -> SEND_DISABLED         send setting "nothing" -> SEND_DISABLED
   build the exact request                         build the exact request (no headers, no key)
-  content guard -> CLIENT_DATA_NEEDS_APPROVAL     record status 'preview', hold the body in memory 30 minutes
+  content guard -> CLIENT_DATA_NEEDS_APPROVAL     record status 'preview', hold the exact body in memory
   record status 'dispatching' + budget check      owner approves the digest in the app
   send once, parse, validate                      claim first: still 'preview', same digest, same connection,
   record 'completed' or 'failed' with cost          same consent, send setting, key, budget -> 'dispatching'
@@ -51,7 +58,7 @@ Rules that hold on both paths:
 
 - **One dispatch.** No retry, no switch to another model, no server-side fallback. A refusal is `MODEL_REFUSAL`; a cut-off answer is `MODEL_INCOMPLETE`.
 - **Never inside a transaction.** No port method is called inside a `ventureAction`. Each call uses two short actions of its own: one before sending, one after.
-- **`status()` never writes.** A call left dispatching for more than ten minutes reads as failed, and a preview older than 30 minutes reads as expired, in the returned view only. The next call that records anything writes those states down.
+- **`status()` never writes.** A call left dispatching for more than ten minutes reads as failed in the returned view only. The next recording action writes that state down. Preview requests have no fixed timer; their exact content, source and connection bindings still apply, and their in-memory body is lost on restart.
 - **Approval sends once.** `runPreview` claims the call in its first action, before any other wait, and takes the held body out of memory in that same step. A double click, or the window and the paired browser together, finds the call already dispatching and gets `APPROVAL_STALE`. After a restart the held body is gone, so the owner runs the draft again.
 
 ## The send setting
@@ -71,7 +78,7 @@ Two guards keep client details out of calls that run under standing consent:
 
 - A call's cost is `(input tokens x input price + output tokens x output price + 999999) / 1000000`, rounded up to a whole micro. Haiku with 812 in and 164 out is 164 micros, shown as `USD 0.0002`. Sonnet with 1430 in and 402 out is 6880 micros, `USD 0.0069`.
 - Before sending, the most a call can cost is worked out with `ceil(characters / 2)` input tokens plus the full output allowance. This is reserved against the limit while the call is in flight.
-- The limit is set per connection when connecting (`monthlyCapUsd`, 0.01 to 1000, default 5). The check counts this month's spend on that option (months in UTC), plus what every call of that option still in flight reserves, plus the new call. It runs inside the write that records the call, so two calls that start together can't both spend the last of the limit.
+- The owner sets the connection limit (`monthlyCapUsd`, at least 0.01, default 5, subject to the shared amount representation). The check counts this month's spend on that option (months in UTC), plus what every call of that option still in flight reserves, plus the new call. It runs inside the write that records the call, so two calls that start together can't both spend the last of the limit.
 - Costs from an unconfirmed price table (Luna) carry the words "(estimate, price unconfirmed)". Command-line options have no price table; their previews say "(runs on your own plan)".
 
 ## The routes
@@ -80,13 +87,13 @@ Two guards keep client details out of calls that run under standing consent:
 
 **OpenAI Responses** (`openai.ts`): `POST https://api.openai.com/v1/responses` with a bearer key, `store: false`, no tools and a strict `json_schema` format. Parsing follows the `openai-responses` branch of the gateway.
 
-**Claude Code** (`cli.ts`): runs `claude` with the flags from `cliArguments` in `gateway.ts`, the input as stdin, and only these environment names: `PATH`, `Path`, `SystemRoot`, `WINDIR`, `TEMP`, `TMP`, `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, plus fixed Claude Code settings. No key is ever passed; Claude Code uses its own login. The schema is written to a fresh temp folder, which is removed when the run ends. **The flag list has never been checked against an installed `claude`.** Connecting runs `claude --version` first (no network, no cost); a missing command is `CLI_UNAVAILABLE`.
+**Claude Code** (`cli.ts`): the structured-call route runs `claude` with the flags from `cliArguments` in `gateway.ts`, the input as stdin, and an allowlist of environment names. It uses Claude Code's own login and removes its temporary schema folder when finished. Wave 6 checked this production route on the installed version; native delivery separately uses the Agent SDK. Connecting checks the installed version first; a missing command is `CLI_UNAVAILABLE`.
 
 **Codex** (`cli.ts`): runs the executable named in the reviewed host profile with `buildCodexCliArguments` and `parseCodexCliOutput` from `providers/codex-cli.ts`. Codex has no system prompt flag in the reviewed profile, so the instructions lead the stdin text, as the gateway does. The process port is the host's verified one, which checks the executable's SHA256 before each run.
 
 The stored `payloadText` is the HTTP body (never a key), or for the command-line tools `{ command, args, stdin }` with the schema file path written as `<schema-file>`.
 
-These routes answer one model call each, with no tools. Handing a whole job to Claude Code or Codex, with its own tools in a locked folder after the owner approves the brief, is the delivery harness's heavy-work tier: see [harness.md](harness.md#heavy-work-your-own-claude-code-or-codex).
+These structured routes answer one model call each. Wave 6 delivery uses the native agent drivers and scoped toolbox described above. The separate heavy-work delivery tier and its per-turn approvals have been retired; code-owned development helpers remain where explicitly used.
 
 ### Setting up Codex
 
@@ -109,7 +116,7 @@ Since 18 October onboarding starts by connecting an AI, before any vault exists.
 | `venture.ai.status` | The draft status, with `scope: 'before-vault'` and `idleUntil` (null while paused or with nothing connected) |
 | `venture.ai.calls` | The draft "What was sent" list, newest first, failed calls included |
 
-When the business is kept, the draft connections and calls move into the vault with the same ids and times, and the key moves to the vault host's shelf after the write commits. The send setting moves to "send question shapes" then, as it does when an AI is connected in the vault. Once a vault holds a business, these methods refuse `VENTURE_EXISTS`; the vault's own methods take over.
+When the business is kept, its keys are persisted under the new workspace before the business write can succeed. The draft connections and calls move into the vault with the same ids and times, and the host receives the keys after that write commits. A failed write restores the previous protected values. The send setting moves to "send question shapes" then, as it does when an AI is connected in the vault. Once a vault holds a business, these methods refuse `VENTURE_EXISTS`; the vault's own methods take over.
 
 New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `compose` (main tier) builds the plan from blocks. Both carry only the owner's own sentence and the country, never client data. Routes are chosen by tier, so the open box needs both: the Connect screen moves on only when the quick and the plan tier can both serve. The recommended pair connects Haiku 5.5 first, then Sonnet 5.5; GPT-6 Luna, Claude Code and Codex each serve both tiers.
 
@@ -117,12 +124,12 @@ New purposes: `decide` (fast tier) reads the owner's sentence and picks views; `
 
 | Row | Presets | Words at rest |
 | --- | --- | --- |
-| Paste an API key | `anthropic-haiku-5-5` and `anthropic-sonnet-5-5` (one key, the recommended pair), `openai-gpt-6-luna` | Can connect |
-| Claude Code on this computer | `claude-code-cli` | Needs setup while the terms gate is closed |
+| Paste an API key | `anthropic-haiku-5-5`, `anthropic-sonnet-5-5`, `openai-gpt-6-luna`, `openrouter` | Can connect after a successful check |
+| Claude Code on this computer | `claude-code-cli` | Uses the owner's installed and signed-in tool |
 | Codex on this computer | `codex-cli` | Needs setup without the reviewed host profile |
 | Sign in with ChatGPT | none | Not open yet |
 
-No row's words say "works": nothing in this build has been tried with a live account.
+Wave 6 checked the installed Codex and Claude Code routes on harmless sample work, including scoped tools, interruption and continuation. API-key routes remain fixture-tested because no billed test key was supplied. The notes record exact versions and results; these checks do not certify every future tool version or provider model.
 
 **Sign in with ChatGPT** has no preset, no route and no request. OpenAI documents it, but lets only open-source tools, personal projects that run locally and apps it picks use a ChatGPT plan; Chausar is a commercial app and hasn't been picked. Paid or remotely hosted apps go through OpenAI's interest form first. Checked again on 18 October against OpenAI's plan usage page and its cookbook. Its words and sources are on [onboarding.md](onboarding.md#sign-in-with-chatgpt-real-but-not-open-to-chausar-yet).
 
@@ -130,14 +137,9 @@ No row's words say "works": nothing in this build has been tried with a live acc
 
 ## The Claude Code terms gate
 
-Anthropic's legal page says a product that runs Claude Code needs Anthropic's Commercial Terms accepted. Chausar hasn't accepted them yet, and that is the founder's action, so the route is gated in code:
+Wave 6 decision D13 enables Claude Code by default. `CHAUSAR_CLAUDE_CODE_TERMS`, read by `host-env.ts`, remains an explicit host override: absent or `accepted` enables the route; another value disables it. Requests cannot change this setting.
 
-- `CHAUSAR_CLAUDE_CODE_TERMS`, read by `host-env.ts` into `VentureHostOptions.claudeCodeTerms`. Only the value `accepted` opens the gate. Any other value, or none, means `pending`, the default in every build. It comes from the host's own settings, never from a request.
-- While pending, `availabilityOf('claude-code-cli', ...)` answers needs setup with "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.", before the vault and in the vault alike. `venture.ai.connect` and `venture.models.connect` refuse the preset with `PRESET_UNAVAILABLE` and those words, and the screens show no "Check and connect".
-- Once open, the route behaves as before: `claude --version` first, then needs setup until Claude Code is found, then unverified.
-- The gate is checked again on every call, not only on connect. A connection made while the setting was `accepted` stops working if it goes back to `pending`: the model port refuses the call with `PRESET_UNAVAILABLE` and the terms words, and `venture.models.status` shows that tier as not usable with the same reason.
-- Heavy work ([harness.md](harness.md#heavy-work-your-own-claude-code-or-codex)) obeys the same gate: while pending it never looks for, offers or starts the owner's Claude Code, and an approval of a Claude Code brief is refused if the gate closed after the brief was written. Codex heavy work is not affected.
-- To open it: the founder accepts the terms for Chausar, the lead records the date and the words in `STATE.md`, and the desktop build sets `CHAUSAR_CLAUDE_CODE_TERMS=accepted`.
+When explicitly disabled, the connection reports "Claude Code is disabled on this computer. Choose another AI." Calls and native job selection recheck the override. Otherwise the owner signs in through Claude Code itself. The installed-agent route uses the Agent SDK and was checked on this machine; package evidence and versions are in the wave 6 notes.
 
 The gate doesn't replace the other conditions from Anthropic's pages, which hold either way: Chausar never reads `.credentials.json` or sets `CLAUDE_CODE_OAUTH_TOKEN`, never shows a sign-in of its own, passes no flag that removes sign-in methods, and says that plans have limits made for one person.
 
@@ -147,11 +149,13 @@ The gate doesn't replace the other conditions from Anthropic's pages, which hold
 
 ## What is not verified
 
-- No route in this package has been tried against a live account in this build. The Anthropic request shape was checked against the current API reference, not by a paid call.
+- Billed OpenAI, Anthropic and OpenRouter routes remain fixture-tested without test keys. No paid provider call is claimed.
 - GPT-6 Luna: a past probe through Codex failed, and its price comes from a third-party tracker, so its costs are estimates.
-- Claude Code and Codex: both run on the owner's own plan and have not been tried on a real task here. The Claude Code flags are unchecked.
+- Installed Codex and Claude Code passed the Wave 6 checks recorded in NOTES-6.md. This qualifies the recorded versions, settings and sample tasks, not every model or future tool release.
 
-## Choices made beyond the spec (the founder can reverse any)
+## Earlier structured-call choices
+
+These describe the original ModelPort calls. Native agent usage follows the Wave 6 accounting rules above.
 
 - **The monthly limit counts spend per option**, not across the whole business, so a Sonnet limit is not used up by Haiku calls, and reconnecting the same option does not reset its spend.
 - **Failed calls that used tokens count.** A cut-off or refused answer still reports usage, so its cost is recorded and counts against the limit. A call that never got an answer records no cost.
@@ -162,9 +166,11 @@ The gate doesn't replace the other conditions from Anthropic's pages, which hold
 
 ## Retention
 
-Model call records keep the text that was sent. For calls that held client details, that text should later be dropped after a shorter period while the digests stay; the books keep a ten-year retention. This build keeps the text, so the owner can always see what was sent.
+Model call records show what was sent while retained. Forget erases bound native job text, messages, work artifacts and quality-call payloads, including late responses; financial charge metadata follows its existing retention path. Client permission can be withdrawn without pretending that already transmitted data was never sent.
 
-## Hand-off note
+## Historical P2 hand-off note
+
+The following records the original P2 delivery. Its test counts and live-check limitations are historical; the Wave 6 notes contain current qualification.
 
 **Done.** Everything in section 5 of the build spec: presets, the five handlers, the model port (`status`, `presets`, `checkCli`, `generate`, `preview`, `runPreview`), the Anthropic, OpenAI, Claude Code and Codex routes, the real transport, the replay transport, cost and the monthly limit, the schema rule and the client data guard, with tests for all 13 items in 5.7.
 

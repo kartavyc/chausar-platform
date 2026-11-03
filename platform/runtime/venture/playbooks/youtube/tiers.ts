@@ -24,7 +24,7 @@ export function tierTranscript(input: { tier: TranscriptTier; whisperVersion: st
 }
 /** The owner downloads the named bytes in their browser; Chausar never downloads without this exact confirmation. */
 export function modelDownloadHandoff(tier: TranscriptTier, confirmed: boolean, hosted: boolean) {
-  check(!hosted, 'TIER_UNAVAILABLE', 'Model downloads are a desktop handoff. Upload an SRT or VTT transcript here.');
+  check(!hosted, 'TIER_UNAVAILABLE', 'Download models yourself in the desktop app. Upload an SRT or VTT transcript here.');
   check(confirmed === true, 'APP_APPROVAL_REQUIRED', 'Confirm this model, its source, size and licence before opening the download.');
   check(Object.hasOwn(TRANSCRIPT_MODELS, tier), 'INVALID_VENTURE_REQUEST', 'Choose draft, final or refined transcription.');
   const model = TRANSCRIPT_MODELS[tier];

@@ -2,7 +2,7 @@
 import {check,digest} from '../../../portable.ts';
 import {checkTranslation} from './core.ts';
 import {exactTranslation,translationText,translationApproval,type TranslationState} from './state.ts';
-export type TranslationAiPreview={callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;expiresAt:string};
+export type TranslationAiPreview={clientAi?:import('../../clients/ai-consent-core.ts').ClientAiContextBinding;callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string};
 export type TranslationAiAnswer={segments:{id:string;target:string;explanation:string}[]};
 export const translationAiBinding=(job:TranslationState)=>digest({approval:translationApproval(job),notes:job.notes,provider:job.provider});
 /** IDs and all protected source checks are local authority; meaning still needs human review. */

@@ -24,7 +24,7 @@ import s from './NotificationCentre.module.css';
 export function whenOf(at: string, language: Language): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
 }
 
 export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps) {

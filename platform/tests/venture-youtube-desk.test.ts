@@ -51,7 +51,7 @@ test('word times bind to the current order transcript and refuse captions after 
   const bound = (await act('new', 'create', { orderId: order.id, source: SOURCE, sourceRef: { kind: 'transcript', orderId: order.id } })).result as YoutubeEditView;
   const captions = (await act(bound.id, 'captions', { profile: 'web' }, bound.digest)).result as YoutubeEditView;
   assert.ok(captions.captions);
-  const run = await env.call('venture.delivery.run', { orderId: order.id });
+  const run = await env.call('venture.delivery.run', { orderId: order.id, useTemplate: true });
   const toolEnv = { deps: env.deps, ventureId: currentVenture(env.store.read())!.id, runRef: { kind: 'delivery', runId: run.id }, intake: { rights: { basis: 'own-footage', holder: 'Asha Rao' } }, now: () => '2026-10-27T12:00:00.000Z' } as unknown as ToolEnv;
   assert.ok((await YOUTUBE_EDIT_TOOLS['youtube.captions'].run(toolEnv, { editId: bound.id, profile: 'web' })).result);
   await add('We make tea');

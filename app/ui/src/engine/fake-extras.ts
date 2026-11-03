@@ -10,6 +10,7 @@
 
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
 import { FAKE_CA_RULES } from './fake-ca-rules';
 import type { SignoffCheckView } from './types';
 import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
@@ -19,13 +20,14 @@ import {
 } from './types';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
+import type { WriteCapKind } from './types';
 import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
-export interface ExtrasHost {
+export interface ExtrasHost extends CountryMoneyHost {
   draftText?(id:string):string|null;
   digest(value: unknown): string;
   current(): string;
@@ -96,6 +98,23 @@ function rupeesBeside(micros: string, rate: SampleRupeeRate): string {
   const paise = (BigInt(micros) * rate.perUsd + 50_000_000n) / 100_000_000n;
   return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')} at ${rateWords(rate)}`;
 }
+/**
+ * W6 6G5 (D44): each sample agent's spend this month with its sum receipt, as money/agent-meters.ts sends it: the Editor's
+ * settled calls and the Researcher's call still held at its estimate (fixtures.ts SPEND), and runs on the owner's plan.
+ * A routine has spent nothing in the sample, so its row rests on the empty sum receipt.
+ */
+const METER_SAMPLE: Readonly<Record<string, readonly { id: string; name: string; micros: number; receiptId: string; plan: number }[]>> = {
+  lumen: [
+    { id: 'editor', name: 'Editor', micros: 504_132, receiptId: 'R-0451', plan: 0 }, { id: 'researcher', name: 'Researcher', micros: 215_600, receiptId: 'R-0452', plan: 2 },
+    { id: 'producer', name: 'Producer', micros: 0, receiptId: 'R-0453', plan: 0 }, { id: 'publisher', name: 'Publisher', micros: 0, receiptId: 'R-0453', plan: 0 },
+  ],
+  ledgerline: [{ id: 'bookkeeper', name: 'Bookkeeper', micros: 0, receiptId: 'R-0453', plan: 3 }, { id: 'billing', name: 'Billing', micros: 0, receiptId: 'R-0453', plan: 0 }],
+};
+const EMPTY_SUM_RECEIPT = 'R-0453';
+const METER_WORDS = {
+  noLimit: 'No limit of its own', paused: 'Paused: it reached its limit. Other work goes on.',
+  plan: (n: number) => `${n} ${n === 1 ? 'run' : 'runs'} on your plan`, used: (permille: number) => `${Math.floor(permille / 10)}% of its limit used`,
+};
 const DAY = 86_400_000;
 const UNSUBSCRIBE = 'If you would rather not hear from us, reply "unsubscribe" and we will not write again.';
 /** Domains the sample treats as having a mail server. The real engine asks DNS for MX records. */
@@ -111,6 +130,8 @@ export class FakeExtrasDesk {
   private rupees: Record<string, SampleRupeeRate | null> = {};
   /** 4Z3: the owner's choice of which currency leads spend, per business; absent: Auto. */
   private leadChoice: Record<string, CurrencyLead> = {};
+  /** W6 6G5: each agent's and each routine's own monthly limit, in micro-dollars, per business. */
+  private ownCaps: Record<string, { agents: { agent: string; capMicros: string }[]; routines: { routine: string; capMicros: string }[] }> = {};
   private ca: Record<string, CaView>;
   private caReceipts: Record<string, Record<string, CaReceiptView>>;
   private leads: Record<string, LeadView[]>;
@@ -122,9 +143,11 @@ export class FakeExtrasDesk {
   private edits: Record<string, SiteEditLite[]> = {};
   private shares: HeldShare[] = [];
   private seq = 0;
+  private countryMoney: FakeCountryMoney;
 
   constructor(host: ExtrasHost, options: { fresh?: boolean } = {}) {
     this.host = host;
+    this.countryMoney = new FakeCountryMoney(host);
     this.policies = options.fresh ? {} : clone(SPEND_POLICIES);
     // 4Z3: the sample's own rupee rate, as its policies say it (set 15 Oct 2026), so every spend view agrees with them.
     if (!options.fresh) for (const [biz, policy] of Object.entries(this.policies)) if (policy.inrPerUsd) this.rupees[biz] = { perUsd: rupeeRate(policy.inrPerUsd), setOn: '2026-10-15' };
@@ -143,9 +166,9 @@ export class FakeExtrasDesk {
     const biz = this.host.current();
     switch (method) {
       case 'venture.money.overview': return this.overview(biz);
-      case 'venture.tax.working': return this.taxWorking(biz);
-      case 'venture.spend.policy.get': return this.withLead(biz, this.withMeter(biz, clone(this.policyOf(biz))));
-      case 'venture.spend.policy.set': return this.withLead(biz, this.withMeter(biz, this.setPolicy(biz, p)));
+      case 'venture.tax.working': return this.taxWorking(biz, p.period);
+      case 'venture.spend.policy.get': return this.withMeters(biz, this.withLead(biz, this.withMeter(biz, clone(this.policyOf(biz)))));
+      case 'venture.spend.policy.set': return this.withMeters(biz, this.withLead(biz, this.withMeter(biz, this.setPolicy(biz, p))));
       case 'venture.ca.confirmCitations': return this.confirmCitations(biz,p);
       case 'venture.ca.signoff.get': return this.storedSignoff(biz,p);
       case 'venture.ca.get': return clone(this.caOf(biz));
@@ -202,6 +225,7 @@ export class FakeExtrasDesk {
         lead: spendLead(month.micros, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto'), line.estimate ? ', includes estimates' : ''),
       };
     });
+    if (this.countryMoney.dynamic(!!OVERVIEW[biz])) return this.countryMoney.overview(lines.find(line => line.id === 'spent'));
     return { lines: [{ id: 'owed', label: 'Clients owe you', value: owed.value, ...(owed.receiptId ? { receiptId: owed.receiptId } : {}) }, ...lines] };
   }
 
@@ -219,8 +243,11 @@ export class FakeExtrasDesk {
     };
   }
 
-  private taxWorking(biz: string) {
+  receipt(id: string) { return this.countryMoney.receipt(id); }
+
+  private taxWorking(biz: string, period?: unknown) {
     const working = TAX_WORKINGS[biz];
+    if (this.host.ledger && this.host.ask && (this.countryMoney.dynamic(!!working) || !working || (period !== undefined && !this.countryMoney.matchesPeriod(period, working.period)))) return this.countryMoney.tax(period, this.host.playbook(biz)?.id === 'ca-firm');
     if (!working) throw new EngineError('BLUEPRINT_NOT_FOUND', 'Make your plan first. The tax working follows its tax settings.');
     return clone(working);
   }
@@ -248,18 +275,94 @@ export class FakeExtrasDesk {
     };
   }
 
+  /**
+   * W6 6G5 (D44): each agent's and each routine's spend this month as money/agent-meters.ts words it: the month's
+   * figure as the owner's currency leads it with its sum receipt, plan runs with no figure, and the owner's own limit.
+   */
+  private withMeters(biz: string, policy: SpendPolicyView): SpendPolicyView {
+    const caps = this.ownCaps[biz] ?? { agents: [], routines: [] };
+    const rate = this.rupees[biz] ?? null;
+    const leads = Boolean(rate) && rupeesLead(this.leadChoice[biz] ?? 'auto');
+    const row = (scope: 'agent' | 'routine', id: string, name: string, micros: number, receiptId: string, plan: number, cap: string | undefined) => {
+      const capped = cap === undefined ? null : BigInt(cap);
+      const permille = capped === null ? null : capped > 0n ? Number((BigInt(micros) * 1000n) / capped) : 1000;
+      const paused = capped !== null && BigInt(micros) >= capped;
+      return {
+        scope, id, name, used: `${usd(String(micros))} this month`, usedLead: spendLead(micros, rate?.perUsd ?? null, leads, ' this month'), receiptId,
+        plan: plan > 0 ? METER_WORDS.plan(plan) : null,
+        cap: cap === undefined ? null : `${usd(cap)} a month`, capUsd: cap === undefined ? null : asUsd(cap), ...(rate && cap !== undefined ? { capRupees: rupeesBeside(cap, rate) } : {}),
+        usedPermille: permille === null ? null : Math.min(permille, 1000), paused,
+        line: capped === null ? METER_WORDS.noLimit : paused ? METER_WORDS.paused : METER_WORDS.used(permille!),
+      };
+    };
+    const agents = (METER_SAMPLE[biz] ?? []).map(a => row('agent', a.id, a.name, a.micros, a.receiptId, a.plan, caps.agents.find(c => c.agent === a.id)?.capMicros));
+    const routines = this.routinesOf().map(r => row('routine', r.id, r.name, 0, EMPTY_SUM_RECEIPT, 0, caps.routines.find(c => c.routine === r.id)?.capMicros));
+    return { ...policy, meters: { month: this.host.now().slice(0, 7), agents, routines } };
+  }
+
+  /** The business's routines, as venture.routines.list answers them. */
+  private routinesOf(): { id: string; name: string }[] {
+    // W6 6G2 (integrator to confirm with 6G5): an agent's routine reads the team, and the team reads this policy, so the
+    // list is read once per request; a nested read answers the outer one's list instead of recursing without end.
+    if (this.readingRoutines) return this.readingRoutines;
+    this.readingRoutines = [];
+    try { this.readingRoutines = ((this.host.ask?.('venture.routines.list', {}) as { routines?: { id: string; name: string }[] } | undefined)?.routines ?? []); return this.readingRoutines; } catch { return []; } finally { this.readingRoutines = null; }
+  }
+  private readingRoutines: { id: string; name: string }[] | null = null;
+
+  /** W6 6G5: agentCaps and routineCaps as money/spend.ts takes them: US dollars, one per agent or routine, the list replacing the one in force. */
+  private setOwnCaps(biz: string, p: Record<string, unknown>): void {
+    const held = this.ownCaps[biz] ?? { agents: [], routines: [] };
+    const read = (value: unknown, key: 'agent' | 'routine', field: string) => {
+      if (!Array.isArray(value)) throw invalid(`${key}Caps is a list of one limit per ${key}.`);
+      const lines = value.map((item) => {
+        const line = (item ?? {}) as Record<string, unknown>;
+        if (Object.keys(line).sort().join(',') !== ['capUsd', key].sort().join(',')) throw invalid('Send the required fields and nothing else.');
+        if (typeof line[key] !== 'string') throw invalid(key === 'routine' ? 'A routine limit names one of your routines.' : 'An agent limit names one agent of the team.');
+        return { id: line[key] as string, capMicros: dollars(line.capUsd, field, 2) ?? '0' };
+      });
+      if (new Set(lines.map(l => l.id)).size !== lines.length) throw invalid(`Each ${key} has one limit.`);
+      return lines;
+    };
+    const agents = p.agentCaps === undefined ? held.agents : read(p.agentCaps, 'agent', "An agent's limit").map(l => ({ agent: l.id, capMicros: l.capMicros }));
+    const routines = p.routineCaps === undefined ? held.routines : read(p.routineCaps, 'routine', "A routine's limit").map(l => ({ routine: l.id, capMicros: l.capMicros }));
+    const live = new Set(this.routinesOf().map(r => r.id));
+    if (routines.some(r => !live.has(r.routine))) throw invalid('A routine limit names one of your routines.');
+    this.ownCaps[biz] = { agents, routines };
+  }
+
   private policyOf(biz: string): SpendPolicyView {
     this.policies[biz] ??= {
       capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
     };
+    this.policies[biz].writeCaps ??= (['drafts', 'books-lines', 'messages'] as const).map((kind, i) => ({ kind, configuredCap: [30, 500, 40][i]!, cap: [30, 500, 40][i]!, used: 0, raised: false, line: this.writeCapLine(kind, [30, 500, 40][i]!) }));
     return this.policies[biz];
   }
 
+  private writeCapLine(kind: WriteCapKind, cap: number): string {
+    const word = kind === 'drafts' ? cap === 1 ? 'draft' : 'drafts' : kind === 'books-lines' ? cap === 1 ? 'books line' : 'books lines' : cap === 1 ? 'message for people' : 'messages for people';
+    return `Chausar stops agents at ${cap} ${word} a day so a stuck agent can't flood ${kind === 'drafts' ? 'you' : kind === 'books-lines' ? 'your books' : 'anyone'}.`;
+  }
+
   private setPolicy(biz: string, p: Record<string, unknown>): SpendPolicyView {
-    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'currencyLead'].includes(key));
+    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'currencyLead', 'writeCaps', 'agentCaps', 'routineCaps'].includes(key));
     if (extra) throw invalid(`${extra} is not a spend setting.`);
+    // W6 6G5: each agent's and each routine's own limit, checked before anything else changes.
+    if (p.agentCaps !== undefined || p.routineCaps !== undefined) this.setOwnCaps(biz, p);
     const figure = (value: unknown, field: string): string | null => dollars(value, field, 6);
     const policy = clone(this.policyOf(biz));
+    if (p.writeCaps !== undefined) {
+      const caps = p.writeCaps;
+      if (caps === null || typeof caps !== 'object' || Array.isArray(caps)) throw invalid('Write caps are drafts, books lines and messages, each a whole number.');
+      for (const [kind, value] of Object.entries(caps)) {
+        if (!['drafts', 'books-lines', 'messages'].includes(kind)) throw invalid('Write caps are drafts, books lines and messages.');
+        if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw invalid(`The ${kind.replace('-', ' ')} cap must be a whole number from 0.`);
+        const row = policy.writeCaps!.find(item => item.kind === kind)!;
+        row.configuredCap = value;
+        row.cap = row.raised ? Math.min(Number.MAX_SAFE_INTEGER, value + Math.max(value, 1)) : value;
+        row.line = this.writeCapLine(row.kind, value);
+      }
+    }
     if (p.capUsd !== undefined) {
       policy.capMicros = dollars(p.capUsd, 'The monthly limit', 2);
       policy.capUsd = asUsd(policy.capMicros);
@@ -275,15 +378,21 @@ export class FakeExtrasDesk {
       policy.rates = (p.rates as SpendRateInput[]).map((line) => {
         if (!line || !/^(model|delegate|connector):[a-z0-9._-]{1,80}$/.test(String(line.item))) throw invalid('A rate card line names a model, a heavy-work tool or a connector.');
         if (!['per-million-tokens', 'per-call', 'per-run-cap'].includes(line.unit)) throw invalid('A rate is per million tokens, per call, or a run cap.');
+        if (line.model !== undefined && (typeof line.model !== 'string' || !/^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$/.test(line.model) || !line.item.startsWith('model:') || line.unit !== 'per-million-tokens')) throw invalid('Use the exact model id for a model token price.');
         const input = line.inputUsdPerMillion == null ? null : figure(line.inputUsdPerMillion, 'A rate');
         const output = line.outputUsdPerMillion == null ? null : figure(line.outputUsdPerMillion, 'A rate');
         const perCall = line.usdPerCall == null ? null : figure(line.usdPerCall, 'A rate');
+        const cacheRead = line.cacheReadUsdPerMillion == null ? null : figure(line.cacheReadUsdPerMillion, 'A rate');
+        const cacheWrite = line.cacheWriteUsdPerMillion == null ? null : figure(line.cacheWriteUsdPerMillion, 'A rate');
         if (line.unit === 'per-million-tokens' ? input === null || output === null : perCall === null) throw invalid('A rate per million tokens needs both its input and output figures; a rate per call or a run cap needs its figure.');
         if (!text(line.source)) throw invalid('Say where the rate comes from.');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(line.checkedOn))) throw invalid('The date checked must be a date like 2026-10-21.');
         const price = line.unit === 'per-million-tokens' ? `${usd(input!)} in and ${usd(output!)} out, per million tokens` : line.unit === 'per-call' ? `${usd(perCall!)} per call` : `Up to ${usd(perCall!)} a run`;
         return {
           item: line.item, unit: line.unit, inputMicrosPerMillion: input, outputMicrosPerMillion: output, microsPerCall: perCall,
+          ...(line.model === undefined ? {} : { model: line.model }),
+          ...(line.cacheReadUsdPerMillion === undefined ? {} : { cacheReadMicrosPerMillion: cacheRead, cacheReadUsdPerMillion: asUsd(cacheRead) }),
+          ...(line.cacheWriteUsdPerMillion === undefined ? {} : { cacheWriteMicrosPerMillion: cacheWrite, cacheWriteUsdPerMillion: asUsd(cacheWrite) }),
           inputUsdPerMillion: asUsd(input), outputUsdPerMillion: asUsd(output), usdPerCall: asUsd(perCall),
           source: text(line.source), checkedOn: line.checkedOn, confirmed: true, by: 'owner' as const, price,
         };

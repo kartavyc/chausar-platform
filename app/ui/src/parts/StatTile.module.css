@@ -64,7 +64,7 @@
   align-items: center;
 }
 
-/* The sub line wraps (D cut it with an ellipsis): a cut would lose Hindi words or part of a figure. */
+
 .sub {
   margin-top: calc(var(--sp-1) / 2);
   color: var(--mute);

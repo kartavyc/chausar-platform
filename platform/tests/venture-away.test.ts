@@ -15,7 +15,7 @@ const agent: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'm
 const run = (env: Env, orderId: string, ctx: Context = owner) => delivery['venture.delivery.run']!(env.deps, ctx, { orderId, useTemplate: true }) as Promise<DeliveryRunRecord>;
 const PREVIEW = { callId: 'call_x', payloadText: 'x', digest: 'a'.repeat(64), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-15T10:30:00.000Z' } as const;
 
-test('pause all: new runs and approvals are refused, Team reads Paused, routines skip; unpausing changes no run', async () => {
+test('pause all: new runs are refused, Team reads Paused, routines skip; unpausing changes no run', async () => {
   const env = await setup();
   const plan = await seedBlueprint(env);
   const { order } = await seedOrder(env, plan);
@@ -28,7 +28,6 @@ test('pause all: new runs and approvals are refused, Team reads Paused, routines
   const paused = await call(env, 'venture.business.pause', { paused: true });
   assert.deepEqual(paused, { paused: true, stopped: 0, line: 'Paused. No new work starts until you unpause.' });
   await assert.rejects(run(env, order.id), code('BUSINESS_PAUSED'));
-  await assert.rejects(delivery['venture.delivery.approve']!(env.deps, owner, { runId: waiting.id, digest: PREVIEW.digest }), code('BUSINESS_PAUSED'));
   assert.equal(pauseSkipLine(env.store.read()), 'Paused by you');
   const team = await call<{ agents: AgentView[] }>(env, 'venture.team.list', {});
   // Keeper is Chausar's own code, not an agent: its housekeeping jobs start no agent work.

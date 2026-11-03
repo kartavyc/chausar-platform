@@ -6,7 +6,7 @@ import { PageTitle } from '../../src/parts/PageTitle';
 import { TextProvider } from '../../src/text';
 import type { ReactNode } from 'react';
 
-const draw = (node: ReactNode, language: 'en' | 'hi' = 'en') => render(<TextProvider language={language}>{node}</TextProvider>);
+const draw = (node: ReactNode, language: 'en' = 'en') => render(<TextProvider language={language}>{node}</TextProvider>);
 
 describe('PageTitle', () => {
   it('renders one h1 and nothing else when given only a title', () => {
@@ -72,10 +72,7 @@ describe('PageTitle', () => {
     expect(container.querySelector('header')!.lastElementChild).toBe(group);
   });
 
-  it('names the tools group in Hindi', () => {
-    draw(<PageTitle title="टीम" tools={<button type="button">जोड़ें</button>} />, 'hi');
-    expect(screen.getByRole('group', { name: 'इस पेज के टूल' })).toBeTruthy();
-  });
+
 
   it('carries no style attribute', () => {
     const { container } = draw(<PageTitle eyebrow="Friday" title="Today" line="12 need you" count="12" tools={<span>x</span>} />);

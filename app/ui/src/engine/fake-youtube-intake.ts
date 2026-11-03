@@ -2,11 +2,11 @@
 import {EngineError,type OfferIntakeLite,type OrderLite,type VoiceConsentsView} from './types';
 import {fakeKitIntake} from './fake-kit-intake';
 import {localPathProblem} from '../../../../platform/runtime/local-paths';
-export function fakeYoutubeMediaIntake(raw:unknown,ask:OfferIntakeLite,meta:{by:string;at:string;today:string;hosted?:boolean},consents:()=>VoiceConsentsView):NonNullable<OrderLite['intake']>{
+export function fakeYoutubeMediaIntake(raw:unknown,ask:OfferIntakeLite,meta:{by:string;at:string;today:string;currency?:string;hosted?:boolean},consents:()=>VoiceConsentsView):NonNullable<OrderLite['intake']>{
  const fail=(line:string):never=>{throw new EngineError('INVALID_VENTURE_REQUEST',line);};
  if(raw!==undefined&&(!raw||typeof raw!=='object'||Array.isArray(raw)))fail('Send the intake as named fields.');
- const {fields,moneyRupees,...base}=(raw??{}) as Record<string,unknown>;
- const own=fakeKitIntake({fields,...(moneyRupees===undefined?{}:{moneyRupees})},{...ask,rights:[]},consents,meta)!;
+ const {fields,moneyAmounts,...base}=(raw??{}) as Record<string,unknown>;
+ const own=fakeKitIntake({fields,...(moneyAmounts===undefined?{}:{moneyAmounts})},{...ask,rights:[]},consents,meta)!;
  const extra=Object.keys(base).find(key=>!['rights','format','aiVoice','aiPresenter','paidPromotion','cutFile','calendar','clientRules'].includes(key));
  if(extra)fail(`The intake has no field called ${extra}.`);
  const rights=fakeKitIntake({rights:base.rights},{rights:ask.rights,fields:[],kit:[]},consents,meta)!.rights;

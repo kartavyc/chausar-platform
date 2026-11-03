@@ -7,6 +7,8 @@ import { brandKitSetHandler } from '../runtime/venture/playbooks/kit/brand-kit.t
 import { draftPostGate } from '../runtime/venture/build/posting.ts';
 import { deliveryJudgeHandler } from '../runtime/venture/delivery/judge-run.ts';
 
+import {consentForOrder} from './fixtures/venture/scripted-agent.ts';
+
 test('current brand kit is checked on accepted posts even when their old checks passed',async()=>{
  const env=await business('social media agency');
  const order=await env.call('venture.order.create',{clientId:env.client.id,offerId:env.offers[0].id,request:'A weekly post.'});
@@ -25,6 +27,7 @@ test('repurpose judge receives the bound source as evidence, independent of opti
  const order=await env.call('venture.order.create',{clientId:env.client.id,offerId:offer.id,request:'Repurpose the uploaded source.',intake:{fields:{channels:['linkedin','x','facebook']}},intakeFiles:{sourceFile:{name:'source.csv',contentBase64:Buffer.from(source).toString('base64')}}});
  const playbook=await seedPostPlaybook(env.deps,'social-agency');
  const run=await seedPostDraft(env.deps,['X: We teach yoga.'],{orderId:order.id,playbookId:playbook.id,status:'ready-for-review',verdict:null,playbookChecks:[{playbook:'social-agency',check:'source-faithful',outcome:'pass',detail:'The source matches.'}]});
+ await consentForOrder(env.deps,owner,order.id);
  await deliveryJudgeHandler(env.deps,owner,{runId:run.id});
  const task=env.models.previewed.at(-1)!;
  assert.ok(JSON.stringify(task.input).includes('We learned to slow down.'));

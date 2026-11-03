@@ -1,5 +1,7 @@
 // Original recruiting public-path regressions. Data belongs to the current role and owner-approved round.
 import test from 'node:test';import assert from 'node:assert/strict';
+import {rulesAttestHandler} from '../runtime/venture/playbooks/rules-attest.ts';import {ruleDigest} from '../runtime/venture/playbooks/kit/attestation.ts';
+import {RECRUITING_RULES} from '../runtime/venture/playbooks/recruiting-desk/rules.ts';
 import {setup,owner,seedBlueprint,seedOrder,code,setStage} from './venture-views-env.ts';
 import {RECRUITING_DESK_DESK} from '../runtime/venture/playbooks/recruiting-desk/desk.ts';
 import {ventureAction,listRecords} from '../runtime/venture/records.ts';
@@ -28,3 +30,10 @@ test('expiry binds and deletes the actual imported candidate conversation includ
 test('imported experience counts explicitly marked work roles and does not count study dates',async()=>{const f=await fixture();const made=await f.act('candidate','new','add',{roleId:f.roleId,name:'Dev',email:null,resume:'2016-01 to 2019-12: Bachelor of Science\nWork: 2020-01 to 2021-12: SQL analyst',sourceUrl:null});assert.equal(((await f.get('candidate',made.id)).item as any).experienceMonths,24);const unknown=await f.act('candidate','new','add',{roleId:f.roleId,name:'Other',email:null,resume:'2016-01 to 2019-12: Bachelor of Science',sourceUrl:null});assert.equal(((await f.get('candidate',unknown.id)).item as any).experienceMonths,null);});
 
 test('model-supplied slot inputs remain unverified proposals and cannot claim owner calendar authority',async()=>{const f=await fixture(),made=await f.act('candidate','new','add',{roleId:f.roleId,name:'Dev',email:null,resume:'SQL reports',sourceUrl:null}),run=await seedRun(f.env,f.order,{});const result=await RECRUITING_DESK_TOOLS['recruit.slots'].run({deps:f.env.deps,ctx:owner,ventureId:f.env.venture.id,runRef:{kind:'delivery',runId:run.id},now:()=> '2026-10-28T10:00:00.000Z'} as any,{candidateId:made.id,round:'1',start:'2026-11-01T10:00:00+05:30',end:'2026-11-01T10:30:00+05:30',interviewers:'["Client lead"]',video:'https://meet.example/interview',timeZone:'Asia/Kolkata',calendar:'BEGIN:VCALENDAR\nEND:VCALENDAR'});assert.equal((result.result as any).availability,'not-verified');assert.equal((result.result as any).saved,false);assert.equal(listRecords(f.env.store.read(),'venture-recruit-interview').length,0);});
+test('W6 6C5: after the owner attests candidate privacy, live candidate work proceeds, and withdrawing holds it again',async()=>{const f=await fixture();await setStage(f.env,'approve-each');const rule=RECRUITING_RULES.find(r=>r.id==='candidate-privacy')!;
+ await assert.rejects(f.act('candidate','new','add',{roleId:f.roleId,name:'Dev',email:null,resume:'SQL reports',sourceUrl:null}),code('RULE_UNCONFIRMED'));
+ await rulesAttestHandler(f.env.deps,owner,{ruleId:rule.id,attest:true,digest:ruleDigest(rule)});
+ const made=await f.act('candidate','new','add',{roleId:f.roleId,name:'Dev',email:null,resume:'SQL reports',sourceUrl:null});assert.ok(made.id);
+ await rulesAttestHandler(f.env.deps,owner,{ruleId:rule.id,attest:false});
+ await assert.rejects(f.act('candidate','new','add',{roleId:f.roleId,name:'Ravi',email:null,resume:'SQL reports',sourceUrl:null}),code('RULE_UNCONFIRMED'));
+});

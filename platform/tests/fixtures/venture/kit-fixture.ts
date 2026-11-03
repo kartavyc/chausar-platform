@@ -3,7 +3,7 @@
 // kit's tests pass it through the optional definitions parameter, or install it (kit/installed.ts) to run a whole
 // business on it. Not a real business: its words are plain placeholders.
 import type { PlaybookDefinition, KitBaselineCase, KitCheck } from '../../../runtime/venture/playbooks/kit/define.ts';
-import { allWords, type HiFile } from '../../../runtime/venture/playbooks/kit/words.ts';
+import { allWords } from '../../../runtime/venture/playbooks/kit/words.ts';
 import { DRAFT_CHECKS } from '../../../runtime/venture/delivery/check-lists.ts';
 import type { FlagshipCheckInput } from '../../../runtime/venture/playbooks/draft-checks.ts';
 
@@ -112,9 +112,7 @@ export function kitFixture(overrides: Partial<PlaybookDefinition> = {}): Playboo
 }
 
 /** Hindi for every string a definition shows: a plain placeholder in Devanagari, as a test needs no real translation. */
-export function fixtureHi(definition: PlaybookDefinition): HiFile {
-  return { _review: 'machine-drafted, needs a native reviewer', ...Object.fromEntries(allWords(definition).map(text => [text, `हिंदी में: ${text}`])) };
-}
+
 
 /** A second kit playbook, for tool grants: its own tool, which kit-fixture's agents may never hold. */
 export function otherFixture(): PlaybookDefinition {

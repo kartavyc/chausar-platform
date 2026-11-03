@@ -4,11 +4,12 @@
 // (unless only templates answer); a question about another business on this computer is answered by code without
 // reading it; a message that names one agent goes to that agent's chat, and one that names two makes the chief ask
 // which; anything else gets the chief's answer (answer.ts) with its proposals (proposals.ts). Every stored message
-// emits chief.message with ids only. venture.chief.threads groups the threads by when they last moved.
+// emits chief.message with ids only. venture.chief.threads groups the threads by when they last moved. W6 6G1: each
+// thread is pinned, active, snoozed or settled (states.ts); snoozed ones sit at the end, settled ones are the archive.
 import { check, type Context, type State } from '../../contracts.ts';
 import type {
   ChatPart, ChiefLineAmount, ChiefMessageRecord, ChiefMessageView, ChiefSendResult, ChiefThreadGroupKey, ChiefThreadRecord, ChiefThreadSummary,
-  ChiefThreadsView, ChiefThreadView, ProposalRecord, VentureDeps, VentureRecord,
+  ChiefThreadsView, ChiefThreadView, IsoTime, ProposalRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { exactPayload, identifier, listRecords, plainText, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import { secretFindings } from '../core/secrets.ts';
@@ -25,12 +26,13 @@ import { agentNameOf, routeOf, teamAgents } from './routing.ts';
 import { availableKinds, draftFromModel } from './proposals.ts';
 import { proposalView } from './gate.ts';
 import { OPEN_ONLY_LINE, savedAnswer } from './tools.ts';
+import { settleDaysOf, snoozeOptions, stateOf, threadStateHandler as makeThreadStateHandler, waitingOf } from './states.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
 const GROUPS: readonly { key: ChiefThreadGroupKey; label: string }[] = Object.freeze([
   { key: 'pinned', label: 'Pinned' }, { key: 'today', label: 'Today' }, { key: 'this-week', label: 'This week' },
-  { key: 'last-week', label: 'Last week' }, { key: 'earlier', label: 'Earlier' },
+  { key: 'last-week', label: 'Last week' }, { key: 'earlier', label: 'Earlier' }, { key: 'snoozed', label: 'Snoozed' },
 ]);
 
 // ---------------------------------------------------------------------------
@@ -68,14 +70,20 @@ export function lastLineOf(parts: readonly ChatPart[]): { lastLine: string; amou
   return { lastLine: `${kept}...`, amounts: amounts.filter(amount => amount.start + amount.length <= kept.length) };
 }
 
-function summaryOf(state: State, venture: VentureRecord, thread: ChiefThreadRecord): ChiefThreadSummary {
+/** A thread as the list shows it, with its state now (6G1) on the owner's quiet days. */
+function summaryOf(state: State, venture: VentureRecord, thread: ChiefThreadRecord, now: IsoTime): ChiefThreadSummary {
   const messages = messagesOf(state, venture, thread.id);
   const last = messages.filter(message => message.from === 'chief').at(-1) ?? messages.at(-1);
+  const waiting = waitingOf(state, venture, thread, messages);
   return {
     id: thread.id, title: thread.title, pinned: thread.pinned, lastAt: thread.lastAt, ...(last ? lastLineOf(last.parts) : { lastLine: '', amounts: [] }),
     unread: messages.filter(message => message.from === 'chief' && !message.read).length,
+    ...stateOf(thread, waiting, now, settleDaysOf(state, venture)), waiting,
   };
 }
+
+/** venture.chief.thread.state (6G1, states.ts), reading summaries as this file makes them. */
+export const threadStateHandler = makeThreadStateHandler(summaryOf);
 
 function messageView(state: State, venture: VentureRecord, record: ChiefMessageRecord): ChiefMessageView {
   const proposals = record.proposalIds.flatMap(id => {
@@ -95,9 +103,14 @@ function threadOf(state: State, venture: VentureRecord, threadId: string): Chief
   return thread;
 }
 
-/** Which group a thread falls in on the owner's calendar: pinned, today, this week (from Monday), last week, or earlier. */
-function groupOf(thread: ChiefThreadRecord, venture: VentureRecord, today: string): ChiefThreadGroupKey {
-  if (thread.pinned) return 'pinned';
+/**
+ * Which group a thread falls in on the owner's calendar: pinned, today, this week (from Monday), last week, earlier, or
+ * snoozed (6G1, at the end). A settled thread is in none: it is the archive.
+ */
+function groupOf(thread: ChiefThreadSummary, venture: VentureRecord, today: string): ChiefThreadGroupKey | null {
+  if (thread.state === 'settled') return null;
+  if (thread.state === 'pinned') return 'pinned';
+  if (thread.state === 'snoozed') return 'snoozed';
   const day = localDayAt(thread.lastAt, venture.country);
   const monday = weekStart(today);
   if (day === today) return 'today';
@@ -108,18 +121,23 @@ function groupOf(thread: ChiefThreadRecord, venture: VentureRecord, today: strin
 /**
  * venture.chief.threads {} (read): the open business's Chats threads, pinned first, then by when each last moved on the
  * owner's calendar, newest first, each with its last answer line and how many answers are unread. Empty groups are left
- * out. A routine's thread (4J13) shows only once routines post into one.
+ * out. A routine's thread (4J13) shows only once routines post into one. 6G1: snoozed threads come last; settled ones
+ * leave the groups for the archive (settled, the latest settled first), with the owner's quiet days.
  */
 export async function threadsHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ChiefThreadsView> {
   exactPayload(payload, []);
   const { state, venture } = readAs(deps, ctx, 'read');
   const today = ownerToday(deps.clock, venture.country);
-  const threads = listRecords(state, 'venture-chief-thread', venture.id).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+  const now = deps.clock().toISOString();
+  const threads = listRecords(state, 'venture-chief-thread', venture.id).sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+    .map(thread => summaryOf(state, venture, thread, now));
   return {
-    groups: GROUPS.map(group => ({ key: group.key, label: group.label, threads: threads.filter(thread => groupOf(thread, venture, today) === group.key).map(thread => summaryOf(state, venture, thread)) }))
+    groups: GROUPS.map(group => ({ key: group.key, label: group.label, threads: threads.filter(thread => groupOf(thread, venture, today) === group.key) }))
       .filter(group => group.threads.length > 0),
     // 4C2 review: the one chat consent as it stands, so the screen shows exactly this text and agrees by this digest.
     consent: chatConsentState(deps, ctx, state, venture).view,
+    settled: threads.filter(thread => thread.settled).sort((a, b) => b.settled!.at.localeCompare(a.settled!.at)),
+    settleAfterDays: settleDaysOf(state, venture),
   };
 }
 
@@ -143,10 +161,19 @@ export async function threadListHandler(deps: VentureDeps, ctx: Context, payload
   const end = before === null ? all.length : all.findIndex(message => message.id === before);
   check(end >= 0, 'INVALID_VENTURE_REQUEST', 'That message is not in this chat.');
   const start = Math.max(0, end - PAGE);
-  return { thread: summaryOf(state, venture, threadOf(state, venture, threadId)), messages: all.slice(start, end).map(message => messageView(state, venture, message)), more: start > 0 };
+  const now = deps.clock().toISOString();
+  const thread = summaryOf(state, venture, threadOf(state, venture, threadId), now);
+  return {
+    thread, messages: all.slice(start, end).map(message => messageView(state, venture, message)), more: start > 0,
+    // 6G1: the snooze choices now; none while the chat waits for the owner.
+    snooze: thread.waiting ? [] : snoozeOptions(now, venture.country),
+  };
 }
 
-/** venture.chief.thread.pin { threadId, pinned } (prepare, app only): pins a thread to the top of Chats, or unpins it. */
+/**
+ * venture.chief.thread.pin { threadId, pinned } (prepare, app only): pins a thread to the top of Chats, or unpins it.
+ * 6G1: the same as venture.chief.thread.state pinned or active, so pinning clears a snooze or a Settle.
+ */
 export async function threadPinHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ thread: ChiefThreadSummary }> {
   requireAppChannel(ctx, 'venture.chief.thread.pin');
   const body = exactPayload(payload, ['threadId', 'pinned'], ['threadId', 'pinned']);
@@ -156,8 +183,8 @@ export async function threadPinHandler(deps: VentureDeps, ctx: Context, payload:
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'chief.pin', tx => {
     const thread = threadOf(tx.state, tx.venture!, threadId);
-    const kept = tx.replace<ChiefThreadRecord>({ ...thread, pinned });
-    return { thread: summaryOf(tx.state, tx.venture!, kept) };
+    const kept = tx.replace<ChiefThreadRecord>({ ...thread, pinned, snoozedUntil: null, settledAt: null, stateAt: tx.now });
+    return { thread: summaryOf(tx.state, tx.venture!, kept, tx.now) };
   });
 }
 
@@ -189,8 +216,11 @@ const said = (text: string): ChatPart[] => [{ kind: 'text', text }];
  */
 async function store(deps: VentureDeps, ctx: Context, threadId: string | null, words: string, reply: Reply): Promise<ChiefSendResult> {
   return ventureAction(deps, ctx, 'prepare', 'chief.thread.send', tx => {
+    reply.assertCurrent?.(tx.state);
     const venture = tx.venture!;
-    const thread = threadId ? threadOf(tx.state, venture, threadId)
+    const found = threadId ? threadOf(tx.state, venture, threadId) : null;
+    // 6G1: the owner writing in a snoozed or settled chat brings it back.
+    const thread = found ? (found.snoozedUntil || found.settledAt ? tx.replace<ChiefThreadRecord>({ ...found, snoozedUntil: null, settledAt: null }) : found)
       : tx.put<ChiefThreadRecord>({ ...tx.base('venture-chief-thread'), title: short(tidyWords(words), 80), pinned: false, routine: null, lastAt: tx.now });
     const owner = put(tx, { threadId: thread.id, from: 'owner', text: words, author: 'owner', routedTo: reply.routedTo ?? null });
     let answer = put(tx, {
@@ -212,9 +242,13 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
       const proposal: ProposalRecord = draftProposal(tx, { ...drafted.input, threadId: thread.id, messageId: answer.id });
       proposalIds.push(proposal.id);
     }
-    answer = tx.replace<ChiefMessageRecord>({ ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null });
+    answer = tx.replace<ChiefMessageRecord>({
+      ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null,
+      // 6G1: the chief's question back waits for the owner, so the chat is never hidden until they write again.
+      ...(reply.ask ? { ask: reply.ask } : {}),
+    });
     return {
-      thread: summaryOf(tx.state, venture, tx.find('venture-chief-thread', thread.id)!),
+      thread: summaryOf(tx.state, venture, tx.find('venture-chief-thread', thread.id)!, tx.now),
       added: [messageView(tx.state, venture, owner), messageView(tx.state, venture, answer)], ask: reply.ask ?? null,
     };
   });

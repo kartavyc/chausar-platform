@@ -190,7 +190,7 @@ test('venture.notify.push.key: the public key on the hosted app; on the desktop,
   assert.deepEqual(await call<PushKeyView>(hostedDeps(env, port, net), 'venture.notify.push.key'), { publicKey: port.publicKey });
   await assert.rejects(call(env.deps, 'venture.notify.push.key', {}, owner), (error: any) => {
     assert.equal(error.code, 'TIER_UNAVAILABLE');
-    assert.equal(error.message, 'Phone alerts need the hosted app. On this computer the tray shows the count.');
+    assert.equal(error.message, 'On this computer, phone alerts come by Telegram below; the tray shows the count.');
     return true;
   });
   await assert.rejects(call(hostedDeps(env, null, net), 'venture.notify.push.key'), (error: any) => error.code === 'TIER_UNAVAILABLE' && /not set up on this server/.test(error.message));

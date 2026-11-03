@@ -8,7 +8,7 @@ import type { Context } from '../runtime/contracts.ts';
 import type { BlueprintView, ModelCallRecord, ModelReplayFixture, ModelStatusView, VentureView } from '../runtime/venture/contracts.ts';
 import { AI_OPTION_IDS, DRAFT_IDLE_MS } from '../runtime/venture/onboarding-contracts.ts';
 import type { AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan } from '../runtime/venture/onboarding-contracts.ts';
-import { AVAILABILITY_REASONS } from '../runtime/venture/models/presets.ts';
+import { AVAILABILITY_REASONS, presetSpec } from '../runtime/venture/models/presets.ts';
 import { DOG_COMPOSE, DOG_DECIDE, DOG_TEXT, claudeCliEntry, planEntries } from './fixtures/venture/compose-unit/plans.ts';
 import { PASSPHRASE, TEST_KEY, compose, connectPair, engineFor, presetOf } from './fixtures/venture/compose-unit/harness.ts';
 
@@ -91,10 +91,9 @@ test('half connected: the main call fails, quick work stays connected, and a mai
 test('the Claude Code gate: pending refuses before and in the vault; accepted runs the version check and connects', async t => {
   const pending = (await engineFor(t, { claudeCodeTerms: 'pending' })).engine;
   const closed = await pending.request('venture.ai.options', {}) as AiOptionsView;
-  const row = closed.options.find(option => option.id === 'claude-code')!;
-  assert.deepEqual([row.status, row.canConnect], ['needs-setup', false]);
-  assert.equal(presetOf(closed, 'claude-code-cli').availabilityReason, AVAILABILITY_REASONS.claudeTerms);
-  const claude = presetOf(closed, 'claude-code-cli');
+  assert.equal(closed.options.some(option => option.id === 'claude-code'), false);
+  assert.equal(closed.presets.some(preset => preset.id === 'claude-code-cli'), false);
+  const claude = presetSpec('claude-code-cli');
   await assert.rejects(pending.request('venture.ai.connect', { presetId: 'claude-code-cli', consentDigest: claude.consentDigest }), (error: any) => error.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
   await pending.request('workspace.create', { name: 'Gate test', passphrase: PASSPHRASE, pack: 'services' });
   await pending.request('venture.create', { idea: DOG_TEXT, countryCode: 'GB', workingName: 'Gate test' });

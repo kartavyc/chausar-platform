@@ -11,7 +11,7 @@ import { EngineError, type ConnectorCardLite, type ModelStatusLite, type BuildSt
 
 type Bridged = Window & { chausar?: unknown };
 
-function start(hash = '#/connections', engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(hash = '#/connections', engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = hash;
   const client = createFakeClient(engine);
   render(<App client={client} language={language} />);
@@ -193,10 +193,6 @@ describe('Connections', () => {
     expect(within(sheet).queryByText('Works today')).toBeNull();
   });
 
-  it('speaks Hindi', async () => {
-    start('#/connections', new FakeEngine(), 'hi');
-    expect(await screen.findByRole('heading', { level: 1, name: 'कनेक्शन' })).toBeTruthy();
-  });
 });
 
 describe('Connections: Your AI', () => {
@@ -259,13 +255,13 @@ describe('Connections: Your AI', () => {
     expect((within(recommended).getByRole('button', { name: 'Connect' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("a preset that needs setup shows the engine's reason and offers no Connect", async () => {
+  it('Claude Code can connect by default without a pending-terms screen', async () => {
     start();
     const section = await ai();
     const claudeCode = (await within(section).findByText('Claude Code on this computer')).closest('li')!;
-    expect(claudeCode.textContent).toContain("Chausar hasn't yet accepted Anthropic's terms for running Claude Code.");
-    expect(claudeCode.textContent).toContain('Needs setup');
-    expect(within(claudeCode).queryByRole('button', { name: 'Connect' })).toBeNull();
+    expect(claudeCode.textContent).not.toContain('terms');
+    expect(claudeCode.textContent).toContain('Not yet tried');
+    expect(within(claudeCode).getByRole('button', { name: 'Connect' })).toBeTruthy();
   });
 
   it('disconnects a connected AI, and the job falls back to templates', async () => {

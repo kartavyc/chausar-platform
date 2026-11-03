@@ -16,13 +16,13 @@ it('refuses missing kit fields rather than accepting a request the engine refuse
   expect(() => desk().request('venture.order.create', params)).toThrowError(expect.objectContaining({ code: 'INTAKE_FIELD_REQUIRED' }));
 });
 it('normalizes rupees in the fake engine and refuses conflicting or extra answers', () => {
-  const made = desk().request('venture.order.create', { ...params, intake: { fields: { city: '  Mumbai ', yes: true }, moneyRupees: { budget: '125.50' } } });
+  const made = desk().request('venture.order.create', { ...params, intake: { fields: { city: '  Mumbai ', yes: true }, moneyAmounts: { budget: '125.50' } } });
   expect(made).toMatchObject({ intake: { fields: { city: 'Mumbai', yes: true, budget: '12550' } } });
   for (const intake of [
     { fields: { city: 'Mumbai', yes: false } },
     { fields: { city: 'Mumbai', yes: true, extra: 'anything' } },
-    { fields: { city: 'Mumbai', yes: true, budget: '12550' }, moneyRupees: { budget: '125.50' } },
-    { fields: { city: 'Mumbai', yes: true }, moneyRupees: { budget: '-1' } },
+    { fields: { city: 'Mumbai', yes: true, budget: '12550' }, moneyAmounts: { budget: '125.50' } },
+    { fields: { city: 'Mumbai', yes: true }, moneyAmounts: { budget: '-1' } },
   ]) expect(() => desk().request('venture.order.create', { ...params, intake })).toThrow();
 });
 it('attaches a new required kit file atomically in the fake order API', () => {
@@ -63,4 +63,12 @@ it('omits intake for a kit offer that asks nothing and received no intake', () =
  const work = new FakeWorkDesk({ current: () => 'business', now: () => '2026-10-27T10:00:00.000Z', clients: () => [{ id: 'client', name: 'Shop' }] as never, country:()=>({code:'IN',currency:'INR'}), plan: () => schema, runs: () => [], agentName: () => 'Writer', emit: () => {} }, { fresh: true });
  expect(work.request('venture.order.create', params)).not.toHaveProperty('intake');
  expect(work.request('venture.order.create', { ...params, intake: {} })).toHaveProperty('intake.fields', {});
+});
+
+it('a new Japanese order keeps typed kit amounts as yen', () => {
+ const plan=structuredClone(view);plan.blueprint.backOffice.currency='JPY';
+ const work=new FakeWorkDesk({current:()=> 'business',now:()=> '2026-10-27T10:00:00.000Z',clients:()=>[{id:'client',name:'Shop'}] as never,country:()=>({code:'JP',currency:'JPY'}),plan:()=>plan,runs:()=>[],agentName:()=> 'Writer',emit(){}},{fresh:true});
+ const made=work.request('venture.order.create',{...params,intake:{fields:{city:'Tokyo',yes:true},moneyAmounts:{budget:'250'}}});
+ expect(made).toMatchObject({intake:{fields:{budget:'250'}}});
+ expect(()=>work.request('venture.order.create',{...params,intake:{fields:{city:'Tokyo',yes:true},moneyAmounts:{budget:'250.50'}}})).toThrowError(expect.objectContaining({code:'INVALID_AMOUNT'}));
 });

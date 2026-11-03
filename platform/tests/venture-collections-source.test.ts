@@ -4,10 +4,18 @@ import assert from 'node:assert/strict';
 import { setup, owner, seedBlueprint, seedOrder, code } from './venture-views-env.ts';
 import { ventureAction, digest, listRecords } from '../runtime/venture/records.ts';
 import { BOOKKEEPING_CFO_DESK } from '../runtime/venture/playbooks/bookkeeping-cfo/desk.ts';
+import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 const header='kind,id,invoice,debtor,on,dueOn,amount,state';
 const invoice='invoice,debtor-invoice,INV-A,Buyer,2026-10-01,2026-10-10,100,open';
 async function source(env:Awaited<ReturnType<typeof setup>>,orderId:string,text:string){return ventureAction(env.deps,owner,'prepare','test.client-source',tx=>tx.put({...tx.base('venture-upload'),name:'collections.csv',format:'csv',bytes:Buffer.byteLength(text),contentBase64:Buffer.from(text).toString('base64'),digest:digest(text),scope:{kind:'order',orderId},clientData:true}));}
 async function fixture(){const env=await setup();const {client,order}=await seedOrder(env,await seedBlueprint(env));await source(env,order.id,header+'\n'+invoice);return {env,client,order};}
+
+test('w6 an existing client debtor promise keeps the source order currency after a move', async () => {
+ const {env,client,order}=await fixture();
+ const changed=await blueprintUpdate(env.deps,owner,{patch:{countryCode:'JP'}});await blueprintAccept(env.deps,owner,{digest:changed.blueprint.digest});
+ await BOOKKEEPING_CFO_DESK.promise!.act!(env.deps,owner,{playbook:'bookkeeping-cfo',kind:'promise',id:'new',action:'record',payload:{clientId:client.id,serviceOrderId:order.id,sourceName:'collections.csv',invoiceIds:['debtor-invoice'],amountRupees:'100.50',promisedOn:'2026-10-20',method:'Bank',statedBy:'Buyer contact'}});
+ assert.equal(listRecords(env.store.read(),'venture-promise-to-pay')[0].amountMinor,'10050');
+});
 test('client debtor invoices drive the desk and only later client source payments fulfil their promise',async()=>{
  const {env,client,order}=await fixture();const ledger=BOOKKEEPING_CFO_DESK.ledger!;
  const invoices=await ledger.list!(env.deps,owner,{playbook:'bookkeeping-cfo',kind:'ledger'});

@@ -9,7 +9,7 @@ import { EngineError, type AssetView, type AssetsView, type MethodName } from '.
 // engine's codes, in English and Hindi.
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 function start(hash: string, options: StartOptions = {}) {
   window.location.hash = hash;
@@ -53,19 +53,7 @@ describe('kit media: the order\'s files on Work', () => {
     expect(calls.some((call) => call.method === 'venture.assets.rerun' && (call.params as { id: string }).id === 'asset_1')).toBe(true);
   });
 
-  it('words a refusal from its code, in Hindi too', async () => {
-    start(ORDER, {
-      language: 'hi',
-      intercept: {
-        'venture.assets.list': () => ASSETS,
-        'venture.assets.rerun': () => { throw new EngineError('ASSET_REFUSED', 'thumbnail.png was already made again.'); },
-      },
-    });
-    await settle();
-    const tile = screen.getByRole('region', { name: 'फ़ाइलें और आवाज़ें' });
-    await press(within(tile).getByRole('button', { name: 'फिर से बनाएं' }));
-    expect(within(tile).getByRole('alert').textContent).toBe('यह फ़ाइल इस तरह इस्तेमाल नहीं हो सकती।');
-  });
+
 });
 
 describe('kit media: the client\'s brand kit', () => {

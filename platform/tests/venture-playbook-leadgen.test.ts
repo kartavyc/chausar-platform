@@ -77,7 +77,7 @@ test('owner-entered referrals reuse network and disappear from desk after Forget
   assert.deepEqual((await leadDeskList(env.deps, owner, { playbook: 'lead-generation', kind: 'source' })).rows, []);
 });
 import { LEAD_RULES } from '../runtime/venture/playbooks/lead-generation/rules.ts';
-import { kitBusiness, approveWaiting, draft as leadDraft } from './fixtures/venture/kit-business.ts';
+import { kitBusiness, deliver, draft as leadDraft } from './fixtures/venture/kit-business.ts';
 import { listRecords } from '../runtime/venture/records.ts';
 test('live leadgen delivery Accept finishes each writer-only offer without repeating read or compute steps', async t => {
   const env = await kitBusiness({ now: new Date('2026-10-27T10:00:00Z') }, { idea: 'Lead generation for local businesses in Mumbai' });
@@ -94,20 +94,15 @@ test('live leadgen delivery Accept finishes each writer-only offer without repea
     const asked = LEAD_GENERATION_DEFINITION.offers.find(spec => spec.id === offer.playbookOffer)!.intake;
     const ownFields = Object.fromEntries(Object.entries(fields).filter(([key]) => asked.includes(key)));
     const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Lead research and outreach drafts for shop websites in Mumbai. Source https://bakery.example.', intake: { fields: ownFields } });
-    let run = await env.call('venture.delivery.run', { orderId: order.id });
-    let rounds = 0;
-    while (run.status === 'waiting-for-you' && rounds++ < 8) {
-      const purpose = env.models.previewed.at(-1)?.purpose;
-      run = await approveWaiting(env, run, purpose === 'delivery' ? leadDraft('Local lead report', { 'Lead report': ['Source https://bakery.example. Review this bakery for your own website offer. You send every message yourself.'] }) : { note: 'No more files to read.', calls: [], finished: true } as never);
-    }
-    assert.equal(run.status, 'ready-for-review', JSON.stringify({ status: run.status, rounds, checks: run.checks }));
-    const before: number = env.models.previewed.length;
+    const run = await deliver(env, order.id, leadDraft('Local lead report', { 'Lead report': ['Source https://bakery.example. Review this bakery for your own website offer. You send every message yourself.'] }));
+    assert.equal(run.status, 'ready-for-review', JSON.stringify({ status: run.status, checks: run.checks }));
+    const before = env.models.agentReads.length;
     await env.call('venture.delivery.review', { runId: run.id, verdict: 'accepted' });
     const stored = listRecords(env.store.read(), 'venture-order').find(item => item.id === order.id)!;
     assert.ok(stored.chainState === undefined || stored.chainState === 'done', offer.playbookOffer);
     assert.equal(listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!.status, 'accepted');
     assert.equal(listRecords(env.store.read(), 'venture-delivery-run').filter(item => item.orderId === order.id).length, 1, offer.playbookOffer);
-    assert.equal(env.models.previewed.length, before, 'Accept creates no extra drafting preview for a non-writing work step');
+    assert.equal(env.models.agentReads.length, before, 'Accept creates no extra tool-agent work for a non-writing work step');
   }
 });
 
@@ -146,7 +141,7 @@ test('live OSM tool resolves the accepted offer and binds research count to owne
     const offer = env.offers.find(item => item.playbookOffer === key)!;
     assert.notEqual(offer.id, key);
     const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Research Mumbai bakeries', intake: { fields } });
-    const run = await env.call('venture.delivery.run', { orderId: order.id });
+    const run = await env.call('venture.delivery.run', { orderId: order.id, useTemplate: true });
     const state = env.store.read(), venture = requireVenture(state);
     const toolEnv = buildToolEnv({ deps: env.deps, ctx: owner, state, venture, playbook: latestPlaybook(state, venture.id)!, runRef: { kind: 'delivery', runId: run.id }, files: [], allowed: [], intake: listRecords(state, 'venture-order').find(item => item.id === order.id)!.intake });
     const result = (await LEAD_GENERATION_TOOLS['leads.osm'].run(toolEnv, { city: 'Mumbai', vertical: 'shop=bakery' })).result as any;

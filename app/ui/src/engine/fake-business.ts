@@ -1,6 +1,10 @@
+import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { resetCountry } from './fake-country-plan';
 import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
 import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
+import { withPriceGuide } from './fake-price-ranges';
 /**
  * The fake engine's answers for Connections and the business menu: Your AI (venture.models.* in a business,
  * venture.ai.* before one exists), plan and playbook (venture.blueprint.get and .update), prices (venture.price.quote)
@@ -20,6 +24,9 @@ import {
 const clone = <T>(value: T): T => structuredClone(value);
 
 export interface DeskHost {
+  quote?(quote: import('./fake-pipeline').HeldPipelineQuote): void;
+  country?(id: string): { code: string; currency: string };
+  acceptCountry?(id: string, code: string): void;
   current(): string;
   orders?(): {offerId:string;status:string}[];
   businessName(id: string): string;
@@ -38,6 +45,8 @@ export interface DeskHost {
   deviceKeys(): boolean;
   /** 4H2: whether this answers as the hosted web server. */
   hosted?(): boolean;
+  /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
+  codexSignedIn?(): boolean;
 }
 
 const DESK_METHODS = new Set([
@@ -129,6 +138,20 @@ export class FakeBusinessDesk {
       view.offerReceipts={...view.offerReceipts,...Object.fromEntries(kept.map(offer=>[offer.id,null]))};
       view.blueprint.digest=this.host.digest({...view.blueprint,digest:''});
     }
+    const country = prior?.blueprint.country;
+    if (country) {
+      // A rewritten plan keeps the owner's prices and tax choices from its latest country draft.
+      view.blueprint.country = clone(country);
+      view.blueprint.backOffice = clone(prior.blueprint.backOffice);
+      view.blueprint.starterConnectorIds = clone(prior.blueprint.starterConnectorIds);
+      for (const offer of view.blueprint.offers) {
+        const before = prior.blueprint.offers.find(item => item.id === offer.id);
+        if (before) offer.pricing = clone(before.pricing);
+        else offer.pricing = { model: offer.pricing.model, quantityUnit: offer.pricing.quantityUnit, unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' };
+      }
+      view.offerReceipts = Object.fromEntries(view.blueprint.offers.map(offer => [offer.id, null]));
+      view.blueprint.digest = this.host.digest({ ...view.blueprint, digest: '' });
+    }
     this.blueprints[businessId] = clone(view);
   }
 
@@ -137,6 +160,7 @@ export class FakeBusinessDesk {
     const view = this.blueprints[businessId];
     if (!view || view.blueprint.id !== blueprintId) return;
     view.blueprint.status = 'accepted';
+    if (view.blueprint.country) this.host.acceptCountry?.(businessId, view.blueprint.country.code);
     this.keepAccepted(businessId, view);
   }
 
@@ -153,7 +177,10 @@ export class FakeBusinessDesk {
    * unavailable there, in the engine's words (models/presets.ts availabilityOf, AVAILABILITY_REASONS.hostedCli).
    */
   private presets() {
-    const presets = clone(MODEL_PRESETS);
+    const signedIn = this.host.codexSignedIn?.() === true;
+    const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' && signedIn
+      ? { ...preset, availability: 'unverified' as const, availabilityReason: 'Codex is on this computer and signed in. Not yet tried on a real task.' }
+      : preset));
     if (!this.host.hosted?.()) return presets;
     return presets.map((preset) => (preset.runsOn === 'this-computer'
       ? { ...preset, availability: 'unavailable' as const, availabilityReason: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.' }
@@ -171,15 +198,16 @@ export class FakeBusinessDesk {
       case 'venture.ai.status': return clone(this.draftAi);
       case 'venture.ai.connect': return this.connect(this.draftAi, p, null);
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p);
-      case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? clone(view) : null; }
-      case 'venture.blueprint.update': return this.update(biz, p.patch, p.basedOn);
+      // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
+      case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
+      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
       case 'venture.build.status': return clone(this.buildOf(biz));
       case 'venture.build.brief': return this.brief(biz);
       case 'venture.build.handoff': return this.handoff(biz, p.builder);
       case 'venture.build.handoffOpened': {
         const handoff = this.buildOf(biz).handoffs.find((h) => h.id === p.handoffId);
-        if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This handoff is not on this computer.');
+        if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This copy is not on this computer.');
         handoff.openedAt ??= this.host.now();
         return clone(handoff);
       }
@@ -217,20 +245,49 @@ export class FakeBusinessDesk {
     return this.models[biz];
   }
 
+  /**
+   * venture.create's handover (core/venture.ts, draft/handover.ts): the AI connected before the vault comes into the
+   * new business, connected connections only, and the draft desk is wiped. Nothing connected: nothing changes.
+   */
+  adoptDraft(biz: string): void {
+    const connected = this.draftAi.connections.filter((c) => c.status === 'connected');
+    if (connected.length) {
+      const state = this.modelsOf(biz);
+      for (const connection of connected) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}` });
+      this.retier(state);
+    }
+    this.draftAi = clone(DRAFT_AI_STATUS);
+  }
+
+  /**
+   * Today's AI setup row, as views/queue.ts aiState decides it: 'none' while templates serve both tiers, a reason
+   * when a connected AI cannot be used now, null when an AI serves the business.
+   */
+  aiState(biz: string): { kind: 'none' } | { kind: 'attention'; reason: string } | null {
+    const { tiers } = this.modelsOf(biz);
+    if (tiers.main.presetId === 'built-in-templates' && tiers.fast.presetId === 'built-in-templates') return { kind: 'none' };
+    const broken = [tiers.main, tiers.fast].find((tier) => tier.presetId !== 'built-in-templates' && !tier.usable);
+    return broken ? { kind: 'attention', reason: broken.reason } : null;
+  }
+
   private connect(state: ModelStatusLite, p: Record<string, unknown>, biz: string | null): ModelStatusLite {
-    const preset = MODEL_PRESETS.find((x) => x.id === p.presetId);
+    const preset = this.presets().find((x) => x.id === p.presetId);
     if (!preset) throw invalid('Choose one of the listed AI options.');
     if (p.consentDigest !== preset.consentDigest) throw new EngineError('MODEL_CONSENT_REQUIRED', 'Read what is sent and agree to it first.');
-    if (preset.availability === 'unavailable' || preset.availability === 'needs-setup') throw new EngineError('PRESET_UNAVAILABLE', preset.availabilityReason);
     const key = typeof p.apiKey === 'string' ? p.apiKey.trim() : '';
     if (preset.needsKey && !key) throw new EngineError('MODEL_KEY_MISSING', 'Paste your key first.');
     if (!preset.needsKey && p.apiKey !== undefined) throw invalid('This option takes no key.');
     let model = preset.model;
-    if (typeof p.model === 'string' && p.model.trim()) {
+    if (p.model !== undefined) {
       if (!preset.modelEditable) throw invalid('This option has a fixed model.');
-      model = p.model.trim();
+      if (typeof p.model !== 'string' || !(preset.id === 'openrouter' ? /^~?[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-z0-9._:-]{0,127}$/ : /^[a-z0-9][a-z0-9.-]{1,63}$/).test(p.model)) throw invalid('Type the model id your account shows, in lower case, like gpt-6-luna.');
+      model = p.model;
     }
-    if (p.monthlyCapUsd !== undefined && !/^\d{1,6}(\.\d{1,2})?$/.test(String(p.monthlyCapUsd))) throw new EngineError('INVALID_AMOUNT', 'Type the monthly limit in US dollars, like 20 or 12.50.');
+    if (preset.availability === 'unavailable' || preset.availability === 'needs-setup') throw new EngineError('PRESET_UNAVAILABLE', preset.availabilityReason);
+    if (p.monthlyCapUsd !== undefined) {
+      const cap = typeof p.monthlyCapUsd === 'string' ? /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(p.monthlyCapUsd.trim()) : null;
+      if (!cap || BigInt(cap[1]!) * 100n + BigInt((cap[2] ?? '').padEnd(2, '0')) < 1n) throw new EngineError('INVALID_AMOUNT', 'Monthly limit must be an amount in US dollars with at most two decimals, like 20 or 12.50.');
+    }
     const asked = Array.isArray(p.tiers) ? (p.tiers as unknown[]).filter((t): t is ModelTier => t === 'fast' || t === 'main') : [];
     const tiers = asked.length > 0 ? asked : [...preset.tiers];
     // The key is checked and dropped: the sample keeps only that one is loaded, never the key itself.
@@ -295,6 +352,12 @@ export class FakeBusinessDesk {
     next.id = `bp-${biz}-${next.version}`;
     next.at = this.host.now();
     next.status = 'draft';
+    const beforeCountry = next.country ?? countryProfile(this.host.country?.(biz).code ?? 'IN');
+    const country = patch.countryCode === undefined ? beforeCountry : countryProfile(patch.countryCode);
+    if (country.code !== beforeCountry.code) {
+      resetCountry(next, country.code, beforeCountry.code);
+    }
+    next.country = country;
     if (patch.name !== undefined) next.name = told(text(patch.name, 60, 'The name'));
     if (patch.oneLiner !== undefined) next.oneLiner = told(text(patch.oneLiner, 160, 'The one line'));
     if (patch.customer !== undefined) next.customer = told(text(patch.customer, 200, "Who it's for"));
@@ -315,11 +378,11 @@ export class FakeBusinessDesk {
         offer.pricing.unitPriceLabel = 'not-set';
       } else if (change.unitPrice !== undefined) {
         const typed = String(change.unitPrice).replace(/[,\s₹]/g, '');
-        if (!/^\d{1,9}(\.\d{1,2})?$/.test(typed) || /^0+(\.0+)?$/.test(typed)) throw new EngineError('INVALID_AMOUNT', 'Type the price as a number, like 15000 or 15000.50.');
-        const [whole = '0', fraction = ''] = typed.split('.');
-        offer.pricing.unitPriceMinor = `${whole.replace(/^0+(?=\d)/, '')}${`${fraction}00`.slice(0, 2)}`;
+        const digits = currencyMinorDigits(country.currency);
+        if (!new RegExp('^\\d{1,9}' + (digits ? '(\\.\\d{1,' + digits + '})?' : '') + '$').test(typed) || /^0+(\.0+)?$/.test(typed)) throw new EngineError('INVALID_AMOUNT', 'Type a positive price using the currency’s decimal places.');
+        offer.pricing.unitPriceMinor = decimalMinor(typed, country.currency);
         offer.pricing.unitPriceLabel = 'told-by-you';
-        typedPrices[offer.id] = rupees(typed);
+        typedPrices[offer.id] = country.currency === 'INR' ? rupees(typed) : formatMinor(offer.pricing.unitPriceMinor, country.currency);
       }
       // 5A2 (money/share-price.ts applyShareChange): a share in place of a fixed price; a fixed price takes it away.
       if (change.share !== undefined) {
@@ -365,6 +428,7 @@ export class FakeBusinessDesk {
       });
     }
     next.digest = this.host.digest({ ...next, digest: '' });
+    if (country.code !== beforeCountry.code) for (const offer of next.offers) delete this.prices[`${biz}:${offer.id}`];
     for (const [offerId, display] of Object.entries(typedPrices)) this.prices[`${biz}:${offerId}`] = display;
     // Receipts belong to a version: a new version has none until it is priced again.
     this.blueprints[biz] = {
@@ -425,7 +489,7 @@ export class FakeBusinessDesk {
     const quantity = BigInt(quantityText);
     // The fake computes paise here, where the engine computes them, and sends both the raw total and its display.
     // Tax follows the existing sample receipt only; other tax settings retain the explicit manual limitation below.
-    const showMinor = (minor: bigint) => rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`);
+    const showMinor = (minor: bigint) => view.blueprint.backOffice.currency === 'INR' ? rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`) : formatMinor(minor, view.blueprint.backOffice.currency);
     const readSampleMinor = (display: string) => BigInt(display.replace(/[^0-9]/g, ''));
     const unit = BigInt(offer.pricing.unitPriceMinor);
     const display = this.prices[`${biz}:${offer.id}`] ?? showMinor(unit);
@@ -442,6 +506,7 @@ export class FakeBusinessDesk {
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);
+    this.host.quote?.({ receiptId: receipt.id, at: receipt.at, offer: offer.name.value, quantity: quantityText, value: showMinor(unit * quantity), currency: view.blueprint.backOffice.currency, beforeTaxMinor: String(unit * quantity), explanation: receipt.explanation });
     view.offerReceipts[offer.id] = receipt;
     return clone(receipt);
   }

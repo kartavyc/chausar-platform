@@ -11,7 +11,7 @@ import { goTo } from '../../shell/navigation';
 import { BusinessPick, Suggestion, type Target } from './BusinessPick';
 import { Examples } from './Examples';
 import { FileDrop, type DroppedFile } from './FileDrop';
-import { browserRegion, cleanSentence, countryWords, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
+import { computerCountry, cleanSentence, countryWords, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
 import s from './Onboarding.module.css';
 
 type Step = 'read' | 'vault' | 'plan' | 'suggest';
@@ -36,14 +36,20 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * shown), so the page around it can stop offering ways away from it: the open business was locked on the way, and the
  * recovery code shows once. `onBegin(false)` when it rests again (a refusal before the vault).
  */
-export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, business, home }: {
+export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, business, home, plan, onKept }: {
   variant: 'first-run' | 'place'; onStarted: () => void; orDescribe?: boolean | undefined; onBegin?: ((begun: boolean) => void) | undefined;
   /** Words another tile puts in the box (W4 4C2: the fit's Start with this), each with its own count; never sent. */
   fill?: { text: string; n: number } | undefined;
   /** W4 4J21: the business open now, so the sentence can be added to it instead (the business picker). */
   business?: string | undefined;
-  /** 4Z2: the open business's country code: a new business starts there, ahead of the browser's region. */
+  /** The open business's confirmed country: a new business starts there until the owner chooses another. */
   home?: string | undefined;
+  /**
+   * W6 6C2: the plan About you kept (its idea and the confirmed country). Start then shows no box: it keeps that plan at
+   * once, asking only what the engine forces (a passphrase, the recovery code), and calls onKept instead of opening Today.
+   */
+  plan?: { idea: string; countryCode: string } | undefined;
+  onKept?: (() => void | Promise<void>) | undefined;
 }) {
   const t = useT();
   const language = useLanguage();
@@ -60,6 +66,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   const [countries, setCountries] = useState<CountryLite[] | null>(null);
   const [countriesFailed, setCountriesFailed] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState<string | null>(null);
+  const [countryCheck, setCountryCheck] = useState<{ idea: string; country: CountryLite; evidence: string | null } | null>(null);
   const [choosing, setChoosing] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -80,7 +87,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     client.request('venture.countries', {}).then(
       (list) => {
         setCountries(list);
-        setCountryCode((code) => code ?? pickCountry(list.map((c) => c.code), browserRegion(typeof navigator === 'undefined' ? undefined : navigator.language)));
+        setCountryCode((code) => code ?? pickCountry(list.map((c) => c.code), computerCountry()));
       },
       (error: unknown) => setCountriesFailed(messageOf(error)),
     );
@@ -92,13 +99,22 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     if (home && !picked.current && countries?.some((c) => c.code === home)) setCountryCode(home);
   }, [home, countries]);
 
+  // W6 6C2: a plan kept on About you is kept at once, once.
+  const auto = useRef(false);
+  useEffect(() => {
+    if (!plan || auto.current) return;
+    auto.current = true;
+    void act(() => begin(plan.idea, plan.countryCode));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the kept plan starts once
+  }, []);
+
   // The cursor goes in the box on a computer with a mouse; a phone keeps its keyboard closed until the owner taps.
   useEffect(() => {
     try { if (window.matchMedia('(pointer: fine)').matches) box.current?.focus(); } catch { /* focus is a convenience */ }
   }, []);
 
   const busy = stage.kind === 'working';
-  const begun = stage.kind !== 'idle' || asking !== null || kept !== null;
+  const begun = stage.kind !== 'idle' || asking !== null || kept !== null || countryCheck !== null;
   const told = useRef(onBegin);
   told.current = onBegin;
   useEffect(() => { told.current?.(begun); }, [begun]);
@@ -122,6 +138,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   async function finish(sentence: Sentence) {
     setStage({ kind: 'working', step: 'plan' });
     await setUpPlan(client.request, sentence);
+    if (onKept) { await onKept(); return; }
     goTo('today');
     onStarted();
   }
@@ -157,10 +174,25 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     }
   }
 
+  async function begin(idea: string, code: string) {
+    setCountryCheck(null);
+    setStage({ kind: 'working', step: 'read' });
+    const preview = await client.request('venture.preview', { idea, countryCode: code });
+    await keep({ idea, countryCode: code, name: preview.serviceLabel.trim() || DEFAULT_NAME });
+  }
+
+  function confirmCountry(code: string) {
+    if (!countryCheck || busy) return;
+    picked.current = true;
+    setCountryCode(code);
+    void act(() => begin(countryCheck.idea, code));
+  }
+
   function submit(event?: FormEvent) {
     event?.preventDefault();
     if (busy || stage.kind === 'code') return;
     if (kept) { void act(() => finish(kept)); return; }
+    if (plan && !asking) { void act(() => begin(plan.idea, plan.countryCode)); return; }
     if (asking) {
       const first = passphrase.current?.value ?? '';
       if (first.length < PASSPHRASE_MIN) { setProblem({ text: t('onboarding.passphrase.short'), on: 'passphrase' }); passphrase.current?.focus(); return; }
@@ -173,11 +205,19 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     const wrong = sentenceProblem(idea);
     if (wrong) { setProblem({ text: t(wrong), on: 'box' }); box.current?.focus(); return; }
     if (adding) { suggest(idea); return; }
+    if (countryCheck) return;
     const country = countryCode ?? 'XX';
     void act(async () => {
       setStage({ kind: 'working', step: 'read' });
-      const preview = await client.request('venture.preview', { idea, countryCode: country });
-      await keep({ idea, countryCode: country, name: preview.serviceLabel.trim() || DEFAULT_NAME });
+      if (!picked.current && client.transport !== 'hosted') {
+        const answer = await client.request('venture.country.suggest', { text: idea });
+        if (answer.country && answer.country.code !== country) {
+          setCountryCheck({ idea, country: answer.country, evidence: answer.evidence });
+          setStage({ kind: 'idle' });
+          return;
+        }
+      }
+      await begin(idea, country);
     });
   }
 
@@ -194,6 +234,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   /** The sentence changed, typed or from an example: a passphrase asked for the old one is dropped. */
   function changeText(value: string) {
     setText(value);
+    setCountryCheck(null);
     setSuggestion(null);
     if (asking) { setAsking(null); clearPassphrase(); }
     if (problem?.on !== 'engine') setProblem(null);
@@ -218,7 +259,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   /** The box takes words: not while Chausar reads them, and not once the vault is made for them. */
   const editable = !busy && kept === null;
   const question = place && orDescribe ? t('onboarding.describe.or') : t('onboarding.question');
-  const inBar = !asking && stage.kind !== 'code';
+  const inBar = !plan && !asking && stage.kind !== 'code';
   const submitButton = (
     // While a suggested plan change shows, its Apply is the tile's one primary (W4 4J21).
     <Button variant={adding && suggestion?.patch ? 'secondary' : 'primary'} size="lg" type="submit" disabled={busy} aria-busy={busy || undefined}>
@@ -237,13 +278,13 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
       ) : choosing && countries ? (
         <>
           <label htmlFor={countryId}>{t('onboarding.country')}</label>
-          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCode(event.target.value); }}>
+          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCheck(null); setCountryCode(event.target.value); }}>
             {countries.map((c) => <option key={c.code} value={c.code}>{countryWords(c, language, t)}</option>)}
           </select>
         </>
       ) : country ? (
         <>
-          <span>{t('onboarding.basedIn', { country: countryWords(country, language, t) })}</span>
+          <span>{t('onboarding.basedIn', { country: countryWords(country, language, t), currency: country.currency })}</span>
           {kept === null && (
             <>
               <span aria-hidden="true"> · </span>
@@ -265,6 +306,8 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
           </div>
           <p className={s.formLine}>{t('onboarding.describe.line')}</p>
         </>
+      ) : plan ? (
+        <h1 className={s.question}>{t('first-run.keep.title')}</h1>
       ) : (
         <>
           <h1 className={s.question}><label htmlFor={boxId}>{question}</label></h1>
@@ -272,7 +315,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
         </>
       )}
 
-      <div className={s.box} data-invalid={boxProblem ? '' : undefined}>
+      {!plan && <div className={s.box} data-invalid={boxProblem ? '' : undefined}>
         <textarea
           ref={box}
           id={boxId}
@@ -289,10 +332,10 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
         {(editable || inBar) && (
           <div className={s.boxBar}>
             {editable && <Hint />}
-            {inBar && submitButton}
+          {inBar && !countryCheck && submitButton}
           </div>
         )}
-      </div>
+      </div>}
 
       {picking && business !== undefined && (
         <BusinessPick business={business} target={target} onTarget={(next) => { setTarget(next); setSuggestion(null); setProblem(null); }} disabled={busy} />
@@ -314,6 +357,15 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
           </div>
         </div>
       )}
+
+      {countryCheck && <div className={s.step}>
+        <p className={s.sentence}>{t('onboarding.countrySuggestion', { country: countryCheck.country.name, currency: countryCheck.country.currency })}</p>
+        {countryCheck.evidence && <blockquote className={s.countryEvidence} data-content="" aria-label={t('onboarding.countryEvidence')}>{countryCheck.evidence}</blockquote>}
+        <div className={s.actions}>
+          <Button type="button" variant="primary" onClick={() => confirmCountry(countryCheck.country.code)}>{t('onboarding.countryUse', { country: countryCheck.country.name })}</Button>
+          <Button type="button" variant="quiet" onClick={() => confirmCountry(countryCode ?? 'XX')}>{t('onboarding.countryKeep', { country: country?.name ?? 'Another country' })}</Button>
+        </div>
+      </div>}
 
       {stage.kind === 'code' ? (
         <div className={s.step}>
@@ -361,7 +413,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   }
   return (
     <div className={s.alone}>
-      <Brand />
+      {!plan && <Brand />}
       {form}
     </div>
   );
@@ -378,22 +430,8 @@ export function Brand() {
   );
 }
 
-/** "Write in English or हिन्दी" (D's `.hint`): the word Hindi in Hindi, marked as Hindi in the English app. */
+/** The language supported by the beta. */
 function Hint() {
   const t = useT();
-  const language = useLanguage();
-  const hindi = t('onboarding.hint.hindi');
-  const line = t('onboarding.hint.line', { hindi });
-  const at = line.indexOf(hindi);
-  return (
-    <span className={s.hint}>
-      {at < 0 ? line : (
-        <>
-          {line.slice(0, at)}
-          <span lang={language === 'hi' ? undefined : 'hi'}>{hindi}</span>
-          {line.slice(at + hindi.length)}
-        </>
-      )}
-    </span>
-  );
+  return <span className={s.hint}>{t('onboarding.hint.line')}</span>;
 }

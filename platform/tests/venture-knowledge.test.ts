@@ -15,7 +15,7 @@ import { handlers as networkHandlers } from '../runtime/venture/network/index.ts
 import { KNOWLEDGE_LINE } from '../runtime/venture/agents/knowledge.ts';
 import { knowledgeForTurn } from '../runtime/venture/agents/knowledge-recall.ts';
 import { code, owner, phone, NOW } from './venture-judge-helpers.ts';
-import { agentBusiness, askingRun, consent, episodeOrder, TEST_CARD, type AgentEnv } from './venture-agent-helpers.ts';
+import { agentBusiness, pendingFactsRun, consent, episodeOrder, TEST_CARD, type AgentEnv } from './venture-agent-helpers.ts';
 import { pages } from './venture-network-search-env.ts';
 import { emptyShelf, withNetworkKey } from './venture-network-env.ts';
 import { realPortEnv, wordsTask } from './venture-real-port-env.ts';
@@ -33,11 +33,12 @@ const stored = (env: AgentEnv) => listRecords(env.store.read(), 'venture-knowled
 
 /** A delivery run whose agent asked the owner these questions, seeded as the harness leaves it. */
 async function asked(env: AgentEnv, questions: string[], options: { practice?: boolean; to?: 'owner' | 'client' } = {}) {
-  const order = await episodeOrder(env);
-  await ventureAction(env.deps, owner, 'admin', 'seed.run', tx => tx.put({
-    ...tx.base('venture-delivery-run'), orderId: order.id, status: 'needs-answer', practice: options.practice ?? false,
-    harness: { turns: [], handoffs: questions.map((question, turn) => ({ to: options.to ?? 'owner', question, turn, answer: null, answeredBy: null })) },
-  } as any));
+  const made = await pendingFactsRun(env, questions[0]);
+  await ventureAction(env.deps, owner, 'admin', 'seed.native-questions', tx => {
+    const run=tx.find('venture-delivery-run',made.id)!,{pendingFacts:_pending,...job}=run.agentJob!;
+    tx.replace({...run,status:'stopped',practice:options.practice??false,agentJob:{...job,
+      factAnswers:options.to==='client'?[]:questions.map((question,turn)=>({question,digest:String(turn),answer:'Fixture owner reply.',at:tx.now,by:owner.memberId,turn}))}});
+  });
 }
 
 const SIX = [
@@ -255,7 +256,7 @@ test('knowledge: questions agents handed to the owner that no source answers bec
 
 test('knowledge: a real question a run handed to the owner counts', async () => {
   const env = await agentBusiness();
-  await askingRun(env, 'What is the refund policy?');
+  await pendingFactsRun(env, 'What is the refund policy?');
   assert.deepEqual((await list(env)).requests, ['To answer 1 question from October 2026 well, add a file about refund policy.']);
 });
 

@@ -5,13 +5,15 @@ import type {PoliteNet} from '../../build/fetch-policy.ts';
 import {readSeoManifest} from './manifest-core.ts';
 import {corroborateClaims} from './corroborate.ts';
 import {lintArticle,stripCompetitors} from './lint.ts';
+import {seoArticleText} from './article-text.ts';
 import type {ClaimInput,LocalElements} from './content-core.ts';
 /** The order's manifest supplies source URLs and local facts; only the actual final text is checked. */
 export async function verifySeoArticle(input:FlagshipCheckInput,net:PoliteNet={}):Promise<PlaybookCheckResult[]> {
  if(!['content-retainer','local-seo'].includes(input.offerKey??'')||(input.stageId??'write')!=='write')return [];
- const text=input.deliverable.sections.flatMap(s=>s.parts.flatMap(p=>p.kind==='text'?[p.text]:[])).join('\n');const localRequired=input.offerKey==='local-seo';
+ const localRequired=input.offerKey==='local-seo';
  let claimsGood=false,localGood=!localRequired,detail='Add the order evidence manifest and check this exact article.';
  try{
+  const text=seoArticleText(input);
   const manifests=input.files.filter(f=>f.name==='seo-evidence.csv');if(manifests.length!==1)throw new Error('Upload one seo-evidence.csv containing the claim sources and local evidence.');
   const bytes=Buffer.from(manifests[0]!.contentBase64,'base64');if(bytes.length>1000000)throw new Error('Use an evidence manifest below one megabyte.');
   const evidence=readSeoManifest(bytes.toString('utf8')) as {claims:ClaimInput[];competitors:string[];local:LocalElements|null};

@@ -33,7 +33,7 @@ function tiersOf(steps: readonly PlaybookStep[]): ModelTier[] {
 }
 
 /** The team's agents and their steps: a flagship playbook's agent roles, else the one delivery agent. Keeper is code. */
-function teamRoles(state: State, venture: VentureRecord): { agent: string; name: string; steps: PlaybookStep[] }[] {
+export function teamRoles(state: State, venture: VentureRecord): { agent: string; name: string; steps: PlaybookStep[] }[] {
   const playbook = currentPlaybook(state, venture);
   let steps: PlaybookStep[] | null = playbook?.steps ?? null;
   let flagshipId: string | null | undefined = playbook ? playbook.flagship : null;

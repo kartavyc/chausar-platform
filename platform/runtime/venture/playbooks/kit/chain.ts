@@ -173,7 +173,7 @@ export async function orderChainHandler(deps: VentureDeps, ctx: Context, payload
   const order = findRecord(state, 'venture-order', orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   const chain = orderChain(state, venture, order);
-  check(chain, 'INVALID_VENTURE_REQUEST', "This order's offer runs no stages of a playbook.");
+  check(chain, 'INVALID_VENTURE_REQUEST', "This order's offer runs no stages of a work plan.");
   return chainView(state, venture, order, chain, deps.clock().toISOString());
 }
 

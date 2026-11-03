@@ -1,4 +1,5 @@
 import {playbookForRun} from '../../delivery/workflow.ts';
+import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 // Current source authority for Work, tools and final acceptance. No model can replace reviewed recorded evidence.
 import {check,type State} from '../../../contracts.ts';
 import {digest,listRecords,findRecord} from '../../records.ts';
@@ -12,7 +13,7 @@ import {demoMediaSource,currentDemoRender,expectedDemoReview} from './demo-sourc
 import {testingDeliverable,type TestingDeliveryEvidence} from './delivery-core.ts';
 import {renderDeliverable} from '../../delivery/deliverable.ts';
 export function testingRunSource(state:State,ventureId:string,orderId:string,now:string):TestingDeliveryEvidence{
- requireAppTestingClientRule();const venture=findRecord(state,'venture-record',ventureId),order=listRecords(state,'venture-order',ventureId).find(r=>r.id===orderId),offer=venture?.acceptedBlueprintId?findRecord(state,'venture-blueprint',venture.acceptedBlueprintId)?.offers.find(o=>o.id===order?.offerId):null;
+ requireAppTestingClientRule(attestedRules(state,ventureId));const venture=findRecord(state,'venture-record',ventureId),order=listRecords(state,'venture-order',ventureId).find(r=>r.id===orderId),offer=venture?.acceptedBlueprintId?findRecord(state,'venture-blueprint',venture.acceptedBlueprintId)?.offers.find(o=>o.id===order?.offerId):null;
  check(order&&['open','invoiced'].includes(order.status)&&offer&&['app-test-round','demo-video'].includes(offer.playbookOffer??''),'ORDER_NOT_FOUND','Choose a current app testing order.');
  if(offer.playbookOffer==='app-test-round'){
   const row=listRecords(state,'venture-test-finding',ventureId).find(r=>r.orderId===orderId&&r.clientId===order.clientId);check(row,'APP_TEST_NOT_FOUND','Import the current client build.');check(row.orderDigest===appOrderDigest(order),'APPROVAL_STALE','The current client order changed.');assertClientApk(row.apk);check(row.plan&&row.logDigest&&row.reportDigest,'FINDING_REVIEW_REQUIRED','Review the current recorded findings first.');requireTestPlan(row.plan,row.approvedPlan);

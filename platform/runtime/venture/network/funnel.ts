@@ -103,8 +103,8 @@ function forecastPlan(state: State, venture: VentureRecord, subject: CountSubjec
   }
   return {
     subject, currency: venture.country.currency, unit: 'minor', addends,
-    words: { label: 'Forecast from your last 90 days', one: 'open quote', many: 'open quotes', none: 'No open card has a quote.' },
-    estimateWords: 'Each amount is a forecast from your last 90 days, not money anyone owes.',
+    words: { label: `Forecast in ${venture.country.currency} only, from your last 90 days`, one: 'open quote', many: 'open quotes', none: `No open card has a quote in ${venture.country.currency}. Other currencies are excluded.` },
+    estimateWords: `Each amount is a forecast in ${venture.country.currency}, not money anyone owes. Other currencies are excluded.`,
   };
 }
 

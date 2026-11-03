@@ -1,5 +1,6 @@
 // Original career bindings on the existing W4 hosted review-token transport.
 import {createHash} from 'node:crypto';
+import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import type {State} from '../../../contracts.ts';
 import type {ShareLinkStoredRecord} from '../../contracts.ts';
 import {digest,listRecords} from '../../records.ts';
@@ -10,7 +11,7 @@ export function careerFilesValid(pack:CareerStoredPack){return pack.files.length
 /** Every access rechecks current order, approved ledger, rendered bytes and named professional confirmation. */
 export function careerLinkCurrent(state:State,link:ShareLinkStoredRecord,now:string){
  if(!link.career)return true;
- try{requireCareerClientRule();}catch{return false;}
+ try{requireCareerClientRule(attestedRules(state,link.ventureId));}catch{return false;}
  const row=listRecords(state,'venture-career-thread',link.ventureId).find(r=>r.id===link.career!.threadId),pack=row?.pack,order=listRecords(state,'venture-order',link.ventureId).find(o=>o.id===row?.orderId);
  if(!row||!pack||!order||order.status==='cancelled'||order.clientId!==row.clientId||link.clientId!==row.clientId||pack.orderDigest!==digest(order)||!careerFilesValid(pack))return false;
  const evidence=careerEvidence(state,link.ventureId,order.id),binding=careerFileBinding(pack);

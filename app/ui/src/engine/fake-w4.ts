@@ -36,6 +36,9 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  nativeCanResume?(run:RunDetail):boolean;
+  nativeStop?(run:RunDetail):void;
+  nativeRestart?(run:RunDetail,resume:boolean):Promise<RunDetail>;
   eraseR5Copies?(orderIds:readonly string[]):void;
   erasePhoneCopies?(orderIds:readonly string[]):void;
   acceptedOffers?():readonly {id:string;playbookOffer?:string|null}[];
@@ -167,7 +170,7 @@ export class FakeW4Desk {
   }
 
   /** 4F3: a decision on a run-control row of Today (Resume, Run again, Continue, Stop), or null for any other row. */
-  decideRunControl(row: QueueRow, action: QueueAction['id'], answer?: string): string | null {
+  decideRunControl(row: QueueRow, action: QueueAction['id'], answer?: string): string | Promise<string> | null {
     return this.runControls.decide(row, action, answer);
   }
 

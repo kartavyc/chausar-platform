@@ -14,7 +14,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 type FakeClient = ReturnType<typeof createFakeClient>;
 type Intercept = (method: string, params: Record<string, unknown>, base: FakeClient) => Promise<unknown> | undefined;
 
-function start(options: { intercept?: Intercept; language?: 'en' | 'hi' } = {}) {
+function start(options: { intercept?: Intercept; language?: 'en' } = {}) {
   window.location.hash = '#/team?sheet=agent:editor&tab=notes';
   const base = createFakeClient(new FakeEngine());
   const spy = vi.fn();
@@ -107,12 +107,5 @@ describe('The Notes tab', () => {
     expect(within(changes).queryAllByRole('button', { name: /^Undo/ })).toEqual([]);
   });
 
-  it('renders in Hindi with every key worded', async () => {
-    start({ language: 'hi' });
-    const panel = await screen.findByRole('complementary', { name: 'Editor' });
-    await within(panel).findByRole('list', { name: 'Editor के नोट' });
-    expect(within(panel).getByRole('tab', { name: 'नोट' })).toBeTruthy();
-    const texts = [...panel.querySelectorAll('*')].flatMap((el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent!.trim()));
-    expect(texts.filter((text) => /^team\.[a-z.]+$/i.test(text))).toEqual([]);
-  });
+
 });

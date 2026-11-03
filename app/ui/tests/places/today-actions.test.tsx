@@ -212,7 +212,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     await press(within(box).getByRole('button', { name: 'Send back' }));
     expect(calls(spy, 'venture.queue.sendBack')).toEqual([{ rowId: 'run:d-ep14:review-1', digest: expect.any(String), text: 'Revise this to cut the intro to 20 seconds' }]);
     const decided = document.querySelector<HTMLElement>('[data-row-id="run:d-ep14:review-1"][data-decided]')!;
-    expect(decided.textContent).toContain('Sent back. The revision waits for your approval before anything goes to your AI.');
+    expect(decided.textContent).toContain('Sent back. The revised draft will wait for your review.');
     await press(within(decided).getByRole('button', { name: 'Undo' }));
     expect(calls(spy, 'venture.queue.undo')).toEqual([{ rowId: 'run:d-ep14:review-1' }]);
     expect(document.querySelector('[data-row-id="run:d-ep14:review-1"]')!.textContent).toContain('Restored until you edit this again.');
@@ -242,15 +242,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     expect(send().disabled).toBe(false);
   });
 
-  it('the box starts in Hindi in Hindi', async () => {
-    window.location.hash = '#/today';
-    const client = createFakeClient(new FakeEngine({ now: () => NOW }));
-    render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="hi" /></ClockProvider>);
-    const card = (await screen.findByRole('heading', { level: 3, name: 'Episode 14 is cut' })).closest('article') as HTMLElement;
-    await press(within(card).getByRole('button', { name: 'वापस भेजें' }));
-    const box = card.querySelector<HTMLElement>('[data-send-back]')!;
-    expect((within(box).getByRole('textbox') as HTMLTextAreaElement).value).toBe('इसे ऐसे बदलें: ');
-  });
+
 
   it('after failed checks it asks "Fix all, or tell me which?" and a pick calls venture.delivery.fix', async () => {
     const row: Seed = {

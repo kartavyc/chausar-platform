@@ -3,15 +3,19 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, readdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 
 // A variable import allows Node's native TypeScript test runner to exercise the JS CLI without a TS emit step.
 const modulePath = '../../scripts/desktop-package.mjs';
-const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput, validateInkPackagingConfig, desktopPackageCommands, INK_SOURCE_EXCLUSIONS } = await import(modulePath);
+const desktopPackage = await import(modulePath);
+const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput, validateInkPackagingConfig, desktopPackageCommands, INK_SOURCE_EXCLUSIONS } = desktopPackage;
 const preview = JSON.parse(await readFile(new URL('../../app/desktop/builder.preview.json', import.meta.url), 'utf8'));
 const final = JSON.parse(await readFile(new URL('../../app/desktop/builder.json', import.meta.url), 'utf8'));
 const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+// Wave 6 (6J1, D3): the unsigned beta installer's own configuration; read leniently so the older tests stand alone.
+const beta = JSON.parse(await readFile(new URL('../../app/desktop/builder.beta.json', import.meta.url), 'utf8').catch(() => '{}'));
 
-async function fixture(t: any, config = preview) {
+async function fixture(t: any, config = preview, betaConfig = beta) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-package-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const path of ['app/desktop', 'app/ui/src', 'platform/runtime']) await mkdir(join(root, path), { recursive: true });
@@ -19,6 +23,7 @@ async function fixture(t: any, config = preview) {
   await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
   await writeFile(join(root, 'app/desktop/builder.preview.json'), JSON.stringify(config));
   await writeFile(join(root, 'app/desktop/builder.json'), JSON.stringify(final));
+  await writeFile(join(root, 'app/desktop/builder.beta.json'), JSON.stringify(betaConfig));
   return root;
 }
 
@@ -248,4 +253,222 @@ test('local Electron distribution validation checks version without importing or
   await assert.rejects(validateLocalElectronDistribution(electronRoot, '44.4.5', 'win32', 'arm64'), /architecture differs/);
   await writeFile(join(electronRoot, 'path.txt'), 'other.exe');
   await assert.rejects(validateLocalElectronDistribution(electronRoot, '44.4.5', 'win32', 'x64'), /target platform/);
+});
+
+// ---------------------------------------------------------------------------
+// Wave 6, package 6J1 (D3, D12, D36): the unsigned beta. A Windows installer (NSIS, per user, no admin) and Linux
+// AppImage and tar.gz, real data (not the synthetic preview), Codex bundled with its LICENSE and NOTICE, no signing,
+// no publishing and no update channel. Native builds only, like the other modes.
+// ---------------------------------------------------------------------------
+
+test('the beta plan uses its own configuration and output folder, never publishes and says it is unsigned (6J1)', () => {
+  const plan = createDesktopPackagePlan({ mode: 'beta', platform: 'win32', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' });
+  assert.equal(plan.config, 'app/desktop/builder.beta.json');
+  assert.equal(plan.output, 'release/beta');
+  assert.deepEqual(plan.builderArguments, ['--config', 'app/desktop/builder.beta.json', '--win', '--x64', '--publish', 'never']);
+  assert.match(plan.qualification, /unsigned beta/);
+  assert.deepEqual(createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'linux', hostArchitecture: 'x64' }).builderArguments, ['--config', 'app/desktop/builder.beta.json', '--linux', '--x64', '--publish', 'never']);
+  assert.deepEqual(parseDesktopPackageArguments(['--mode', 'beta']), { mode: 'beta' });
+  assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'darwin', architecture: 'arm64', hostPlatform: 'darwin', hostArchitecture: 'arm64' }), /Windows and Linux/);
+  assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' }), /matching native host/);
+});
+
+test('beta packaging strips signing and service credentials from the build like the preview does (6J1)', () => {
+  const source = { PATH: 'local-tools', CSC_LINK: 'private', GH_TOKEN: 'private', CHAUSAR_POSTGRES_URL: 'private', SENTRY_AUTH_TOKEN: 'private' };
+  assert.deepEqual(desktopPackagingEnvironment('beta', source), { PATH: 'local-tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
+});
+
+test('the beta configuration: product Chausar, real data, unsigned NSIS per user, deb, AppImage and tar.gz, Codex and notices bundled (6J1)', () => {
+  assert.equal(beta.appId, 'in.chausar.desktop');
+  assert.equal(beta.productName, 'Chausar');
+  assert.equal(beta.artifactName, 'Chausar-Beta-${version}-${os}-${arch}.${ext}');
+  assert.deepEqual(beta.extraMetadata, { name: 'chausar', productName: 'Chausar', chausarReleaseChannel: 'beta', homepage: 'https://www.chausar.co.in' });
+  assert.equal(beta.forceCodeSigning, false);
+  assert.equal(beta.win.signAndEditExecutable, false);
+  assert.deepEqual(beta.win.target, ['nsis']);
+  assert.deepEqual(beta.nsis, { oneClick: false, perMachine: false, allowElevation: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, createStartMenuShortcut: true, shortcutName: 'Chausar', deleteAppDataOnUninstall: false, runAfterFinish: true, include: 'app/desktop/installer.nsh' });
+  assert.deepEqual(beta.linux.target, ['deb', 'AppImage', 'tar.gz']);
+  assert.deepEqual(beta.deb, { maintainer: 'Kartavy Chauhan <info@chausar.co.in>' });
+  assert.equal(beta.linux.executableName, 'chausar');
+  assert.equal(beta.mac, undefined, 'Mac is out of scope for the beta');
+  assert.deepEqual(beta.extraResources, [{ from: 'vendor/codex-bundle/${os}-${arch}', to: 'codex', filter: ['**/*'] }, { from: 'app/desktop/notices', to: 'notices', filter: ['**/*'] }, { from: 'LICENSE', to: 'LICENSE' }, { from: 'NOTICE', to: 'NOTICE' }, { from: 'vendor/feedback/feedback.json', to: 'feedback.json' }]);
+  assert.equal(beta.publish, null);
+  assert.equal(beta.npmRebuild, false);
+  assert.equal(beta.electronDist, 'node_modules/electron/dist');
+  assert.equal(beta.directories.output, 'release/beta');
+  // electron-builder 26 lists every unpacked file of a mixed file set in one pattern, and @electron/asar refuses a
+  // pattern over 64 KB (the first live build stopped there). Each folder that is unpacked whole is its own file set.
+  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
+    assert.ok(beta.files.some((entry: any) => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] })), folder);
+    assert.ok(!beta.files.includes(`${folder}/**/*`), folder);
+  }
+  validateInkPackagingConfig(beta);
+});
+
+test('beta checks refuse signing, publishing, the preview identity, other resources, hooks or another installer shape (6J1)', async t => {
+  const variants = [
+    { ...beta, forceCodeSigning: true },
+    { ...beta, win: { ...beta.win, signAndEditExecutable: true } },
+    { ...beta, publish: { provider: 'github' } },
+    { ...beta, extraMetadata: { ...beta.extraMetadata, chausarPreview: true } },
+    { ...beta, extraMetadata: { ...beta.extraMetadata, chausarReleaseChannel: 'unsigned-preview' } },
+    { ...beta, appId: 'in.chausar.desktop.preview' },
+    { ...beta, extraResources: [...(beta.extraResources ?? []), { from: 'runtime-binaries', to: 'runtime-binaries' }] },
+    { ...beta, extends: './builder.json' },
+    { ...beta, afterPack: 'unexpected-hook.cjs' },
+    { ...beta, npmRebuild: true },
+    { ...beta, electronDist: 'https://example.invalid/electron' },
+    { ...beta, win: { ...beta.win, target: ['zip'] } },
+    { ...beta, nsis: { ...beta.nsis, perMachine: true } },
+    { ...beta, nsis: { ...beta.nsis, deleteAppDataOnUninstall: true } },
+    { ...beta, linux: { ...beta.linux, target: ['deb'] } },
+    { ...beta, linux: { ...beta.linux, target: ['AppImage', 'tar.gz'] } },
+    { ...beta, deb: {} },
+    { ...beta, deb: { ...beta.deb, afterInstall: 'own-install.sh' } },
+    { ...beta, linux: { ...beta.linux, afterRemove: 'own-remove.sh' } },
+    { ...beta, extraMetadata: { ...beta.extraMetadata, homepage: undefined } },
+    { ...beta, directories: { output: '../outside' } },
+    { ...beta, files: (beta.files ?? []).map((entry: any) => entry?.from === 'platform/runtime' ? 'platform/runtime/**/*' : entry) },
+  ];
+  for (const config of variants) {
+    const result = await desktopPackagePrerequisites({ root: await fixture(t, preview, config), plan: createDesktopPackagePlan({ mode: 'beta' }), environment: {} });
+    assert.ok(result.failures.some((failure: any) => failure.check === 'packaging configuration'), JSON.stringify(config).slice(0, 160));
+  }
+});
+
+test('beta prerequisites ask for the staged Codex bundle with its LICENSE and NOTICE before anything is built (6J1)', async t => {
+  const root = await fixture(t);
+  const result = await desktopPackagePrerequisites({ root, plan: createDesktopPackagePlan({ mode: 'beta' }), environment: {} });
+  assert.equal(result.ok, false);
+  assert.ok(result.checks.includes('packaging configuration'));
+  const codex = result.failures.find((failure: any) => failure.check === 'bundled Codex with its LICENSE and NOTICE');
+  assert.ok(codex, 'the Codex bundle is a named prerequisite');
+  assert.match(codex.reason, /package:codex/);
+});
+
+test('beta artifact names: one Windows installer, or a deb, an AppImage and a tar.gz on Linux (6J1)', async t => {
+  const root = await fixture(t), plan = createDesktopPackagePlan({ mode: 'beta' });
+  const { expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: pkg.version });
+  if (process.platform === 'win32') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-win-${process.arch}.exe`]);
+  else if (process.platform === 'linux') assert.deepEqual(expectedArtifacts, [`Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'amd64' : process.arch}.deb`, `Chausar-Beta-${pkg.version}-linux-${process.arch === 'x64' ? 'x86_64' : process.arch}.AppImage`, `Chausar-Beta-${pkg.version}-linux-${process.arch}.tar.gz`]);
+});
+
+test('Linux artifact names follow electron-builder: a deb says amd64, an AppImage x86_64, a tar.gz x64 (found on the VPS build)', async () => {
+  const { expectedArtifactNames } = desktopPackage;
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'linux', architecture: 'x64', version: '1.2.3' }),
+    ['Chausar-Beta-1.2.3-linux-amd64.deb', 'Chausar-Beta-1.2.3-linux-x86_64.AppImage', 'Chausar-Beta-1.2.3-linux-x64.tar.gz']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'linux', architecture: 'arm64', version: '1.2.3' }),
+    ['Chausar-Beta-1.2.3-linux-arm64.deb', 'Chausar-Beta-1.2.3-linux-arm64.AppImage', 'Chausar-Beta-1.2.3-linux-arm64.tar.gz']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'preview', platform: 'linux', architecture: 'x64', version: '1.2.3' }),
+    ['Chausar-Preview-1.2.3-linux-x86_64.AppImage', 'Chausar-Preview-1.2.3-linux-x64.tar.gz']);
+  assert.deepEqual(expectedArtifactNames({ mode: 'beta', platform: 'win32', architecture: 'x64', version: '1.2.3' }), ['Chausar-Beta-1.2.3-win-x64.exe']);
+});
+
+test('the uninstaller removes the start-at-login entry the app made, and never the owner\'s data (6J1)', async () => {
+  const script = await readFile(new URL('../../app/desktop/installer.nsh', import.meta.url), 'utf8');
+  assert.match(script, /!macro customUnInstall/);
+  assert.match(script, /DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "Chausar"/);
+  assert.match(script, /DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run" "Chausar"/);
+  // The live uninstall left the installer copy electron-builder keeps in %LOCALAPPDATA%\chausar-updater; it goes too.
+  assert.match(script, /RMDir \/r "\$LOCALAPPDATA\\chausar-updater"/);
+  assert.equal(/\$APPDATA/i.test(script), false, 'the owner\'s businesses (in %APPDATA%\\Chausar) stay unless they delete them');
+});
+
+test('one pinned build-only Git source (electron-builder\'s node-gyp at an exact commit, dev only) is accepted; any other Git source is refused (6J1)', async t => {
+  const root = await fixture(t);
+  const rootEntry = { version: pkg.version, dependencies: pkg.dependencies, devDependencies: pkg.devDependencies };
+  const integrity = 'sha512-' + 'A'.repeat(86) + '==';
+  const packages: Record<string, any> = { '': rootEntry };
+  for (const [name, version] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })) packages[`node_modules/${name}`] = { version, resolved: 'https://registry.npmjs.org/test-fixture.tgz', integrity };
+  const pinned = 'git+ssh://git@github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2';
+  const run = async (entry: any) => {
+    await writeFile(join(root, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { ...packages, 'node_modules/@electron/node-gyp': entry } }));
+    return (await desktopPackagePrerequisites({ root, environment: {} })).failures.find((failure: any) => failure.check === 'locked local packaging dependencies and Electron distribution')?.reason ?? '';
+  };
+  assert.doesNotMatch(await run({ version: '10.2.0-electron.1', resolved: pinned, integrity, dev: true }), /HTTPS|integrity/);
+  assert.match(await run({ version: '10.2.0-electron.1', resolved: pinned, integrity }), /HTTPS/, 'only as a build-time (dev) package');
+  assert.match(await run({ version: '10.2.0-electron.1', resolved: pinned.replace('06b29a', '16b29a'), integrity, dev: true }), /HTTPS/, 'only that exact commit');
+  assert.match(await run({ version: '10.2.0-electron.1', resolved: pinned, dev: true }), /integrity/, 'still with an integrity hash');
+});
+
+test('W6 6J3: the beta build ships the AGPL licence and the NOTICE beside the program', () => {
+  const resources = (beta.extraResources ?? []) as { from: string; to: string }[];
+  for (const name of ['LICENSE', 'NOTICE']) assert.ok(resources.some(entry => entry.from === name && entry.to === name), name);
+});
+
+// Wave 6 founder follow-up (6J2 open item): the report keys reach a build only through three build-time variables.
+// Fake values only; built at runtime so nothing here looks like a real key.
+const FAKE_KEY = ['fake', 'report', 'key'].join('_');
+const FAKE_HOST = 'https://reports.example.invalid';
+const FAKE_DSN = `https://${['fake', 'public'].join('')}@ingest.example.invalid/7`;
+const FEEDBACK_STAGED = 'vendor/feedback/feedback.json';
+
+test('report keys: no variables means no file; set variables become exactly { posthogKey, posthogHost, sentryDsn } (6J2)', () => {
+  const { feedbackResource } = desktopPackage;
+  assert.equal(feedbackResource({}), null);
+  assert.equal(feedbackResource({ CHAUSAR_FEEDBACK_POSTHOG_KEY: '', CHAUSAR_FEEDBACK_SENTRY_DSN: '' }), null);
+  assert.deepEqual(feedbackResource({ CHAUSAR_FEEDBACK_POSTHOG_KEY: FAKE_KEY, CHAUSAR_FEEDBACK_POSTHOG_HOST: FAKE_HOST, CHAUSAR_FEEDBACK_SENTRY_DSN: FAKE_DSN, OTHER: 'ignored' }),
+    { posthogKey: FAKE_KEY, posthogHost: FAKE_HOST, sentryDsn: FAKE_DSN });
+  assert.deepEqual(feedbackResource({ CHAUSAR_FEEDBACK_SENTRY_DSN: FAKE_DSN }), { sentryDsn: FAKE_DSN });
+});
+
+test('report keys: a half-set or malformed variable stops the build by name, and never repeats the value (6J2)', () => {
+  const { feedbackResource } = desktopPackage;
+  const cases: [Record<string, string>, RegExp][] = [
+    [{ CHAUSAR_FEEDBACK_POSTHOG_KEY: FAKE_KEY }, /CHAUSAR_FEEDBACK_POSTHOG_HOST/],
+    [{ CHAUSAR_FEEDBACK_POSTHOG_HOST: FAKE_HOST }, /CHAUSAR_FEEDBACK_POSTHOG_KEY/],
+    [{ CHAUSAR_FEEDBACK_POSTHOG_KEY: FAKE_KEY, CHAUSAR_FEEDBACK_POSTHOG_HOST: 'http://reports.example.invalid' }, /CHAUSAR_FEEDBACK_POSTHOG_HOST/],
+    [{ CHAUSAR_FEEDBACK_POSTHOG_KEY: 'has spaces in it', CHAUSAR_FEEDBACK_POSTHOG_HOST: FAKE_HOST }, /CHAUSAR_FEEDBACK_POSTHOG_KEY/],
+    [{ CHAUSAR_FEEDBACK_SENTRY_DSN: 'http://plain.example.invalid/1' }, /CHAUSAR_FEEDBACK_SENTRY_DSN/],
+  ];
+  for (const [environment, name] of cases) {
+    let message = '';
+    try { feedbackResource(environment); } catch (error: any) { message = error.message; }
+    assert.match(message, name);
+    for (const value of Object.values(environment)) assert.ok(!message.includes(value), 'the error names the variable, never its value');
+  }
+});
+
+test('report keys: packaging stages feedback.json from the variables, and removes a stale one when none are set (6J2)', async t => {
+  const { stageFeedbackKeys } = desktopPackage;
+  const root = await fixture(t);
+  const staged = join(root, ...FEEDBACK_STAGED.split('/'));
+  const set = await stageFeedbackKeys({ root, environment: { CHAUSAR_FEEDBACK_POSTHOG_KEY: FAKE_KEY, CHAUSAR_FEEDBACK_POSTHOG_HOST: FAKE_HOST, CHAUSAR_FEEDBACK_SENTRY_DSN: FAKE_DSN } });
+  assert.deepEqual(JSON.parse(await readFile(staged, 'utf8')), { posthogKey: FAKE_KEY, posthogHost: FAKE_HOST, sentryDsn: FAKE_DSN });
+  // What packaging keeps or prints says only which services are set up, never a value.
+  assert.deepEqual(set, { posthog: true, sentry: true });
+  assert.ok(![FAKE_KEY, FAKE_HOST, FAKE_DSN].some(value => JSON.stringify(set).includes(value)));
+  const none = await stageFeedbackKeys({ root, environment: { PATH: 'local-tools' } });
+  assert.deepEqual(none, { posthog: false, sentry: false });
+  await assert.rejects(readFile(staged, 'utf8'), { code: 'ENOENT' }, 'a build without the variables ships no file, not the last build\'s');
+  await stageFeedbackKeys({ root, environment: { CHAUSAR_FEEDBACK_SENTRY_DSN: FAKE_DSN } });
+  await assert.rejects(stageFeedbackKeys({ root, environment: { CHAUSAR_FEEDBACK_POSTHOG_KEY: FAKE_KEY } }), /CHAUSAR_FEEDBACK_POSTHOG_HOST/);
+  await assert.rejects(readFile(staged, 'utf8'), { code: 'ENOENT' }, 'a refused build leaves no staged file behind');
+});
+
+test('report keys: the beta and the normal build ship the staged file as resources/feedback.json, where the app reads it (6J2)', () => {
+  const { feedbackKeys } = createRequire(import.meta.url)('../../app/desktop/feedback-keys.cjs');
+  const entry = { from: FEEDBACK_STAGED, to: 'feedback.json' };
+  for (const [name, config] of [['beta', beta], ['final', final]] as const) {
+    assert.ok((config.extraResources ?? []).some((value: any) => JSON.stringify(value) === JSON.stringify(entry)), name);
+  }
+  assert.ok(!(preview.extraResources ?? []).length, 'the demo preview carries no report keys');
+  const read: string[] = [];
+  feedbackKeys({ env: {}, packaged: true, resources: 'RESOURCES', read: (path: string) => { read.push(path); return '{}'; } });
+  assert.deepEqual(read, [join('RESOURCES', entry.to)]);
+});
+
+test('report keys: the staged file is git-ignored and the build children still get no CHAUSAR_ variables (6J2)', async () => {
+  const ignore = await readFile(new URL('../../.gitignore', import.meta.url), 'utf8');
+  assert.match(ignore, /^vendor\/feedback\/\r?$/m);
+  assert.deepEqual(desktopPackagingEnvironment('beta', { PATH: 'local-tools', CHAUSAR_FEEDBACK_POSTHOG_KEY: FAKE_KEY, CHAUSAR_FEEDBACK_SENTRY_DSN: FAKE_DSN }), { PATH: 'local-tools', CSC_IDENTITY_AUTO_DISCOVERY: 'false' });
+});
+
+test('report keys: packaging stages them before electron-builder runs, and only for the beta and the normal build (6J2)', async () => {
+  const source = await readFile(new URL('../../scripts/desktop-package.mjs', import.meta.url), 'utf8');
+  const body = source.slice(source.indexOf('export async function packageDesktop'));
+  const stage = body.indexOf('stageFeedbackKeys('), build = body.indexOf('desktopPackageCommands(plan');
+  assert.ok(stage > 0 && stage < build, 'the file is in place before the build copies resources');
+  assert.match(body.slice(0, build), /plan\.mode !== 'preview'/);
+  assert.doesNotMatch(source, /console\.(?:log|error)\([^)]*(?:posthogKey|sentryDsn|CHAUSAR_FEEDBACK_)/, 'no key value is ever printed');
 });

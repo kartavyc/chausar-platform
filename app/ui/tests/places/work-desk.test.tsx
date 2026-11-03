@@ -54,7 +54,7 @@ describe('Work: the playbook desk (5A1)', () => {
   it('venture.order.chain on the fake: a flagship order runs no kit stages; an unknown order is not found', async () => {
     const client = createFakeClient(new FakeEngine());
     const orders = await client.request('venture.order.list', {});
-    await expect(client.request('venture.order.chain', { orderId: orders[0]!.id })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: "This order's offer runs no stages of a playbook." });
+    await expect(client.request('venture.order.chain', { orderId: orders[0]!.id })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: "This order's offer runs no stages of a work plan." });
     await expect(client.request('venture.order.chain', { orderId: 'order_missing' })).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
     await expect(client.request('venture.order.chain', { orderId: 'o1', more: 1 } as never)).rejects.toBeInstanceOf(EngineError);
     await waitFor(() => expect(orders.length).toBeGreaterThan(0));

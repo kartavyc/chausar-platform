@@ -10,7 +10,7 @@
   "pb-open-posting.server": "Public server address",
   "pb-open-posting.handle": "Your handle",
   "pb-open-posting.channel": "Channel handle or ID",
-  "pb-open-posting.webhook": "Incoming webhook address",
+  "pb-open-posting.webhook": "Incoming message address",
   "pb-open-posting.credential": "App password or token",
   "pb-open-posting.connect": "Approve connection check",
   "pb-open-posting.disconnect": "Disconnect",
@@ -21,5 +21,5 @@
   "pb-open-posting.help.bluesky": "Create an app password in your own Bluesky account. Use your exact handle and public server.",
   "pb-open-posting.help.mastodon": "Use your exact instance and account with a token allowed to write statuses. Posts are public. Chausar supports up to five hundred characters, or the lower limit set by your instance.",
   "pb-open-posting.help.telegram": "Add your bot as a channel administrator and allow it to post. This connection sends no direct messages.",
-  "pb-open-posting.help.discord": "Create an incoming webhook in the chosen server channel. Chausar disables mentions and waits for the message response."
+  "pb-open-posting.help.discord": "Create an incoming message address in the chosen server channel. Chausar disables mentions and waits for the message response."
 }

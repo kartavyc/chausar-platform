@@ -87,10 +87,7 @@ describe('PathLine', () => {
     expect(screen.getByText('You')).toBeTruthy();
   });
 
-  it('speaks Hindi', () => {
-    render(<TextProvider language="hi"><PathLine people={[{ name: 'राहुल मेहता', confirmed: true }, { name: 'समीर जोशी', confirmed: false }]} /></TextProvider>);
-    expect(screen.getByRole('img').getAttribute('aria-label')).toContain('राहुल मेहता');
-  });
+
 });
 
 describe('StrengthDots', () => {
@@ -607,11 +604,7 @@ describe('DiffCard', () => {
     for (const name of ['title', 'applies', 'text', 'note']) expect(ruleOf('DiffCard', name), name).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
-  it('speaks Hindi', () => {
-    render(<TextProvider language="hi"><DiffCard {...base} appliesTo="x" onAccept={done()} onReject={done()} onUndo={done()} /></TextProvider>);
-    expect(screen.getByRole('heading').textContent).toContain('Editor');
-    expect(screen.getByRole('heading').textContent).not.toBe("Proposed change to Editor's instructions");
-  });
+
 });
 
 describe('the talk parts together pass axe', () => {
@@ -631,4 +624,3 @@ describe('the talk parts together pass axe', () => {
     expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
   });
 });
-

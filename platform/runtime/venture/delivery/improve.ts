@@ -383,7 +383,7 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
     if (!diagnosis.chosen) {
       const spaced = !rounds.length && fresh.length < frozen.pool.length;
       incompleteReason = spaced ? spacingReason(waiting)
-        : rounds.length ? 'No other failure has a change Chausar can try.' : 'Every failure points at the calculator or the dictionary, which a playbook change never fixes.';
+        : rounds.length ? 'No other failure has a change Chausar can try.' : 'Every failure points at the calculator or the dictionary, which a change to the work instructions never fixes.';
       rounds.push({ round, diagnosis, patch: null, refused: incompleteReason, candidateHash: null, gate: null });
       break;
     }
@@ -558,7 +558,7 @@ function staleReason(state: State, venture: VentureRecord, run: ImprovementRunRe
   if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
   const current = currentPlaybook(state, venture);
   if (current?.id === candidate.id) return 'This version is already in use.';
-  if (current?.id !== run.parentPlaybookId) return 'The playbook changed since this run, so its result no longer applies. Run the loop again.';
+  if (current?.id !== run.parentPlaybookId) return 'The work instructions changed since this run, so its result no longer applies. Run the loop again.';
   const blueprint = findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId ?? '');
   if (!blueprint || blueprint.digest !== candidate.blueprintDigest) return 'Your plan changed since this run. Run the loop again.';
   return null;
@@ -643,7 +643,7 @@ function keptBy(state: State, runs: readonly ImprovementRunRecord[], current: Pl
 export async function improveRollbackHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PlaybookRecord> {
   requireAppChannel(ctx, 'venture.improve.rollback');
   const body = exactPayload(payload, ['playbookId', 'digest'], ['playbookId', 'digest']);
-  const playbookId = identifier(body.playbookId, 'Playbook');
+  const playbookId = identifier(body.playbookId, 'How the work is done');
   check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');

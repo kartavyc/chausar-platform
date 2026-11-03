@@ -49,7 +49,7 @@ export function validateManualPaths(definition: Pick<PlaybookDefinition, 'connec
     check(filled(connector.waitsOn), 'MANUAL_PATH_MISSING', `${connector.name} is planned, so it needs who it waits on.`);
   }
   for (const step of definition.steps) {
-    check(!step.connector || connectorOf(definition, step), 'MANUAL_PATH_MISSING', `The step ${step.id} needs the connector ${step.connector}, which the playbook does not list.`);
+    check(!step.connector || connectorOf(definition, step), 'MANUAL_PATH_MISSING', `The step ${step.id} needs the connector ${step.connector}, which the work plan does not list.`);
   }
 }
 

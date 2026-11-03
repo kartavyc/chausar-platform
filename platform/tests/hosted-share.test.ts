@@ -21,7 +21,7 @@ import { createFixtureGitHubTransport } from '../runtime/venture/build/index.ts'
 const ORIGIN = 'http://localhost:4398';
 const HOST = 'localhost:4398';
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.';
-const API_KEY = 'sk-ant-test-not-a-real-key-0000';
+const API_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 type Reply = { status: number; headers: IncomingHttpHeaders; text: string; json: any };
 

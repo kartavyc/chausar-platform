@@ -7,7 +7,6 @@ import { AgentAi } from './AgentAi';
 import { AgentPersona } from './AgentPersona';
 import { canChat, dayWords } from './chat';
 import { GateList } from './GateList';
-import { PostureChoice } from './PostureChoice';
 import s from './Team.module.css';
 import c from './AgentChat.module.css';
 
@@ -20,8 +19,6 @@ export interface InstructionsProps {
    * guidance and checks, and what Undo would do. Skipped for a role whose steps are code (it has no chat).
    */
   standing: Resource<StandingOrdersView>;
-  onSaved: (agent: AgentView) => void;
-  onFloor: () => void;
   /** The version in use changed (an undo here): the panel reads it again. */
   onPlaybookChanged: () => void;
 }
@@ -30,11 +27,11 @@ export interface InstructionsProps {
  * The Instructions tab (W4 4B3; spec 5.2; catalogue A3, A4, O16): how this agent works, in words. The version in use
  * and where it came from; each step the agent owns with its guidance lines and "Done when these checks pass" (check
  * ids worded here); its standing orders, each with the version it arrived in and the owner's own words; going back
- * from the owner's last change whenever the engine says Undo can, which asks once more; then its posture with who set
- * it, when each step asks the owner, the AI that serves it and where its spend is. Everything is read, never written:
+ * from the owner's last change whenever the engine says Undo can, which asks once more; then AI review settings,
+ * the steps that always ask the owner, the AI that serves it and where its spend is. Everything is read, never written:
  * opening the panel makes no version (the engine's read-level venture.agents.orders.list).
  */
-export function Instructions({ agent, standing, onSaved, onFloor, onPlaybookChanged }: InstructionsProps) {
+export function Instructions({ agent, standing, onPlaybookChanged }: InstructionsProps) {
   const t = useT();
   const language = useLanguage();
   const howId = useId();
@@ -109,11 +106,10 @@ export function Instructions({ agent, standing, onSaved, onFloor, onPlaybookChan
       {/* W4 4J22b: how it talks (its persona, tried and set as a version) and the agent file. */}
       {canChat(agent) && <AgentPersona key={agent.id} agent={agent} />}
 
-      <PostureChoice agent={agent} onSaved={onSaved} />
-      {agent.postureSetBy && <p className={c.setBy}>{t(`team.instructions.setBy.${agent.postureSetBy}`, { name: agent.name })}</p>}
+      <section className={s.section}><a className={s.link} href="#/connections">{t('team.review.settings')}</a></section>
       <section className={s.section}>
         <h3 id={stepsId} className={s.small}>{t('team.steps')}</h3>
-        <GateList agents={[agent]} look="list" labelledBy={stepsId} onSaved={onSaved} onFloor={onFloor} />
+        <GateList agents={[agent]} look="list" labelledBy={stepsId} />
       </section>
       <AgentAi agentId={agent.id} />
       {/* Per-agent spend with receipt: the engine sends an agent's spend as words with no receipt, and a money figure

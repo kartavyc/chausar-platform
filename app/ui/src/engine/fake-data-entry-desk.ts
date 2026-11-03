@@ -20,7 +20,7 @@ export function fakeDataEntryDeskDesk(host:W4DeskHost):FakePlaybookDesk{
   const order=orders().find(row=>row.id===orderId);check(order&&(host.ask('venture.client.list',{}) as ClientLite[]).some(client=>client.id===order.clientId),'FORM_ORDER_REQUIRED','Choose an active data-entry client order.');
   check(order.status==='open'||order.status==='invoiced','FORM_ORDER_CLOSED','This order is closed. Review its existing outcome without entering another record.');
   check(order.intake?.fields?.['data-consent']===true,'FORM_CONSENT_REQUIRED','The client must consent to this current source before data entry.');
-  const offer=plan()?.blueprint.offers.find(row=>row.id===order.offerId);check(offer?.playbookOffer&&['data-entry-monthly','backlog-project'].includes(offer.playbookOffer),'FORM_ORDER_REQUIRED','Choose this data-entry service, not another playbook order.');
+  const offer=plan()?.blueprint.offers.find(row=>row.id===order.offerId);check(offer?.playbookOffer&&['data-entry-monthly','backlog-project'].includes(offer.playbookOffer),'FORM_ORDER_REQUIRED','Choose an order for this data-entry service.');
   const file=host.orderFiles?.(order.id).find(row=>row.id===fileId);check(file&&file.format==='csv'&&atob(file.contentBase64).length<=500000,'FORM_SOURCE_INVALID','Choose the bounded CSV uploaded for this exact client order.');
   return {...chooseFormRow(decode(file.contentBase64),identityColumn,rowIndex),order,file,sourceDigest:digest({orderId:order.id,clientId:order.clientId,offerId:order.offerId,playbookOffer:offer.playbookOffer,intake:order.intake,fileId:file.id,bytes:file.contentBase64,identityColumn,rowIndex})};
  };

@@ -18,7 +18,8 @@ import { makeIdea } from '../runtime/venture/agents/ideas.ts';
 import { KIT_TOOLS } from '../runtime/venture/delivery/harness/tools-kit.ts';
 import type { ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';
 import { INTERNAL_SUGGESTIONS, latchedBy } from '../runtime/venture/policy/taint.ts';
-import { business, code, owner, phone, PLAIN_IDEA, readyDraft, type Business } from './venture-judge-helpers.ts';
+import { code, owner, phone, PLAIN_IDEA, type Business } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, readyNativeDraft as readyDraft } from './native-judge-business.ts';
 
 type Handler = (deps: unknown, ctx: unknown, payload: unknown) => Promise<any>;
 const agents = (env: Business, method: string, payload: unknown = {}, ctx = owner): Promise<any> => (agentHandlers as Record<string, Handler>)[method](env.deps, ctx, payload);

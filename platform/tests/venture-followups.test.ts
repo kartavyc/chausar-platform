@@ -219,7 +219,7 @@ test('venture.pipeline.settings: approve-level, inside the app; checked; with no
   assert.deepEqual(read, { weekdays: WEEK, sendTime: '09:30', caps: { newPerDay: 10, perWeek: 40 }, scoreRules: [], line: 'Your pipeline settings.' });
   assert.equal(listRecords(env.store.read(), 'venture-pipeline-settings').length, 0, 'reading writes nothing');
   for (const bad of [{ weekdays: [] }, { weekdays: [0] }, { weekdays: [8] }, { weekdays: [1, 1] }, { sendTime: '25:00' }, { sendTime: '9.30' },
-    { caps: { newPerDay: 0 } }, { caps: { perWeek: 1001 } }, { caps: { other: 2 } }, { colour: 'green' }]) {
+    { caps: { newPerDay: 0 } }, { caps: { perWeek: 1.5 } }, { caps: { other: 2 } }, { colour: 'green' }]) {
     await assert.rejects(settings(env, bad), code('INVALID_VENTURE_REQUEST'), JSON.stringify(bad));
   }
   const saved = await settings(env, { weekdays: [5, 1, 3], sendTime: '10:00', caps: { perWeek: 30 } });

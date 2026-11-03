@@ -22,6 +22,14 @@ function desk(drafts: DeliveryLite[], ca: CaView | null = null, hosted = false) 
 const code = (fn: () => unknown) => { try { fn(); } catch (error) { return (error as { code?: string }).code; } return 'none'; };
 
 describe('fake client reports', () => {
+  it('wave 6: every client file hides internal receipt identifiers while preserving figures', () => {
+    const view = desk([ACCEPTED]).request('venture.report.render', { runId: ACCEPTED.id, formats: ['html', 'docx', 'xlsx'] }) as ReportView;
+    for (const file of view.files) {
+      const text = atob(file.contentBase64);
+      expect(text, file.format).not.toContain('receipt_fake_social');
+      expect(text, file.format).toMatch(/12,?400/);
+    }
+  });
   it('the sample report has its figures, channels and dates; venture.report.list keeps it, without bytes', () => {
     const d = desk([ACCEPTED]);
     const view = d.request('venture.report.render', { runId: 'd-ep12-script', formats: ['html', 'xlsx'] }) as ReportView;

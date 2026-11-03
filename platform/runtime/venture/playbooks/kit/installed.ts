@@ -8,7 +8,6 @@
 import { createRequire } from 'node:module';
 import { setTestRegistrations } from '../registry.ts';
 import type { PlaybookDefinition } from './define.ts';
-import { forgetHi, keepHi, type HiFile } from './words.ts';
 
 let installed: readonly PlaybookDefinition[] = Object.freeze([]);
 let landed: readonly PlaybookDefinition[] | null = null;
@@ -34,14 +33,12 @@ export function kitDefinition(id: string | null | undefined, definitions: readon
  * Tests only: installs definitions (already passed through definePlaybook) beside the landed ones, registers them so
  * an idea can pick them, and keeps their Hindi. Returns the undo, which puts everything back.
  */
-export function installTestPlaybooks(definitions: readonly { definition: PlaybookDefinition; hi: HiFile }[]): () => void {
+export function installTestPlaybooks(definitions: readonly { definition: PlaybookDefinition }[]): () => void {
   const before = installed;
   installed = Object.freeze([...before, ...definitions.map(item => item.definition)]);
-  for (const item of definitions) keepHi(item.definition.registration.id, item.hi);
   setTestRegistrations(installed.map(definition => definition.registration));
   return () => {
     installed = before;
-    for (const item of definitions) forgetHi(item.definition.registration.id);
     setTestRegistrations(before.map(definition => definition.registration));
   };
 }

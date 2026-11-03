@@ -58,7 +58,7 @@ function fieldValue(field: KitIntakeField, value: unknown): IntakeValue {
       return [...new Set(items)];
     }
     case 'date': return typeof value === 'string' && realDay(value) ? value : bad('give a day like 2026-11-01.');
-    case 'money': return typeof value === 'string' && /^\d{1,15}$/.test(value) ? value : bad('give the amount in whole paise, as digits.');
+    case 'money': return typeof value === 'string' && /^\d{1,15}$/.test(value) ? value : bad('give the amount in whole minor units, as digits.');
     case 'file': return typeof value === 'string' && UPLOAD_ID.test(value) ? value : bad('add the file to the order first, then name it.');
     case 'people': {
       if (!Array.isArray(value) || value.length > MAX_LIST) bad(`send each person, at most ${MAX_LIST}, with their name and consent.`);
@@ -84,21 +84,21 @@ function fieldValue(field: KitIntakeField, value: unknown): IntakeValue {
 export function kitOrderIntake(raw: unknown, offer: KitIntakeOffer, meta: { by: string; at: IsoTime; today: IsoDate; state?: State; venture?: VentureRecord }): OrderIntake | null {
   check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
   const body = (raw ?? {}) as Record<string, unknown>;
-  const extra = Object.keys(body).filter(key => key !== 'rights' && key !== 'fields' && key !== 'moneyRupees');
+  const extra = Object.keys(body).filter(key => key !== 'rights' && key !== 'fields' && key !== 'moneyAmounts');
   check(extra.length === 0, 'INVALID_VENTURE_REQUEST', `The intake has no field called ${extra[0]}.`);
   const sent = body.fields ?? {};
   check(sent !== null && typeof sent === 'object' && !Array.isArray(sent), 'INVALID_VENTURE_REQUEST', 'Send the intake fields as named fields.');
   const values = { ...sent as Record<string, unknown> };
-  // The form sends rupees unchanged. Only the engine converts them; records retain the existing whole-paise shape.
-  if (body.moneyRupees !== undefined) {
-    const money = body.moneyRupees;
-    check(money !== null && typeof money === 'object' && !Array.isArray(money), 'INVALID_VENTURE_REQUEST', 'Send rupee amounts as named fields.');
+  // The form sends decimal text unchanged. Parse the order currency; records retain whole minor units.
+  if (body.moneyAmounts !== undefined) {
+    const money = body.moneyAmounts;
+    check(money !== null && typeof money === 'object' && !Array.isArray(money), 'INVALID_VENTURE_REQUEST', 'Send currency amounts as named fields.');
     for (const [id, rawAmount] of Object.entries(money as Record<string, unknown>)) {
       const field = offer.intake.find(item => item.id === id && item.kind === 'money');
-      check(!!field && !Object.hasOwn(values, id), 'INVALID_VENTURE_REQUEST', 'Name each money field once, in rupees or paise.');
-      check(typeof rawAmount === 'string' && rawAmount.length <= 30, 'INVALID_AMOUNT', 'Give the rupee amount as exact decimal text.');
-      const minor = decimalMinor((rawAmount as string).trim().replace(/[, ]/g, ''), 'INR');
-      check(/^\d{1,15}$/.test(minor), 'INVALID_AMOUNT', 'Give a non-negative amount of at most fifteen paise digits.');
+      check(!!field && !Object.hasOwn(values, id), 'INVALID_VENTURE_REQUEST', 'Name each money field once, as decimal text or minor units.');
+      check(typeof rawAmount === 'string' && rawAmount.length <= 30, 'INVALID_AMOUNT', 'Give the currency amount as exact decimal text.');
+      const minor = decimalMinor((rawAmount as string).trim().replace(/[, ]/g, ''), meta.venture?.country.currency ?? 'INR');
+      check(/^\d{1,15}$/.test(minor), 'INVALID_AMOUNT', 'Give a non-negative amount of at most fifteen minor-unit digits.');
       values[id] = minor;
     }
   }

@@ -1,6 +1,6 @@
 // Chausar playbook kit: the honest exit at intake (Ink v2 wave 5, package 5A2; catalogue P4). Code decides first
 // whether an ask is in, partly or outside what a kit playbook does, from the definition's own phrases (scope.inScope and
-// scope.outOfScope) in English and, through the playbook's Hindi file, in Hindi. A model's view, when the owner asks for
+// scope.outOfScope) in English and through retained non-display input phrases in Hindi. A model's view, when the owner asks for
 // one, is only ever shown as "model estimate: may be outside" and the owner picks; it never decides. Outside gives one
 // fixed reply, "This is outside what we do. We can help with {in-scope part}. For {the rest}, {pointElsewhere}.", and no
 // follow-up is ever scheduled for that person: their open card goes to Not now for "outside scope" with no day to ask
@@ -13,7 +13,7 @@ import { localDayAt } from '../../local-day.ts';
 import { announce, cardsOf, CLOSED_STAGES, storeCard } from '../../network/pipeline.ts';
 import { pickPlaybook, PLAYBOOK_REGISTRY } from '../registry.ts';
 import type { PlaybookDefinition } from './define.ts';
-import { loadHi } from './words.ts';
+import { scopeInputPhrase } from './scope-input-phrases.ts';
 
 /** What the honest exit decided, by code: the in-scope phrases the ask names, the out-of-scope ones, and the reply. */
 export type ScopeVerdict = {
@@ -86,11 +86,6 @@ export function kitDefinitionOf(venture: Pick<VentureRecord, 'idea'>, definition
   return picked ? definitions.find(item => item.registration.id === picked.id) ?? null : null;
 }
 
-/** A kit playbook's Hindi lookup for its scope phrases (playbooks/<id>/hi.json, through 5A1's words.ts). */
-export function scopeHi(definition: Pick<PlaybookDefinition, 'registration'>): (english: string) => string | null {
-  const hi = loadHi(definition.registration.id);
-  return english => (Object.hasOwn(hi, english) ? hi[english] ?? null : null);
-}
 
 /**
  * The honest exit at order intake (money/orders.ts): for a business a kit playbook runs, an ask wholly outside refuses
@@ -100,7 +95,7 @@ export function scopeHi(definition: Pick<PlaybookDefinition, 'registration'>): (
 export function orderScope(venture: Pick<VentureRecord, 'idea'>, request: string, definitions: readonly PlaybookDefinition[]): { rest: string[]; reply: string } | null {
   const definition = kitDefinitionOf(venture, definitions);
   if (!definition) return null;
-  const scope = scopeOf(definition, request, { hi: scopeHi(definition) });
+  const scope = scopeOf(definition, request, { hi: phrase => scopeInputPhrase(definition.registration.id, phrase) });
   if (scope.verdict === 'outside') throw new ChausarError('OUTSIDE_SCOPE', scope.reply!);
   return scope.verdict === 'partly' ? { rest: scope.rest, reply: scope.reply! } : null;
 }

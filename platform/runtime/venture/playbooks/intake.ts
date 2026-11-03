@@ -144,8 +144,8 @@ export function orderIntake(raw: unknown, offer: { key?: string; name: string; r
   }
   if (offer.intake && (isSocialOffer(offer.key) || offer.key==='screencast-tutorial')) {
     check(raw === undefined || (raw !== null && typeof raw === 'object' && !Array.isArray(raw)), 'INVALID_VENTURE_REQUEST', 'Send the intake as named fields.');
-    const { fields, moneyRupees, ...base } = (raw ?? {}) as Record<string, unknown>;
-    const own = kitOrderIntake({ fields, ...(moneyRupees === undefined ? {} : { moneyRupees }) }, { ...offer, rights: [], intake: offer.intake }, meta);
+    const { fields, moneyAmounts, ...base } = (raw ?? {}) as Record<string, unknown>;
+    const own = kitOrderIntake({ fields, ...(moneyAmounts === undefined ? {} : { moneyAmounts }) }, { ...offer, rights: [], intake: offer.intake }, meta);
     const common = orderIntake(Object.keys(base).length ? base : undefined, { ...offer, intake: undefined }, meta);
     if(isYoutubeService(offer.key))validateYoutubeServiceIntake(own?.fields,offer.key);
     return own || common ? { ...(own ?? common!), ...(common ?? {}), fields: own?.fields ?? {} } : null;

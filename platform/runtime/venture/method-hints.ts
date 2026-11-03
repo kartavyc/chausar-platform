@@ -26,8 +26,41 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.blueprint.accept': ['approve', ''],
   'venture.models.presets': ['read', 'rui'], 'venture.models.connect': ['approve', 'uio'], 'venture.models.disconnect': ['approve', 'ui'],
   'venture.models.status': ['read', 'rui'], 'venture.models.calls': ['read', 'rui'],
+  'venture.agentSettings.get': ['read', 'rui'], 'venture.agentSettings.set': ['approve', 'ui'], 'venture.mcpCredential.set': ['admin', 'i'],
+  'venture.mcpRegistry.list': ['read', 'rui'], 'venture.mcpOAuth.start': ['admin', 'uo'],
+  'venture.packs.list': ['read', 'rui'], 'venture.packs.add': ['approve', 'u'], 'venture.packs.remove': ['approve', 'i'],
+  'venture.agentApproval.decide': ['approve', ''],
   'venture.price.quote': ['prepare', 'ui'], 'venture.receipt.get': ['read', 'rui'],
   'venture.client.add': ['prepare', ''], 'venture.client.list': ['read', 'rui'],
+  'venture.client.aiConsent.get': ['read', 'rui'], 'venture.client.aiConsent.agree': ['approve', 'u'], 'venture.client.aiConsent.withdraw': ['approve', 'i'],
+  'venture.notify.telegram': ['approve', 'uo'], 'venture.phone.access': ['approve', 'uo'],
+  'venture.web.search': ['approve', 'u'], 'venture.web.read': ['prepare', 'uio'], 'venture.people.services': ['approve', 'u'], 'venture.people.lookup': ['approve', 'o'],
+  // W6 6G1: a chat's state and the quiet days before one settles; each answer carries its exact Undo.
+  'venture.chief.thread.state': ['prepare', 'ui'], 'venture.chief.settle.set': ['prepare', 'ui'],
+  // W6 6H3: a place's layout; each change carries its exact Undo.
+  'venture.layout.get': ['read', 'rui'], 'venture.layout.change': ['prepare', 'ui'],
+  // W6 6H2: recorded flows. A run touches the website in the desktop's window; its submits go through the journal.
+  'venture.flows.list': ['read', 'rui'], 'venture.flows.act': ['approve', 'o'],
+  // W6 6G3: CRM reads, and owner edits whose every change is kept in the field history; 6G4: dated memory facts.
+  'venture.crm.client': ['read', 'rui'], 'venture.crm.client.edit': ['prepare', 'u'], 'venture.crm.companies': ['read', 'rui'], 'venture.crm.company': ['read', 'rui'],
+  'venture.crm.company.save': ['prepare', 'u'], 'venture.crm.link': ['prepare', 'ui'], 'venture.crm.log': ['prepare', ''], 'venture.crm.lists': ['read', 'rui'],
+  'venture.crm.list': ['read', 'rui'], 'venture.crm.list.save': ['prepare', 'u'], 'venture.crm.list.place': ['prepare', 'ui'],
+  'venture.memory.list': ['read', 'rui'], 'venture.memory.add': ['prepare', 'u'], 'venture.memory.replace': ['prepare', 'u'],
+  'venture.memory.visibility': ['approve', 'ui'], 'venture.memory.forget': ['approve', ''],
+  // W6 6G2: retiring is undone by Bring back, and Bring back by retiring again.
+  'venture.agents.retire.check': ['read', 'rui'], 'venture.agents.retire': ['approve', 'u'], 'venture.agents.restore': ['approve', 'u'],
+  // W6 6H1: mini apps. Making one sends the owner's words to their AI; versions, pin and the grant each come back with
+  // Undo or Turn off; the bridge reads within the grant, keeps the app's notes and raises Today cards, never a send.
+  'venture.apps.list': ['read', 'rui'], 'venture.apps.get': ['read', 'rui'], 'venture.apps.make': ['prepare', 'uo'], 'venture.apps.grant': ['approve', 'ui'],
+  'venture.apps.revoke': ['approve', 'ui'], 'venture.apps.restore': ['prepare', 'ui'], 'venture.apps.pin': ['prepare', 'ui'], 'venture.apps.export': ['read', 'rui'],
+  'venture.apps.call': ['prepare', ''], 'venture.apps.remove': ['approve', ''],
+  // W6 6I1: push-to-talk. Hearing may send the recording to Sarvam; reading aloud calls the owner's speech provider.
+  'venture.talk.get': ['read', 'rui'], 'venture.talk.consent': ['approve', 'ui'], 'venture.talk.setup': ['approve', 'ui'], 'venture.talk.start': ['prepare', 'u'],
+  'venture.talk.hear': ['approve', 'o'], 'venture.talk.say': ['approve', 'o'],
+  // W6 6J2: feedback. Turning reports on or off comes back with its opposite; Send report and Delete my reports reach PostHog and Sentry.
+  'venture.feedback.get': ['read', 'rui'], 'venture.feedback.consent': ['approve', 'ui'], 'venture.feedback.send': ['approve', 'o'],
+  'venture.feedback.answer': ['prepare', ''], 'venture.feedback.crash': ['prepare', ''], 'venture.feedback.delete': ['approve', 'o'],
+  'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],
   'venture.payment.record': ['prepare', ''], 'venture.books.summary': ['read', 'rui'],
@@ -38,11 +71,11 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.delivery.playbook': ['prepare', 'ui'], 'venture.simulation.scenarios': ['read', 'rui'], 'venture.simulation.run': ['prepare', 'uo'],
   'venture.simulation.get': ['read', 'rui'], 'venture.simulation.fromSignal': ['prepare', 'u'],
   'venture.launch.status': ['read', 'rui'], 'venture.launch.advance': ['approve', ''],
-  'venture.delivery.run': ['prepare', ''], 'venture.delivery.approve': ['approve', 'o'], 'venture.delivery.review': ['approve', ''], 'venture.delivery.list': ['read', 'rui'],
+  'venture.delivery.run': ['prepare', ''], 'venture.delivery.review': ['approve', ''], 'venture.delivery.list': ['read', 'rui'],
   'venture.capabilities': ['read', 'rui'],
-  'venture.files.add': ['prepare', ''], 'venture.files.list': ['read', 'rui'], 'venture.delivery.answer': ['prepare', ''], 'venture.work.get': ['read', 'rui'],
+  'venture.files.add': ['prepare', ''], 'venture.files.list': ['read', 'rui'], 'venture.work.get': ['read', 'rui'],
   'venture.improve.status': ['read', 'rui'], 'venture.improve.run': ['prepare', 'o'], 'venture.improve.get': ['read', 'rui'], 'venture.improve.adopt': ['approve', 'u'],
-  'venture.delivery.delegate': ['approve', 'o'], 'venture.delegate.get': ['read', 'rui'],
+  'venture.delegate.get': ['read', 'rui'],
   'venture.queue.list': ['read', 'rui'], 'venture.queue.decide': ['approve', 'o'], 'venture.runs.list': ['read', 'rui'], 'venture.runs.get': ['read', 'rui'],
   'venture.team.list': ['read', 'rui'], 'venture.team.gate': ['approve', 'ui'],
   'venture.evidence.list': ['read', 'rui'], 'venture.evidence.apply': ['prepare', ''],
@@ -61,12 +94,18 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.share.recordAnswer': ['approve', ''], 'venture.social.calendar': ['read', 'rui'],
   'venture.bank.ledger': ['read', 'rui'], 'venture.bank.apply': ['prepare', ''], 'venture.bank.alerts.get': ['read', 'rui'], 'venture.bank.alerts.set': ['admin', 'ui'],
   'venture.ca.receipt': ['read', 'rui'], 'venture.ca.explainDiff': ['approve', ''], 'venture.rules.list': ['read', 'rui'],
+  'venture.rules.locks': ['read', 'rui'], 'venture.rules.attest': ['approve', ''], 'venture.compliance.get': ['read', 'rui'], 'venture.compliance.set': ['approve', ''],
   'venture.judge.auto.get': ['read', 'rui'], 'venture.judge.auto.set': ['approve', 'ui'],
   'venture.posting.limits.get': ['read', 'rui'], 'venture.posting.limits.set': ['approve', 'ui'],
   'venture.transcription.get': ['read', 'rui'], 'venture.transcription.set': ['approve', 'ui'],
   'venture.ai.options': ['read', 'rui'], 'venture.ai.connect': ['approve', 'uio'], 'venture.ai.disconnect': ['approve', 'ui'], 'venture.ai.status': ['read', 'rui'],
   'venture.ai.calls': ['read', 'rui'], 'venture.compose.decide': ['approve', 'u'], 'venture.compose.fill': ['prepare', 'uo'], 'venture.compose.get': ['read', 'rui'],
   'venture.compose.update': ['prepare', 'u'],
+  'venture.country.suggest': ['approve', 'u'],
+  // Wave 6: the tools' own sign-in (it reaches the tool's site), About you (it may ask the owner's AI), the needs list.
+  'venture.ai.tools': ['read', 'rui'], 'venture.ai.login.start': ['approve', 'uo'], 'venture.ai.login.cancel': ['approve', 'ui'],
+  'venture.about.read': ['approve', 'uo'], 'venture.about.pick': ['read', 'rui'], 'venture.about.families': ['read', 'rui'],
+  'venture.needs.list': ['read', 'rui'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */
@@ -128,7 +167,7 @@ const W5_FLAGS: Readonly<Record<W5Method, Flags>> = Object.freeze({
   'venture.voiceConsent.record': '', 'venture.voiceConsent.revoke': 'i', 'venture.voiceConsent.list': 'rui',
   'venture.report.render': 'u', 'venture.report.share': 'uo', 'venture.report.shareRotate': 'o', 'venture.report.shareDisable': 'i', 'venture.report.list': 'rui',
   'venture.monitors.list': 'rui', 'venture.monitors.add': 'uo', 'venture.monitors.remove': 'i', 'venture.mail.import': 'i', 'venture.mail.threads': 'rui',
-  'venture.localApps.list': 'rui', 'venture.webhook.set': 'uio', 'venture.speechOut.providers': 'rui',
+  'venture.localApps.list': 'rui', 'venture.webhook.set': 'uio', 'venture.webhook.send': 'uio', 'venture.speechOut.providers': 'rui',
   'venture.ca.confirmCitations': '', 'venture.ca.signoff.get': 'rui', 'venture.ca.differential.add': '', 'venture.ca.dataPack.export': 'i',
   'venture.desk.list': 'rui', 'venture.desk.get': 'rui', 'venture.desk.act': 'o',
 });

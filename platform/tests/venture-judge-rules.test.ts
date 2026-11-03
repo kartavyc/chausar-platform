@@ -10,6 +10,17 @@ import {
   type Ballot, type JudgeRule, type JudgeTrace,
 } from '../runtime/venture/delivery/judge/rules.ts';
 import { traceFromHarness } from '../runtime/venture/delivery/judge/trace.ts';
+import { renderForJudge } from '../runtime/venture/delivery/deliverable.ts';
+
+test('quality instructions explain code-rendered amount marks without asking the judge to calculate or waive content rules',()=>{
+ const text=renderForJudge({title:'Voice sheet',questionsForClient:[],sections:[{heading:'Agreed price',parts:[{kind:'figure',receiptId:'price-a',figureKey:'total'}]}]},[{id:'price-a',figures:[{key:'total',label:'Total',display:'INR 1,000.00'}]}] as any);
+ const task=rulesTask({rules:RULES,trace:TRACE,draft:text,containsClientData:true});
+ assert.match(text,/Total: \[price from Chausar\]/);
+ assert.match(task.instructions,/\[price from Chausar\]/);
+ assert.match(task.instructions,/not missing client content/);
+ assert.match(task.instructions,/labels and placement/);
+ assert.doesNotMatch(text,/1,000/);
+});
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 
@@ -146,10 +157,10 @@ test('rules: judgeByRules asks once per sample and code decides; with no AI ever
   assert.deepEqual(pick(verdict.rules[1]), { outcome: 'pass', yes: 3, no: 1, unverified: 0, needed: 3 });
   await assert.rejects(() => judgeByRules(ask, { rules: RULES, trace: TRACE, draft: 'A draft.', containsClientData: false }, 0), code('INVALID_VENTURE_REQUEST'));
 
-  const off = notRuled(RULES, 'No AI judge connected.');
+  const off = notRuled(RULES, 'No AI quality check connected.');
   assert.equal(off.outcome, 'unverified');
   assert.deepEqual(off.rules.map(rule => rule.outcome), ['unverified', 'unverified']);
-  assert.ok(off.rules.every(rule => rule.detail === 'No AI judge connected.'));
+  assert.ok(off.rules.every(rule => rule.detail === 'No AI quality check connected.'));
 });
 
 test('trace: a run gives citable ids for its turns, tool calls, hand-offs, files, tables and receipts', () => {

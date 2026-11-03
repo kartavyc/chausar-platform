@@ -6,20 +6,20 @@ export type KitPerson = { name: string; consentId: string | null };
 export type KitAnswer = string | boolean | KitPerson[] | File;
 export type KitAnswers = Record<string, KitAnswer>;
 type Params = NonNullable<EngineMethods['venture.order.create']['params']['intake']>;
-/** Only the chosen offer's questions can enter a new order. Money stays rupee text until the engine parses it. */
+/** Only the chosen offer's questions can enter a new order. Money stays decimal text until the engine parses it. */
 export function kitIntakeParams(ask: OfferIntakeLite | null, answers: KitAnswers): Params {
   const fields: NonNullable<Params['fields']> = {};
-  const moneyRupees: Record<string, string> = {};
+  const moneyAmounts: Record<string, string> = {};
   for (const field of ask?.kit ?? []) {
     const value = answers[field.id];
     if (field.kind === 'rights' || value === undefined || value === '') continue;
-    if (field.kind === 'money') { if (typeof value === 'string' && value.trim()) moneyRupees[field.id] = value.trim(); continue; }
+    if (field.kind === 'money') { if (typeof value === 'string' && value.trim()) moneyAmounts[field.id] = value.trim(); continue; }
     if (field.kind === 'list') { if (typeof value === 'string' && value.trim()) fields[field.id] = [...new Set(ruleEntries(value))]; continue; }
     if (field.kind === 'people') { if (Array.isArray(value) && value.length) fields[field.id] = value.map(person => ({ name: person.name.trim(), consentId: person.consentId })); continue; }
     if (typeof value === 'boolean') fields[field.id] = value;
     else if (typeof value === 'string' && value.trim()) fields[field.id] = value.trim();
   }
-  return { fields, ...(Object.keys(moneyRupees).length ? { moneyRupees } : {}) };
+  return { fields, ...(Object.keys(moneyAmounts).length ? { moneyAmounts } : {}) };
 }
 /** Required yes/no answers distinguish no from unanswered; required consent always needs an affirmative answer. */
 export function kitIntakeReady(ask: OfferIntakeLite | null, answers: KitAnswers): boolean {

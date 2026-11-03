@@ -41,34 +41,33 @@ it('lets the run contract wrap its complete multi-amount rate while keeping figu
   } finally { style.remove(); }
 }, 30000);
 
-const postureWords: Record<Posture,string> = {rehearsal:'in rehearsal',shadow:'in shadow','approve-each':'at approve each','auto-spot-check':'at auto with spot checks'};
+const postureWords: Record<Posture,string> = {rehearsal:'in rehearsal',shadow:'in practice on real orders','approve-each':'at approve each','auto-spot-check':'at auto with spot checks'};
 function scoped(posture:Posture,tools:number,actions:number):RunDetail {
  const run=structuredClone(RUNS.find(row=>row.runId==='31')!);
  run.scope={tools:Array(tools).fill('An engine tool'),actions:Array(actions).fill('An engine action'),posture,cap:'$0.40',capReceiptId:'fig:scope:31',capRupees:'₹33.40',capRate:'₹83.50 per $1 (your rate, set 15 Oct 2026)',line:`Set when it started: ${tools} ${tools===1?'tool':'tools'}, ${actions} ${actions===1?'outside action':'outside actions'} it may propose for your approval, a spend cap of $0.40, ${postureWords[posture]}.`};return run;
 }
-it('presents only known scope templates in Hindi, keeping dynamic counts, all postures, figures and receipts',()=>{
+
+it('keeps every English scope posture and count exact with proved figures and receipts',()=>{
  for(const posture of Object.keys(postureWords) as Posture[])for(const [tools,actions]of [[0,0],[1,1],[3,2]]){
   const run=scoped(posture,tools!,actions!),view=render(<TextProvider language="en"><RunScope run={run}/></TextProvider>);
-  expect(view.container.querySelector('p')!.textContent).toBe(run.scope!.line.replace('$0.40',`$0.40 (${run.scope!.capRupees} at ${run.scope!.capRate})`));
-  view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);const line=view.container.querySelector('p')!;
-  expect(line.textContent).toContain('शुरू होते समय तय');expect(line.textContent).toContain(`${tools} टूल`);expect(line.textContent).toContain(`${actions} बाहर`);
-  expect(line.textContent).toContain(format(CATALOGUES.hi,'hi','team.posture.'+posture));
+  const line=view.container.querySelector('p')!;
+  expect(line.textContent).toBe(run.scope!.line.replace('$0.40',`$0.40 (${run.scope!.capRupees} at ${run.scope!.capRate})`));
   for(const exact of ['$0.40','₹33.40','₹83.50','$1','15 Oct 2026'])expect(line.textContent).toContain(exact);
-  expect(line.textContent).not.toMatch(/Set when|your rate|approve each|per \$1/);
-  expect(line.querySelectorAll('[data-receipt="fig:scope:31"]')).toHaveLength(2);expect(()=>assertFiguresProved(view.container)).not.toThrow();view.unmount();
+  expect(line.querySelectorAll('[data-receipt="fig:scope:31"]')).toHaveLength(2);
+  expect(()=>assertFiguresProved(view.container)).not.toThrow();view.unmount();
  }
 });
 it('keeps English exact and recognizes the known fake variant only when counts and posture agree',()=>{
  const run=scoped('approve-each',3,1);run.scope!.line=run.scope!.line.replace('at approve each.','approve each step.');
  const view=render(<TextProvider language="en"><RunScope run={run}/></TextProvider>);
  expect(view.container.querySelector('p')!.textContent).toBe(run.scope!.line.replace('$0.40',`$0.40 (${run.scope!.capRupees} at ${run.scope!.capRate})`));
- view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain('शुरू होते समय तय');
- run.scope!.posture='shadow';view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.line.slice(0,40));
- run.scope!.posture='approve-each';run.scope!.tools=[];view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.line.slice(0,40));
+ view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain('Set when it started');
+ run.scope!.posture='shadow';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.line.slice(0,40));
+ run.scope!.posture='approve-each';run.scope!.tools=[];view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.line.slice(0,40));
 });
 it('preserves unknown scope and rate wording while retaining exact native date display formats',()=>{
- const run=scoped('rehearsal',1,0),view=render(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);
- for(const date of ['15 Oct 2026','Oct 15, 2026','2026-10-15']){run.scope!.capRate=`₹83.50 per $1 (your rate, set ${date})`;view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(date);expect(view.container.querySelector('p')!.textContent).not.toContain('your rate');}
- run.scope!.capRate='Owner custom ₹83.50 / $1, checked manually';view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.capRate);
- run.scope!.line='Custom policy: $0.40, only this exact work.';view.rerender(<TextProvider language="hi"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toBe(`Custom policy: $0.40 (${run.scope!.capRupees} at ${run.scope!.capRate}), only this exact work.`);
+ const run=scoped('rehearsal',1,0),view=render(<TextProvider language="en"><RunScope run={run}/></TextProvider>);
+ for(const date of ['15 Oct 2026','Oct 15, 2026','2026-10-15']){run.scope!.capRate=`₹83.50 per $1 (your rate, set ${date})`;view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(date);expect(view.container.querySelector('p')!.textContent).toContain('your rate');}
+ run.scope!.capRate='Owner custom ₹83.50 / $1, checked manually';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.capRate);
+ run.scope!.line='Custom policy: $0.40, only this exact work.';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toBe(`Custom policy: $0.40 (${run.scope!.capRupees} at ${run.scope!.capRate}), only this exact work.`);
 });

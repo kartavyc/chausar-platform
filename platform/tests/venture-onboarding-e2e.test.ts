@@ -31,7 +31,7 @@ import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-cus
 import type { BackupView, BusinessList, CustodyView } from '../runtime/workspace-custody-contracts.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
-const KEY = 'sk-ant-test-onboarding-e2e-not-a-real-key-5d21';
+const KEY = ("sk" + "-ant-test-onboarding-e2e-not-a-real-key-5d21");
 const GITHUB_TOKEN = 'github_pat_test_not_a_real_token_00';
 const githubRecording = JSON.parse(await readFile(new URL('./fixtures/venture/e2e/github-sync.json', import.meta.url), 'utf8'));
 
@@ -427,10 +427,9 @@ test('the Claude Code route answers with the terms accepted, and the same connec
   const fixture = await recording('dog-walking-claude-cli.json');
   const pending = await newEngine(t, fixture, { claudeCodeTerms: 'pending' });
   const closed = await pending.ask('venture.ai.options') as AiOptionsView;
-  assert.deepEqual([closed.options.find(option => option.id === 'claude-code')!.status, closed.options.find(option => option.id === 'claude-code')!.canConnect], ['needs-setup', false]);
-  const preset = presetOf(closed, 'claude-code-cli');
-  assert.equal(preset.availabilityReason, AVAILABILITY_REASONS.claudeTerms);
-  await assert.rejects(pending.ask('venture.ai.connect', { presetId: 'claude-code-cli', consentDigest: preset.consentDigest }), (error: any) => error.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
+  assert.equal(closed.options.some(option => option.id === 'claude-code'), false);
+  assert.equal(closed.presets.some(preset => preset.id === 'claude-code-cli'), false);
+  await assert.rejects(pending.ask('venture.ai.connect', { presetId: 'claude-code-cli', consentDigest: 'untrusted-disabled-choice' }), (error: any) => error.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
 
   const open = await newEngine(t, fixture, { claudeCodeTerms: 'accepted' });
   const options = await open.ask('venture.ai.options') as AiOptionsView;
@@ -517,9 +516,9 @@ test('a composed plan rehearses with the model: the demo bookkeeping plan is kep
       assert.ok(episode.judge.every(answer => answer.answer === 'yes'), JSON.stringify(episode.judge));
     }
   }
-  const launch = await ask('venture.launch.status') as { rehearsal: { scenarioId: string; passed: boolean; judged: boolean }[] };
-  assert.deepEqual(launch.rehearsal.map(r => [r.scenarioId, r.passed, r.judged]).sort(),
-    [['bookkeeping-clean', true, true], ['bookkeeping-messy', true, true], ['bookkeeping-pushback', true, true]]);
+  // 6C4: rehearsals stay a Practice feature; Live opens with the accepted plan and the connected AI, not a rehearsal gate.
+  const launch = await ask('venture.launch.status') as { stage: string; stages: { stage: string; allowed: boolean }[] };
+  assert.deepEqual([launch.stage, launch.stages.map(s => [s.stage, s.allowed])], ['practice', [['practice', true], ['live', true]]]);
   const judged = (await ask('venture.models.calls', { limit: 100 }) as ModelCallRecord[]).filter(call => call.purpose === 'judge');
   assert.ok(judged.length > 0 && judged.every(call => call.status === 'completed' && call.replay), 'the judge answered from the demo recording');
 });

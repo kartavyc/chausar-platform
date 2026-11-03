@@ -20,12 +20,12 @@ import { applyPatch, toolCeiling } from '../runtime/venture/delivery/harness/pat
 import { definePlaybook } from '../runtime/venture/playbooks/kit/define.ts';
 import { runKitBaseline, type KitBaselineFile } from '../runtime/venture/playbooks/kit/baseline.ts';
 import { runKitChecks } from '../runtime/venture/playbooks/kit/checks.ts';
-import { KIT_FIXTURE_CASES, brandNamed, fixtureHi, kitFixture, noGuarantee, otherFixture } from './fixtures/venture/kit-fixture.ts';
-import { approveWaiting, draft as kitDraft, installKitFixture, kitBusiness } from './fixtures/venture/kit-business.ts';
+import { KIT_FIXTURE_CASES, brandNamed, kitFixture, noGuarantee, otherFixture } from './fixtures/venture/kit-fixture.ts';
+import { deliver, draft as kitDraft, installKitFixture, kitBusiness } from './fixtures/venture/kit-business.ts';
 
 const code = (expected: string, words?: RegExp) => (error: any) => { assert.equal(error?.code, expected, error?.message); if (words) assert.match(error.message, words); return true; };
-const FIXTURE = definePlaybook(kitFixture(), fixtureHi(kitFixture()));
-const OTHER = definePlaybook(otherFixture(), fixtureHi(otherFixture()));
+const FIXTURE = definePlaybook(kitFixture());
+const OTHER = definePlaybook(otherFixture());
 const DEFINITIONS = [FIXTURE, OTHER];
 const META = { by: 'owner', at: '2026-10-27T10:00:00.000Z', today: '2026-10-27', host: 'test' as const };
 
@@ -74,7 +74,7 @@ test('flagshipDelivery gives the steps, roles, roleOf, floor and draft step; val
   assert.equal(flagshipDelivery('kit-fixture'), null);
 });
 
-test("toolCeiling grants a kit playbook its own tool, and a patch granting another kit playbook's tool is refused", () => {
+test("toolCeiling grants a kit playbook its own tool, and a patch granting another kit work plan's tool is refused", () => {
   assert.ok(toolCeiling('consulting', 'kit-fixture', DEFINITIONS).includes('media.clean'));
   assert.ok(!toolCeiling('consulting', 'kit-fixture', DEFINITIONS).includes('assets.record'));
   assert.ok(!toolCeiling('consulting', null, DEFINITIONS).includes('media.clean'), 'a plain business holds no kit tool');
@@ -164,7 +164,7 @@ test("departments: venture.team.list gives each kit agent its role's department;
   assert.ok(team.agents.filter((agent: any) => agent.kind === 'agent').every((agent: any) => ['researcher', 'writer'].includes(agent.id)), 'no code role is shown as an AI agent');
 });
 
-test("practice: venture.simulation.scenarios lists the kit playbook's three practice clients; a run goes through the kit checks", async t => {
+test("practice: venture.simulation.scenarios lists the kit work plan's three practice clients; a run goes through the kit checks", async t => {
   t.after(installKitFixture());
   const env = await kitBusiness();
   await env.call('venture.delivery.playbook');
@@ -182,7 +182,7 @@ test("practice: venture.simulation.scenarios lists the kit playbook's three prac
   assert.deepEqual(episode.playbookChecks.map((item: any) => [item.check, item.outcome]), [['playbook-checks', 'not-run']]);
 });
 
-test("practice with an AI judge on: the kit checks run on the practice draft, then the playbook's own rules", async t => {
+test("practice with an AI judge on: the kit checks run on the practice draft, then the work plan's own rules", async t => {
   t.after(installKitFixture());
   const env = await kitBusiness();
   await env.call('venture.delivery.playbook');
@@ -214,22 +214,18 @@ test("practice with an AI judge on: the kit checks run on the practice draft, th
   assert.deepEqual((judged[0].input as any).rules.map((rule: any) => rule.id), ['on-brief', 'voice-first-mistake-1'], "its own rule and its recipe's judge mistake");
 });
 
-test("judge on real orders: a client or public kit draft gets the automatic judge with the playbook's rules; an internal one gets none", async t => {
+test("judge on real orders: a client or public kit draft gets the automatic judge with the work plan's rules; an internal one gets none", async t => {
   t.after(installKitFixture());
   const env = await kitBusiness();
   const pack = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[0].id, request: 'A voice sheet for Sunrise Bakery.', intake: { fields: { 'brand-name': 'Sunrise Bakery', 'consent-data': true } } });
-  const publicRun = await env.call('venture.delivery.run', { orderId: pack.id });
-  assert.ok(publicRun.judgeNotice, 'the write turn says the judge will read the draft');
   const audit = await env.call('venture.order.create', { clientId: env.client.id, offerId: env.offers[1].id, request: 'An audit for Sunrise Bakery.', intake: { fields: { 'brand-name': 'Sunrise Bakery' } } });
-  const internalRun = await env.call('venture.delivery.run', { orderId: audit.id });
-  assert.equal(internalRun.judgeNotice, null, 'an internal draft gets no automatic judge');
-  const ready = await approveWaiting(env, publicRun, kitDraft('Voice sheet', { 'Voice sheet': ['A warm, plain voice for Sunrise Bakery.'] }));
+  const ready = await deliver(env, pack.id, kitDraft('Voice sheet', { 'Voice sheet': ['A warm, plain voice for Sunrise Bakery.'] }));
   assert.equal(ready.status, 'ready-for-review');
   const rulesTasks = () => [...env.models.previewed, ...env.models.generated].filter(task => task.schemaName === 'venture-judge-rules');
   const asked = rulesTasks().length;
   assert.ok(asked >= 1, 'the judge was asked about the public draft');
   assert.deepEqual((rulesTasks()[0].input as any).rules.map((rule: any) => rule.id), ['on-brief', 'voice-first-mistake-1'], "its own rule and its recipe's judge mistake");
-  const internalReady = await approveWaiting(env, internalRun, kitDraft('Audit', { Posts: ['A plain look at the Sunrise Bakery account.'] }));
+  const internalReady = await deliver(env, audit.id, kitDraft('Audit', { Posts: ['A plain look at the Sunrise Bakery account.'] }));
   assert.equal(internalReady.status, 'ready-for-review', JSON.stringify(internalReady.checks));
   assert.equal(internalReady.judge, undefined);
   assert.equal(rulesTasks().length, asked, 'no judge call for the internal draft');
@@ -274,26 +270,21 @@ function practiceWithAi(env: Awaited<ReturnType<typeof kitBusiness>>): { judged:
   return { judged };
 }
 
-test('launch: from the first stage, a kit business rehearses its three practice clients, launch.status lists them, and shadow opens', async t => {
+test('launch: from Practice, a kit business rehearses its three practice clients, and Live opens once an AI is connected', async t => {
   // Practice clients with no files, so each episode is one drafted reply.
   const base = kitFixture();
   t.after(installKitFixture(kitFixture({ practice: base.practice.map(client => ({ ...client, files: [] })) })));
   const env = await kitBusiness(undefined, { seedStage: false });
   await env.call('venture.delivery.playbook');
   const before = await env.call('venture.launch.status');
-  assert.equal(before.stage, 'rehearsal', 'a new business starts at rehearsal');
-  assert.deepEqual(before.rehearsal.map((row: any) => row.scenarioId), ['kit-fixture-clean', 'kit-fixture-messy', 'kit-fixture-pushback']);
-  assert.equal(before.stages.find((stage: any) => stage.stage === 'shadow').allowed, false);
+  assert.equal(before.stage, 'practice', 'a new business starts in Practice');
+  assert.deepEqual(before.stages.map((stage: any) => stage.stage), ['practice', 'live']);
   practiceWithAi(env);
   const run = await env.call('venture.simulation.run', {});
   assert.deepEqual(run.scenarioIds, ['kit-fixture-clean', 'kit-fixture-messy', 'kit-fixture-pushback']);
   assert.equal(run.passed, true, JSON.stringify(run.episodes.map((episode: any) => [episode.scenarioId, episode.checks.filter((c: any) => !c.passed)])));
-  const after = await env.call('venture.launch.status');
-  assert.deepEqual(after.rehearsal.map((row: any) => [row.scenarioId, row.passed, row.judged]), [
-    ['kit-fixture-clean', true, true], ['kit-fixture-messy', true, true], ['kit-fixture-pushback', true, true],
-  ]);
-  const shadow = await env.call('venture.launch.advance', { to: 'shadow' });
-  assert.equal(shadow.stage, 'shadow');
+  const live = await env.call('venture.launch.advance', { to: 'live' });
+  assert.equal(live.stage, 'live');
   // The run view and the improvement loop read the same practice clients.
   const runs = await env.call('venture.runs.list', { state: 'all' });
   assert.ok(runs.runs.some((item: any) => item.purpose === 'Rehearse with practice clients'));
@@ -311,17 +302,17 @@ test('5A3 wiring: a check resting on an unconfirmed rule says so; a client run o
   const base = kitFixture();
   const rule = base.rules[0];
   const input = checkInput(draft(['A warm voice for Sunrise Bakery.']), { 'brand-name': 'Sunrise Bakery' });
-  const unsure = definePlaybook(kitFixture({ rules: [{ ...rule, read: 'unconfirmed', sources: [{ title: 'A forum post', url: 'https://example.com/post' }] }] }), fixtureHi(base));
+  const unsure = definePlaybook(kitFixture({ rules: [{ ...rule, read: 'unconfirmed', sources: [{ title: 'A forum post', url: 'https://example.com/post' }] }] }));
   assert.match(runKitChecks(unsure, input).find(item => item.check === 'no-guarantee')!.detail, /This rule is not confirmed\.$/);
   // 5A3 review: a rule says who must confirm it (needs); one a CA must confirm carries confirmedBy null until they do.
-  const waiting = definePlaybook(kitFixture({ rules: [{ ...rule, needs: 'ca', confirmedBy: null }] }), fixtureHi(base));
+  const waiting = definePlaybook(kitFixture({ rules: [{ ...rule, needs: 'ca', confirmedBy: null }] }));
   assert.throws(() => runKitChecks(waiting, input), code('RULE_UNCONFIRMED', /Promised results/));
   assert.ok(runKitChecks(waiting, { ...input, mode: 'rehearsal' }).length > 0, 'practice runs go on');
 });
 
 test('5A3 wiring: the kit draft checks end with rules-current, not run once a rule is past its recheck window', async () => {
   const base = kitFixture();
-  const old = definePlaybook(kitFixture({ rules: [{ ...base.rules[0], checkedOn: '2026-05-01' }] }), fixtureHi(base));
+  const old = definePlaybook(kitFixture({ rules: [{ ...base.rules[0], checkedOn: '2026-05-01' }] }));
   const results = await runFlagshipChecks(checkInput(draft(['A warm voice for Sunrise Bakery.']), { 'brand-name': 'Sunrise Bakery' }), [old]);
   const current = results.find(item => item.check === 'rules-current')!;
   assert.equal(current.outcome, 'not-run');

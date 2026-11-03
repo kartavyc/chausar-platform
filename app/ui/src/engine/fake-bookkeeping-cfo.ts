@@ -1,4 +1,5 @@
 /** Bookkeeping fake, after finance-skills/cfo/bankmcp (MIT ideas); exact desk validation and business-local records. */
+import { decimalMinor } from '../../../../platform/runtime/currency';
 import { EngineError, type OrderLite } from './types';
 import { readCollectionsSource } from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/collections-source-core';
 import type { FakePlaybookDesk } from './fake-playbooks';
@@ -39,13 +40,11 @@ function exact(value: unknown, allowed: readonly string[], required: readonly st
 function id(value: unknown, name: string): string { if (typeof value !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(value)) throw new EngineError('INVALID_VENTURE_REQUEST', `${name} must be a known identifier.`); return value; }
 function line(value: unknown, name: string, max: number): string { if (typeof value !== 'string' || !value.trim() || value.trim().length > max || /[\u0000-\u001F\u007F]/.test(value.trim())) throw new EngineError('INVALID_VENTURE_REQUEST', `${name} must be plain text on one line.`); return value.trim(); }
 function date(value: unknown): string { if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(`${value}T00:00:00.000Z`)) || new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) !== value) throw new EngineError('INVALID_VENTURE_REQUEST', 'Promised date must be a date like 2026-10-15.'); return value; }
-function rupees(value: unknown): string {
-  const text = typeof value === 'string' && value.length <= 40 ? value.replace(/[\s,]/g, '') : '';
-  if (!/^\d+(?:\.\d+)?$/.test(text)) throw new EngineError('INVALID_AMOUNT', 'Promised amount must be a positive amount like 2499 or 2499.50.');
-  const [whole = '0', decimal = ''] = text.split('.'); const fraction = decimal.replace(/0+$/, '');
-  if (fraction.length > 2) throw new EngineError('INVALID_AMOUNT', 'The amount contains a fractional minor unit for its currency.');
-  const minor = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0') || '0');
-  if (minor <= 0n || minor > 1_000_000_000_000n) throw new EngineError('INVALID_AMOUNT', 'Promised amount must be positive and within the accepted limit.');
+function promisedAmount(value: unknown, currency: string): string {
+  let minor: bigint;
+  try { if(typeof value !== 'string') throw new Error('Type an amount.'); minor=BigInt(decimalMinor(value,currency)); }
+  catch { throw new EngineError('INVALID_AMOUNT', 'Use the currency decimal places for the promised amount.'); }
+  if(minor<=0n||minor>1_000_000_000_000n) throw new EngineError('INVALID_AMOUNT','Promised amount must be positive and within the accepted limit.');
   return String(minor);
 }
 function validate(ladder: Ladder): void {
@@ -67,9 +66,11 @@ export function fakeBookkeepingCfoDesk(host: W4DeskHost): FakePlaybookDesk {
     if (!client) throw new EngineError('CLIENT_NOT_FOUND', 'The source client was not found.');
     const file = host.orderFiles?.(order.id).find(row => row.name === sourceName);
     if (!file || file.format !== 'csv') throw new EngineError('CLIENT_LEDGER_REQUIRED', 'Upload the client debtor ledger as CSV on this service order.');
-    let parsed; try { parsed = readCollectionsSource(new TextDecoder().decode(Uint8Array.from(atob(file.contentBase64), char => char.charCodeAt(0)))); } catch { throw new EngineError('CLIENT_LEDGER_INVALID', 'The debtor ledger needs valid distinct invoice and payment rows.'); }
+    const venture = host.ask('venture.get', {}) as {venture?:{country?:{currency?:string};originalCountry?:{currency?:string}}};
+    const currency = host.roomPrice?.(order.id)?.currency ?? venture?.venture?.originalCountry?.currency ?? venture?.venture?.country?.currency ?? 'INR';
+    let parsed; try { parsed = readCollectionsSource(new TextDecoder().decode(Uint8Array.from(atob(file.contentBase64), char => char.charCodeAt(0))), currency); } catch { throw new EngineError('CLIENT_LEDGER_INVALID', 'The debtor ledger needs valid distinct invoice and payment rows.'); }
     if (!parsed) throw new EngineError('CLIENT_LEDGER_INVALID', 'Use columns kind, id, invoice, debtor, on, dueOn, amount and state in the client debtor ledger.');
-    return { ...parsed, order, client, file };
+    return { ...parsed, order, client, file, currency };
   };
   const invoices = () => orders().filter(row => row.status !== 'cancelled' && clients().some(client => client.id === row.clientId)).flatMap(order => {
     const names = [...new Set((host.orderFiles?.(order.id) ?? []).filter(file => file.format === 'csv').map(file => file.name))];
@@ -129,7 +130,7 @@ export function fakeBookkeepingCfoDesk(host: W4DeskHost): FakePlaybookDesk {
           const serviceOrderId = id(input.serviceOrderId, 'Service order'), sourceName = line(input.sourceName, 'Source file', 200);
           const ledger = source(serviceOrderId, sourceName);
           if (ledger.client.id !== clientId || !invoiceIds.every(invoiceId => ledger.invoices.some(row => row.id === invoiceId))) throw new EngineError('INVOICE_NOT_FOUND', 'Choose debtor invoices from this client service order.');
-          const record = { business: host.current(), id: `promise_fake_${promises.length + 1}`, clientId, serviceOrderId, sourceName, invoiceIds, amountMinor: rupees(input.amountRupees), promisedOn: date(input.promisedOn), recordedOn: today(), method: line(input.method, 'Payment method', 80), statedBy: line(input.statedBy, 'Who promised', 120), recordedPaymentIds: ledger.payments.filter(payment => invoiceIds.includes(payment.invoiceId) && payment.cleared).map(payment => payment.id) };
+          const record = { business: host.current(), id: `promise_fake_${promises.length + 1}`, clientId, serviceOrderId, sourceName, invoiceIds, amountMinor: promisedAmount(input.amountRupees, ledger.currency), promisedOn: date(input.promisedOn), recordedOn: today(), method: line(input.method, 'Payment method', 80), statedBy: line(input.statedBy, 'Who promised', 120), recordedPaymentIds: ledger.payments.filter(payment => invoiceIds.includes(payment.invoiceId) && payment.cleared).map(payment => payment.id) };
           promises.push(record); changed('promise', record.id);
           return { playbook: 'bookkeeping-cfo', kind: 'promise', id: record.id, result: rows().find(row => row.id === record.id), line: 'The promise is recorded; only recorded payments can mark it kept.' };
         }

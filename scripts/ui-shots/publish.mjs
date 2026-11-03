@@ -1,5 +1,6 @@
 // Pages the Ink walk writes: the local review page (app/ui/.shots/index.html, every shot beside its board) and, with
-// --publish, the founder's side-by-side page and WALK.md in docs/superpowers/designs/ink-v2-direction-d/, with the
+// --publish, the founder's side-by-side page and WALK.md in the private checkout's docs/superpowers/designs/ink-v2-direction-d/
+// (../chausar-private, or CHAUSAR_PRIVATE_DIR), with the
 // shots that match a board copied into walk/ (1280 light and 390 light only, to keep the repo small).
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -9,10 +10,12 @@ import { listedMd } from './accepted.mjs';
 import { BOARDS, FIXED, LISTED, WAVE4_FIRST_WALK } from './boards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const DESIGNS = join(ROOT, 'docs/superpowers/designs/ink-v2-direction-d');
+// The design boards are private: they live in the chausar-private checkout next to this repository.
+const PRIVATE = process.env.CHAUSAR_PRIVATE_DIR ? resolve(process.env.CHAUSAR_PRIVATE_DIR) : resolve(ROOT, '..', 'chausar-private');
+const DESIGNS = join(PRIVATE, 'docs/superpowers/designs/ink-v2-direction-d');
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const shotName = (id, width, theme, hindi = false) => `${id}--${width}-${theme}${hindi ? '-hi' : ''}.png`;
+const shotName = (id, width, theme) => `${id}--${width}-${theme}.png`;
 
 /** Tokens and base styles shared by both pages: light and dark from the computer, as the app does. */
 const STYLE = `
@@ -81,7 +84,6 @@ export function writeIndex(out, cases, results) {
     if (c.phone) phone.push(frame(`${boardsDir}/${c.phone}.png`, `${c.phone} board`, `${c.phone} (board)`));
     phone.push(img(shotName(c.id, 390, 'light'), `${c.id} at 390, light`, '390, light'));
     phone.push(img(shotName(c.id, 390, 'dark'), `${c.id} at 390, dark`, '390, dark'));
-    if (has.has(shotName(c.id, 390, 'light', true))) phone.push(img(shotName(c.id, 390, 'light', true), `${c.id} in Hindi`, '390, Hindi'));
     if ((c.widths ?? [1280, 390]).includes(390)) parts.push(`<div class="pair phone">${phone.join('')}</div>`);
     parts.push('</section>');
   }
@@ -141,7 +143,7 @@ function walkMd(report) {
   const lines = [
     '# The walk, board by board (waves 3, 4 and 5)',
     '',
-    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes and in Hindi, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
+    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
     '',
     '| Board | Address | What matches | What differs, and why | Still to come |',
     '|---|---|---|---|---|',
@@ -154,16 +156,15 @@ function walkMd(report) {
   const axeCount = shots.reduce((n, r) => n + r.axe.length, 0);
   const listed = shots.reduce((n, r) => n + (r.listed?.length ?? 0), 0);
   const unsure = shots.reduce((n, r) => n + (r.contrastUnsure?.length ?? 0), 0);
-  const hindi = shots.filter((r) => r.hindi).length;
   lines.push('', '## Current walk', '');
-  lines.push(`Last walk: ${report.at.slice(0, 16).replace('T', ' ')} UTC, headless Chrome on the fake engine of \`npm run dev:ui\`: ${shots.length} shots over ${report.cases} cases (every place, its main states, sheets and the forms and second asks inside them, at 1280 and 390, light and dark, and ${hindi} in Hindi at 390).`);
+  lines.push(`Last walk: ${report.at.slice(0, 16).replace('T', ' ')} UTC, headless Chrome on the fake engine of \`npm run dev:ui\`: ${shots.length} shots over ${report.cases} cases (every place, its main states, sheets and the forms and second asks inside them, at 1280 and 390, light and dark).`);
   const contrast = shots.reduce((n, r) => n + [...r.axe, ...(r.listed ?? [])].filter((v) => v.id === 'color-contrast').length, 0);
   lines.push('', `- axe-core (from node_modules) on the whole page with colour contrast on: ${axeCount} open violation${axeCount === 1 ? '' : 's'}; ${listed ? `${listed} listed below with their reason` : 'none listed as accepted'}; ${contrast} colour-contrast violation${contrast === 1 ? '' : 's'} in either theme.`);
   lines.push(`- Focus, pressed through with real keys and clicks: ${focus.filter((r) => !r.problems.length).length} of ${focus.length} pass (J and K move through Today's cards; Approve asks again and focus lands on "Not now", then back on Approve; a sheet takes focus on its title and Esc returns it to the button that opened it; the business menu takes focus and Esc returns it; on a phone, Tab never leaves a covering sheet).`);
-  lines.push(`- No sideways scroll, no text key on screen, no em dash, no console error, and in Hindi every count in the body face: ${shots.filter((r) => !r.problems.length).length} of ${shots.length} shots clean.`);
+  lines.push(`- No sideways scroll, no text key on screen, no em dash, no console error: ${shots.filter((r) => !r.problems.length).length} of ${shots.length} shots clean.`);
   if (unsure) lines.push(`- axe could not decide the contrast of ${unsure} text nodes. These undecided checks are neither recorded violations nor proof of sufficient contrast. Visual review is limited to the captured content inspected; see [the wave 5 handoff](../../plans/w5/HANDOFF.md) for the linked review evidence and coverage limits. This report does not claim that every undecided node was manually checked.`);
 
-  lines.push('', `Current report: ${report.jobs} checks over ${report.cases} cases, ${report.failed} failed, ${listed} listed as accepted (${shots.length} shots, ${hindi} of them in Hindi at 390 chosen by the computer's languages, and ${focus.length} focus checks). This automated report does not establish completion of the separate cold visual review; see the wave 5 handoff for that checkpoint.`);
+  lines.push('', `Current report: ${report.jobs} checks over ${report.cases} cases, ${report.failed} failed, ${listed} listed as accepted (${shots.length} shots, ${focus.length} focus checks). This automated report does not establish completion of the separate cold visual review; see the wave 5 handoff for that checkpoint.`);
   lines.push('', '## Historical wave 4 walk', '');
   lines.push(`Package 4Z walked every wave 4 address and opened state with the rest. Its first walk: ${WAVE4_FIRST_WALK.checks} checks, ${WAVE4_FIRST_WALK.failed} failed, ${WAVE4_FIRST_WALK.axe} axe violations:`, '', ...WAVE4_FIRST_WALK.why.map((w) => `- ${w}`), '');
   lines.push('Every wave 4 flow was also walked by hand in the running fake app at that time. The historical findings below are marked Wave 3 or Wave 4; they are not a new assessment of the current captures.');
@@ -176,8 +177,8 @@ function walkMd(report) {
   if (failed.length) {
     lines.push('', '## Open findings from the last walk', '');
     for (const r of failed) {
-      for (const v of r.axe) lines.push(`- ${r.id}, ${r.width}, ${r.theme}${r.hindi ? ', Hindi' : ''}: axe ${v.id}: ${v.help} (\`${v.target}\`)`);
-      for (const p of r.problems) lines.push(`- ${r.id}, ${r.width}, ${r.theme}${r.hindi ? ', Hindi' : ''}: ${p}`);
+      for (const v of r.axe) lines.push(`- ${r.id}, ${r.width}, ${r.theme}: axe ${v.id}: ${v.help} (\`${v.target}\`)`);
+      for (const p of r.problems) lines.push(`- ${r.id}, ${r.width}, ${r.theme}: ${p}`);
     }
   }
 

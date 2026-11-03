@@ -187,9 +187,9 @@ test('voice consent: someone who withdraws between two stages of a chain stops t
   // Meera withdraws between the stages.
   await call('venture.voiceConsent.revoke', { id: consent.id });
   const calendar = await approveWaiting(env, calendarRun as any, draft('Calendar', { Calendar: ['Posts for Sunrise Bakery on the days you pick.'] }));
-  assert.equal(calendar.status, 'ready-for-review');
+  assert.equal(calendar.status, 'failed', 'native work stops when the recorded speaker permission is withdrawn');
   assert.equal(calendar.canAccept, false);
-  assert.match(calendar.acceptBlocked ?? '', /Meera Shah appears in this work/);
-  await assert.rejects(env.call('venture.delivery.review', { runId: calendar.id, verdict: 'accepted' }), code('CONSENT_REQUIRED'));
+  assert.equal(calendar.renderedText, null, 'the withdrawn stage saves no draft');
+  await assert.rejects(env.call('venture.delivery.review', { runId: calendar.id, verdict: 'accepted' }), code('DELIVERY_NOT_READY'));
   await assert.rejects(env.call('venture.delivery.run', { orderId: order.id }), code('CONSENT_REQUIRED'), 'no next run starts');
 });

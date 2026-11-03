@@ -10,7 +10,7 @@
  * set as proved figures, until W4 4J1 sends their receipts.
  */
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { EmptyState } from '../../parts/EmptyState';
@@ -21,6 +21,9 @@ import type { SpendRow } from '../../engine/types';
 import { Amount, EngineWords, Failed, Rupees, Section, spendShown } from './parts';
 import { Meter } from './Meter';
 import { SpendPolicy } from './SpendPolicy';
+// W6 6G5 (D44): each agent's and each routine's spend this month with its own limit, one step away.
+import { SpendMeters, SpendMetersToggle } from './SpendMeters';
+import { WriteLimits } from '../connections/WriteLimits';
 import { onRuns } from './words';
 import s from './Money.module.css';
 
@@ -29,6 +32,9 @@ export function Spend() {
   const spend = useResource('venture.spend.list', {}, { refreshOn: onRuns });
   // 4Z3: a saved spend setting reads the calls and the meter again at once (the engine sends no event for it).
   const [round, setRound] = useState(0);
+  // W6 6G5: each agent's and routine's spend, opened from the icon beside the total.
+  const [byWho, setByWho] = useState(false);
+  const metersId = useId();
   const rows = spend.data?.rows ?? [];
   // 4Z3: the month's total as the engine says it leads (rupees or dollars first), the other amount beside it (the rate
   // is said once, in the settings below).
@@ -44,8 +50,8 @@ export function Spend() {
     <>
       {spend.error && <Failed error={spend.error} />}
       {/* W4 4J20: this month's spend against its limit, and what to do once it is used up (Meter.tsx). */}
-      <Meter key={round} />
-      <Section title={t('money.spend.title')} end={total}>
+      <Meter key={`meter-${round}`} />
+      <Section title={t('money.spend.title')} end={<>{total}<SpendMetersToggle open={byWho} controls={metersId} onToggle={() => setByWho((open) => !open)} /></>}>
         {spend.data && rows.length === 0 && <EmptyState title={t('money.spend.none')} />}
         {rows.length > 0 && (
           <ul className={s.list}>
@@ -59,7 +65,9 @@ export function Spend() {
         )}
         {rows.some((row) => row.kind === 'refused' && !row.reason) && <p className={s.quietLine}>{t('money.spend.refusedNote')}</p>}
       </Section>
+      <SpendMeters key={`meters-${round}`} id={metersId} open={byWho} />
       <SpendPolicy onSaved={() => { spend.reload(); setRound((n) => n + 1); }} />
+      <WriteLimits />
     </>
   );
 }

@@ -4,7 +4,7 @@ import type { AvatarState } from '../../parts/Avatar';
 import type { ProgressTone } from '../../parts/ProgressRing';
 import { stateText } from '../../parts/states';
 import type { T } from '../../text';
-import type { AgentView, Posture, RunSummary, VentureRunEvent } from '../../engine/types';
+import type { AgentView, RunSummary, VentureRunEvent } from '../../engine/types';
 import { stateOf, type AgentState, type Member } from './departments';
 
 /** Team reads change when a run moves, and when the business or its queue changes (a switch arrives as queue.changed). */
@@ -33,8 +33,6 @@ export function agentRow(agentId: string): HTMLElement | null {
   }
   return null;
 }
-
-export const POSTURES: readonly Posture[] = ['rehearsal', 'shadow', 'approve-each', 'auto-spot-check'];
 
 /** The avatar's ring for a state (idle draws none). */
 export const RING: Readonly<Record<AgentState, AvatarState>> = { working: 'working', waiting: 'waiting', failed: 'failed', idle: 'idle' };

@@ -230,7 +230,7 @@ test('the two evidence methods are registered everywhere a venture method must b
 // 7. The number guard labels instead of refusing
 // ---------------------------------------------------------------------------
 
-test('model numbers are labelled estimates on plan lines and judge reasons, never given a receipt', () => {
+test('model numbers are labelled estimates on plan lines and quality check reasons, never given a receipt', () => {
   assert.deepEqual(modelLine('Walks for 2 dogs', []), { value: 'Walks for 2 dogs', label: 'assumption', by: 'model', estimate: true });
   assert.deepEqual(modelLine('Walks for B2B teams', ['b2b']), { value: 'Walks for B2B teams', label: 'assumption', by: 'model' });
   const answers = (reason: string) => ({ answers: ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'].map(question => ({ question, answer: 'yes', reason })) });

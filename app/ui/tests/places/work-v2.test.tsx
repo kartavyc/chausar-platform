@@ -19,7 +19,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 type Call = { method: string; params: unknown };
 /** An intercept answers in the engine's place; `real` asks the engine itself, to change what it sends. */
 type Intercept = (params: unknown, real: () => Promise<unknown>) => unknown;
-interface StartOptions { language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, Intercept>> }
+interface StartOptions { language?: 'en'; intercept?: Partial<Record<MethodName, Intercept>> }
 
 /** Friday 23 October 2026, 19:05 in India. */
 const NOW = () => new Date('2026-10-23T19:05:00.000+05:30');
@@ -390,8 +390,8 @@ describe('Work v2: the orders head and a failed verdict', () => {
       judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: null, draftDigest: 'f'.repeat(64) },
     };
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [failed] } });
-    const judge = await screen.findByRole('region', { name: 'The judge' });
-    const verdict = await within(judge).findByText(`The judge found a problem: ${FAILED}`);
+    const judge = await screen.findByRole('region', { name: 'Quality check' });
+    const verdict = await within(judge).findByText(`Quality check found a problem: ${FAILED}`);
     expect(verdict.classList.contains(s.state!)).toBe(true);
     expect(verdict.classList.contains(s.failure!)).toBe(true);
     expect(colourOf(['state'])).toBe('var(--fg2)');
@@ -446,31 +446,4 @@ describe('Work v2: the header line and the other filters', () => {
     await settle();
     assertInkRules();
   });
-});
-
-describe('Work v2: Hindi', () => {
-  it('renders every part of the place with no key showing as text', async () => {
-    await start('#/work', { language: 'hi' });
-    await screen.findByText('Rendering the thumbnail set');
-    await screen.findByText('Two mentions in episode 14');
-    await settle();
-    const main = document.querySelector('main') ?? document.body;
-    const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
-    const keys: string[] = [];
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = (node.textContent ?? '').trim();
-      if (/^[a-z]+(\.[a-zA-Z0-9-]+)+$/.test(text)) keys.push(text);
-    }
-    expect(keys).toEqual([]);
-    expect(screen.getByRole('group', { name: 'दिखाएँ' })).toBeTruthy();
-  });
-});
-
-it('localizes the known run-again control and its confirmation in Hindi', async () => {
- await start('#/work', { language: 'hi', intercept: { 'venture.queue.list': withAgain({ secondAsk: true }) } });
- const stopped = await tileOf('Rendering the thumbnail set');
- const again = await within(stopped).findByRole('button', { name: 'फिर से चलाएँ' });
- await click(again);
- expect(within(stopped).getByRole('button', { name: 'फिर से चलाएँ' })).toBeTruthy();
- expect(within(stopped).queryByRole('button', { name: 'Run again' })).toBeNull();
 });

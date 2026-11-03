@@ -6,6 +6,8 @@ import {business,owner} from './venture-judge-helpers.ts';
 import {listRecords,ventureAction} from '../runtime/venture/records.ts';
 import {flagshipPlanById} from '../runtime/venture/playbooks/plan.ts';
 import {flagshipDelivery} from '../runtime/venture/playbooks/steps.ts';
+import {consentForOrder,scriptedAgent,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 
 const idea='A YouTube channel for small makers in India';
 const intake={rights:{basis:'own-footage',holder:'Asha'},fields:{channelUrl:'https://www.youtube.com/@ashamakers',hoursPerWeek:'4',targetQueries:['stock count','shop sales','cash flow'],scripted:true}};
@@ -21,7 +23,11 @@ test('explicit YouTube service survives price and rewrite, owns its intake and w
  await f.call('venture.blueprint.accept',{digest:rewritten.blueprint.digest});
  const order=await f.call('venture.order.create',{clientId:f.client.id,offerId:service.id,request:'Plan our next recording week.',intake});
  assert.equal(order.intake.fields.hoursPerWeek,'4');assert.equal(flagshipDelivery('youtube')!.draftStep('weekly-plan'),'weekly-plan');
- const waiting=await f.call('venture.delivery.run',{orderId:order.id});const run=listRecords(f.store.read(),'venture-delivery-run').find(row=>row.id===waiting.id)!;
+ await consentForOrder(f.deps,owner,order.id);await f.deps.services.trust.updatePolicy(owner,{send:'shape'});
+ let sections:string[]=[];const calls:string[]=[];
+ f.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>({title:'Weekly recording plan',sections:sections.map(heading=>({heading,parts:[{kind:'text',text:'Review the supplied channel brief before planning the recording week.',ref:''}]})),questionsForClient:[]}),undefined,(name,data)=>{calls.push(name);if(name==='read_business')sections=(data as {sections:string[]}).sections;})});
+ const waiting=await f.call('venture.delivery.run',{orderId:order.id});await waitForAgentWork(f.store,waiting.id);const run=listRecords(f.store.read(),'venture-delivery-run').find(row=>row.id===waiting.id)!;
+ assert.ok(run.agentJob);assert.equal(run.preview,null);assert.ok(calls.includes('read_order'));assert.ok(calls.includes('propose_action'));assert.equal(f.models.previewed.filter(task=>task.purpose==='delivery').length,0);
  assert.deepEqual(run.workflow?.steps.map(step=>step.id),['intake','clarify','weekly-plan','verify','review','publish']);
  assert.equal(run.workflow?.steps.at(-1)?.title,'You share the approved service report or publishing texts');
  assert.equal(run.workflow?.steps.some(step=>step.id==='assemble'),false);

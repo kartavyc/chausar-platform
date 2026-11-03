@@ -16,7 +16,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
  */
 
 type Intercept = (params: unknown, original: () => Promise<unknown>) => unknown;
-function start(hash = '#/connections', options: { language?: 'en' | 'hi'; hosted?: boolean; intercept?: Partial<Record<MethodName, Intercept>> } = {}) {
+function start(hash = '#/connections', options: { language?: 'en'; hosted?: boolean; intercept?: Partial<Record<MethodName, Intercept>> } = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(new FakeEngine(options.hosted ? { hosted: true } : undefined));
   const request = fake.request.bind(fake);
@@ -171,10 +171,10 @@ describe('Connections in the Ink v2 look', () => {
     assertInkRules(document.body);
   });
 
-  it('What Chausar can do on this computer lists every way that writes or sends, with the engine\'s words, and what stopping means', async () => {
+  it('What works on this computer lists every way that writes or sends, with the engine\'s words, and what stopping means', async () => {
     const client = start();
     const cards = await client.request('venture.connectors.list', {}) as ConnectorCardLite[];
-    const canDo = await region('What Chausar can do on this computer');
+    const canDo = await region('What works on this computer');
     const rows = await within(canDo).findAllByRole('listitem');
     const expected = cards.flatMap((card) => [
       ...card.modes.filter((mode) => mode.mode === 'write' && mode.status === 'available').map((mode) => [card.name, mode.what]),
@@ -182,7 +182,7 @@ describe('Connections in the Ink v2 look', () => {
     ]);
     expect(expected.length).toBe(8);
     expect(rows.map((row) => [row.querySelector('[data-can-do-name]')?.textContent, row.querySelector('[data-can-do-what]')?.textContent])).toEqual(expected);
-    expect(canDo.textContent).toContain('Stopping a connection does not undo what already happened.');
+    expect(canDo.textContent).toContain('Disconnecting never undoes completed actions.');
     expect(canDo.textContent).not.toContain('GitHub');
   });
 
@@ -190,7 +190,7 @@ describe('Connections in the Ink v2 look', () => {
     start('#/connections', { hosted: true });
     // The title is the page's own words; the rows below it stay the engine's.
     await region('What Chausar can do on the server');
-    expect(screen.queryByText('What Chausar can do on this computer')).toBeNull();
+    expect(screen.queryByText('What works on this computer')).toBeNull();
   });
 
   it('says so when nothing writes or sends yet', async () => {
@@ -200,10 +200,10 @@ describe('Connections in the Ink v2 look', () => {
       postingOptions: card.postingOptions.map((option) => ({ ...option, status: 'planned' })),
     }));
     start('#/connections', { intercept: { 'venture.connectors.list': () => planned } });
-    const canDo = await region('What Chausar can do on this computer');
+    const canDo = await region('What works on this computer');
     expect(await within(canDo).findByText('Nothing here writes or sends for you yet.')).toBeTruthy();
     expect(within(canDo).queryAllByRole('listitem')).toHaveLength(0);
-    expect(canDo.textContent).toContain('Stopping a connection does not undo what already happened.');
+    expect(canDo.textContent).toContain('Disconnecting never undoes completed actions.');
   });
 
   it('Your AI: every choice, grouped by how you pay, says whether it can connect and gives its one fix line', async () => {
@@ -287,12 +287,5 @@ describe('Connections in the Ink v2 look', () => {
     expect(within(credit).getByRole('button', { name: 'Record payment' })).toBeTruthy();
   });
 
-  it('speaks Hindi everywhere on the page and in the sheets, with no key showing', async () => {
-    start('#/connections?sheet=connector:x', { language: 'hi' });
-    const sheet = await sheetNamed('X');
-    await screen.findByText('कनेक्शन', { selector: 'h1' });
-    await waitFor(() => expect(document.querySelector('main')!.querySelectorAll('li').length).toBeGreaterThan(10));
-    expect(keyLikeText(document.querySelector('main')!)).toEqual([]);
-    expect(keyLikeText(sheet)).toEqual([]);
-  });
+
 });

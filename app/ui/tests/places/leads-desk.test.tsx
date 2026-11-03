@@ -6,7 +6,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineProvider } from '../../src/engine/context';
 import { TextProvider } from '../../src/text';
 import { assertInkRules } from '../helpers/ink-rules';
-const start = (language: 'en' | 'hi' = 'en') => { const client = createFakeClient(new FakeEngine({ now: () => '2026-10-27T12:00:00.000Z' })); const spy = vi.spyOn(client, 'request'); render(<EngineProvider client={client}><TextProvider language={language}><LeadGenerationDesk /></TextProvider></EngineProvider>); return { client, spy }; };
+const start = (language: 'en' = 'en') => { const client = createFakeClient(new FakeEngine({ now: () => '2026-10-27T12:00:00.000Z' })); const spy = vi.spyOn(client, 'request'); render(<EngineProvider client={client}><TextProvider language={language}><LeadGenerationDesk /></TextProvider></EngineProvider>); return { client, spy }; };
 describe('Work lead research desk', () => {
   it('researches only the stated count and offer, shows sources and drafts, and never sends', async () => {
     const { spy } = start();
@@ -31,12 +31,7 @@ describe('Work lead research desk', () => {
     expect(screen.getByRole('button', { name: 'Approve this paid search' }).getAttribute('aria-disabled')).toBe('true');
     assertInkRules();
   });
-  it('words the desk and form in Hindi', async () => {
-    start('hi');
-    expect(await screen.findByRole('heading', { name: 'आपके संभावित क्लाइंट' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'संभावित क्लाइंट खोजें' })).toBeTruthy();
-    expect(screen.getByRole('textbox', { name: 'शहर' })).toBeTruthy();
-  });
+
 });
 
 

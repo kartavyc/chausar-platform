@@ -30,6 +30,8 @@ export type InvoiceDocumentInput = {
   experimental: boolean;
   /** 4J5: what issued credit notes took off; a Credited line shows when it is above zero, so the lines add up. */
   creditedMinor?: string;
+  /** 6D2: the "How to pay" lines (how-to-pay.ts howToPayLines), shown after the totals; never a receipt id. */
+  howToPay?: string[];
 };
 
 /** The invoice as plain text, in the fixed layout of the build spec. */
@@ -61,8 +63,14 @@ export function documentText(input: InvoiceDocumentInput): string {
   lines.push(`Paid  ${money(invoice.paidMinor)}`);
   if (BigInt(input.creditedMinor ?? '0') > 0n) lines.push(`Credited  ${money(input.creditedMinor as string)}`);
   lines.push(`Balance  ${money(invoice.balanceMinor)}`);
+  // 6D1: a part of an order says what the whole order is and what was billed before, so the client can follow the parts.
+  if (invoice.part) lines.push(`Order total ${money(invoice.part.orderTotalMinor)}, billed before ${money(invoice.part.earlierMinor)}`);
+  if (invoice.terms !== undefined) lines.push(`Terms: ${oneLine(invoice.terms)}`);
+  if (input.howToPay?.length) {
+    lines.push(RULE_LINE);
+    for (const line of input.howToPay) lines.push(oneLine(line));
+  }
   lines.push(RULE_LINE);
-  lines.push(`Every number on this invoice has a receipt in Chausar: ${invoice.priceReceiptId}`);
   if (input.experimental) lines.push(EXPERIMENTAL_DOCUMENT_LINE);
   return lines.join('\n');
 }

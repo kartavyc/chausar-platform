@@ -1,0 +1,69 @@
+/* W6 6G2: retiring an agent. The check sits in the agent panel as plain sections, no boxes; the Retired shelf is a
+   quiet list under the departments. Tokens only. */
+
+.check {
+  display: grid;
+  gap: var(--sp-6);
+}
+
+.list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.choices {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.choice {
+  composes: hit from '../../parts/touch.module.css';
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.kept {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.shelf {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.retired {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.name {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.grow {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -41,8 +41,8 @@ const refreshOn = (event: { type: string }) => event.type === 'queue.changed';
  * this computer (venture.models.cli.status, 4H1), each on an inner card with its state and, while it is not ready, its
  * one fix (or the engine's line) at rest; one fold away, the engine's line of what it found and the facts behind it: whether it was found and where, the
  * version, whether its help lists every flag Chausar sends, whether it is signed in (only ever from the tool's own
- * status command), Anthropic's terms for Claude Code (while they are pending, Claude Code is only located, never run)
- * and the last real task. Nothing is drawn as working that the engine does not say works: a tool is Ready only once a
+ * status command) and the last real task. Disabled tools are omitted by the engine.
+ * Nothing is drawn as working that the engine does not say works: a tool is Ready only once a
  * real task on it worked. Check again asks for a fresh look. Under the cards, once, the engine's line of what
  * the look ran. The hosted app uses keys only, and says so in the engine's words.
  */
@@ -149,7 +149,6 @@ function factsOf(view: CliStatusView, t: T): [string, ReactNode][] {
     ? t('connections.cli.flags.mismatch', { flags: view.missingFlags.join(', ') })
     : t(`connections.cli.flags.${view.flags}`)]);
   out.push([t('connections.cli.fact.signedIn'), t(`connections.cli.signedIn.${view.signedIn}`)]);
-  if (view.terms !== 'not-needed') out.push([t('connections.cli.fact.terms'), t(`connections.cli.terms.${view.terms}`)]);
   out.push([t('connections.cli.fact.lastTask'), <LastTask key="last" task={view.lastTask} />]);
   return out;
 }

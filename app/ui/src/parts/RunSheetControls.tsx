@@ -58,16 +58,17 @@ export function RunScope({ run }: { run: RunDetail }) {
 }
 
 /** A stop on its way or done, in the engine's words; a stopped run offers Resume when the sheet can resume it (O1). */
-export function RunStopNote({ run, onResume }: { run: RunDetail; onResume?: (() => void | Promise<void>) | undefined }) {
+export function RunStopNote({ run, onResume, onRunAgain }: { run: RunDetail; onResume?: (() => void | Promise<void>) | undefined; onRunAgain?: (() => void | Promise<void>) | undefined }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   if (!run.stop) return null;
+  const restart=run.agentProgress?.canResume===false,action=restart?onRunAgain:onResume;
   async function resume() {
-    if (!onResume) return;
+    if (!action || busy) return;
     setBusy(true);
     setProblem(null);
-    try { await onResume(); } catch (error) {
+    try { await action(); } catch (error) {
       setProblem(t('runsheet.resumeFailed', { message: refusalWords(error, t) }));
     } finally { setBusy(false); }
   }
@@ -79,11 +80,11 @@ export function RunStopNote({ run, onResume }: { run: RunDetail; onResume?: (() 
         {stopped ? t(run.interrupted ? 'work.stop.interrupted' : 'work.stop.chip') : t('work.stop.stopping')}
       </p>
       <p className={s.stopLine}>{run.stop.line}</p>
-      {stopped && onResume && (
+      {stopped && action && (
         <div className={s.acts}>
-          <Button variant="primary" size="lg" disabled={busy} onClick={() => void resume()}>
+          <Button variant="primary" size="lg" locked={busy} onClick={() => void resume()}>
             <Icon name="play" size={16} />
-            {t('runsheet.resume')}
+            {t(restart?'run.again':'runsheet.resume')}
           </Button>
         </div>
       )}

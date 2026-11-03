@@ -7,13 +7,26 @@ import { ventureHostEnv } from './venture/host-env.ts';
 import { processPrintPort } from './venture/playbooks/kit/report/pdf.ts';
 import { processFormsPort } from './venture/build/form-fill-port.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
+import { processCredentialPort } from './venture/models/credential-port.ts';
+import { processRenderPort } from './venture/web/render-port.ts';
+import { processFlowPort } from './venture/flows/port.ts';
+import { createPhoneAccess } from './phone-access.ts';
+import { INK_ROOT, listInkFiles } from './ui-ink.ts';
 
 /** Verified host evidence is installed before the worker can announce readiness. */
 export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: environment.CHAUSAR_DEMO === '1' ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}),
+  // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
+  let engine: Engine | null = null;
+  const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }) });
+  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}),
     // Ink v2 wave 5 (5A5): a report's PDF is printed by the desktop main process, asked over this worker's own channel.
-    ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process) } : {}) } });
+    ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process), credentials: processCredentialPort(process),
+      // Wave 6 (6F3): pages that need JavaScript are read in the desktop's hidden window (web-render.cjs).
+      webRender: processRenderPort(process),
+      // Wave 6 (6H2): recorded flows run in the desktop's flow window (flow-browser.cjs).
+      flowBrowser: processFlowPort(process) } : {}),
+    phoneAccess } });
 }
 
 /** Trusted host entry point. Tests can inject an Engine fixture, never a renderer or RPC. */

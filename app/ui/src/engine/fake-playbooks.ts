@@ -33,6 +33,11 @@ import { fakeDevAgencyDesk } from './fake-dev-agency';
 import { fakeMonitoredDataDesk } from './fake-monitored-data';
 import { fakeItTriageDesk } from './fake-it-triage';
 import { fakePhoneReceptionistDesk } from './fake-phone-receptionist';
+import { fakeDocumentDeskDesk } from './fake-document-desk'; // W6 6E4
+import { fakeSignoffDeskDesk } from './fake-signoff-desk'; // W6 6E5
+import { fakeLessonDeskDesk } from './fake-lesson-desk'; // W6 6E2
+import { fakeBookingDeskDesk } from './fake-booking-desk'; // W6 6E3
+import { fakeTradingJournalDesk } from './fake-trading-journal'; // W6 6E7
 
 /** One record kind's fake handlers, each given the whole request. */
 export interface FakeDeskKind {
@@ -47,6 +52,8 @@ export type TenderNoticeScope={businessId:string;orders:readonly import('./types
 export type TenderNotice={subject:string;version:string;createdAt:string;title:string;line:string;link:string};
 export interface FakePlaybookDesk {
   testingSource?(orderId:string):void;
+  /** W6 6E5: why a regulated draft cannot be accepted yet (the engine's kit/signoff-gate.ts), or null. */
+  signoffBlock?(run:never):string|null;
   r5Report?(orderId:string):import('../../../../platform/runtime/venture/playbooks/monitored-data/report').WatchReport|import('../../../../platform/runtime/venture/playbooks/it-triage/report').TriageReport;
   phoneReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/phone-receptionist/report').PhoneReport;
   formsSource?(orderId:string):void;
@@ -90,6 +97,11 @@ const MAKERS: readonly ((host: W4DeskHost) => FakePlaybookDesk)[] = [
   fakeMonitoredDataDesk,
   fakeItTriageDesk,
   fakePhoneReceptionistDesk,
+  fakeDocumentDeskDesk,
+  fakeSignoffDeskDesk,
+  fakeLessonDeskDesk,
+  fakeBookingDeskDesk,
+  fakeTradingJournalDesk,
 ];
 const DESK_METHODS = new Set<string>(['venture.desk.list', 'venture.desk.get', 'venture.desk.act']);
 const NOT_BUILT = 'This part of Chausar is not built yet.';
@@ -115,6 +127,8 @@ export class FakePlaybooksDesk {
   devReport(orderId:string){return this.desks.find(d=>d.playbook==='dev-agency')!.devReport!(orderId);}
   careerSource(orderId:string){return this.desks.find(d=>d.playbook==='job-search-desk')!.careerSource!(orderId);}
   vaBrief(orderId:string,expected?:string){return this.rooms.currentBrief(orderId,expected);}
+  /** W6 6E5: the sign-off gate on Accept, as the engine's kit/signoff-gate.ts answers it. */
+  signoffBlock(run:unknown):string|null{for(const desk of this.desks){const line=desk.signoffBlock?.(run as never);if(line)return line;}return null;}
   receipt(id:string):ReceiptLite|undefined { for(const desk of this.desks){const receipt=desk.receipt?.(id);if(receipt)return receipt;}return undefined; }
   workReceipt(id:string):WorkReceiptLite|undefined {for(const desk of this.desks){const receipt=desk.workReceipt?.(id);if(receipt)return receipt;}return undefined;}
 

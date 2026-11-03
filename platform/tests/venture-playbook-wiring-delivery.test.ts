@@ -34,6 +34,8 @@ import { regulatedPapersOf } from '../runtime/venture/playbooks/ca-firm/signoff-
 import { SOCIAL_STEPS } from '../runtime/venture/playbooks/social/playbook.ts';
 import { SOCIAL_JUDGE_RULES } from '../runtime/venture/playbooks/social/judge.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
@@ -53,11 +55,23 @@ const draft = (title: string, sections: Record<string, string[]>): Draft => ({
 /** Both tiers are an AI. Previews wait for approval; an approved preview answers with the next queued draft. */
 class Port implements ModelPort {
   drafts: unknown[] = [];
+  reads: { name: string; data: any }[] = [];
+  private pendingAnswer: ((value: unknown) => void) | null = null;
+  queue(answer: unknown) { if (this.pendingAnswer) this.pendingAnswer(answer); else this.drafts.push(answer); }
+  nextDraft(signal?: AbortSignal): Promise<unknown> {
+    if (this.drafts.length) return Promise.resolve(this.drafts.shift());
+    return new Promise((resolve, reject) => {
+      const clear = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); this.pendingAnswer = null; };
+      const abort = () => { clear(); reject(new Error('Synthetic job stopped.')); };
+      const timer = setTimeout(() => { clear(); reject(new Error('Queue a synthetic draft.')); }, 2000);
+      this.pendingAnswer = value => { clear(); resolve(value); }; signal?.addEventListener('abort', abort, { once: true });
+    });
+  }
   previewed: ModelTask<any>[] = [];
   generated: ModelTask<any>[] = [];
   fastIsTemplate = false;
   #calls = 0;
-  #previews = new Map<string, string>();
+  #previews = new Map<string, { digest: string; task: ModelTask<any> }>();
   status(): ModelStatusView {
     const tier = (presetId: 'anthropic-haiku-5-5' | 'anthropic-sonnet-5-5', template = false) => template
       ? { presetId: 'built-in-templates' as const, model: null, usable: true, reason: 'No AI connected; using built-in templates' }
@@ -83,16 +97,18 @@ class Port implements ModelPort {
     this.#calls += 1;
     const callId = `call_${this.#calls}`;
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
-    this.#previews.set(callId, digest(payloadText));
+    this.#previews.set(callId, { digest: digest(payloadText), task });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: EXPIRES,
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
-    if (this.#previews.get(callId) !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again.');
+    const held=this.#previews.get(callId);
+    if (held?.digest !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again.');
     this.#previews.delete(callId);
-    return { value: validate(this.drafts.shift()), by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: '10', priceConfirmed: true };
+    const raw=held.task.schemaName==='venture-judge-rules'?{votes:(held.task.input as any).rules.map((rule:any)=>({rule:rule.id,answer:'yes',cites:['draft'],quote:'',reason:'Synthetic supplied draft.'}))}:this.drafts.shift();
+    return { value: validate(raw), by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: '10', priceConfirmed: true };
   }
 }
 function check(value: unknown, code: string): asserts value { if (!value) throw new ChausarError(code, 'No template.'); }
@@ -137,17 +153,20 @@ async function business(idea: string, words: { id: string; name: string; descrip
   return { deps, call, models, store, client, offers: priced.blueprint.offers as { id: string; playbookOffer?: string }[] };
 }
 
-/** One draft for one order: delivery.run previews, delivery.approve answers with the queued draft. */
+/** One draft through the production scoped tools, with explicit permission for its client. */
 async function deliver(env: Awaited<ReturnType<typeof business>>, orderId: string, answer: Draft): Promise<DeliveryRunView> {
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, orderId);
+  env.deps.agentRoute = async () => ({ driver: scriptedAgent(signal => env.models.nextDraft(signal), undefined, (name, data) => env.models.reads.push({ name, data })), settings: SCRIPTED_AGENT_SETTINGS });
+  env.models.queue(answer);
   const waiting = await env.call('venture.delivery.run', { orderId });
-  assert.equal(waiting.status, 'waiting-for-you');
-  env.models.drafts.push(answer);
-  return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  await waitForAgentWork(env.store, waiting.id);
+  return (await env.call('venture.delivery.list')).find((run: DeliveryRunView) => run.id === waiting.id);
 }
 
 const PACKAGE = draft('Episode package: hidden bank fees', {
   Summary: ['Hook: Why your savings shrink before you notice, and how to stop it.', 'Hook: Your bank charges you for things you never asked for. Here is how to stop it.', 'A plain episode on the bank fees the client asked about.'],
-  'Title and thumbnail': ['Title: Hidden bank fees cost you 5 things a year', 'Thumbnail: STOP PAYING THIS'],
+  'Title and thumbnail': ['Title: The 5 fees hiding in your bank statement', 'Thumbnail: STOP PAYING THIS'],
   'Description and chapters': ['Description: A plain guide to the bank fees the client named, and how to stop paying them.', '0:00 Why fees matter', '1:30 The fees to check', '4:00 How to stop them'],
   'Next steps': ['You watch the cut, then you or the client publish it.'],
 });
@@ -207,9 +226,9 @@ test('a YouTube draft is a package checked by the playbook: a failed check block
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: PACKAGE_REQUEST, intake: { rights: OWN_FOOTAGE, format: 'long' } });
   const good = await deliver(env, order.id, PACKAGE);
   // The draft's own task: the judge's call on the ready package (judge-run.ts) is previewed after it.
-  const task = env.models.previewed.findLast(item => item.purpose === 'delivery')!;
-  assert.deepEqual((task.input as any).requiredSections, [...PACKAGE_SECTIONS], 'the package step\'s headings, not the studio reply\'s');
-  assert.ok(((task.input as any).guidance as string[]).some(line => /Hook/.test(line)));
+  const task = env.models.reads.findLast(item => item.name === 'read_business')!.data;
+  assert.deepEqual(task.sections, [...PACKAGE_SECTIONS], 'the package step\'s headings, not the studio reply\'s');
+  assert.match(JSON.stringify(task.workInstructions), /Hook/);
   const results = Object.fromEntries((good.playbookChecks ?? []).map(item => [item.check, item]));
   assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'cleanup', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'prompt-leak', 'retention-risk', 'rights-recorded', 'rules-current', 'source-credit', 'title-thumbnail',
     // Ink v2 4J16: the writing checks (playbooks/writing-checks.ts).
@@ -283,7 +302,7 @@ test('a CA firm draft runs the claim checks backed by receipts and waits for the
   assert.equal(cleanIds['no-filing-claims'].outcome, 'pass');
   assert.equal(cleanIds['signoff-recorded'].outcome, 'not-run');
   assert.match(cleanIds['signoff-recorded'].detail, /CA of record/);
-  assert.deepEqual(((env.models.previewed.at(-1)!.input as any).requiredSections), [...CA_DRAFT_SECTIONS]);
+  assert.deepEqual(env.models.reads.findLast(item=>item.name==='read_business')!.data.sections, [...CA_DRAFT_SECTIONS]);
   // W1 H2: a GST working that gives no GST figure from a calculator receipt no longer passes.
   assert.equal(cleanIds['tax-figure-receipted'].outcome, 'fail');
   assert.match(cleanIds['tax-figure-receipted'].detail, /no GST figure/);
@@ -340,20 +359,24 @@ test('a social agency draft is checked against channel limits, disclosure and th
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Posts for our morning yoga classes in Goa this month.' });
   // The actual content-calendar workflow approves the voice and calendar before posts.
   const deliverPosts = async (orderId: string, answer: Draft): Promise<DeliveryRunView> => {
+    await env.store.update(state => { state.policy.send = 'shape'; });
+    await consentForOrder(env.deps, owner, orderId);
+    env.deps.agentRoute = async () => ({ driver: scriptedAgent(signal=>env.models.nextDraft(signal), undefined, (name,data)=>env.models.reads.push({name,data})), settings: SCRIPTED_AGENT_SETTINGS });
     let waiting = await env.call('venture.delivery.run', { orderId });
     for (let advanced = 0; advanced < 2 && (waiting.chainStage ?? 1) < 3; advanced++) {
-      const stage = waiting.chainStage ?? 1;
-      env.models.drafts.push(draft(stage === 1 ? 'Voice sheet' : 'Calendar', Object.fromEntries(
-        (stage === 1 ? ['Voice', 'Pillars', 'Words to avoid'] : ['Calendar', 'Topics and hooks'])
-          .map(heading => [heading, ['Clear, useful guidance for the studio.']]))));
-      const ready = await env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
-      assert.equal(ready.canAccept, true, ready.acceptBlocked ?? '');
+      const stage=waiting.chainStage??1;
+      env.models.queue(draft(stage === 1 ? 'Voice sheet' : 'Calendar', Object.fromEntries(
+        (stage === 1 ? ['Voice', 'Pillars', 'Words to avoid'] : ['Calendar', 'Topics and hooks']).map(heading => [heading, ['Clear, useful guidance for the studio.']]))));
+      await waitForAgentWork(env.store,waiting.id);
+      const ready = (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
+      assert.equal(ready.canAccept, true, ready.acceptBlocked || JSON.stringify(env.models.reads.filter(item=>item.name==='tool_error')));
       await env.call('venture.delivery.review', { runId: ready.id, verdict: 'accepted' });
       waiting = listRecords(env.store.read(), 'venture-delivery-run').filter(run => run.orderId === orderId).at(-1)!;
     }
     assert.equal(waiting.chainStage, 3);
-    env.models.drafts.push(answer);
-    return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+    env.models.queue(answer);
+    await waitForAgentWork(env.store,waiting.id);
+    return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
   };
   const posts = (line: string) => draft('Posts for the month', {
     Drafts: ['Instagram: Morning yoga in Goa, slow and steady. Come as you are.', `X: ${line}`],
@@ -362,7 +385,8 @@ test('a social agency draft is checked against channel limits, disclosure and th
     'Post plan': ['Post 1 | Value | Goal: Teach useful practice | Reader action: Try it | Hook: Question', 'Post 2 | Value | Goal: Teach useful practice | Reader action: Try it | Hook: Contrast'],
   });
   const bait = await deliverPosts(order.id, posts('Tag a friend who needs a calm morning.'));
-  assert.deepEqual((env.models.previewed.findLast(task => task.purpose === 'delivery')!.input as any).requiredSections, ['Drafts', 'Alt text', 'Hashtags', 'Post plan']);
+  assert.equal(bait.status,'ready-for-review',JSON.stringify(env.models.reads.filter(item=>item.name==='tool_error')));
+  assert.deepEqual(env.models.reads.findLast(item=>item.name==='read_business')!.data.sections, ['Drafts', 'Alt text', 'Hashtags', 'Post plan']);
   const byId = Object.fromEntries((bait.playbookChecks ?? []).map(item => [item.check, item]));
   assert.equal(byId.words.outcome, 'fail', byId.words.detail);
   assert.equal(byId['channel-media'].outcome, 'not-run', 'pictures come later; a text draft is not refused for them');
@@ -375,7 +399,7 @@ test('a social agency draft is checked against channel limits, disclosure and th
   assert.equal(clean.canAccept, true, clean.acceptBlocked ?? '');
 });
 
-test('rehearsal: each practice draft carries the playbook checks, and the judge asks the playbook\'s own rules', async () => {
+test('rehearsal: each practice draft carries the playbook checks, and the judge asks the work plan\'s own rules', async () => {
   const env = await business(YOUTUBE_IDEA);
   env.models.fastIsTemplate = true;
   env.models.drafts.push(PACKAGE, PACKAGE, PACKAGE, PACKAGE, PACKAGE, PACKAGE);
@@ -395,10 +419,10 @@ test('rehearsal: each practice draft carries the playbook checks, and the judge 
   await judgeDraftRules(async (task: ModelTask<any>) => { asked = task; throw new ChausarError('MODEL_OUTPUT_REJECTED', 'Stop here.'); }, {
     draft: 'A draft.', clientRequest: 'A request.', context: 'A practice client.', containsClientData: false, rules: YOUTUBE_DRAFT_RULES,
   });
-  assert.ok(JSON.stringify(asked.input).includes('faithful-to-source'), 'the rules judge is asked the playbook\'s rules');
+  assert.ok(JSON.stringify(asked.input).includes('faithful-to-source'), 'the rules judge is asked the work plan\'s rules');
 });
 
-test('the team shows the playbook\'s roles as the agents; a gate set on a role\'s step is the one the policy reads', async () => {
+test('the team shows the work plan\'s roles as the agents; a gate set on a role\'s step is the one the policy reads', async () => {
   const env = await business(YOUTUBE_IDEA);
   await env.call('venture.delivery.playbook');
   const { agents } = await env.call('venture.team.list');
@@ -440,7 +464,7 @@ test('transcripts: an SRT or VTT file joins an order as a transcript, and one wi
   assert.deepEqual(listed.map((file: any) => file.format), ['transcript', 'transcript']);
 });
 
-test('the plan read from Today says how the work is done with the playbook\'s own steps and who does each', async () => {
+test('the plan read from Today says how the work is done with the work plan\'s own steps and who does each', async () => {
   const env = await business(YOUTUBE_IDEA);
   const plan = (await env.call('venture.blueprint.get')).blueprint;
   const item = await env.call('venture.queue.view', { id: plan.id, kind: 'plan' });

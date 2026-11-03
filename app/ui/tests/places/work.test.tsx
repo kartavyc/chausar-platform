@@ -4,9 +4,10 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type MethodName, type OrderLite } from '../../src/engine/types';
 import { receiptMark } from '../helpers/ink-rules';
+import {MODEL_PRESETS} from '../../src/engine/fixtures-business';
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; folder?: string; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; folder?: string; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 async function start(hash = '#/work', options: StartOptions = {}) {
   window.location.hash = hash;
@@ -30,6 +31,12 @@ const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b)
 /** Ink v2 (3E1): orders are grouped under their client's tile, so the client's name sits on the group, not the card. */
 const clientOf = (order: Element) => order.closest('article')!;
 const pressed = (group: HTMLElement) => within(group).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
+async function allowOrderAi(engine:FakeEngine,clientId:string) {
+  const preset=MODEL_PRESETS.find(item=>item.id==='codex-cli')!,before=structuredClone(preset);
+  try{preset.availability='unverified';await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
+  const consent=await engine.request('venture.client.aiConsent.get',{clientId}) as {disclosureDigest:string};
+  await engine.request('venture.client.aiConsent.agree',{clientId,disclosureDigest:consent.disclosureDigest});
+}
 
 describe('Work: runs', () => {
   it('puts work in progress on top: per-stage progress, indeterminate in words, waiting in amber', async () => {
@@ -101,6 +108,7 @@ describe('Work: runs', () => {
     const { engine } = await start();
     const working = await screen.findByRole('region', { name: 'Running now' });
     await rowOf('Cutting shorts from episode 13', working);
+    await allowOrderAi(engine,'c-boat');
     await act(async () => { await engine.request('venture.delivery.run', { orderId: 'o-boat-14' }); });
     await waitFor(() => expect(within(working).getByText('Draft a reply for Boat Audio')).toBeTruthy());
     const order = await rowOf('Two mentions in episode 14');
@@ -188,7 +196,8 @@ describe('Work: orders', () => {
   });
 
   it('starts a received order through the engine; it then shows as working and opens its run', async () => {
-    const { calls } = await start('#/work', { folder: 'ledgerline' });
+    const { calls,engine } = await start('#/work', { folder: 'ledgerline' });
+    await allowOrderAi(engine,'c-iyer');
     const iyer = await rowOf('Monthly books from October');
     expect(clientOf(iyer).textContent).toContain('Iyer & Co');
     expect(iyer.textContent).toContain('Received. Not started yet.');
@@ -235,6 +244,7 @@ describe('Work: one order from the address', () => {
   it('lists the runs the engine knows for the order, and says when there are none or no such order', async () => {
     const { engine } = await start('#/work?order=o-iyer-oct', { folder: 'ledgerline' });
     expect(await screen.findByText('No runs yet.')).toBeTruthy();
+    await allowOrderAi(engine,'c-iyer');
     await act(async () => { await engine.request('venture.delivery.run', { orderId: 'o-iyer-oct' }); });
     const runs = screen.getByRole('region', { name: 'Runs' });
     const run = await rowOf('Draft a reply for Iyer & Co', runs);
@@ -354,15 +364,5 @@ describe('Work: new order', () => {
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add order' })); });
     expect(await within(sheet).findByText("Couldn't add the order: Set a price for this service first.")).toBeTruthy();
     expect((within(sheet).getByLabelText('What they asked for') as HTMLTextAreaElement).value).toBe('One mention');
-  });
-});
-
-describe('Work: Hindi', () => {
-  it('speaks Hindi', async () => {
-    await start('#/work', { language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'काम' })).toBeTruthy();
-    const ep12 = await rowOf('Two mentions in episode 12');
-    await waitFor(() => expect(ep12.textContent).toContain('INV-0039'));
-    expect(ep12.textContent).not.toContain('Waiting for payment');
   });
 });

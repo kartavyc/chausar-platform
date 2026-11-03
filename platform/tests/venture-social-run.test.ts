@@ -1,7 +1,7 @@
 // Social media agency, the built pieces in a real order's run (Ink v2 wave 2, package 2F1): calendar slots made by
 // code from the order's intake reach the drafting task and the calendar check; a long X post is split into a thread by
 // code; the client's own word lists from intake feed the words check. Everything goes through venture.order.create
-// and venture.delivery.run and venture.delivery.approve, the way the owner's app calls them.
+// and venture.delivery.run with scoped agent tools, the way the owner's app calls them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
@@ -30,6 +30,8 @@ import {socialStages} from '../runtime/venture/playbooks/social/stages.ts';
 import {SOCIAL_LEGAL_RULES} from '../runtime/venture/playbooks/social/legal-confirmation.ts';
 import { socialPostBlocks, threadParts } from '../runtime/venture/playbooks/social/post-lines.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
@@ -51,6 +53,7 @@ const posts = (lines: string[]): Draft => ({
 /** Both tiers are an AI. A preview waits for approval; an approved preview answers with the next queued draft. */
 class Port implements ModelPort {
   drafts: unknown[] = [];
+  reads:{name:string;data:any}[]=[];
   previewed: ModelTask<any>[] = [];
   #calls = 0;
   #previews = new Map<string, string>();
@@ -75,7 +78,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: EXPIRES,
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -123,20 +126,24 @@ async function business() {
 }
 type Env = Awaited<ReturnType<typeof business>>;
 
-/** One draft for one order: delivery.run previews, delivery.approve answers with the queued draft. */
+/** The agent reads each current writing stage and supplies its checked draft for owner review. */
 async function deliver(env: Env, orderId: string, answer: Draft): Promise<DeliveryRunView> {
-  let waiting=await env.call('venture.delivery.run',{orderId});
+  await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,orderId);
   const order=(env.deps.store.read().conversations as any[]).find(r=>r.kind==='venture-order'&&r.id===orderId);
   const stages=socialStages(env.offers.find(o=>o.id===order.offerId)?.playbookOffer);
+  const copy=structuredClone(answer);const postCount=socialDraftPosts(copy as any).length;copy.sections.push({heading:'Post plan',parts:Array.from({length:postCount},(_,i)=>text(`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${HOOK_FORMULAS[i%HOOK_FORMULAS.length]}`))});
+  env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>{
+    const current=(env.deps.store.read().conversations as any[]).find(r=>r.kind==='venture-order'&&r.id===orderId),stage=current.chainStage??1;
+    return stage<stages.length?{title:stage===1?'Voice sheet':'Calendar',questionsForClient:[],sections:(stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>({heading,parts:[text('Clear, useful guidance for the studio.')] }))}:copy;
+  },undefined,(name,data)=>env.models.reads.push({name,data}))});
+  let waiting=await env.call('venture.delivery.run',{orderId});
   while((waiting.chainStage??1)<stages.length){
-   const stage=waiting.chainStage??1;
-   env.models.drafts.push({title:stage===1?'Voice sheet':'Calendar',questionsForClient:[],sections:(stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>({heading,parts:[text('Clear, useful guidance for the studio.')] }))});
-   const ready=await env.call('venture.delivery.approve',{runId:waiting.id,digest:waiting.preview.digest});
+   await waitForAgentWork(env.deps.store,waiting.id);
+   const ready=(await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
    await env.call('venture.delivery.review',{runId:ready.id,verdict:'accepted'});
    waiting=(env.deps.store.read().conversations.filter((r:any)=>r.kind==='venture-delivery-run'&&r.orderId===orderId) as any[]).at(-1)!;
   }
-  const copy=structuredClone(answer);const postCount=socialDraftPosts(copy as any).length;copy.sections.push({heading:'Post plan',parts:Array.from({length:postCount},(_,i)=>text(`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${HOOK_FORMULAS[i%HOOK_FORMULAS.length]}`))});
-  env.models.drafts.push(copy);return env.call('venture.delivery.approve',{runId:waiting.id,digest:waiting.preview!.digest});
+  await waitForAgentWork(env.deps.store,waiting.id);return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }
 const checksOf = (run: { playbookChecks?: PlaybookCheckResult[] }) => Object.fromEntries((run.playbookChecks ?? []).map(item => [item.check, item]));
 
@@ -162,8 +169,8 @@ test('calendar slots: the intake plans them by code, the drafting task lists the
 
   const run = await deliver(env, order.id, posts([...LINKEDIN, ...INSTAGRAM]));
   // The drafting task, not a later judge call on the ready draft.
-  const input = env.models.previewed.filter(task => task.purpose === 'delivery').at(-1)!.input as { guidance: string[] };
-  const guidance = input.guidance.join('\n');
+  const input = env.models.reads.findLast(item=>item.name==='read_business')!.data;
+  const guidance = JSON.stringify(input.workInstructions);
   for (const slot of slots) assert.ok(guidance.includes(`${slot.id} on ${slot.date}`), `the drafting task lists ${slot.id} on ${slot.date}`);
   const slotsCheck = checksOf(run)['calendar-slots'];
   assert.equal(slotsCheck.outcome, 'pass', slotsCheck.detail);

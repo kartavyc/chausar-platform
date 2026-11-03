@@ -35,7 +35,7 @@ export const NARRATION_STUDIO_CATALOGUE:readonly CatalogueEntry[]=Object.freeze(
   },
   {
     "id": "narration-distribution",
-    "name": "Narration distributor handoff",
+    "name": "Audio you send to a distributor",
     "category": "docs-ops",
     "auth": "Owner distributor account",
     "regions": [

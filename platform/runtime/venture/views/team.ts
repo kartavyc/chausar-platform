@@ -34,6 +34,7 @@ import { pausedNow } from '../delivery/run-guards.ts';
 import { aiWaitLine } from '../models/roles.ts';
 import { autoLocked } from '../policy/auto-lock.ts';
 import { nestTeam, roleSpend } from '../agents/relay.ts';
+import { holderOf, retiredShelf, retirements } from '../agents/retired.ts';
 
 /**
  * "Connect your AI" while no connected AI that can run now serves a tier (models/roles.ts, spec 8), for an idle agent's
@@ -45,7 +46,7 @@ function aiWaitFor(deps: VentureDeps, ctx: Context): string | null {
 
 const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
 export const FLOOR_WORDS = STEP_FLOOR_WORDS;
-const KEEPER_IS_CODE = 'Keeper is code, not AI. It has no steps or posture to change; its jobs are on Team.';
+const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 
 /** Why a step is in the always-ask floor, or null. Code decides from the step's kind and its tools' effects. */
@@ -120,8 +121,11 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
     return { id: item.id, purpose: item.title, gate: stepGate(gates.get(item.id), floor), floor };
   };
   // Ink v2 wave 4 (4A1): department, kind, state and health from facts, who set the posture, and Keeper last.
+  // W6 6G2: a retired agent leaves the team for the Retired shelf; whoever took over does its steps (agents/retired.ts).
+  const retired = retirements(state, venture.id);
+  const holder = (stepId: string): string | undefined => (flagship?.roleOf[stepId] === undefined ? undefined : holderOf(state, venture.id, flagship.roleOf[stepId], retired));
   const members: TeamMember[] = flagship
-    ? flagship.roles.filter(role => steps.some(item => flagship.roleOf[item.id] === role.id)).map(role => ({ id: role.id, kind: role.kind, owns: (stepId: string) => flagship.roleOf[stepId] === role.id }))
+    ? flagship.roles.filter(role => !retired.has(role.id) && steps.some(item => holder(item.id) === role.id)).map(role => ({ id: role.id, kind: role.kind, owns: (stepId: string) => holder(stepId) === role.id }))
     : [{ id: AGENT_ID, kind: 'agent', owns: () => true }];
   const records = listRecords(state, 'venture-delivery-run', venture.id);
   // The facts behind health, worked out once for the whole team (views/health.ts).
@@ -138,7 +142,7 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
     return { agents: [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView), ...facts(members[0]) }), keeper], teamHealth };
   }
   const spend = `${spendOf(state, venture)} for the whole team`;
-  const drafter = flagship.roleOf[flagship.draftStep(null)];
+  const drafter = holder(flagship.draftStep(null));
   // 4J12 (H25): a helper names the role it reports to among the members shown, with spend rolled up to its parent
   // (agents/relay.ts nestTeam). No shipped role has a parent in W4, so this leaves the team as it is.
   const nested = nestTeam(members.map(member => {
@@ -168,7 +172,9 @@ export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: 
   if (!venture) return { agents: [] };
   const ledger = teamLedger(state, venture);
   const { agents, teamHealth } = teamNow(deps, state, venture, ledger, aiWaitFor(deps, ctx));
-  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}) };
+  // W6 6G2: the Retired shelf, sent only when someone is on it.
+  const shelf = retiredShelf(state, venture.id, ledger.flagship);
+  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}) };
 }
 
 /**
@@ -215,7 +221,8 @@ export async function teamGateHandler(deps: VentureDeps, ctx: Context, payload: 
     const flagship = teamFlagship(tx.state, tx.venture!);
     check(steps && knownAgent(flagship, steps, agentId), 'AGENT_NOT_FOUND', 'That agent was not found.');
     // A role sets only its own steps.
-    const step = steps.find(item => item.id === stepId && (!flagship || flagship.roleOf[item.id] === agentId));
+    // W6 6G2: a step a retired agent handed over is set by the agent that does it now.
+    const step = steps.find(item => item.id === stepId && (!flagship || (flagship.roleOf[item.id] !== undefined && holderOf(tx.state, tx.venture!.id, flagship.roleOf[item.id]) === agentId)));
     check(step, 'STEP_NOT_FOUND', 'That step was not found.');
     const floor = stepFloor(step, flagship);
     check(!(floor && gate === 'auto'), 'GATE_FLOOR', floor ?? '');
@@ -239,7 +246,7 @@ export async function teamPostureHandler(deps: VentureDeps, ctx: Context, payloa
   const body = exactPayload(payload, ['agentId', 'posture'], ['agentId', 'posture']);
   const agentId = identifier(body.agentId, 'Agent');
   check(typeof body.posture === 'string' && (POSTURES as readonly string[]).includes(body.posture), 'INVALID_VENTURE_REQUEST',
-    'Choose rehearsal, shadow, approve each or auto with spot checks.');
+    'Choose practice, practice on real orders, approve each or spot checks.');
   check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', KEEPER_IS_CODE);
   const posture = body.posture as Posture;
   autoLocked(posture); // 4J15: auto with spot checks is built but locked (policy/auto-lock.ts), whatever readiness says.

@@ -160,7 +160,7 @@ export type CaStep = {
 export const CA_DRAFT_SECTIONS: readonly string[] = Object.freeze(['Summary', 'Working papers', 'Open items for you', 'What your CA does next']);
 const FLOOR = Object.freeze({
   send: 'Sending anything to a client always asks you first.',
-  regulated: 'Regulated work leaves Chausar only with the CA of record signing it off, at every posture.',
+  regulated: 'Regulated work leaves Chausar only with the CA of record signing it off, with every approval setting.',
   portal: 'Anything on a government portal, and any tax payment, is done by a person, never by an agent.',
 });
 const role = (id: string): CaRole => CA_ROLES.find(item => item.id === id)!;
@@ -251,7 +251,7 @@ export type CaApproval = { id: CaApprovalId; step: string; by: 'owner' | 'ca' | 
 
 export const CA_APPROVALS: readonly CaApproval[] = Object.freeze([
   { id: 'owner-approves-draft', step: 'approve', by: 'owner', requiresView: true, secondAsk: false, words: 'You read every draft and every client message before it reaches the client.' },
-  { id: 'ca-signs-regulated', step: 'ca-signoff', by: 'ca', requiresView: true, secondAsk: true, words: 'The CA of record signs off a GST or TDS working marked ready to file, an income tax data pack, papers for a tax audit, or a letter on the firm\'s letterhead, and again after any edit. Chausar records the name, the ICAI membership number, the receipts and the playbook it covered.' },
+  { id: 'ca-signs-regulated', step: 'ca-signoff', by: 'ca', requiresView: true, secondAsk: true, words: 'The CA of record signs off a GST or TDS working marked ready to file, an income tax data pack, papers for a tax audit, or a letter on the firm\'s letterhead, and again after any edit. Chausar records the name, the ICAI membership number, the receipts and the work plan it covered.' },
   { id: 'ca-confirms-rates', step: 'compute', by: 'ca', requiresView: true, secondAsk: false, words: 'The CA confirms each rate-table version before it is used for a real client. An unconfirmed table runs in rehearsal only.' },
   { id: 'ca-accepts-portal-diff', step: 'portal-diff', by: 'ca', requiresView: true, secondAsk: false, words: "The portal's own file is compared with the receipts, and the CA accepts or explains every difference before filing." },
   { id: 'human-files', step: 'file', by: 'human', requiresView: false, secondAsk: false, words: 'The CA or the client logs in, pays, submits and e-verifies. Chausar never claims the filing happened.' },
@@ -295,9 +295,9 @@ export const CA_HARD_LINES: readonly string[] = Object.freeze([
 export const CA_DUTIES: readonly string[] = Object.freeze([
   'Be named on the business as the professional of record, with an ICAI membership number, before any regulated offer is switched on.',
   'Confirm every rate-table version used for real clients.',
-  'Review and sign off each regulated deliverable; Chausar records who signed, when, and which receipts and playbook it covered.',
+  'Review and sign off each regulated deliverable; Chausar records who signed, when, and which receipts and work plan it covered.',
   'Do or supervise every filing, certificate, audit report and notice reply.',
-  'Own the client relationship on regulated work, including engagement letters and the decision to take a case the playbook marks as out of scope.',
+  'Own the client relationship on regulated work, including engagement letters and the decision to take a case the work plan marks as out of scope.',
   'Keep the records for the period the law asks; Chausar keeps its own copy for ten years.',
 ]);
 

@@ -77,21 +77,7 @@ describe('Clients: the sales proposal (5A2, P2 and P3)', () => {
     assertInkRules();
   });
 
-  it('words the engine\'s refusals in Hindi too: an unpriced offer, and a pilot that would be free', async () => {
-    start({
-      hash: '#/clients?sheet=proposal:client:c-boat', language: 'hi',
-      stub: (method, params) => (method === 'venture.salesProposal.draft'
-        ? new EngineError((params as { pilot?: boolean }).pilot ? 'PILOT_UNPRICED' : 'OFFER_UNPRICED', 'Set your price.')
-        : undefined),
-    });
-    const sheet = await screen.findByRole('complementary', { name: 'एक प्रस्ताव' });
-    await within(sheet).findByText('Sponsor slot');
-    await press(within(sheet).getByRole('button', { name: 'प्रस्ताव का ड्राफ़्ट बनाएँ' }));
-    expect(within(sheet).getByRole('alert').textContent).toBe('पहले इस ऑफ़र का दाम बिज़नेस, दाम में तय करें।');
-    await press(within(sheet).getByRole('checkbox', { name: 'पहले इसे पैसे वाले पायलट की तरह दें' }));
-    await press(within(sheet).getByRole('button', { name: 'प्रस्ताव का ड्राफ़्ट बनाएँ' }));
-    expect(within(sheet).getByRole('alert').textContent).toBe('पायलट कभी मुफ़्त नहीं होता। पहले इस ऑफ़र का दाम बिज़नेस, दाम में तय करें।');
-  });
+
 
   it('an ask outside what the business does drafts nothing: the engine\'s fixed reply, quoted, to copy', async () => {
     const reply = 'This is outside what we do. We can help with bookkeeping. For website, a web designer near you can help.';
@@ -155,11 +141,7 @@ describe('Business: Go or no go (5A2, M18)', () => {
     assertInkRules();
   });
 
-  it('reads in Hindi', async () => {
-    start({ hash: '#/business/go-no-go', language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'करें या न करें' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'कार्ड बनाएँ' })).toBeTruthy();
-  });
+
 });
 
 describe('Business > Prices: a share is the advanced option, one step away (founder decision of 23 Oct)', () => {

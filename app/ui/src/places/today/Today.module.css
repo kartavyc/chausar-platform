@@ -28,6 +28,11 @@
   }
 }
 
+/* W6 6H3: one of the pair hidden by the owner's layout, the other takes the whole row. */
+.bottomOne {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .failed {
   margin-top: var(--sp-3);
   font-size: var(--text-read);

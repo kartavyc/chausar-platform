@@ -37,12 +37,7 @@ describe('a locked button', () => {
     expect(screen.getByRole('button', { name: 'Issue', description: 'Sends to the client. Locked. Issue unlocks after you read it.' })).toBeTruthy();
   });
 
-  it('says it in Hindi too', () => {
-    render(<TextProvider language="hi"><Button variant="primary" locked>भेजें</Button></TextProvider>);
-    const button = screen.getByRole('button', { name: 'भेजें' });
-    expect(button.getAttribute('aria-disabled')).toBe('true');
-    expect(button.getAttribute('title')).toBe('अभी उपलब्ध नहीं');
-  });
+
 
   it('never submits the form it sits in', async () => {
     const user = userEvent.setup();

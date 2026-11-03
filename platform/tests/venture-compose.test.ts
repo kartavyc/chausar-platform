@@ -130,15 +130,14 @@ function livePresets(overrides: Partial<Record<ModelPreset['id'], Partial<ModelP
 
 test('row status: the API key row is the weakest of its presets, ChatGPT never opens, and unchecked is computed', () => {
   const view = aiOptionsView(livePresets(), statusStub(), false);
-  assert.deepEqual(view.options.map(option => option.id), [...AI_OPTION_IDS]);
+  assert.deepEqual(view.options.map(option => option.id), AI_OPTION_IDS.filter(id => id !== 'claude-code'));
   const byId = Object.fromEntries(view.options.map(option => [option.id, option]));
   assert.equal(byId['api-key'].status, 'unverified', 'Anthropic ready and OpenAI unverified: the weakest wins');
   assert.equal(AI_STATUS_CHIPS[byId['api-key'].status], 'Can connect');
   assert.deepEqual(byId['api-key'].recommended, { fast: 'anthropic-haiku-5-5', main: 'anthropic-sonnet-5-5' });
   assert.equal(byId['api-key'].canConnect, true);
   assert.deepEqual(byId['chatgpt-sign-in'], { id: 'chatgpt-sign-in', ...AI_OPTION_WORDS['chatgpt-sign-in'], status: 'not-open', canConnect: false, presetIds: [], recommended: null });
-  assert.equal(byId['claude-code'].status, 'needs-setup');
-  assert.equal(byId['claude-code'].canConnect, false, 'the terms gate is pending');
+  assert.equal(byId['claude-code'], undefined, 'pending hides Claude Code');
   assert.equal(byId.codex.canConnect, false);
   assert.equal(view.unchecked, true);
   assert.equal(aiOptionsView(livePresets(), statusStub(), true).options.find(option => option.id === 'claude-code')!.canConnect, true, 'gate open: Check and connect runs the version check');
@@ -577,7 +576,7 @@ async function filesUnder(directory: string): Promise<string[]> {
   return out;
 }
 
-test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault methods stay the three', async () => {
+test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault methods stay the four', async () => {
   const runtime = new URL('../runtime/', import.meta.url);
   const files = await filesUnder(decodeURIComponent(runtime.pathname).replace(/^\/([A-Za-z]:)/, '$1'));
   assert.ok(files.length > 100, 'the scan reads the runtime files');
@@ -587,7 +586,8 @@ test('boundary: nothing under platform/runtime imports from platform/tests; DRAF
   }
   assert.deepEqual([...DRAFT_METHODS], [...ONBOARDING_METHODS]);
   // The draft methods are not pre-vault; the one later addition is the Start gallery's list of ways (Ink v2 wave 4, 4J8).
-  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list']);
+  // W6 6C6: the compliance check also answers before a vault exists, so a new owner sees it on Start.
+  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list', 'venture.compliance.get']);
   assert.ok(initialState('x').policy, 'imports stay used');
   assert.ok(ChausarError);
 });

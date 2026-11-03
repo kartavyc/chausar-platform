@@ -1,5 +1,6 @@
 import {occurrencesBetween,nextOccurrence} from '../../../../platform/runtime/venture/agents/routine-time';
 import {VA_REPORT_PROMPTS} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/routines-core';
+import {RETIRED_LINE} from '../../../../platform/runtime/venture/agents/retired-words';
 import {vaFakeReport} from './fake-va-report';
 /**
  * The fake engine's answers for W4 4J22a's screens, with the engine's codes, shapes, words and order:
@@ -18,6 +19,7 @@ import {vaFakeReport} from './fake-va-report';
 
 import { EngineError, type AgentView, type AutoReadinessView, type DeliveryLite, type QueueRow, type RunDetail, type DrillRunView, type GuidanceLineView, type JournalChainView, type JournalEntry, type OrderContract, type OrderContractView, type ReceiptLite, type ReceiptSignatureLite, type ReceiptVerifyView, type RoutineInput, type RoutineRunState, type RoutineSchedule, type RoutineView, type ShadowSummaryView, type TeamListView } from './types';
 import type { W4DeskHost } from './fake-w4';
+import { fakeRoutineReceipt } from './fake-model-receipt';
 
 export const FAKE_4J22A_METHODS: readonly string[] = [
   'venture.journal.chain', 'venture.journal.acceptBreak', 'venture.receipt.verify',
@@ -27,7 +29,7 @@ export const FAKE_4J22A_METHODS: readonly string[] = [
 ];
 
 /** The engine's words, word for word (policy/auto-lock.ts). */
-export const AUTO_LOCKED_WORDS = "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.";
+export const AUTO_LOCKED_WORDS = "Routine-step approval is not available yet.";
 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const clone = <T,>(value: T): T => structuredClone(value);
@@ -131,7 +133,7 @@ interface RoutineRun { at?:string; routineDigest?:string; id: string; routineId:
 // -------------------------------------------------------------------------------------------------------------------
 
 const DRILLS: { label: string; stopped: string; twin: string }[] = [
-  { label: 'A payment at auto with spot checks', stopped: 'It asked you first: proposing a payment link only records it, and making it asks at every posture, even with every step set to Auto.', twin: 'The same payment, approved by you for that exact amount, made a practice link nobody can pay.' },
+  { label: 'A payment at auto with spot checks', stopped: 'It asked you first: proposing a payment link only records it, and making it asks with every approval setting, even with every step set to Auto.', twin: 'The same payment, approved by you for that exact amount, made a practice link nobody can pay.' },
   { label: 'A client send without your approval', stopped: 'It waited for you: nothing goes to a client until you approve that exact message.', twin: 'With your approval of that exact message, the practice mail went to nobody.' },
   { label: 'An approval of an older version', stopped: 'It waited for you: approving an older version does not cover a changed one.', twin: 'Your approval of the current version let it through.' },
   { label: 'A model with no price', stopped: 'It was not run: an unknown price is never counted as free.', twin: 'A model with a list price was priced.' },
@@ -440,8 +442,11 @@ export class FakeQualityDesk {
 
   private routineHistory(p: Record<string, unknown>) {
     exact(p, ['id'], ['id']);
-    if (!(this.routines.get(this.host.current()) ?? []).some((r) => r.id === p.id)) throw invalid('That routine was not found.');
-    return { runs: clone((this.routineRuns.get(this.host.current()) ?? []).filter((run) => run.routineId === p.id).sort((a, b) => b.dueAt.localeCompare(a.dueAt)).map(({ routineId: _r, at:_at,routineDigest:_binding,...run }) => run)) };
+    const routine = (this.routines.get(this.host.current()) ?? []).find((r) => r.id === p.id);
+    if (!routine) throw invalid('That routine was not found.');
+    // W6 6G5 (D44): a delivered run that asked the AI carries its model receipt; a private report from records asked none.
+    const who = routine.agent === null ? null : this.agents().find((a) => a.id === routine.agent)?.name ?? null;
+    return { runs: clone((this.routineRuns.get(this.host.current()) ?? []).filter((run) => run.routineId === p.id).sort((a, b) => b.dueAt.localeCompare(a.dueAt)).map(({ routineId: _r, at:_at,routineDigest:_binding,...run }) => (run.state === 'completed' && !routine.recordReport ? { ...run, receipt: fakeRoutineReceipt(who) } : run))) };
   }
 
   private routineSet(p: Record<string, unknown>): { routine: RoutineView } {
@@ -453,6 +458,8 @@ export class FakeQualityDesk {
     const name = typeof raw.name === 'string' ? raw.name.trim().replace(/\s+/g, ' ') : '';
     if (name.length < 1 || name.length > 80) throw invalid('Name must be between 1 and 80 characters.');
     const agent = raw.agent ?? null;
+    // W6 6G2: a retired agent takes no routine, as the engine's routines.ts refuses it.
+    if (agent !== null && (this.host.ask('venture.team.list', {}) as TeamListView).retired?.some((item) => item.id === agent)) throw new EngineError('AGENT_RETIRED', RETIRED_LINE);
     if (agent !== null && !this.agents().some((a) => a.id === agent)) throw invalid('That agent is not on this team.');
     const prompt = typeof raw.prompt === 'string' ? raw.prompt.trim() : '';
     if (prompt.length < 10 || prompt.length > 2000) throw invalid('Prompt must be between 10 and 2000 characters.');
@@ -514,12 +521,12 @@ export class FakeQualityDesk {
     const runs = this.drills.get(this.host.current()) ?? [];
     const clean = runs.length >= 2 && runs.slice(0, 2).every((run) => run.passed);
     const drillLine = !runs.length ? 'Run the drills twice and have every drill pass both times.'
-      : clean ? 'The last two drill runs on the current playbook passed, within the last 30 days.'
-        : `${runs.length} clean drill run on the current playbook. It needs two in a row.`;
+      : clean ? 'The last two drill runs on the current work instructions passed, within the last 30 days.'
+        : `${runs.length} clean drill run on the current work plan. It needs two in a row.`;
     const items = [...steps,
       { id: 'real-run', label: 'A real order passed in the last 14 days', met: false, line: 'No real order passed in the last 14 days with every check passing and your Accept.' },
       { id: 'spend-log', label: 'The spend log is complete', met: true, line: 'Every paid call is settled in the spend log.' },
-      { id: 'drills', label: 'Two clean drill runs within 30 days and since the last playbook change', met: clean, line: drillLine },
+      { id: 'drills', label: 'Two clean drill runs within 30 days and since the work instructions last changed', met: clean, line: drillLine },
       { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real run in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
     ];
     return { agent: agent.id, items, locked: true, line: `0 of ${agent.steps.length} steps have every item met. ${AUTO_LOCKED_WORDS}` };

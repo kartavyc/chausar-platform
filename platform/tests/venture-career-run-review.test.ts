@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {kitBusiness,owner} from './fixtures/venture/kit-business.ts';
 import {ventureAction,listRecords} from '../runtime/venture/records.ts';
+import {consentForOrder} from './fixtures/venture/scripted-agent.ts';
 import {CAREER_PRIVACY_RULE} from '../runtime/venture/playbooks/job-search-desk/definition-data.ts';
 async function setup(){const e=await kitBusiness({now:new Date('2026-10-29T10:00:00Z')},{idea:'Career coaching and job search help'});await ventureAction(e.deps,owner,'approve','test.rehearsal',tx=>tx.touch({launchStage:'rehearsal'}));const order=await e.call('venture.order.create',{clientId:e.client.id,offerId:e.offers.find(o=>o.playbookOffer==='profile-and-tailoring')!.id,request:'A research resume.',intake:{fields:{targetRoles:['Researcher'],locations:['Pune'],facts:'Interviewed customers.',languages:['English']}}});const base={playbook:'job-search-desk',kind:'fact'},made=await e.call('venture.desk.act',{...base,id:order.id,action:'propose',payload:{value:{id:'research',statement:'Interviewed customers',qualifiers:['as an intern'],forbiddenUses:[]}}});await e.call('venture.desk.act',{...base,id:made.id,action:'approve',payload:{},digest:(await e.call('venture.desk.get',{...base,id:made.id})).digest});return{e,order};}
 
@@ -11,7 +12,7 @@ test('career judge refuses physical dispatch after owner rejects the current del
  await act('render');await act('approve-pack');
  const previous=CAREER_PRIVACY_RULE.confirmedBy;CAREER_PRIVACY_RULE.confirmedBy={name:'Synthetic independent reviewer',on:'2026-10-29'};t.after(()=>{CAREER_PRIVACY_RULE.confirmedBy=previous;});
  await ventureAction(e.deps,owner,'approve','review.live',tx=>tx.touch({launchStage:'approve-each'}));
- const run=await e.call('venture.delivery.run',{orderId:order.id});const asked=await e.call('venture.delivery.judge',{runId:run.id});
+ const run=await e.call('venture.delivery.run',{orderId:order.id});await consentForOrder(e.deps,owner,order.id);const asked=await e.call('venture.delivery.judge',{runId:run.id});
  let sends=0;
  e.deps.models.runPreview=async(_ctx,_id,_digest,_validate,options)=>{
   await e.call('venture.delivery.review',{runId:run.id,verdict:'rejected',reason:'other'});
@@ -29,7 +30,7 @@ test('career judge refuses physical dispatch after the pending judge identity ch
  await act('render');await act('approve-pack');
  const previous=CAREER_PRIVACY_RULE.confirmedBy;CAREER_PRIVACY_RULE.confirmedBy={name:'Synthetic independent reviewer',on:'2026-10-29'};t.after(()=>{CAREER_PRIVACY_RULE.confirmedBy=previous;});
  await ventureAction(e.deps,owner,'approve','review.live',tx=>tx.touch({launchStage:'approve-each'}));
- const run=await e.call('venture.delivery.run',{orderId:order.id});const asked=await e.call('venture.delivery.judge',{runId:run.id});
+ const run=await e.call('venture.delivery.run',{orderId:order.id});await consentForOrder(e.deps,owner,order.id);const asked=await e.call('venture.delivery.judge',{runId:run.id});
  let sends=0;
  e.deps.models.runPreview=async(_ctx,_id,_digest,_validate,options)=>{
   await ventureAction(e.deps,owner,'approve','review.replace-claim',tx=>{const live=tx.find('venture-delivery-run',run.id)!;tx.replace({...live,judge:{...live.judge!,callId:'call_replaced'}});});

@@ -13,7 +13,8 @@ import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { owner as portOwner, realPortEnv, wordsTask as portWords } from './venture-real-port-env.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { VentureTestStore } from './venture-test-store.ts';
-import { approve, code, getRun, owner, READ, DONE, record, setup, startRun } from './venture-run-controls-env.ts';
+import { call, code, getRun, orderWithFiles, owner, record, setup, startNativeDraft } from './venture-run-controls-env.ts';
+import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
 
 const AT = '2026-10-16T10:00:00.000Z';
 const words = (code: string, message: string, tool?: string, cause?: string) => failureWords({ code, message, ...(cause ? { cause } : {}) }, { at: AT, dateOrder: 'day-month-year', ...(tool ? { tool } : {}) });
@@ -127,26 +128,37 @@ test('connector errors say what happens next; a missing permission keeps the act
 
 test('run sheet: How to fix it on a failed run whose AI is not signed in; none when the owner has nothing to do', async () => {
   const env = await setup();
-  const run = await startRun(env, [READ, DONE]);
-  const message = 'Enter your key again. Chausar keeps keys in memory only.';
-  // As the real port does: the call is claimed, its failure is kept on its record, then the error is thrown.
-  (env.models as unknown as { runPreview: unknown }).runPreview = async (_ctx: unknown, callId: string) => {
-    await env.store.update(state => {
-      const call = state.conversations.find(item => item?.id === callId);
-      if (call) { call.status = 'failed'; call.error = { code: 'MODEL_KEY_MISSING', message }; }
-    });
-    throw new ChausarError('MODEL_KEY_MISSING', message);
-  };
-  await assert.rejects(approve(env, run), code('MODEL_KEY_MISSING'));
+  const message = 'Your AI is not signed in.';
+  const run = await startNativeDraft(env, { beforeDraft: async () => { throw new ChausarError('MODEL_KEY_MISSING', message); } });
   assert.equal(record(env, run.id).status, 'failed');
   const detail = await getRun(env, run.id);
   assert.equal(detail.error, message, 'what went wrong stays the engine\'s own words');
   assert.equal(detail.fix, 'Sign in again under Connections, Your AI, then run it again.');
-  // The plain sentence and the codes the screen needs for its own words (Hindi too).
+  // The plain sentence and the codes the screen needs for its own words.
   assert.deepEqual(detail.failure, { kind: 'not-signed-in', line: 'Your AI is not signed in.' });
   assert.equal(detail.fixKind, 'sign-in');
 
   const other = await setup();
-  const fine = await startRun(other, [READ, DONE]);
+  const fine = await startNativeDraft(other);
   assert.equal((await getRun(other, fine.id)).fix, undefined);
+});
+
+test('native provider failure keeps only fixed safe words, never raw provider details', async () => {
+  const env = await setup(), privateMessage = 'INTERNAL-TRACE private-client-text upstream-shard-secret';
+  const run = await startNativeDraft(env, { beforeDraft: async () => { throw new Error(privateMessage); } });
+  assert.equal(run.status, 'failed');
+  const detail = await getRun(env, run.id);
+  assert.deepEqual(detail.failure, { kind: 'unknown', line: FAILURE_TABLE.unknown.line });
+  assert.equal(detail.fix, undefined);
+  assert.equal(detail.error, FAILURE_TABLE.unknown.line);
+  assert.ok(!JSON.stringify(env.store.read()).includes(privateMessage));
+});
+
+test('a missing key before the native session opens refuses directly without creating an empty run', async () => {
+  const env = await setup(), order = await orderWithFiles(env);
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, order.id);
+  env.deps.agentRoute = async () => { throw new ChausarError('MODEL_KEY_MISSING', 'Your key is missing.'); };
+  await assert.rejects(call(env, 'venture.delivery.run', { orderId: order.id }), code('MODEL_KEY_MISSING'));
+  assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 0);
 });

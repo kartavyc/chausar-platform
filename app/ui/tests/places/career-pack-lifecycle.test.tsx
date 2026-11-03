@@ -16,11 +16,7 @@ it('each same-state application card names its exact saved job source',async()=>
  expect(cards.map(card=>within(card).getByText(/^https:\/\/jobs.example\//).textContent).sort()).toEqual(['https://jobs.example/1','https://jobs.example/second-role']);
  for(const card of cards)expect(within(card).getByText('Applied')).toBeTruthy();
 });
-it('live pack status identifies its kind and recorded creation time in Hindi',async()=>{
- const f=await setup();render(<TextProvider language="hi"><EngineProvider client={f.client}><CareerPacks orderId={f.order.id} orderRevision="source-one" clientId={f.order.clientId} facts={f.facts} listings={f.listings} threads={[f.row]} act={vi.fn(async()=>null)} locked={false}/></EngineProvider></TextProvider>);
- const section=screen.getByRole('region',{name:'चलती बातचीत'});
- expect(within(section).getByText('रिज़्यूमे')).toBeTruthy();expect(within(section).getByText(f.row.at)).toBeTruthy();
-});
+
 it('thread identity never borrows a listing from another client or order and states missing identity honestly',async()=>{
  const f=await setup(),source=f.listings[0]!,application={...f.row,id:'application',category:'application' as const,pack:null,listingId:source.id};
  const view=(listings:CareerListingRow[])=><TextProvider language="en"><CareerThreadTable rows={[application,{...f.row,id:'missing-pack',pack:null}]} listings={listings}/></TextProvider>;

@@ -134,7 +134,7 @@ export function foldVotes(rules: readonly CalibrationRule[], ballot: Calibration
  * caught when its fold is false. by: 'model' when a model wrote the ballots (the line is then a model estimate).
  */
 export function calibrate(rules: readonly CalibrationRule[], fixtures: readonly CalibrationFixture[], ballots: Readonly<Record<string, CalibrationBallot>>, by: 'model' | 'code'): CalibrationResult {
-  check(fixtures.length >= 1 && fixtures.every(fixture => Object.hasOwn(ballots, fixture.id)), 'INVALID_VENTURE_REQUEST', 'Every calibration fixture needs the judge\'s ballot.');
+  check(fixtures.length >= 1 && fixtures.every(fixture => Object.hasOwn(ballots, fixture.id)), 'INVALID_VENTURE_REQUEST', 'Every calibration fixture needs the quality check\'s ballot.');
   const results = fixtures.map(fixture => ({ fixture, fold: foldVotes(rules, ballots[fixture.id], fixture.trace) }));
   const agreed = results.filter(item => item.fold.value === item.fixture.expected).length;
   const missed = results.filter(item => item.fold.value !== item.fixture.expected)
@@ -142,7 +142,7 @@ export function calibrate(rules: readonly CalibrationRule[], fixtures: readonly 
   const lucky = results.filter(item => item.fixture.lucky);
   const caught = lucky.filter(item => item.fold.value === false).length;
   const estimate = by === 'model';
-  const counted = `the judge agreed on ${agreed} of ${fixtures.length} fixtures with a known verdict, and failed ${caught} of ${lucky.length} that had the right answer reached the wrong way.`;
+  const counted = `the quality check agreed on ${agreed} of ${fixtures.length} fixtures with a known verdict, and failed ${caught} of ${lucky.length} that had the right answer reached the wrong way.`;
   const line = estimate ? `Model estimate: ${counted}` : `${counted.charAt(0).toUpperCase()}${counted.slice(1)}`;
   const body: Omit<CalibrationReceipt, 'digest'> = {
     rule: 'Each ballot folded by code (any false is false, na left out); agreed when the fold equals the known verdict.',
@@ -157,7 +157,7 @@ export function calibrate(rules: readonly CalibrationRule[], fixtures: readonly 
 export function validateCalibrationBallot(raw: unknown, rules: readonly CalibrationRule[]): CalibrationBallot {
   const votes = (raw as { votes?: unknown })?.votes;
   check(Array.isArray(votes) && votes.every(item => item !== null && typeof item === 'object' && ['yes', 'no', 'na'].includes((item as { answer?: unknown }).answer as string)),
-    'MODEL_OUTPUT_REJECTED', 'A judge vote must be yes, no or na.');
+    'MODEL_OUTPUT_REJECTED', 'A quality check vote must be yes, no or na.');
   // rules.ts checks the rest of the shape; na is read back after, by position.
   const answers = (votes as { answer: CalibrationAnswer }[]).map(item => item.answer);
   const asYesNo = { votes: (votes as Record<string, unknown>[]).map(item => ({ ...item, answer: item.answer === 'na' ? 'yes' : item.answer })) };

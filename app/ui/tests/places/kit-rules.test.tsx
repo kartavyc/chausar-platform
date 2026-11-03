@@ -24,7 +24,7 @@ const LATER = '2026-10-28T10:00:00.000Z';
 /** A kit playbook's rules list as the engine sends it (platform/runtime/venture/playbooks/rules-view.ts rulesListOf). */
 const KIT_RULES: RulesListView = {
   playbook: { id: 'kit-sample', label: 'Kit sample', riskLevel: 'low', lastReviewed: '2026-10-27' },
-  rules: [], summary: 'This playbook rests on no dated platform rules.',
+  rules: [], summary: 'These work instructions have no dated platform rules.',
   recipes: [{
     id: 'traffic-drop', name: 'Find why traffic dropped', whenToUse: 'When clicks fell by a lot in one week.',
     steps: [
@@ -150,12 +150,7 @@ describe('Work > Ideas (5A3, P13)', () => {
     await waitFor(() => expect(card('A reel on how we price a 30-minute video').querySelector('[data-graded]')!.textContent).toBe('Graded: So-so'));
   });
 
-  it('reads in Hindi', async () => {
-    start({ language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 2, name: 'आइडिया' })).toBeTruthy();
-    expect(column('इनबॉक्स')).toBeTruthy();
-    expect(within(card('A behind-the-scenes short of a recording day')).getByRole('button', { name: 'छँटाई में ले जाएँ' })).toBeTruthy();
-  });
+
 });
 
 describe('Work > Ideas edge cases and the order card\'s manual path (5A3 review)', () => {
@@ -196,7 +191,7 @@ describe('Work > Ideas edge cases and the order card\'s manual path (5A3 review)
   });
 });
 
-describe('Business > Plan and playbook: recipes and boundaries (5A3, P6)', () => {
+describe('Business > How the work is done: recipes and boundaries (5A3, P6)', () => {
   it('shows each recipe with when to use it, its steps with why one fold away, and the boundaries table', async () => {
     start({ hash: '#/business/plan', stub: (method) => (method === 'venture.rules.list' ? KIT_RULES : undefined) });
     const recipe = await screen.findByRole('article', { name: 'Find why traffic dropped' });

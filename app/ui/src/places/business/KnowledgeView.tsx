@@ -8,6 +8,8 @@ import { Field } from '../../parts/Field';
 import { TileSection, dayOf, messageOf } from './shared';
 import b from './Business.module.css';
 import s from './KnowledgeView.module.css';
+// W6 6G4: the business's dated facts (since when, what they replaced, source, who may see them).
+import { FactsBody } from '../clients/FactsSection';
 
 type Kind = KnowledgeSourceInput['kind'];
 const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work'];
@@ -74,6 +76,7 @@ export function KnowledgeView() {
           )}
         </TileSection>
         <div className={b.column}>
+          <TileSection title={t('crm.facts')}><FactsBody subject="business" /></TileSection>
           <AddSource onAdded={(line) => { setSaid(line); view.reload(); }} />
           <TestQuestion />
           {data.requests.length > 0 && (

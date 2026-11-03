@@ -23,48 +23,47 @@
 // Ink v2 wave 4 (package 4-0): five more row sources (proposals, follow-ups, replies, notices, run controls) whose
 // decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
 // (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
-import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { authorize,ChausarError,check,type Context,type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
-import {
-  currentVenture, digest, exactPayload, formatMicros, formatVentureDate, listRecords, plainText, requireAppChannel, ventureAction,
-} from '../records.ts';
-import { DELIVERY_REASONS, QUEUE_ACTION_IDS } from '../contracts.ts';
-import type {
-  DeliveryReason, DeliveryRunRecord, Display, EvidenceRecord, HarnessState, InvoiceRecord, MicroString, Offer, QueueAction, QueueActionId,
-  QueueDecision, QueueDecisionRecord, QueueKind, QueueList, QueueRow, VentureBusinessRef, VentureDeps, VentureRecord,
-} from '../contracts.ts';
-import { blueprintAccept } from '../core/blueprint.ts';
-import { issueInvoice } from '../money/invoices.ts';
-import { latestBlueprint } from '../money/shared.ts';
-import {
-  approveDelivery, deliveryAnswerHandler, deliveryDelegateHandler, deliveryReviewHandler, deliveryRunHandler, runView,
-} from '../delivery/runs.ts';
-import { judgeNotice, judgeStateLine } from '../delivery/judge-run.ts';
-import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
-import { allowCapWindow, capWindow, openDelegation } from '../delivery/harness/loop.ts';
-import { acceptedBlueprintOrNull, previewShownWhole } from '../delivery/shared.ts';
-import { HOLD_APPROVE_ANSWER, HOLD_DECLINE_ANSWER, holdOfHandoff } from '../policy/holds.ts';
-import { pendingSpotChecks, reviewSpotCheck } from '../policy/spot-check.ts';
-import { caFirmQueueItems } from '../playbooks/ca-firm/signoff.ts';
-import { sendRunToCa, waitsToGoToCa } from '../playbooks/ca-firm/delivery-signoff.ts';
-import { approveSpendQuote, openSpendQuotes, quoteLive, rupeeFigure, rupeesBeside, rupeesOf, spendAgentOf, type Rupees } from '../money/spend.ts';
-import { connectorQueueRows, decideConnectorRow } from '../build/posting.ts';
-import { evidenceApply, evidenceQuestions, recordEvidence } from '../evidence/ledger.ts';
+import { decideAgentApproval } from '../agent-runtime/approvals.ts';
+import { answerAgentFacts } from '../agent-runtime/facts.ts';
+import { routineRows } from '../agents/routine-runner.ts';
 import { bankQueueItems } from '../build/bank-methods.ts';
-import { AGENT_ID, agentName, businessOf, clientNameFor, lastEventAt, plain, short } from './shared.ts';
-import { agentWordsLabeller } from './agent-words.ts';
-import { decideW4Row, type W4RowSource, type W4RowSourceFn } from './queue-w4.ts';
-import { withMeta } from './row-meta.ts';
-import { withPreviews } from './previews.ts';
-import { withTriage } from './triage.ts';
-import { noticeRows } from './probes.ts';
+import { connectorQueueRows,decideConnectorRow } from '../build/posting.ts';
 import { proposalRows } from '../chief/rows.ts';
+import type {
+DeliveryReason,DeliveryRunRecord,Display,EvidenceRecord,HarnessState,InvoiceRecord,MicroString,Offer,QueueAction,QueueActionId,
+QueueDecision,QueueDecisionRecord,QueueKind,QueueList,QueueRow,VentureBusinessRef,VentureDeps,VentureRecord,
+} from '../contracts.ts';
+import { DELIVERY_REASONS,QUEUE_ACTION_IDS } from '../contracts.ts';
+import { blueprintAccept } from '../core/blueprint.ts';
+import { allowCapWindow } from '../delivery/harness/loop.ts';
+import { judgeStateLine } from '../delivery/judge-run.ts';
+import { runControlRows } from '../delivery/run-control-rows.ts';
+import {
+deliveryReviewHandler,deliveryRunHandler,runView,
+} from '../delivery/runs.ts';
+import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { evidenceApply,evidenceQuestions,recordEvidence } from '../evidence/ledger.ts';
+import { moneyRows } from '../money/credits.ts';
+import { issueInvoice } from '../money/invoices.ts';
+import { shareWords } from '../money/share-price.ts';
+import { latestBlueprint } from '../money/shared.ts';
+import { approveSpendQuote,openSpendQuotes,quoteLive,rupeeFigure,rupeesBeside,rupeesOf,spendAgentOf,type Rupees } from '../money/spend.ts';
 import { followupRows } from '../network/followup-rows.ts';
 import { replyRows } from '../network/inbound-rows.ts';
-import { runControlRows } from '../delivery/run-control-rows.ts';
-import { moneyRows } from '../money/credits.ts';
-import { routineRows } from '../agents/routine-runner.ts';
-import { shareWords } from '../money/share-price.ts';
+import { sendRunToCa,waitsToGoToCa } from '../playbooks/ca-firm/delivery-signoff.ts';
+import { caFirmQueueItems } from '../playbooks/ca-firm/signoff.ts';
+import { pendingSpotChecks,reviewSpotCheck } from '../policy/spot-check.ts';
+import {
+currentVenture,digest,exactPayload,formatMicros,formatVentureDate,listRecords,plainText,requireAppChannel,ventureAction,
+} from '../records.ts';
+import { withPreviews } from './previews.ts';
+import { noticeRows } from './probes.ts';
+import { decideW4Row,type W4RowSource,type W4RowSourceFn } from './queue-w4.ts';
+import { withMeta } from './row-meta.ts';
+import { AGENT_ID,agentName,businessOf,clientNameFor,lastEventAt,plain,short } from './shared.ts';
+import { withTriage } from './triage.ts';
 
 export const STALE_LINE = 'This click did not run anything. Here is the new version.';
 export const GONE_LINE = 'This was resolved elsewhere.';
@@ -95,6 +94,7 @@ export const rowId = (subject: string, version: string) => `${subject}:${part(ve
 const subjectOf = (id: string) => id.slice(0, Math.max(0, id.lastIndexOf(':')));
 
 /** The id of the Today row that answers a run's open question; the run sheet uses it as the question id. */
+export const agentFactsRowId = (runId: string, digest: string) => rowId(`run:${part(runId)}`, `facts-${digest}`);
 export function questionRowId(runId: string, harness: HarnessState): string {
   return rowId(`run:${part(runId)}`, `q${harness.handoffs.length}`);
 }
@@ -249,7 +249,7 @@ function callError(state: State, callId: string | null): string | null {
 
 /** Why a run stopped, in the engine's own words; plain words when it kept none. */
 export function runError(state: State, run: DeliveryRunRecord): string {
-  return callError(state, run.callId) ?? run.harness?.stopReason ?? 'This run stopped before it finished. Nothing was sent to the client.';
+  return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This run stopped before it finished. Nothing was sent to the client.';
 }
 
 const reviewReason = (answer: string | null): DeliveryReason =>
@@ -272,73 +272,42 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     const at = times.get(run.id) ?? run.at;
     const viewRun = { kind: 'run' as const, id: run.id };
     const newest = newestPerOrder.get(run.orderId)?.id === run.id && orders.get(run.orderId)?.status === 'open';
-    if (run.status === 'waiting-for-you' && run.canApprove && run.preview) {
-      const preview = run.preview;
-      const notice = judgeNotice(deps, ctx, state, venture, record)?.line;
-      rows.push({
-        // This row's digest binds its line, the judge's notice included, so approving it here gives the judge's consent.
-        subject, perform: { approve: async (d, ctx) => { await approveDelivery(d, ctx, { runId: run.id, digest: preview.digest }, { judgeNoticeShown: notice ?? null }); return { line: 'Sent to your AI.' }; } },
-        row: { ...base(business, 'quote', subject, `send-${run.callId ?? preview.callId}`, at), agent, title: `Send the next step for ${client} to your AI`,
-          // The most it can cost is worked out by code from the price table, so it is not a model estimate; the display
-          // itself says 'estimate, price unconfirmed' when the table is unconfirmed.
-          // A write turn the judge then reads on its own, before its standing consent exists, says so (judge-run.ts).
-          line: `Read the exact text first. Nothing goes to the client.${notice ? ` ${notice}` : ''}`,
-          change: { label: 'Most it can cost', after: preview.estimatedMaxCostDisplay },
-          viewRef: viewRun, actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })],
-          // A send to the owner's AI (W1 H21): complete only when the run's view shows the whole text.
-          descriptionComplete: previewShownWhole(preview) },
-      });
-    } else if (run.status === 'waiting-for-you' && run.awaitingYou && run.harness && run.preview && run.callId && capWindow(run.harness, run.preview.estimatedMaxCostMicros)) {
-      // The next call would cross the run's spend cap, so it was held back: more room, on the second ask.
-      const callId = run.callId;
-      rows.push({
-        subject, perform: { approve: async (d, ctx) => { await allowRunWindow(d, ctx, run.id, callId); return { line: 'More room allowed. Approve the next step when you are ready.' }; } },
-        row: { ...base(business, 'quote', subject, `cap-${callId}`, at), agent, title: `${agent} reached its spend cap for this run`,
-          ...roomWords(run.harness, capWindow(run.harness, run.preview.estimatedMaxCostMicros)!, rupees),
-          viewRef: viewRun, actions: [action('later', 'Not now', false), action('approve', 'Allow', true, { secondAsk: true })] },
-      });
-    } else if (run.status === 'waiting-for-you' && newest && run.preview && Date.parse(run.preview.expiresAt) <= nowMs) {
-      rows.push({
-        subject, perform: { 'run-again': async (d, ctx) => { await deliveryRunHandler(d, ctx, { orderId: run.orderId }); return { line: 'Started again.' }; } },
-        row: { ...base(business, 'draft', subject, `expired-${run.callId ?? 'none'}`, run.preview.expiresAt), agent, title: `The draft for ${client} needs to start again`,
-          line: 'The text waiting for your approval expired before it was sent.', viewRef: viewRun, actions: [action('later', 'Later', false), action('run-again', 'Run again', true)] },
-      });
-    } else if (run.status === 'needs-answer' && run.awaitingYou && run.harness) {
-      const open = [...run.harness.handoffs].reverse().find(handoff => handoff.answer === null);
-      const hold = open ? holdOfHandoff(run.harness, run.harness.handoffs.indexOf(open)) : null;
-      if (hold) {
-        const reply = (answer: string, line: string): Perform => async (d, ctx) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer }); return { line }; };
-        rows.push({
-          subject, perform: { approve: reply(HOLD_APPROVE_ANSWER, 'It runs once, in the next step.'), deny: reply(HOLD_DECLINE_ANSWER, 'Kept on hold. The agent goes on without it.') },
-          row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
-            title: `${agent} wants to run a step on hold for ${client}`, line: short(agentWordsLabeller(state, venture, run)(open!.question), 300),
-            viewRef: viewRun, actions: [action('deny', 'Keep on hold', false), action('approve', 'Let it run once', true)],
-            // The view names the held tool and why, not its exact input (W1 H21).
-            descriptionComplete: false },
-        });
+    if (record.agentJob?.pendingFacts && run.status === 'needs-answer' && newest) {
+      const pending = record.agentJob.pendingFacts;
+      rows.push({ subject, perform: { answer: async (d, context, input) => {
+        await answerAgentFacts(d, context, run.id, pending.digest, input.answer ?? '');
+        const { runsResumeHandler } = await import('../delivery/run-controls.ts');
+        await runsResumeHandler(d, context, { runId: run.id });
+        return { line: 'Answer saved. The AI continues in a new session.' };
+      } }, row: { ...base(business, 'question', subject, `facts-${pending.digest}`, at), agent,
+        title: `A question for ${client}`, line: pending.question, viewRef: viewRun, actions: [action('answer', 'Answer', true)] } });
+      continue;
+    }
+    if (record.agentJob?.pendingApproval && ['waiting-for-you', 'ready-for-review'].includes(run.status)) {
+      const pending = record.agentJob.pendingApproval;
+      const decide = (decision: 'approve' | 'deny'): Perform => async (d, context) => {
+        await decideAgentApproval(d, context, { runId: run.id, digest: pending.digest, decision });
+        return { line: decision === 'approve' ? 'Approved this exact AI step once.' : 'Declined this AI step.' };
+      };
+      // W6 6F5: a send through the tool's own Gmail connection is itself the outside action, and says so.
+      const send = pending.request.kind === 'connector-send';
+      // W6 6F1: an outside tool server's question is answered with its fields on the run's card, never with a bare Approve.
+      if (pending.request.kind === 'external-input') {
+        rows.push({ subject, perform: { deny: decide('deny') },
+          row: { ...base(business, 'question', subject, `native-${pending.digest}`, at), agent, title: 'A question from a tool',
+            line: 'Open it to answer. Your answer goes only to that tool, never to the AI.', viewRef: viewRun, descriptionComplete: false,
+            actions: [action('read', 'Read', true), action('deny', 'Decline', false)] } });
         continue;
       }
-      rows.push({
-        subject, perform: { answer: async (d, ctx, input) => { await deliveryAnswerHandler(d, ctx, { runId: run.id, answer: input.answer }); return { line: 'Your answer went to the agent.' }; } },
-        row: { id: questionRowId(run.id, run.harness), businessId: business.id, businessName: business.name, kind: 'question', createdAt: at, agent,
-          // The agent's own words show a number with no receipt as a model estimate (agent-words.ts).
-          title: `${agent} has a question about ${client}'s order`, line: short(open ? agentWordsLabeller(state, venture, run)(open.question) : 'The agent needs your answer to carry on.', 300),
-          viewRef: viewRun, actions: [action('answer', 'Answer', true)] },
-      });
-    } else if (run.status === 'brief-waiting' && run.awaitingYou && run.harness) {
-      const open = openDelegation(run.harness);
-      if (!open) continue;
-      const decision = (choice: 'approve' | 'decline'): Perform => async (d, ctx) => {
-        await deliveryDelegateHandler(d, ctx, { runId: run.id, digest: open.digest, decision: choice });
-        return { line: choice === 'approve' ? `${DELEGATE_LABELS[open.cli]} ran the brief.` : 'Brief declined. Nothing was started.' };
-      };
-      rows.push({
-        subject, perform: { approve: decision('approve'), deny: decision('decline') },
-        row: { ...base(business, 'draft', subject, `brief-${open.toolCallId}`, at), agent, title: `${agent} wants ${DELEGATE_LABELS[open.cli]} to work on ${client}'s order`,
-          line: "Read the brief. It runs on this computer with only this order's files.", viewRef: viewRun,
-          actions: [action('deny', 'Decline', false), action('approve', 'Approve', true, { requiresView: true })] },
-      });
-    } else if (run.status === 'ready-for-review' && run.awaitingYou) {
+      rows.push({ subject, perform: { approve: decide('approve'), deny: decide('deny') },
+        row: { ...base(business, 'question', subject, `native-${pending.digest}`, at), agent,
+          title: send ? 'Approve one send' : 'Review one AI step',
+          line: send ? 'Read the exact message first. Approving sends it once through your own connection.' : 'Read the full request before deciding. Outside actions still need their own approval.',
+          viewRef: viewRun, descriptionComplete: false,
+          actions: [action('read', 'Read', false), action('deny', 'Decline', false), action('approve', 'Approve once', true, { requiresView: true })] } });
+      continue;
+    }
+    if (run.status === 'ready-for-review' && run.awaitingYou) {
       const review = (verdict: 'accepted' | 'rejected'): Perform => async (d, ctx, input) => {
         await deliveryReviewHandler(d, ctx, verdict === 'accepted' ? { runId: run.id, verdict } : { runId: run.id, verdict, reason: reviewReason(input.answer) });
         return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : 'Draft rejected. The agent learns from it.' };

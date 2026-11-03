@@ -42,7 +42,7 @@ export function runKitChecks(definition: Pick<PlaybookDefinition, 'registration'
     else notRun.push(`${id} (${whyNotRun(own[0].detail)})`);
   });
   // 5A3: a real client's work never rests on a rule still waiting for a CA or lawyer's confirmation.
-  requireConfirmedRules(definition.rules, results.filter(item => item.outcome !== 'not-run').map(item => item.check), input.mode === 'client' ? 'client' : 'rehearsal');
+  requireConfirmedRules(definition.rules, results.filter(item => item.outcome !== 'not-run').map(item => item.check), input.mode === 'client' ? 'client' : 'rehearsal', input.attestedRules);
   const total = definition.checks.length;
   const detail = notRun.length ? `${ran} of ${total} checks ran; not run: ${notRun.join(', ')}` : `${ran} of ${total} checks ran.`;
   return [...noteUnconfirmed(results, definition.rules), { playbook, check: COVERAGE_CHECK, outcome: notRun.length ? 'not-run' : 'pass', detail }];

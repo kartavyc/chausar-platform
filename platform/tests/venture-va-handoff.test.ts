@@ -11,3 +11,10 @@ test('the actual VA desk refuses payment fields and calculates an exact manual p
  await assert.rejects(e.call('venture.desk.act',{playbook:'virtual-assistant',kind:'purchase',id:order.id,action:'buy',payload:{item:'Two blue notebooks',quantity:'2',unitMinor:'15000',currency:'INR'}}),{code:'PAYMENT_FIELD_REFUSED'});
  await assert.rejects(e.call('venture.desk.act',{playbook:'virtual-assistant',kind:'purchase',id:order.id,action:'preview',payload:{item:'Notebook',quantity:'1',unitMinor:'1',currency:'INR',card:'private-payment-placeholder'}}),{code:'INVALID_VENTURE_REQUEST'});
 });
+
+test('an existing VA purchase copy keeps the order currency after changing country',async()=>{
+ const e=await kitBusiness(undefined,{idea:'A virtual assistant service'}),order=await e.call('venture.order.create',{clientId:e.client.id,offerId:e.offers[0]!.id,request:'Research venues',intake:{fields:{scope:'Research venues',deliverable:'A table',deadline:'2026-11-02',hoursBand:'Agreed monthly band'}}});
+ const plan=await e.call('venture.blueprint.update',{patch:{countryCode:'JP'}});await e.call('venture.blueprint.accept',{digest:plan.blueprint.digest});
+ const answer=await e.call('venture.desk.act',{playbook:'virtual-assistant',kind:'purchase',id:order.id,action:'preview',payload:{item:'Notebook',quantity:'2',unitMinor:'15000',currency:'INR'}});
+ assert.equal(answer.result.totalMinor,'30000');assert.equal(answer.result.purchased,false);
+});

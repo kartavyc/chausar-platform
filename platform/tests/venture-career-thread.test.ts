@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {rulesAttestHandler} from '../runtime/venture/playbooks/rules-attest.ts';import {ruleDigest} from '../runtime/venture/playbooks/kit/attestation.ts';
 import assert from 'node:assert/strict';
 import {kitBusiness,owner} from './fixtures/venture/kit-business.ts';
 import {ventureAction} from '../runtime/venture/records.ts';
@@ -42,4 +43,10 @@ test('Forget removes opaque career ledger, rendered bytes and order intake throu
  const {e,order}=await setup(),base={playbook:'job-search-desk',kind:'thread'};const made=await e.call('venture.desk.act',{...base,id:order.id,action:'create-pack',payload:{input:{kind:'resume',claims:[{factId:'research',use:'research'}],sources:[]}}});const before=await e.call('venture.desk.get',{...base,id:made.id});await e.call('venture.desk.act',{...base,id:made.id,action:'render',payload:{},digest:before.digest});
  await net(e,'venture.network.import',{kind:'contacts-csv',name:'contacts.csv',text:'Name,E-mail 1 - Value\nAsha Rao,asha@example.com'});const person=personNamed(e as any,'Asha Rao');await ventureAction(e.deps,owner,'approve','test.link-career-client',tx=>{tx.replace({...tx.find('venture-person',person.id)!,clientId:order.clientId});});await net(e,'venture.network.forget',{id:person.id});
  assert.equal(listRecords(e.store.read(),'venture-career-fact').length,0);assert.equal(listRecords(e.store.read(),'venture-career-thread').length,0);assert.doesNotMatch(JSON.stringify(listRecords(e.store.read(),'venture-order')),/Interviewed customers|Researcher/);await assert.rejects(e.call('venture.desk.get',{...base,id:made.id}),{code:'CAREER_NOT_FOUND'});
+});
+test('W6 6C5: after the owner attests client privacy, the approved career pack is shared with the client',async()=>{
+ const {e,order}=await setup();e.deps.host='hosted-web';e.deps.publicUrl='https://career.example';const base={playbook:'job-search-desk',kind:'thread'},made=await e.call('venture.desk.act',{...base,id:order.id,action:'create-pack',payload:{input:{kind:'resume',claims:[{factId:'research',use:'research'}],sources:[]}}});const act=async(action:string,payload:unknown={})=>e.call('venture.desk.act',{...base,id:made.id,action,payload,digest:(await e.call('venture.desk.get',{...base,id:made.id})).digest});
+ await act('render');await act('approve-pack');await assert.rejects(act('share'),{code:'RULE_UNCONFIRMED'});
+ await rulesAttestHandler(e.deps,owner,{ruleId:CAREER_PRIVACY_RULE.id,attest:true,digest:ruleDigest(CAREER_PRIVACY_RULE)});
+ const link=(await act('share')).result;assert.match(link.url,/^https:\/\/career\.example\//);
 });

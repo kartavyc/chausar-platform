@@ -30,7 +30,7 @@ import {
 import { checkScoreRules, checkVotes, scoreCard, type ScoreFacts } from './score.ts';
 import { plural } from './text.ts';
 import { acceptedTimeline } from './accepted.ts';
-import { channelCapsInput } from './governor.ts';
+import { pipelineCapsInput } from './limit-settings.ts';
 
 const STAGE_SUB: Readonly<Record<PipelineStage, string>> = Object.freeze({
   found: 'Not asked yet', asked: 'You sent the first note', talking: 'They wrote back', proposal: 'A price is with them', won: 'Now your clients',
@@ -264,8 +264,8 @@ export async function pipelineList(deps: VentureDeps, ctx: Context, payload: unk
   } else {
     const plan = funnelCountPlan(state, venture, { type: 'count', what: 'funnel', scope: 'forecast', from, to: today });
     forecast = plan.addends.length
-      ? { value: planDisplay(plan), label: 'forecast from your last 90 days', receiptId: (await sumReceipt(deps, ctx, venture.id, plan)).id }
-      : { line: 'No open card has a quote yet, so there is nothing to forecast.' };
+      ? { value: planDisplay(plan), label: `forecast in ${venture.country.currency} only, from your last 90 days`, receiptId: (await sumReceipt(deps, ctx, venture.id, plan)).id }
+      : { line: plan.words!.none! };
   }
   return { columns, tiles, funnel, forecast, quotes: quotesOf(state, venture) };
 }
@@ -442,13 +442,7 @@ export async function pipelineSettingsHandler(deps: VentureDeps, ctx: Context, p
     sendTime = body.sendTime;
   }
   if (body.caps !== undefined) {
-    const raw = exactPayload(body.caps, ['newPerDay', 'perWeek', 'channels']);
-    caps = {
-      ...(raw.newPerDay === undefined ? {} : { newPerDay: smallInteger(raw.newPerDay, 'People a day', 1, 100) }),
-      ...(raw.perWeek === undefined ? {} : { perWeek: smallInteger(raw.perWeek, 'People a week', 1, 1000) }),
-      // 4E2: the owner's lower daily caps per channel for the send governor, never above Chausar's own.
-      ...(raw.channels === undefined ? {} : { channels: channelCapsInput(raw.channels) }),
-    };
+    caps = pipelineCapsInput(body.caps);
   }
   if (body.scoreRules !== undefined) scoreRules = checkScoreRules(body.scoreRules);
   if (!Object.keys(body).length) {

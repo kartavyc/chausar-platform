@@ -12,8 +12,11 @@ import { NARROW } from '../src/shell/useNarrow';
  * (title, lang) belong to index.html; axe runs on the app's own root.
  */
 
-/** A step in `press`: a button's name to press, or a labelled field to type into first (w3 3G2: the passphrase steps). */
-type Press = string | RegExp | { fill: string; with: string };
+/**
+ * A step in `press`: a button's name to press, a labelled field to type into first (w3 3G2: the passphrase steps), or
+ * a radio to choose (W6 6C6: the side-work question).
+ */
+type Press = string | RegExp | { fill: string; with: string } | { choose: string };
 interface Case { name: string; hash: string; options?: FakeOptions; before?: (engine: FakeEngine) => Promise<unknown>; press?: Press[]; openFolds?: boolean }
 
 const ledgerline = (engine: FakeEngine) => engine.request('workspace.open', { folder: 'ledgerline' });
@@ -108,6 +111,8 @@ const PLACES: Case[] = [
 
 const SHEETS: Case[] = [
   { name: 'run, working', hash: '#/today?sheet=run:31' },
+  // W6 6H3: the Arrange sheet for a place's layout.
+  { name: 'arrange Today', hash: '#/today?sheet=layout:today' },
   // W4 4E4: the card sheet (timeline, score, write to them, move it), a draft from before this session, the notes sheet.
   { name: 'pipeline card', hash: '#/clients/pipeline?sheet=card:opp_seed_tara' },
   { name: 'draft, from before this session', hash: '#/clients/pipeline?sheet=outreach:outreach_1' },
@@ -184,6 +189,11 @@ async function settle({ hash, options, before, press, openFolds }: Case): Promis
   const unfold = () => { if (openFolds) for (const fold of container.querySelectorAll('details')) fold.open = true; };
   for (const name of press ?? []) {
     unfold();
+    if (typeof name !== 'string' && !(name instanceof RegExp) && 'choose' in name) {
+      const [radio] = await screen.findAllByRole('radio', { name: name.choose });
+      await act(async () => { fireEvent.click(radio!); });
+      continue;
+    }
     if (typeof name !== 'string' && !(name instanceof RegExp)) {
       const [field] = await screen.findAllByLabelText(name.fill);
       fireEvent.change(field!, { target: { value: name.with } });
@@ -242,7 +252,7 @@ const OPENED: Case[] = [
   { name: 'Business, staging a website edit', hash: '#/business/build', press: ['Stage an edit'] },
   { name: 'Business, practice: rehearsed, a version kept and its second ask, the judge turned off then asked on', hash: '#/business/practice', press: ['Rehearse now', 'Run the improvement loop', 'Use this version', 'Turn off', 'Turn on'] },
   {
-    name: 'Work, the judge asked about a ready draft', hash: '#/work?order=o-boat-14', press: ['Ask the judge'],
+    name: 'Work, the judge asked about a ready draft', hash: '#/work?order=o-boat-14', press: ['Check quality'],
     before: (engine) => engine.request('venture.models.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: 'consent-anthropic', apiKey: 'a-test-key-for-the-fake' }),
   },
   // 4Z2: Lumen's episode 12 is delivered; Ledgerline's September books are done and not delivered yet.
@@ -262,7 +272,7 @@ const OPENED: Case[] = [
   { name: 'Business, practice with the drills run and every fold open', hash: '#/business/practice', press: ['Run the drills'], openFolds: true },
   { name: 'Business, routines with the history open and a removal asked', hash: '#/business/routines', openFolds: true, press: ['Remove'] },
   { name: 'Work, an order contract with its Sign asked', hash: '#/work?order=o-iyer-oct', before: ledgerline, press: ['Sign'] },
-  { name: 'Team, the posture with what auto would need open', hash: '#/team?sheet=agent:editor&tab=instructions', openFolds: true },
+  { name: 'Team, instructions and AI review settings', hash: '#/team?sheet=agent:editor&tab=instructions', openFolds: true },
   { name: 'Business, keep with every fold open and a restore asked', hash: '#/business/keep', openFolds: true, press: ['Restore'] },
   { name: 'Business, keep, a move code shown', hash: '#/business/keep', openFolds: true, press: ['Make the file'] },
   { name: 'Business, keep, a passphrase business', hash: '#/business/keep', openFolds: true, before: (engine) => engine.request('workspace.lock', {}).then(() => engine.request('workspace.open', { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE })) },
@@ -282,17 +292,31 @@ const OPENED: Case[] = [
   // w3 3G2: Start's examples, its country choice, and the box asking for more on the first run.
   { name: 'New business, an example chosen', hash: '#/onboarding', press: ['Wedding invitation videos'] },
   { name: 'New business, the country being changed', hash: '#/onboarding', press: ['Change'] },
-  { name: 'First run, the box asking for more', hash: '#/today', options: { fresh: true }, press: ['Start'] },
+  // W6 6C1, 6C2, 6C6, 6C7: the first run's steps: Connect your AI with Codex's own sign-in waiting, About you as A and
+  // as B, the box asking for more, the side-work question, the vault steps after it, and the services step.
+  { name: 'First run, Codex sign-in waiting for its code', hash: '#/today', options: { fresh: true }, press: ['Sign in with Codex'] },
+  { name: 'First run, About you', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates'] },
+  { name: 'First run, About you asking for more', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', 'Send'] },
+  {
+    name: 'First run, About you as a chat', hash: '#/today', options: { fresh: true },
+    press: ['Skip for now: use templates', { fill: 'Tell Chausar about your work', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Send'],
+  },
+  { name: 'First run, a field tile straight to the plan', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/] },
+  { name: 'First run, the side-work question', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan'] },
   {
     name: 'First run, the passphrase step', hash: '#/today', options: { fresh: true, deviceKeys: false },
-    press: [{ fill: 'What do you want to start?', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Start'],
+    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue'],
   },
   {
     name: 'First run, the recovery code step', hash: '#/today', options: { fresh: true, deviceKeys: false },
     press: [
-      { fill: 'What do you want to start?', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Start',
+      'Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue',
       { fill: 'Passphrase', with: 'correct horse battery' }, { fill: 'Type it again', with: 'correct horse battery' }, 'Lock and start',
     ],
+  },
+  {
+    name: 'First run, what the business needs', hash: '#/today', options: { fresh: true },
+    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue'],
   },
 ];
 

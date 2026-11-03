@@ -178,18 +178,18 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
     agentLimits: "Agents read only the mail of the order's own client, screened first, and never your mailbox.",
   },
   'n8n-webhook': {
-    steps: ['In n8n, add a Webhook node to a workflow and copy its production address.', 'Under Connections, paste it as your n8n webhook, and send the test item if you like.', AGAIN],
+    steps: ['In n8n, add a Webhook node to a workflow and copy its production address.', 'Under Connections, choose Send to n8n, paste the address and send the test item if you like.', AGAIN],
     skipped: 'Use the production address, not the test one, and keep the workflow active, or n8n will refuse what Chausar sends.',
     checks: 'With the test item, Chausar sends that one fixed item first and keeps the address only if n8n did not refuse it.',
-    sends: 'Sends: only an item you approve, exactly as shown, to that webhook. Chausar never makes or changes a workflow.',
-    agentLimits: "Agents can't send to your webhook. Each item waits for you to approve it as shown.",
+    sends: 'Sends: only an item you approve, exactly as shown, to that connection. Chausar never makes or changes a workflow.',
+    agentLimits: "Agents can't send to your connection. Each item waits for you to approve it as shown.",
   },
   'make-webhook': {
-    steps: ['In Make, add a Custom webhook trigger to a scenario and copy its address.', 'Under Connections, paste it as your Make webhook, and send the test item if you like.', AGAIN],
+    steps: ['In Make, add a Custom webhook trigger to a scenario and copy its address.', 'Under Connections, choose Send to Make, paste the address and send the test item if you like.', AGAIN],
     skipped: 'Turn the scenario on, or Make will hold what Chausar sends until you do.',
     checks: 'With the test item, Chausar sends that one fixed item first and keeps the address only if Make did not refuse it.',
-    sends: 'Sends: only an item you approve, exactly as shown, to that webhook. Chausar never makes or changes a scenario.',
-    agentLimits: "Agents can't send to your webhook. Each item waits for you to approve it as shown.",
+    sends: 'Sends: only an item you approve, exactly as shown, to that connection. Chausar never makes or changes a scenario.',
+    agentLimits: "Agents can't send to your connection. Each item waits for you to approve it as shown.",
   },
 });
 

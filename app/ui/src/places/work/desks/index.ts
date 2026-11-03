@@ -29,6 +29,11 @@ import { DevAgencyDesk } from './DevAgencyDesk';
 import { MonitoredDataDesk } from './MonitoredDataDesk';
 import { ItTriageDesk } from './ItTriageDesk';
 import { PhoneReceptionistDesk } from './PhoneReceptionistDesk';
+import { DocumentDeskDesk } from './DocumentDeskDesk'; // W6 6E4
+import { SignoffDeskDesk } from './SignoffDeskDesk'; // W6 6E5
+import { LessonDeskDesk } from './LessonDeskDesk'; // W6 6E2
+import { BookingDeskDesk } from './BookingDeskDesk'; // W6 6E3
+import { TradingJournalDesk } from './TradingJournalDesk'; // W6 6E7
 
 export const DESKS: Readonly<Record<DeskPlaybook, ComponentType>> = Object.freeze({
   'youtube': YoutubeDesk,
@@ -54,4 +59,9 @@ export const DESKS: Readonly<Record<DeskPlaybook, ComponentType>> = Object.freez
   'monitored-data': MonitoredDataDesk,
   'it-triage': ItTriageDesk,
   'phone-receptionist': PhoneReceptionistDesk,
+  'lesson-desk': LessonDeskDesk,
+  'booking-desk': BookingDeskDesk,
+  'trading-journal': TradingJournalDesk,
+  'document-desk': DocumentDeskDesk,
+  'signoff-desk': SignoffDeskDesk,
 });

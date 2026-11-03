@@ -14,6 +14,8 @@ import { TIE_SUPERSEDED, tieReceipt } from '../network/strength.ts';
 import { ownerToday } from '../local-day.ts';
 import type { RowFigureReceipt, TieReceipt } from '../contracts.ts';
 import { receiptSignature } from '../journal/signing.ts';
+import { blueprintCountry } from '../core/country-history.ts';
+import type { ForeignPrice } from './billing-types.ts';
 
 export type PriceSubject = PriceReceiptRecord['subject'];
 
@@ -116,15 +118,19 @@ export function receiptDigest(record: PriceReceiptRecord): string {
  * the tax, so tax-kinds.ts splits it; a treatment with no rate (not registered, an export under LUT) has nothing to split.
  */
 export function buildPriceReceipt(
-  tx: VentureTx, subject: PriceSubject, inputs: { quantity: string; taxInclusive?: boolean },
+  tx: VentureTx, subject: PriceSubject, inputs: { quantity: string; taxInclusive?: boolean; foreign?: ForeignPrice },
   blueprint: BlueprintRecord, offer: Offer, client: ClientRecord | null,
 ): PriceReceiptRecord {
   check(tx.venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
   const backOffice = blueprint.backOffice;
-  const currency = backOffice.currency;
-  check(currency === tx.venture.country.currency, 'CURRENCY_CONFLICT', `This business keeps its books in ${tx.venture.country.currency}.`);
-  const unitPriceMinor = requirePrice(offer);
-  const decision = taxDecision(backOffice, client, tx.venture.country);
+  const country = blueprintCountry(tx.venture, blueprint);
+  check(backOffice.currency === country.currency, 'CURRENCY_CONFLICT', 'This price does not match its saved country.');
+  // 6D4: a client abroad may be priced in their own currency at the owner's own price; nothing is converted.
+  const foreign = inputs.foreign ?? null;
+  const currency = foreign ? foreign.currency : backOffice.currency;
+  const unitPriceMinor = foreign ? foreign.unitPriceMinor : requirePrice(offer);
+  const decision = taxDecision(backOffice, client, country);
+  if (foreign) requireForeignTax(decision, country.currency);
   const inclusive = inputs.taxInclusive === true && splitsInclusive(decision.treatment);
   const priceInput = { unitPriceMinor, quantity: inputs.quantity, discountBps: '0', taxRateBps: decision.rateBps, currency, taxTreatment: decision.treatment };
   const priced = inclusive ? computeInclusivePrice(priceInput) : computePrice(priceInput);
@@ -151,6 +157,7 @@ export function buildPriceReceipt(
       taxRateBy: backOffice.taxRateBy,
       blueprintDigest: blueprint.digest,
       ...(inclusive ? { taxInclusive: true as const } : {}),
+      ...(foreign ? { currencyBy: 'order' as const } : {}),
     },
     steps: priced.steps,
     figures,
@@ -163,6 +170,16 @@ export function buildPriceReceipt(
   numberGuard(record.explanation, record);
   record.digest = receiptDigest(record);
   return tx.put(record);
+}
+
+/**
+ * 6D4: an invoice in a client's own currency carries no tax Chausar would have to convert: an Indian export under LUT
+ * (zero-rated) or a business that charges no tax on it. IGST on an export without LUT is paid in rupees at an exchange
+ * rate, so it is refused with the way out.
+ */
+export function requireForeignTax(decision: TaxDecision, homeCurrency: string): void {
+  check(decision.treatment !== 'igst', 'FOREIGN_NEEDS_LUT', `Confirm your Letter of Undertaking (LUT) in your plan to bill this client in their currency, or bill them in ${homeCurrency}.`);
+  check(decision.treatment === 'zero-rated-lut' || BigInt(decision.rateBps) === 0n, 'FOREIGN_NEEDS_LUT', `Tax on this sale is worked out in ${homeCurrency}, so bill this client in ${homeCurrency}.`);
 }
 
 /** One figure of a receipt by key, or null. */

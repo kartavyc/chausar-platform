@@ -102,8 +102,8 @@ export type YoutubeStep = {
 
 export const PACKAGE_SECTIONS: readonly string[] = Object.freeze(['Summary', 'Title and thumbnail', 'Description and chapters', 'Next steps']);
 const FLOOR = Object.freeze({
-  rights: 'Footage is cut only after you confirm the rights to it, at every posture.',
-  money: 'Paid generation spends money, so it asks you first at every posture.',
+  rights: 'Footage is cut only after you confirm the rights to it, with every approval setting.',
+  money: 'Paid generation spends money, so it asks you first with every approval setting.',
   send: 'Sending to a client always asks you first.',
   publish: 'Publishing is always yours. Chausar never posts a video.',
 });
@@ -335,7 +335,7 @@ const fail = (message: string): never => { throw new Error(message); };
 export function validateYoutubePlaybook(playbook: YoutubePlaybook): void {
   const steps = playbook.steps;
   const approvals = new Map(playbook.approvals.map(item => [item.id, item]));
-  if (steps.length !== 11+YOUTUBE_SERVICE_STEPS.length) fail('The YouTube channel playbook needs its media steps and every named service writing step.');
+  if (steps.length !== 11+YOUTUBE_SERVICE_STEPS.length) fail('The YouTube channel work plan needs its media steps and every named service writing step.');
   const rights = approvals.get('rights-at-intake');
   if (!rights || steps[0].gate !== 'rights-at-intake') fail('The first step must ask the owner to confirm the rights to the footage.');
   const cutting = steps.filter(step => step.clipping);

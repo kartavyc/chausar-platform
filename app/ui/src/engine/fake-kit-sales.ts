@@ -362,7 +362,7 @@ export class FakeKitSalesDesk {
 
   private card(p: Record<string, unknown>): GoNoGoCardView {
     for (const key of Object.keys(p)) if (!['playbook', 'subject', 'inputs'].includes(key)) throw invalid(`Unknown field: ${key}.`);
-    if (typeof p.playbook !== 'string' || !/^[a-z][a-z0-9-]{0,40}$/.test(p.playbook)) throw invalid('Name the playbook by its short id, or general.');
+    if (typeof p.playbook !== 'string' || !/^[a-z][a-z0-9-]{0,40}$/.test(p.playbook)) throw invalid('Name the work plan by its short id, or general.');
     const subject = typeof p.subject === 'string' ? p.subject.replace(/\s+/g, ' ').trim() : '';
     if (subject.length < 2 || subject.length > 120) throw invalid('What you are deciding must be between 2 and 120 characters.');
     const raw = p.inputs;

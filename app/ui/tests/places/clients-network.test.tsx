@@ -16,7 +16,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 type Fake = ReturnType<typeof createFakeClient>;
 type Override = (client: Fake) => void;
 
-async function start(hash = '#/clients/network', options: { override?: Override; client?: (client: Fake) => EngineClient; language?: 'en' | 'hi'; prepare?: (client: Fake) => Promise<void> } = {}) {
+async function start(hash = '#/clients/network', options: { override?: Override; client?: (client: Fake) => EngineClient; language?: 'en'; prepare?: (client: Fake) => Promise<void> } = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
   await options.prepare?.(fake);
@@ -101,11 +101,7 @@ describe('Network: the search box', () => {
     expect(screen.queryByRole('checkbox', { name: 'Also look outside my network' })).toBeNull();
   });
 
-  it('in Hindi the starters are the Hindi set', async () => {
-    await start('#/clients/network', { language: 'hi' });
-    await screen.findByRole('searchbox');
-    expect(screen.getByRole('button', { name: '6 महीने से चुप क्लाइंट' })).toBeTruthy();
-  });
+
 
   it('a search shows the engine\'s summary, the traits looked for, and each result with how you know them', async () => {
     const { spy } = await start();

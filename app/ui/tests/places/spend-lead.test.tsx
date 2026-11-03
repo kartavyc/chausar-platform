@@ -95,8 +95,8 @@ describe('4Z3: which currency leads AI spend', () => {
 
   it('Team: the spend tile and each department lead as the engine says, the department with the other amount alone', async () => {
     await start('#/team');
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
-    const spend = (await within(glance).findByText('AI spend this month')).closest('[data-card]') as HTMLElement;
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    const spend = (await within(glance).findByText('Monthly AI spend')).closest('[data-card]') as HTMLElement;
     await waitFor(() => expect(lead(spend)).toBe('₹60.10'));
     expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
     expect(spend.textContent).not.toContain('USD 0.7198');
@@ -141,7 +141,7 @@ describe('4Z3: which currency leads AI spend', () => {
   it('settings at rest say which currency leads; saving Dollars first changes the paid calls at once, with no navigation', async () => {
     await start('#/money/spend');
     const settings = await screen.findByRole('region', { name: 'Limits and rates' });
-    await waitFor(() => expect(settings.textContent).toContain('Shown first: Rupees, by where your business is'));
+    await waitFor(() => expect(settings.textContent).toContain('Shown first: Rupees, by business location'));
     const paid = await tile('Paid calls');
     // The sample's calls, engine-shaped: USD 0.5389 reserved and USD 0.5041 settled, led by rupees at ₹83.50.
     const billed = (await within(paid).findByText('Model calls for episode 14')).closest('li')!;
@@ -168,7 +168,7 @@ describe('4Z3: which currency leads AI spend', () => {
     expect(settings.textContent).not.toContain('USD 20.0000');
     cleanup();
     await start('#/team');
-    const glance = await screen.findByRole('region', { name: 'Team at a glance' });
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
     await waitFor(() => expect(glance.querySelector('[data-held]')?.textContent).toContain('including ₹18.00 held for running work: USD 0.22'));
     expect(glance.textContent).not.toContain('USD 0.2156');
     cleanup();

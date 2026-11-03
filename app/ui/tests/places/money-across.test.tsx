@@ -16,7 +16,7 @@ import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink
 type Call = [string, unknown];
 const NOW = '2026-10-23T08:00:00.000Z';
 
-function start(hash: string, options: { language?: 'en' | 'hi'; hosted?: boolean } = {}) {
+function start(hash: string, options: { language?: 'en'; hosted?: boolean } = {}) {
   window.location.hash = hash;
   const engine = new FakeEngine({ now: () => NOW, ...(options.hosted ? { hosted: true } : {}) });
   const base = createFakeClient(engine);
@@ -107,10 +107,5 @@ describe('Money w4: money across businesses, on its own page', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Money' })).queryByRole('link', { name: 'Businesses' })).toBeNull());
   });
 
-  it('words the lines in Hindi from the engine keys', async () => {
-    start('#/money/businesses', { language: 'hi' });
-    const sitara = await screen.findByRole('region', { name: 'Sitara Events' });
-    expect(sitara.textContent).toContain('Sitara Events पासफ़्रेज़ से बंद है');
-    assertInkRules();
-  });
+
 });

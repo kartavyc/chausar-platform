@@ -17,6 +17,7 @@ import { computePrice, handlers, taxTreatmentFor } from '../runtime/venture/mone
 import { booksPeriods } from '../runtime/venture/money/dates.ts';
 import { localDayAt, ventureTimeZone } from '../runtime/venture/local-day.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { blueprintUpdate, blueprintAccept } from '../runtime/venture/core/blueprint.ts';
 
 // Rule 23: the fixed clock is at or before real time; business dates are passed explicitly.
 const NOW = '2026-10-15T10:00:00.000Z';
@@ -184,6 +185,68 @@ async function seedTerms(env: Env) {
 }
 
 const INDIA_READY: BlueprintOptions = { status: 'accepted', registered: true, rateBps: '1800', taxId: GSTIN_27, taxState: '27', sacCode: '998222' };
+
+test('w6 country changes require exact plan acceptance, clear future prices and preserve historical invoices', async () => {
+  const env = await setup();
+  const original = await seedBlueprint(env, INDIA_READY);
+  const { client, order } = await orderFor(env, { name: 'Synthetic Cafe', countryCode: 'IN', stateCode: '27' });
+  const before = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+  const changed = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'US' }, basedOn: { blueprintId: original.id, digest: original.digest } });
+  assert.equal(listRecords(env.store.read(), 'venture-record')[0].country.code, 'IN');
+  assert.equal(changed.blueprint.backOffice.currency, 'USD');
+  assert.ok(changed.blueprint.offers.every(item => item.pricing.unitPriceMinor === null));
+  assert.equal(changed.blueprint.backOffice.taxRegistered.value, false);
+  assert.equal(changed.blueprint.backOffice.taxId, null);
+  await assert.rejects(blueprintAccept(env.deps, { ...owner, channel: 'phone' }, { digest: changed.blueprint.digest }), code('APP_APPROVAL_REQUIRED'));
+  await blueprintAccept(env.deps, owner, { digest: changed.blueprint.digest });
+  assert.equal(listRecords(env.store.read(), 'venture-record')[0].country.code, 'US');
+  assert.deepEqual(listRecords(env.store.read(), 'venture-blueprint').find(item => item.id === original.id), original);
+  await assert.rejects(call(env, 'venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'New monthly books please.' }), code('PRICE_REQUIRED'));
+  const after = await call(env, 'venture.invoice.get', { invoiceId: before.invoice.id });
+  assert.equal(after.documentText, before.documentText);
+  assert.deepEqual(after.receipt, before.receipt);
+  const redrafted = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+  assert.equal(redrafted.invoice.totalMinor, '294882');
+  assert.equal(redrafted.invoice.currency, 'INR');
+  assert.equal(redrafted.invoice.supplierTaxId, GSTIN_27);
+  assert.equal(redrafted.documentText, before.documentText);
+  const priced = await blueprintUpdate(env.deps, owner, { patch: { offers: [{ id: 'offer_1', unitPrice: '125' }] } });
+  await blueprintAccept(env.deps, owner, { digest: priced.blueprint.digest });
+  const next = await call(env, 'venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'New monthly books please.' });
+  const receipt = listRecords(env.store.read(), 'venture-price-receipt').find(item => item.id === next.priceReceiptId)!;
+  assert.equal(receipt.currency, 'USD');
+  assert.equal(receipt.totalMinor, '12500');
+  const dollars = await call(env, 'venture.invoice.prepare', { orderId: next.id, issueDate: '2026-10-02' });
+  const japan = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'JP' } });
+  await blueprintAccept(env.deps, owner, { digest: japan.blueprint.digest });
+  assert.equal(listRecords(env.store.read(), 'venture-record')[0].originalCountry?.code, 'IN');
+  const dollarHistory = await call(env, 'venture.invoice.get', { invoiceId: dollars.invoice.id });
+  assert.equal(dollarHistory.documentText, dollars.documentText);
+  assert.equal(dollarHistory.country?.code, 'US');
+  const dollarAgain = await call(env, 'venture.invoice.prepare', { orderId: next.id, issueDate: '2026-10-02' });
+  assert.equal(dollarAgain.invoice.currency, 'USD');
+  assert.equal(dollarAgain.invoice.totalMinor, '12500');
+  const oldIssued = await call(env, 'venture.invoice.issue', { invoiceId: redrafted.invoice.id, digest: redrafted.invoice.digest });
+  assert.equal(oldIssued.invoice.currency, 'INR');
+  const paid = await call(env, 'venture.payment.record', { invoiceId: oldIssued.invoice.id, amount: '100', receivedOn: '2026-10-04', method: 'bank-transfer', tds: { section: '194J', amount: '10' } });
+  assert.equal(paid.payments[0].currency, 'INR');
+  assert.equal(paid.payments[0].tds?.amountMinor, '1000');
+  assert.equal(paid.country?.code, 'IN');
+  const delivered = await call(env, 'venture.order.deliver', { orderId: order.id, deliveredOn: '2026-10-04' });
+  const sale = env.store.read().facts.find(item => item.id === delivered.saleFactId)!;
+  assert.equal(sale.fields.currency, 'INR');
+  assert.equal(sale.fields.amountMinor, '249900');
+});
+
+test('w6 selecting the same country preserves prices and invalid country changes make no draft', async () => {
+  const env = await setup();
+  const original = await seedBlueprint(env, INDIA_READY);
+  await assert.rejects(blueprintUpdate(env.deps, owner, { patch: { countryCode: 'ZZ' } }), code('UNKNOWN_COUNTRY'));
+  assert.equal(listRecords(env.store.read(), 'venture-blueprint').length, 1);
+  const same = await blueprintUpdate(env.deps, owner, { patch: { countryCode: 'IN' } });
+  assert.deepEqual(same.blueprint.offers, original.offers);
+  assert.deepEqual(same.blueprint.backOffice, original.backOffice);
+});
 
 async function orderFor(env: Env, client: Record<string, unknown>, order: Record<string, unknown> = {}) {
   const added = await call(env, 'venture.client.add', client);
@@ -501,6 +564,7 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.deepEqual(inv.lines, [{ description: 'Monthly books', quantity: '1', unitMinor: '249900', amountMinor: '249900', taxRateBps: '1800' }]);
   assert.match(inv.digest, /^[a-f0-9]{64}$/);
   assert.equal(view.receipt.id, inv.priceReceiptId);
+  assert.equal(view.documentText.includes(inv.priceReceiptId), false, 'the client copy must not expose the internal receipt id');
   assert.deepEqual(view.receipt.subject, { type: 'invoice', invoiceId: inv.id });
   assert.deepEqual(view.figures.map(f => [f.key, f.label, f.display]), [
     ['subtotal', 'Subtotal', 'INR 2,499.00'], ['cgst', 'CGST at 9%', 'INR 224.91'], ['sgst', 'SGST at 9%', 'INR 224.91'],
@@ -535,7 +599,6 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
     'Paid  INR 0.00',
     'Balance  INR 2,948.82',
     '----------------------------------------',
-    `Every number on this invoice has a receipt in Chausar: ${inv.priceReceiptId}`,
     'Practice invoice from an experimental Chausar build.',
   ].join('\n'));
 
@@ -572,7 +635,7 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   // A second order gets the next number.
   const next = await orderFor(env, { name: 'Bengaluru Bakes', taxId: GSTIN_29 });
   const draft2 = await call(env, 'venture.invoice.prepare', { orderId: next.order.id, issueDate: '2026-10-03' });
-  assert.equal(draft2.invoice.dueDate, '2026-10-18'); // default 15 days
+  assert.equal(draft2.invoice.dueDate, '2026-10-10'); // the default 7 days (wave 6, 6D1)
   assert.equal(draft2.invoice.taxTreatment, 'igst');
   assert.deepEqual(draft2.invoice.taxLines, [{ label: 'IGST at 18%', rateBps: '1800', minor: '44982' }]);
   assert.equal(draft2.invoice.placeOfSupply, 'Karnataka (29)');
@@ -582,6 +645,21 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.equal(issued2.invoice.number, 'INV-0002');
   assert.equal(env.store.read().facts.find(f => f.id === issued2.invoice.factIds[0])!.sourceRow, 2);
   assert.deepEqual((await call(env, 'venture.invoice.list', {})).map(i => i.number), ['INV-0002', 'INV-0001']);
+});
+
+test('issued desktop invoices have no practice line while hosted invoices retain the storage warning', async () => {
+  for (const host of ['desktop', 'hosted-web'] as const) {
+    const env = await setup('IN');
+    env.deps.host = host;
+    await seedBlueprint(env, { status: 'accepted' });
+    const { order } = await orderFor(env, { name: 'Synthetic storage client', stateCode: '27' });
+    const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+    const issued = await call(env, 'venture.invoice.issue', { invoiceId: draft.invoice.id, digest: draft.invoice.digest });
+    assert.equal(issued.invoice.status, 'issued');
+    assert.equal(issued.receipt.id, issued.invoice.priceReceiptId);
+    assert.equal(issued.documentText.includes('Practice invoice'), host === 'hosted-web');
+    assert.equal(issued.notes.includes(EXPERIMENTAL), host === 'hosted-web');
+  }
 });
 
 test('invoice titles follow the owner settings and the experimental notice follows the storage', async () => {
@@ -816,7 +894,7 @@ test('one day basis: today, the invoice date and the books period are the local 
   env.deps.clock = () => new Date('2026-10-14T20:00:00.000Z');
   const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id });
   assert.equal(draft.invoice.issueDate, '2026-10-15');
-  assert.equal(draft.invoice.dueDate, '2026-10-30'); // 15 October plus the default 15 days
+  assert.equal(draft.invoice.dueDate, '2026-10-22'); // 15 October plus the default 7 days (wave 6, 6D1)
   const summary = await call(env, 'venture.books.summary', {});
   assert.equal(summary.today, '2026-10-15');
   assert.equal(summary.timeZone, 'Asia/Kolkata');
@@ -913,7 +991,6 @@ test('a JPY venture runs end to end with zero minor digits', async () => {
     'Paid  JPY 0',
     'Balance  JPY 11,000',
     '----------------------------------------',
-    `Every number on this invoice has a receipt in Chausar: ${issued.invoice.priceReceiptId}`,
   ].join('\n'));
   assert.equal(env.calculator.receipt(owner, issued.invoice.booksReceiptId!).totalMinor, '10000');
   await assert.rejects(call(env, 'venture.payment.record', { invoiceId: issued.invoice.id, amount: '11000.5', receivedOn: '2026-10-05', method: 'card' }), code('INVALID_AMOUNT'));
@@ -963,7 +1040,7 @@ test('every error code the money package throws is a listed venture code or a kn
 
 test('handlers cover exactly the money methods: eighteen, the twenty-one Ink v2 wave 4 added, and 4J5\'s bills.stop', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'money');
-  assert.equal(owned.length, 40);
+  assert.equal(owned.length, 47); // The three per-client AI consent handlers and wave 6's billing, PDF and payment link (6D) belong to money.
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');

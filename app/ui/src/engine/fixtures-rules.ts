@@ -51,7 +51,7 @@ export function rulesListFor(playbook: { id: string; label: string } | null | un
   const review = playbook ? PLAYBOOK_REVIEW[playbook.id] : undefined;
   // 5A3: the dev page's ?kit-sample shows a kit playbook's rules, recipes and boundaries (no kit playbook has landed yet).
   if (devAsksKitSample()) return kitSampleRules(today);
-  if (!playbook || !review) return { playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.', recipes: [], boundaries: [] };
+  if (!playbook || !review) return { playbook: null, rules: [], summary: 'This business has no work instructions with dated platform rules.', recipes: [], boundaries: [] };
   const sample = RULE_DATA[playbook.id] ?? [];
   const rules = sample.map((rule) => viewOf(rule, today));
   const stale = rules.filter((rule) => rule.stale).length;
@@ -62,7 +62,7 @@ export function rulesListFor(playbook: { id: string; label: string } | null | un
     // A playbook with no dated platform rules (the CA firm dates its rate tables on Your CA) gets the engine's words.
     summary: rules.length
       ? `${rules.length - stale - unsure} current, ${stale} to recheck${unsure ? `, ${unsure} not confirmed against a source yet` : ''}.`
-      : 'This playbook rests on no dated platform rules.',
+      : 'These work instructions have no dated platform rules.',
     // 5A3: recipes and boundaries come from a kit playbook's definition; the flagships have none.
     recipes: [], boundaries: [],
   };

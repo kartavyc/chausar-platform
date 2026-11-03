@@ -9,7 +9,7 @@ import { EngineError, type DeliveryLite, type DraftPostLite, type MethodName, ty
 // shows its words.
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 async function start(hash: string, options: StartOptions = {}) {
   window.location.hash = hash;
@@ -131,11 +131,7 @@ describe('Work: posting an approved draft', () => {
     expect(screen.queryByRole('button', { name: 'Post to X' })).toBeNull();
   });
 
-  it('in Hindi too', async () => {
-    await start('#/work?order=o-boat-14', { language: 'hi', intercept: { 'venture.delivery.list': deliveries, 'venture.share.list': shareList(approved) } });
-    const line = (await screen.findByText('Our cafe opens at 8 every weekday.')).closest('li')!;
-    expect(within(line).getByRole('button').textContent).not.toBe('Post to X');
-  });
+
 });
 
 describe('the fake engine posts by the engine rules', () => {

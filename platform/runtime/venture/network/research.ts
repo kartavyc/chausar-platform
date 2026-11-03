@@ -26,6 +26,7 @@ import { firstName } from './saved-searches.ts';
 import { fold, plural } from './text.ts';
 import { judgeClaim } from '../delivery/research-rules.ts';
 import { checkFetchPolicy, robotsSafe } from '../build/fetch-policy.ts';
+import { savedWebSearch } from '../web/search.ts';
 
 /** At most this many pages are opened for one brief, this many lines kept from one page, and this many lines in all. */
 export const MAX_PAGES = 4;
@@ -194,13 +195,15 @@ export async function networkResearch(deps: VentureDeps, ctx: Context, payload: 
   check(venture.country, 'INVALID_VENTURE_REQUEST', 'Finish your business\'s first steps, starting with its country, before you look anyone up.');
   const person = (state.conversations as PersonRecord[]).find(record => record?.kind === 'venture-person' && record.id === personId && record.ventureId === venture.id);
   check(person, 'INVALID_VENTURE_REQUEST', 'This person is not in your network.');
-  if (!deps.webSearch) return { lines: [], line: NOT_SET_UP, web: 'not-set-up' };
+  // 6F3: the host's own search, else the owner's saved Brave, Exa or Tavily key (web/search.ts).
+  const web = await savedWebSearch(deps);
+  if (!web) return { lines: [], line: NOT_SET_UP, web: 'not-set-up' };
   const name = person.facts.find(fact => fact.kind === 'name')?.value ?? null;
   check(name && !holdsIdNumber(name), 'INVALID_VENTURE_REQUEST', 'Chausar needs their name to look them up, and none of your files gave one.');
   const company = person.role?.company && !holdsIdNumber(person.role.company) ? person.role.company : null;
   let found: { url: string }[];
   try {
-    found = await deps.webSearch.search(screenReadback(`"${name}"${company ? ` ${company}` : ''}`).text, { limit: MAX_PAGES * 2 });
+    found = await web.search(screenReadback(`"${name}"${company ? ` ${company}` : ''}`).text, { limit: MAX_PAGES * 2 });
   } catch {
     return { lines: [], line: 'The web search did not answer, so nothing was looked up. Try again later.', web: 'failed' };
   }

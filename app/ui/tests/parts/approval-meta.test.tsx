@@ -28,12 +28,12 @@ const invoice: QueueRow = {
 
 const quote: QueueRow = {
   id: 'run:r1:send-c1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Editor', kind: 'quote', createdAt: at, digest: 'd2',
-  title: 'Send the draft to your AI', line: 'The judge reads it on your own AI; each check costs up to ₹2.10.',
+  title: 'Send the draft to your AI', line: 'Quality check reads it on your own AI; each check costs up to ₹2.10.',
   actions: [{ id: 'deny', label: 'No', primary: false }, { id: 'approve', label: 'Approve', primary: true }],
   meta: { client: null, business: 'Lumen Studio', at, quoteFixes: ['Moved the quote "five mics" to 04:12, where the transcript says it.'] },
   price: { display: '₹4.20', receiptId: 'fig:cost:r1:c1', line: 'Nothing spent yet', free: 'Or use the built-in template, free' },
   amounts: [
-    { text: '₹2.10', where: 'line', start: 58, length: 5, receiptId: 'fig:judge:r1:c1' },
+    { text: '₹2.10', where: 'line', start: 62, length: 5, receiptId: 'fig:judge:r1:c1' },
     { text: '₹4.20', where: 'price', start: 0, length: 5, receiptId: 'fig:cost:r1:c1' },
   ],
 };
@@ -232,7 +232,7 @@ describe('Ctrl+Enter approves only a plain yes or no (O7)', () => {
     const tools = (given: ApprovalToolsApi) => { api = given; return null; };
     const { article } = card(plain, { tools });
     const undo = vi.fn(async () => 'Restored until you edit this again.');
-    await act(async () => { api!.finish({ outcome: 'done', line: 'Sent back. The revision waits for your approval before anything goes to your AI.' }, undo); });
+    await act(async () => { api!.finish({ outcome: 'done', line: 'Sent back. The revised draft will wait for your review.' }, undo); });
     const decided = document.querySelector('[data-decided]')!;
     expect(decided.textContent).toContain('Sent back.');
     await act(async () => { fireEvent.click(within(decided as HTMLElement).getByRole('button', { name: 'Undo' })); });

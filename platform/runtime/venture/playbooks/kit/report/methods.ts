@@ -36,7 +36,7 @@ function slug(title: string): string {
   return title.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '') || 'report';
 }
 
-/** The report as DOCX sections: each heading starts one; figures show their receipt; estimates and quotes say so. */
+/** The client DOCX keeps figure provenance in the vault; estimates and quotes say so. */
 function docxSections(blocks: readonly ReportBlock[]): { heading: string; paragraphs: string[] }[] {
   const sections: { heading: string; paragraphs: string[] }[] = [];
   const current = () => sections.at(-1) ?? (sections.push({ heading: 'Report', paragraphs: [] }), sections[0]);
@@ -44,16 +44,16 @@ function docxSections(blocks: readonly ReportBlock[]): { heading: string; paragr
     if (block.kind === 'heading') { sections.push({ heading: block.estimate ? `${block.text} (${REPORT_WORDS.estimate.toLowerCase()})` : block.text, paragraphs: [] }); continue; }
     const into = current().paragraphs;
     if (block.kind === 'prose') into.push(block.estimate ? `${block.text} (${REPORT_WORDS.estimate.toLowerCase()})` : block.text);
-    else if (block.kind === 'metric') into.push(`${block.label}: ${block.display} (receipt ${block.receiptId})`);
-    else if (block.kind === 'bars') into.push(block.label, ...block.bars.map(bar => `${bar.label}: ${bar.display} (receipt ${bar.receiptId})`));
+    else if (block.kind === 'metric') into.push(`${block.label}: ${block.display} (${REPORT_WORDS.calculated})`);
+    else if (block.kind === 'bars') into.push(block.label, ...block.bars.map(bar => `${bar.label}: ${bar.display} (${REPORT_WORDS.calculated})`));
     else into.push(`"${block.text}"${block.by ? `, ${block.by}` : ''} (${REPORT_WORDS.asWritten.toLowerCase()})`);
   }
   return sections;
 }
 
-/** The report's figures as one sheet: each metric and bar, its value (money as text with its decimals), scope and receipt. */
+/** The client's figures: exact values and scope, without internal receipt identifiers. */
 function figureRows(blocks: readonly ReportBlock[], currency: string, minors: Map<string, string>): XlsxCell[][] {
-  const rows: XlsxCell[][] = [['Figure', 'Value', 'Channel', 'From', 'To', 'Receipt']];
+  const rows: XlsxCell[][] = [['Figure', 'Value', 'Channel', 'From', 'To', 'Source']];
   const value = (receiptId: string, key: string, unit: string, display: string): XlsxCell => {
     const minor = minors.get(`${receiptId}|${key}`);
     if (minor !== undefined && unit === 'money') return { money: minor, digits: currencyMinorDigits(currency) };
@@ -61,8 +61,8 @@ function figureRows(blocks: readonly ReportBlock[], currency: string, minors: Ma
     return display;
   };
   for (const block of blocks) {
-    if (block.kind === 'metric') rows.push([block.label, value(block.receiptId, block.key, block.unit, block.display), block.channel, block.from, block.to, block.receiptId]);
-    if (block.kind === 'bars') for (const bar of block.bars) rows.push([`${block.label}: ${bar.label}`, value(bar.receiptId, bar.key, 'text', bar.display), block.channel, block.from, block.to, bar.receiptId]);
+    if (block.kind === 'metric') rows.push([block.label, value(block.receiptId, block.key, block.unit, block.display), block.channel, block.from, block.to, REPORT_WORDS.calculated]);
+    if (block.kind === 'bars') for (const bar of block.bars) rows.push([`${block.label}: ${bar.label}`, value(bar.receiptId, bar.key, 'text', bar.display), block.channel, block.from, block.to, REPORT_WORDS.calculated]);
   }
   if (rows.length === 1) rows.push(['This report has no figures.']);
   return rows;

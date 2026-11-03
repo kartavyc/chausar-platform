@@ -34,6 +34,17 @@ async function setup(request: CalculationRequest = { operation: 'billed', period
 }
 const rejectsCode = (work: () => unknown, code: string) => assert.throws(work, error => error instanceof ChausarError && error.code === code);
 
+test('recovery retains an explicit currency scope and refuses changed receipt currency evidence', async () => {
+  const value = await setup({ operation: 'billed', period: eventPeriod, currency: 'INR' });
+  const evidence = value.evidence();
+  const plan = prepareAnswerRecovery(evidence, value.declare());
+  assert.equal(plan.request.currency, 'INR');
+  for (const field of ['currency', 'requestedCurrency'] as const) {
+    const changed = structuredClone(evidence); changed.receipt[field] = 'USD';
+    rejectsCode(() => explainAnswerRecovery(changed), 'ANSWER_RECOVERY_SOURCE_CHANGED');
+  }
+});
+
 test('disclosure identifies the exact legacy request without exposing a fabricated historical cutoff', async () => {
   const value = await setup(); const evidence = value.evidence(), original = structuredClone(evidence);
   const review = explainAnswerRecovery(evidence);

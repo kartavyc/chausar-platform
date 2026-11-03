@@ -12,6 +12,7 @@
  * The rows are the fake's own sample connections; nothing here is a real check.
  */
 
+import { isFamilyId } from '../../../../platform/runtime/venture/core/families';
 import { EngineError, type ConnectorCardLite, type ConnectorCheckRow, type ConnectorGuideLite, type ConnectorLadder, type ConnectorChecksView, type FileRequestView, type ModelStatusLite, type OwnerView, type SettingsDraftView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import GUIDES from './fixtures-guides.json';
@@ -58,7 +59,7 @@ function singleLine(value: unknown, what: string, max: number): string {
   return value.trim();
 }
 
-interface Profile { firstName: string | null; excludedServices: string[] }
+interface Profile { firstName: string | null; excludedServices: string[]; familyId?: string }
 interface HeldDraft { business: string; form: string; values: unknown; at: string; clearedAt: string | null }
 
 export class FakeSetupDesk {
@@ -106,12 +107,14 @@ export class FakeSetupDesk {
 
   private view(): OwnerView {
     const profile = this.profile();
-    return { firstName: profile.firstName, excludedServices: [...profile.excludedServices], businessName: this.businessName() };
+    return { firstName: profile.firstName, excludedServices: [...profile.excludedServices], businessName: this.businessName(), ...(profile.familyId ? { familyId: profile.familyId } : {}) };
   }
 
   private setOwner(p: Record<string, unknown>): OwnerView {
-    exact(p, ['firstName', 'excludedServices']);
+    exact(p, ['firstName', 'excludedServices', 'familyId']);
     if (Object.keys(p).length === 0) throw invalid('Send your first name, the services you do not sell, or both.');
+    // W6 6C2: the family the plan was kept with (core/owner.ts).
+    if ('familyId' in p && p.familyId !== null && !isFamilyId(p.familyId)) throw invalid('Choose one of the listed fields.');
     let firstName: string | null | undefined;
     if ('firstName' in p) {
       if (p.firstName === null) firstName = null;
@@ -137,7 +140,8 @@ export class FakeSetupDesk {
       }
     }
     const before = this.profile();
-    const next: Profile = { firstName: firstName === undefined ? before.firstName : firstName, excludedServices: services ?? before.excludedServices };
+    const familyId = 'familyId' in p ? (p.familyId as string | null) : before.familyId ?? null;
+    const next: Profile = { firstName: firstName === undefined ? before.firstName : firstName, excludedServices: services ?? before.excludedServices, ...(familyId ? { familyId } : {}) };
     this.profiles.set(this.host.current(), next);
     this.clearDraft('owner', p);
     const removed = firstName === null && before.firstName !== null;

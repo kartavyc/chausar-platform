@@ -1,7 +1,7 @@
 // Chausar playbook kit (Ink v2 wave 5, package 5A5, P11): a client report as one self-contained HTML file. Its only
 // style is inside it, allowed by its own hash; it loads nothing (no script, image, font or address outside it), so it
 // opens the same offline, attached to a mail or on the hosted page. The only address it may carry is the report's own
-// share link. Every value is escaped; Hindi words are marked lang="hi"; figures show their receipt; a title, heading or
+// share link. Every value is escaped; Hindi words are marked lang="hi"; figure sources stay private; a title, heading or
 // prose with a number no receipt backs says "Model estimate"; a quote says "Shown as written". Bars are drawn by width
 // classes, never an inline style. The same input gives the same bytes: the date it shows is passed in. The idea of a report renderer
 // with typed blocks comes from beyondseo (MIT), catalogue row P11; no code of it was read or copied. Written for Chausar.
@@ -16,7 +16,7 @@ export type ReportDocument = { title: string; titleEstimate?: boolean; business:
 export const REPORT_WORDS = Object.freeze({
   estimate: 'Model estimate',
   asWritten: 'Shown as written',
-  receipt: 'Receipt',
+  calculated: 'Calculated in Chausar',
   preparedBy: 'Prepared by',
   asOf: 'As of',
   footer: 'Every figure comes from a receipt Chausar keeps. Words with a number and no receipt are marked as a model estimate.',
@@ -58,12 +58,12 @@ function block(item: ReportBlock): string {
     case 'prose': return words('p', item.text) + (item.estimate ? `<p class="note">${REPORT_WORDS.estimate}</p>` : '');
     case 'metric':
       return `<div class="metric">${words('p', item.label, 'label')}${words('p', item.display, 'value')}`
-        + `<p class="src">${REPORT_WORDS.receipt} ${escapeHtml(item.receiptId)}, ${escapeHtml(item.key)}</p></div>`;
+        + `<p class="src">${REPORT_WORDS.calculated}</p></div>`;
     case 'bars':
       return `<div class="bars">${words('p', item.label, 'label')}${item.bars.map(bar => {
         const width = Math.min(100, Math.max(0, Math.round(bar.width / 5) * 5));
         return `<div class="bar">${words('span', bar.label)}<span class="track"><span class="fill w${width}"></span></span>${words('span', bar.display)}</div>`;
-      }).join('')}<p class="src">${REPORT_WORDS.receipt} ${[...new Set(item.bars.map(bar => bar.receiptId))].map(escapeHtml).join(', ')}</p></div>`;
+      }).join('')}<p class="src">${REPORT_WORDS.calculated}</p></div>`;
     case 'quote':
       return `<blockquote>${words('p', item.text)}${item.by ? words('p', item.by, 'mute') : ''}<p class="note">${REPORT_WORDS.asWritten}</p></blockquote>`;
   }

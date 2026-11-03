@@ -72,7 +72,7 @@ export function validateBaseline(raw: unknown): BaselineFile {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) bad('The baseline file is not an object.');
   const file = raw as Record<string, unknown>;
   if (file.version !== 1) bad('The baseline file must be version 1.');
-  if (!isText(file.playbook, 41) || !PLAYBOOK_NAME.test(file.playbook)) bad('The baseline file needs a short lowercase playbook name.');
+  if (!isText(file.playbook, 41) || !PLAYBOOK_NAME.test(file.playbook)) bad('The baseline file needs a short lowercase work plan name.');
   if (!isText(file.recordedAt, 40) || !isText(file.recordedFrom, 400)) bad('The baseline file must say when and from what it was recorded.');
   if (!Array.isArray(file.cases) || file.cases.length < 1 || file.cases.length > MAX_CASES) bad(`The baseline file needs between one and ${MAX_CASES} cases.`);
   const cases = (file.cases as unknown[]).map(validateCase);
@@ -89,13 +89,13 @@ export function validateBaseline(raw: unknown): BaselineFile {
 
 /** Loads a committed baseline by playbook name from the baselines folder, or from a folder given. */
 export async function loadBaseline(playbook: string, dir: URL = BASELINE_DIR): Promise<BaselineFile> {
-  check(PLAYBOOK_NAME.test(playbook), 'INVALID_VENTURE_REQUEST', 'A playbook name is short and lowercase.');
+  check(PLAYBOOK_NAME.test(playbook), 'INVALID_VENTURE_REQUEST', 'A work plan name is short and lowercase.');
   let text: string;
   try { text = await readFile(new URL(`${playbook}.json`, dir), 'utf8'); } catch {
-    throw new ChausarError('PLAYBOOK_NOT_FOUND', `There is no baseline for the ${playbook} playbook.`);
+    throw new ChausarError('PLAYBOOK_NOT_FOUND', `There is no baseline for the ${playbook} work plan.`);
   }
   const file = validateBaseline(JSON.parse(text));
-  check(file.playbook === playbook, 'INVALID_VENTURE_REQUEST', `The baseline file for ${playbook} names another playbook.`);
+  check(file.playbook === playbook, 'INVALID_VENTURE_REQUEST', `The baseline file for ${playbook} names another work plan.`);
   return file;
 }
 
