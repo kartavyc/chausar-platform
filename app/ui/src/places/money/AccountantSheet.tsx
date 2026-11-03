@@ -85,7 +85,8 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
               </p>
             )
             : link.reason && <p className={s.quietLine} data-engine-line="">{link.reason}</p>}
-          <p className={s.quietLine}>{t('money.accountant.until', { when: moment(link.expiresAt) })}</p>
+          {/* One-shot A4 (row 29): how long a link stays open is said only for a link that opens. */}
+          {link.url && <p className={s.quietLine}>{t('money.accountant.until', { when: moment(link.expiresAt) })}</p>}
           {!link.url && <p className={s.quietLine}>{t('money.accountant.export')}</p>}
           <div className={s.buttons}>
             <Button disabled={busy} onClick={() => void revoke(link.id)}>{t('money.accountant.revoke')}</Button>
