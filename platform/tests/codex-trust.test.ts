@@ -293,3 +293,52 @@ test('the unsealed choice is kept only where there is no sealed store; a broken 
   const closed = new EventEmitter() as any; closed.connected = false;
   assert.equal(await loads(processCredentialPort(closed, { noStore: true })), null, 'a closed channel');
 });
+
+// A2 second review (L2): each line of the decision journal is sealed over the line before it, so an edited, removed or
+// reordered line shows when the journal is read. A seal key that cannot be read offers a fresh look, never a dead end.
+test('the decision journal is a chain: every line checks against the one before, and a changed or missing line shows', async t => {
+  const root = await folder(t), path = await program(root);
+  const seal = sealStore();
+  const environment = { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') };
+  const trust = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  await trust.record((await trust.review(path)).sha256);
+  await writeFile(path, 'a changed program');
+  await assert.rejects(trust.verifiedProgram(), { code: 'CODEX_SETUP_CHANGED' });
+  await trust.record((await trust.review(path)).sha256);
+  const read = await trust.decisions();
+  assert.equal(read.intact, true);
+  assert.deepEqual(read.entries.map(entry => [entry.decision, entry.sha256]), [['chose', sha256('synthetic codex program bytes')], ['dropped', sha256('synthetic codex program bytes')], ['chose', sha256('a changed program')]]);
+  const file = join(root, 'trust', 'decisions.jsonl');
+  const lines = (await readFile(file, 'utf8')).trim().split('\n');
+  // The same three lines with the middle one left out: each line's own seal still checks, the chain does not.
+  await writeFile(file, [lines[0], lines[2]].join('\n') + '\n');
+  assert.equal((await trust.decisions()).intact, false, 'a removed line shows');
+  const edited = JSON.parse(lines[1]!); edited.version = '0.200.0';
+  await writeFile(file, [lines[0], JSON.stringify(edited), lines[2]].join('\n') + '\n');
+  assert.equal((await trust.decisions()).intact, false, 'an edited line shows');
+  await writeFile(file, [lines[1], lines[0], lines[2]].join('\n') + '\n');
+  assert.equal((await trust.decisions()).intact, false, 'a reordered line shows');
+});
+
+test('an unreadable seal key offers a fresh look at the Codex, and the next yes is kept', async t => {
+  const root = await folder(t), path = await program(root);
+  const environment = { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') };
+  let corrupt = true, replaced = 0;
+  const saved = new Map<string, string>();
+  const seal: CodexSeal = {
+    async get(workspaceId, name) { if (corrupt) throw Object.assign(new Error('x'), { code: 'CREDENTIAL_INVALID' }); return saved.get(`${workspaceId}/${name}`) ?? null; },
+    async set(workspaceId, name, value) { corrupt = false; replaced += 1; saved.set(`${workspaceId}/${name}`, value); },
+  };
+  const trust = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  const view = await trust.review(path);
+  await assert.rejects(trust.record(view.sha256), { code: 'CODEX_SETUP_CHANGED', message: SETUP_WORDS.resealed });
+  assert.equal(replaced, 1, 'a new key was made');
+  assert.equal(trust.profile(), null);
+  await assert.rejects(readFile(join(root, 'trust', 'trusted.json')), { code: 'ENOENT' });
+  const again = await trust.review(path);
+  assert.equal(again.state, 'review', 'the owner is shown the Codex again');
+  assert.equal((await trust.record(again.sha256)).origin, 'owner');
+  const later = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  await later.load();
+  assert.equal(later.origin(), 'owner', 'sealed with the new key');
+});

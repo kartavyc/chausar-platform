@@ -84,6 +84,8 @@ export const SETUP_WORDS = Object.freeze({
   noFolder: "Chausar can't keep a chosen Codex here.",
   noSetup: 'Choose the Codex Chausar found under Connect your AI first.',
   changed: 'That Codex changed since you looked at it. Check it again.',
+  // A2 second review: the seal key could not be read; a new one was made, and the owner looks again before choosing.
+  resealed: 'Chausar could not read the lock on your Codex choice and made a new one. Check the Codex again.',
 });
 
 const sha256Of = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
@@ -167,6 +169,20 @@ async function loadSetup(manifest: string, sha256: string, base: Omit<GatewayOpt
 /** The sealed fields of the owner's choice, in a fixed order. */
 const sealText = (pin: { manifest: string; sha256: string; programSha256: string; at: string }) => JSON.stringify([pin.manifest, pin.sha256, pin.programSha256, pin.at]);
 const macOf = (key: string, text: string) => createHmac('sha256', Buffer.from(key, 'hex')).update(text).digest('hex');
+/** One line of the decision journal, without its seal, in a fixed order. */
+export type CodexDecision = { at: string; decision: 'chose' | 'dropped'; by: 'owner'; sha256: string | null; version: string | null; path: string | null };
+const DECISIONS_FILE = 'decisions.jsonl';
+/** A2 second review: a journal line's seal covers the line before it (its seal, '' for the first), so lines chain. */
+const chainText = (previous: string, entry: CodexDecision) => JSON.stringify([previous, entry.at, entry.decision, entry.by, entry.sha256, entry.version, entry.path]);
+function decisionOf(value: unknown): CodexDecision | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  const text = (field: unknown) => (field === null || typeof field === 'string' ? field : undefined);
+  if (typeof v.at !== 'string' || (v.decision !== 'chose' && v.decision !== 'dropped') || v.by !== 'owner') return null;
+  const sha256 = text(v.sha256), version = text(v.version), path = text(v.path);
+  if (sha256 === undefined || version === undefined || path === undefined) return null;
+  return { at: v.at, decision: v.decision, by: 'owner', sha256, version, path };
+}
 function sameMac(a: unknown, b: string): boolean {
   if (typeof a !== 'string' || !/^[a-f0-9]{64}$/.test(a)) return false;
   return timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
@@ -218,6 +234,8 @@ export class CodexTrust {
   #looked = new Map<string, { key: string; view: CodexSetupView }>();
   /** Reviews under way, by found path, so a poll joins the one already running. */
   #inflight = new Map<string, Promise<CodexSetupView>>();
+  /** A2 second review: journal lines are written one at a time, each chained to the one before. */
+  #journalQueue: Promise<void> = Promise.resolve();
 
   constructor(options: CodexTrustOptions = {}) { this.#options = options; }
 
@@ -266,17 +284,57 @@ export class CodexTrust {
     return key;
   }
 
-  /** A2 review: one sealed line per choice, appended to the trust folder's decision journal. */
-  async #journal(decision: 'chose' | 'dropped', fields: { sha256: string | null; version: string | null; path: string | null }): Promise<void> {
-    const folder = this.#trustFolder();
-    if (!folder) return;
-    try {
-      const entry = { at: this.#now(), decision, by: 'owner', ...fields };
+  /**
+   * A2 review: one sealed line per choice, appended to the trust folder's decision journal. A2 second review: each
+   * line's seal covers the seal of the line before it, so a removed, edited or reordered line breaks the chain.
+   */
+  #journal(decision: 'chose' | 'dropped', fields: { sha256: string | null; version: string | null; path: string | null }): Promise<void> {
+    const entry: CodexDecision = { at: this.#now(), decision, by: 'owner', sha256: fields.sha256, version: fields.version, path: fields.path };
+    const work = this.#journalQueue.then(async () => {
+      const folder = this.#trustFolder();
+      if (!folder) return;
       const key = await this.#sealKey(decision === 'chose');
-      const line = JSON.stringify({ ...entry, ...(key ? { mac: macOf(key, JSON.stringify(entry)) } : {}) });
+      const file = join(folder, DECISIONS_FILE);
+      let previous = '';
+      if (key) {
+        const last = (await readFile(file, 'utf8').catch(() => '')).trim().split('\n').at(-1) ?? '';
+        try { const mac = (JSON.parse(last) as { mac?: unknown }).mac; previous = typeof mac === 'string' ? mac : ''; } catch { previous = ''; }
+      }
+      const line = JSON.stringify({ ...entry, ...(key ? { mac: macOf(key, chainText(previous, entry)) } : {}) });
       await mkdir(folder, { recursive: true });
-      await appendFile(join(folder, 'decisions.jsonl'), line + '\n');
-    } catch { /* the journal never blocks the choice itself */ }
+      await appendFile(file, line + '\n');
+    }).catch(() => { /* the journal never blocks the choice itself */ });
+    this.#journalQueue = work;
+    return work;
+  }
+
+  /**
+   * A2 second review: the decision journal as read back, with whether its chain holds: every line sealed over the one
+   * before it with this computer's key. Where there is no sealed store the lines carry no seal and nothing can be checked.
+   */
+  async decisions(): Promise<{ entries: CodexDecision[]; intact: boolean }> {
+    await this.#journalQueue;
+    const folder = this.#trustFolder();
+    if (!folder) return { entries: [], intact: true };
+    let text: string;
+    try { text = await readFile(join(folder, DECISIONS_FILE), 'utf8'); } catch { return { entries: [], intact: true }; }
+    const lines = text.split('\n').filter(line => line.trim());
+    let key: string | null;
+    try { key = await this.#sealKey(false); } catch { key = ''; }
+    const entries: CodexDecision[] = [];
+    let intact = true, previous = '';
+    for (const line of lines) {
+      let parsed: unknown;
+      try { parsed = JSON.parse(line); } catch { intact = false; continue; }
+      const entry = decisionOf(parsed);
+      if (!entry) { intact = false; continue; }
+      entries.push(entry);
+      const mac = (parsed as { mac?: unknown }).mac;
+      if (key === null) { if (mac !== undefined) intact = false; continue; }
+      if (!key || !sameMac(mac, macOf(key, chainText(previous, entry)))) intact = false;
+      previous = typeof mac === 'string' ? mac : '';
+    }
+    return { entries, intact };
   }
 
   /** The setup in use: the operator's, else the owner's choice, else the bundled Codex. Any failure leaves none. */
@@ -449,6 +507,7 @@ export class CodexTrust {
     try { sha256 = await fileDigest(program); } catch { return refused(SETUP_WORDS.notProgram(bundle)); }
     const probe = this.#options.probe ?? defaultCodexProbe;
     const outputs = {} as Record<keyof typeof SETUP_FILES, string>;
+    let version: string | null = null;
     const cwd = await mkdtemp(join(tmpdir(), 'chausar-codex-review-'));
     try {
       for (const role of Object.keys(SETUP_FILES) as (keyof typeof SETUP_FILES)[]) {
@@ -457,13 +516,13 @@ export class CodexTrust {
         outputs[role] = answer.stdout;
         // A2 review: only a reviewed version goes on to the rest of the checks.
         if (role === 'versionOutput') {
-          const version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\s*$/.exec(answer.stdout.trim())?.[1] ?? null;
+          version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\s*$/.exec(answer.stdout.trim())?.[1] ?? null;
           if (!version) return refused(SETUP_WORDS.noAnswer, null, sha256);
           if (!REVIEWED_CODEX_VERSIONS.includes(version)) return refused(SETUP_WORDS.otherVersion(version, bundle), version, sha256);
         }
       }
     } finally { await rm(cwd, { recursive: true, force: true }).catch(() => undefined); }
-    const version = /^codex-cli (\S+)/.exec(outputs.versionOutput.trim())![1]!;
+    if (!version) return refused(SETUP_WORDS.noAnswer, null, sha256);
     const evidence: Evidence = { executable: { path: program, sha256, version }, outputs, recordedAt: this.#now() };
     const folder = keepTemp(await mkdtemp(join(tmpdir(), 'chausar-codex-review-copy-')));
     try {
@@ -495,12 +554,23 @@ export class CodexTrust {
       this.#looked.clear();
       throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
     }
+    // A2 second review: a seal key that cannot be read (CREDENTIAL_INVALID) is replaced, and the owner looks again; a
+    // store that fails any other way refuses the choice.
+    let key: string | null;
+    try { key = await this.#sealKey(true); }
+    catch (error) {
+      if ((error as { code?: unknown })?.code !== 'CREDENTIAL_INVALID' || !this.#options.seal) throw error;
+      await this.#options.seal.set(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name, randomBytes(32).toString('hex'));
+      await dropTemp(review.folder);
+      this.#reviews.delete(sha256);
+      this.#looked.clear();
+      throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.resealed);
+    }
     const target = join(folder, `owner-${sha256.slice(0, 16)}`);
     await rm(target, { recursive: true, force: true });
     const written = await writeSetup(target, { ...review.evidence, recordedAt: this.#now() });
     const gateway = await loadSetup(written.manifest, written.sha256, this.#base);
     const pin = { manifest: relative(folder, written.manifest).split(sep).join('/'), sha256: written.sha256, programSha256: sha256, at: this.#now() };
-    const key = await this.#sealKey(true);
     await writeFile(join(folder, 'trusted.json'), JSON.stringify({ ...pin, ...(key ? { mac: macOf(key, sealText(pin)) } : {}) }, null, 2) + '\n');
     this.#use(gateway, 'owner');
     this.#sha256 = sha256;
