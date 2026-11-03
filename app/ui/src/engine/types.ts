@@ -1007,10 +1007,13 @@ export interface ExperimentLite {
 export interface ImprovementStatusLite {
   readiness: ImprovementReadinessLite; activePlaybookId: string | null; latest: ImprovementRunLite | null;
   candidate: { runId: string; playbookId: string; digest: string; changes: Display[] } | null;
-  inUse?: { playbookId: string; version: number; hash: string; origin: 'plan' | 'improvement'; rollback: { playbookId: string; version: number; digest: string } | null } | null;
+  inUse?: { playbookId: string; version: number; hash: string; origin: PlaybookOrigin; rollback: { playbookId: string; version: number; digest: string } | null } | null;
 }
 /** `venture.improve.rollback` (PlaybookRecord), trimmed: the version now in use. */
-export interface PlaybookLite { id: string; version: number; hash: string; origin?: 'plan' | 'improvement'; parentId?: string | null }
+/** Who made a playbook version, as the engine says it (contracts.ts StandingPlaybookView): the plan, an improvement run, or the owner's own changes. */
+export const PLAYBOOK_ORIGINS = ['plan', 'improvement', 'owner'] as const;
+export type PlaybookOrigin = (typeof PLAYBOOK_ORIGINS)[number];
+export interface PlaybookLite { id: string; version: number; hash: string; origin?: PlaybookOrigin; parentId?: string | null }
 /** `venture.posting.propose`: the post waits on Today. `warnings` are the risk gate's, in the engine's words. */
 export interface PostingProposal {
   postId: string; connectorId: string; draftId: string; part: number | null;

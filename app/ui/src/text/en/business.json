@@ -264,6 +264,7 @@
   "business.practice.adoptFailed": "Couldn't switch: {message}",
   "business.practice.inUse.plan": "Version in use: {version}, from your plan",
   "business.practice.inUse.improvement": "Version in use: {version}, from an improvement run",
+  "business.practice.inUse.owner": "Version in use: {version}, from your changes",
   "business.practice.rollback": "Go back to version {version}",
   "business.practice.rollbackAsk": "New drafts will use version {version} again. The newer version stays stored. Go back?",
   "business.practice.rollbackFailed": "Couldn't go back: {message}",
