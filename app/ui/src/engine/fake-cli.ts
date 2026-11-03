@@ -61,7 +61,7 @@ function exact(p: Record<string, unknown>, allowed: readonly string[]) {
   if (Object.keys(p).some((key) => !allowed.includes(key))) throw invalid('Send the required fields and nothing else.');
 }
 
-/** A2 review, as cli-status.ts once the owner chose their Codex: found, reviewed, not yet tried on a real task. */
+/** A2 review, as cli-status.ts with a Codex setup in use (bundled or chosen): found, reviewed, not yet tried on a real task. */
 const CHOSEN: Partial<CliStatusView> = { version: '0.166.0', state: 'unverified', line: 'Codex 0.166.0 is on this computer. Not yet tried on a real task.', fix: null };
 
 /** venture.models.cli.status {fresh?}: the look above, or TIER_UNAVAILABLE on the hosted app. */
@@ -72,7 +72,8 @@ export function fakeCliStatus(host: W4DeskHost, p: Record<string, unknown>): { c
   // A2 review: Codex's setup, as the engine adds it from its Codex trust (models/handlers.ts cliStatus).
   const setup = host.codexSetup?.();
   return { clis: LOOK.map((view) => ({ ...view, missingFlags: [...view.missingFlags],
-    ...(view.cli === 'codex' && setup ? { ...(setup.state === 'trusted' ? CHOSEN : {}), setup } : {}) })), line: LIST };
+    // A2 second review: a setup in use is looked at through its own program, so its path is the one shown.
+    ...(view.cli === 'codex' && setup ? { ...(setup.state === 'trusted' ? { ...CHOSEN, ...(setup.path ? { path: setup.path } : {}) } : {}), setup } : {}) })), line: LIST };
 }
 
 /** venture.models.roles {}: each agent's tiers, the preset serving each and its price line. */

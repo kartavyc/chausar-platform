@@ -68,7 +68,10 @@ const CODEX_FIX = "Chausar's reviewed setup for Codex isn't on this computer yet
 
 describe('the fake engine answers the CLI status and the role models as the engine does', () => {
   it('on the desktop: Claude Code is enabled and unverified, and Codex waits on its reviewed setup', async () => {
-    const answer = (await new FakeEngine().request('venture.models.cli.status', {})) as { clis: CliStatusView[]; line: string };
+    // A2 second review: the owner's own Codex is found and no setup is in use yet (the fake's default is the bundled one).
+    const engine = new FakeEngine();
+    engine.firstRun.reviewCodex();
+    const answer = (await engine.request('venture.models.cli.status', {})) as { clis: CliStatusView[]; line: string };
     expect(answer.line).toBe(LIST_LINE);
     expect(answer.clis.map((c) => c.cli)).toEqual(['claude-code', 'codex']);
     const [claude, codex] = answer.clis as [CliStatusView, CliStatusView];
@@ -114,7 +117,10 @@ describe('the fake engine answers the CLI status and the role models as the engi
 
 describe('Your AI: Your AI apps', () => {
   it('lists Claude Code and Codex with their state and, while not ready, the one fix at rest; the line and facts one fold away', async () => {
-    start();
+    // A2 second review: the owner's own Codex is found and waits for the yes (the fake's default is the bundled one).
+    const engine = new FakeEngine();
+    engine.firstRun.reviewCodex();
+    start({ engine });
     const section = await region('Your AI apps');
     await within(section).findByText('Claude Code', { selector: 'h3' });
     const claude = tool(section, 'Claude Code');

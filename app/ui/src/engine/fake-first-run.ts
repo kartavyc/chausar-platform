@@ -20,14 +20,17 @@ export const FIRST_RUN_METHODS: ReadonlySet<string> = new Set([
   // A2: the owner's yes to the Codex found on this computer (engine.ts answers it with or without a business).
   'venture.ai.setup.trust',
 ]);
-/** A2: the sample program digests: the Codex that comes with Chausar, and an owner's own Codex found on the search path. */
+/**
+ * A2: the sample program digests: the Codex that comes with Chausar, and an owner's own Codex found on the search path.
+ * A2 second review: an npm Codex is shown as the native codex.exe behind npm's shim, as codex-trust.ts shows it.
+ */
 const BUNDLED_SHA = 'b'.repeat(64);
 const OWN_SHA = 'c'.repeat(64);
 /** The engine's words (platform/runtime/codex-trust.ts SETUP_WORDS), word for word. */
 const SETUP = {
   bundled: { state: 'trusted', origin: 'bundled', path: String.raw`C:\Program Files\Chausar\resources\codex\bin\codex.exe`, version: '0.166.0', sha256: BUNDLED_SHA, line: 'Uses the Codex 0.166.0 that comes with Chausar.' },
-  review: { state: 'review', origin: null, path: String.raw`~\AppData\Roaming\npm\codex.cmd`, version: '0.166.0', sha256: OWN_SHA, line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' },
-  owner: { state: 'trusted', origin: 'owner', path: String.raw`~\AppData\Roaming\npm\codex.cmd`, version: '0.166.0', sha256: OWN_SHA, line: 'Uses your Codex 0.166.0, which you chose.' },
+  review: { state: 'review', origin: null, path: String.raw`~\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`, version: '0.166.0', sha256: OWN_SHA, line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' },
+  owner: { state: 'trusted', origin: 'owner', path: String.raw`~\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`, version: '0.166.0', sha256: OWN_SHA, line: 'Uses your Codex 0.166.0, which you chose.' },
 } as const satisfies Record<string, CodexSetupLite>;
 /** A synthetic one-time code in Codex's own shape. Never a real code. */
 export const FAKE_DEVICE_CODE = ['WXYZ', '12345'].join('-');
@@ -91,13 +94,11 @@ export class FakeFirstRun {
   /** A2 review: whether a review of the owner's own Codex is held for its yes, as codex-trust.ts holds reviews. */
   private heldReview = false;
   /**
-   * A2 review: the setup Your AI shows. This fake desktop's Your AI has the owner's own Codex found and not yet chosen
-   * (a held review), until the owner chooses it.
+   * A2 review: the setup Your AI shows. A2 second review: the same as the first run's, the Codex that comes with Chausar
+   * in use, unless a test found the owner's own Codex (reviewCodex), which then waits for the owner's yes.
    */
   connectionsSetup(): CodexSetupLite {
-    if (this.setup.state === 'trusted' && this.setup.origin === 'owner') return { ...this.setup };
-    this.heldReview = true;
-    return { ...SETUP.review };
+    return { ...this.setup };
   }
   /** A2: the tiny test call's failure in the engine's words, or null when it passes. */
   private testProblem: string | null = null;
