@@ -70,6 +70,10 @@ function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position
   const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);
   if(calls.some(tool=>tool.status==='running'))return record.agentJob!.pendingApproval?'waiting':'current';
   if(calls.some(tool=>tool.status==='failed'))return 'failed';
+  // One-shot A1 (row 9): a draft handed over while the job still runs: the agent is still writing, the owner's step waits.
+  const finishing=record.status==='ready-for-review'&&!record.agentJob!.reviewReady&&!record.agentJob!.pendingApproval;
+  if(finishing&&kind==='write')return 'current';
+  if(finishing&&kind==='approve')return 'pending';
   if(kind==='write')return record.deliverable?'done':position.kind==='write'?position.state:'pending';
   if(kind==='verify')return record.checks.length?record.checks.every(check=>check.passed)?'done':'failed':'pending';
   if(kind==='approve')return record.status==='ready-for-review'?'waiting':record.verdict?'done':'pending';
@@ -163,7 +167,9 @@ function positionOf(run: ReturnType<typeof runView>, nowMs: number): Position {
       const running = open?.status === 'running' && open.startedAt !== null && Date.parse(open.startedAt) + open.limits.minutes * 60_000 + 120_000 >= nowMs;
       return { kind: 'work', state: running ? 'current' : 'waiting' };
     }
-    case 'ready-for-review': return { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' };
+    // One-shot A1 (row 9): handed over while the AI's job still runs: it is still at work, writing, not waiting on you.
+    case 'ready-for-review': return run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval ? { kind: 'write', state: 'current' }
+      : { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' };
     case 'failed': return { kind: loopKind(), state: 'failed' };
     // Accepted, edited or rejected: Chausar sends nothing, so the send step stays the owner's.
     default: return { kind: 'operator', state: 'pending' };

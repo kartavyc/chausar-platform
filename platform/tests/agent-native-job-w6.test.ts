@@ -3,14 +3,16 @@ import { test } from 'node:test';
 import { createNativeJob } from '../runtime/venture/agent-runtime/native-job.ts';
 import { agreeClientAiConsent, getClientAiConsent, withdrawClientAiConsent } from '../runtime/venture/clients/ai-consent.ts';
 import { kitBusiness, installKitFixture, owner } from './fixtures/venture/kit-business.ts';
-import { findRecord, ventureAction } from '../runtime/venture/records.ts';
+import { findRecord, listRecords, ventureAction } from '../runtime/venture/records.ts';
+import { deliveryRunDetails } from '../runtime/venture/views/runs.ts';
+import { teamListHandler } from '../runtime/venture/views/team.ts';
 import { queueListHandler } from '../runtime/venture/views/queue.ts';
 import { MCP_PROTOCOL_VERSION } from '../runtime/mcp.ts';
 import { ensurePlaybook, flagshipDraft } from '../runtime/venture/delivery/playbook.ts';
 import { getAgentSettings, setAgentSettings } from '../runtime/venture/agent-runtime/settings-methods.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { setSpendPolicy } from '../runtime/venture/money/spend.ts';
-import { deliveryReviewHandler } from '../runtime/venture/delivery/runs.ts';
+import { deliveryReviewHandler, runView } from '../runtime/venture/delivery/runs.ts';
 import { writeCapsToday } from '../runtime/venture/delivery/harness/write-caps.ts';
 
 test('full draft check feedback stays available for repair while failed checks still block owner acceptance', async t => {
@@ -261,4 +263,34 @@ test('native memory excludes foreign media, poster and practice uploads while re
   const business=await (await agent(job))('read_business');
   assert.ok(!JSON.stringify(business.knowledge).includes('private unrelated'));
   assert.ok(JSON.stringify(business.knowledge).includes('this order approved'));
+});
+
+test('one-shot A1 row 9: a saved draft the AI is still finishing never says it waits on the owner', async t => {
+  const env = await fixture(t); await env.allow();
+  const job = await createNativeJob(env.deps, owner, env.run.id, env.options); t.after(() => job.close());
+  const call = await agent(job);
+  const saved = await call('draft_document', { draft: { title: 'Reply', sections: [{ heading: 'Reply', parts: [{ kind: 'text', text: 'A calm voice sheet for Sunrise Bakery.', ref: '' }] }], questionsForClient: [] } });
+  // The agent hands the draft over (propose_action); the job itself is still running, so reviewReady is not set yet.
+  const proposed: any = await job.service.handle(owner, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'propose_action', arguments: { kind: 'send-handoff', draftId: saved.draftId, draftDigest: saved.digest, to: env.client.email, subject: 'Your draft' } } });
+  assert.equal(proposed.error, undefined);
+  const state = env.store.read(), venture = listRecords(state, 'venture-record')[0]!;
+  const stored = findRecord(state, 'venture-delivery-run', env.run.id)!;
+  assert.equal(stored.status, 'ready-for-review');
+  assert.notEqual(stored.agentJob?.reviewReady, true, 'the job has not handed over yet');
+  // Today may show the draft, locked with the card's own words; the run and the agent tile say the AI is working.
+  const view = runView(stored, venture, Date.now(), state);
+  assert.equal(view.canAccept, false);
+  assert.equal(view.acceptBlocked, 'AI work must finish before you can approve this draft.');
+  const detail = deliveryRunDetails(env.deps, state, venture).find(item => item.runId === env.run.id)!;
+  assert.equal(detail.state, 'active', 'the run reads as working, so the agent tile says working');
+  assert.equal(detail.steps.find(step => step.state === 'current')?.id !== undefined, true, 'one step is the current one');
+  assert.equal(detail.steps.some(step => step.state === 'waiting'), false, 'no step waits on the owner yet');
+  const team = await teamListHandler(env.deps, owner, {});
+  assert.ok(team.agents.length > 0);
+  assert.equal(team.agents.some(agent => agent.state === 'waiting'), false, 'no agent tile says Waiting on you');
+  // Once the job hands over, the draft waits on the owner.
+  await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace({ ...run, agentJob: { ...run.agentJob!, reviewReady: true } }); });
+  const after = env.store.read(), ready = findRecord(after, 'venture-delivery-run', env.run.id)!;
+  assert.equal(runView(ready, venture, Date.now(), after).acceptBlocked === 'AI work must finish before you can approve this draft.', false);
+  assert.equal(deliveryRunDetails(env.deps, after, venture).find(item => item.runId === env.run.id)!.state, 'waiting');
 });
