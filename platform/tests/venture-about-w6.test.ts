@@ -111,7 +111,7 @@ test('about.read through the connected AI returns its family, offers and country
   assert.ok(!JSON.stringify(read).match(/price|amount/i));
 });
 
-test('about.read reads a LinkedIn export through the AI as the owner file, and a resume PDF needs the PDF reader', async t => {
+test('about.read reads a LinkedIn export through the AI as the owner file, and refuses a PDF it cannot read', async t => {
   const zipped = linkedinZip([PROFILE_HEAD, ['Asha', 'Rao', '', '', '', 'Video Editor', 'Editing for YouTube creators', 'Media', '', 'Pune, Maharashtra, India', '', '', '']]);
   const answer = { familyId: 'creative', offers: [{ name: 'Video edits', line: 'Raw footage cut into ready videos' }], countryCode: 'IN', evidence: 'Pune, Maharashtra, India' };
   const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, ['Headline: Video Editor', 'background facts'])] });
@@ -122,6 +122,36 @@ test('about.read reads a LinkedIn export through the AI as the owner file, and a
   assert.equal(classifyIdea(read.idea), 'studio');
   assert.equal(read.file.included, true);
   await assert.rejects(engine.request('venture.about.read', { attachment: { name: 'resume.pdf', kind: 'resume-pdf', contentBase64: Buffer.from('%PDF-1.4 synthetic').toString('base64') } }), { code: 'TOOL_FAILED', message: /PDF/ });
+});
+
+// One-shot A4 (hands-on row 9): the beta has no Python helper, so the resume is read by Chausar's own PDF reader.
+function onePagePdf(line: string): string {
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>'];
+  const content = `BT /F1 11 Tf 72 720 Td (${line}) Tj ET`;
+  objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  let text = '%PDF-1.4\n';
+  objects.forEach((body, index) => { text += `${index + 1} 0 obj\n${body}\nendobj\n`; });
+  return Buffer.from(`${text}trailer\n<< /Root 1 0 R >>\n%%EOF\n`, 'latin1').toString('base64');
+}
+
+test('A4: with no PDF helper, a resume PDF is read by Chausar itself and its text goes to the AI as the owner file', async t => {
+  const answer = { familyId: 'teaching', offers: [{ name: 'Weekly classes', line: 'Small batches with practice work' }], countryCode: 'IN', evidence: 'Based in Chennai, India' };
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, ['Tutor of mathematics for school students', 'background facts'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { attachment: { name: 'resume.pdf', kind: 'resume-pdf', contentBase64: onePagePdf('Tutor of mathematics for school students. Based in Chennai, India.') } }) as any;
+  assert.equal(read.family.id, 'teaching');
+  assert.equal(read.country.code, 'IN');
+  assert.equal(read.file.included, true);
+  // A PDF with no text (a scan) says so plainly; it is never guessed at.
+  await assert.rejects(engine.request('venture.about.read', { attachment: { name: 'scan.pdf', kind: 'resume-pdf', contentBase64: onePagePdf('') } }), { code: 'TOOL_FAILED', message: /no text Chausar can read/ });
+});
+
+// One-shot A4 (hands-on row 9): a LinkedIn export sent alone, with no words of the owner's, still names the field: the
+// instructions say the owner's words or file, so the AI is never told to answer null for empty words.
+test('A4: the About you instructions take the owner file as well as the words', () => {
+  const task = aboutTask({ text: '', file: { name: 'Profile.csv', text: 'Headline: Freelance photographer' } });
+  assert.match(task.instructions, /If neither the owner words nor the owner file say what work they do, return null/);
+  assert.doesNotMatch(task.instructions, /If the owner words do not say what work they do/);
 });
 
 test('about.pick turns a tile into the same answer with no AI and no vault', async t => {

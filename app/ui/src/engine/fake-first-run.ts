@@ -13,6 +13,8 @@ import { EngineError, type AboutReadLite, type CountryLite, type ModelStatusLite
 import { FAMILIES, familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith, type FamilyId } from '../../../../platform/runtime/venture/core/families';
 import { businessFamily, businessNeeds } from '../../../../platform/runtime/venture/core/needs-data';
 import { profileEntry, profileTextFromCsv } from '../../../../platform/runtime/venture/core/profile-csv';
+import { pdfText } from '../../../../platform/runtime/venture/core/pdf-text-core';
+import { isRefusal } from '../../../../platform/runtime/venture/refusal-brand';
 
 export const FIRST_RUN_METHODS: ReadonlySet<string> = new Set([
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
@@ -44,7 +46,7 @@ export const FAKE_DEVICE_CODE = ['WXYZ', '12345'].join('-');
 const DEVICE_LINK = 'https://auth.openai.com/codex/device';
 const LOGIN_LINE = "Chausar starts each tool's own sign-in. It never sees your password or login files.";
 const PROFILE_LINK_WORDS = 'Chausar never opens profile links. Ask LinkedIn for your data export (Settings, Data privacy, Get a copy of your data) and add the ZIP it sends you.';
-const NO_PDF_READER = 'Reading a resume PDF needs the PDF reader set up for Chausar on this computer. Paste a few lines about your work instead.';
+const NO_PDF_READER = 'Chausar could not read that PDF. Paste a few lines about your work instead.';
 const FILE_MAX_BASE64 = Math.ceil((1024 * 1024) / 3) * 4;
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
@@ -236,9 +238,12 @@ export class FakeFirstRun {
       if (attachment.kind === 'resume-pdf') {
         const bytes = bytesOf(attachment.contentBase64);
         if (String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') throw invalid('That file is not a PDF.');
-        throw new EngineError('TOOL_FAILED', NO_PDF_READER);
-      }
-      fileText = profileText(attachment.contentBase64);
+        // One-shot A4 (row 9): read by Chausar's own PDF reader, as the engine does (the fake has no zlib, so a
+        // compressed stream gives no text here).
+        try { fileText = pdfText(bytes, { maxPages: 6, maxChars: 20_000 }); }
+        catch (error) { throw new EngineError('TOOL_FAILED', isRefusal(error) ? error.message : NO_PDF_READER); }
+        if (!fileText) throw new EngineError('TOOL_FAILED', 'That PDF has no text Chausar can read. Paste a few lines about your work instead.');
+      } else fileText = profileText(attachment.contentBase64);
       file = { name, included: true, line: null };
     }
     const status = this.host.aiStatus();
