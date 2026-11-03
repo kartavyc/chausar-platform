@@ -197,7 +197,10 @@ export type CodexTrustOptions = {
   platform?: NodeJS.Platform;
   architecture?: string;
   locate?: (command: string) => string | null;
-  /** A2 review: the desktop's sealed key store; absent where safeStorage is not available (the file is then unsealed). */
+  /**
+   * A2 review: the desktop's sealed key store. Absent (a test, the local web server), or answering CREDENTIAL_NO_STORE
+   * (this computer has no safeStorage or keyring at all), the file is unsealed; any other failure refuses the file.
+   */
   seal?: CodexSeal;
 };
 
@@ -241,15 +244,19 @@ export class CodexTrust {
     try { return (await lstat(program)).isFile(); } catch { return false; }
   }
 
-  /** The seal key, made on first use; null where there is no sealed store (the file then stays unsealed). */
+  /**
+   * The seal key, made on first use; null where there is no sealed store (the file then stays unsealed). A2 second review:
+   * only the store's own CREDENTIAL_NO_STORE means that. A failed, timed-out or unanswered store throws, so a file
+   * written into the trust folder cannot be taken by breaking the store.
+   */
   async #sealKey(create: boolean): Promise<string | null> {
     const seal = this.#options.seal;
     if (!seal) return null;
     let key: string | null;
     try { key = await seal.get(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name); }
     catch (error) {
-      // safeStorage is not available here: keep the unsealed behaviour (noted in the A2 notes).
-      if ((error as { code?: unknown })?.code === 'CREDENTIAL_UNAVAILABLE') return null;
+      // This computer has no protected store at all: keep the unsealed behaviour (noted in the A2 notes).
+      if ((error as { code?: unknown })?.code === 'CREDENTIAL_NO_STORE') return null;
       throw error;
     }
     if (key && /^[a-f0-9]{64}$/.test(key)) return key;

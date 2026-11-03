@@ -5,11 +5,15 @@ const { join, resolve } = require('node:path');
 const { constants } = require('node:fs');
 const { validate, failure } = require('../../platform/runtime/venture/models/credential-contract.cjs');
 
-/** Only the trusted main process owns this directory and Electron safeStorage. No plaintext files. */
+/**
+ * Only the trusted main process owns this directory and Electron safeStorage. No plaintext files. A2 second review:
+ * CREDENTIAL_NO_STORE only when safeStorage (or a Linux keyring) is really missing; any other failure is
+ * CREDENTIAL_UNAVAILABLE, so a broken folder never reads as "no store here".
+ */
 function createCredentialStore({ directory, safeStorage, platform = process.platform }) {
   const root = resolve(directory), pending = new Map();
   function protectedStorage() {
-    if (!safeStorage?.isEncryptionAvailable?.() || (platform === 'linux' && !['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'].includes(safeStorage.getSelectedStorageBackend?.()))) throw failure('CREDENTIAL_UNAVAILABLE');
+    if (!safeStorage?.isEncryptionAvailable?.() || (platform === 'linux' && !['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'].includes(safeStorage.getSelectedStorageBackend?.()))) throw failure('CREDENTIAL_NO_STORE');
   }
   async function folder() {
     await mkdir(root, { recursive: true, mode: 0o700 });
@@ -45,7 +49,7 @@ function createCredentialStore({ directory, safeStorage, platform = process.plat
         try { await handle.writeFile(encrypted); await handle.sync(); } finally { await handle.close(); }
         await regular(file); await rename(temporary, file);
       } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
-    }).catch(error => { throw failure(error?.code === 'CREDENTIAL_INVALID' ? 'CREDENTIAL_INVALID' : 'CREDENTIAL_UNAVAILABLE'); });
+    }).catch(error => { throw failure(error?.code === 'CREDENTIAL_INVALID' || error?.code === 'CREDENTIAL_NO_STORE' ? error.code : 'CREDENTIAL_UNAVAILABLE'); });
     pending.set(file, task); void task.finally(() => { if (pending.get(file) === task) pending.delete(file); }).catch(() => {}); return task;
   }
   return Object.freeze({ get: (workspaceId, name) => run('get', workspaceId, name), set: (workspaceId, name, value) => run('set', workspaceId, name, value), delete: (workspaceId, name) => run('delete', workspaceId, name) });

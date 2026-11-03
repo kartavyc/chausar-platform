@@ -7,6 +7,9 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { EventEmitter } from 'node:events';
+import { processCredentialPort } from '../runtime/venture/models/credential-port.ts';
 import { CodexTrust, REVIEWED_CODEX_VERSIONS, SEAL_SCOPE, SETUP_WORDS, type CodexProbe, type CodexSeal } from '../runtime/codex-trust.ts';
 import { CODEX_QUIET_ARGS } from '../runtime/providers/codex-cli.ts';
 
@@ -225,8 +228,8 @@ test('on the desktop the choice is sealed: an unsealed or edited file is not tak
   await bare.load();
   assert.equal(bare.profile(), null);
   assert.equal((await bare.review(path)).state, 'review', 'the owner is asked again');
-  // Where the sealed store is unavailable the earlier, unsealed behaviour holds.
-  const unavailable: CodexSeal = { async get() { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_UNAVAILABLE' }); }, async set() { throw new Error('never'); } };
+  // Where this computer has no sealed store at all the earlier, unsealed behaviour holds.
+  const unavailable: CodexSeal = { async get() { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_NO_STORE' }); }, async set() { throw new Error('never'); } };
   const noSeal = new CodexTrust({ environment, seal: unavailable, probe: probeOf().probe });
   await noSeal.load();
   assert.equal(noSeal.origin(), 'owner');
@@ -243,4 +246,50 @@ test('reviews already running are joined, and the shown path is the program that
   assert.deepEqual(one, two);
   assert.equal(seen.length, 3, 'one review, not two');
   assert.ok(one.path!.endsWith(join('bin', process.platform === 'win32' ? 'codex.exe' : 'codex')));
+});
+
+// A2 second review (M1): only a computer with no sealed store at all keeps the unsealed file. Any other failure of the
+// store (a broken credentials folder, a relay that times out, a host with no listener) refuses it, so a file written
+// into the trust folder cannot be made to load by breaking the store.
+const requireCjs = createRequire(import.meta.url);
+const { createCredentialStore } = requireCjs('../../app/desktop/credential-store.cjs');
+const { createCredentialRelay } = requireCjs('../../app/desktop/credential-relay.cjs');
+type Answer = (result: unknown) => void;
+/** The worker's seal port, through the real relay, to a host listener (or none). */
+function sealChain(listen: ((request: any, answer: Answer) => void) | null, timeoutMs = 100): CodexSeal {
+  const channel = new EventEmitter() as any, child = new EventEmitter() as any, harness = new EventEmitter();
+  channel.connected = child.connected = true;
+  const relay = createCredentialRelay(harness, child, { timeoutMs });
+  channel.send = (message: unknown, callback: (error: Error | null) => void) => { relay.receive(message); callback(null); return true; };
+  child.send = (message: unknown, callback: () => void) => { channel.emit('message', message); callback(); };
+  if (listen) harness.on('credential', listen);
+  return processCredentialPort(channel, { timeoutMs: timeoutMs * 4, noStore: true });
+}
+/** As app/desktop/main.cjs answers the worker from the real store. */
+const storeAnswers = (store: any) => (request: any, answer: Answer) => {
+  store[request.op](request.workspaceId, request.name, request.value).then((value: unknown) => answer({ ok: true, value: value ?? null }), (error: any) => answer({ ok: false, code: error?.code }));
+};
+const encryption = (available: boolean) => ({ isEncryptionAvailable: () => available, getSelectedStorageBackend: () => 'gnome_libsecret', encryptString: (text: string) => Buffer.from(text), decryptString: (bytes: Buffer) => bytes.toString() });
+
+test('the unsealed choice is kept only where there is no sealed store; a broken store, a timeout or no listener refuses it', async t => {
+  const root = await folder(t), path = await program(root);
+  const environment = { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') };
+  // An unsealed choice, as a computer without a sealed store writes it (or as anything else could write it).
+  const plain = new CodexTrust({ environment, probe: probeOf().probe });
+  await plain.record((await plain.review(path)).sha256);
+  const loads = async (seal: CodexSeal) => { const trust = new CodexTrust({ environment, seal, probe: probeOf().probe }); await trust.load(); return trust.origin(); };
+  // No safeStorage here at all: the store says so with its own code, and the unsealed file is taken.
+  const none = createCredentialStore({ directory: join(root, 'no-store'), safeStorage: encryption(false), platform: 'win32' });
+  assert.equal(await loads(sealChain(storeAnswers(none))), 'owner');
+  // A file where the credentials folder should be: the store fails, and the file is refused.
+  await writeFile(join(root, 'credentials'), 'not a folder');
+  const blocked = createCredentialStore({ directory: join(root, 'credentials'), safeStorage: encryption(true), platform: 'win32' });
+  await assert.rejects(blocked.get(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name), { code: 'CREDENTIAL_UNAVAILABLE' });
+  assert.equal(await loads(sealChain(storeAnswers(blocked))), null, 'a broken store is not a missing one');
+  // A host that never answers, and a host with no listener.
+  assert.equal(await loads(sealChain(() => {})), null, 'a relay timeout');
+  assert.equal(await loads(sealChain(null)), null, 'no listener');
+  // A worker with no host channel at all.
+  const closed = new EventEmitter() as any; closed.connected = false;
+  assert.equal(await loads(processCredentialPort(closed, { noStore: true })), null, 'a closed channel');
 });
