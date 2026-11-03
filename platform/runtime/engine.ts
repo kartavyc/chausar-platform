@@ -955,17 +955,45 @@ export class Engine {
   /**
    * A2: venture.ai.setup.trust { cli: 'codex', sha256 }: keeps the owner's choice of the Codex they were shown, only for
    * that exact program, in the app and by an owner. The host's Codex trust (codex-trust.ts) checks and records it.
+   * A2 second review: only the owner's click in the desktop main process's own dialog approves a Codex. As a request
+   * (the window, the local server's bootstrap session, a phone, MCP) it is always refused; main reads the held review
+   * (codexChoiceFor), asks the owner, and on "Use this Codex" confirms over the worker's host channel, which no request
+   * can write to (confirmCodexSetup).
    */
-  async #codexSetupTrust(payload: unknown): Promise<{ setup: unknown }> {
+  #codexChoiceChecked(payload: unknown): { trust: { record(sha256: unknown): Promise<unknown>; held?(sha256: unknown): unknown; current?(): unknown }; sha256: string } {
     const context = this.context;
     check(context && context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     // A2 review: only the owner says which program Chausar runs (AGENTS.md: the owner approves; a cofounder does not).
     check(context.role === 'owner', 'FORBIDDEN', 'Only the owner chooses which Codex Chausar runs.');
-    check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === 'cli,sha256' && (payload as { cli?: unknown }).cli === 'codex',
+    check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === 'cli,sha256' && (payload as { cli?: unknown }).cli === 'codex'
+      && typeof (payload as { sha256?: unknown }).sha256 === 'string' && /^[a-f0-9]{64}$/.test((payload as { sha256: string }).sha256),
       'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
-    const trust = this.options.venture?.codexCli as { record?: (sha256: unknown) => Promise<unknown> } | undefined;
+    const trust = this.options.venture?.codexCli as { record?: (sha256: unknown) => Promise<unknown>; held?(sha256: unknown): unknown; current?(): unknown } | undefined;
     check(this.options.venture?.host !== 'hosted-web' && trust && typeof trust.record === 'function', 'CODEX_SETUP_UNAVAILABLE', "Chausar can't keep a chosen Codex here.");
-    return { setup: await trust.record((payload as { sha256: unknown }).sha256) };
+    return { trust: trust as { record(sha256: unknown): Promise<unknown> }, sha256: (payload as { sha256: string }).sha256 };
+  }
+  /**
+   * A2 second review (main only, through the worker's host channel): what main's dialog names, from the engine's held
+   * review of that exact program (its real path and version), or { inUse } when that program is already the Codex in
+   * use (the owner's earlier choice, or the bundled Codex): the dialog is asked for once per program.
+   */
+  async codexChoiceFor(payload: unknown): Promise<{ path: string; version: string } | { inUse: unknown }> {
+    const { trust, sha256 } = this.#codexChoiceChecked(payload);
+    const current = typeof trust.current === 'function' ? trust.current() as { sha256?: unknown } | null : null;
+    if (current && current.sha256 === sha256) return { inUse: current };
+    const held = typeof trust.held === 'function' ? trust.held(sha256) as { path?: unknown; version?: unknown } | null : null;
+    check(held && typeof held.path === 'string' && typeof held.version === 'string', 'CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
+    return { path: held.path as string, version: held.version as string };
+  }
+  /** A2 second review (main only, after the owner clicked "Use this Codex" in main's dialog): records the choice. */
+  async confirmCodexSetup(payload: unknown): Promise<{ setup: unknown }> {
+    check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
+    check(!this.#transition, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
+    this.#activeRequests++;
+    try {
+      const { trust, sha256 } = this.#codexChoiceChecked(payload);
+      return { setup: await trust.record(sha256) };
+    } finally { this.#activeRequests--; this.notifyIdle(); }
   }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
@@ -1036,7 +1064,8 @@ export class Engine {
         return (await this.#draftDesk()).request(this.context, method, payload);
     }
     // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
-    if (method === 'venture.ai.setup.trust') return this.#codexSetupTrust(payload);
+    // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
+    if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
     switch (method) {
       case 'workspace.custody.get': return this.custodyView();

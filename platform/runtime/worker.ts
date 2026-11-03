@@ -51,6 +51,12 @@ export function runEngineWorker(engine: Engine) {
     }
     // Whether the owner is looking at the window (shown, not minimised, focused): a plain notice, no reply (4G1).
     if (message?.kind === 'host-watching') { engine.updateOwnerWatching(message.watching === true); return; }
+    // A2 second review: the owner's choice of Codex, only from main (its dialog), never a window request.
+    if ((message?.kind === 'host-codex-choice' || message?.kind === 'host-codex-confirm') && typeof message.id === 'string') {
+      try { reply({ id: message.id, result: message.kind === 'host-codex-choice' ? await engine.codexChoiceFor(message.payload) : await engine.confirmCodexSetup(message.payload) }); }
+      catch (error) { reply({ id: message.id, error: ownerError(error) }); }
+      return;
+    }
     if (!message || typeof message.id !== 'string' || typeof message.method !== 'string') return;
     try { reply({ id: message.id, result: await engine.request(message.method, message.payload) }); }
     // Only Chausar's own refusals keep their words; an engine bug never shows its source text (owner-error.ts).

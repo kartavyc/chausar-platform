@@ -377,3 +377,16 @@ test('a Codex found through the npm shim is shown, hashed and checked as the nat
   assert.ok(!view.path!.includes('codex.cmd'), 'the shim is never the path shown');
   assert.deepEqual([...new Set(ran)], [native], 'and the native program is the one run');
 });
+
+// A2 second review: main's dialog names the held review's real program and version, and a program already in use
+// (the owner's choice or the bundled one) is told by current(), so the dialog is asked for once per program.
+test('held() gives the real program and version of a review waiting for the yes, and nothing once it is chosen', async t => {
+  const root = await folder(t), path = await program(root);
+  const trust = new CodexTrust({ environment: { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') }, probe: probeOf().probe });
+  const view = await trust.review(path);
+  assert.deepEqual(trust.held(view.sha256), { path, version: '0.166.0' });
+  assert.equal(trust.held('0'.repeat(64)), null);
+  await trust.record(view.sha256);
+  assert.equal(trust.held(view.sha256), null, 'the review is used up');
+  assert.equal(trust.current()!.sha256, view.sha256);
+});

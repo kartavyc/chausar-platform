@@ -540,6 +540,15 @@ export class CodexTrust {
     return { state: 'review', origin: null, path: shown(program), version, sha256, line: SETUP_WORDS.review(version) };
   }
 
+  /**
+   * A2 second review: the held review of this exact program, as the desktop main process's dialog names it (the real
+   * program path that is hashed and run, and its version), or null when none is held.
+   */
+  held(sha256: unknown): { path: string; version: string } | null {
+    const review = typeof sha256 === 'string' ? this.#reviews.get(sha256) : undefined;
+    return review ? { path: review.evidence.executable.path, version: review.evidence.executable.version } : null;
+  }
+
   /** venture.ai.setup.trust: the owner said yes to the Codex reviewed with this exact digest. */
   async record(sha256: unknown): Promise<CodexSetupView> {
     check(typeof sha256 === 'string' && /^[a-f0-9]{64}$/.test(sha256), 'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');

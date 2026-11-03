@@ -246,10 +246,13 @@ if (singleInstance) app.whenReady().then(async () => {
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(inkRoot, file));
     return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': policyFor(url.pathname, "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"), 'X-Content-Type-Options': 'nosniff' } });
   });
+  // A2 second review: the owner's choice of Codex is asked in main's own dialog, never forwarded from the window.
+  const codexChoice = require('./codex-choice.cjs').createCodexChoice({ engine, dialog, window: () => window });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
+      if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
       const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
