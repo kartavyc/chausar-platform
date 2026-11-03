@@ -20,6 +20,7 @@ import { chiefClientContext } from './client-context.ts';
 // 4J14: counts by code when the AI's answer fails (Q21), and proposals decided first (Q22).
 import { countedByCode, type FallbackView } from '../delivery/fallbacks.ts';
 import { decideFirstSchema, readDecideFirst } from '../delivery/decide-first.ts';
+import { AI_FAILURE_CODES } from '../models/ai-failure.ts';
 
 /** At most this many model turns per answer; the last must answer. */
 export const MAX_TURNS = 3;
@@ -250,6 +251,8 @@ export type AnswerInput = {
 const NO_AI_LEAD = "Here is where the money stands, from Chausar's records.";
 const NO_AI_TAIL = 'Connect your AI in Connections to ask in your own words.';
 const NOT_PASSED_LEAD = "Your AI's answer did not pass Chausar's checks, so here is what Chausar can say from its records.";
+/** One-shot A3 (S3): the AI call itself failed, so the answer is the records'. */
+export const AI_FAILED_LEAD = "Your AI couldn't answer this time, so here is what Chausar's records say.";
 const capLead = () => `Chausar stopped asking your AI: this answer reached its spend cap of ${formatMicros(ANSWER_CAP_MICROS)}. Here is what it read, with receipts.`;
 const SHOWN_FROM_RECORDS = 4;
 
@@ -282,14 +285,14 @@ function countedOf(counts: FallbackView): ChiefCounted {
  * The answer code writes from the records: a lead line, the figures read so far (the money tool's when none), with
  * receipts, and with no AI or when the AI's answer did not pass, the counts by code (4J14, Q21) before the tail.
  */
-async function recordsAnswer(deps: VentureDeps, ctx: Context, figures: ToolFigure[], callIds: string[], lead: string, tail: string | null, counts: FallbackView | null = null): Promise<ChiefAnswer> {
+async function recordsAnswer(deps: VentureDeps, ctx: Context, figures: ToolFigure[], callIds: string[], lead: string | readonly string[], tail: string | null, counts: FallbackView | null = null): Promise<ChiefAnswer> {
   let shown = figures;
   if (!shown.length) {
     const money = await runTool(deps, ctx, 'money');
     shown = 'figures' in money ? money.figures : [];
   }
   const chosen = unique(shown).slice(0, SHOWN_FROM_RECORDS);
-  const parts: ChatPart[] = [{ kind: 'text', text: lead }];
+  const parts: ChatPart[] = (typeof lead === 'string' ? [lead] : [...lead]).map(line => ({ kind: 'text' as const, text: line }));
   for (const figure of chosen) parts.push({ kind: 'text', text: `${figure.label}:` }, { kind: 'figure', receiptId: figure.receiptId, key: figure.key, display: figure.display });
   if (tail) parts.push({ kind: 'text', text: tail });
   return {
@@ -307,6 +310,24 @@ const codeOf = (error: unknown): string | null => {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : null;
 };
+
+/**
+ * One-shot A3 (S3): what stops an answer instead of falling back to the records, because the owner has to act or the
+ * question no longer holds: the chat consent, the business or a client's records changing while it answered, a client's
+ * AI permission, a locked vault, a role or channel that may not do this, the engine closing.
+ */
+const OWNER_MUST_ACT: ReadonlySet<string> = new Set([
+  'CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED', 'CLIENT_AI_CONSENT_CHANGED', 'CLIENT_AI_CONSENT_REQUIRED',
+  'CLIENT_NOT_FOUND', 'VAULT_LOCKED', 'VAULT_BUSY', 'FORBIDDEN', 'APP_APPROVAL_REQUIRED', 'ACCESS_REVOKED', 'BUSINESS_CONTEXT_STALE', 'ENGINE_STOPPING',
+]);
+/** The AI failures that carry their own owner words and fix (models/ai-failure.ts), said after the lead. */
+const NAMED_FAILURES: ReadonlySet<string> = new Set(Object.values(AI_FAILURE_CODES));
+
+/** The lead of a records answer after the AI call failed: the plain line, then the failure's own words when it has them. */
+function failedLead(error: unknown): { lead: string; reason: string | null } {
+  const named = error instanceof ChausarError && NAMED_FAILURES.has(error.code) && error.message.trim() ? error.message.trim() : null;
+  return { lead: AI_FAILED_LEAD, reason: named };
+}
 
 /**
  * One answer to the owner's question. Each turn is previewed and sent under the chat consent (agents/answer.ts
@@ -339,8 +360,13 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
     try {
       answered = await chatCall(capped, ctx, route, task, clientContext.assert);
     } catch (error) {
-      if (codeOf(error) === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
-      throw error;
+      const code = codeOf(error);
+      if (code === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
+      if (code && OWNER_MUST_ACT.has(code)) throw error;
+      // One-shot A3 (S3): the AI call itself failed. The owner still gets what the records say, with the figures read so
+      // far, and the plain words that the AI couldn't answer.
+      const { lead, reason } = failedLead(error);
+      return recordsAnswer(deps, ctx, figures, callIds, reason ? [lead, reason] : lead, null, countedByCode(input.state, venture, deps.clock(), 3));
     }
     if (!answered) return recordsAnswer(deps, ctx, figures, callIds, route ? NOT_PASSED_LEAD : NO_AI_LEAD, route ? null : NO_AI_TAIL, countedByCode(input.state, venture, deps.clock(), 3));
     if (answered.callId) callIds.push(answered.callId);

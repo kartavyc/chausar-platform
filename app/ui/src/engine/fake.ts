@@ -255,6 +255,8 @@ export class FakeEngine {
   quietStop(runId: string): void { this.w4.quietStop(runId); }
   /** Tests (A2 second review): a native AI job ran past its time limit and the watchdog stopped it. */
   timeStop(runId: string): void { this.w4.timeStop(runId); }
+  /** Tests (A3, S3): the owner's AI call in Chats fails from now on (null turns it off), as chief/answer.ts meets it. */
+  chatAiFails(failure: { reason: string | null } | null): void { this.chief.failAi(failure); }
   /**
    * Ink v2 wave 5 (registered by package 5-0; each package fills its own file): every playbook's desk
    * (fake-playbooks.ts, one fake-<id>.ts each), and the kit's methods: the chain (fake-kit-chain.ts, 5A1), sales
