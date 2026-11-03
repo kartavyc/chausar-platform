@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { openBridge, type BridgeOptions } from '../../src/places/apps/bridge';
+import { frameVariables, openBridge, type BridgeOptions } from '../../src/places/apps/bridge';
+import { chausarTheme } from '../../src/places/apps/MiniAppFrame';
 import { APP_PROTOCOL_VERSION } from '../../../../platform/runtime/venture/apps/frame';
 
 // Wave 6 package 6H1 (D39): the Ink app's side of the MCP Apps bridge. It answers only the frame it opened (by the
@@ -50,6 +51,34 @@ describe('the mini app bridge (6H1)', () => {
     expect(answer.result.hostCapabilities).toEqual({ serverTools: {} });
     expect(answer.result.hostContext).toMatchObject({ theme: 'dark', displayMode: 'inline', platform: 'desktop' });
     t.close();
+  });
+
+  it('one-shot A1 row 12: sends the colours Chausar shows with the theme, and only the frame variables', async () => {
+    const tokens: Record<string, string> = { '--surface': '#17181a', '--fg': '#eceef0', '--mute': '#9aa0a6', '--line': '#2a2d31', '--link': '#8fb4ff' };
+    expect(frameVariables((name) => tokens[name] ?? '')).toEqual({ '--bg': '#17181a', '--fg': '#eceef0', '--mute': '#9aa0a6', '--line': '#2a2d31', '--link': '#8fb4ff' });
+    expect(frameVariables((name) => (name === '--fg' ? ' #ECEEF0 ' : name === '--mute' ? 'rgb(1 2 3)' : ''))).toEqual({ '--fg': '#eceef0' });
+    const t = setUp({ styles: () => ({ '--bg': '#17181a', '--fg': '#eceef0' }) });
+    await t.ready();
+    const answer = t.posted.find((item) => (item as { id?: number }).id === 1) as { result: Record<string, any> };
+    expect(answer.result.hostContext.styles).toEqual({ variables: { '--bg': '#17181a', '--fg': '#eceef0' } });
+    t.close.themeChanged();
+    expect(t.posted.at(-1)).toEqual({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: 'dark', styles: { variables: { '--bg': '#17181a', '--fg': '#eceef0' } } } });
+    t.close();
+    const count = t.posted.length;
+    t.close.themeChanged();
+    expect(t.posted.length).toBe(count);
+  });
+
+  it('one-shot A1 row 12: the theme is the one Chausar shows, even when the computer says otherwise', () => {
+    const root = document.documentElement;
+    const before = root.getAttribute('data-theme');
+    const media = vi.spyOn(window, 'matchMedia').mockImplementation(((query: string) => ({ matches: query.includes('dark'), media: query, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia);
+    root.setAttribute('data-theme', 'light');
+    expect(chausarTheme()).toBe('light');
+    root.removeAttribute('data-theme');
+    expect(chausarTheme()).toBe('dark');
+    media.mockRestore();
+    if (before !== null) root.setAttribute('data-theme', before);
   });
 
   it('relays an allowed tools/call after initialized; refuses others as tool errors without asking the engine', async () => {

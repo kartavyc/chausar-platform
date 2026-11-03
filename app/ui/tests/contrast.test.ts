@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { frameVariables } from '../src/places/apps/bridge';
+import { FRAME_BASE_COLOURS } from '../../../platform/runtime/venture/apps/frame';
 
 /**
  * WCAG 2.2 contrast for every text colour on the page and sheet backgrounds, in light and dark, computed from the
@@ -154,5 +156,32 @@ describe('Ink v2 contrast from the tokens', () => {
       const ratios = themes.map(([, tokens]) => contrast(tokens[text]!, tokens[ground]!));
       expect(Math.min(...ratios), ratios.map((r) => r.toFixed(2)).join(' / ')).toBeLessThan(4.5);
     });
+  }
+});
+
+/**
+ * One-shot A1 (row 12): a mini app's words on its own ground, in both themes. The colours the frame gets from Chausar
+ * (bridge.ts frameVariables, read from these tokens) and the frame's own base colours before they arrive
+ * (apps/frame.ts FRAME_BASE_COLOURS) must each read at 4.5:1.
+ */
+describe('mini app frame contrast, in light and dark', () => {
+  const FRAME_TEXT = ['--fg', '--mute', '--link'] as const;
+  for (const [theme, tokens] of [['light', light], ['dark', dark]] as const) {
+    const variables = frameVariables((token) => (tokens[token.slice(2)] ? `${tokens[token.slice(2)]}` : ''));
+    it(`${theme}: the frame gets every colour it needs from the tokens`, () => {
+      expect(Object.keys(variables).sort()).toEqual(['--bg', '--fg', '--line', '--link', '--mute']);
+    });
+    for (const text of FRAME_TEXT) {
+      it(`${theme}: app ${text} on the app ground is at least 4.5:1`, () => {
+        const ratio = contrast(variables[text]!, variables['--bg']!);
+        expect(ratio, `${variables[text]} on ${variables['--bg']} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    const base = FRAME_BASE_COLOURS[theme];
+    for (const text of ['fg', 'mute', 'link'] as const) {
+      it(`${theme}: the frame base ${text} on its base ground is at least 4.5:1`, () => {
+        expect(contrast(base[text], base.bg)).toBeGreaterThanOrEqual(4.5);
+      });
+    }
   }
 });
