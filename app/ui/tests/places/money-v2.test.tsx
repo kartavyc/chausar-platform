@@ -313,7 +313,7 @@ describe('Money v2: the invoices table', () => {
     const open = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
     expect(open.textContent).toContain('Boat Audio');
     expect(open.textContent).toContain('₹26,200.00');
-    expect(open.textContent).toContain('Sent');
+    expect(open.textContent).toContain('Issued');
     expect(open.textContent).toContain('28 Oct 2026');
     expect(within(open).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     expect(within(open).getByRole('button', { name: 'Record payment' }).dataset.variant).toBe('secondary');

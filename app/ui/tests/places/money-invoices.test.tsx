@@ -38,7 +38,8 @@ describe('Money: invoices', () => {
     const table = await screen.findByRole('table', { name: /invoices/i });
     const open = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
     expect(open.textContent).toContain('Boat Audio');
-    expect(open.textContent).toContain('Sent');
+    // One-shot A4 (row 66): issued is not sent; the owner sends it.
+    expect(open.textContent).toContain('Issued');
     expect(open.textContent).toContain('28 Oct 2026');
     await waitFor(() => expect(open.textContent).toContain('₹26,200.00'));
     expect(within(open).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
