@@ -97,7 +97,7 @@ export const AVAILABILITY_REASONS = Object.freeze({
   claudeMissing: 'Install Claude Code and sign in. Chausar checks for it when you connect.',
   claudeFound: 'Found on this computer. Not yet tried on a real task.',
   codexMissing: "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now.",
-  codexReady: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.',
+  codexReady: 'Uses the reviewed Codex install.',
   templates: 'Nothing is sent anywhere.',
   hostedCli: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.',
   claudeTerms: 'Claude Code is disabled on this computer. Choose another AI.',

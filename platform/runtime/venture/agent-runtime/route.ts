@@ -18,6 +18,8 @@ export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId:
   const provider = serving.presetId.startsWith('anthropic-') || serving.presetId === 'claude-code-cli' ? 'claude' : 'codex';
   check(provider !== 'claude' || deps.claudeCodeTerms !== 'pending', 'PRESET_UNAVAILABLE', 'Claude Code is switched off on this computer.');
   const settings = driverSettingsFor(agentSettingsOf(state, venture.id), provider, 'main', agentId, research);
+  // A2: while the owner has not set the agent models, Codex's main work uses the model Codex's own list offers.
+  if (provider === 'codex' && venture.aiSettings === undefined && serving.presetId === 'codex-cli' && deps.models.codexModels) settings.model = (await deps.models.codexModels()).main;
   const plan = serving.presetId === 'claude-code-cli' || serving.presetId === 'codex-cli';
   const connection = listRecords(state, 'venture-model-connection', venture.id).findLast(row => row.status === 'connected' && row.presetId === serving.presetId && row.tiers.includes('main'));
   check(plan || connection, 'MODEL_KEY_MISSING', 'Reconnect this AI before starting.');

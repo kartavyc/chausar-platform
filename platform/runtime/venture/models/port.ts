@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
 import type {
-  CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
+  CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
   ModelStatusView, ModelTask, ModelTier, SpendRate, VentureDeps,
 } from '../contracts.ts';
 import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
@@ -37,7 +37,8 @@ import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts'
 import {
   AVAILABILITY_REASONS, PRESETS, availabilityOf, endpointFor, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, type PresetSpec,
 } from './presets.ts';
-import { CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
+import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
+import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
 import { assertSchemaSafe } from './schema.ts';
 import { redactPayload, redactSecrets } from '../core/secrets.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
@@ -278,6 +279,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   // The hosted web server never runs a command-line tool: no Codex profile is honoured there, whatever was passed.
   // A2: the Codex trust can change while the engine runs (the owner chooses their own Codex), so it is read at each use.
   const codexNow = (): CodexHost | null => (hosted ? null : codexHost(options.codexCli));
+  /** A2: the models list Codex gave this session, by program. */
+  let codexModelsKept: { program: string; models: CodexModels } | null = null;
   const locate = options.locateCli ?? locateOnThisComputer;
   // The newest look at each command-line tool this session (4H1). In memory only: a restart looks again.
   const looks = new Map<DelegateCli, CliFinding>();
@@ -618,6 +621,26 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
      * The status screen's look: joins one under way, else reuses one started within the last minute, unless fresh
      * ("Check again"), which always starts one when none is under way.
      */
+    /**
+     * A2: the models Codex itself offers this account, read once per program this session with `codex debug models` in
+     * an empty folder (ids only are kept), and the ones Chausar uses. The fixed ids when it cannot be read.
+     */
+    async codexModels() {
+      const evidence = codexNow()?.capabilities.evidence;
+      const program = evidence?.kind === 'installed-help' ? evidence.executable : null;
+      if (!program || hosted || transport.replay === true) return pickCodexModels(null);
+      if (codexModelsKept?.program === program) return structuredClone(codexModelsKept.models);
+      let folder: string | undefined, response: ModelProcessResponse | null = null;
+      try {
+        folder = await mkdtemp(join(tmpdir(), CLI_LOOK_FOLDER));
+        response = await transport.process({ command: program, args: ['debug', 'models'], env: cliEnv('codex-cli'), stdin: '', timeoutMs: 30_000, purpose: 'version-check', cwd: folder });
+      } catch { response = null; }
+      finally { if (folder) await rm(folder, { recursive: true, force: true }).catch(() => undefined); }
+      const models = codexModelsFrom(response);
+      if (models.source === 'codex') codexModelsKept = { program, models };
+      return structuredClone(models);
+    },
+
     /** A2: the native program of the Codex setup in use, so agent jobs run the program the owner chose; null without one. */
     codexProgram() {
       const codex = codexNow();

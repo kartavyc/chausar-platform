@@ -296,7 +296,7 @@ describe('Your AI: a command-line AI the engine refuses', () => {
 
   it('Connect refused with CLI_FLAGS_UNSUPPORTED shows the engine words and connects nothing; a CLI asks for no key', async () => {
     const { calls } = start({ intercept: {
-      'venture.models.presets': presetsWith({ availability: 'unverified', availabilityReason: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.' }),
+      'venture.models.presets': presetsWith({ availability: 'unverified', availabilityReason: 'Uses the reviewed Codex install.' }),
       'venture.models.connect': () => { throw new EngineError('CLI_FLAGS_UNSUPPORTED', flagsWords); },
     } });
     const ai = await region('Your AI');

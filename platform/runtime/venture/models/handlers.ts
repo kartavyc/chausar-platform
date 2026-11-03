@@ -74,6 +74,8 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
   // Only now is a command-line tool looked at, fresh (4H1): not answering, a flag it does not know
   // (CLI_FLAGS_UNSUPPORTED) or signed out refuses here, in the tool's own words, before anything is written.
   if (spec.runsOn === 'this-computer') await deps.models.checkCli(presetId);
+  // A2: Codex's route model comes from Codex's own list unless the owner typed one; the fixed id only when it is unread.
+  if (presetId === 'codex-cli' && input.model === undefined && deps.models.codexModels) model = (await deps.models.codexModels()).route;
   const live = deps.models.presets().find(preset => preset.id === presetId);
   check(live && live.availability !== 'unavailable', 'PRESET_UNAVAILABLE', live?.availabilityReason ?? 'This AI option is not available here.');
   check(presetId !== 'codex-cli' || live.availability !== 'needs-setup', 'PRESET_UNAVAILABLE', live.availabilityReason);

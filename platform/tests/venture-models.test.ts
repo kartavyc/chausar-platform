@@ -685,6 +685,28 @@ test('A2: a failed Codex call says why in owner words, and keeps what Codex said
   assert.ok(record.error.said.length <= 600);
 });
 
+test('A2: connecting Codex takes the route model from Codex’s own list; the fixed id stands only when the list cannot be read', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  let list: string | null = JSON.stringify({ models: [{ slug: 'gpt-6-astra', visibility: 'list', priority: 2 }, { slug: 'gpt-6-luna', visibility: 'hide', priority: 1 }] });
+  const asked: string[] = [];
+  const hostProcess = async (request: any) => {
+    asked.push(request.args.join(' '));
+    if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
+    if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
+    if (request.args.join(' ') === 'debug models') return list === null ? { exitCode: 1, stdout: '' } : { exitCode: 0, stdout: list };
+    return { exitCode: 1, stdout: '' };
+  };
+  const first = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(first.deps, 'codex-cli');
+  assert.ok(asked.includes('debug models'), 'Codex is asked for its own list');
+  assert.equal((listRecords(first.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-astra', 'gpt-6-luna is hidden for this account');
+  assert.equal((await first.deps.models.codexModels!()).main, 'gpt-6-astra');
+  list = null;
+  const second = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(second.deps, 'codex-cli');
+  assert.equal((listRecords(second.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-luna');
+});
+
 test('A2: the agent route runs the Codex program the trust names, read at each use', async () => {
   const executable = join(tmpdir(), 'codex.exe');
   let live: unknown = null;

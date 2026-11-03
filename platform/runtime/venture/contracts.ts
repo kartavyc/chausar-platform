@@ -825,6 +825,8 @@ export interface ModelPort {
   codexSetup?(): Promise<import('./core/first-run-types.ts').CodexSetupView | null>;
   /** A2: the native Codex program the setup in use names, for the agent route; null without one. */
   codexProgram?(): string | null;
+  /** A2: the models Codex offers this account (codex debug models), and the ones Chausar uses; the fixed ids when unread. */
+  codexModels?(): Promise<import('./models/codex-models.ts').CodexModels>;
 }
 
 /**
