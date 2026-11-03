@@ -232,13 +232,14 @@ export function checkParts(raw: readonly RawPart[], figures: readonly ToolFigure
 // ---------------------------------------------------------------------------
 
 /**
- * The chief has read tools only: no tool call of its turns can send, brief, book, pay or change anything. So a sentence
- * where it says it did ("I passed a brief to Studio agent.", "I've emailed the client") is never true, and is taken out;
- * one offer line is said instead. "I proposed" is true only when the answer carries a proposal. Reading ("I checked your
- * books"), offers ("I can send it once you approve") and conditions ("if I sent it now") stay.
+ * The chief has read tools only: no tool call of its turns can send, book, pay or change anything. Only a brief to an
+ * agent is carried out in that turn, by code (threads.ts posts it in the agent's chat and says so). So a sentence where
+ * it says it acted ("I've emailed the client") is taken out and one offer line is said instead, unless it is about the
+ * brief that was passed. "I proposed" is true only when the answer carries a proposal. Reading ("I checked your books"),
+ * offers ("I can send it once you approve") and conditions ("if I sent it now") stay.
  */
 export const ACTION_OFFER = "I can't do that myself. I can propose it, and you approve it on Today.";
-const ACTED = 'passed|sent|handed|forwarded|emailed|mailed|messaged|texted|posted|published|shared|scheduled|booked|assigned|delegated|briefed|created|made|drafted|wrote|written|started|launched|ordered|paid|invoiced|charged|refunded|cancelled|canceled|deleted|removed|updated|changed|saved|added|filed|submitted|uploaded|notified|reminded|contacted|called|queued|approved|accepted|rejected|marked|issued|replied|asked|instructed|arranged|set up|put together|reached out';
+const ACTED = 'passed|prepared|sent|handed|forwarded|emailed|mailed|messaged|texted|posted|published|shared|scheduled|booked|assigned|delegated|briefed|created|made|drafted|wrote|written|started|launched|ordered|paid|invoiced|charged|refunded|cancelled|canceled|deleted|removed|updated|changed|saved|added|filed|submitted|uploaded|notified|reminded|contacted|called|queued|approved|accepted|rejected|marked|issued|replied|asked|instructed|arranged|set up|put together|reached out';
 const PROPOSED = 'proposed|suggested|raised';
 const CLAIM = (verbs: string) => new RegExp(String.raw`\b(?:I|we|Chausar)(?:'ve|’ve|\s+have|\s+had|\s+has)?(?:\s+(?:just|already|also|now|then|quickly|gone\s+ahead\s+and|went\s+ahead\s+and))*\s+(?:${verbs})\b`, 'giu');
 /** Words before "I" that make it a condition or a question, not a claim. */
@@ -251,14 +252,17 @@ function claimsAction(sentence: string, proposals: number): boolean {
   return false;
 }
 
-/** The answer's parts with every claim of an action taken out, and the offer line once at the end when one was. */
-export function withoutActionClaims(parts: readonly ChatPart[], proposals: number): ChatPart[] {
+/**
+ * The answer's parts with every claim of an action taken out, and the offer line once at the end when one was.
+ * proposals: how many proposals the answer carries; briefed: the agents a brief was passed to in this turn.
+ */
+export function withoutActionClaims(parts: readonly ChatPart[], done: { proposals: number; briefed: readonly string[] }): ChatPart[] {
   const kept: ChatPart[] = [];
   let claimed = false;
   for (const item of parts) {
     if (item.kind !== 'text' && item.kind !== 'estimate') { kept.push(item); continue; }
     const sentences = item.text.split(/(?<=[.!?])\s+/u);
-    const honest = sentences.filter(sentence => !claimsAction(sentence, proposals));
+    const honest = sentences.filter(sentence => !claimsAction(sentence, done.proposals) || (done.briefed.length > 0 && /\bbrief/i.test(sentence)));
     if (honest.length === sentences.length) { kept.push(item); continue; }
     claimed = true;
     const text = honest.join(' ').trim();
@@ -434,9 +438,8 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
       continue;
     }
     const checked = checkParts(out.parts, unique(figures), question);
-    // One-shot A4: no turn ran a tool that acts, so any claim of an action in the words is taken out (withoutActionClaims).
-    const honest = withoutActionClaims(checked.parts, out.proposals.length);
-    const parts = honest.length ? honest : [{ kind: 'text' as const, text: NO_PROOF }];
+    // One-shot A4: claims of action in the words are checked where the turn's actions are known (threads.ts store).
+    const parts = checked.parts.length ? checked.parts : [{ kind: 'text' as const, text: NO_PROOF }];
     const receiptIds = [...new Set(parts.flatMap(item => (item.kind === 'figure' ? [item.receiptId] : [])))];
     return { parts, dropped: checked.dropped, worked: checked.worked, receiptIds, callIds, author: 'model', proposals: out.proposals, counted: null, assertCurrent: clientContext.assert };
   }

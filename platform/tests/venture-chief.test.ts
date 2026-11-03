@@ -560,3 +560,22 @@ test('chief: a claim of an action it never took is taken out, and it offers to p
     assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: honest }], honest);
   }
 });
+
+// One-shot A4 (live on Codex): a brief the chief proposes is passed to the agent at once by code, so "I've prepared a
+// brief for Story editor" is true in that turn; a claim of anything else is still taken out.
+test('chief: a claim of briefing an agent stays when a brief was passed in that turn; other claims still go (A4)', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks. I've emailed Asha the plan.")], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks for the budgets episode.' })])]);
+  const sent = await env.chief('venture.chief.thread.send', { text: 'Ask the story editor for five hooks.' });
+  const words = sent.added[1].parts.map((part: { text?: string }) => part.text);
+  assert.deepEqual(words, [
+    "I’ve prepared a brief for Story editor to draft five hooks.",
+    "I can't do that myself. I can propose it, and you approve it on Today.",
+    'I passed a brief to Story editor.',
+  ]);
+  // With no brief passed, the same claim goes.
+  scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks.")])]);
+  const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
+  assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }]);
+});
