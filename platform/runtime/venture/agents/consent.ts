@@ -36,7 +36,7 @@ export function chatRoute(status: ModelStatusView): ChatRoute | null {
  */
 export function chatConsentText(route: ChatRoute): string {
   const vendor = routedVendor(route);
-  return `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${vendor ? `, which passes it to the ${vendor} model you chose` : ''}. Keys, passphrases and bank or card numbers are never sent.`;
+  return `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${vendorWords(vendor)}. Keys, passphrases and bank or card numbers are never sent.`;
 }
 
 /**
@@ -46,6 +46,15 @@ export function chatConsentText(route: ChatRoute): string {
 export function routedVendor(route: Pick<ChatRoute, 'presetId' | 'model'>): string | null {
   if (route.presetId !== 'openrouter' || !route.model || !route.model.includes('/')) return null;
   return route.model.replace(/^~/, '').split('/')[0]!.toLowerCase();
+}
+
+/**
+ * A1 re-review: OpenRouter's own models (openrouter/auto and the like) pick the company per chat, so the text says that
+ * in plain words instead of naming "the openrouter model"; moving to or from one changes the text, so it asks again.
+ */
+export function vendorWords(vendor: string | null): string {
+  if (!vendor) return '';
+  return vendor === 'openrouter' ? ", and OpenRouter picks which company's model gets each chat" : `, which passes it to the ${vendor} model you chose`;
 }
 
 type Standing = { view: ChatConsentView; route: ChatRoute | null };

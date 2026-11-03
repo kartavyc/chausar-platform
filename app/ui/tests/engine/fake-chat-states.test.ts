@@ -113,5 +113,14 @@ describe('fake chat consent', () => {
     expect((await client.request('venture.chief.threads', {})).consent.state).toBe('given');
     await connect('deepseek/deepseek-v4');
     expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
+    // A1 re-review: OpenRouter's own router picks the company per chat, says so, and asks again either way.
+    await client.request('venture.chats.consent', { digest: (await client.request('venture.chief.threads', {})).consent.digest! });
+    await connect('openrouter/auto');
+    const auto = (await client.request('venture.chief.threads', {})).consent;
+    expect(auto.state).toBe('stale');
+    expect(auto.text).toContain("OpenRouter picks which company's model gets each chat");
+    await client.request('venture.chats.consent', { digest: auto.digest! });
+    await connect('deepseek/deepseek-v4');
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
   });
 });
