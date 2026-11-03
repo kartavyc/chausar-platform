@@ -19,6 +19,13 @@ export function desktopLaunchEnvironment(environment = process.env) {
   }
   return result;
 }
+/**
+ * One-shot A4 (hands-on row 2): how the window app is started. Never windowsHide: on Windows it hides the app's first
+ * window, so npm run desktop showed nothing.
+ */
+export function desktopLaunchSpawnOptions(cwd = projectRoot, environment = process.env) {
+  return { cwd, env: desktopLaunchEnvironment(environment), shell: false, stdio: 'inherit' };
+}
 export async function desktopLaunchPrerequisites(root = projectRoot) {
   const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   const electronRoot = join(root, 'node_modules/electron');
@@ -45,7 +52,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       // The window is the Ink build; say so here rather than in an error box. npm run desktop builds it first.
       const built = await lstat(join(projectRoot, 'app/ui/dist/index.html')).then(info => info.isFile(), () => false);
       if (!built) throw new Error('The Ink app is not built. Run npm run build:ui (npm run desktop does it first), then launch again.');
-      const child = spawn(prerequisites.executablePath, [projectRoot, demo ? '--demo' : '--production', ...(background ? ['--background'] : [])], { cwd: projectRoot, env: desktopLaunchEnvironment(), shell: false, windowsHide: true, stdio: 'inherit' });
+      const child = spawn(prerequisites.executablePath, [projectRoot, demo ? '--demo' : '--production', ...(background ? ['--background'] : [])], desktopLaunchSpawnOptions());
       child.once('error', error => { console.error(error.message); process.exitCode = 1; });
       child.once('exit', code => { process.exitCode = code ?? 1; });
     }
