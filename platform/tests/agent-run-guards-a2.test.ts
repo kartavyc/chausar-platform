@@ -117,3 +117,44 @@ test('the watchdog waits while a tool step is still running', async () => {
   assert.deepEqual(seen, []);
   assert.notEqual(record(env, started.id).agentJob!.quiet, true);
 });
+
+// A2 review (finding 14): a saved draft gets no nudge; the two turns of a nudge are counted as one total.
+test('a job that saved its draft gets no nudge, even if its last words name a tool', async () => {
+  const { scriptedAgent } = await import('./fixtures/venture/scripted-agent.ts');
+  const { env, order } = await ready();
+  let headings: string[] = [];
+  const draft = () => ({ title: 'Books for your review', questionsForClient: [], sections: headings.map((heading, index) => ({ heading, parts: index === headings.length - 1
+    ? [{ kind: 'text', text: 'The agreed fee follows.', ref: '' }, { kind: 'figure', text: '', ref: 'order.total' }]
+    : [{ kind: 'text', text: 'Please review the attached books and confirm the records are complete.', ref: '' }] })) });
+  const inner = scriptedAgent(draft, undefined, (name, data) => { if (name === 'read_business') headings = (data as { sections: string[] }).sections; });
+  let runs = 0;
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: { async open(input: AgentDriverInput) {
+    const session = await inner.open(input);
+    return { ...session, async run(prompt: string) { runs += 1; const result = await session.run(prompt); return { ...result, text: 'Saved it; next propose_action({"draftId": "x"}).' }; } };
+  } } });
+  const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, started.id);
+  assert.equal(runs, 1, 'no nudge after a saved draft');
+  assert.ok(record(env, started.id).agentJob!.draftDigest);
+});
+
+test('the two turns of a nudge are counted as one growing total', async () => {
+  const { env, order } = await ready();
+  let turn = 0;
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: { async open(input: AgentDriverInput) {
+    return {
+      async run() {
+        turn += 1;
+        const usage = turn === 1 ? { inputTokens: 10, outputTokens: 5, source: 'provider-reported' as const } : { inputTokens: 4, outputTokens: 2, source: 'provider-reported' as const };
+        input.onEvent({ type: 'usage', usage });
+        return { status: 'completed' as const, text: turn === 1 ? 'Calling draft_document({"draft": {}}) next.' : 'I cannot draft this.', usage };
+      },
+      async interrupt() {}, async close() {},
+    };
+  } } });
+  const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, started.id);
+  assert.equal(turn, 2);
+  const usage = record(env, started.id).agentJob!.usage!;
+  assert.deepEqual([usage.inputTokens, usage.outputTokens], [14, 7], 'the second turn adds to the first');
+});
