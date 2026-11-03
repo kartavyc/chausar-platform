@@ -97,15 +97,16 @@ function nodeVersionSupported(version) {
 }
 
 /** Native builds deliberately require the host OS and architecture; this is not a cross-compilation claim. */
-export function createDesktopPackagePlan({ mode = 'preview', platform = process.platform, architecture = process.arch, unpacked = false, hostPlatform = process.platform, hostArchitecture = process.arch } = {}) {
+export function createDesktopPackagePlan({ mode = 'preview', platform = process.platform, architecture = process.arch, unpacked = false, hostPlatform = process.platform, hostArchitecture = process.arch, allowUnrecordedCodex = false } = {}) {
   if (!Object.hasOwn(modes, mode)) throw new Error('mode must be preview, beta or final');
   if (!platforms.has(platform) || !architectures.has(architecture)) throw new Error('supported targets are win32, darwin or linux with x64 or arm64 architecture');
   if (platform !== hostPlatform || architecture !== hostArchitecture) throw new Error(`build ${platform}-${architecture} on a matching native host; this host is ${hostPlatform}-${hostArchitecture}`);
   if (mode === 'beta' && !Object.hasOwn(betaArtifactExtensions, platform)) throw new Error('the beta is built for Windows and Linux only; Mac is out of scope');
   if (typeof unpacked !== 'boolean') throw new Error('unpacked must be a boolean');
   const { config, output } = modes[mode];
+  if (typeof allowUnrecordedCodex !== 'boolean') throw new Error('allowUnrecordedCodex must be a boolean');
   return {
-    mode, platform, architecture, unpacked, target: `${platform}-${architecture}`,
+    mode, platform, architecture, unpacked, target: `${platform}-${architecture}`, ...(allowUnrecordedCodex ? { allowUnrecordedCodex: true } : {}),
     config,
     output,
     builderArguments: ['--config', config, flags[platform], `--${architecture}`, '--publish', 'never', ...(unpacked ? ['--dir'] : [])],
@@ -123,12 +124,14 @@ export function parseDesktopPackageArguments(args) {
     if (seen.has(flag)) throw new Error(`duplicate option: ${flag}`);
     seen.add(flag);
     if (flag === '--check') result.checkOnly = true;
+    // A2 review: ship a beta whose bundled Codex has no recorded setup (the owner then chooses it on first use).
+    else if (flag === '--allow-unrecorded-codex') result.allowUnrecordedCodex = true;
     else if (flag === '--dir') result.unpacked = true;
     else if (['--mode', '--platform', '--arch'].includes(flag)) {
       const value = args[++index];
       if (!value || value.startsWith('--')) throw new Error(`missing value for ${flag}`);
       result[flag === '--arch' ? 'architecture' : flag.slice(2)] = value;
-    } else throw new Error(`unknown option: ${flag}; use --mode preview|beta|final --platform win32|darwin|linux --arch x64|arm64 [--dir] [--check]`);
+    } else throw new Error(`unknown option: ${flag}; use --mode preview|beta|final --platform win32|darwin|linux --arch x64|arm64 [--dir] [--check] [--allow-unrecorded-codex]`);
   }
   return result;
 }
@@ -333,7 +336,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
   if (plan.mode === 'beta') {
     await check(CODEX_CHECK, async () => {
       const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
-      await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture });
+      await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     });
   }
   // 6J2: half-set or malformed report keys block even a --check run, by variable name only.
@@ -414,7 +417,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   if (plan.mode === 'beta') {
     await cp(join(root, 'app/desktop/notices'), join(root, plan.output, 'notices'), { recursive: true, errorOnExist: true, force: false });
     const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
-    const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture });
+    const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     bundled = { codex: { version: codex.version, target: codex.target, licence: codex.licence, files: Object.keys(codex.files).length }, notices: 'notices/THIRD-PARTY-NOTICES.md' };
   }
   const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}) };

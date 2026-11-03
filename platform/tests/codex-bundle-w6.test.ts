@@ -154,6 +154,28 @@ test('staging refuses a different Codex version, a wrong target or architecture,
   await assert.rejects(stageCodexBundle({ source: linked.root, destination: linked.destination, platform: 'win32', architecture: 'x64' }), /link/);
 });
 
+test('A2 review: verification checks the recorded setup and the left-out folder, and a beta needs the setup unless told otherwise', async t => {
+  const answer = (args: string[]) => ({ exitCode: 0, stdout: args.at(-1) === '--version' ? 'codex-cli 0.166.0\n' : 'text\n' });
+  const { root, destination } = await vendorFixture(t);
+  await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64', probe: async (_c: string, args: string[]) => answer(args) });
+  await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64', requireSetup: true });
+  // No recorded setup: fine for a plain check, refused when a beta needs it.
+  const bare = await vendorFixture(t);
+  await stageCodexBundle({ source: bare.root, destination: bare.destination, platform: 'win32', architecture: 'x64' });
+  await verifyCodexBundle({ directory: bare.destination, platform: 'win32', architecture: 'x64' });
+  await assert.rejects(verifyCodexBundle({ directory: bare.destination, platform: 'win32', architecture: 'x64', requireSetup: true }), /no recorded setup; stage it on a win32-x64 computer.*--allow-unrecorded-codex/);
+  // A file from a left-out folder, or a changed leftOut list, is refused.
+  await mkdir(join(destination, 'codex-resources/voice'), { recursive: true });
+  await writeFile(join(destination, 'codex-resources/voice/NOTICE.md'), 'x');
+  await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), /left out/);
+  await rm(join(destination, 'codex-resources/voice'), { recursive: true });
+  const manifest = JSON.parse(await readFile(join(destination, 'BUNDLE.json'), 'utf8'));
+  await writeFile(join(destination, 'BUNDLE.json'), JSON.stringify({ ...manifest, leftOut: [] }));
+  await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), /must leave out codex-resources\/voice/);
+  await writeFile(join(destination, 'BUNDLE.json'), JSON.stringify({ ...manifest, evidence: { ...manifest.evidence, files: { versionOutput: 'evidence/version.stdout.txt' } } }));
+  await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), /malformed recorded setup/);
+});
+
 test('verification refuses a bundle with a missing LICENSE or NOTICE, a changed file or an extra file', async t => {
   for (const damage of ['LICENSE', 'NOTICE', 'changed', 'extra']) {
     const { root, destination } = await vendorFixture(t);

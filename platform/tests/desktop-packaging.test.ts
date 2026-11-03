@@ -73,6 +73,10 @@ test('final packaging keeps the original signed config and never publishes', () 
 
 test('CLI accepts only bounded packaging options and refuses injected builder or publishing flags', () => {
   assert.deepEqual(parseDesktopPackageArguments(['--mode', 'preview', '--platform', 'win32', '--arch', 'x64', '--dir', '--check']), { mode: 'preview', platform: 'win32', architecture: 'x64', unpacked: true, checkOnly: true });
+  // A2 review: shipping a bundled Codex with no recorded setup takes an explicit flag.
+  assert.deepEqual(parseDesktopPackageArguments(['--mode', 'beta', '--allow-unrecorded-codex']), { mode: 'beta', allowUnrecordedCodex: true });
+  assert.equal(createDesktopPackagePlan({ mode: 'beta', platform: 'win32', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64', allowUnrecordedCodex: true }).allowUnrecordedCodex, true);
+  assert.equal('allowUnrecordedCodex' in createDesktopPackagePlan({ mode: 'beta', platform: 'win32', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' }), false);
   for (const args of [['--mode'], ['--arch', '--check'], ['--publish', 'always'], ['--config', 'other.json'], ['--mode', 'preview', '--mode', 'final'], ['--check', '--check'], ['--dir', '--dir']]) assert.throws(() => parseDesktopPackageArguments(args));
 });
 

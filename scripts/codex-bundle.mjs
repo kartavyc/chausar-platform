@@ -180,8 +180,12 @@ export async function stageCodexBundle({ source, destination, platform, architec
   return manifest;
 }
 
-/** Read-only: the staged bundle is complete, unchanged since staging, for this target, with LICENSE and NOTICE. */
-export async function verifyCodexBundle({ directory, platform, architecture }) {
+/**
+ * Read-only: the staged bundle is complete, unchanged since staging, for this target, with LICENSE and NOTICE.
+ * A2 review: it leaves out exactly LEFT_OUT and carries nothing from those folders, its recorded setup (when present)
+ * names exactly the three answers, each listed and pinned, and requireSetup refuses a bundle with none.
+ */
+export async function verifyCodexBundle({ directory, platform, architecture, requireSetup = false }) {
   let manifest;
   try { manifest = JSON.parse(await readFile(join(directory, 'BUNDLE.json'), 'utf8')); }
   catch (error) { if (error.code === 'ENOENT') throw new Error(`no staged Codex bundle in ${directory}; run npm run package:codex -- --from <the @openai/codex folder> first`); throw error; }
@@ -192,7 +196,19 @@ export async function verifyCodexBundle({ directory, platform, architecture }) {
     catch (error) { if (error.code === 'ENOENT') throw new Error(`the staged Codex bundle has no ${name}`); throw error; }
     if (await sha256(join(directory, name)) !== digest) throw new Error(`the staged Codex ${name} differs from the pinned openai/codex file`);
   }
+  if (JSON.stringify(manifest.leftOut) !== JSON.stringify([...LEFT_OUT])) throw new Error(`the staged Codex bundle must leave out ${LEFT_OUT.join(', ')}; stage it again with this script`);
+  const evidence = manifest.evidence ?? null;
+  if (evidence !== null) {
+    const names = evidence && typeof evidence === 'object' && evidence.files && typeof evidence.files === 'object' ? evidence.files : null;
+    if (!names || !Number.isFinite(Date.parse(evidence.recordedAt)) || JSON.stringify(Object.keys(names).sort()) !== JSON.stringify(Object.keys(EVIDENCE_FILES).sort()) || Object.entries(EVIDENCE_FILES).some(([role, file]) => names[role] !== file || !manifest.files[file])) {
+      throw new Error('the staged Codex bundle has a malformed recorded setup; stage it again');
+    }
+  } else if (requireSetup) {
+    throw new Error(`the staged Codex bundle has no recorded setup; stage it on a ${platform}-${architecture} computer with npm run package:codex, or pass --allow-unrecorded-codex so owners choose it on first use`);
+  }
   const present = (await listTree(directory)).filter(name => name !== 'BUNDLE.json').sort();
+  for (const name of present) if (leftOut(name)) throw new Error(`${name} is in the Codex bundle but that folder is left out`);
+  for (const name of Object.keys(manifest.files)) if (leftOut(name)) throw new Error(`${name} is listed in BUNDLE.json but that folder is left out`);
   for (const name of present) if (!manifest.files[name]) throw new Error(`${name} is in the Codex bundle but not listed in BUNDLE.json`);
   for (const [name, expected] of Object.entries(manifest.files)) {
     if (!present.includes(name)) throw new Error(`the staged Codex bundle has no ${name}`);
