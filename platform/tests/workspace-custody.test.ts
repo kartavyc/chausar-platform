@@ -615,7 +615,12 @@ test('one-shot A1 row 1: Delete keeps the copies the owner exported to keep, and
   const kept = await ask('workspace.export', { confirmed: true, plaintext: false });
   const exported = (await readdir(join(directory, 'exports'))).sort();
   assert.equal(exported.length, 1);
+  const before = new Set(await readdir(directory));
   const removed = await ask('workspace.delete', { confirmation: 'Keep Copies Shop' });
+  // One-shot A4 (hands-on S10): the business's own folder goes too once it is empty; nothing else is touched.
+  const after = new Set(await readdir(directory));
+  assert.deepEqual([...before].filter(name => !after.has(name)).length, 1, `one folder went: ${[...before].filter(name => !after.has(name))}`);
+  assert.ok(after.has('exports') && after.has('backups'));
   assert.deepEqual(await readdir(join(directory, 'exports')), exported, 'the exported copy is still there');
   assert.deepEqual(removed.exportsKept, [kept.path]);
   assert.equal(removed.copiesRemoved.some((path: string) => path.startsWith('exports/')), false);

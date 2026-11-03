@@ -1,5 +1,5 @@
 import { resolve, join, relative, isAbsolute } from 'node:path';
-import { mkdir, readdir, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -1721,6 +1721,8 @@ export class Engine {
         // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
         const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
         const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
+        // One-shot A4 (hands-on S10): the business's own folder goes too, only when nothing is left in it.
+        await this.removeEmptyFolder(this.workspacePath(deletedFolder ?? undefined));
         return { deleted: true, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }
       case 'venture.create':
@@ -2922,6 +2924,10 @@ export class Engine {
     } finally { await files.removeTransfer(path).catch(() => {}); }
     await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: transferHint(parsed) });
     return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase' };
+  }
+  /** One-shot A4: removes a deleted business's folder when it holds nothing (never recursive); else leaves it. Never throws. */
+  private async removeEmptyFolder(path: string) {
+    try { await rmdir(path); } catch { /* not empty, or already gone */ }
   }
   private async forgetBusiness(folder: string | null, vaultId: string) {
     const custody = this.custodyHost(); if (!custody || !folder) return;
