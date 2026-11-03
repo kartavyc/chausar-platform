@@ -9,6 +9,8 @@ const { createCredentialRelay } = require('./credential-relay.cjs');
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 /** A2 second review: only the two fields the engine checks go on to it; anything else the window sent stays behind. */
 const codexPayload = payload => ({ cli: payload?.cli, sha256: payload?.sha256 });
+/** One-shot A3: main's confirmation also names the path its own dialog showed (from the engine's held review). */
+const confirmPayload = payload => ({ cli: payload?.cli, sha256: payload?.sha256, path: payload?.path });
 /**
  * Ink v2 wave 5 (5A5): a report print the engine asked for. Checked here (an id, an HTML string within bounds, known
  * scripts), passed to main's 'print' listener with one answer function, and answered to the worker once as
@@ -135,7 +137,7 @@ class EngineHarness extends EventEmitter {
   // A2 second review: main's own route for the owner's Codex choice (codex-choice.cjs). No renderer method can make
   // these: renderer requests are { method, payload } only (validateRequest), and these carry a kind and no method.
   codexChoice(payload) { return this.#send({ kind: 'host-codex-choice', payload: codexPayload(payload) }, this.options.requestTimeoutMs); }
-  confirmCodex(payload) { return this.#send({ kind: 'host-codex-confirm', payload: codexPayload(payload) }, this.options.requestTimeoutMs); }
+  confirmCodex(payload) { return this.#send({ kind: 'host-codex-confirm', payload: confirmPayload(payload) }, this.options.requestTimeoutMs); }
   // Trusted main-process lifecycle only. No renderer method can manufacture this cancellation.
   closeForms() { try { if (this.worker?.connected) this.worker.send({ kind: 'host-forms-closed' }, () => {}); } catch {} }
   // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert

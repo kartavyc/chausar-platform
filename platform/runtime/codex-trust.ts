@@ -229,7 +229,10 @@ export class CodexTrust {
   #version: string | null = null;
   #path: string | null = null;
   #sha256: string | null = null;
-  /** Reviews waiting for the owner's yes, by program digest: the review copy's folder and what it found. */
+  /**
+   * Reviews waiting for the owner's yes: the review copy's folder and what it found. One-shot A3: kept by the program's
+   * digest and its path (reviewKey), so two copies of one program are two reviews, and the yes names the path shown.
+   */
   #reviews = new Map<string, { folder: string; evidence: Evidence; found: string }>();
   /** The last review of a found path, kept while the program's size and time stay the same. */
   #looked = new Map<string, { key: string; view: CodexSetupView }>();
@@ -534,9 +537,12 @@ export class CodexTrust {
       await dropTemp(folder);
       return refused(SETUP_WORDS.lacking(version), version, sha256);
     }
-    const earlier = this.#reviews.get(sha256);
+    const key = reviewKey(sha256, program);
+    const earlier = this.#reviews.get(key);
     if (earlier) await dropTemp(earlier.folder);
-    this.#reviews.set(sha256, { folder, evidence, found });
+    // The newest review of a digest is the one main's dialog names (held), so it goes last.
+    this.#reviews.delete(key);
+    this.#reviews.set(key, { folder, evidence, found });
     return { state: 'review', origin: null, path: shown(program), version, sha256, line: SETUP_WORDS.review(version) };
   }
 
@@ -545,14 +551,20 @@ export class CodexTrust {
    * program path that is hashed and run, and its version), or null when none is held.
    */
   held(sha256: unknown): { path: string; version: string } | null {
-    const review = typeof sha256 === 'string' ? this.#reviews.get(sha256) : undefined;
+    if (typeof sha256 !== 'string') return null;
+    const review = [...this.#reviews.values()].filter(item => item.evidence.executable.sha256 === sha256).at(-1);
     return review ? { path: review.evidence.executable.path, version: review.evidence.executable.version } : null;
   }
 
-  /** venture.ai.setup.trust: the owner said yes to the Codex reviewed with this exact digest. */
-  async record(sha256: unknown): Promise<CodexSetupView> {
+  /**
+   * venture.ai.setup.trust: the owner said yes to the Codex reviewed with this exact digest, at the path main's dialog
+   * showed (one-shot A3: the confirmation carries it, so the yes records that copy and no other).
+   */
+  async record(sha256: unknown, path: unknown): Promise<CodexSetupView> {
     check(typeof sha256 === 'string' && /^[a-f0-9]{64}$/.test(sha256), 'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
-    const review = this.#reviews.get(sha256);
+    check(typeof path === 'string' && path.length > 0 && path.length <= 4096 && !/[\0\r\n]/.test(path), 'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
+    const heldKey = reviewKey(sha256, path);
+    const review = this.#reviews.get(heldKey);
     check(review, 'CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
     const folder = this.#trustFolder();
     check(folder, 'CODEX_SETUP_UNAVAILABLE', SETUP_WORDS.noFolder);
@@ -561,7 +573,7 @@ export class CodexTrust {
     try { now = await fileDigest(review.evidence.executable.path); } catch { now = ''; }
     if (now !== sha256) {
       await dropTemp(review.folder);
-      this.#reviews.delete(sha256);
+      this.#reviews.delete(heldKey);
       this.#looked.clear();
       throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
     }
@@ -573,7 +585,7 @@ export class CodexTrust {
       if ((error as { code?: unknown })?.code !== 'CREDENTIAL_INVALID' || !this.#options.seal) throw error;
       await this.#options.seal.set(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name, randomBytes(32).toString('hex'));
       await dropTemp(review.folder);
-      this.#reviews.delete(sha256);
+      this.#reviews.delete(heldKey);
       this.#looked.clear();
       throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.resealed);
     }
@@ -587,10 +599,15 @@ export class CodexTrust {
     this.#sha256 = sha256;
     await this.#journal('chose', { sha256, version: review.evidence.executable.version, path: review.evidence.executable.path });
     await dropTemp(review.folder);
-    this.#reviews.delete(sha256);
+    this.#reviews.delete(heldKey);
     this.#looked.clear();
     return this.current()!;
   }
+}
+
+/** One-shot A3: a held review's key, the program's digest and its path. */
+function reviewKey(sha256: string, path: string): string {
+  return `${sha256}\u0000${path}`;
 }
 
 /** A Codex trust source handed to the venture options: a live profile, read at each use. */

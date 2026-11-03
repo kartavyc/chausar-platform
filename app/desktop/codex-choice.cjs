@@ -33,7 +33,8 @@ function createCodexChoice({ engine, dialog, window }) {
       const parent = typeof window === 'function' ? window() : window;
       const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
       if (answer?.response !== 0) throw failure('CODEX_NOT_CHOSEN', CODEX_CHOICE_WORDS.cancelled);
-      return await engine.confirmCodex(asked);
+      // One-shot A3: the confirmation names the path this dialog showed, so the yes records that copy and no other.
+      return await engine.confirmCodex({ ...asked, path: held.path });
     } finally { asking = false; }
   };
 }

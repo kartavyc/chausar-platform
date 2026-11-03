@@ -24,7 +24,9 @@ async function engine(t: any, host: 'desktop' | 'hosted-web' = 'desktop') {
     profile: () => null, review: async () => null,
     current: () => (current ? { ...current } : null),
     held: (sha256: unknown) => (sha256 === SHA ? { ...HELD } : null),
-    record: async (sha256: unknown) => {
+    // One-shot A3: the yes names the path main's dialog showed; this stand-in holds one review, at HELD.path.
+    record: async (sha256: unknown, path: unknown) => {
+      if (path !== HELD.path) throw Object.assign(new Error('That Codex changed since you looked at it. Check it again.'), { code: 'CODEX_SETUP_CHANGED' });
       recorded.push(sha256);
       current = { state: 'trusted', origin: 'owner', path: 'x', version: '0.166.0', sha256, line: 'Uses your Codex 0.166.0, which you chose.' };
       return { ...current };
@@ -48,7 +50,7 @@ test('main\'s confirmation records the owner\'s choice; the dialog\'s words come
   e.context = owner;
   assert.deepEqual(await e.codexChoiceFor({ cli: 'codex', sha256: SHA }), HELD);
   await assert.rejects(e.codexChoiceFor({ cli: 'codex', sha256: 'c'.repeat(64) }), { code: 'CODEX_SETUP_CHANGED' }, 'no review held for that program');
-  const answer = await e.confirmCodexSetup({ cli: 'codex', sha256: SHA });
+  const answer = await e.confirmCodexSetup({ cli: 'codex', sha256: SHA, path: HELD.path });
   assert.equal((answer.setup as { state?: string }).state, 'trusted');
   assert.deepEqual(recorded, [SHA]);
 });
@@ -58,7 +60,7 @@ test('the dialog is asked for once: a Codex already in use, chosen or bundled, i
   e.context = owner;
   // The bundled Codex, recorded at build time, never needs the owner's dialog.
   assert.deepEqual(await e.codexChoiceFor({ cli: 'codex', sha256: BUNDLED }), { inUse: { state: 'trusted', origin: 'bundled', path: 'C:\\Program Files\\Chausar\\resources\\codex\\bin\\codex.exe', version: '0.166.0', sha256: BUNDLED, line: 'Uses the Codex 0.166.0 that comes with Chausar.' } });
-  await e.confirmCodexSetup({ cli: 'codex', sha256: SHA });
+  await e.confirmCodexSetup({ cli: 'codex', sha256: SHA, path: HELD.path });
   // A second call for the program already chosen asks nothing more.
   assert.equal(((await e.codexChoiceFor({ cli: 'codex', sha256: SHA })) as { inUse?: { origin?: string } }).inUse?.origin, 'owner');
   assert.deepEqual(recorded, [SHA]);
@@ -70,14 +72,18 @@ test('main\'s confirmation still needs the owner, an untainted app context, the 
     [{ ...owner, channel: 'phone' }, 'APP_APPROVAL_REQUIRED'], [{ ...owner, sourceTainted: true }, 'APP_APPROVAL_REQUIRED'], [{ ...owner, role: 'cofounder' }, 'FORBIDDEN'],
   ] as [Context, string][]) {
     e.context = context;
-    await assert.rejects(e.confirmCodexSetup({ cli: 'codex', sha256: SHA }), { code }, JSON.stringify(context));
+    await assert.rejects(e.confirmCodexSetup({ cli: 'codex', sha256: SHA, path: HELD.path }), { code }, JSON.stringify(context));
     await assert.rejects(e.codexChoiceFor({ cli: 'codex', sha256: SHA }), { code }, JSON.stringify(context));
   }
   e.context = owner;
-  await assert.rejects(e.confirmCodexSetup({ cli: 'claude-code', sha256: SHA }), { code: 'INVALID_VENTURE_REQUEST' });
+  await assert.rejects(e.confirmCodexSetup({ cli: 'claude-code', sha256: SHA, path: HELD.path }), { code: 'INVALID_VENTURE_REQUEST' });
+  // One-shot A3: a confirmation without the path the dialog showed, or with another, records nothing.
+  await assert.rejects(e.confirmCodexSetup({ cli: 'codex', sha256: SHA }), { code: 'INVALID_VENTURE_REQUEST' });
+  await assert.rejects(e.confirmCodexSetup({ cli: 'codex', sha256: SHA, path: '' }), { code: 'INVALID_VENTURE_REQUEST' });
+  await assert.rejects(e.confirmCodexSetup({ cli: 'codex', sha256: SHA, path: 'C:/Tools/other/codex.exe' }), { code: 'CODEX_SETUP_CHANGED' });
   await assert.rejects(e.confirmCodexSetup({ cli: 'codex', sha256: SHA, extra: 1 }), { code: 'INVALID_VENTURE_REQUEST' });
   const hosted = await engine(t, 'hosted-web');
   hosted.engine.context = owner;
-  await assert.rejects(hosted.engine.confirmCodexSetup({ cli: 'codex', sha256: SHA }), { code: 'CODEX_SETUP_UNAVAILABLE' });
+  await assert.rejects(hosted.engine.confirmCodexSetup({ cli: 'codex', sha256: SHA, path: HELD.path }), { code: 'CODEX_SETUP_UNAVAILABLE' });
   assert.deepEqual([...recorded, ...hosted.recorded], []);
 });

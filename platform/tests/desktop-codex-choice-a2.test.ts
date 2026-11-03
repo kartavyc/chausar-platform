@@ -41,7 +41,8 @@ test('Use this Codex: main shows its own dialog from the held review, then confi
   assert.deepEqual(options.buttons, ['Use this Codex', 'Cancel']);
   assert.equal(options.defaultId, 1, 'Cancel is the default');
   assert.equal(options.cancelId, 1, 'and Escape is Cancel');
-  assert.deepEqual(calls, [{ kind: 'choice', payload: { cli: 'codex', sha256: SHA } }, { kind: 'confirm', payload: { cli: 'codex', sha256: SHA } }]);
+  // One-shot A3: the confirmation names the path the dialog showed, from the held review, never the window's.
+  assert.deepEqual(calls, [{ kind: 'choice', payload: { cli: 'codex', sha256: SHA } }, { kind: 'confirm', payload: { cli: 'codex', sha256: SHA, path: HELD.path } }]);
   assert.equal(/\u2014/.test(JSON.stringify(CODEX_CHOICE_WORDS)), false);
 });
 
@@ -82,8 +83,8 @@ test('the harness sends the held-review read and the confirmation as host messag
   const harness = new EngineHarness({ workerPath: '/synthetic-worker', environment: {}, forkProcess: () => child });
   const ready = harness.start(); child.emit('message', { ready: true }); await ready;
   assert.deepEqual(await harness.codexChoice({ cli: 'codex', sha256: SHA }), HELD);
-  assert.deepEqual(await harness.confirmCodex({ cli: 'codex', sha256: SHA }), { setup: { state: 'trusted' } });
-  assert.deepEqual(sent.map(message => [message.kind, message.method, message.payload]), [['host-codex-choice', undefined, { cli: 'codex', sha256: SHA }], ['host-codex-confirm', undefined, { cli: 'codex', sha256: SHA }]]);
+  assert.deepEqual(await harness.confirmCodex({ cli: 'codex', sha256: SHA, path: HELD.path, extra: 1 }), { setup: { state: 'trusted' } });
+  assert.deepEqual(sent.map(message => [message.kind, message.method, message.payload]), [['host-codex-choice', undefined, { cli: 'codex', sha256: SHA }], ['host-codex-confirm', undefined, { cli: 'codex', sha256: SHA, path: HELD.path }]]);
   await harness.stop();
 });
 
