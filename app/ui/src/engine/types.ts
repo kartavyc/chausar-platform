@@ -573,7 +573,7 @@ export interface BlueprintStepLite { id: string; title: LabelledLite<string>; do
 export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
 export interface BlueprintLite {
   country?: CountryLite;
-  id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template'; digest: string; serviceType: ServiceType;
+  id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template' | 'owner'; digest: string; serviceType: ServiceType;
   name: LabelledLite<string>; oneLiner: LabelledLite<string>; customer: LabelledLite<string>;
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
   backOffice: {

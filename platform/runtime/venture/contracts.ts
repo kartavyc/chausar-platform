@@ -496,7 +496,8 @@ export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
   country?: CountryProfile;
   version: number;
   status: 'draft' | 'accepted';
-  source: 'model' | 'template';
+  /** Who wrote its words: the AI, the built-in templates, or (one-shot A1, row 3) the owner, once they changed any. */
+  source: 'model' | 'template' | 'owner';
   structureHash: string; // hash of the code-made structure the model may only fill with words
   digest: string; // digest of the whole blueprint except id, at, digest and status; approved on accept
   modelCallIds: string[];

@@ -429,6 +429,9 @@ export class FakeBusinessDesk {
         pricing: { model, quantityUnit: UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
       });
     }
+    // One-shot A1 (row 3), as core/blueprint.ts: words the owner wrote make the plan theirs; a price changes no words.
+    const offerWords = Array.isArray(patch.offers) && (patch.offers as Record<string, unknown>[]).some((change) => change && (change.name !== undefined || change.description !== undefined));
+    if (patch.name !== undefined || patch.oneLiner !== undefined || patch.customer !== undefined || offerWords || patch.addOffer !== undefined) next.source = 'owner';
     next.digest = this.host.digest({ ...next, digest: '' });
     if (country.code !== beforeCountry.code) for (const offer of next.offers) delete this.prices[`${biz}:${offer.id}`];
     for (const [offerId, display] of Object.entries(typedPrices)) this.prices[`${biz}:${offerId}`] = display;

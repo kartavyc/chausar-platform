@@ -940,6 +940,9 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
     if (has(patch, 'removeOffer')) removeOwnerOffer(tx, next, patch.removeOffer);
     if (has(patch, 'offers')) applyOfferPatches(next, patch.offers, country, mirror);
     if (adding) addOwnerOffer(tx, next, adding);
+    // One-shot A1 (row 3): words the owner wrote make the plan theirs; a price or a tax setting changes no words.
+    const offerWords = has(patch, 'offers') && Array.isArray(patch.offers) && (patch.offers as Record<string, unknown>[]).some(change => change && (Object.hasOwn(change, 'name') || Object.hasOwn(change, 'description')));
+    if (has(patch, 'name') || has(patch, 'oneLiner') || has(patch, 'customer') || offerWords || adding) next.source = 'owner';
     syncOwnerOffers(tx, next);
     applyTaxPatch(next.backOffice, patch, country, mirror);
     withTaxInvoiceFields(next.backOffice, country);

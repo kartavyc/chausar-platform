@@ -13,7 +13,8 @@ import s from './AboutYou.module.css';
 
 type Mode = 'a' | 'b' | 'plan';
 type Bubble = { who: 'me' | 'them'; text: string };
-export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string };
+/** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
+export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** True when the computer asks for reduced motion: then A becomes B with no motion at all. */
@@ -165,7 +166,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); then(); }
   }
 
-  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode } : null;
+  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode, name: (name ?? read.family.label).trim() } : null;
   const tiles = families.data?.families ?? [];
 
   const where = (

@@ -1068,3 +1068,17 @@ test('handlers cover exactly the money methods: eighteen, the twenty-one Ink v2 
   assert.equal(typeof computePrice, 'function');
   assert.equal(typeof taxTreatmentFor, 'function');
 });
+
+test('one-shot A1 row 3: owner words make the plan the owner\'s; a price only change keeps who wrote it', async () => {
+  const env = await setup('IN');
+  const draft = await seedBlueprint(env, INDIA_READY);
+  assert.equal(draft.source, 'template');
+  const priced = await blueprintUpdate(env.deps, owner, { patch: { offers: [{ id: 'offer_1', unitPrice: '125' }] } });
+  assert.equal(priced.blueprint.source, 'template', 'a price is not words');
+  for (const patch of [{ name: 'Money and tax' }, { offers: [{ id: 'offer_1', name: 'GST returns' }] }, { addOffer: { name: 'Income tax returns', description: 'Yearly returns, filed on time.', pricingModel: 'project' } }]) {
+    const base = await seedBlueprint(env, INDIA_READY);
+    assert.equal(base.source, 'template');
+    const edited = await blueprintUpdate(env.deps, owner, { patch });
+    assert.equal(edited.blueprint.source, 'owner', JSON.stringify(patch));
+  }
+});

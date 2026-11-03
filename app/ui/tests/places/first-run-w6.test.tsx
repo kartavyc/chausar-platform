@@ -239,3 +239,37 @@ describe('Connections: the services this business needs', () => {
     expect(within(list).queryByRole('button', { name: 'Skip' })).toBeNull();
   });
 });
+
+describe('one-shot A1 row 3: the plan saved is the plan shown', () => {
+  it('Keep this plan saves the name and the offers the card showed, as the owner\'s words', async () => {
+    timeZone('Asia/Kolkata');
+    const fake = createFakeClient(new FakeEngine({ fresh: true }));
+    const read = {
+      family: { id: 'creative', label: 'Creative work', line: 'Design, photos, video and writing.' },
+      offers: [
+        { name: 'Birthday party photography', line: 'Candid photos of the party, edited and shared.' },
+        { name: 'Shop product photos', line: 'Clean photos of what a shop sells.' },
+        { name: 'Monthly photo support', line: 'A set of photos each month for a shop.' },
+      ],
+      country: null, evidence: null, idea: 'Photography for parties and shops in Pune', source: 'ai' as const,
+    };
+    const client: EngineClient = { ...fake, request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.about.read' ? Promise.resolve(structuredClone(read)) : fake.request(method as never, params as never))) as EngineClient['request'] };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await skipAi();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'I run a small weekend photography studio in Pune.' } });
+    await press('Send');
+    expect(await screen.findByText('Birthday party photography')).toBeTruthy();
+    const shownName = (await screen.findByText((_, node) => node?.className?.toString().includes('name') === true && node.tagName === 'P' && node.getAttribute('data-content') === '' && (node.textContent ?? '').length > 0)).textContent;
+    const keep = await screen.findByRole('button', { name: 'Keep this plan' });
+    await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
+    await act(async () => { fireEvent.click(keep); });
+    await answerSideWork();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 })).toBeTruthy();
+    const plan = (await fake.request('venture.blueprint.get', {}))!;
+    expect(plan.blueprint.offers.map((offer) => offer.name.value)).toEqual(['Birthday party photography', 'Shop product photos', 'Monthly photo support']);
+    expect(plan.blueprint.offers[0]!.description.value).toBe('Candid photos of the party, edited and shared.');
+    expect(plan.blueprint.name.value).toBe(shownName);
+    expect(plan.blueprint.source).toBe('owner');
+  });
+});

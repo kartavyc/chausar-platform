@@ -93,9 +93,8 @@ describe('onboarding: first run', () => {
     await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     expect(window.location.hash).toBe('#/today');
-    // About you names the plan with the engine's preview first; keeping it previews again, then makes the vault.
+    // About you names the plan with the engine's preview; keeping it keeps that name (one-shot A1 row 3), then makes the vault.
     expect(flow()).toEqual([
-      ['venture.preview', { idea: IDEA, countryCode: 'IN' }],
       ['venture.preview', { idea: IDEA, countryCode: 'IN' }],
       ['workspace.status', {}],
       ['workspace.create', { name: 'Bookkeeping studio', pack: 'services', folder: null }],
@@ -106,6 +105,8 @@ describe('onboarding: first run', () => {
       ['venture.interview.answer', { questionId: 'q_price', answer: { skipped: true } }],
       ['venture.interview.answer', { questionId: 'q_tax', answer: { yes: false, assumed: true } }],
       ['venture.blueprint.draft', { useTemplate: true }],
+      // The template draft takes the offers the card showed, as the owner's words.
+      ['venture.blueprint.update', { patch: expect.objectContaining({ offers: expect.any(Array) }) }],
       ...flow().slice(11),
     ]);
     expect(flow().slice(11).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
@@ -235,7 +236,8 @@ describe('onboarding: what the engine forces before a vault', () => {
     await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     await screen.findAllByText('Your plan is ready. Read it.');
-    expect(screen.getByText('Connect your AI')).toBeTruthy();
+    // The Connect your AI card shows (it may also be the next best step, now the kept plan is a newer version).
+    expect(screen.getAllByText('Connect your AI').length).toBeGreaterThan(0);
     expect(screen.queryByText('Keep this business')).toBeNull();
   });
 

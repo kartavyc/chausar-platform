@@ -97,7 +97,7 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
         )}
         {step === 'keep' && plan && (
           <div className={f.wrap}>
-            <Start variant="first-run" onStarted={onStarted} onBegin={setBegun} plan={{ idea: plan.read.idea, countryCode: plan.countryCode }} onKept={kept} />
+            <Start variant="first-run" onStarted={onStarted} onBegin={setBegun} plan={{ idea: plan.read.idea, countryCode: plan.countryCode, name: plan.name, offers: plan.read.offers }} onKept={kept} />
           </div>
         )}
         {step === 'needs' && <BusinessNeeds place="first-run" onDone={onStarted} />}

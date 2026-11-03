@@ -14,7 +14,7 @@
  * Connect your AI, Set your prices and Keep this business are not screens here: the queue view makes them Today rows.
  */
 
-import { EngineError, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type Transport, type WorkspaceCreated } from '../../engine/types';
+import { EngineError, type BlueprintLite, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type Transport, type WorkspaceCreated } from '../../engine/types';
 import { COUNTRY_TIME_ZONES } from '../../../../../platform/runtime/venture/local-day-data';
 
 /** venture.preview and venture.create take 10 to 2000 characters. */
@@ -26,7 +26,11 @@ export const DEFAULT_NAME = 'My service business';
 export type Request = EngineClient['request'];
 
 /** What the owner wrote and where, with the name the vault gets. */
-export interface Sentence { idea: string; countryCode: string; name: string }
+/**
+ * offers (one-shot A1, row 3): the offers the owner saw and kept on About you (the AI's, or the field's), saved as the
+ * plan's offers; without them the plan keeps the template's.
+ */
+export interface Sentence { idea: string; countryCode: string; name: string; offers?: readonly { name: string; line: string }[] }
 
 const ZONE_COUNTRIES: Readonly<Record<string, string>> = Object.freeze({
   ...Object.fromEntries(Object.entries(COUNTRY_TIME_ZONES).map(([country, zone]) => [zone, country])),
@@ -142,5 +146,35 @@ export async function setUpPlan(request: Request, sentence: Sentence): Promise<v
     asked.add(question.id);
     view = await request('venture.interview.answer', { questionId: question.id, answer: answerFor(question) });
   }
-  await request('venture.blueprint.draft', { useTemplate: true });
+  const drafted = await request('venture.blueprint.draft', { useTemplate: true });
+  await keepShownPlan(request, drafted.blueprint, sentence);
+}
+
+/**
+ * One-shot A1 (row 3): the plan saved is the plan shown. The template draft takes the name and the offers the owner kept
+ * on About you, as the owner's own words: the first offers are renamed, any more are added (with no price, as every
+ * offer starts). Nothing changes when they already match, so running it again after a failure is safe.
+ */
+export async function keepShownPlan(request: Request, blueprint: BlueprintLite, sentence: Sentence): Promise<void> {
+  const offers = (sentence.offers ?? []).filter((offer) => offer.name.trim().length >= 2).slice(0, 3);
+  const name = sentence.name.trim();
+  if (!offers.length) return;
+  const patch: { name?: string; offers?: { id: string; name: string; description?: string }[] } = {};
+  if (name.length >= 2 && name.length <= 60 && blueprint.name.value !== name) patch.name = name;
+  const renames = blueprint.offers.slice(0, offers.length).flatMap((offer, index) => {
+    const kept = offers[index]!;
+    const line = kept.line.trim();
+    const change = { id: offer.id, name: kept.name.trim(), ...(line.length >= 2 ? { description: line } : {}) };
+    return offer.name.value === change.name && (!change.description || offer.description.value === change.description) ? [] : [change];
+  });
+  if (renames.length) patch.offers = renames;
+  // Any more offers are added, the first in the same change, so the saved plan is one new version in the usual case.
+  const model = blueprint.offers[0]?.pricing.model ?? 'project';
+  const adds = offers.slice(blueprint.offers.length).map((kept) => {
+    const line = kept.line.trim();
+    return { name: kept.name.trim(), description: line.length >= 2 ? line : kept.name.trim(), pricingModel: model };
+  });
+  const [first, ...rest] = adds;
+  if (Object.keys(patch).length || first) await request('venture.blueprint.update', { patch: { ...patch, ...(first ? { addOffer: first } : {}) } });
+  for (const addOffer of rest) await request('venture.blueprint.update', { patch: { addOffer } });
 }
