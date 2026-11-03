@@ -262,7 +262,9 @@ export function withoutActionClaims(parts: readonly ChatPart[], done: { proposal
   for (const item of parts) {
     if (item.kind !== 'text' && item.kind !== 'estimate') { kept.push(item); continue; }
     const sentences = item.text.split(/(?<=[.!?])\s+/u);
-    const honest = sentences.filter(sentence => !claimsAction(sentence, done.proposals) || (done.briefed.length > 0 && /\bbrief/i.test(sentence)));
+    // A sentence about the brief passed this turn (it says brief, or names the agent briefed) is true, so it stays.
+    const aboutBrief = (sentence: string) => done.briefed.length > 0 && (/\bbrief/i.test(sentence) || done.briefed.some(name => sentence.toLowerCase().includes(name.toLowerCase())));
+    const honest = sentences.filter(sentence => !claimsAction(sentence, done.proposals) || aboutBrief(sentence));
     if (honest.length === sentences.length) { kept.push(item); continue; }
     claimed = true;
     const text = honest.join(' ').trim();

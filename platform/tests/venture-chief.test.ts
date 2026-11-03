@@ -574,6 +574,10 @@ test('chief: a claim of briefing an agent stays when a brief was passed in that 
     "I can't do that myself. I can propose it, and you approve it on Today.",
     'I passed a brief to Story editor.',
   ]);
+  // A sentence naming the agent briefed in that turn is about that brief too (live on Codex: "I asked Studio agent to ...").
+  scriptChief(env, [answer([text('I asked Story editor to draft five hooks for you.')], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks.' })])]);
+  const named = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'Hooks please.' });
+  assert.deepEqual(named.added[1].parts.map((part: { text?: string }) => part.text), ['I asked Story editor to draft five hooks for you.', 'I passed a brief to Story editor.']);
   // With no brief passed, the same claim goes.
   scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks.")])]);
   const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
