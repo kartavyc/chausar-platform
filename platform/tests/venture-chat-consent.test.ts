@@ -67,6 +67,23 @@ test('consent: a change of AI connection makes it stale, and the new text names 
   assert.equal((await env.agents('venture.chats.consent', { digest: view.consent.digest })).state, 'given');
 });
 
+test('consent: a settings save that keeps the same AI (a new model setting or connection id) keeps it given (one-shot A1 row 11)', async () => {
+  const env = await agentBusiness();
+  const first = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  await env.agents('venture.chats.consent', { digest: first.consent.digest });
+  const status = env.models.status.bind(env.models);
+  env.models.status = () => {
+    const now = status();
+    return {
+      ...now, tiers: { ...now.tiers, main: { ...now.tiers.main, model: 'a-newer-model-setting' } },
+      connections: now.connections.map(item => ({ ...item, id: `${item.id}_saved_again`, model: 'a-newer-model-setting' })),
+    };
+  };
+  const view = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.equal(view.consent.state, 'given', 'what is sent and to whom did not change');
+  assert.equal(view.consent.digest, first.consent.digest);
+});
+
 test('consent: with templates only nothing is sent, so none is asked and the agent answers from code', async () => {
   const env = await agentBusiness();
   env.models.main = 'template';

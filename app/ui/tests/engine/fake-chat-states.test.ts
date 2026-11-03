@@ -83,3 +83,21 @@ describe('fake chat states (6G1)', () => {
     expect(answered.thread.waiting).toBe(false);
   });
 });
+
+// One-shot A1 (row 11): as the engine's agents/consent.ts, the chat consent is to what is sent and to whom. Saving the
+// same AI again with another model setting keeps it; another AI asks again.
+describe('fake chat consent', () => {
+  it('stays given when the same AI is saved again with another model, and asks again for another AI', async () => {
+    const { client } = fake(NOW);
+    const key = ['test', 'key', 'value'].join('-');
+    await client.request('venture.models.connect', { presetId: 'openai-gpt-6-luna', consentDigest: 'consent-openai', apiKey: key, tiers: ['fast', 'main'] } as never);
+    let consent = (await client.request('venture.chief.threads', {})).consent;
+    expect(consent.state === 'needed' || consent.state === 'stale').toBe(true);
+    await client.request('venture.chats.consent', { digest: consent.digest! });
+    await client.request('venture.models.connect', { presetId: 'openai-gpt-6-luna', consentDigest: 'consent-openai', apiKey: key, model: 'gpt-6-luna-mini', tiers: ['fast', 'main'] } as never);
+    consent = (await client.request('venture.chief.threads', {})).consent;
+    expect(consent.state).toBe('given');
+    await client.request('venture.models.connect', { presetId: 'openrouter', consentDigest: 'consent-openrouter', apiKey: key, tiers: ['fast', 'main'] } as never);
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
+  });
+});

@@ -348,7 +348,8 @@ export class FakeAgentsDesk {
     const digest = this.hex(text);
     const last = this.book().consent;
     if (!last) return { state: 'needed', text, digest, at: null };
-    const same = last.digest === digest && last.presetId === route.presetId && last.model === route.model;
+    // As the engine (agents/consent.ts): what is sent and to whom; the same AI's model setting does not count.
+    const same = last.digest === digest && last.presetId === route.presetId;
     return { state: same ? 'given' : 'stale', text, digest, at: same ? last.at : null };
   }
 
