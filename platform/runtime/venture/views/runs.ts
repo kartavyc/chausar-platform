@@ -304,6 +304,8 @@ function deliveryRun(
       ...(record.agentJob.cost?{cost:{...record.agentJob.cost}}:{}),
       messages: record.agentJob.messages.map(({ id, text, label }) => ({ id, text, label })),
       tools: record.agentJob.tools.map(tool => ({ ...tool })),
+      // A2: the sites this job stopped asking after three refusals in a row.
+      ...(record.agentJob.unavailableSites?.length ? { unavailableSites: [...record.agentJob.unavailableSites] } : {}),
       ...(record.agentJob.model ? { model: record.agentJob.model } : {}),
       ...(record.agentJob.pendingApproval ? { pendingApproval: structuredClone(record.agentJob.pendingApproval) } : {}),
     } } : {}),

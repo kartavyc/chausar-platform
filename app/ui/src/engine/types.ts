@@ -157,7 +157,7 @@ export interface RunSummary {
  */
 export interface RunDetail extends RunSummary {
   /** Actual driver updates. These words have not passed the delivery number guard. */
-  agentProgress?: {messages:{id:string;text:string;label:'model-estimate'}[];tools:{id:string;name:string;status:'running'|'done'|'failed'}[];model?:string;canResume?:boolean;cost?:{display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};pendingApproval?:{request:AgentApprovalRequest;digest:string}};
+  agentProgress?: {messages:{id:string;text:string;label:'model-estimate'}[];tools:{id:string;name:string;status:'running'|'done'|'failed'}[];model?:string;unavailableSites?:string[];canResume?:boolean;cost?:{display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};pendingApproval?:{request:AgentApprovalRequest;digest:string}};
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
   scope?: RunScopeView; steer?: { text: Display; at: string; line: Display }[];
   gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: 'finished' | 'limit' | 'needs-answer' | 'blocked' | 'failures'; line: Display } | null };

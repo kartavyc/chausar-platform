@@ -18,6 +18,7 @@ export function AgentProgress({progress,onDecide}:{progress:RunDetail['agentProg
     {progress.pendingApproval && (progress.pendingApproval.request.kind==='external-input'
       ? <PendingQuestion key={progress.pendingApproval.digest} pending={progress.pendingApproval} onDecide={onDecide}/>
       : <PendingStep key={progress.pendingApproval.digest} pending={progress.pendingApproval} onDecide={onDecide}/>)}
+    {progress.unavailableSites && progress.unavailableSites.length>0 && <p className={s.model}>{t('run.sitesUnavailable',{sites:progress.unavailableSites.join(', ')})}</p>}
     {progress.cost && <div className={s.cost}><span>{t('question.costs')}</span>{progress.cost.state==='priced'?<Figure value={progress.cost.display} {...(progress.cost.receiptId?{receiptId:progress.cost.receiptId}:{estimate:true as const})}/>:<span>{progress.cost.display}</span>}</div>}
     {(progress.messages.length>0 || progress.tools.length>0) && <details className={s.progress}>
     <summary className={s.summary}>{t('run.agentUpdates')}</summary>

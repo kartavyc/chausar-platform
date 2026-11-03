@@ -19,6 +19,7 @@ import { createLayoutTools } from './ui-tools.ts';
 import { agentSettingsOf } from './settings.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
 import {pinnedSend,systemResolver} from '../core/net-guard.ts';
+import { SiteBreaker } from '../build/site-breaker.ts';
 import type {PoliteNet} from '../build/fetch-policy.ts';
 import {SEO_SOURCE_CLAIM,sourceClaimOffer,checkedSourceClaim,sourceClaimUnchanged} from './seo-source-claims.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
@@ -137,7 +138,15 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
       'AI_SETTING_UNSUPPORTED','This job has no current permission to verify public sources. Enable internet access and start a new job.');
     return live;
   }
-  const sourceNet:PoliteNet={resolve:async hostname=>{sourceNetworkGuard();const addresses=await (deps.net?.resolve??systemResolver)(hostname);sourceNetworkGuard();return addresses;},send:async target=>{sourceNetworkGuard();const reply=await (deps.net?.send??pinnedSend)(target);sourceNetworkGuard();return reply;}};
+  // A2: a site that refuses three times in a row is closed for the rest of this job, and the run names it (site-breaker.ts).
+  const sites=new SiteBreaker(host=>{void ventureAction(deps,ctx,'prepare','agent.job.siteClosed',tx=>{
+    const { run } = guard(tx.state, scope);
+    const unavailableSites=[...new Set([...(run.agentJob!.unavailableSites??[]),host])];
+    tx.replace({ ...run, agentJob: { ...run.agentJob!, unavailableSites } });
+    tx.emit('run.step', { runId });
+  }).catch(()=>undefined);});
+  const guardedSend=sites.wrap(async target=>{sourceNetworkGuard();const reply=await (deps.net?.send??pinnedSend)(target);sourceNetworkGuard();return reply;});
+  const sourceNet:PoliteNet={resolve:async hostname=>{sourceNetworkGuard();const addresses=await (deps.net?.resolve??systemResolver)(hostname);sourceNetworkGuard();return addresses;},send:guardedSend};
   const supportsSourceClaims=()=>{const live=current();return sourceClaimOffer(deps.store.read(),live.run)&&calculationGrant(deps.store.read(),live.run).includes('seo.corroborate');};
   const ports: JobToolPorts = {
     prepareDraft: (_scope,draft)=>preserveOtherPosts(current().run,draft),

@@ -595,6 +595,7 @@
   },
   "runsheet.scope.rupeeRate": "{amount} at {rate} per {unit} (your rate, set {date})",
   "run.agentUpdates": "AI updates",
+  "run.sitesUnavailable": "Unavailable for this run: {sites}",
   "run.modelReceipt.title": "Model receipt",
   "run.modelReceipt.by": "Run by {agent}",
   "run.agentTools": "Work in progress",

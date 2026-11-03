@@ -1912,6 +1912,8 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     reviewReady?: boolean;
     /** A2: the job went quiet and was stopped by the watchdog; its notes so far are kept. */
     quiet?: boolean;
+    /** A2: sites that refused three times in a row and were not asked again in this job (build/site-breaker.ts). */
+    unavailableSites?: string[];
     failure?: import('./delivery/failure-words.ts').FailureWords;
     recalled?: string[];
     sourcesRead?: { id: string; version: string }[];
@@ -3054,6 +3056,8 @@ export interface RunDetail extends RunSummary {
     messages: { id: string; text: string; label: 'model-estimate' }[];
     tools: { id: string; name: string; status: 'running' | 'done' | 'failed' }[];
     model?: string;
+    /** A2: sites this job stopped asking after three refusals in a row. */
+    unavailableSites?: string[];
     pendingApproval?: { request: import('./agent-runtime/driver-types.ts').AgentApprovalRequest; digest: string };
   };
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
@@ -7029,7 +7033,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
   'AI_USAGE_LIMIT', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
-  'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE',
+  'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
   // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
   'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
   // Wave 6 (6H2): recorded flows.

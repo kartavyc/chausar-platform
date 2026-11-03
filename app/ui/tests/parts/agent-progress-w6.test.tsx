@@ -81,3 +81,9 @@ it('AI cost is visible with its receipt, while unknown cost has no invented rece
  view.rerender(<TextProvider language="en"><AgentProgress progress={{messages:[],tools:[],cost:{display:'Final cost is not known. The allowance stays held.',state:'unknown',spendId:'spend_sample'}} as any}/></TextProvider>);
  expect(screen.getByText('Final cost is not known. The allowance stays held.')).toBeTruthy();expect(screen.queryByRole('button',{name:/Receipt for/})).toBeNull();
 });
+
+it('A2: a site the job stopped asking after three refusals is named as unavailable for this run',()=>{
+ const progress:RunDetail['agentProgress']={messages:[],tools:[],unavailableSites:['news.example','shop.example']};
+ render(<TextProvider language="en"><AgentProgress progress={progress}/></TextProvider>);
+ expect(screen.getByText('Unavailable for this run: news.example, shop.example')).toBeTruthy();
+});
