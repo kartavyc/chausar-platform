@@ -13,6 +13,7 @@ import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 import { createPhoneAccess, privatePeer } from './phone-access.ts';
+import { ownerError } from './owner-error.ts';
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
@@ -158,7 +159,8 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
     } catch (error) {
       const e = error as Error & { code?: string; reason?: unknown }; const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'UNAUTHENTICATED' ? 401 : e.code?.includes('FORBIDDEN') || e.code === 'INVALID_HOST' || e.code === 'INVALID_ORIGIN' ? 403 : e.code === 'METHOD_NOT_ALLOWED' ? 405 : 400;
       // DEVICE_KEYS_UNAVAILABLE carries why, so the page can show the engine's words without guessing.
-      send(status, { error: { code: e.code ?? 'REQUEST_FAILED', message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}) } });
+      // Only Chausar's own refusals keep their words; an engine bug never shows its source text (owner-error.ts).
+      send(status, { error: ownerError(error) });
     }
   });
   return {

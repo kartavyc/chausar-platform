@@ -12,6 +12,7 @@ import { copiedTokens, formatMicros, modelNumbers, tidyWords } from '../records.
 import { hindiNumberWords, statesMoney } from '../delivery/harness/patches.ts';
 import { isCurrencyName, isMoneyScaleWord, isThousandWord, scaledAmountToken, thousandToken } from '../core/money-words.ts';
 import { chatCall, leftOutLine } from '../agents/answer.ts';
+import { withPreview } from '../models/wrap.ts';
 import type { ChatRoute } from '../agents/consent.ts';
 import { ownerToday } from '../local-day.ts';
 import { runTool, TOOL_CATALOGUE, type ToolFigure, type ToolResult } from './tools.ts';
@@ -268,14 +269,8 @@ function cappedDeps(deps: VentureDeps, budget: { used: bigint }): VentureDeps {
     }
     return made;
   };
-  const models = new Proxy(port, {
-    get(target, prop) {
-      if (prop === 'preview') return preview;
-      const value = Reflect.get(target, prop, target);
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-  });
-  return { ...deps, models };
+  // A plain object, never a Proxy: the host's port is frozen, and a Proxy may not swap a frozen property (models/wrap.ts).
+  return { ...deps, models: withPreview(port, preview) };
 }
 
 /** 4J14 (Q21): the counts by code as the screen words them: each kind with its count, then each month with its new records. */

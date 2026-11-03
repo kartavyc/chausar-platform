@@ -27,6 +27,7 @@ import { screenUntrusted } from '../policy/untrusted.ts';
 import { checkUrl } from '../core/net-guard.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { chatCall, holdsIdNumber } from '../agents/answer.ts';
+import { withPreview } from '../models/wrap.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { requireChatConsent, type ChatRoute } from '../agents/consent.ts';
 import { maskContacts, maskProtected, namesProtectedTrait, profileHost, PROTECTED_LINE, protectedTerm } from './protected.ts';
@@ -345,14 +346,8 @@ function trackedDeps(deps: VentureDeps, seen: string[]): VentureDeps {
     if (made) seen.push(made.callId);
     return made;
   };
-  const models = new Proxy(port, {
-    get(target, prop) {
-      if (prop === 'preview') return preview;
-      const value = Reflect.get(target, prop, target);
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-  });
-  return { ...deps, models };
+  // A plain object, never a Proxy: the host's port is frozen, and a Proxy may not swap a frozen property (models/wrap.ts).
+  return { ...deps, models: withPreview(port, preview) };
 }
 
 /**

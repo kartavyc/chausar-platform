@@ -12,6 +12,7 @@ import { processRenderPort } from './venture/web/render-port.ts';
 import { processFlowPort } from './venture/flows/port.ts';
 import { createPhoneAccess } from './phone-access.ts';
 import { INK_ROOT, listInkFiles } from './ui-ink.ts';
+import { ownerError } from './owner-error.ts';
 
 /** Verified host evidence is installed before the worker can announce readiness. */
 export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
@@ -45,10 +46,8 @@ export function runEngineWorker(engine: Engine) {
     if (message?.kind === 'host-watching') { engine.updateOwnerWatching(message.watching === true); return; }
     if (!message || typeof message.id !== 'string' || typeof message.method !== 'string') return;
     try { reply({ id: message.id, result: await engine.request(message.method, message.payload) }); }
-    catch (error) {
-      const e = error as Error & { code?: string; reason?: unknown };
-      reply({ id: message.id, error: { code: e.code ?? 'REQUEST_FAILED', message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}) } });
-    }
+    // Only Chausar's own refusals keep their words; an engine bug never shows its source text (owner-error.ts).
+    catch (error) { reply({ id: message.id, error: ownerError(error) }); }
   });
   let stopping = false;
   function stop() { if (stopping) return; stopping = true; clearInterval(scheduler); void engine.shutdown().then(() => process.exit(0), () => process.exit(1)); }

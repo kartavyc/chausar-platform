@@ -95,6 +95,21 @@ for (const phase of ['preview', 'dispatch', 'response', 'regrant'] as const) tes
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').some(row => row.text.includes('Private client answer')), false);
 });
 
+test('chief: the host frozen models port answers a question, never a Proxy TypeError (one-shot A1 row 0)', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text('You have not invoiced anything yet this month.')])]);
+  // The desktop host hands the engine a frozen port (venture/host.ts #modelsProxy); its methods forward to the real one.
+  const real = env.models;
+  env.deps.models = Object.freeze({
+    status: () => real.status(), presets: () => real.presets(), checkCli: () => real.checkCli(),
+    generate: (ctx: any, task: any) => real.generate(ctx, task), preview: (ctx: any, task: any) => real.preview(ctx, task),
+    runPreview: (ctx: any, id: any, approved: any, validate: any, options: any) => real.runPreview(ctx, id, approved, validate, options),
+  }) as any;
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: 'You have not invoiced anything yet this month.' }]);
+});
+
 test('chief: a question makes a thread titled by it, stores both messages and announces each with ids only', async () => {
   const env = await chiefBusiness();
   await chatConsent(env);
