@@ -301,7 +301,7 @@ async function tiePreferences(
   };
   const ask = async <T>(task: ModelTask<T>) => {
     const outcome = await deps.models.generate(ctx, task);
-    spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
+    spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed, presetId: outcome.presetId });
     return { value: outcome.value, callId: outcome.callId };
   };
   for (const item of cases) {
@@ -526,7 +526,7 @@ async function propose(deps: VentureDeps, ctx: Context, input: { useTemplate: bo
       if (code !== 'MODEL_OUTPUT_REJECTED' && code !== 'MODEL_REFUSAL' && code !== 'MODEL_INCOMPLETE') throw error;
     }
     if (outcome) {
-      costs.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
+      costs.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed, presetId: outcome.presetId });
       const tried = attempt(outcome.value, outcome.by === 'model' ? 'model' : 'chausar');
       if (tried.body) return { ...tried, costs };
       const fallback = ruleOutput();

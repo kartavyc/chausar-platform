@@ -30,6 +30,8 @@ import { withExpectations } from './corrections.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
 import { refuseNewWork } from './run-guards.ts';
+import { PRESETS } from '../models/presets.ts';
+import { OWN_PLAN_WORDS } from '../models/cost.ts';
 import { scanTrace } from './trace-scan.ts';
 
 export const CLIENT_SIM_INSTRUCTIONS = 'You play a made-up client of a small service business, for a practice run. '
@@ -78,7 +80,8 @@ export function clientSimTask(scenario: Scenario, serviceType: ServiceType, hist
   };
 }
 
-type Spend = { by: 'model' | 'template'; costMicros: string; priceConfirmed: boolean };
+/** presetId (one-shot A4): which AI the call ran on, so a call on the owner's own plan says so. */
+type Spend = { by: 'model' | 'template'; costMicros: string; priceConfirmed: boolean; presetId?: string };
 
 type RehearsalEnv = {
   deps: VentureDeps;
@@ -117,7 +120,7 @@ async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[], met
   } else {
     outcome = await env.deps.models.generate(env.ctx, meter ? { ...task, capLeftMicros: meter.left() } : task);
   }
-  spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
+  spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed, presetId: outcome.presetId });
   meter?.charge(outcome.costMicros);
   return outcome;
 }
@@ -430,12 +433,21 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
   return outcome;
 }
 
+/** The presets that run on the owner's own AI plan (their Claude Code or Codex sign-in), never billed per call. */
+const ON_OWN_PLAN: ReadonlySet<string> = new Set(PRESETS.filter(preset => preset.kind === 'claude-cli' || preset.kind === 'codex-cli').map(preset => preset.id));
+/** Some calls ran on a key, some on the owner's own plan. */
+export const OWN_PLAN_PART = ' (plus calls on your own plan)';
+
 /** Cost words and the model mode for a list of spends. */
 export function spendSummary(spend: readonly Spend[]): { costMicros: string; costDisplay: string; modelMode: SimulationRunRecord['modelMode'] } {
   const costMicros = sumMicros(spend.map(item => item.costMicros));
   const estimate = spend.some(item => !item.priceConfirmed);
   const byModel = spend.some(item => item.by === 'model'), byTemplate = spend.some(item => item.by === 'template');
-  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}`, modelMode: byModel && byTemplate ? 'mixed' : byModel ? 'model' : 'template' };
+  // One-shot A4 (hands-on row 103): Claude Code and Codex run on the owner's own plan; their calls cost Chausar nothing to
+  // count, so the words say where they ran instead of a bare USD 0.0000.
+  const ownPlan = spend.filter(item => item.by === 'model' && ON_OWN_PLAN.has(item.presetId ?? ''));
+  const plan = !ownPlan.length ? '' : ownPlan.length === spend.filter(item => item.by === 'model').length ? OWN_PLAN_WORDS : OWN_PLAN_PART;
+  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}${plan}`, modelMode: byModel && byTemplate ? 'mixed' : byModel ? 'model' : 'template' };
 }
 
 /** venture.simulation.run: practise on made-up clients with the current playbook. */
