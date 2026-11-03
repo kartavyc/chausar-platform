@@ -667,3 +667,51 @@ test('A3 review 2 L-e: a testing-desk run edited on Today cannot be accepted', a
   assert.equal((await runOf(env, run.id)).canEdit, false);
   await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), code('APPROVAL_STALE'));
 });
+
+// ---------------------------------------------------------------------------
+// A3 review 3: a loop report's own sections, a client's amount, the decider's role
+// ---------------------------------------------------------------------------
+
+test('A3 review 3 M1: a passing loop report draft, held to the report sections, is still accepted after a typo fix', async () => {
+  const { env, run } = await readyDraft();
+  const reportText = ['# Your September books', '## Summary', 'Here is what we found in your books.', '## What we did', 'We read the bank statment and the bills.', '## What needs your answer', 'Which months come next?', '## Next steps', 'Reply when you can.'].join('\n\n');
+  await ventureAction(env.deps, owner, 'prepare', 'seed.loop-report', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    tx.replace({ ...current, renderedText: reportText, harness: { ...(current.harness ?? {}), sections: 'report', proofs: [] } as never });
+  });
+  assert.equal((await runOf(env, run.id)).canAccept, true, 'the agent\'s report passes');
+  await edit(env, await draftRow(env), reportText.replace('statment', 'statement'));
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null]);
+});
+
+test('A3 review 3 M2: an amount the agent quoted from the client\'s own message may stay in the owner\'s edit', async () => {
+  // As a draft that quoted the client's budget leaves the run: its words and the client's message both hold the amount.
+  const { env, run } = await readyDraft();
+  const quoted = 'Your budget of INR 20,000 is noted.';
+  await ventureAction(env.deps, owner, 'prepare', 'seed.client-amount', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    const order = tx.find('venture-order', current.orderId)!;
+    tx.replace({ ...order, request: `${order.request} My budget is INR 20,000.` });
+    const deliverable = structuredClone(current.deliverable!);
+    deliverable.sections[0]!.parts.push({ kind: 'text', text: quoted });
+    tx.replace({ ...current, deliverable, renderedText: current.renderedText!.replace(SUMMARY, `${SUMMARY} ${quoted}`) });
+  });
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  await edit(env, await draftRow(env), record(env, run.id).renderedText!.replace('September', 'October'));
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null]);
+});
+
+test('A3 review 3 L2: a review decision records who decided by role', async () => {
+  const { env, run } = await readyDraft();
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  await call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }, cofounder);
+  const decision = listRecords(env.store.read(), 'venture-decision').find(item => item.subject === `run:${run.id}` && item.action === 'accepted')!;
+  assert.deepEqual([decision.who, decision.role, decision.memberId], ['cofounder', 'cofounder', 'cofounder-1']);
+  const { decisions } = await call(env, 'venture.decisions.list', {}) as { decisions: Array<{ id: string; who: string; line: string; by: string | null }> };
+  const shown = decisions.find(item => item.id === decision.id)!;
+  assert.deepEqual([shown.who, shown.by], ['cofounder', 'cofounder-1']);
+  assert.match(shown.line, /^Your cofounder decided: /);
+});

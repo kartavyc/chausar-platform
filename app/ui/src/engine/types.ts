@@ -1463,7 +1463,7 @@ export interface GoalSuggestion { amountMinor: string; display: Display; estimat
 /** 4J1 and 4J2 decisions, edits, set approval, the triage rule, settings drafts. */
 /** by: the member who decided, null for a saved rule or a timeout; ruleId and rule: the saved rule that decided, if one did. */
 export interface DecisionView {
-  id: string; at: string; subject: string; action: string; who: 'owner' | 'saved-rule' | 'timeout'; rule: Display | null; ruleId: string | null;
+  id: string; at: string; subject: string; action: string; who: 'owner' | 'cofounder' | 'saved-rule' | 'timeout'; rule: Display | null; ruleId: string | null;
   reason: Display; line: Display; by: string | null;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;

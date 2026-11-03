@@ -44,6 +44,7 @@ const ACTION_WORDS: Readonly<Record<QueueActionId, string>> = Object.freeze({
 export const DECISION_WORDS = Object.freeze({
   today: (action: string, reason: string) => `You chose ${action} on Today: ${reason}`,
   owner: (reason: string) => `You decided: ${reason}`,
+  cofounder: (reason: string) => `Your cofounder decided: ${reason}`,
   timeout: (reason: string) => `No answer in time: ${reason}`,
   approved: (what: string) => `You approved it: ${what}`,
   refused: (what: string) => `You said no: ${what}`,
@@ -240,10 +241,10 @@ export function decisionViews(state: State, venture: VentureRecord): DecisionVie
   }));
   const others: DecisionView[] = [];
   for (const record of listRecords(state, 'venture-decision', venture.id)) {
-    const line = record.who === 'owner' ? DECISION_WORDS.owner(record.reason) : record.who === 'timeout' ? DECISION_WORDS.timeout(record.reason) : record.reason;
+    const line = record.who === 'owner' ? DECISION_WORDS.owner(record.reason) : record.who === 'cofounder' ? DECISION_WORDS.cofounder(record.reason) : record.who === 'timeout' ? DECISION_WORDS.timeout(record.reason) : record.reason;
     others.push({
       id: record.id, at: record.at, subject: record.subject, action: record.action, who: record.who, rule: ruleWords(state, venture, record.ruleId), ruleId: record.ruleId,
-      reason: record.reason, line, by: record.who === 'owner' ? record.memberId : null, agentId: agentOfRule(state, venture, record.ruleId),
+      reason: record.reason, line, by: record.who === 'owner' || record.who === 'cofounder' ? record.memberId : null, agentId: agentOfRule(state, venture, record.ruleId),
     });
   }
   for (const gate of listRecords(state, 'venture-team-gate', venture.id)) {

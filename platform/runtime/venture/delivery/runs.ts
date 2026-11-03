@@ -74,6 +74,7 @@ import { loadQuarantineCheck,refuseQuarantined } from './quarantine-gate.ts';
 import { landRevision } from './revise.ts';
 import { freezeScope,refuseMissingCapability,refuseNewWork } from './run-guards.ts';
 import { acceptedBlueprint,newestFirst,optionalFlag,readAs,todayIso,ventureReceipts } from './shared.ts';
+import { REPORT_SECTIONS } from './harness/loop.ts';
 import { checksWithEdit, editInForce, jobLevelFailure, ownAmounts, OWN_WORDS_AMOUNT, type EditContext } from './owner-edit.ts';
 import { agentMayDraft, isLiveStage, isPracticeStage } from '../core/launch-stage.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
@@ -591,7 +592,7 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     // 4J1 (O17): who decided and when, wherever the owner reviewed it (Today, Work or the run sheet).
     // A3 review 2 (M-c): an amount the editor wrote themself is theirs, and the decision says so.
     const ownWordsAmount = verdict === 'accepted' && ownAmounts(checksInForce(tx.state, run));
-    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: 'owner', ruleId: null, reason: ownWordsAmount ? `${REVIEW_DECISION_WORDS[verdict]} ${OWN_WORDS_AMOUNT}` : REVIEW_DECISION_WORDS[verdict], rowId: null });
+    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: ctx.role === 'owner' ? 'owner' : 'cofounder', ruleId: null, reason: ownWordsAmount ? `${REVIEW_DECISION_WORDS[verdict]} ${OWN_WORDS_AMOUNT}` : REVIEW_DECISION_WORDS[verdict], rowId: null });
     if (verdict !== 'accepted') {
       const signal: SignalRecord = { ...tx.base('venture-signal'), source: verdict === 'edited' ? 'owner-edited' : 'owner-rejected', runId, reason, scenarioId: null };
       tx.put(signal);
@@ -651,7 +652,9 @@ function editContext(state: State, run: DeliveryRunRecord): EditContext {
     const context = orderContext(state, venture, run.orderId);
     const playbook = playbookForRun(state, run);
     const draft = playbook ? flagshipDraft(playbook as PlaybookRecord, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null) : null;
-    return { sections: draft?.sections ?? REQUIRED_SECTIONS[context.blueprint.serviceType], serviceType: context.blueprint.serviceType };
+    // A3 review 3 (M1): as the harness loop sets them (harness/loop.ts writeTask): a loop that proved work writes a report.
+    const sections = draft?.sections ?? (run.harness?.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType]);
+    return { sections, serviceType: context.blueprint.serviceType };
   } catch {
     return { sections: null, serviceType: 'consulting' as EditContext['serviceType'] };
   }

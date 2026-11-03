@@ -437,6 +437,7 @@
   "business.decisions.line": "Newest first",
   "business.decisions.none": "Nothing decided yet.",
   "business.decisions.who.owner": "You",
+  "business.decisions.who.cofounder": "Your cofounder",
   "business.decisions.who.saved-rule": "A saved rule",
   "business.decisions.who.timeout": "No answer in time",
   "business.decisions.rule": "Rule: {rule}",
