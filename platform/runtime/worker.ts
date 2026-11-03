@@ -1,3 +1,5 @@
+// A2: first thing, before any other module loads: the process report never looks up the network (process-report.ts).
+import './process-report.ts';
 import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
 import { resolve } from 'node:path';

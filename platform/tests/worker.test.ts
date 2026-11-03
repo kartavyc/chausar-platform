@@ -123,3 +123,14 @@ test('shutdown drains an active workspace transaction and refuses new work befor
     assert.ok((await creation).recoveryCode); await draining; assert.equal(engine.vault, null);
   } finally { await engine.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+// A2: Node's process report never looks up the network (that lookup can freeze a run for seconds), set before anything
+// else the worker loads.
+test('A2: the worker turns off the process report network lookup first thing', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../runtime/worker.ts', import.meta.url), 'utf8');
+  const first = source.split(/\r?\n/).find(line => /^import\b/.test(line));
+  assert.equal(first, "import './process-report.ts';", 'the first import of the worker');
+  await import('../runtime/worker.ts');
+  assert.equal(process.report.excludeNetwork, true);
+});
