@@ -22,7 +22,9 @@ test('Chausar uses gpt-6-luna and gpt-6.1-terra when Codex offers them', () => {
 
 test('an account that lacks them gets the first model its own list shows', () => {
   const older = JSON.stringify({ models: [{ slug: 'gpt-6-astra', visibility: 'list', priority: 2 }, { slug: 'gpt-5.6-luna', visibility: 'list', priority: 9 }, { slug: 'gpt-6-luna', visibility: 'hide', priority: 1 }] });
-  assert.deepEqual(pickCodexModels(parseCodexModels(older)), { route: 'gpt-6-astra', quick: 'gpt-6-astra', main: 'gpt-6-astra', listed: ['gpt-6-astra', 'gpt-5.6-luna'], source: 'codex' });
+  // A2 review: route and quick work take the closest small model the list shows (a -luna id), main work the first listed.
+  assert.deepEqual(pickCodexModels(parseCodexModels(older)), { route: 'gpt-5.6-luna', quick: 'gpt-5.6-luna', main: 'gpt-6-astra', listed: ['gpt-6-astra', 'gpt-5.6-luna'], source: 'codex' });
+  assert.deepEqual(pickCodexModels(['gpt-6-astra', 'gpt-6-sol']).route, 'gpt-6-astra', 'no small model listed: the first one');
 });
 
 test('a list that cannot be read leaves the fixed ids', () => {

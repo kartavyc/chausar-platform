@@ -28,11 +28,15 @@ export function parseCodexModels(stdout: string): string[] | null {
   return [...new Set(listed.sort((a, b) => a.priority - b.priority || a.at - b.at).map(row => row.slug))];
 }
 
-/** The models Chausar uses: each default when the list offers it, else the list's first; the defaults without a list. */
+/**
+ * The models Chausar uses: each default when the list offers it; else, for the route and quick work, the closest small
+ * model the list shows (its first -luna id), and for main work the list's first; the defaults without a list.
+ */
 export function pickCodexModels(listed: string[] | null): CodexModels {
   if (!listed || !listed.length) return { ...CODEX_MODEL_DEFAULTS, listed: null, source: 'fallback' };
-  const pick = (wanted: string) => (listed.includes(wanted) ? wanted : listed[0]!);
-  return { route: pick(CODEX_MODEL_DEFAULTS.route), quick: pick(CODEX_MODEL_DEFAULTS.quick), main: pick(CODEX_MODEL_DEFAULTS.main), listed: [...listed], source: 'codex' };
+  const small = listed.find(model => /-luna$/.test(model)) ?? listed[0]!;
+  const pick = (wanted: string, otherwise: string) => (listed.includes(wanted) ? wanted : otherwise);
+  return { route: pick(CODEX_MODEL_DEFAULTS.route, small), quick: pick(CODEX_MODEL_DEFAULTS.quick, small), main: pick(CODEX_MODEL_DEFAULTS.main, listed[0]!), listed: [...listed], source: 'codex' };
 }
 
 /** The list from one `codex debug models` answer: null unless it exited cleanly with the catalogue's shape. */
