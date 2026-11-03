@@ -126,6 +126,11 @@ export class FakeFirstRun {
   /** Whether the sample Codex says it is signed in (its presets can then connect). */
   codexSignedIn(): boolean { return this.codex.signedIn === 'yes' && this.codexTrusted() && !this.testProblem; }
 
+  /** A3 (L1): what the engine's availability reads of this Codex: a setup in use, its own sign-in and its version. */
+  codexLook(): { trusted: boolean; signedIn: 'yes' | 'no'; version: string | null } {
+    return { trusted: this.codexTrusted(), signedIn: this.codex.signedIn, version: this.setup.version };
+  }
+
   /** Tests: the sample Codex is already signed in. */
   signIn(): void { this.codex = { signedIn: 'yes', login: { state: 'idle', code: null, link: null, line: null }, looks: 0 }; }
 

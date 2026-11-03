@@ -13,7 +13,7 @@ const AUTO_LOCKED_WORDS = 'Routine-step approval is not available yet.';
 
 async function connect(engine: FakeEngine) {
   const preset = MODEL_PRESETS.find((item) => item.id === 'codex-cli')!, before = structuredClone(preset);
-  try { preset.availability = 'unverified'; await engine.request('venture.models.connect', { presetId: preset.id, consentDigest: preset.consentDigest }); } finally { Object.assign(preset, before); }
+  try { engine.firstRun.signIn(); await engine.request('venture.models.connect', { presetId: preset.id, consentDigest: preset.consentDigest }); } finally { Object.assign(preset, before); }
 }
 
 describe('fake launch stages (6C4)', () => {

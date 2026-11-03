@@ -33,7 +33,7 @@ const clientOf = (order: Element) => order.closest('article')!;
 const pressed = (group: HTMLElement) => within(group).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
 async function allowOrderAi(engine:FakeEngine,clientId:string) {
   const preset=MODEL_PRESETS.find(item=>item.id==='codex-cli')!,before=structuredClone(preset);
-  try{preset.availability='unverified';await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
+  try{engine.firstRun.signIn();await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
   const consent=await engine.request('venture.client.aiConsent.get',{clientId}) as {disclosureDigest:string};
   await engine.request('venture.client.aiConsent.agree',{clientId,disclosureDigest:consent.disclosureDigest});
 }

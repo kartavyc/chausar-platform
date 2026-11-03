@@ -18,7 +18,7 @@ import { BLUEPRINTS, BUILDS, DRAFT_AI_STATUS, GITHUB_TOKEN_LINK, HANDOFF_NOTES, 
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE } from './fixtures';
 import {
   EngineError, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
-  type CustodyViewLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
+  type CustodyViewLite, type ModelPresetLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
 } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -47,6 +47,8 @@ export interface DeskHost {
   hosted?(): boolean;
   /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
   codexSignedIn?(): boolean;
+  /** A3 (L1): the sample Codex as the engine's availability reads it: a setup in use, its own sign-in, its version. */
+  codexLook?(): { trusted: boolean; signedIn: 'yes' | 'no'; version: string | null };
 }
 
 const DESK_METHODS = new Set([
@@ -177,14 +179,26 @@ export class FakeBusinessDesk {
    * unavailable there, in the engine's words (models/presets.ts availabilityOf, AVAILABILITY_REASONS.hostedCli).
    */
   private presets() {
-    const signedIn = this.host.codexSignedIn?.() === true;
-    const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' && signedIn
-      ? { ...preset, availability: 'unverified' as const, availabilityReason: 'Uses the reviewed Codex install.' }
-      : preset));
+    const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' ? { ...preset, ...this.codexAvailability(preset) } : preset));
     if (!this.host.hosted?.()) return presets;
     return presets.map((preset) => (preset.runsOn === 'this-computer'
       ? { ...preset, availability: 'unavailable' as const, availabilityReason: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.' }
       : preset));
+  }
+
+  /**
+   * A3 (L1), as models/presets.ts availabilityOf words Codex: with no setup in use it needs setup (codexMissing, the
+   * fixture's words); a setup in use whose own look says signed out needs setup in the engine's signed-out words
+   * (cliSignedOutWords); a setup in use and signed in is unverified (codexReady) until a real task worked.
+   */
+  private codexAvailability(preset: ModelPresetLite): Pick<ModelPresetLite, 'availability' | 'availabilityReason'> {
+    const look = this.host.codexLook?.();
+    if (!look?.trusted) return { availability: preset.availability, availabilityReason: preset.availabilityReason };
+    if (look.signedIn === 'no') {
+      const named = look.version ? `Codex ${look.version}` : 'Codex';
+      return { availability: 'needs-setup', availabilityReason: `${named} is on this computer but not signed in. Open a terminal, run codex login, then check again.` };
+    }
+    return { availability: 'unverified', availabilityReason: 'Uses the reviewed Codex install.' };
   }
 
   request(method: string, p: Record<string, unknown>): unknown {

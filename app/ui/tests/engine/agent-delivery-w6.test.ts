@@ -6,7 +6,7 @@ import type {FakeWorkDesk} from '../../src/engine/fake-work';
 
 async function connected() {
  const preset=MODEL_PRESETS.find(preset=>preset.id==='codex-cli')!,before=structuredClone(preset),engine=new FakeEngine();
- try{preset.availability='unverified';await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
+ try{engine.firstRun.signIn();await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
  return engine;
 }
 

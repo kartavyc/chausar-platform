@@ -9,9 +9,10 @@ it('Codex has an owner-editable model, preserves its default, and validates the 
   try {
     expect(preset.model).toBe('gpt-6-luna');
     expect(preset.modelEditable).toBe(true);
-    // This synthetic computer has a reviewed install; no real CLI runs in the fake.
-    preset.availability = 'unverified';
+    // This synthetic computer has a reviewed install (the bundled Codex); no real CLI runs in the fake. A3 (L1): the
+    // fake words Codex as the engine does, so it connects once the sample Codex is signed in.
     const engine = new FakeEngine();
+    engine.firstRun.signIn();
     const payload = { presetId: preset.id, consentDigest: preset.consentDigest, model: 'synthetic-owner-model' };
     for (const model of [null, 123, '', 'spaces are invalid']) {
       await expect(engine.request('venture.models.connect', { ...payload, model } as never)).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });

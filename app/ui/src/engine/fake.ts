@@ -307,6 +307,8 @@ export class FakeEngine {
       hosted: () => this.hosted,
       // W6 6C1: the sample Codex, once its own sign-in finished, can connect (models/cli-status.ts 'unverified').
       codexSignedIn: () => this.firstRun.codexSignedIn(),
+      // A3 (L1): the preset list words Codex from this look, as models/presets.ts availabilityOf does.
+      codexLook: () => this.firstRun.codexLook(),
     }, { fresh });
     this.work = new FakeWorkDesk({
       careerSource:id=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('CAREER_APPROVAL_REQUIRED','Create and approve this order exact rendered pack in the career desk.');return desk.careerSource(id);},
