@@ -178,7 +178,8 @@ const proposalSchema = { type: 'object', additionalProperties: false, required: 
 const DECIDE_KEYS: readonly string[] = ['decision', 'reason', 'content'];
 /** A proposal decided first (4J14, Q22): the decision and its reason, then the fields; every key present, as the other shapes. */
 const decidedProposal = { ...decideFirstSchema(proposalSchema as unknown as Json), required: [...DECIDE_KEYS] };
-const TURN_SCHEMA: Json = {
+/** One-shot A3: exported so a test holds it to the model schema rule (models/schema.ts) every real call is checked against. */
+export const CHIEF_TURN_SCHEMA: Json = {
   type: 'object', additionalProperties: false, required: ['tools', 'parts', 'proposals'],
   properties: {
     tools: { type: 'array', items: { type: 'string' }, description: 'Read tools to run before you answer; empty when you answer now.' },
@@ -353,7 +354,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
         proposalKinds: kinds.map(item => ({ kind: item.kind, uses: item.uses })),
         tools: last ? [] : TOOL_CATALOGUE.map(tool => ({ ...tool })), results, turn, lastTurn: last,
       } as unknown as Json,
-      schemaName: 'venture-chief-answer', schema: TURN_SCHEMA, validate: validateTurn, containsClientData: true, maxOutputTokens: 2048,
+      schemaName: 'venture-chief-answer', schema: CHIEF_TURN_SCHEMA, validate: validateTurn, containsClientData: true, maxOutputTokens: 2048,
       capLeftMicros: String(BigInt(ANSWER_CAP_MICROS) - budget.used),
     };
     let answered: { value: TurnOutput; callId: string | null } | null;

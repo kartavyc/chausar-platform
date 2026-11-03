@@ -275,7 +275,9 @@ test('decide first: the schema asks for the decision and its reason before the c
   const schema = decideFirstSchema({ type: 'string', maxLength: 300 });
   assert.deepEqual(Object.keys(schema.properties), ['decision', 'reason', 'content']);
   assert.deepEqual(schema.properties.decision, { type: 'string', enum: ['no', 'yes'] });
-  assert.deepEqual(schema.required, ['decision', 'reason']);
+  // One-shot A3: every property required, as the model schema rule asks of every real call (models/schema.ts).
+  assert.deepEqual(schema.required, ['decision', 'reason', 'content']);
+  assert.deepEqual(schema.properties.reason, { type: 'string', description: 'One short reason, at most 200 characters.' });
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.properties.content, { type: 'string', maxLength: 300 });
 });

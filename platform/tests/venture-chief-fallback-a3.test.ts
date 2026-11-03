@@ -82,3 +82,23 @@ test('A3 S3: Chats answers live, and a number the model writes is a model estima
   ]);
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.author, 'model');
 });
+
+// Found by the A3 live check on Codex: every Chats call was refused before it reached the AI, because the chief's answer
+// schema carried a keyword the model schema rule does not allow (maxLength on each proposal's reason). The test port
+// never ran that rule, so it was hidden; these tests run it.
+test('A3 S3: the chief\'s answer schema passes the model schema rule every real call is held to', async () => {
+  const { assertSchemaSafe } = await import('../runtime/venture/models/schema.ts');
+  const { CHIEF_TURN_SCHEMA } = await import('../runtime/venture/chief/answer.ts');
+  assert.doesNotThrow(() => assertSchemaSafe(CHIEF_TURN_SCHEMA));
+});
+
+test('A3 S3: with the schema rule held at every preview, as the real models port holds it, Chats answers with the AI\'s words', async () => {
+  const { assertSchemaSafe } = await import('../runtime/venture/models/schema.ts');
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  env.models.refusePreview = task => { assertSchemaSafe(task.schema); return null; };
+  scriptChief(env, [answer([text('Nothing is invoiced yet this month.')])]);
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: 'Nothing is invoiced yet this month.' }]);
+  assert.equal(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.author, 'model');
+});
