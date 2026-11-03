@@ -15,7 +15,7 @@ import type {
 } from '../contracts.ts';
 import { GONE_LINE, queueDecideHandler, queueRowsWithSubjects, STALE_LINE } from './queue.ts';
 import { recordDecision } from '../journal/decisions.ts';
-import { JUDGE_READING, PRACTICE_REASON, runView } from '../delivery/runs.ts';
+import { PRACTICE_REASON, runView } from '../delivery/runs.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { reopenMark, RESTORED_LINE, revisionWords, SEND_BACK_MAX, startRevision, TOO_LATE_LINE, undoRevision } from '../delivery/revise.ts';
 import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
@@ -36,7 +36,6 @@ export const ACTION_WORDS = Object.freeze({
   editNotOffered: 'Only a draft waiting for your review can be edited here.',
   caEdit: "Your version of these papers needs the CA's sign-off. Edit it in Work, where it goes to the CA.",
   signoffEdit: "Your version of these papers needs its professional's signature. Edit it in Work, then send it from the sign-off desk.",
-  blockedEdit: 'This draft failed a check. Send it back with your words, or edit it in Work, where your version is final.',
   nothing: 'Nothing to undo here.',
   outside: "This went out, so it can't be undone.",
   planUndo: 'Your plan change is still a draft in the business menu. Accept it there.',
@@ -182,10 +181,10 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
   // A practice draft is never used, so an edit of it can't be either (delivery/runs.ts PRACTICE_REASON).
   const shown = runView(run, venture, deps.clock().getTime(), state);
   if (shown.practiceNow) return refused('PRACTICE_DRAFT', PRACTICE_REASON);
-  // A draft that can't be accepted as it stands would come back just as stuck: it goes back with words, or is edited in
-  // Work, where the owner's version is final.
-  // Held while the judge reads it, it says so in the judge's words.
-  if (!shown.canAccept && !regulatedSignoffBlock(state, venture, run)) return refused('NOT_OFFERED', shown.acceptBlocked === JUDGE_READING ? JUDGE_READING : ACTION_WORDS.blockedEdit);
+  // One-shot A3 (S2): a draft that failed a check is edited here too; the owner's own version is then not held to the
+  // agent's failed checks (delivery/runs.ts ownerEditInForce). One the AI is still working on, the quality check is still
+  // reading, or whose files are held is not edited: it says why in the engine's own words.
+  if (!shown.canEdit && !regulatedSignoffBlock(state, venture, run)) return refused('NOT_OFFERED', shown.acceptBlocked ?? ACTION_WORDS.editNotOffered);
   // Regulated papers in the owner's words go to the CA of record first: that edit is made in Work.
   const unsignedEdit = regulatedSignoff(state, venture, { ...run, status: 'edited', editedText: text });
   if (unsignedEdit) return refused(unsignedEdit.code, unsignedEdit.code === 'CA_SIGNOFF_REQUIRED' ? ACTION_WORDS.caEdit : ACTION_WORDS.signoffEdit);

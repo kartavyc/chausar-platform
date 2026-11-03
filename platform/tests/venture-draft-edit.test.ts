@@ -122,15 +122,76 @@ test('edit is No and reopen: the owner\'s text is kept with the hash of the draf
   assert.equal(clientDraft(accepted).text, mine);
 });
 
-test('edit refuses an old digest, empty text, the phone, a practice draft, and a draft that failed a check', async () => {
+test('edit refuses an old digest, empty text, the phone and a practice draft', async () => {
   const { env, row } = await readyDraft();
   assert.equal((await edit(env, { ...row, digest: 'b'.repeat(64) }, 'Mine')).outcome, 'stale');
   await assert.rejects(edit(env, row, '  '), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(edit(env, row, 'Mine', phone), code('APP_APPROVAL_REQUIRED'));
-  const blocked = await readyDraft([report('We reconciled your bank statement and filed your GST return.')]);
-  const refusal = await edit(blocked.env, blocked.row, 'My own words.');
-  assert.deepEqual([refusal.outcome, refusal.reason], ['refused', 'NOT_OFFERED']);
-  assert.equal(listRecords(blocked.env.store.read(), 'venture-draft-edit').length, 0);
+  // One-shot A3 (S2): a practice draft is never used, so its edit is refused, and it says it can't be edited.
+  const practice = await readyDraft();
+  await ventureAction(practice.env.deps, owner, 'prepare', 'seed.practice', tx => { tx.replace({ ...tx.find('venture-delivery-run', practice.run.id)!, practice: true }); });
+  assert.equal((await runOf(practice.env, practice.run.id)).canEdit, false);
+  const practiceRow = (await queue(practice.env)).rows.find(item => item.viewRef?.id === practice.run.id);
+  if (practiceRow) assert.equal((await edit(practice.env, practiceRow, 'My own words.')).outcome, 'refused');
+  assert.equal(listRecords(practice.env.store.read(), 'venture-draft-edit').length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot A3 (S2): a draft that failed a check gets Edit, then Approve of the owner's own version
+// ---------------------------------------------------------------------------
+
+const FAILING = 'We reconciled your bank statement and filed your GST return.';
+
+test('A3 S2: a draft that failed a check can be edited on Today; the owner\'s version then waits with Approve, and is accepted', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING)]);
+  const before = await runOf(env, run.id);
+  assert.equal(before.canAccept, false, 'the agent\'s draft failed a check');
+  assert.ok(before.acceptBlocked, 'and says why');
+  assert.equal(before.canEdit, true, 'but the owner may edit it');
+  assert.deepEqual(row.actions.map(action => action.id), ['deny', 'read'], 'Today offers no Approve for the agent\'s draft');
+  const mine = 'Here is the plan for your September books. We will match each payment to a bill. Please send the bank statement.';
+  const decision = await edit(env, row, mine);
+  assert.deepEqual([decision.outcome, decision.line], ['done', 'Your version is kept. Approve it when it is ready.']);
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null], 'the owner\'s own words are not held to the agent\'s failed checks');
+  const reopened = await draftRow(env);
+  assert.ok(reopened.id !== row.id);
+  assert.deepEqual(reopened.actions.map(action => action.id), ['read', 'approve']);
+  assert.equal((await call<QueueDecision>(env, 'venture.queue.decide', { id: reopened.id, digest: reopened.digest, action: 'approve', viewed: true })).outcome, 'done');
+  const accepted = record(env, run.id);
+  assert.equal(accepted.status, 'accepted');
+  assert.equal(clientDraft(accepted).text, mine, 'the client gets the owner\'s words');
+});
+
+test('A3 S2: Accept of the agent\'s failed draft is still refused, and an undone edit or a later agent revision brings the check back', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING), report(FAILING)]);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), code('INVALID_VENTURE_REQUEST'));
+  await edit(env, row, 'My own words for the client.');
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  // Undo puts the agent's draft back, with its failed check.
+  await undo(env, row.id);
+  const undone = await runOf(env, run.id);
+  assert.deepEqual([undone.canAccept, undone.canEdit], [false, true]);
+  // Edit again, then send it back: the agent's revision is merged with the owner's words, so its checks count again.
+  await edit(env, await draftRow(env), 'My own words for the client.');
+  assert.equal((await sendBack(env, await draftRow(env), 'Make it shorter.')).outcome, 'done');
+  const landed = await revised(env, run.id);
+  assert.equal(landed.status, 'ready-for-review');
+  assert.equal(landed.canAccept, false, 'the agent\'s revision failed its check, and it is in the text now');
+});
+
+test('A3 S2: a draft whose agent is still working, or that the quality check is reading, is not offered for edit', async () => {
+  const working = await readyDraft([report(FAILING)]);
+  await ventureAction(working.env.deps, owner, 'prepare', 'seed.working', tx => {
+    const current = tx.find('venture-delivery-run', working.run.id)!;
+    tx.replace({ ...current, agentJob: { ...current.agentJob!, reviewReady: false } });
+  });
+  assert.equal((await runOf(working.env, working.run.id)).canEdit, false);
+  const judged = await readyDraft([report(FAILING)]);
+  await ventureAction(judged.env.deps, owner, 'prepare', 'seed.judge', tx => {
+    tx.replace({ ...tx.find('venture-delivery-run', judged.run.id)!, judge: undefined, judgePending: { boundMicros: null, bound: 'USD 0.0010', until: '2026-10-16T11:00:00.000Z' } });
+  });
+  assert.equal((await runOf(judged.env, judged.run.id)).canEdit, false);
 });
 
 // ---------------------------------------------------------------------------

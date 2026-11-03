@@ -562,7 +562,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');
     check(!(practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
     if (verdict === 'accepted') {
-      acceptableAsIs(run.checks, run.playbookChecks);
+      // One-shot A3 (S2): the owner's own edit in force is theirs to accept; the agent's draft must pass its checks.
+      if (!ownerEditInForce(tx.state, run)) acceptableAsIs(run.checks, run.playbookChecks);
       check(!judgeReading(run, Date.parse(tx.now)), 'INVALID_VENTURE_REQUEST', JUDGE_READING);
       // Regulated papers (the CA firm's, and every sign-off desk output, W6 6E5) are accepted only once the professional of
       // record signed this exact draft (playbooks/kit/signoff-gate.ts).
@@ -626,6 +627,18 @@ function acceptableAsIs(checks: readonly CheckResult[], playbookChecks?: readonl
 }
 
 /**
+ * One-shot A3 (S2): the draft's text is the owner's own edit from Today, as they typed it: the newest edit of this run
+ * that was not undone is the text in force, and no agent revision is waiting or merged into it. The agent's failed checks
+ * read the agent's draft, so they do not hold the owner's own words back from Accept. A revision that lands later merges
+ * the agent's words in, and its checks count again.
+ */
+export function ownerEditInForce(state: State, run: DeliveryRunRecord): boolean {
+  if (typeof run.editedText !== 'string' || run.merge || run.revision) return false;
+  const edit = listRecords(state, 'venture-draft-edit', run.ventureId).filter(item => item.runId === run.id && !item.undoneAt).at(-1);
+  return !!edit && edit.text === run.editedText;
+}
+
+/**
  * A run as the screens read it, with what the engine would allow right now. The same rules as the handlers:
  * a ready agent draft is practice unless the business is at approve each (review refuses Accept otherwise), a draft
  * with a failed check can't be accepted, and a waiting draft is sent only at shadow or approve each while its preview
@@ -644,18 +657,26 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   // Read with the vault's state, a run whose order was cancelled is not live: nothing more of it is sent or started.
   const cancelled = !!state && findRecord(state, 'venture-order', run.orderId)?.status === 'cancelled';
   const canApprove = false;
-  const blocked = ready
-    ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? regulatedSignoffBlock(state, venture, run) : null)
-      ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)) // 5A4: consent and its files' asset records
+  // Practice, or AI work that has not handed over: neither Accept nor an edit.
+  const before = ready ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : null) : null;
+  // One-shot A3 (S2): the owner's own edit in force is not held to the agent's failed checks.
+  const failed = ready && !before && !(state && ownerEditInForce(state, run)) ? failedCheckReason(run.checks, run.playbookChecks) : null;
+  // The quality check still reading it, a CA's sign-off, or its files' consent and asset records (5A4).
+  const held = ready && !before
+    ? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? regulatedSignoffBlock(state, venture, run) : null)
+      ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)
     : null;
+  const blocked = ready ? before ?? failed ?? held : null;
   const canAccept = ready && blocked === null;
+  // One-shot A3 (S2): a draft whose only block is a failed check can be edited, as one with none can.
+  const canEdit = ready && !cancelled && before === null && held === null;
   // One-shot A1 (row 9, after review): a draft the AI handed over while its job still runs (reviewReady not set, nothing
   // pending the owner's approval) is the AI's work in progress: nothing says it waits on the owner, and Today holds no
   // row for it until the job hands over.
   const finishing = ready && !!run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval;
   const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && !finishing && (!practiceNow || isPracticeStage(stage)));
   // 4H1 (U17): which engine wrote the draft, read from its own call record; only with the vault's state.
-  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
+  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, canEdit, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
 }
 
 /** venture.delivery.list: every run, newest first, each with what the engine would allow now (see runView). */

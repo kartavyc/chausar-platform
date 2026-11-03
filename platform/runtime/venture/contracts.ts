@@ -2064,6 +2064,12 @@ export type DeliveryRunView = DeliveryRunRecord & {
   canAccept: boolean; // ready for review, and the engine would take Accept now
   acceptBlocked: string | null; // why Accept is refused, in plain words; null when canAccept or the run is not ready
   /**
+   * One-shot A3 (S2): ready for review and the owner may edit it on Today: not practice, its AI work handed over, not
+   * held for the quality check, the CA's sign-off or its files. A draft whose only block is a failed check may be edited,
+   * and the owner's own version is then not held to the agent's failed checks.
+   */
+  canEdit: boolean;
+  /**
    * On a waiting write turn when the judge would then read the draft on its own and no standing consent is recorded:
    * the setting's words and what the judge's check could cost, read before approving (delivery/judge-run.ts). Set by
    * the delivery methods and Today; absent or null otherwise.
