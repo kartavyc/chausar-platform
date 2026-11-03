@@ -23,6 +23,7 @@
   "first-run.ai.notInstalled": "Not installed yet",
   "first-run.ai.signIn": "Sign in with {name}",
   "first-run.ai.use": "Use {name}",
+  "first-run.ai.setup.use": "Use this Codex",
   "first-run.ai.hint.codex": "Opens OpenAI's own sign-in page.",
   "first-run.ai.hint.claude": "Opens Anthropic's own sign-in page.",
   "first-run.ai.sends": "What Chausar sends: {text}",

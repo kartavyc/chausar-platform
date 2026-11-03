@@ -94,6 +94,8 @@ function bundledCodexEnvironment(environment, { resourcesPath, platform, exists 
   const entries = typeof result[key] === 'string' && result[key] ? result[key].split(separator) : [];
   if (!entries.includes(folder)) entries.push(folder);
   result[key] = entries.join(separator);
+  // A2: where the bundle is, so the engine loads the setup the build recorded for it (platform/runtime/codex-trust.ts).
+  result.CHAUSAR_CODEX_BUNDLE_DIR = join(resourcesPath, 'codex');
   return result;
 }
 

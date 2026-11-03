@@ -276,7 +276,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const hosted = options.host === 'hosted-web';
   const claudeTerms = options.claudeCodeTerms;
   // The hosted web server never runs a command-line tool: no Codex profile is honoured there, whatever was passed.
-  const codex: CodexHost | null = hosted ? null : codexHost(options.codexCli);
+  // A2: the Codex trust can change while the engine runs (the owner chooses their own Codex), so it is read at each use.
+  const codexNow = (): CodexHost | null => (hosted ? null : codexHost(options.codexCli));
   const locate = options.locateCli ?? locateOnThisComputer;
   // The newest look at each command-line tool this session (4H1). In memory only: a restart looks again.
   const looks = new Map<DelegateCli, CliFinding>();
@@ -293,7 +294,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const liveOf = (state: State) => {
     const ventureId = currentVenture(state)?.id ?? null;
     return {
-      claudeFound: answered('claude-code'), codexProfile: !!codex, hosted, claudeTerms,
+      claudeFound: answered('claude-code'), codexProfile: !!codexNow(), hosted, claudeTerms,
       claude: looks.get('claude-code') ?? null, codex: looks.get('codex') ?? null,
       worked: {
         'claude-code': lastCliTask(state, ventureId, 'claude-code')?.outcome === 'succeeded',
@@ -331,7 +332,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const startedMs = clock().getTime();
       const kept = looks.get(cli), at = lookedAt.get(cli);
       if (!fresh && kept && at !== undefined && startedMs >= at && startedMs - at < CLI_LOOK_REUSE_MS) return structuredClone(kept);
-      flight = inspectInstalledCli(cli, { transport, locate, codex, claudeTerms, now: () => clock().toISOString() })
+      flight = inspectInstalledCli(cli, { transport, locate, codex: codexNow(), claudeTerms, now: () => clock().toISOString() })
         .then(finding => {
           const seen = withRefused(finding);
           looks.set(cli, seen);
@@ -349,7 +350,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     // The Claude Code terms gate holds at run time too: a connection made while it was open never runs once it is closed.
     if (spec.kind === 'claude-cli' && !claudeTermsOpen(claudeTerms)) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.claudeTerms };
     if (spec.needsKey && !secrets.has(SECRET(spec.id))) return { code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing };
-    if (spec.kind === 'codex-cli' && !codex) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
+    if (spec.kind === 'codex-cli' && !codexNow()) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
     // The newest look at the tool (4H1): a flag it does not know, or signed out, stops the call before anything is sent.
     if (spec.kind === 'claude-cli' || spec.kind === 'codex-cli') {
       const finding = looks.get(spec.kind === 'claude-cli' ? 'claude-code' : 'codex');
@@ -394,6 +395,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const plan = claudePlan(model, task);
       return { transport: 'process', plan, payloadText: plan.payloadText };
     }
+    const codex = codexNow();
     check(codex, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.codexMissing);
     let plan: CliPlan;
     try { plan = codexPlan(model, task, codex); } catch {
@@ -605,7 +607,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const missing = claude
         ? 'Claude Code was not found on this computer. Install it and sign in, then try again.'
         : 'Codex was not found on this computer. Check the reviewed Codex install, then try again.';
-      if (!claude) check(codex, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.codexMissing);
+      if (!claude) check(codexNow(), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.codexMissing);
       const finding = await look(claude ? 'claude-code' : 'codex', true);
       check(finding.answered, 'CLI_UNAVAILABLE', missing);
       if (finding.flags === 'mismatch') throw new ChausarError('CLI_FLAGS_UNSUPPORTED', cliSentence(cliFlagsWords(finding.cli, finding.version, finding.missingFlags)));
@@ -616,6 +618,15 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
      * The status screen's look: joins one under way, else reuses one started within the last minute, unless fresh
      * ("Check again"), which always starts one when none is under way.
      */
+    /** A2: the Codex setup in use, else a review of the Codex the search path finds; null without a Codex trust. */
+    async codexSetup() {
+      const trust = options.codexCli as { review?: (found: string | null) => Promise<import('../core/first-run-types.ts').CodexSetupView> } | undefined;
+      if (hosted || !trust || typeof trust.review !== 'function') return null;
+      let found: string | null;
+      try { found = locate('codex'); } catch { found = null; }
+      try { return await trust.review(found); } catch { return null; }
+    },
+
     async inspectCli(cli: DelegateCli, options?: { fresh?: boolean }): Promise<CliFinding> {
       check(cli === 'claude-code' || cli === 'codex', 'INVALID_VENTURE_REQUEST', 'Only Claude Code and Codex can be looked for on this computer.');
       return look(cli, options?.fresh === true);

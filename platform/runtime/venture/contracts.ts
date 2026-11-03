@@ -821,6 +821,8 @@ export interface ModelPort {
    * engine's port always has it.
    */
   inspectCli?(cli: DelegateCli, options?: { fresh?: boolean }): Promise<CliFinding>;
+  /** A2: the Codex setup in use, or a review of the Codex found on this computer; null without a Codex trust. */
+  codexSetup?(): Promise<import('./core/first-run-types.ts').CodexSetupView | null>;
 }
 
 /**
@@ -4964,6 +4966,8 @@ export type CliStatusView = {
   flags: 'match' | 'mismatch' | 'unknown'; missingFlags: string[]; signedIn: 'yes' | 'no' | 'unknown';
   terms: 'accepted' | 'pending' | 'not-needed'; lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed'; named?: Display } | null;
   state: ModelAvailability; line: Display; fix: Display | null;
+  /** A2: Codex only, when the host keeps a Codex trust: the setup in use, or the found Codex waiting for the owner's yes. */
+  setup?: import('./core/first-run-types.ts').CodexSetupView;
 };
 export interface CliStatusList { clis: CliStatusView[]; line: Display }
 /** 4H1. The tiers each agent's steps use and the preset that serves each; the team runs as one agent. */
@@ -5828,6 +5832,8 @@ export const VENTURE_METHODS = [
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
   'venture.about.read', 'venture.about.pick', 'venture.about.families',
   'venture.needs.list',
+  // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
+  'venture.ai.setup.trust',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -5846,6 +5852,12 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
   'venture.about.read', 'venture.about.pick', 'venture.about.families',
 ] as const);
+
+/**
+ * A2: answered by the engine itself (engine.ts), with or without a vault, never by a package: the owner's yes to the
+ * Codex found on this computer. The engine checks the app channel and the owner's role itself.
+ */
+export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust'] as const);
 
 /**
  * Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). Wave 5 adds playbooks
@@ -5976,6 +5988,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.ai.tools': 'models', 'venture.ai.login.start': 'models', 'venture.ai.login.cancel': 'models',
   'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
   'venture.needs.list': 'core',
+  'venture.ai.setup.trust': 'models',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6592,6 +6605,7 @@ export type VenturePayloads = {
   'venture.ai.tools': OnboardingPayloads['venture.ai.tools'];
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
+  'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -6985,6 +6999,7 @@ export type VentureResults = {
   'venture.ai.tools': OnboardingResults['venture.ai.tools'];
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
+  'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];
@@ -7008,6 +7023,7 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
   'AI_USAGE_LIMIT', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
+  'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE',
   // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
   'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
   // Wave 6 (6H2): recorded flows.

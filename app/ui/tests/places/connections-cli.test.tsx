@@ -166,6 +166,25 @@ describe('Your AI: Your AI apps', () => {
     expect(facts(codex)['Last task']).toMatch(/^Failed, /);
   });
 
+  it('A2: a found Codex the owner has not chosen asks first, and after the yes the engine looks again', async () => {
+    const review = { state: 'review' as const, origin: null, path: 'C:/Tools/codex/codex.exe', version: '0.166.0', sha256: 'd'.repeat(64), line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' };
+    let chosen = false;
+    const { calls } = start({ intercept: {
+      'venture.models.cli.status': async (_params, original) => {
+        const answer = (await original()) as { clis: CliStatusView[]; line: string };
+        return { ...answer, clis: [answer.clis[0]!, { ...SEEN, state: 'needs-setup', ...(chosen ? {} : { setup: review }) }] };
+      },
+      'venture.ai.setup.trust': async () => { chosen = true; return { setup: { ...review, state: 'trusted', origin: 'owner', line: 'Uses your Codex 0.166.0, which you chose.' } }; },
+    } });
+    const section = await region('Your AI apps');
+    await within(section).findByText(review.line);
+    const codex = tool(section, 'Codex');
+    await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Use this Codex' })); });
+    expect(calls.find(call => call.method === 'venture.ai.setup.trust')?.params).toEqual({ cli: 'codex', sha256: review.sha256 });
+    await waitFor(() => expect(within(section).queryByText(review.line)).toBeNull());
+    expect(calls.filter(call => call.method === 'venture.models.cli.status').length).toBeGreaterThan(1);
+  });
+
   it('a ready tool shows only its state at rest; what it found is one fold away', async () => {
     const ready: CliStatusView = { ...SEEN, signedIn: 'yes', lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'succeeded' }, state: 'ready', line: 'Codex 0.131.0 is on this computer and signed in. Its last task worked.' };
     start({ intercept: { 'venture.models.cli.status': async (_params, original) => {

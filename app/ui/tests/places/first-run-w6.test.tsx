@@ -76,6 +76,20 @@ describe('first run, step 1: Connect your AI', () => {
   });
 });
 
+describe('first run, step 1: the Codex Chausar runs (A2)', () => {
+  it('shows the owner’s own Codex as found and asks first; it can be signed in only after the owner chooses it', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.reviewCodex();
+    const { calls } = start(engine);
+    expect(await screen.findByText('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sign in with Codex' })).toBeNull();
+    await press('Use this Codex');
+    expect(calls.find(([method]) => method === 'venture.ai.setup.trust')?.[1]).toEqual({ cli: 'codex', sha256: 'c'.repeat(64) });
+    expect(await screen.findByRole('button', { name: 'Sign in with Codex' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Use this Codex' })).toBeNull();
+  });
+});
+
 describe('first run, step 2: About you, A that becomes B', () => {
   it('opens as A: the message box, the country from the time zone, and the eleven field tiles', async () => {
     timeZone('Asia/Kolkata');

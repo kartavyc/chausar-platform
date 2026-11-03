@@ -118,4 +118,8 @@ test('the bundled Codex goes last on the engine PATH, so an owner\'s own Codex s
   const linux = bundledCodexEnvironment({ PATH: '/usr/bin' }, { resourcesPath: '/opt/chausar/resources', platform: 'linux', exists: present });
   assert.equal(linux.PATH, '/usr/bin:/opt/chausar/resources/codex/bin');
   assert.equal(bundledCodexEnvironment({}, { resourcesPath: '/r', platform: 'linux', exists: present }).PATH, '/r/codex/bin');
+  // A2: the engine is told where the bundle is, so it can load the setup recorded for it at build time.
+  assert.equal(env.CHAUSAR_CODEX_BUNDLE_DIR, win32.join(resources, 'codex'));
+  assert.equal(linux.CHAUSAR_CODEX_BUNDLE_DIR, '/opt/chausar/resources/codex');
+  assert.equal('CHAUSAR_CODEX_BUNDLE_DIR' in bundledCodexEnvironment({ Path: 'C:/Windows' }, { resourcesPath: resources, platform: 'win32', exists: absent }), false);
 });

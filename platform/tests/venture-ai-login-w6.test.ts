@@ -56,6 +56,22 @@ function rig(script: Script) {
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 
+test('A2: a found Codex not yet chosen is shown as a setup to review; one in use says where it came from', async () => {
+  const reviewed: (string | null)[] = [];
+  const review = { state: 'review' as const, origin: null, path: '/usr/local/bin/codex', version: '0.166.0', sha256: 'a'.repeat(64), line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' };
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from('Not logged in\n')); child.finish(1); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    codex: { async review(found) { reviewed.push(found); return review; } },
+  });
+  const { tools } = await desk.tools();
+  const codex = tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual(codex.setup, review);
+  assert.deepEqual(reviewed, ['/usr/local/bin/codex'], 'the review is of the Codex the search path finds');
+  assert.equal(tools.find(tool => tool.cli === 'claude-code')!.setup, undefined, 'Claude Code has no Codex setup');
+});
+
 test('the recorded device-auth output gives the OpenAI link and the one-time code', () => {
   assert.deepEqual(parseLoginOutput('codex', DEVICE_AUTH_OUTPUT), { link: 'https://auth.openai.com/codex/device', code: CODE });
   // A link to any other site is never shown, and no code without its line.

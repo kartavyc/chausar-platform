@@ -37,5 +37,14 @@ export type NeedsList = { family: { id: FamilyId; label: string } | null; needs:
 
 export type LoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
 export type ToolLogin = { state: LoginState; code: string | null; link: string | null; line: string | null };
-export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin };
+/**
+ * A2: a Codex setup as the owner reads it (codex-trust.ts): 'trusted' in use, 'review' found and checked and waiting for
+ * the owner's yes, 'refused' found but not usable, 'none' not found. sha256 is the program's digest the yes names.
+ */
+export type CodexSetupView = {
+  state: 'trusted' | 'review' | 'refused' | 'none'; origin: 'operator' | 'bundled' | 'owner' | null;
+  path: string | null; version: string | null; sha256: string | null; line: string;
+};
+/** setup (A2): Codex only, when the host keeps a Codex trust. */
+export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin; setup?: CodexSetupView };
 export type ToolsView = { tools: ToolView[]; line: string };

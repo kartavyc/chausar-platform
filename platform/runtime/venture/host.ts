@@ -10,7 +10,7 @@
 import { settleError } from './refusals.ts';
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type State, type StateStore } from '../contracts.ts';
-import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,
@@ -64,6 +64,8 @@ function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMeth
 /** Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. */
 export function outsideTables(method: string): boolean {
   if (method === 'venture.country.suggest') return false;
+  // A2: the engine answers the owner's Codex choice itself, with or without a vault (engine.ts).
+  if ((ENGINE_METHODS as readonly string[]).includes(method)) return true;
   return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
 }
 

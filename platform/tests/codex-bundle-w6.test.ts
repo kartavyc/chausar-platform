@@ -101,6 +101,27 @@ test('staging copies the platform Codex layout with LICENSE, NOTICE and a manife
   assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), manifest);
 });
 
+test('A2: staging records the bundled Codex setup at build time: its version, exec help and features answers, pinned in BUNDLE.json', async t => {
+  const { root, destination } = await vendorFixture(t);
+  const asked: string[][] = [];
+  const answer = (key: string) => (key === '--version' ? 'codex-cli 0.166.0\n' : key === 'exec --help' ? 'exec help text\n' : 'features text\n');
+  const probe = async (_command: string, args: string[]) => { asked.push(args); return { exitCode: 0, stdout: answer(args.join(' ')) }; };
+  const manifest = await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64', probe, now: () => new Date('2026-11-03T10:00:00.000Z') });
+  assert.deepEqual(asked, [['--version'], ['exec', '--help'], ['features', 'list']]);
+  assert.deepEqual(manifest.evidence, { recordedAt: '2026-11-03T10:00:00.000Z', files: { versionOutput: 'evidence/version.stdout.txt', execHelp: 'evidence/exec-help.stdout.txt', features: 'evidence/features.stdout.txt' } });
+  assert.equal(await readFile(join(destination, 'evidence/version.stdout.txt'), 'utf8'), answer('--version'));
+  assert.equal(manifest.files['evidence/version.stdout.txt'].sha256, sha256(answer('--version')));
+  assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), manifest);
+  // A version answer for another Codex is refused at staging.
+  const other = await vendorFixture(t);
+  const older = async (command: string, args: string[]) => (args[0] === '--version' ? { exitCode: 0, stdout: 'codex-cli 0.154.0\n' } : probe(command, args));
+  await assert.rejects(stageCodexBundle({ source: other.root, destination: other.destination, platform: 'win32', architecture: 'x64', probe: older }), /answered as another version/);
+  // Without a probe for another platform's program, the bundle is staged with no recorded setup.
+  const elsewhere = await vendorFixture(t);
+  const plain = await stageCodexBundle({ source: elsewhere.root, destination: elsewhere.destination, platform: 'win32', architecture: 'x64', probe: null });
+  assert.equal(plain.evidence, null);
+});
+
 test('a local npm install keeps the platform package beside @openai/codex, and that layout is found too', async t => {
   const root = await mkdtemp(join(tmpdir(), 'chausar-codex-hoisted-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));

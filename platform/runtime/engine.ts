@@ -952,6 +952,20 @@ export class Engine {
       if (this.vault === vault && typeof host.notifyTick === 'function') await host.notifyTick({ ...this.#baseContext });
     } catch { /* The next tick looks again. */ } finally { this.#activeRequests--; this.notifyIdle(); }
   }
+  /**
+   * A2: venture.ai.setup.trust { cli: 'codex', sha256 }: keeps the owner's choice of the Codex they were shown, only for
+   * that exact program, in the app and by an owner. The host's Codex trust (codex-trust.ts) checks and records it.
+   */
+  async #codexSetupTrust(payload: unknown): Promise<{ setup: unknown }> {
+    const context = this.context;
+    check(context && context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    check(context.role === 'owner' || context.role === 'cofounder', 'FORBIDDEN', 'An owner chooses the AI.');
+    check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === 'cli,sha256' && (payload as { cli?: unknown }).cli === 'codex',
+      'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
+    const trust = this.options.venture?.codexCli as { record?: (sha256: unknown) => Promise<unknown> } | undefined;
+    check(this.options.venture?.host !== 'hosted-web' && trust && typeof trust.record === 'function', 'CODEX_SETUP_UNAVAILABLE', "Chausar can't keep a chosen Codex here.");
+    return { setup: await trust.record((payload as { sha256: unknown }).sha256) };
+  }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
@@ -1020,6 +1034,8 @@ export class Engine {
       case 'venture.about.families':
         return (await this.#draftDesk()).request(this.context, method, payload);
     }
+    // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
+    if (method === 'venture.ai.setup.trust') return this.#codexSetupTrust(payload);
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
     switch (method) {
       case 'workspace.custody.get': return this.custodyView();

@@ -30,6 +30,11 @@ export type DraftDeskOptions = VentureHostOptions & {
   login?: LoginDesk;
 };
 
+/** A2: the host's Codex trust (codex-trust.ts) when it passed one, for the setup the owner is shown and the test call. */
+function codexTrustOf(value: unknown): Pick<ConstructorParameters<typeof LoginDesk>[0] & object, 'codex'> {
+  return value && typeof value === 'object' && typeof (value as { review?: unknown }).review === 'function' ? { codex: value as never } : {};
+}
+
 export const VENTURE_EXISTS_WORDS = 'Your business already has its AI settings under Trust.';
 const HOSTED_WORDS = 'The hosted web app adds your AI after you keep your business.';
 
@@ -83,7 +88,7 @@ export class DraftDesk {
       idleUntil: () => this.#idleUntil(),
       session: () => (this.#generation === generation ? this.#session : null),
       keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
-      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted' })),
+      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli) })),
     };
     const handler = DRAFT_HANDLERS[method];
     check(handler, 'NOT_BUILT_YET', 'This part of Chausar is not built yet.');

@@ -212,6 +212,9 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
   const state = deps.store.read();
   const venture = currentVenture(state);
   const clis = findings.map(finding => cliStatusView(finding, { claudeTerms: deps.claudeCodeTerms, lastTask: lastCliTask(state, venture?.id ?? null, finding.cli) }));
+  // A2: Codex's setup, so Your AI can show the found Codex for the owner's yes.
+  const setup = await deps.models.codexSetup?.();
+  if (setup) for (const view of clis) if (view.cli === 'codex') view.setup = setup;
   if (venture) await keepChecks(deps, ctx, clis);
   return { clis, line: cliListLine(findings) };
 }

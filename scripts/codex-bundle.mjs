@@ -1,6 +1,8 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { chmod, copyFile, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -107,8 +109,46 @@ async function checkExecutables(folder, files, platform, architecture, entrypoin
   }
 }
 
+/**
+ * A2: the reviewed setup of the bundled Codex, recorded at build time: the staged program's own `--version`,
+ * `exec --help` and `features list` answers, in evidence/, each pinned in BUNDLE.json. The engine turns them into the
+ * pinned manifest codex-cli-host.ts checks (platform/runtime/codex-trust.ts). Only a program for this computer's own
+ * platform can be run here; a bundle for another platform is staged without them, and the owner chooses it on first use.
+ */
+export const EVIDENCE_FILES = Object.freeze({ versionOutput: 'evidence/version.stdout.txt', execHelp: 'evidence/exec-help.stdout.txt', features: 'evidence/features.stdout.txt' });
+const EVIDENCE_ARGS = Object.freeze({ versionOutput: ['--version'], execHelp: ['exec', '--help'], features: ['features', 'list'] });
+
+/** Runs one check command of the staged program: no shell, a minimal environment, an empty folder, a time limit. */
+export function stagedProbe(command, args, cwd) {
+  return new Promise(resolveRun => {
+    let stdout = '', settled = false;
+    const env = Object.fromEntries(['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA'].filter(name => process.env[name]).map(name => [name, process.env[name]]));
+    const child = spawn(command, args, { cwd, env, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    const done = exitCode => { if (!settled) { settled = true; clearTimeout(timer); resolveRun({ exitCode, stdout }); } };
+    const timer = setTimeout(() => { child.kill(); done(-1); }, 15000);
+    child.stdout.on('data', chunk => { if (stdout.length < 262144) stdout += String(chunk); });
+    child.on('error', () => done(-1));
+    child.on('exit', code => done(typeof code === 'number' ? code : -1));
+  });
+}
+
+async function recordEvidence(destination, entrypoint, probe, now) {
+  const program = join(destination, ...entrypoint.split('/'));
+  const cwd = await mkdtemp(join(tmpdir(), 'chausar-codex-stage-'));
+  try {
+    await mkdir(join(destination, 'evidence'), { recursive: true });
+    for (const [role, file] of Object.entries(EVIDENCE_FILES)) {
+      const answer = await probe(program, EVIDENCE_ARGS[role], cwd);
+      if (answer.exitCode !== 0 || !answer.stdout.trim()) throw new Error(`the staged Codex did not answer ${EVIDENCE_ARGS[role].join(' ')}`);
+      if (role === 'versionOutput' && answer.stdout.trim() !== `codex-cli ${CODEX_BUNDLE.version}`) throw new Error(`the staged Codex answered as another version (${answer.stdout.trim()}); the beta bundles Codex ${CODEX_BUNDLE.version}`);
+      await writeFile(join(destination, ...file.split('/')), answer.stdout, { flag: 'wx' });
+    }
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+  return { recordedAt: now().toISOString(), files: { ...EVIDENCE_FILES } };
+}
+
 /** Copy a local Codex platform package into an empty destination, add LICENSE and NOTICE, write BUNDLE.json. */
-export async function stageCodexBundle({ source, destination, platform, architecture, root = projectRoot }) {
+export async function stageCodexBundle({ source, destination, platform, architecture, root = projectRoot, probe = null, now = () => new Date() }) {
   const vendor = await codexVendorFolder(source, platform, architecture);
   const { target, entrypoint } = await readLayout(vendor, platform, architecture);
   const files = (await listTree(vendor)).filter(name => !leftOut(name)).sort();
@@ -128,8 +168,9 @@ export async function stageCodexBundle({ source, destination, platform, architec
   }
   await copyFile(license, join(destination, 'LICENSE'));
   await copyFile(notice, join(destination, 'NOTICE'));
-  const manifest = { schemaVersion: 1, name: 'OpenAI Codex CLI', version: CODEX_BUNDLE.version, licence: CODEX_BUNDLE.licence, source: `${CODEX_BUNDLE.repository} (${CODEX_BUNDLE.tag}); files from the @openai/codex npm package`, target, entrypoint, leftOut: [...LEFT_OUT], files: {} };
-  for (const name of [...files, 'LICENSE', 'NOTICE'].sort()) {
+  const evidence = probe ? await recordEvidence(destination, entrypoint, probe, now) : null;
+  const manifest = { schemaVersion: 1, name: 'OpenAI Codex CLI', version: CODEX_BUNDLE.version, licence: CODEX_BUNDLE.licence, source: `${CODEX_BUNDLE.repository} (${CODEX_BUNDLE.tag}); files from the @openai/codex npm package`, target, entrypoint, leftOut: [...LEFT_OUT], evidence, files: {} };
+  for (const name of [...files, 'LICENSE', 'NOTICE', ...(evidence ? Object.values(EVIDENCE_FILES) : [])].sort()) {
     const path = join(destination, ...name.split('/'));
     manifest.files[name] = { size: (await lstat(path)).size, sha256: await sha256(path) };
   }
@@ -178,7 +219,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const { from, platform = process.platform, architecture = process.arch } = parseCodexBundleArguments(process.argv.slice(2));
     const destination = join(projectRoot, ...bundleFolderName(platform, architecture).split('/'));
-    const manifest = await stageCodexBundle({ source: resolve(from), destination, platform, architecture });
-    console.log(`Codex ${manifest.version} (${manifest.target}) staged in ${destination} with its LICENSE and NOTICE; ${Object.keys(manifest.files).length} files.`);
+    // A2: the setup is recorded when the staged program runs on this computer; another platform's bundle goes without it.
+    const here = platform === process.platform && architecture === process.arch;
+    const manifest = await stageCodexBundle({ source: resolve(from), destination, platform, architecture, probe: here ? stagedProbe : null });
+    console.log(`Codex ${manifest.version} (${manifest.target}) staged in ${destination} with its LICENSE and NOTICE; ${Object.keys(manifest.files).length} files; ${manifest.evidence ? 'its reviewed setup recorded' : 'no setup recorded (another platform): the owner chooses it on first use'}.`);
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

@@ -44,10 +44,15 @@ export function cliEnv(kind: 'claude-cli' | 'codex-cli', maxOutputTokens?: numbe
 
 export type CodexHost = { capabilities: CodexCliCapabilityProfile; mode: string };
 
-/** The trusted Codex host profile from ModelPortOptions.codexCli, or null when there is none. */
+/**
+ * The trusted Codex host profile from ModelPortOptions.codexCli, or null when there is none. A2: the host passes its
+ * Codex trust (codex-trust.ts), whose profile() is read at each use, so a Codex the owner chooses is used at once; a
+ * plain profile (tests, older hosts) still works.
+ */
 export function codexHost(value: unknown): CodexHost | null {
-  if (!isPlainRecord(value) || !isPlainRecord(value.capabilities) || !isPlainRecord(value.capabilities.evidence)) return null;
-  return value as unknown as CodexHost;
+  const live = value && typeof value === 'object' && typeof (value as { profile?: unknown }).profile === 'function' ? (value as { profile(): unknown }).profile() : value;
+  if (!isPlainRecord(live) || !isPlainRecord(live.capabilities) || !isPlainRecord(live.capabilities.evidence)) return null;
+  return live as unknown as CodexHost;
 }
 
 /** The executable named by installed-help evidence, else the plain command name. */

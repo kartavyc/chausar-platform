@@ -71,6 +71,18 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
     finally { setBusy(null); }
   }, [client]);
 
+  /** A2: the owner's yes to the Codex Chausar found and showed (venture.ai.setup.trust), then the tools are read again. */
+  async function choose(tool: ToolLite) {
+    const sha256 = tool.setup?.sha256;
+    if (!sha256) return;
+    setProblem(null); setBusy(tool.cli);
+    try {
+      await client.request('venture.ai.setup.trust', { cli: 'codex', sha256 });
+      setView(await client.request('venture.ai.tools', {}));
+    } catch (error) { setProblem(messageOf(error)); }
+    finally { setBusy(null); }
+  }
+
   async function cancel(cli: ToolLite['cli']) {
     setProblem(null);
     try {
@@ -108,7 +120,11 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
 
   function toolTile(tool: ToolLite) {
     const preset = presetOf(tool.cli);
-    const signedIn = tool.signedIn === 'yes';
+    // A2: a Codex not yet chosen is shown first and used only after the owner says yes; one that cannot be used says why.
+    const setup = tool.setup;
+    const choosing = setup?.state === 'review';
+    const refused = setup?.state === 'refused';
+    const signedIn = tool.signedIn === 'yes' && !choosing && !refused;
     const primary = tool.cli === recommended;
     const hint = t(tool.cli === 'codex' ? 'first-run.ai.hint.codex' : 'first-run.ai.hint.claude');
     return (
@@ -117,12 +133,19 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
         <p className={s.optionLine}>{t(tool.cli === 'codex' ? 'first-run.ai.codex.line' : 'first-run.ai.claude.line')}</p>
         <span>{signedIn ? <Chip tone="done">{t('first-run.ai.signedIn')}</Chip> : tool.found ? <Chip tone="line">{t('first-run.ai.installed', { name: tool.label })}</Chip> : <Chip tone="idle">{t('first-run.ai.notInstalled')}</Chip>}</span>
         <div className={s.optionAction}>
-          {signedIn ? (
+          {choosing ? (
+            <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null} aria-busy={busy === tool.cli || undefined} onClick={() => void choose(tool)}>{t('first-run.ai.setup.use')}</Button>
+          ) : refused ? null : signedIn ? (
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null || !preset} aria-busy={busy === tool.cli || undefined} onClick={() => void use(tool.cli)}>{t('first-run.ai.use', { name: tool.label })}</Button>
           ) : tool.found ? (
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null || Boolean(waiting)} aria-busy={busy === tool.cli || undefined} onClick={() => void signIn(tool.cli)}>{t('first-run.ai.signIn', { name: tool.label })}</Button>
           ) : null}
-          <p className={s.hint}>{signedIn && preset ? t('first-run.ai.sends', { text: preset.consentText }) : tool.found ? hint : tool.login.line}</p>
+          {(choosing || refused) && setup ? (
+            <>
+              <p className={s.hint}>{setup.line}</p>
+              {setup.path && <p className={s.hint} data-content="">{setup.path}</p>}
+            </>
+          ) : <p className={s.hint}>{signedIn && preset ? t('first-run.ai.sends', { text: preset.consentText }) : tool.found ? hint : tool.login.line}</p>}
           {tool.login.state === 'failed' && tool.login.line && <p className={s.problem} role="alert">{tool.login.line}</p>}
         </div>
       </Tile>

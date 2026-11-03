@@ -9,7 +9,7 @@
  *       reader.
  *   venture.needs.list                                what the business needs (core/needs-data.ts), the same data.
  */
-import { EngineError, type AboutReadLite, type CountryLite, type ModelStatusLite, type NeedsListLite, type ToolLite, type ToolsLite } from './types';
+import { EngineError, type AboutReadLite, type CountryLite, type ModelStatusLite, type NeedsListLite, type ToolLite, type ToolsLite, type CodexSetupLite } from './types';
 import { FAMILIES, familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith, type FamilyId } from '../../../../platform/runtime/venture/core/families';
 import { businessFamily, businessNeeds } from '../../../../platform/runtime/venture/core/needs-data';
 import { profileEntry, profileTextFromCsv } from '../../../../platform/runtime/venture/core/profile-csv';
@@ -17,7 +17,18 @@ import { profileEntry, profileTextFromCsv } from '../../../../platform/runtime/v
 export const FIRST_RUN_METHODS: ReadonlySet<string> = new Set([
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
   'venture.about.read', 'venture.about.pick', 'venture.about.families', 'venture.needs.list',
+  // A2: the owner's yes to the Codex found on this computer (engine.ts answers it with or without a business).
+  'venture.ai.setup.trust',
 ]);
+/** A2: the sample program digests: the Codex that comes with Chausar, and an owner's own Codex found on the search path. */
+const BUNDLED_SHA = 'b'.repeat(64);
+const OWN_SHA = 'c'.repeat(64);
+/** The engine's words (platform/runtime/codex-trust.ts SETUP_WORDS), word for word. */
+const SETUP = {
+  bundled: { state: 'trusted', origin: 'bundled', path: String.raw`C:\Program Files\Chausar\resources\codex\bin\codex.exe`, version: '0.166.0', sha256: BUNDLED_SHA, line: 'Uses the Codex 0.166.0 that comes with Chausar.' },
+  review: { state: 'review', origin: null, path: String.raw`~\AppData\Roaming\npm\codex.cmd`, version: '0.166.0', sha256: OWN_SHA, line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' },
+  owner: { state: 'trusted', origin: 'owner', path: String.raw`~\AppData\Roaming\npm\codex.cmd`, version: '0.166.0', sha256: OWN_SHA, line: 'Uses your Codex 0.166.0, which you chose.' },
+} as const satisfies Record<string, CodexSetupLite>;
 /** A synthetic one-time code in Codex's own shape. Never a real code. */
 export const FAKE_DEVICE_CODE = ['WXYZ', '12345'].join('-');
 const DEVICE_LINK = 'https://auth.openai.com/codex/device';
@@ -73,13 +84,21 @@ export class FakeFirstRun {
 
   constructor(host: FirstRunHost) { this.host = host; }
 
+  /** A2: which Codex setup this fake computer has: the bundled one in use, unless a test found the owner's own. */
+  private setup: CodexSetupLite = { ...SETUP.bundled };
+  /** Tests: the owner's own Codex is found and no setup is in use yet, so Chausar asks the owner first. */
+  reviewCodex(): void { this.setup = { ...SETUP.review }; }
+  /** Whether Codex can be used: a setup in use, as the engine's tools view needs. */
+  codexTrusted(): boolean { return this.setup.state === 'trusted'; }
+
   /** Whether the sample Codex says it is signed in (its presets can then connect). */
-  codexSignedIn(): boolean { return this.codex.signedIn === 'yes'; }
+  codexSignedIn(): boolean { return this.codex.signedIn === 'yes' && this.codexTrusted(); }
 
   /** Tests: the sample Codex is already signed in. */
   signIn(): void { this.codex = { signedIn: 'yes', login: { state: 'idle', code: null, link: null, line: null }, looks: 0 }; }
 
   request(method: string, p: Record<string, unknown>): unknown {
+    if (method === 'venture.ai.setup.trust') return this.trust(p);
     if (method !== 'venture.needs.list' && this.host.hosted()) throw new EngineError('HOSTED_NOT_AVAILABLE', 'The hosted web app adds your AI after you keep your business.');
     switch (method) {
       case 'venture.ai.tools': exact(p, []); return this.tools();
@@ -100,7 +119,18 @@ export class FakeFirstRun {
   }
 
   private codexView(): ToolLite {
-    return { cli: 'codex', label: 'Codex', found: true, signedIn: this.codex.signedIn, login: { ...this.codex.login } };
+    return { cli: 'codex', label: 'Codex', found: true, signedIn: this.codex.signedIn, login: { ...this.codex.login }, setup: { ...this.setup } };
+  }
+
+  /** A2, as engine.ts #codexSetupTrust and codex-trust.ts record: only the exact Codex shown, in the app, here. */
+  private trust(p: Record<string, unknown>): { setup: CodexSetupLite } {
+    if (Object.keys(p).sort().join(',') !== 'cli,sha256' || p.cli !== 'codex') throw invalid('Choose the Codex Chausar showed you.');
+    if (this.host.hosted()) throw new EngineError('CODEX_SETUP_UNAVAILABLE', "Chausar can't keep a chosen Codex here.");
+    if (typeof p.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(p.sha256)) throw invalid('Choose the Codex Chausar showed you.');
+    if (this.setup.state === 'trusted') return { setup: { ...this.setup } };
+    if (this.setup.state !== 'review' || p.sha256 !== this.setup.sha256) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
+    this.setup = { ...SETUP.owner };
+    return { setup: { ...this.setup } };
   }
   private claudeView(): ToolLite {
     return { cli: 'claude-code', label: 'Claude Code', found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: 'Install Claude Code with its own installer, then check again.' } };

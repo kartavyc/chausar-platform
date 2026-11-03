@@ -1427,7 +1427,14 @@ export interface PushSubscriptionInput { endpoint: string; keys: { p256dh: strin
 export interface CliStatusView {
   cli: 'claude-code' | 'codex'; label: Display; found: boolean; path: string | null; version: string | null;
   flags: 'match' | 'mismatch' | 'unknown'; missingFlags: string[]; signedIn: 'yes' | 'no' | 'unknown'; terms: 'accepted' | 'pending' | 'not-needed';
-  lastTask: { at: string; outcome: 'succeeded' | 'failed' } | null; state: ModelAvailability; line: Display; fix: Display | null;
+  lastTask: { at: string; outcome: 'succeeded' | 'failed'; named?: Display } | null; state: ModelAvailability; line: Display; fix: Display | null;
+  /** A2: Codex only, when the engine keeps a Codex trust (platform/runtime/codex-trust.ts). */
+  setup?: CodexSetupLite;
+}
+/** A2: a Codex setup as the engine shows it: in use, found and waiting for the owner's yes, not usable, or none. */
+export interface CodexSetupLite {
+  state: 'trusted' | 'review' | 'refused' | 'none'; origin: 'operator' | 'bundled' | 'owner' | null;
+  path: string | null; version: string | null; sha256: string | null; line: string;
 }
 export interface RoleModelView { agent: string; name: string; tiers: { tier: ModelTier; presetId: string; model: string | null; price: Display; usable: boolean }[] }
 
@@ -1612,6 +1619,8 @@ export type ToolLoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'fa
 export interface ToolLite {
   cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown';
   login: { state: ToolLoginState; code: string | null; link: string | null; line: string | null };
+  /** A2: Codex only, when the engine keeps a Codex trust. */
+  setup?: CodexSetupLite;
 }
 export interface ToolsLite { tools: ToolLite[]; line: string }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
@@ -2342,6 +2351,8 @@ export interface EngineMethods {
   'venture.ai.tools': { params: Record<string, never>; result: ToolsLite };
   'venture.ai.login.start': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
+  // A2: the owner's yes to the Codex found on this computer, with or without a business.
+  'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };

@@ -20,7 +20,7 @@ import { CLI_COMMANDS, locateOnThisComputer, startableProgram } from './cli-look
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { CLI_LABELS } from './presets.ts';
 
-import type { LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
+import type { CodexSetupView, LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
 
 export type { LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
 
@@ -41,6 +41,11 @@ export type LoginDeskOptions = {
   statusCacheMs?: number;
   /** How long a login may wait for the owner: Codex's device code expires in fifteen minutes. */
   loginTimeoutMs?: number;
+  /**
+   * A2: the host's Codex trust (codex-trust.ts): the setup in use, else a review of the Codex found here, which the owner
+   * must say yes to (venture.ai.setup.trust) before Codex can be used. Absent: no setup is shown (tests, older hosts).
+   */
+  codex?: { review(found: string | null): Promise<CodexSetupView> };
 };
 
 export const LOGIN_TIMEOUT_MS = 15 * 60_000;
@@ -91,7 +96,7 @@ function signedInFrom(text: string, ok: boolean): ToolView['signedIn'] {
   return ok && SIGNED_IN.some(pattern => pattern.test(text)) ? 'yes' : 'unknown';
 }
 
-type Program = { command: string; lead: string[] };
+type Program = { command: string; lead: string[]; located: string };
 type Running = { child: LoginChild; folder: string; output: string; timer: ReturnType<typeof setTimeout> };
 
 /** One per draft desk: the logins in flight and the last status of each tool. */
@@ -113,9 +118,9 @@ export class LoginDesk {
     if (!path) return null;
     if (cli === 'codex' && NPM_SHIM_FILE.test(path)) {
       const shim = resolveNpmShim(path, locate, CODEX_NPM_ENTRY, platform);
-      return shim ? { command: shim.program, lead: [shim.script] } : { command: '', lead: [] };
+      return shim ? { command: shim.program, lead: [shim.script], located: path } : { command: '', lead: [], located: path };
     }
-    return startableProgram(path, platform) ? { command: path, lead: [] } : { command: '', lead: [] };
+    return startableProgram(path, platform) ? { command: path, lead: [], located: path } : { command: '', lead: [], located: path };
   }
 
   #spawn(cli: DelegateCli, program: Program, args: string[], cwd: string): LoginChild {
@@ -152,20 +157,29 @@ export class LoginDesk {
     return { ...(this.#logins.get(cli) ?? { state: 'idle', code: null, link: null, line: null }) };
   }
 
+  /** A2: Codex's setup, when the host keeps a Codex trust: in use, else the found Codex as the owner is asked about it. */
+  async #setup(cli: DelegateCli, program: Program | null): Promise<{ setup?: CodexSetupView }> {
+    if (cli !== 'codex' || !this.options.codex) return {};
+    try { return { setup: await this.options.codex.review(program?.located ?? null) }; } catch { return {}; }
+  }
+
   async #view(cli: DelegateCli, fresh = false): Promise<ToolView> {
     const label = CLI_LABELS[cli];
     const program = this.#program(cli);
-    if (!program) return { cli, label, found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.notInstalled(label) } };
-    if (!program.command) return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.noProgram(label) } };
+    const setup = await this.#setup(cli, program);
+    // A2: the bundled Codex counts as found even when no other Codex is on the search path.
+    if (!program && setup.setup?.state === 'trusted') return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: null }, ...setup };
+    if (!program) return { cli, label, found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.notInstalled(label) }, ...setup };
+    if (!program.command) return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.noProgram(label) }, ...setup };
     const signedIn = await this.#signedIn(cli, program, fresh);
     const login = this.#login(cli);
     // Claude Code's login waits for its page: once its own status says signed in, its process is done.
     if (signedIn === 'yes' && (login.state === 'starting' || login.state === 'waiting')) {
       this.#stop(cli);
       this.#logins.set(cli, { state: 'signed-in', code: null, link: null, line: null });
-      return { cli, label, found: true, signedIn, login: this.#login(cli) };
+      return { cli, label, found: true, signedIn, login: this.#login(cli), ...setup };
     }
-    return { cli, label, found: true, signedIn, login };
+    return { cli, label, found: true, signedIn, login, ...setup };
   }
 
   /** venture.ai.tools {}: each tool, whether it is found, its own sign-in state, and any login in flight. */

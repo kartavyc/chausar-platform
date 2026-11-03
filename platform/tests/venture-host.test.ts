@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   GitHubFixture, GitHubTransport, ModelPort, ModelPortOptions, ModelTransport, VentureDeps, VentureEngineServices, VentureHandlerTable,
   VentureHostOptions, VentureMethod, VenturePackageId, VentureStorage,
@@ -94,7 +94,7 @@ test('PACKAGE_LOADERS has one loader per package and missingHandlers lists what 
   assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'playbooks', 'views']);
   const all = missingHandlers({});
   const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest');
-  assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - draftOnly.length);
+  assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - draftOnly.length - ENGINE_METHODS.length);
   for (const method of [...PRE_VAULT_METHODS, ...draftOnly]) assert.equal(all.includes(method), false, method);
   const fn = async () => null;
   const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify', 'playbooks'] as VenturePackageId[]).map(id => [id,

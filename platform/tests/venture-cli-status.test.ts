@@ -341,6 +341,17 @@ test('A2: the real Codex 0.166.0 help: exec lists every flag the route sends, an
   assert.ok(fake.seen.some(request => request.args.join(' ') === 'login status'));
 });
 
+test('A2: Your AI shows the Codex setup, and a found Codex the owner has not chosen waits for that yes', async () => {
+  const review = { state: 'review' as const, origin: null, path: CODEX_EXE, version: '0.166.0', sha256: 'b'.repeat(64), line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' };
+  const seen: (string | null)[] = [];
+  const trust = { profile: () => null, async review(found: string | null) { seen.push(found); return review; } };
+  const { deps } = await setup({ tools: { codex: CODEX_OK }, codexCli: trust });
+  const codex = (await status(deps)).clis.find(cli => cli.cli === 'codex')!;
+  assert.deepEqual(codex.setup, review);
+  assert.deepEqual(seen, [CODEX_EXE]);
+  assert.equal(codex.state, 'needs-setup', 'not usable until the owner says yes');
+});
+
 test('the real Codex 0.154.0 help: exec lists every flag the route sends, and the top help lists login', async () => {
   const codexReal: Tool = { ...CODEX_OK, help: realHelp('codex-cli-0.154.0-help.txt'), execHelp: realHelp('codex-cli-0.154.0-exec-help.txt') };
   const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
