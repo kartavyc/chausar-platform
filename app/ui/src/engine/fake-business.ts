@@ -230,7 +230,9 @@ export class FakeBusinessDesk {
       case 'workspace.export': {
         if (p.confirmed !== true) throw new EngineError('CONFIRMATION_REQUIRED', 'Confirm the export in the app.');
         const plaintext = p.plaintext === true;
-        return { path: `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`, encrypted: !plaintext };
+        const path = `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`;
+        (this.exports[biz] ??= []).push(path);
+        return { path, encrypted: !plaintext };
       }
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
@@ -515,6 +517,7 @@ export class FakeBusinessDesk {
   // ---------------------------------------------------------------------------------------------------------------
 
   private backups: Record<string, BackupLite[]> = {};
+  private exports: Record<string, string[]> = {};
   /** A business's backups, newest first. Lumen Studio's sample has one of each kind, the oldest from before a lock change. */
   backupsOf(biz: string): BackupLite[] {
     const name = this.host.businessName(biz);
@@ -528,6 +531,11 @@ export class FakeBusinessDesk {
   /** A business left this computer: its backups go with it. */
   dropBackups(biz: string): void {
     delete this.backups[biz];
+  }
+
+  /** One-shot A1 (row 1): the copies the owner exported for this business, which Delete keeps. */
+  exportsOf(biz: string): string[] {
+    return [...(this.exports[biz] ?? [])].sort();
   }
 
   private addBackup(biz: string, kind: BackupLite['kind']): BackupLite {

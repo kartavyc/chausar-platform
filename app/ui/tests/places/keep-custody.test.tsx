@@ -210,8 +210,8 @@ describe('Keep this business: delete this business', () => {
     const engine = new FakeEngine({ only: ['lumen', 'ledgerline'] });
     const { calls } = start('#/business/keep', engine);
     const box = await fold('Delete this business');
-    expect(await within(box).findByText("This deletes Lumen Studio from this computer, with its backups and exports in Chausar's folders.")).toBeTruthy();
-    expect(within(box).getByText("It can't delete copies kept anywhere else, like a move file or an export you saved somewhere else.")).toBeTruthy();
+    expect(await within(box).findByText('This deletes Lumen Studio and its backups from this computer. Copies you exported stay.')).toBeTruthy();
+    expect(within(box).getByText("It can't delete a move file or a copy kept somewhere else.")).toBeTruthy();
     const name = within(box).getByLabelText('Type Lumen Studio to delete it') as HTMLInputElement;
     fireEvent.change(name, { target: { value: 'lumen studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));

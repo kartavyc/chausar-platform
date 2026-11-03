@@ -1666,7 +1666,13 @@ export class Engine {
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
-      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'workspace.delete': {
+        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
+        const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
+        const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
+        return { deleted: true, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      }
       case 'venture.create':
       case 'venture.country.suggest':
       case 'venture.get':
@@ -2400,7 +2406,17 @@ export class Engine {
       return (member.role === 'owner' && member.branches.includes('*')) || details.memberId === ctx.memberId;
     });
   }
-  private async purgeManagedCopies() {
+  /**
+   * One-shot A1 (row 1): the copies in Chausar's exports folder of this business. Delete keeps them (the owner exported
+   * them to keep); Forget and a source delete still remove them, because they hold what was forgotten.
+   */
+  private async managedExports(): Promise<string[]> {
+    const folder = resolve(this.options.directory, 'exports'), prefix = `chausar-${this.store().read().workspace.id}-`;
+    let files;
+    try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') return []; throw error; }
+    return files.filter(file => file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))).map(file => join(folder, file.name)).sort();
+  }
+  private async purgeManagedCopies(folders: readonly ('backups' | 'exports')[] = ['backups', 'exports']) {
     // A whole-workspace fork can hold forgotten bytes from another source. Revoke
     // surviving receipt contexts BEFORE deleting those copies; never retain the
     // forgotten fork solely to satisfy an unrelated receipt's interpretation.
@@ -2414,7 +2430,7 @@ export class Engine {
     }
     const removed: string[] = await this.store().purgeArtifacts();
     const prefix = `chausar-${this.store().read().workspace.id}-`;
-    for (const name of ['backups', 'exports']) {
+    for (const name of folders) {
       const folder = resolve(this.options.directory, name); let files;
       try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') continue; throw error; }
       for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }

@@ -658,7 +658,8 @@ export interface WorkspaceLite { id?: string; name: string }
  */
 export interface MoveFile { fileName: string; text: string; transferCode: string; bytes: number }
 /** `workspace.delete`: what the engine removed, and its words for the copies it cannot reach. */
-export interface Deleted { deleted: true; copiesRemoved?: unknown; externalCopies: string }
+/** exportsKept (one-shot A1, row 1): the copies the owner exported, which Delete leaves where they are. */
+export interface Deleted { deleted: true; copiesRemoved?: unknown; exportsKept?: string[]; externalCopies: string }
 
 /**
  * `venture.client.list` and `venture.client.add` (ClientRecord), trimmed. Client details are client data. `owed` is

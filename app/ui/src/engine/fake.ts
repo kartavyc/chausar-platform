@@ -1266,7 +1266,7 @@ export class FakeEngine {
     return { ...this.openHere(moved), folder: moved.id, unlock: key.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer' };
   }
 
-  /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go. */
+  /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go, its exports stay. */
   private deleteBusiness(p: Record<string, unknown>) {
     const business = this.businesses.find((b) => b.id === this.current);
     if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
@@ -1274,11 +1274,12 @@ export class FakeEngine {
     this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);
     this.ventures.delete(business.id);
+    const exportsKept = this.desk.exportsOf(business.id);
     this.desk.dropBackups(business.id);
     this.rows = this.rows.filter((r) => r.businessId !== business.id);
     this.open = false;
     this.current = '';
-    return { deleted: true, copiesRemoved: [], externalCopies: 'Copies made outside this app must be removed by their owner.' };
+    return { deleted: true, copiesRemoved: [], exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
   }
 
   private templateInterview(countryCode: string): InterviewQuestionLite[] {

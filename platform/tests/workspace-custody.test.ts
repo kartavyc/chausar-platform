@@ -606,3 +606,19 @@ test('a move whose attach fails stays listed with the right way in, and opens la
   await assert.rejects(b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode }), code('TRANSFER_SAME_BUSINESS'));
   assert.equal((await b.ask('workspace.open', { folder: businesses[0].folder })).workspace.name, 'Half Moved');
 });
+
+test('one-shot A1 row 1: Delete keeps the copies the owner exported to keep, and says which; backups still go', async t => {
+  const directory = await folder(t);
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Keep Copies Shop', pack: 'services', folder: null });
+  await ask('workspace.backups.create');
+  const kept = await ask('workspace.export', { confirmed: true, plaintext: false });
+  const exported = (await readdir(join(directory, 'exports'))).sort();
+  assert.equal(exported.length, 1);
+  const removed = await ask('workspace.delete', { confirmation: 'Keep Copies Shop' });
+  assert.deepEqual(await readdir(join(directory, 'exports')), exported, 'the exported copy is still there');
+  assert.deepEqual(removed.exportsKept, [kept.path]);
+  assert.equal(removed.copiesRemoved.some((path: string) => path.startsWith('exports/')), false);
+  assert.ok(removed.copiesRemoved.some((path: string) => path.startsWith('backups/')));
+  assert.deepEqual(await backupsOf(directory), []);
+});
