@@ -2832,10 +2832,16 @@ export class Engine {
     const path = await files.transferFile(text);
     try {
       let vault: Vault;
+      // Review of A1 (row 8): the step a failed move stopped at goes to the custody diagnostic log, with the error's code.
+      const note = (step: string, error: unknown) => files.noteDiagnostic('transfer.import', step, error, new Date(this.custodyNow()).toISOString());
       try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: path, passphrase: code, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
-      catch (error) { if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG); throw error; }
+      catch (error) {
+        if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
+        await note('restore', error); throw error;
+      }
       let record: DeviceKeyRecord | null = null;
       const secret = computer ? randomBytes(32) : null;
+      let step = 'protect';
       try {
         // One-shot A1 (row 8): a key this computer could not keep offers the passphrase instead (DEVICE_KEYS_UNAVAILABLE,
         // which the move screen answers with a passphrase), never "this computer's key didn't open your business".
@@ -2845,14 +2851,17 @@ export class Engine {
             const reason = (error as { reason?: unknown }).reason;
             throw deviceKeysUnavailable(typeof reason === 'string' && Object.hasOwn(CUSTODY_WORDS.unavailable, reason) ? reason as keyof typeof CUSTODY_WORDS.unavailable : 'failed');
           }
-          await files.writeKey(record); await vault.rewrapPassphrase(secret.toString('base64url'));
+          step = 'write-key'; await files.writeKey(record);
+          step = 'rewrap'; await vault.rewrapPassphrase(secret.toString('base64url'));
         }
-        else await vault.rewrapPassphrase(payload.passphrase);
+        else { step = 'rewrap'; await vault.rewrapPassphrase(payload.passphrase); }
         // The card goes down before attaching, so if attaching fails the list still shows the right way in.
+        step = 'write-card';
         const state = vault.read();
         await files.writeCard(newCard({ folder, vaultId: vault.vaultId, workspaceId: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo,
           unlock: computer ? 'this-computer' : 'passphrase', recovery: transferHint(parsed), wrappersDigest: vault.wrappersDigest }));
       } catch (error) {
+        await note(step, error);
         await files.removeCard(folder).catch(() => {});
         await vault.delete().catch(() => {});
         if (record) { await custody!.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }

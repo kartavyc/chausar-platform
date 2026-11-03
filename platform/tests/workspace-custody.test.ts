@@ -633,7 +633,7 @@ test('one-shot A1 row 8: moving a business in after deleting the original works,
       if (fail === 'protect') throw new Error('The protected storage helper timed out.');
       const record = await inner.protect(vaultId, secret);
       // A record that cannot be written (the disk said no), after the key itself was kept.
-      return fail === 'write' ? { ...record, toJSON() { throw new Error('EPERM: operation not permitted, rename'); } } as typeof record : record;
+      return fail === 'write' ? { ...record, toJSON() { throw Object.assign(new Error("EPERM: operation not permitted, rename 'C:/Users/someone/secret.json'"), { code: 'EPERM', syscall: 'rename', path: 'C:/Users/someone/secret.json' }); } } as typeof record : record;
     },
   };
   const { ask } = engineAt(t, directory, { keys });
@@ -651,6 +651,15 @@ test('one-shot A1 row 8: moving a business in after deleting the original works,
   fail = 'write';
   await assert.rejects(move(), (error: any) => error.code === 'TRANSFER_FAILED' && error.message === CUSTODY_WORDS.errors.TRANSFER_FAILED);
   assert.deepEqual((await ask('workspace.list')).businesses, [], 'nothing half moved is listed');
+  // Review of A1 (row 8): each failed move leaves the step and the error's code in the engine's diagnostic log, never a path or a secret.
+  const log = (await readFile(join(directory, 'custody', 'diagnostics.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(log.map(entry => [entry.op, entry.step, entry.code, entry.syscall ?? null, entry.reason ?? null]), [
+    ['transfer.import', 'protect', 'DEVICE_KEYS_UNAVAILABLE', null, 'failed'],
+    ['transfer.import', 'write-key', 'EPERM', 'rename', null],
+  ]);
+  assert.ok(log.every(entry => typeof entry.at === 'string'));
+  const raw = await readFile(join(directory, 'custody', 'diagnostics.jsonl'), 'utf8');
+  assert.equal(raw.includes('someone') || raw.includes('secret') || raw.includes(exported.transferCode), false);
   fail = null;
   const moved = await move();
   assert.equal(moved.workspace.name, 'Moving Back Shop');
