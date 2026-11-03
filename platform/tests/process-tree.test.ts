@@ -144,3 +144,28 @@ test('A3 L3: the exec route (defaultProcess) searches for helpers only after a t
   for (let n = 0; n < 80 && alive(helper); n++) await wait(100);
   assert.equal(alive(helper), false, 'a timed-out call leaves nothing behind');
 });
+
+// A3 review (M3, L1): what runs after a tool exits, by platform. Elsewhere the group kill after every exit stays, except
+// for the sign-in ('never'), whose browser must survive; after Chausar killed a tool the clean-up always runs.
+test('A3 review M3 and L1: the clean-up after an exit, by mode, platform and whether Chausar killed the tool', async () => {
+  const { afterExitAction } = await import('../runtime/process-tree.ts');
+  const run = (mode: 'sweep' | 'killed' | 'never' | undefined, platform: NodeJS.Platform, killed: boolean, ranMs = 5_000, sweepAfterMs?: number) =>
+    afterExitAction({ ...(mode ? { afterExit: mode } : {}), ...(sweepAfterMs === undefined ? {} : { sweepAfterMs }) }, platform, killed, ranMs);
+  // Elsewhere: the group is ended after every exit, for the default and the exec route alike.
+  for (const killed of [false, true]) {
+    assert.equal(run(undefined, 'linux', killed), 'clean-up');
+    assert.equal(run('killed', 'linux', killed), 'clean-up', `linux killed=${killed}`);
+    assert.equal(run('killed', 'darwin', killed), 'clean-up');
+  }
+  // The sign-in: nothing after it ends on its own, on every platform; after a cancel or a time-out, the clean-up runs.
+  for (const platform of ['linux', 'darwin', 'win32'] as const) {
+    assert.equal(run('never', platform, false), 'none', platform);
+    assert.equal(run('never', platform, true), 'clean-up', `${platform} after a kill`);
+  }
+  // Windows: the exec route searches only after a kill; the default after any exit that ran long enough.
+  assert.equal(run('killed', 'win32', false), 'none');
+  assert.equal(run('killed', 'win32', true), 'clean-up');
+  assert.equal(run(undefined, 'win32', false, 500, 2_000), 'none');
+  assert.equal(run(undefined, 'win32', false, 2_500, 2_000), 'clean-up');
+  assert.equal(run(undefined, 'win32', true, 100, 2_000), 'clean-up');
+});

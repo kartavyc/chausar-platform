@@ -50,12 +50,24 @@ export function sweepAfterExit(pid: number | undefined, startedAt: Date, endedAt
  * How spawnTree cleans up. sweepAfterMs: on Windows, the search after an exit (which starts PowerShell) runs only for a
  * tool that ran at least this long; a quick check that answered at once is not searched. Elsewhere the group is always
  * ended. 0 (the default) searches after every exit.
- * One-shot A3 (L2, L3): afterExit says when that clean-up runs at all. 'sweep' (the default): after every exit, as above.
- * 'killed': only after Chausar killed the tool (a time-out, a stop, too much output), so an ordinary exec-route call
- * starts no PowerShell. 'never': never after an exit, so a sign-in that finishes leaves the browser it opened. kill()
- * ends the whole tree in every case.
+ * One-shot A3 (L2, L3, and the review's M3 and L1): afterExit says when that clean-up runs. 'sweep' (the default):
+ * after every exit, as above. 'killed': on Windows the search runs only after Chausar killed the tool (a time-out, a
+ * stop, too much output), so an ordinary exec-route call starts no PowerShell; elsewhere the group is still ended after
+ * every exit, which costs nothing. 'never' (the sign-in only): nothing after it ends on its own, on any platform, so the
+ * browser it opened stays; after a kill (a cancel, a time-out) the clean-up runs as ever. kill() ends the whole tree in
+ * every case.
  */
 export type TreeOptions = { sweepAfterMs?: number; afterExit?: 'sweep' | 'killed' | 'never' };
+
+/** What spawnTree does after a tool exited: the clean-up for its platform, or nothing. */
+export function afterExitAction(tree: TreeOptions, platform: NodeJS.Platform, killed: boolean, ranMs: number): 'clean-up' | 'none' {
+  if (killed) return 'clean-up';
+  const after = tree.afterExit ?? 'sweep';
+  if (after === 'never') return 'none';
+  if (platform !== 'win32') return 'clean-up';
+  if (after === 'killed') return 'none';
+  return ranMs >= (tree.sweepAfterMs ?? 0) ? 'clean-up' : 'none';
+}
 
 /** Starts a program without a shell so that its kill() ends its whole tree, and its own exit leaves nothing behind. */
 export function spawnTree(command: string, args: readonly string[], options: SpawnOptions, tree: TreeOptions = {}): ChildProcess {
@@ -71,9 +83,7 @@ export function spawnTree(command: string, args: readonly string[], options: Spa
   };
   child.once('exit', () => {
     const endedAt = new Date();
-    const after = tree.afterExit ?? 'sweep';
-    if (after === 'never' || (after === 'killed' && !killed)) return;
-    if (process.platform !== 'win32' || killed || endedAt.getTime() - startedAt.getTime() >= (tree.sweepAfterMs ?? 0)) sweepAfterExit(child.pid, startedAt, endedAt);
+    if (afterExitAction(tree, process.platform, killed, endedAt.getTime() - startedAt.getTime()) === 'clean-up') sweepAfterExit(child.pid, startedAt, endedAt);
   });
   return child;
 }
