@@ -353,3 +353,27 @@ test('a Codex that refuses the quiet flags is still named by its version', async
   const view = await new CodexTrust({ probe }).review(path);
   assert.deepEqual([view.state, view.version, view.line], ['refused', '0.121.0', SETUP_WORDS.otherVersion('0.121.0', false)]);
 });
+
+// A2 second review (L8): a Codex found through npm's shim is reviewed, hashed and shown as the native codex.exe of
+// that install, never as the shim the search path found.
+test('a Codex found through the npm shim is shown, hashed and checked as the native program behind it', async t => {
+  const root = await folder(t);
+  const shim = join(root, 'codex.cmd');
+  await writeFile(shim, await readFile(new URL('./fixtures/venture/models/npm-shims/codex.cmd', import.meta.url), 'utf8'));
+  await mkdir(join(root, 'node_modules', '@openai', 'codex', 'bin'), { recursive: true });
+  await writeFile(join(root, 'node_modules', '@openai', 'codex', 'bin', 'codex.js'), '// synthetic entry script\n');
+  await writeFile(join(root, 'node.exe'), '');
+  const vendor = join(root, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', 'codex-win32-x64', 'vendor', 'x86_64-pc-windows-msvc', 'bin');
+  await mkdir(vendor, { recursive: true });
+  const native = join(vendor, 'codex.exe');
+  await writeFile(native, 'synthetic native codex bytes');
+  const ran: string[] = [];
+  const { probe } = probeOf();
+  const trust = new CodexTrust({ probe: async (command, args, cwd) => { ran.push(command); return probe(command, args, cwd); }, platform: 'win32', architecture: 'x64', locate: () => null });
+  const view = await trust.review(shim);
+  assert.equal(view.state, 'review');
+  assert.equal(view.sha256, sha256('synthetic native codex bytes'), 'the native program is the one hashed');
+  assert.ok(view.path!.endsWith(join('x86_64-pc-windows-msvc', 'bin', 'codex.exe')), view.path!);
+  assert.ok(!view.path!.includes('codex.cmd'), 'the shim is never the path shown');
+  assert.deepEqual([...new Set(ran)], [native], 'and the native program is the one run');
+});
