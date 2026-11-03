@@ -45,12 +45,19 @@ export function classifyCodexInfo(info: unknown): AiFailureKind | null {
   }
 }
 
+/**
+ * A2 second review: an HTTP status number counts only where it reads as one ("HTTP 429", "status 429", "Error 429",
+ * "429 Too Many Requests"), never a number in other words ("429 rows").
+ */
+const httpStatus = (code: number, words: string) => `(?:(?:https?(?:/[\\d.]+)?|status(?: code)?|error|code)[ :=]*${code}\\b|\\b${code} ${words})`;
 /** Fixed phrases, in the order they are tried: a refused sign-in first, a dropped connection last. */
 const PHRASES: readonly [AiFailureKind, RegExp][] = [
-  ['sign-in-refused', /\b(?:401|unauthori[sz]ed|not (?:logged|signed) in|please (?:run )?\/?login|(?:log|sign) ?in again|invalid (?:api[ _-]?key|x-api-key|bearer)|authentication (?:failed|error)|token (?:has )?expired|refresh token|oauth token)\b/i],
+  ['sign-in-refused', new RegExp(httpStatus(401, 'unauthori[sz]ed'), 'i')],
+  ['sign-in-refused', /\b(?:unauthori[sz]ed|not (?:logged|signed) in|please (?:run )?\/?login|(?:log|sign) ?in again|invalid (?:api[ _-]?key|x-api-key|bearer)|authentication (?:failed|error)|token (?:has )?expired|refresh token|oauth token)\b/i],
   ['model-missing', /\b(?:model_not_found|model not found|(?:does not|doesn't) (?:exist|have access)|model is not supported|not supported when using codex)\b/i],
   ['usage-limit', /\b(?:usage[ _]limit|insufficient_quota|quota (?:exceeded|reached)|exceeded your (?:current )?quota|credit balance is too low)\b/i],
-  ['rate-limited', /\b(?:rate[ _]limit|too many requests|429)\b/i],
+  ['rate-limited', new RegExp(httpStatus(429, 'too many requests'), 'i')],
+  ['rate-limited', /\b(?:rate[ _]limit|too many requests)\b/i],
   ['usage-limit', /\blimit (?:reached|exceeded)\b/i],
   ['context-full', /\b(?:context[ _](?:window|length)|context_length_exceeded|prompt is too long|maximum context|input is too long|too many tokens)\b/i],
   ['max-turns', /\b(?:max(?:imum)?[ _-]?turns|error_max_turns|turn limit)\b/i],

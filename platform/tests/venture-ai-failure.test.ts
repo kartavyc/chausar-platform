@@ -45,6 +45,15 @@ test('A2 review: a rate limit is a short wait; the fixes point at Connections, Y
   assert.equal(AI_FAILURE_CODES['rate-limited'], 'AI_RATE_LIMITED');
 });
 
+// A2 second review (L6): a status number counts only where it reads as an HTTP status, never a count in other words.
+test('a 429 or 401 counts only as an HTTP status, never as a number in other words', () => {
+  for (const text of ['unexpected status 429', 'HTTP 429', 'http/1.1 429 Too Many Requests', 'status: 429', 'Error 429 Too Many Requests']) assert.equal(classifyAiText(text), 'rate-limited', text);
+  assert.equal(classifyAiText('Read 429 rows from the sheet; the total is 1,429.'), null);
+  assert.equal(classifyAiText('Imported 401 invoices and 429 receipts.'), null);
+  assert.equal(classifyAiText('HTTP 401'), 'sign-in-refused');
+  assert.equal(classifyAiText('status 401'), 'sign-in-refused');
+});
+
 test('text from a tool names the kind; ordinary failures name none', () => {
   assert.equal(classifyAiText("You've hit your usage limit. Upgrade to Pro or try again at 4:05 PM."), 'usage-limit');
   assert.equal(classifyAiText('Claude AI usage limit reached|1793400000'), 'usage-limit');
