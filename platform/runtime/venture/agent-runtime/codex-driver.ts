@@ -296,7 +296,8 @@ export class CodexDriver implements AgentDriver {
       const hello = await rpc.request('initialize', { clientInfo: { name: 'chausar', version: '0.1.0' }, capabilities: { experimentalApi: true, requestAttestation: false } });
       // Tool enforcement is qualified against this exact installed protocol, not inferred from a version range.
       // A2: 0.166.0 (its user agent leads with the client's name, then the version: "chausar/0.166.0 (...)").
-      if (!object(hello) || typeof hello.userAgent !== 'string' || !new RegExp(`/${CODEX_PROTOCOL_VERSION.replace(/\./g, '\\.')}\\b`).test(hello.userAgent)) throw failPolicy();
+      // A2 review: exactly that version, with no pre-release or build suffix.
+      if (!object(hello) || typeof hello.userAgent !== 'string' || /^[^/\s]+\/(\S+)/.exec(hello.userAgent)?.[1] !== CODEX_PROTOCOL_VERSION) throw failPolicy();
       rpc.notify('initialized', {});
       input.guard();
       // Config tables merge with the owner's configuration. Discover names through the runtime,

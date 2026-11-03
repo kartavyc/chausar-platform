@@ -88,7 +88,7 @@ test('Codex refuses effective native tools or unqualified versions before sharin
   const f = fixture((method, result) => method === 'initialize' ? { userAgent: 'codex_cli_rs/9.9.9' } : result);
   await assert.rejects(f.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' });
   // A2: the bundled 0.166.0 is the one qualified protocol; the earlier 0.154.0 and a look-alike version are refused.
-  for (const userAgent of ['chausar/0.154.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)', 'chausar/10.166.01 (Windows)']) {
+  for (const userAgent of ['chausar/0.154.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)', 'chausar/10.166.01 (Windows)', 'chausar/0.166.0-alpha.1 (Windows 10.0.26200; x86_64)', 'chausar/0.166.0+build (Windows)', 'chausar/0.166.00 (Windows)']) {
     const old = fixture((method, result) => method === 'initialize' ? { userAgent } : result);
     await assert.rejects(old.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' }, userAgent);
   }
