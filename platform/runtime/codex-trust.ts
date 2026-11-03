@@ -511,7 +511,8 @@ export class CodexTrust {
     const cwd = await mkdtemp(join(tmpdir(), 'chausar-codex-review-'));
     try {
       for (const role of Object.keys(SETUP_FILES) as (keyof typeof SETUP_FILES)[]) {
-        const answer = await probe(program, [...CODEX_QUIET_ARGS, ...SETUP_ARGS[role]], cwd);
+        // A2 second review: the version check runs bare, so a Codex too old to know the quiet flags still names itself.
+        const answer = await probe(program, role === 'versionOutput' ? [...SETUP_ARGS[role]] : [...CODEX_QUIET_ARGS, ...SETUP_ARGS[role]], cwd);
         if (answer.exitCode !== 0 || !answer.stdout.trim()) return role === 'versionOutput' ? refused(SETUP_WORDS.noAnswer, null, sha256) : refused(SETUP_WORDS.lacking(null), null, sha256);
         outputs[role] = answer.stdout;
         // A2 review: only a reviewed version goes on to the rest of the checks.

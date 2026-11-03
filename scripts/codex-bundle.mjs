@@ -140,7 +140,8 @@ async function recordEvidence(destination, entrypoint, probe, now) {
   try {
     await mkdir(join(destination, 'evidence'), { recursive: true });
     for (const [role, file] of Object.entries(EVIDENCE_FILES)) {
-      const answer = await probe(program, [...QUIET_ARGS, ...EVIDENCE_ARGS[role]], cwd);
+      // A2 second review: the version check runs bare, as the engine's review runs it (codex-trust.ts).
+      const answer = await probe(program, role === 'versionOutput' ? [...EVIDENCE_ARGS[role]] : [...QUIET_ARGS, ...EVIDENCE_ARGS[role]], cwd);
       if (answer.exitCode !== 0 || !answer.stdout.trim()) throw new Error(`the staged Codex did not answer ${EVIDENCE_ARGS[role].join(' ')}`);
       if (role === 'versionOutput' && answer.stdout.trim() !== `codex-cli ${CODEX_BUNDLE.version}`) throw new Error(`the staged Codex answered as another version (${answer.stdout.trim()}); the beta bundles Codex ${CODEX_BUNDLE.version}`);
       await writeFile(join(destination, ...file.split('/')), answer.stdout, { flag: 'wx' });

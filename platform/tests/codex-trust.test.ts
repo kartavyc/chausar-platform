@@ -54,7 +54,8 @@ test('no operator values, no bundle and no choice: no Codex is trusted, and a fo
   const view = await trust.review(path);
   assert.deepEqual([view.state, view.version, view.sha256, view.origin], ['review', '0.166.0', sha256('synthetic codex program bytes'), null]);
   assert.equal(view.line, SETUP_WORDS.review('0.166.0'));
-  assert.deepEqual(seen, [[...CODEX_QUIET_ARGS, '--version'], [...CODEX_QUIET_ARGS, 'exec', '--help'], [...CODEX_QUIET_ARGS, 'features', 'list']], 'only the three check commands, no prompt, background features off');
+  // A2 second review: the version check runs bare, so a Codex too old for the quiet flags still says its version.
+  assert.deepEqual(seen, [['--version'], [...CODEX_QUIET_ARGS, 'exec', '--help'], [...CODEX_QUIET_ARGS, 'features', 'list']], 'only the three check commands, no prompt, background features off');
   assert.equal(trust.profile(), null, 'looking keeps nothing');
   await assert.rejects(readFile(join(root, 'trust', 'trusted.json')), { code: 'ENOENT' });
   // Looked at again with nothing changed: the review is reused, nothing runs again.
@@ -341,4 +342,14 @@ test('an unreadable seal key offers a fresh look at the Codex, and the next yes 
   const later = new CodexTrust({ environment, seal, probe: probeOf().probe });
   await later.load();
   assert.equal(later.origin(), 'owner', 'sealed with the new key');
+});
+
+// A2 second review (L7): a Codex too old to know the quiet flags still answers its bare version check, so the owner is
+// told which version it is and what to do, not that it did not answer.
+test('a Codex that refuses the quiet flags is still named by its version', async t => {
+  const root = await folder(t), path = await program(root);
+  const probe: CodexProbe = async (_command, args) => (args.includes('--disable') ? { exitCode: 2, stdout: '' }
+    : args.join(' ') === '--version' ? { exitCode: 0, stdout: 'codex-cli 0.121.0\n' } : { exitCode: 2, stdout: '' });
+  const view = await new CodexTrust({ probe }).review(path);
+  assert.deepEqual([view.state, view.version, view.line], ['refused', '0.121.0', SETUP_WORDS.otherVersion('0.121.0', false)]);
 });

@@ -108,7 +108,8 @@ test('A2: staging records the bundled Codex setup at build time: its version, ex
   const plain = (args: string[]) => (args[0] === '--disable' ? args.slice(QUIET_ARGS.length) : args);
   const probe = async (_command: string, args: string[]) => { asked.push(args); return { exitCode: 0, stdout: answer(plain(args).join(' ')) }; };
   const manifest = await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64', probe, now: () => new Date('2026-11-03T10:00:00.000Z') });
-  assert.deepEqual(asked, [[...QUIET_ARGS, '--version'], [...QUIET_ARGS, 'exec', '--help'], [...QUIET_ARGS, 'features', 'list']]);
+  // A2 second review: the version check runs bare; the other two lead with the quiet flags.
+  assert.deepEqual(asked, [['--version'], [...QUIET_ARGS, 'exec', '--help'], [...QUIET_ARGS, 'features', 'list']]);
   const { CODEX_QUIET_ARGS } = await import('../runtime/providers/codex-cli.ts');
   assert.deepEqual([...QUIET_ARGS], [...CODEX_QUIET_ARGS], 'the build and the engine quiet the same features');
   assert.deepEqual(manifest.evidence, { recordedAt: '2026-11-03T10:00:00.000Z', files: { versionOutput: 'evidence/version.stdout.txt', execHelp: 'evidence/exec-help.stdout.txt', features: 'evidence/features.stdout.txt' } });
