@@ -2837,7 +2837,16 @@ export class Engine {
       let record: DeviceKeyRecord | null = null;
       const secret = computer ? randomBytes(32) : null;
       try {
-        if (secret) { record = await custody!.keys.protect(vault.vaultId, secret); await files.writeKey(record); await vault.rewrapPassphrase(secret.toString('base64url')); }
+        // One-shot A1 (row 8): a key this computer could not keep offers the passphrase instead (DEVICE_KEYS_UNAVAILABLE,
+        // which the move screen answers with a passphrase), never "this computer's key didn't open your business".
+        if (secret) {
+          try { record = await custody!.keys.protect(vault.vaultId, secret); }
+          catch (error) {
+            const reason = (error as { reason?: unknown }).reason;
+            throw deviceKeysUnavailable(typeof reason === 'string' && Object.hasOwn(CUSTODY_WORDS.unavailable, reason) ? reason as keyof typeof CUSTODY_WORDS.unavailable : 'failed');
+          }
+          await files.writeKey(record); await vault.rewrapPassphrase(secret.toString('base64url'));
+        }
         else await vault.rewrapPassphrase(payload.passphrase);
         // The card goes down before attaching, so if attaching fails the list still shows the right way in.
         const state = vault.read();
@@ -2847,7 +2856,8 @@ export class Engine {
         await files.removeCard(folder).catch(() => {});
         await vault.delete().catch(() => {});
         if (record) { await custody!.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
-        throw error instanceof ChausarError ? error : deviceKeyFailed();
+        // Anything else that stopped the move (a file Chausar could not write) says so in plain words; nothing was kept.
+        throw error instanceof ChausarError ? error : new ChausarError('TRANSFER_FAILED', CUSTODY_WORDS.errors.TRANSFER_FAILED);
       } finally { secret?.fill(0); }
       await this.attachSafely(vault);
     } finally { await files.removeTransfer(path).catch(() => {}); }
