@@ -49,7 +49,7 @@ test('main\'s confirmation records the owner\'s choice; the dialog\'s words come
   assert.deepEqual(await e.codexChoiceFor({ cli: 'codex', sha256: SHA }), HELD);
   await assert.rejects(e.codexChoiceFor({ cli: 'codex', sha256: 'c'.repeat(64) }), { code: 'CODEX_SETUP_CHANGED' }, 'no review held for that program');
   const answer = await e.confirmCodexSetup({ cli: 'codex', sha256: SHA });
-  assert.equal(answer.setup.state, 'trusted');
+  assert.equal((answer.setup as { state?: string }).state, 'trusted');
   assert.deepEqual(recorded, [SHA]);
 });
 
