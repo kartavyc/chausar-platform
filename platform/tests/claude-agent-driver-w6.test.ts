@@ -269,3 +269,29 @@ test('A2: a failed Claude turn says why in owner words with the fix, never in it
     assert.equal((await next).failure, 'usage-limit');
   } finally { await session.close(); await f.cleanup(); }
 });
+
+// One-shot A4 (A2 leftover): the Claude Code process the SDK starts is started through Chausar's own process tree, so a
+// stop ends it with everything it started (its MCP server and helpers), as Codex is (process-tree.ts).
+test('Claude Code starts through the process tree, so its kill leaves nothing it started', { timeout: 30_000 }, async () => {
+  const f = await fixture(); const session = await f.driver.open(f.input);
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  try {
+    const pending = session.run('Read the sample.'); await f.prompts.next();
+    const spawn = f.options.spawnClaudeCodeProcess;
+    assert.equal(typeof spawn, 'function', 'the driver hands the SDK its own spawn');
+    const script = "const { spawn } = require('node:child_process'); const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: " + String(process.platform === 'win32') + " }); console.log(g.pid); setInterval(() => {}, 1000);";
+    const controller = new AbortController();
+    const child = spawn!({ command: process.execPath, args: ['-e', script], cwd: f.root, env: { ...process.env }, signal: controller.signal });
+    const grandchild = await new Promise<number>((done, fail) => {
+      let text = '';
+      child.stdout.on('data', chunk => { text += String(chunk); const pid = Number.parseInt(text, 10); if (Number.isSafeInteger(pid) && text.includes('\n')) done(pid); });
+      setTimeout(() => fail(new Error('no grandchild')), 10_000);
+    });
+    assert.ok(alive(grandchild));
+    // The SDK's forwarded signal aborts after its own graceful close: the whole tree goes.
+    controller.abort();
+    for (let n = 0; n < 50 && alive(grandchild); n++) await new Promise(done => setTimeout(done, 100));
+    assert.equal(alive(grandchild), false, 'nothing Claude Code started is left behind');
+    finish(f.output); await pending;
+  } finally { await session.close(); await f.cleanup(); }
+});

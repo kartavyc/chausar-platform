@@ -2,7 +2,8 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { query, type HookCallback, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type HookCallback, type Options, type SDKMessage, type SDKUserMessage, type SpawnedProcess, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk';
+import { spawnTree } from '../../process-tree.ts';
 import { AGENT_MCP_TOOL_NAMES, type AgentDriver, type AgentDriverInput, type AgentDriverSession, type AgentTurnResult, type AgentUsage } from './driver-types.ts';
 import { CONNECTOR_WORDS, claudeGmailServer, claudeGmailTool } from './connector-policy.ts';
 import { checkFetchPolicy } from '../build/fetch-policy.ts';
@@ -118,6 +119,22 @@ function totalUsage(messages: Map<string, AgentUsage>): AgentUsage {
   return result;
 }
 
+/**
+ * One-shot A4: the SDK's own spawn hook. The program and arguments are the SDK's (the verified executable); no shell.
+ * The SDK's signal is its forwarded one: it aborts only after stdin closed and its grace ran, then the whole tree goes.
+ * Standard error is not read here (Claude Code reports failures in its result messages), so it is not piped.
+ */
+export function claudeProcess(spawnOptions: SpawnOptions): SpawnedProcess {
+  const child = spawnTree(spawnOptions.command, spawnOptions.args, { ...(spawnOptions.cwd ? { cwd: spawnOptions.cwd } : {}), env: spawnOptions.env, stdio: ['pipe', 'pipe', 'ignore'] }, { sweepAfterMs: 2_000 });
+  const signal = spawnOptions.signal;
+  if (signal) {
+    const stop = () => { child.kill(); };
+    if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true });
+    child.once('exit', () => signal.removeEventListener('abort', stop));
+  }
+  return child as unknown as SpawnedProcess;
+}
+
 export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
   return { async open(input): Promise<AgentDriverSession> {
     if (!isAbsolute(dependencies.executable)) throw new Error('Claude needs a verified absolute executable path.');
@@ -171,6 +188,9 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
     };
     const options: Options = {
       pathToClaudeCodeExecutable: dependencies.executable, cwd: root, settingSources: ['project'], persistSession: false,
+      // One-shot A4 (A2 leftover): Claude Code starts through Chausar's process tree, so a stop ends it with everything it
+      // started (its MCP server, its helpers), and its own exit leaves none of them behind, as with Codex.
+      spawnClaudeCodeProcess: claudeProcess,
       sessionId, model, effort: input.settings.effort, ...(input.settings.fallbackModel ? { fallbackModel: input.settings.fallbackModel } : {}),
       permissionMode: input.settings.autoReview ? 'auto' : 'default', includePartialMessages: true,
       tools: [...FILE_TOOLS, ...(input.settings.webSearch ? ['WebSearch', 'WebFetch'] : [])],
