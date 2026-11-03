@@ -6,7 +6,7 @@
 import { readFile } from 'node:fs/promises';
 import { ChausarError, check, type Context } from '../../contracts.ts';
 import { DRAFT_METHODS } from '../contracts.ts';
-import type { ModelPort, ModelReplayFixture, ModelTransport, SecretShelf, VentureDeps, VentureEngineServices, VentureHostOptions } from '../contracts.ts';
+import type { DelegateCli, ModelPort, ModelReplayFixture, ModelTransport, SecretShelf, VentureDeps, VentureEngineServices, VentureHostOptions } from '../contracts.ts';
 import { DRAFT_IDLE_MS } from '../onboarding-contracts.ts';
 import type { DraftHandoverPort } from '../onboarding-contracts.ts';
 import { isAppChannel } from '../records.ts';
@@ -18,6 +18,7 @@ import { createHandover } from './handover.ts';
 import { DraftStore } from './store.ts';
 import { LoginDesk } from '../models/login.ts';
 import { hostTestCall } from '../models/cli-test.ts';
+import { ProviderStatusReader, providerTrouble } from '../models/provider-status.ts';
 
 export type DraftDeskOptions = VentureHostOptions & {
   demo: boolean;
@@ -59,6 +60,7 @@ export class DraftDesk {
   #timer: ReturnType<typeof setTimeout> | null = null;
   #generation = 0;
   #login: LoginDesk | null = null;
+  #statusReader: ProviderStatusReader | null = null;
   readonly handover: DraftHandoverPort;
 
   constructor(options: DraftDeskOptions) {
@@ -91,7 +93,8 @@ export class DraftDesk {
       keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
       // A2: the setup the owner is shown, and the tiny test call that earns "Signed in" (models/cli-test.ts).
       login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli),
-        testCall: (cli, program) => hostTestCall(cli, program, this.#options.codexCli, parts.deps.models) })),
+        testCall: (cli, program) => hostTestCall(cli, program, this.#options.codexCli, parts.deps.models),
+        ...(this.#options.statusPages ? { providerStatus: (cli: DelegateCli) => providerTrouble(this.#statusReader ??= new ProviderStatusReader({ ...(this.#options.net ? { net: this.#options.net } : {}) }), cli) } : {}) })),
     };
     const handler = DRAFT_HANDLERS[method];
     check(handler, 'NOT_BUILT_YET', 'This part of Chausar is not built yet.');

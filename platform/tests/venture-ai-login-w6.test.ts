@@ -168,3 +168,18 @@ test('A2: no test call for a Codex the owner has not chosen yet', async () => {
   assert.equal(codex.signedIn, 'unknown');
   assert.deepEqual(tests, []);
 });
+
+test('A2: a failed test call shows the provider\'s own status when it says the provider has problems', async () => {
+  const trouble = { line: 'OpenAI is having problems right now, not you.', source: 'status.openai.com', readAt: '2026-11-03T10:00:00.000Z' };
+  const asked: string[] = [];
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from('Logged in using ChatGPT\n')); child.finish(0); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    testCall: async () => ({ ok: false, code: 'AI_STREAM_CUT', line: 'The connection to Codex dropped before it finished. Check your internet, then try again.' }),
+    providerStatus: async cli => { asked.push(cli); return trouble; },
+  });
+  const codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual(codex.provider, trouble);
+  assert.deepEqual(asked, ['codex']);
+});

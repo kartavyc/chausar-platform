@@ -912,3 +912,22 @@ test('VentureHost: on the desktop the CLI status reaches the port through the ho
     host.close();
   }
 });
+
+test('A2: after a failed last task, Your AI reads the provider\'s status page through the guard and says when the trouble is theirs', async () => {
+  const { deps, fake, advance } = await setup({ tools: { claude: CLAUDE_OK } });
+  await connect(deps, 'claude-code-cli');
+  const pages: string[] = [];
+  Object.assign(deps, { statusPages: true, net: {
+    resolve: async () => [{ address: '93.184.216.34', family: 4 }],
+    send: async (target: any) => { pages.push(target.url.href); return { status: 200, headers: {}, body: Buffer.from(JSON.stringify({ status: { indicator: 'major' } })) }; },
+  } });
+  let [claude] = (await status(deps)).clis;
+  assert.equal(claude.provider, undefined, 'no failure, no status read');
+  assert.deepEqual(pages, []);
+  advance(60_000);
+  fake.model = () => ({ exitCode: 1, stdout: '' });
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
+  [claude] = (await status(deps)).clis;
+  assert.deepEqual(claude.provider && [claude.provider.line, claude.provider.source], ['Claude is having problems right now, not you.', 'status.claude.com']);
+  assert.deepEqual(pages, ['https://status.claude.com/api/v2/status.json']);
+});

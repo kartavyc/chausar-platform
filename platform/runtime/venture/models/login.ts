@@ -20,7 +20,7 @@ import { CLI_COMMANDS, locateOnThisComputer, startableProgram } from './cli-look
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { CLI_LABELS } from './presets.ts';
 
-import type { CodexSetupView, LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
+import type { CodexSetupView, LoginState, ProviderTrouble, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
 import type { CliTestResult } from './cli-test.ts';
 
 export type { LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
@@ -53,6 +53,8 @@ export type LoginDeskOptions = {
    */
   testCall?: (cli: DelegateCli, program: { command: string; lead: string[]; located: string }) => Promise<CliTestResult>;
   testRetryMs?: number;
+  /** A2: the AI provider's status page (provider-status.ts), read when a tool's test failed. */
+  providerStatus?: (cli: DelegateCli) => Promise<ProviderTrouble | null>;
 };
 
 export const LOGIN_TIMEOUT_MS = 15 * 60_000;
@@ -185,7 +187,8 @@ export class LoginDesk {
     // A2: the tool's own "signed in" counts only once a tiny test call worked; a Codex not yet chosen is not tried.
     const earned = said === 'yes' ? await this.#earned(cli, program, setup.setup) : null;
     const signedIn: ToolView['signedIn'] = said === 'yes' && earned && !earned.ok ? 'unknown' : earned === undefined ? 'unknown' : said;
-    const tested = earned ? { tested: earned.ok ? 'passed' as const : 'failed' as const, ...(earned.ok ? {} : { problem: earned.line }) } : {};
+    const trouble = earned && !earned.ok ? await this.options.providerStatus?.(cli).catch(() => null) ?? null : null;
+    const tested = earned ? { tested: earned.ok ? 'passed' as const : 'failed' as const, ...(earned.ok ? {} : { problem: earned.line }), ...(trouble ? { provider: trouble } : {}) } : {};
     const login = this.#login(cli);
     // Claude Code's login waits for its page: once its own status says signed in, its process is done.
     if (signedIn === 'yes' && (login.state === 'starting' || login.state === 'waiting')) {

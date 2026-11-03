@@ -185,6 +185,20 @@ describe('Your AI: Your AI apps', () => {
     expect(calls.filter(call => call.method === 'venture.models.cli.status').length).toBeGreaterThan(1);
   });
 
+  it('A2: after a failed task, the provider status page says when the trouble is theirs, with where and when it was read', async () => {
+    const failed: CliStatusView = {
+      ...SEEN, lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'failed' }, line: 'Codex 0.131.0 is on this computer. Its last task failed.', fix: 'x',
+      provider: { line: 'OpenAI is having problems right now, not you.', source: 'status.openai.com', readAt: '2026-11-03T10:00:00.000Z' },
+    };
+    start({ intercept: { 'venture.models.cli.status': async (_params, original) => {
+      const answer = (await original()) as { clis: CliStatusView[]; line: string };
+      return { ...answer, clis: [answer.clis[0]!, failed] };
+    } } });
+    const section = await region('Your AI apps');
+    const line = await within(section).findByText(/OpenAI is having problems right now, not you\./);
+    expect(line.textContent).toMatch(/From status\.openai\.com, /);
+  });
+
   it('a ready tool shows only its state at rest; what it found is one fold away', async () => {
     const ready: CliStatusView = { ...SEEN, signedIn: 'yes', lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'succeeded' }, state: 'ready', line: 'Codex 0.131.0 is on this computer and signed in. Its last task worked.' };
     start({ intercept: { 'venture.models.cli.status': async (_params, original) => {

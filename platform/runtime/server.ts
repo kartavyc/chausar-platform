@@ -207,7 +207,7 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
   // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
   let engine: Engine | null = null;
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }) });
-  return engine = new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, phoneAccess } });
+  return engine = new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true, phoneAccess } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -198,6 +198,14 @@ export async function calls(deps: VentureDeps, ctx: Context, payload: unknown): 
  * presses share it. The hosted app answers TIER_UNAVAILABLE and starts nothing. A finding that changed is kept as a
  * check record; what a status command printed never is.
  */
+/** A2: one status-page reader per store, so its two-minute cache holds across requests. */
+const STATUS_READERS = new WeakMap<object, ProviderStatusReader>();
+function statusReaderOf(deps: VentureDeps): ProviderStatusReader {
+  let reader = STATUS_READERS.get(deps.store);
+  if (!reader) { reader = new ProviderStatusReader({ ...(deps.net ? { net: deps.net } : {}), now: () => deps.clock() }); STATUS_READERS.set(deps.store, reader); }
+  return reader;
+}
+
 async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Promise<CliStatusList> {
   const input = exactPayload(payload, ['fresh']);
   check(input.fresh === undefined || typeof input.fresh === 'boolean', 'INVALID_VENTURE_REQUEST', 'Send fresh as true or false, or leave it out.');
@@ -217,6 +225,12 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
   // A2: Codex's setup, so Your AI can show the found Codex for the owner's yes.
   const setup = await deps.models.codexSetup?.();
   if (setup) for (const view of clis) if (view.cli === 'codex') view.setup = setup;
+  // A2: after a failed last task, the provider's own status page, when it says the provider has problems.
+  if (deps.statusPages === true) for (const view of clis) {
+    if (view.lastTask?.outcome !== 'failed') continue;
+    const trouble = await providerTrouble(statusReaderOf(deps), view.cli).catch(() => null);
+    if (trouble) view.provider = trouble;
+  }
   if (venture) await keepChecks(deps, ctx, clis);
   return { clis, line: cliListLine(findings) };
 }
@@ -252,6 +266,7 @@ import { getAgentSettings, setAgentSettings } from '../agent-runtime/settings-me
 import { startMcpOAuth } from '../agent-runtime/mcp-oauth.ts';
 import { curatedMcpRequest } from '../agent-runtime/mcp-registry.ts';
 import { addPack, listPacks, removePack } from '../packs/packs.ts';
+import { ProviderStatusReader, providerTrouble } from './provider-status.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.agentSettings.get': getAgentSettings,

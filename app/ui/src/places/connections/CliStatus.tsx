@@ -11,6 +11,7 @@ import { EngineError, type CliStatusView, type ModelAvailability } from '../../e
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
 import { connectionWords } from './ConnectionWords';
+import { ProviderTrouble } from '../../parts/ProviderTrouble';
 
 /** The state chip: words always say it; colour only repeats it. Ready only once a real task on the tool worked. */
 const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
@@ -135,6 +136,7 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
       {atRest !== null && (view.fix || setup
         ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
         : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
+      {view.provider && <ProviderTrouble trouble={view.provider} className={s.line} />}
       {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <details className={`${s.fold} ${c.more}`}>

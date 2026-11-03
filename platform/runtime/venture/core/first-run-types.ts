@@ -50,5 +50,7 @@ export type CodexSetupView = {
  * tested and problem (A2): the tiny test call that earns "Signed in" (models/cli-test.ts); signedIn is 'yes' only once it
  * passed, and problem holds its failure in owner words.
  */
-export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin; setup?: CodexSetupView; tested?: 'passed' | 'failed'; problem?: string };
+/** A2: the AI provider's own status page when it says the provider has problems, with its source and when it was read. */
+export type ProviderTrouble = { line: string; source: string; readAt: string };
+export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin; setup?: CodexSetupView; tested?: 'passed' | 'failed'; problem?: string; provider?: ProviderTrouble };
 export type ToolsView = { tools: ToolView[]; line: string };

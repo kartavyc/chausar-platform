@@ -4978,6 +4978,8 @@ export type CliStatusView = {
   state: ModelAvailability; line: Display; fix: Display | null;
   /** A2: Codex only, when the host keeps a Codex trust: the setup in use, or the found Codex waiting for the owner's yes. */
   setup?: import('./core/first-run-types.ts').CodexSetupView;
+  /** A2: after a failed last task, the provider's status page when it says the provider has problems. */
+  provider?: import('./core/first-run-types.ts').ProviderTrouble;
 };
 export interface CliStatusList { clis: CliStatusView[]; line: Display }
 /** 4H1. The tiers each agent's steps use and the preset that serves each; the team runs as one agent. */
@@ -7363,6 +7365,8 @@ export type VentureDeps = {
   closing?: VentureClosingPort;
   /** The network guard's lookup and sender for requests the engine makes itself (bank alert counts). Absent means the real ones; tests inject stubs. */
   net?: { resolve?: NetResolver; send?: PinnedSender; tls?: TlsConnector };
+  /** A2: the real desktop and local hosts read the AI providers' status pages after a failure (models/provider-status.ts). */
+  statusPages?: boolean;
   /** Wave 6 (6D3): the HTTPS port payment providers are asked through. Tests pass recorded responses; absent: fetch. */
   paymentHttp?: import('./money/billing-types.ts').PaymentHttp;
   /** Called once with the events a venture action committed, after the commit. A listener's failure never undoes it. */
@@ -7481,6 +7485,8 @@ export type VentureHostOptions = {
   endedSessions?: () => readonly string[];
   /** The network guard's lookup and sender (VentureDeps.net); tests inject stubs, the real ones are used otherwise. */
   net?: VentureDeps['net'];
+  /** A2: read the AI providers' status pages after a failure (VentureDeps.statusPages); never on the hosted web server. */
+  statusPages?: boolean;
   /** The hosted web server's public origin for client share links (CHAUSAR_PUBLIC_URL). Used only when host is 'hosted-web'. */
   publicUrl?: string;
   /** Trusted host composition: the ffmpeg port for a transcript made here (tests inject a stand-in); never on hosted. */

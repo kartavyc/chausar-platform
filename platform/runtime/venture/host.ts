@@ -207,6 +207,8 @@ export class VentureHost {
       ...(options.endedSessions && options.host === 'hosted-web' ? { endedSessions: options.endedSessions } : {}),
       // The network guard's lookup and sender, when a test injects them (the real ones otherwise).
       ...(options.net ? { net: options.net } : {}),
+      // A2: the AI providers' status pages, read after a failure, on this computer only.
+      ...(options.statusPages && options.host !== 'hosted-web' ? { statusPages: true } : {}),
       // Ink v2 wave 4 (4J23): whether this business is temporary (no real money, nothing sent), only on the hosted web server.
       ...(options.trial && options.host === 'hosted-web' ? { trial: options.trial } : {}),
       // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.

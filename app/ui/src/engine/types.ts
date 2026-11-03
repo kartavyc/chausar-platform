@@ -1430,7 +1430,11 @@ export interface CliStatusView {
   lastTask: { at: string; outcome: 'succeeded' | 'failed'; named?: Display } | null; state: ModelAvailability; line: Display; fix: Display | null;
   /** A2: Codex only, when the engine keeps a Codex trust (platform/runtime/codex-trust.ts). */
   setup?: CodexSetupLite;
+  /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
+  provider?: ProviderTroubleLite;
 }
+/** A2: the AI provider's status page, in the engine's words, with where and when it was read. */
+export interface ProviderTroubleLite { line: string; source: string; readAt: string }
 /** A2: a Codex setup as the engine shows it: in use, found and waiting for the owner's yes, not usable, or none. */
 export interface CodexSetupLite {
   state: 'trusted' | 'review' | 'refused' | 'none'; origin: 'operator' | 'bundled' | 'owner' | null;
@@ -1624,6 +1628,7 @@ export interface ToolLite {
   /** A2: the tiny test call that earns "Signed in"; problem holds its failure in the engine's owner words. */
   tested?: 'passed' | 'failed';
   problem?: string;
+  provider?: ProviderTroubleLite;
 }
 export interface ToolsLite { tools: ToolLite[]; line: string }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
