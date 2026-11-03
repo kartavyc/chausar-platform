@@ -316,7 +316,7 @@ export class FakeEngine {
       fingerprint: digestOf, recruitDigest: digestOf,
       receipt:id=>this.findReceipt(id),
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
-      dropClient: (id) => { this.clients[this.current] = (this.clients[this.current] ?? []).filter((c) => c.id !== id); this.evidence = this.evidence.filter((e) => e.subject !== `client:${id}`); },
+      checkClient: (p) => this.addClient(p, true),
       country:()=>{const country=this.ventureView()?.venture.country;if(!country)throw new EngineError('VENTURE_NOT_FOUND','Start a business first.');return country;},
       plan: () => this.desk.acceptedPlanFor(this.current),
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
@@ -961,7 +961,8 @@ export class FakeEngine {
   }
 
   /** venture.client.add with the engine's checks; each field the owner typed becomes verified, applied evidence. */
-  private addClient(p: Record<string, unknown>): ClientLite {
+  /** dryRun (review of A1, row 10): the checks and the client as it would be, with nothing stored. */
+  private addClient(p: Record<string, unknown>, dryRun = false): ClientLite {
     const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
     const name = text(p.name);
     if (!name || name.length < 2 || name.length > 120 || /[\n\r\t]/.test(name)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Client name must be between 2 and 120 characters.');
@@ -972,9 +973,10 @@ export class FakeEngine {
     const note = text(p.note);
     if (note && note.length > 500) throw new EngineError('INVALID_VENTURE_REQUEST', 'Note must be between 1 and 500 characters.');
     const client: ClientLite = {
-      id: `c-new-${this.clientSeq++}`, at: this.now(), name, email, countryCode: text(p.countryCode), taxId,
+      id: dryRun ? 'c-new-pending' : `c-new-${this.clientSeq++}`, at: this.now(), name, email, countryCode: text(p.countryCode), taxId,
       stateCode: taxId ? taxId.slice(0, 2) : text(p.stateCode), note,
     };
+    if (dryRun) return clone(client);
     this.clients[this.current] = [client, ...(this.clients[this.current] ?? [])];
     const fields = { name: client.name, email: client.email, countryCode: client.countryCode, taxId: client.taxId, stateCode: client.stateCode, note: client.note };
     for (const [field, value] of Object.entries(fields)) {

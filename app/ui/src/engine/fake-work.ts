@@ -80,8 +80,8 @@ export interface WorkHost {
   /** 4J3: the open business's invoices, which an order's Invoice and Paid steps are read from. */
   invoices?(): InvoiceLite[];
   ask?(method: string, params: Record<string, unknown>): unknown;
-  /** One-shot A1 (row 10): takes back a client added with an order that was then refused, with its evidence rows. */
-  dropClient?(id: string): void;
+  /** One-shot A1 (row 10): a new client's checks and the client as it would be, with nothing stored and nothing announced. */
+  checkClient?(p: Record<string, unknown>): ClientLite;
   fingerprint?(bytes: string): string;
   receipt?(id:string):ReceiptLite|undefined;
 }
@@ -253,7 +253,7 @@ export class FakeWorkDesk {
         const invoices = this.host.invoices?.() ?? [];
         return clone((this.orders[biz] ?? []).map((order) => withFakeOrderSteps(order, invoices)));
       }
-      case 'venture.order.create': return this.withNewClient(p, p => {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p);});});
+      case 'venture.order.create': return this.withNewClient(p, (p, fresh) => {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p,fresh);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p,fresh);});});
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': return this.start(biz, p);
@@ -285,22 +285,19 @@ export class FakeWorkDesk {
 
   /**
    * One-shot A1 (row 10), as money/orders.ts: a client typed with the order (newClient) is added with it or not at all,
-   * and never beside a chosen clientId. The client goes in first, so the order's checks read it, and comes out again
-   * when the order is refused.
+   * and never beside a chosen clientId. The order's checks read the client as it would be (checked, not stored); the
+   * client is added only once every check passed, so a refused order writes nothing and announces nothing.
    */
-  private withNewClient<T>(p: Record<string, unknown>, make: (p: Record<string, unknown>) => T | Promise<T>): T | Promise<T> {
-    if (p.newClient === undefined) return make(p);
+  private withNewClient<T>(p: Record<string, unknown>, make: (p: Record<string, unknown>, fresh: { typed: Record<string, unknown>; client: ClientLite } | null) => T): T {
+    if (p.newClient === undefined) return make(p, null);
     if (p.clientId !== undefined) throw invalid('Choose a client or add a new one, not both.');
-    const added = this.host.ask!('venture.client.add', (p.newClient ?? {}) as Record<string, unknown>) as ClientLite;
+    const typed = (p.newClient ?? {}) as Record<string, unknown>;
+    const client = this.host.checkClient!(typed);
     const { newClient: _typed, ...rest } = p;
-    const drop = (error: unknown): never => { this.host.dropClient?.(added.id); throw error; };
-    try {
-      const made = make({ ...rest, clientId: added.id });
-      return made instanceof Promise ? made.catch(drop) : made;
-    } catch (error) { return drop(error); }
+    return make(rest, { typed, client });
   }
 
-  private create(biz: string, p: Record<string, unknown>): OrderLite {
+  private create(biz: string, p: Record<string, unknown>, fresh: { typed: Record<string, unknown>; client: ClientLite } | null = null): OrderLite {
 
     const plan = this.host.plan();
     if (!plan) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept your plan first.');
@@ -310,7 +307,9 @@ export class FakeWorkDesk {
     const foreignAsk = fakeForeignAsk(p);
     if (offer.pricing.unitPriceMinor === null && !foreignAsk) throw new EngineError('PRICE_REQUIRED', `Set your price for ${offer.name.value} first.`);
     const internal = plan.playbook?.id === 'online-seller' && offer.playbookOffer === 'own-shop-back-office';
-    let client = this.host.clients().find(c => internal ? c.self : c.id === p.clientId);
+    // Review of A1 (row 10), as money/orders.ts: the own shop's back office takes no new client.
+    if (internal && fresh) throw new EngineError('INTERNAL_ORDER', 'This offer is for your own shop, so it takes no new client.');
+    let client = fresh ? fresh.client : this.host.clients().find(c => internal ? c.self : c.id === p.clientId);
     if (!internal && !client) throw new EngineError('CLIENT_NOT_FOUND', 'Add this client first.');
     if (!internal && client?.self) throw new EngineError('INTERNAL_ORDER', 'Your own shop is only used for its internal back-office offer.');
     const request = text(p.request);
@@ -396,6 +395,8 @@ export class FakeWorkDesk {
       for (const file of staged) { this.fileContents.delete(biz + ':' + file.id); this.fileFingerprints.delete(biz + ':' + file.id); }
       throw error;
     }
+    // Every check passed: only now is the new client stored, and the order points at it.
+    if (fresh) order.clientId = (this.host.ask!('venture.client.add', fresh.typed) as ClientLite).id;
     this.orderPrices.set(biz+':'+order.id,roomPrice);
     this.invoiceSnapshots.set(biz + ':' + order.id, invoiceSnapshot);
     if(plan.playbook?.id==='narration-studio')this.narrationPrices.set(biz+':'+order.id,{id:order.priceReceiptId,currency:plan.blueprint.backOffice.currency,hourlyMinor:(foreignPrice?.unitPriceMinor??offer.pricing.unitPriceMinor)!,ownerSet:offer.pricing.unitPriceLabel==='told-by-you',stale:false});

@@ -57,3 +57,16 @@ it('does not replace a more specific flagship selection with a kit', () => {
  expect(fakeKitForIdea('long video into shorts and lead generation')).toBeNull();
  expect(fakeKitForIdea('youtube editing lead generation')?.registration.id).toBe('lead-generation');
 });
+
+it('review of A1 row 10: an own-shop order refuses a new client, keeps none and says nothing changed', async () => {
+ const { engine, view } = await start('online seller');
+ const offer = view.blueprint.offers.find(item => item.playbookOffer === 'own-shop-back-office')!;
+ await priceAndAcceptPlan(engine,view,'100');
+ const before = (await engine.request('venture.client.list', {}) as unknown[]).length;
+ const events: unknown[] = [];
+ const stop = engine.subscribe((event) => { events.push(event); });
+ await expect(engine.request('venture.order.create', { newClient: { name: 'Test Client One' }, offerId: offer.id, request: 'Check my own shop', intake: {} })).rejects.toMatchObject({ code: 'INTERNAL_ORDER', message: 'This offer is for your own shop, so it takes no new client.' });
+ stop();
+ expect(events).toEqual([]);
+ expect((await engine.request('venture.client.list', {}) as unknown[]).length).toBe(before);
+});

@@ -20,6 +20,9 @@ import { requireAppChannel } from '../records.ts';
 import {youtubeServiceOffer} from '../playbooks/youtube/service-offer.ts';
 import {requireYoutubeServiceBinding} from '../playbooks/youtube/service-binding.ts';
 
+/** Review of A1 (row 10): the words when a new client is typed with the own shop's back-office offer. */
+export const INTERNAL_NEW_CLIENT = 'This offer is for your own shop, so it takes no new client.';
+
 /**
  * venture.order.create (level prepare). intake: what a flagship playbook's offer asks (playbooks/intake.ts); an offer
  * that cuts footage refuses the order with RIGHTS_REQUIRED until its rights are recorded here. taxInclusive (4J5, M15):
@@ -56,6 +59,8 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     requireYoutubeServiceBinding(tx.state,venture,offer);
     const selectedOffer = youtubeServiceOffer(flagshipPlan(venture.idea),offer)??flagshipOffer(flagshipPlan(venture.idea), offer);
     const internal = flagshipPlan(venture.idea)?.id === 'online-seller' && selectedOffer?.key === 'own-shop-back-office';
+    // Review of A1 (row 10): the own shop's back office is internal work, so a client typed with it is refused, not dropped.
+    check(!(internal && newClient), 'INTERNAL_ORDER', INTERNAL_NEW_CLIENT);
     const client = internal ? tx.list('venture-client').find(item => item.self) ?? tx.put({ ...tx.base('venture-client'), self: true as const, name: 'Your own shop', email: null, countryCode: venture.country.code, taxId: null, stateCode: null, note: null })
       : newClient ? putClient(tx, newClient) : clientId ? tx.find('venture-client', clientId) : null;
     check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');

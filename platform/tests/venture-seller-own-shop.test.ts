@@ -18,3 +18,10 @@ test('own-shop orders reuse one self client and refuse invoices and client statu
  const delivered=await env.call('venture.order.deliver',{orderId:order.id,deliveredOn:'2026-10-27'});assert.equal(delivered.saleFactId,null);
  assert.equal(ONLINE_SELLER_DEFINITION.offers.find(o=>o.id==='own-shop-back-office')?.audience,'public','buyer-facing potential still gets the automatic judge');
 });
+test('review of A1 row 10: an own-shop order refuses a new client, and keeps none',async()=>{
+ const env=await kitBusiness({now:new Date('2026-10-27T10:00:00Z')},{idea:'An online seller in Pune'});
+ const offer=env.offers.find(o=>o.playbookOffer==='own-shop-back-office')!;
+ const before=(await env.call('venture.client.list')).length;
+ await assert.rejects(env.call('venture.order.create',{newClient:{name:'Test Client One'},offerId:offer.id,request:'Check my shop exports.'}),{code:'INTERNAL_ORDER',message:'This offer is for your own shop, so it takes no new client.'});
+ assert.equal((await env.call('venture.client.list')).length,before);
+});
