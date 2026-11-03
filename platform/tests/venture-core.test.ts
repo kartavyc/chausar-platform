@@ -1036,3 +1036,41 @@ test('5A2: a share on the first offer clears the interview\'s price, and a rewri
   const rewritten = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
   assert.deepEqual(rewritten.offers.map((offer: any) => [offer.pricing.share?.bps ?? null, offer.pricing.unitPriceMinor]), [['833', null], ['1200', null]]);
 });
+
+test('review of A1 row 3: the first keep saves exactly the card: its name and offers, by who wrote them, with a neutral price unit', async () => {
+  const shown = (by: 'model' | 'template', count: number) => ({
+    name: 'Pune Frames Studio', by,
+    offers: [
+      { name: 'Birthday party photography', line: 'Candid photos of the party, edited and shared.' },
+      { name: 'Shop product photos', line: 'Clean photos of what a shop sells.' },
+      { name: 'Monthly photo support', line: '' },
+    ].slice(0, count),
+  });
+  for (const [by, count] of [['model', 3], ['template', 1]] as const) {
+    const h = setup();
+    await interviewed(h, { model: 'monthly', price: null });
+    const view = await h.call('venture.blueprint.draft', { useTemplate: true, shown: shown(by, count) });
+    const plan = view.blueprint;
+    assert.equal(plan.source, by, 'who wrote the words, never the owner for a first keep');
+    assert.equal(plan.name.value, 'Pune Frames Studio');
+    assert.deepEqual(plan.offers.map((offer: any) => offer.name.value), shown(by, count).offers.map(offer => offer.name), 'exactly the card offers, extras gone');
+    assert.ok(plan.offers.every((offer: any) => offer.name.by === by && offer.name.label === 'assumption'));
+    assert.ok(plan.offers.every((offer: any) => offer.pricing.model === 'project' && offer.pricing.unitPriceMinor === null), 'no per month on a birthday shoot');
+    if (count === 3) assert.equal(plan.offers[2].description.value, 'Monthly photo support', 'an empty line falls back to the name');
+    // The kept plan works like any plan: accepted, then its last offer priced and accepted again.
+    const accepted = await h.call('venture.blueprint.accept', { digest: plan.digest });
+    const last = accepted.blueprint.offers.at(-1);
+    const priced = await h.call('venture.blueprint.update', { patch: { offers: [{ id: last.id, unitPrice: '5000' }] } });
+    assert.equal(priced.blueprint.source, by, 'a price changes no words');
+    const again = await h.call('venture.blueprint.accept', { digest: priced.blueprint.digest });
+    assert.equal(again.blueprint.offers.at(-1).pricing.unitPriceMinor, '500000');
+    // A retry of the keep after the plan was saved changes nothing.
+    await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: shown(by, count) }), (error: any) => error.code === 'PLAN_ALREADY_KEPT');
+  }
+  // The card's words are checked like any plan words: an amount is refused, and nothing is written.
+  const h = setup();
+  await interviewed(h);
+  await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'model', offers: [{ name: 'Shoots at INR 5000', line: 'x' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'owner', offers: [{ name: 'Shoots', line: '' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  assert.equal(await h.call('venture.blueprint.get'), null);
+});

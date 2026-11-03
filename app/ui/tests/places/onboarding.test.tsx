@@ -104,12 +104,11 @@ describe('onboarding: first run', () => {
       ['venture.interview.answer', { questionId: 'q_pricing_model', answer: { choiceId: 'monthly' } }],
       ['venture.interview.answer', { questionId: 'q_price', answer: { skipped: true } }],
       ['venture.interview.answer', { questionId: 'q_tax', answer: { yes: false, assumed: true } }],
-      ['venture.blueprint.draft', { useTemplate: true }],
-      // The template draft takes the offers the card showed, as the owner's words.
-      ['venture.blueprint.update', { patch: expect.objectContaining({ offers: expect.any(Array) }) }],
-      ...flow().slice(11),
+      // The first plan is the one the card showed (review of A1, row 3), its words the template's here.
+      ['venture.blueprint.draft', { useTemplate: true, shown: expect.objectContaining({ name: 'Bookkeeping studio', by: 'template' }) }],
+      ...flow().slice(10),
     ]);
-    expect(flow().slice(11).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
+    expect(flow().slice(10).some(([m]) => m === 'workspace.create' || m === 'venture.create' || m === 'venture.blueprint.update')).toBe(false);
     await screen.findAllByText('Your plan is ready. Read it.');
     inOrder(titles(['Your plan is ready. Read it.', 'Connect your AI', 'Confirm your prices and tax', 'Keep this business']));
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio/ })).toBeTruthy());
@@ -236,8 +235,8 @@ describe('onboarding: what the engine forces before a vault', () => {
     await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     await screen.findAllByText('Your plan is ready. Read it.');
-    // The Connect your AI card shows (it may also be the next best step, now the kept plan is a newer version).
-    expect(screen.getAllByText('Connect your AI').length).toBeGreaterThan(0);
+    // Review of A1 (finding 5): the kept plan stays ahead of Connect your AI, which shows once, as its own card.
+    expect(screen.getByText('Connect your AI')).toBeTruthy();
     expect(screen.queryByText('Keep this business')).toBeNull();
   });
 

@@ -838,9 +838,55 @@ function mirrorIntoInterview(tx: VentureTx, venture: VentureRecord, blueprint: B
 // ---------------------------------------------------------------------------
 
 /** venture.blueprint.draft { useTemplate? } (prepare). "Rewrite with AI" is this call without useTemplate. */
+/** A card offer: words only, never an amount, a currency or a link (core/about.ts keeps the same rule for the AI's). */
+const NOT_IN_SHOWN = /[\p{N}\p{Sc}]|:\/\/|[\u0000-\u001F\u007F]/u;
+type Shown = { name: string; by: 'model' | 'template'; offers: { name: string; line: string }[] };
+/** The ids a kept card's offers take, in order (Offer.id: 'offer_1' .. 'offer_3'); About you shows at most three. */
+const SHOWN_OFFER_IDS = ['offer_1', 'offer_2', 'offer_3'] as const;
+
+/**
+ * Review of A1 (row 3): the plan About you showed, kept on the first keep. by: who wrote its words, the AI's reading
+ * ('model') or the keywords or a tile ('template'); never the owner, whose own edits go through venture.blueprint.update.
+ */
+function shownOf(value: unknown): Shown {
+  const body = exactPayload(value, ['name', 'by', 'offers'], ['name', 'by', 'offers']);
+  check(body.by === 'model' || body.by === 'template', 'INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+  const name = singleLine(body.name, 'The business name', { min: 2, max: 60 });
+  check(Array.isArray(body.offers) && body.offers.length >= 1 && body.offers.length <= SHOWN_OFFER_IDS.length, 'INVALID_VENTURE_REQUEST', `Keep one to ${SHOWN_OFFER_IDS.length} offers.`);
+  const offers = (body.offers as unknown[]).map(item => {
+    const offer = exactPayload(item, ['name', 'line'], ['name', 'line']);
+    const offerName = singleLine(offer.name, 'The offer name', { min: 2, max: 60 });
+    check(typeof offer.line === 'string' && offer.line.length <= 200, 'INVALID_VENTURE_REQUEST', 'An offer line is at most 200 characters.');
+    const line = (offer.line as string).replace(/\s+/g, ' ').trim();
+    check(!NOT_IN_SHOWN.test(offerName) && !NOT_IN_SHOWN.test(line), 'INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
+    return { name: offerName, line };
+  });
+  return { name, by: body.by, offers };
+}
+
+/** The kept card on the drafted record: its name and exactly its offers, with no price and the neutral per-project unit. */
+function applyShown(record: BlueprintRecord, shown: Shown): void {
+  const words = (value: string) => labelled(value, 'assumption', shown.by);
+  const template = record.offers.filter(offer => !offer.addedByOwner);
+  const owned = record.offers.filter(offer => offer.addedByOwner);
+  record.name = words(shown.name);
+  record.offers = [...shown.offers.map((kept, index) => {
+    const was = template[index];
+    return {
+      id: SHOWN_OFFER_IDS[index]!, ...(was?.playbookOffer ? { playbookOffer: was.playbookOffer } : {}),
+      name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name), pricing: offerPricing('project', null),
+    };
+  }), ...owned];
+  record.source = shown.by;
+  seal(record);
+}
+
 export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
-  const body = exactPayload(payload, ['useTemplate']);
+  const body = exactPayload(payload, ['useTemplate', 'shown']);
   const useTemplate = optionalFlag(body, 'useTemplate');
+  // Review of A1 (row 3): the plan About you showed is kept as it was shown, only on the first keep of a template plan.
+  const shown = body.shown === undefined ? null : shownOf(body.shown);
+  check(!shown || useTemplate, 'INVALID_VENTURE_REQUEST', 'The plan you kept is saved with the built-in plan only.');
   authorize(deps.store, ctx, 'prepare');
   const state = deps.store.read();
   const savedVenture = requireVenture(state);
@@ -890,9 +936,14 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
     check(digest(structure) === plannedHash, 'APPROVAL_STALE', stale);
     const words = labelWords(output, by, current, currentInterview, structure, ownedNow);
     const record = assemble(tx, structure, words, by, callIds, nextBlueprintVersion(tx.state, current.id), previous);
+    if (shown) {
+      // Kept once, on the first plan: a second keep (a retry after the plan was saved) changes nothing.
+      check(!previous, 'PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
+      applyShown(record, shown);
+    }
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });
-    tx.emit('blueprint-drafted', { blueprintId: record.id, version: record.version, source: by });
+    tx.emit('blueprint-drafted', { blueprintId: record.id, version: record.version, source: record.source });
     return blueprintView(tx.state, record, deps.host);
   });
 }

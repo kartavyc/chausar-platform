@@ -571,6 +571,8 @@ export interface BlueprintStepLite { id: string; title: LabelledLite<string>; do
  * the code's name ('Calculator'), or another person ('CA of record'). The plan lists these in place of deliverySteps.
  */
 export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
+/** The plan About you showed: its name, its offers and who wrote them (the AI's reading, or the keywords or a tile). */
+export interface KeptShownLite { name: string; by: 'model' | 'template'; offers: { name: string; line: string }[] }
 export interface BlueprintLite {
   country?: CountryLite;
   id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template' | 'owner'; digest: string; serviceType: ServiceType;
@@ -2064,7 +2066,8 @@ export interface EngineMethods {
   'venture.create': { params: { idea: string; countryCode: string; workingName?: string }; result: VentureViewLite };
   'venture.interview.next': { params: { useTemplate?: boolean }; result: InterviewViewLite };
   'venture.interview.answer': { params: { questionId: string; answer: InterviewAnswer }; result: InterviewViewLite };
-  'venture.blueprint.draft': { params: { useTemplate?: boolean }; result: BlueprintViewLite };
+  /** shown (review of A1, row 3): the plan About you showed, kept on the first template draft; by is who wrote its words. */
+  'venture.blueprint.draft': { params: { useTemplate?: boolean; shown?: KeptShownLite }; result: BlueprintViewLite };
   // Ink v2 wave 2: the newly wired engine methods.
   'venture.delivery.judge': { params: { runId: string }; result: JudgePreview };
   'venture.delivery.judgeSend': { params: { runId: string; digest: string }; result: DeliveryLite };

@@ -241,7 +241,7 @@ describe('Connections: the services this business needs', () => {
 });
 
 describe('one-shot A1 row 3: the plan saved is the plan shown', () => {
-  it('Keep this plan saves the name and the offers the card showed, as the owner\'s words', async () => {
+  it('Keep this plan saves exactly the name and offers the card showed, as the AI wrote them, with a neutral price unit', async () => {
     timeZone('Asia/Kolkata');
     const fake = createFakeClient(new FakeEngine({ fresh: true }));
     const read = {
@@ -270,6 +270,9 @@ describe('one-shot A1 row 3: the plan saved is the plan shown', () => {
     expect(plan.blueprint.offers.map((offer) => offer.name.value)).toEqual(['Birthday party photography', 'Shop product photos', 'Monthly photo support']);
     expect(plan.blueprint.offers[0]!.description.value).toBe('Candid photos of the party, edited and shared.');
     expect(plan.blueprint.name.value).toBe(shownName);
-    expect(plan.blueprint.source).toBe('owner');
+    // Review of A1 (row 3): the AI wrote these words, so the plan says so; no template offer is left; no per month.
+    expect(plan.blueprint.source).toBe('model');
+    expect(plan.blueprint.offers.every((offer) => offer.name.by === 'model' && offer.pricing.model === 'project')).toBe(true);
+    expect(plan.blueprint.version).toBe(1);
   });
 });

@@ -16,7 +16,7 @@ import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
-import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
+import type { BackupLite, BlueprintViewLite, InterviewAnswer, KeptShownLite, OfferLite, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
 import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
@@ -1126,7 +1126,7 @@ export class FakeEngine {
       case 'venture.blueprint.draft': {
         const questions = this.interviews.get(this.current);
         if (!questions) return NOT_ONBOARDING;
-        return withPriceGuide(this.draftPlan(questions), this.ventures.get(this.current)?.countryCode ?? 'IN');
+        return withPriceGuide(this.draftPlan(questions, p.shown), this.ventures.get(this.current)?.countryCode ?? 'IN');
       }
       default: return NOT_ONBOARDING;
     }
@@ -1325,8 +1325,33 @@ export class FakeEngine {
     return { title: words.title, line, actions: [{ id: 'set-prices', label: words.action, primary: true }] };
   }
 
-  private draftPlan(questions: InterviewQuestionLite[]): BlueprintViewLite {
+  /** Review of A1 (row 3), as core/blueprint.ts shownOf: the card About you showed, checked before anything is drafted. */
+  private shownOf(value: unknown): KeptShownLite | null {
+    if (value === undefined) return null;
+    const bad = () => new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    if (!value || typeof value !== 'object' || Object.keys(value).sort().join(',') !== 'by,name,offers') throw bad();
+    const body = value as Record<string, unknown>;
+    if (body.by !== 'model' && body.by !== 'template') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+    const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : '';
+    if (name.length < 2 || name.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The business name must be between 2 and 60 characters.');
+    if (!Array.isArray(body.offers) || body.offers.length < 1 || body.offers.length > 3) throw new EngineError('INVALID_VENTURE_REQUEST', 'Keep one to 3 offers.');
+    const offers = (body.offers as unknown[]).map((item) => {
+      if (!item || typeof item !== 'object' || Object.keys(item).sort().join(',') !== 'line,name') throw bad();
+      const offer = item as Record<string, unknown>;
+      const offerName = typeof offer.name === 'string' ? offer.name.replace(/\s+/g, ' ').trim() : '';
+      if (offerName.length < 2 || offerName.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The offer name must be between 2 and 60 characters.');
+      if (typeof offer.line !== 'string' || offer.line.length > 200) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer line is at most 200 characters.');
+      const line = offer.line.replace(/\s+/g, ' ').trim();
+      if (/[\p{N}\p{Sc}]|:\/\//u.test(offerName) || /[\p{N}\p{Sc}]|:\/\//u.test(line)) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
+      return { name: offerName, line };
+    });
+    return { name, by: body.by, offers };
+  }
+
+  private draftPlan(questions: InterviewQuestionLite[], rawShown?: unknown): BlueprintViewLite {
+    const shown = this.shownOf(rawShown);
     if (!questions.every((q) => q.answer !== null)) throw new EngineError('INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
+    if (shown && this.desk.blueprintFor(this.current)) throw new EngineError('PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
     const venture = this.ventures.get(this.current)!;
     const business = this.businesses.find((b) => b.id === this.current)!;
     const kit = fakeKitForIdea(venture.idea);
@@ -1385,6 +1410,21 @@ export class FakeEngine {
     };
     const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
     const view = kit ? fakeKitPlan(kit, templateView) : fakeSocialForIdea(venture.idea) ? fakeSocialPlan(templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : fakeYoutubeForIdea(venture.idea)?fakeYoutubePlan(templateView,this.hosted):templateView;
+    // Review of A1 (row 3), as core/blueprint.ts applyShown: exactly the card's name and offers, by who wrote them, with
+    // no price and the neutral per-project unit.
+    if (shown) {
+      const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by: shown.by });
+      const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
+      view.blueprint.name = words(shown.name);
+      (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({
+        id: `offer_${index + 1}`, ...(template[index]?.playbookOffer ? { playbookOffer: template[index]!.playbookOffer } : {}),
+        name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name),
+        pricing: { model: 'project' as const, quantityUnit: 'project' as const, unitPriceMinor: null, unitPriceLabel: 'not-set' as const, defaultQuantity: '1' },
+      }));
+      view.blueprint.source = shown.by;
+      view.blueprint.digest = digestOf({ ...view.blueprint, digest: '' });
+      view.offerReceipts = Object.fromEntries(view.blueprint.offers.map((offer) => [offer.id, null]));
+    }
     this.desk.putBlueprint(business.id, view);
     return view;
   }
