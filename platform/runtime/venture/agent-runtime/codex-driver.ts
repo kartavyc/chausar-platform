@@ -22,7 +22,7 @@ export type CodexDriverOptions = {
 export const CODEX_PROTOCOL_VERSION = '0.166.0';
 // A2: Codex 0.166.0 turns on a background app-server daemon, a browser annotation surface, in-app voice and plugin prefetching
 // by default (read live with this config on 3 Nov 2026); a job needs none of them, so they are off and checked off too.
-const prohibitedFeatures = ['apps', 'plugins', 'hooks', 'memories', 'goals', 'multi_agent', 'multi_agent_v2', 'view_image', 'image_generation', 'computer_use', 'browser_use', 'browser_use_external', 'in_app_browser', 'tool_suggest', 'request_permissions_tool', 'skill_mcp_dependency_install', 'skill_search', 'sleep_tool',
+export const CODEX_PROHIBITED_FEATURES: readonly string[] = ['apps', 'plugins', 'hooks', 'memories', 'goals', 'multi_agent', 'multi_agent_v2', 'view_image', 'image_generation', 'computer_use', 'browser_use', 'browser_use_external', 'in_app_browser', 'tool_suggest', 'request_permissions_tool', 'skill_mcp_dependency_install', 'skill_search', 'sleep_tool',
   'daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch'];
 const APPROVAL_POLICY = { granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: false } };
 /**
@@ -59,7 +59,7 @@ export function codexConfig(input: AgentDriverInput, profile: string, platform: 
     default_permissions: profile,
     permissions: { [profile]: { workspace_roots: { [input.jobRoot]: true }, filesystem: { ':root': 'deny', ':minimal': 'read', ':tmpdir': 'deny', ':slash_tmp': 'deny', ':workspace_roots': { '.': 'write' } }, network: { enabled: input.settings.network } } },
   };
-  for (const name of prohibitedFeatures) config.features[name] = false;
+  for (const name of CODEX_PROHIBITED_FEATURES) config.features[name] = false;
   if (connectorsOn(input)) {
     config.features.apps = true; config.features.tool_call_mcp_elicitation = true;
     config.apps = {
@@ -272,7 +272,7 @@ export class CodexDriver implements AgentDriver {
         if (result.nextCursor) { if (cursors.has(result.nextCursor)) throw failPolicy(); cursors.add(result.nextCursor); }
         cursor = result.nextCursor;
       } while (cursor);
-      const off = ['shell_tool', ...prohibitedFeatures].filter(name => !(connectorsOn(input) && name === 'apps'));
+      const off = ['shell_tool', ...CODEX_PROHIBITED_FEATURES].filter(name => !(connectorsOn(input) && name === 'apps'));
       if (off.some(name => flags.get(name) !== false) || flags.get('skip_host_skill_discovery') !== true) throw failPolicy();
       if (connectorsOn(input) && (flags.get('apps') !== true || flags.get('tool_call_mcp_elicitation') !== true)) throw failPolicy();
     }

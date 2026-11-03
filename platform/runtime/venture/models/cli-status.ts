@@ -20,6 +20,7 @@ import { CLI_COMMANDS, cliGateOpen, cliVersionOf, startableProgram } from './cli
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { AVAILABILITY_REASONS, CLI_LABELS, cliFlagsWords, cliNamed, cliSignedOutWords, type CliWords } from './presets.ts';
 import { VERSION_CHECK_TIMEOUT_MS } from './types.ts';
+import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { AI_FAILURE_CODES } from './ai-failure.ts';
 
 /** A2: the codes of failures a tool named (ai-failure.ts), whose words carry the real fix. */
@@ -47,7 +48,7 @@ const FLAG_HELP: Readonly<Record<DelegateCli, string[]>> = Object.freeze({ 'clau
 /** The sign-in status command, run only when the tool's own top help lists the command it belongs to. */
 const STATUS_COMMANDS: Readonly<Record<DelegateCli, { listed: RegExp; args: string[] }>> = Object.freeze({
   'claude-code': { listed: /^[ \t]{1,8}auth\b/m, args: ['auth', 'status'] },
-  codex: { listed: /^[ \t]{1,8}login\b/m, args: ['login', 'status'] },
+  codex: { listed: /^[ \t]{1,8}login\b/m, args: [...CODEX_QUIET_ARGS, 'login', 'status'] },
 });
 /** The fixed phrases. Signed out wins over signed in; signed in also needs a clean exit. Anything else is unknown. */
 const SIGNED_OUT: readonly RegExp[] = [/\bnot (?:logged|signed) in\b/i, /"loggedIn"\s*:\s*false\b/];

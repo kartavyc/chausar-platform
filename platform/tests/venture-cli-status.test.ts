@@ -6,6 +6,7 @@
 // kept, an empty folder, the prompt on stdin and a time limit. Every process here is a fake: nothing is installed or run.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { CODEX_QUIET_ARGS } from '../runtime/providers/codex-cli.ts';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
@@ -108,7 +109,9 @@ function fakeTools(tools: { claude?: Tool; codex?: Tool }): FakeTools {
         const tool = isClaude(request.command) ? tools.claude : isCodex(request.command) || viaNode ? tools.codex : undefined;
         const notStarted = () => new ChausarError('CLI_UNAVAILABLE', 'The selected official command is not installed or could not start.');
         if (!tool) throw notStarted();
-        const asked = (viaNode ? request.args.slice(1) : request.args).join(' ');
+        // A2 review: Codex's status command leads with its quiet flags (CODEX_QUIET_ARGS); the check is the rest.
+        const given = viaNode ? request.args.slice(1) : request.args;
+        const asked = (given[0] === '--disable' ? given.slice(CODEX_QUIET_ARGS.length) : given).join(' ');
         if (asked === '--version') {
           if (tool.version === null) throw notStarted();
           return { exitCode: 0, stdout: `${tool.version}\n` };
@@ -220,7 +223,7 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   // limit each, nothing on standard input, no key in the environment.
   assert.deepEqual(fake.seen.map(request => [request.command, request.args.join(' '), request.timeoutMs]), [
     [CLAUDE_EXE, '--version', 10000], [CLAUDE_EXE, '--help', 5000], [CLAUDE_EXE, 'auth status', 5000],
-    [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, 'login status', 5000],
+    [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, [...CODEX_QUIET_ARGS, 'login', 'status'].join(' '), 5000],
   ]);
   for (const request of fake.seen) {
     assert.equal(request.purpose, 'version-check');
@@ -338,7 +341,7 @@ test('A2: the real Codex 0.166.0 help: exec lists every flag the route sends, an
   const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
   const [, codex] = (await status(deps)).clis;
   assert.deepEqual([codex.version, codex.flags, codex.missingFlags], ['0.166.0', 'match', []]);
-  assert.ok(fake.seen.some(request => request.args.join(' ') === 'login status'));
+  assert.ok(fake.seen.some(request => request.args.join(' ') === [...CODEX_QUIET_ARGS, 'login', 'status'].join(' ')));
 });
 
 test('A2: Your AI shows the Codex setup, and a found Codex the owner has not chosen waits for that yes', async () => {
@@ -357,7 +360,7 @@ test('the real Codex 0.154.0 help: exec lists every flag the route sends, and th
   const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
   const [, codex] = (await status(deps)).clis;
   assert.deepEqual([codex.version, codex.flags, codex.missingFlags, codex.signedIn, codex.state], ['0.154.0', 'match', [], 'yes', 'unverified']);
-  assert.ok(fake.seen.some(request => request.args.join(' ') === 'login status'));
+  assert.ok(fake.seen.some(request => request.args.join(' ') === [...CODEX_QUIET_ARGS, 'login', 'status'].join(' ')));
   await connect(deps, 'codex-cli');
 });
 
@@ -697,7 +700,7 @@ test('npm-installed Codex: the status runs node with the entry script and an arg
   assert.equal(codex.line, 'Codex 0.154.0 is on this computer. Chausar runs it only through the reviewed Codex setup.');
   assert.deepEqual(fake.seen.filter(request => request.command !== 'claude').map(request => [request.command, ...request.args]), [
     [join(npm.folder, 'node.exe'), npm.entry, '--version'], [join(npm.folder, 'node.exe'), npm.entry, 'exec', '--help'],
-    [join(npm.folder, 'node.exe'), npm.entry, '--help'], [join(npm.folder, 'node.exe'), npm.entry, 'login', 'status'],
+    [join(npm.folder, 'node.exe'), npm.entry, '--help'], [join(npm.folder, 'node.exe'), npm.entry, ...CODEX_QUIET_ARGS, 'login', 'status'],
   ]);
   // A shim that is not the standard form is never run: the command-script words stay.
   const odd = npmFolder('codex.cmd', `${REAL_CMD}calc.exe\r\n`, { localNode: true });

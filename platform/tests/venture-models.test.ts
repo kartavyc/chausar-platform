@@ -693,12 +693,12 @@ test('A2: connecting Codex takes the route model from Codex’s own list; the fi
     asked.push(request.args.join(' '));
     if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
     if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
-    if (request.args.join(' ') === 'debug models') return list === null ? { exitCode: 1, stdout: '' } : { exitCode: 0, stdout: list };
+    if (request.args.slice(-2).join(' ') === 'debug models' && request.args[0] === '--disable') return list === null ? { exitCode: 1, stdout: '' } : { exitCode: 0, stdout: list };
     return { exitCode: 1, stdout: '' };
   };
   const first = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
   await connect(first.deps, 'codex-cli');
-  assert.ok(asked.includes('debug models'), 'Codex is asked for its own list');
+  assert.ok(asked.some(line => line.endsWith('debug models') && line.includes('--disable daemon_auto_start')), 'Codex is asked for its own list, its background features off');
   assert.equal((listRecords(first.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-astra', 'gpt-6-luna is hidden for this account');
   assert.equal((await first.deps.models.codexModels!()).main, 'gpt-6-astra');
   list = null;

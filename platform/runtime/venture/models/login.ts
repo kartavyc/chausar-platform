@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { ChausarError, check } from '../../contracts.ts';
 import type { DelegateCli } from '../contracts.ts';
 import { cliEnv } from './cli.ts';
+import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { CLI_COMMANDS, locateOnThisComputer, startableProgram } from './cli-look.ts';
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { CLI_LABELS } from './presets.ts';
@@ -63,7 +64,8 @@ const READ_CHARS = 8_192;
 const CLIS: readonly DelegateCli[] = ['codex', 'claude-code'];
 /** The login and status arguments of each tool's own commands. */
 const COMMANDS: Readonly<Record<DelegateCli, { login: string[]; status: string[] }>> = Object.freeze({
-  codex: { login: ['login', '--device-auth'], status: ['login', 'status'] },
+  // A2 review: Codex's own sign-in and its status run with its background and update features off (CODEX_QUIET_ARGS).
+  codex: { login: [...CODEX_QUIET_ARGS, 'login', '--device-auth'], status: [...CODEX_QUIET_ARGS, 'login', 'status'] },
   'claude-code': { login: ['auth', 'login'], status: ['auth', 'status'] },
 });
 /** The only sites a sign-in link may point at. Anything else the output says is never shown. */

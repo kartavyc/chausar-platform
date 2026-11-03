@@ -117,6 +117,8 @@ async function checkExecutables(folder, files, platform, architecture, entrypoin
  */
 export const EVIDENCE_FILES = Object.freeze({ versionOutput: 'evidence/version.stdout.txt', execHelp: 'evidence/exec-help.stdout.txt', features: 'evidence/features.stdout.txt' });
 const EVIDENCE_ARGS = Object.freeze({ versionOutput: ['--version'], execHelp: ['exec', '--help'], features: ['features', 'list'] });
+/** A2 review: the check commands run with Codex's background and update features off (providers/codex-cli.ts CODEX_QUIET_ARGS). */
+export const QUIET_ARGS = Object.freeze(['daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch', 'in_app_updates'].flatMap(name => ['--disable', name]));
 
 /** Runs one check command of the staged program: no shell, a minimal environment, an empty folder, a time limit. */
 export function stagedProbe(command, args, cwd) {
@@ -138,7 +140,7 @@ async function recordEvidence(destination, entrypoint, probe, now) {
   try {
     await mkdir(join(destination, 'evidence'), { recursive: true });
     for (const [role, file] of Object.entries(EVIDENCE_FILES)) {
-      const answer = await probe(program, EVIDENCE_ARGS[role], cwd);
+      const answer = await probe(program, [...QUIET_ARGS, ...EVIDENCE_ARGS[role]], cwd);
       if (answer.exitCode !== 0 || !answer.stdout.trim()) throw new Error(`the staged Codex did not answer ${EVIDENCE_ARGS[role].join(' ')}`);
       if (role === 'versionOutput' && answer.stdout.trim() !== `codex-cli ${CODEX_BUNDLE.version}`) throw new Error(`the staged Codex answered as another version (${answer.stdout.trim()}); the beta bundles Codex ${CODEX_BUNDLE.version}`);
       await writeFile(join(destination, ...file.split('/')), answer.stdout, { flag: 'wx' });

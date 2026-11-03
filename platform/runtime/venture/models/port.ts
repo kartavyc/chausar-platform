@@ -39,6 +39,7 @@ import {
 } from './presets.ts';
 import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
 import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
+import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { assertSchemaSafe } from './schema.ts';
 import { redactPayload, redactSecrets } from '../core/secrets.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
@@ -633,7 +634,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       let folder: string | undefined, response: ModelProcessResponse | null = null;
       try {
         folder = await mkdtemp(join(tmpdir(), CLI_LOOK_FOLDER));
-        response = await transport.process({ command: program, args: ['debug', 'models'], env: cliEnv('codex-cli'), stdin: '', timeoutMs: 30_000, purpose: 'version-check', cwd: folder });
+        response = await transport.process({ command: program, args: [...CODEX_QUIET_ARGS, 'debug', 'models'], env: cliEnv('codex-cli'), stdin: '', timeoutMs: 30_000, purpose: 'version-check', cwd: folder });
       } catch { response = null; }
       finally { if (folder) await rm(folder, { recursive: true, force: true }).catch(() => undefined); }
       const models = codexModelsFrom(response);

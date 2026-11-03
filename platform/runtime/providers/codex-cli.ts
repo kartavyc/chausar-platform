@@ -41,7 +41,35 @@ export const CODEX_CLI_CONFIG = Object.freeze([
   // prefetching); a text-only call needs none of them.
   'features.daemon_auto_start=false', 'features.browser_annotation_api=false', 'features.in_app_voice=false',
   'features.plugin_discovery_prefetch=false',
+  // A2 review: everything the agent driver keeps off is off here too (a superset of its prohibited list), and every other
+  // feature 0.166.0 turns on is either off below or on CODEX_FEATURES_LEFT_ON with its reason.
+  'features.multi_agent_v2=false', 'features.computer_use=false', 'features.browser_use=false',
+  'features.browser_use_external=false', 'features.in_app_browser=false', 'features.browser_use_full_cdp_access=false',
+  'features.in_app_chat=false', 'features.in_app_dictation=false', 'features.in_app_local_automation=false',
+  'features.in_app_updates=false', 'features.remote_plugin=false', 'features.plugin_sharing=false',
+  'features.workspace_dependencies=false', 'features.auth_elicitation=false', 'features.tool_call_mcp_elicitation=false',
 ]);
+/**
+ * A2 review: the features Codex 0.166.0 turns on by default that the text route leaves on, each for a reason: plumbing
+ * of the request itself (compression, retries, proxy, id and content kinds), its own sign-in storage, options a call
+ * never asks for, and execution features that only act through the shell tool, which is off above.
+ */
+export const CODEX_FEATURES_LEFT_ON: Readonly<Record<string, string>> = Object.freeze({
+  api_key_cyber_access_programs: 'a turn option the route never sends', api_key_model_discovery: 'model lists for key logins',
+  bedrock_setup_wizard: 'a setup screen the route never opens', cli_daybreak: 'a turn option the route never sends',
+  code_mode_host: 'code mode is off (features.code_mode under the driver; exec has no code mode)', code_mode_interrupt: 'code mode only',
+  compaction_image_budget: 'context compaction', content_item_kinds: 'request plumbing', default_mode_request_user_input: 'the route runs with approvals never',
+  enable_request_compression: 'request plumbing', fast_mode: 'a speed option the route never sends', guardian_approval: 'the approval reviewer, approvals are never',
+  guardian_reuse_parent_compaction: 'reviewer plumbing', incremental_tools: 'tool loading; the route allows no tools',
+  instant_interrupt: 'stopping a turn', mcp_oauth_refresh_coordination: 'MCP sign-in plumbing; the route has no MCP servers',
+  mentions_v2: 'prompt mentions', prediction_preserve_parent_tools: 'tool plumbing; the route allows no tools',
+  reasoning_effort_override: 'a reasoning option', secret_auth_storage: "Codex's own sign-in storage",
+  shell_snapshot: 'shell only; the shell tool is off', system_proxy_fallback: 'network plumbing', ultrafast_mode: 'a speed option the route never sends',
+  unbounded_connection_retries: 'request plumbing', unified_exec: 'shell only; the shell tool is off', unified_exec_tty: 'shell only; the shell tool is off',
+  write_stdin_approval: 'shell only; the shell tool is off',
+});
+/** A2 review: the default-on features the check commands (version, help, features, models, login) also switch off. */
+export const CODEX_QUIET_ARGS = Object.freeze(['daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch', 'in_app_updates'].flatMap(name => ['--disable', name]));
 export const CODEX_CLI_LIMITS = Object.freeze({
   stdoutBytes: 1048576, eventBytes: 262144, events: 256,
   planBytes: 65536, stdinBytes: 262144, schemaBytes: 65536, timeoutMs: 120000,
