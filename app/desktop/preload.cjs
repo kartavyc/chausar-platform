@@ -55,6 +55,12 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
   },
+  // After Delete (review of A1, row 1): show one kept export in the file manager, by its file name only.
+  showExport: async name => {
+    const reply = await ipcRenderer.invoke('chausar:exports:show', { name: String(name) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

@@ -2466,6 +2466,11 @@ export interface EngineClient {
    */
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   /**
+   * Desktop only (review of A1, row 1): shows one export Delete kept in the file manager, by its file name (the desktop
+   * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.
+   */
+  showExport?(name: string): Promise<void>;
+  /**
    * Desktop only (5A5): the desktop makes a draft's client report (venture.report.render, the PDF included) and saves
    * every file and manifest.json in a new folder where the owner picks, atomically. Null when cancelled; EXPORT_EXISTS
    * when that folder is there already. Absent on the web, the hosted app and the fake, where the page downloads files.

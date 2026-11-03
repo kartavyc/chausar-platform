@@ -292,6 +292,13 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
 /** After a delete: the engine's words for the copies it can't reach, then Welcome back, opening nothing by itself. */
 export function DeletedNote({ result }: { result: Deleted }) {
   const t = useT();
+  const client = useEngine();
+  const [problem, setProblem] = useState<string | null>(null);
+  // Review of A1 (row 1): the copies Delete kept, by file name, and whether each is readable (not encrypted).
+  const kept = (result.exportsKept ?? []).map((path) => {
+    const name = path.split(/[\\/]/).pop() ?? path;
+    return { path, name, readable: name.endsWith('.json') };
+  });
   const left = useContext(LeftContext);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
@@ -299,6 +306,21 @@ export function DeletedNote({ result }: { result: Deleted }) {
     <section className={s.deletedNote} aria-label={t('business.deleted')}>
       <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.deleted')}</h2>
       <p className={s.line}>{result.externalCopies}</p>
+      {kept.length > 0 && (
+        <>
+          <p className={s.line}>{t('business.deletedKept')}</p>
+          <ul className={s.kept}>
+            {kept.map((copy) => (
+              <li key={copy.path}>
+                <span className={s.said} data-content="">{copy.name}</span>
+                {copy.readable && <p className={s.warn}>{t('business.deletedReadable')}</p>}
+                {client.showExport && <Button variant="quiet" onClick={() => { void client.showExport!(copy.name).catch((error: unknown) => setProblem(failed(t, error))); }}>{t('business.deletedShow')}</Button>}
+              </li>
+            ))}
+          </ul>
+          {problem && <p className={s.problem} role="alert">{problem}</p>}
+        </>
+      )}
       <div className={s.buttons}><Button variant="primary" onClick={() => left({ autoOpen: false })}>{t('business.continue')}</Button></div>
     </section>
   );
