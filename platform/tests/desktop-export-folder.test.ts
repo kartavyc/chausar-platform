@@ -21,7 +21,7 @@ test('show in folder: only a Chausar export in the exports folder, by its name',
   const deps = { window: { webContents: {} }, assertTrustedSender: () => {}, publicError: (e: any) => ({ code: e.code, message: e.message }), shell: { showItemInFolder: (path: string) => { shown.push(path); } }, exportsFolder };
   assert.deepEqual(await showExport({}, { name }, deps), { ok: true });
   assert.deepEqual(shown, [join(exportsFolder, name)]);
-  for (const bad of ['../secret.vault', 'C:\Windows\notepad.exe', 'chausar-x-1.exe', '', 42, null]) {
+  for (const bad of ['../secret.vault', String.raw`C:\Windows\notepad.exe`, String.raw`..\chausar-ws-1.vault`, 'chausar-x-1.exe', '', 42, null]) {
     const reply = await showExport({}, { name: bad }, deps);
     assert.equal(reply.ok, false, String(bad));
     assert.equal(reply.error.code, 'INVALID_REQUEST');
