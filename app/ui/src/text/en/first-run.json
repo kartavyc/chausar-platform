@@ -66,6 +66,7 @@
   "first-run.about.reply": "Here is a first plan for {family}. Change anything on the right, or tell me more.",
   "first-run.about.replyNoFamily": "I could not tell your field from that. Write a little more, or pick your field on the right.",
   "first-run.about.replyKeywords": "No AI is connected, so this plan comes from templates for {family}.",
+  "first-run.about.renamed": "Renamed it to {name}.",
   "first-run.about.fileLeftOut": "{line}",
   "first-run.about.say": "Message Chausar",
   "first-run.about.sayPlaceholder": "Reply to change the plan",

@@ -8,6 +8,7 @@ import { Chip } from '../../parts/Chip';
 import { Icon } from '../../parts/Icon';
 import { cleanSentence, computerCountry, pickCountry, sentenceProblem, OPEN_BOX } from './flow';
 import { aboutFile, type AboutFile } from './linkedin';
+import { renameIn } from './rename';
 import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
 
@@ -53,6 +54,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const [thread, setThread] = useState<Bubble[]>([]);
   const [read, setRead] = useState<AboutReadLite | null>(null);
   const [name, setName] = useState<string | null>(null);
+  /** One-shot A3 (S1): the name the owner asked for in the chat; it wins over the field's name until they change it again. */
+  const [ownName, setOwnName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [boxWrong, setBoxWrong] = useState(false);
@@ -123,6 +126,14 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     event?.preventDefault();
     const more = cleanSentence(reply);
     if (busy || more.length === 0) return;
+    // One-shot A3 (S1): a rename is read by code and kept on the card; the AI never names a business, so it is not asked.
+    const renamed = read ? renameIn(more) : null;
+    if (renamed) {
+      setOwnName(renamed);
+      setReply('');
+      setThread((was) => [...was, { who: 'me', text: more }, { who: 'them', text: t('first-run.about.renamed', { name: renamed }) }]);
+      return;
+    }
     const combined = cleanSentence(`${said}\n${more}`).slice(-OPEN_BOX.max);
     if (sentenceProblem(combined)) { setProblem(t(sentenceProblem(combined)!)); return; }
     setSaid(combined);
@@ -166,7 +177,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); then(); }
   }
 
-  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode, name: (name ?? read.family.label).trim() } : null;
+  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode, name: (ownName ?? name ?? read.family.label).trim() } : null;
   const tiles = families.data?.families ?? [];
 
   const where = (
@@ -205,7 +216,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     <>
       <div className={s.nameCard}>
         <p className={s.label}>{t('first-run.about.name')}</p>
-        <p className={s.name} data-content="">{name ?? read.family?.label ?? ''}</p>
+        <p className={s.name} data-content="" data-plan-name="">{ownName ?? name ?? read.family?.label ?? ''}</p>
         {read.family && <p className={s.offerLine}>{read.family.label}</p>}
       </div>
       <label className={s.label} htmlFor={fieldId}>{t('first-run.about.field')}</label>
