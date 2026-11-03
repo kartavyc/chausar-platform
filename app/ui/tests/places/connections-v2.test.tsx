@@ -207,15 +207,26 @@ describe('Connections in the Ink v2 look', () => {
   });
 
   it('Your AI: every choice, grouped by how you pay, says whether it can connect and gives its one fix line', async () => {
-    start();
+    const client = start();
     const section = await region('Your AI');
     const every = await within(section).findByText('Every choice');
     fireEvent.click(every);
     const groups: Record<string, string> = { 'provider-api': 'With your own key', 'this-computer': 'With an AI app on this computer', 'chausar-engine': 'Without AI' };
-    for (const preset of MODEL_PRESETS) {
+    // One-shot A4: the choices as the fake engine answers them (A3 made its Codex words follow the engine's own look),
+    // not the static fixture, so each row is checked against what the page was given.
+    const presets = await client.request('venture.models.presets', {});
+    expect(presets.map((preset) => preset.id)).toEqual(MODEL_PRESETS.map((preset) => preset.id));
+    for (const preset of presets) {
       const item = within(section).getByText(preset.label).closest('li')!;
       expect(item.querySelector('[data-fix-line]')?.textContent, preset.id).toBe(preset.availabilityReason);
       expect(item.querySelector('[data-availability]')?.getAttribute('data-availability'), preset.id).toBe(preset.availability);
+      // One-shot A4 (rows 82, 95): with no AI connected, the AI app on this computer that can connect is at rest, above
+      // the fold, and only there.
+      if (!item.closest('details')) {
+        expect(preset.runsOn, preset.id).toBe('this-computer');
+        expect(['ready', 'unverified'], preset.id).toContain(preset.availability);
+        continue;
+      }
       const group = item.closest('[data-runs-on]')!;
       expect(group.getAttribute('data-runs-on'), preset.id).toBe(preset.runsOn);
       // Under "Add an AI" (a level 3 heading), each group is a level 4 heading.
