@@ -537,3 +537,26 @@ test('chief: the ways tool lists the ways to earn, hours as model estimates, wit
   }
   assert.equal(JSON.stringify(result.data).includes('₹'), false, 'what clients pay has no receipt here, so it is left out');
 });
+
+// One-shot A4 (A3 leftover, seen live on Codex): the chief has read tools only, so it never acts. A sentence where it says
+// it did is taken out and an offer said instead; offers, reads and conditions stay.
+test('chief: a claim of an action it never took is taken out, and it offers to propose it instead (A4)', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text('Your books show no invoices yet. I passed a brief to Studio agent. I can send a reminder once you approve.')])]);
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  assert.deepEqual(sent.added[1].parts, [
+    { kind: 'text', text: 'Your books show no invoices yet. I can send a reminder once you approve.' },
+    { kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." },
+  ]);
+  for (const claim of ["I've emailed the client.", 'We have already booked the shoot.', 'I went ahead and scheduled it for Monday.', 'I proposed a reminder.']) {
+    scriptChief(env, [answer([text(claim)])]);
+    const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
+    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }], claim);
+  }
+  for (const honest of ['I checked your books: nothing is due.', 'If I sent it now, it would go before the weekend.', 'Shall I draft it? You would approve it on Today.']) {
+    scriptChief(env, [answer([text(honest)])]);
+    const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
+    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: honest }], honest);
+  }
+});
