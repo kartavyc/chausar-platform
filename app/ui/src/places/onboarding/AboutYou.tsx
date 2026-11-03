@@ -127,18 +127,20 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     const more = cleanSentence(reply);
     if (busy || more.length === 0) return;
     // One-shot A3 (S1): a rename is read by code and kept on the card; the AI never names a business, so it is not asked.
+    // A3 review (L2): what the message asks after the name ("and add wedding shoots too") still goes to the AI.
     const renamed = read ? renameIn(more) : null;
     if (renamed) {
-      setOwnName(renamed);
+      setOwnName(renamed.name);
       setReply('');
-      setThread((was) => [...was, { who: 'me', text: more }, { who: 'them', text: t('first-run.about.renamed', { name: renamed }) }]);
-      return;
+      setThread((was) => [...was, { who: 'me', text: more }, { who: 'them', text: t('first-run.about.renamed', { name: renamed.name }) }]);
+      if (!renamed.rest) return;
     }
-    const combined = cleanSentence(`${said}\n${more}`).slice(-OPEN_BOX.max);
+    const asked = renamed ? cleanSentence(renamed.rest) : more;
+    const combined = cleanSentence(`${said}\n${asked}`).slice(-OPEN_BOX.max);
     if (sentenceProblem(combined)) { setProblem(t(sentenceProblem(combined)!)); return; }
     setSaid(combined);
     setReply('');
-    setThread((was) => [...was, { who: 'me', text: more }]);
+    if (!renamed) setThread((was) => [...was, { who: 'me', text: more }]);
     void ask({ text: combined });
   }
 

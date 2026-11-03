@@ -36,15 +36,24 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe('a rename by code (A3, S1)', () => {
   it('reads "call it" and "name the business" requests, and nothing else', () => {
-    expect(renameIn('Please call the business Pune Frames Studio.')).toBe('Pune Frames Studio');
-    expect(renameIn('call it "Lens & Light"')).toBe('Lens & Light');
-    expect(renameIn('Name it Asha Rao Photography')).toBe('Asha Rao Photography');
-    expect(renameIn('Can you rename the business to Frame Works?')).toBe('Frame Works');
-    expect(renameIn('Change the name to Pune Frames')).toBe('Pune Frames');
+    expect(renameIn('Please call the business Pune Frames Studio.')).toEqual({ name: 'Pune Frames Studio', rest: '' });
+    expect(renameIn('call it "Lens & Light"')).toEqual({ name: 'Lens & Light', rest: '' });
+    expect(renameIn('Name it Asha Rao Photography')).toEqual({ name: 'Asha Rao Photography', rest: '' });
+    expect(renameIn('Can you rename the business to Frame Works?')).toEqual({ name: 'Frame Works', rest: '' });
+    expect(renameIn('Change the name to Pune Frames')).toEqual({ name: 'Pune Frames', rest: '' });
     expect(renameIn('call it something nicer')).toBeNull();
     expect(renameIn('I also do weddings, call me for those')).toBeNull();
     expect(renameIn('Please add wedding shoots.')).toBeNull();
     expect(renameIn(`Call it ${'A'.repeat(70)}`)).toBeNull();
+  });
+
+  it('A3 review L2: the name stops at a comma, "and", "but" or "instead", and the rest still goes to the AI', () => {
+    expect(renameIn('Call it Pune Frames, and add wedding shoots too')).toEqual({ name: 'Pune Frames', rest: 'add wedding shoots too' });
+    expect(renameIn('Rename it to Pune Frames but keep the offers')).toEqual({ name: 'Pune Frames', rest: 'keep the offers' });
+    expect(renameIn('Could you call it Saturday instead?')).toEqual({ name: 'Saturday', rest: '' });
+    expect(renameIn("Call it I don't know yet")).toBeNull();
+    expect(renameIn('Call it My Lovely Little Weekend Photo Studio')).toBeNull();
+    expect(renameIn('Call it We Shoot Parties')).toBeNull();
   });
 });
 
@@ -93,5 +102,30 @@ describe('first run: the name the owner asked for is the name kept (A3, S1)', ()
     const heading = await screen.findByRole('heading', { level: 2, name: /Pune Frames Studio/ }, { timeout: 4000 });
     expect(heading).toBeTruthy();
     for (const offer of READ.offers) expect(await screen.findByText(offer.name)).toBeTruthy();
+  });
+});
+
+describe('a rename with more asked after it (A3 review, L2)', () => {
+  it('renames by code and sends only the rest to the AI', async () => {
+    timeZone('Asia/Kolkata');
+    const fake = createFakeClient(new FakeEngine({ fresh: true }));
+    const reads: { text?: string }[] = [];
+    const client: EngineClient = { ...fake, request: ((method: string, params?: Record<string, unknown>) => {
+      if (method === 'venture.about.read') { reads.push(params as { text?: string }); return Promise.resolve(structuredClone(READ)); }
+      return fake.request(method as never, params as never);
+    }) as EngineClient['request'] };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await press('Skip for now: use templates');
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'I run a small weekend photography studio in Pune.' } });
+    await press('Send');
+    expect(await screen.findByText('Birthday party photography')).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Chausar' }), { target: { value: 'Call it Pune Frames, and add wedding shoots too' } });
+    await act(async () => { fireEvent.submit(screen.getByRole('textbox', { name: 'Message Chausar' }).closest('form')!); });
+    expect(await screen.findByText('Renamed it to Pune Frames.')).toBeTruthy();
+    await waitFor(() => expect(reads).toHaveLength(2));
+    expect(reads[1]!.text).toContain('add wedding shoots too');
+    expect(reads[1]!.text).not.toContain('Call it');
+    await waitFor(() => expect(document.querySelector('[data-plan-name]')!.textContent).toBe('Pune Frames'));
   });
 });
