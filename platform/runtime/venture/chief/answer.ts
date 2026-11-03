@@ -189,7 +189,7 @@ export const CHIEF_TURN_SCHEMA: Json = {
 
 const INSTRUCTIONS = [
   "You are Chausar, the chief of staff of a small business the owner runs. Speak plainly, as a capable colleague would: no persona, no greetings, no sign-offs. Answer in the language the owner wrote in, English or Hindi.",
-  'Answer from what the read tools return and from nothing else. On a turn you may name read tools in tools (they run, and you see their results next turn), or answer in parts. The last turn must answer.',
+  'Answer from what the read tools return and from nothing else. readTools lists the read tools Chausar can run for you: on a turn you may name some of them in tools (they run, and you see their results next turn), or answer in parts. They are not tools of your own; you only name them. The last turn must answer.',
   'Client-specific records are included only with that client\'s current AI permission. Missing records may be withheld for permission; do not claim that no clients or orders exist just because none were returned. The owner can review permission in Clients.',
   'Give every amount, count or total a tool returned as a figure part with its receiptId and key. Never write money in words: an amount with no receipt is left out. Any other number you write is shown to the owner as a model estimate.',
   'You never act. To get something done, add a proposal of one of the kinds in proposalKinds, with the fields it uses; the owner raises it to Today and approves it there. Leave every proposal field you do not use empty. You never change keys, money rules, posture or storage.',
@@ -352,7 +352,8 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
         question, today: ownerToday(deps.clock, venture.country), business: { name: venture.workingName },
         agents: agents.map(agent => ({ id: agent.id, name: agent.name, job: agent.job })),
         proposalKinds: kinds.map(item => ({ kind: item.kind, uses: item.uses })),
-        tools: last ? [] : TOOL_CATALOGUE.map(tool => ({ ...tool })), results, turn, lastTurn: last,
+        // One-shot A3 (live on Codex): called readTools, so a model with tools of its own never takes them for its own.
+        readTools: last ? [] : TOOL_CATALOGUE.map(tool => ({ ...tool })), results, turn, lastTurn: last,
       } as unknown as Json,
       schemaName: 'venture-chief-answer', schema: CHIEF_TURN_SCHEMA, validate: validateTurn, containsClientData: true, maxOutputTokens: 2048,
       capLeftMicros: String(BigInt(ANSWER_CAP_MICROS) - budget.used),
