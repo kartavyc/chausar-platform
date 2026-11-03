@@ -1916,6 +1916,8 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     reviewReady?: boolean;
     /** A2: the job went quiet and was stopped by the watchdog; its notes so far are kept. */
     quiet?: boolean;
+    /** A2 second review: with quiet, the watchdog stopped the job because it ran past its time limit. */
+    overtime?: boolean;
     /** A2: sites that refused three times in a row and were not asked again in this job (build/site-breaker.ts). */
     unavailableSites?: string[];
     failure?: import('./delivery/failure-words.ts').FailureWords;

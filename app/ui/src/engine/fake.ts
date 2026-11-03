@@ -253,6 +253,8 @@ export class FakeEngine {
   private readonly w4: FakeW4Desk;
   /** Tests (A2): a native AI job went quiet and the watchdog stopped it, as agent-runtime/runner.ts does. */
   quietStop(runId: string): void { this.w4.quietStop(runId); }
+  /** Tests (A2 second review): a native AI job ran past its time limit and the watchdog stopped it. */
+  timeStop(runId: string): void { this.w4.timeStop(runId); }
   /**
    * Ink v2 wave 5 (registered by package 5-0; each package fills its own file): every playbook's desk
    * (fake-playbooks.ts, one fake-<id>.ts each), and the kit's methods: the chain (fake-kit-chain.ts, 5A1), sales

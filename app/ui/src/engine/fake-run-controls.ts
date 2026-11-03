@@ -24,6 +24,8 @@ export const FAKE_4F3_METHODS: readonly string[] = [
 export const STOPPED_BY_YOU = 'Stopped by you. Finished steps are kept.';
 /** A2, as the engine's harness/controls.ts: the idle-run watchdog stopped a quiet AI job. */
 export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
+/** A2 second review, as harness/controls.ts: the watchdog stopped a native AI job that ran past its time limit. */
+export const TIME_LINE = 'The AI ran past its time limit, so Chausar stopped it. Its work so far is kept.';
 const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 const STOPPING = 'Stopping: the step in progress finishes first.';
 const RECEIVED = 'Stop received. The step in progress finishes, then the run stops.';
@@ -231,12 +233,17 @@ export class FakeRunControls {
   /** Tests, as the engine's watchdog (agent-runtime/runner.ts): a native AI job went quiet and was stopped, its notes kept. */
   quietStop(runId: string): void {
     const run = this.runs().find((item) => item.runId === runId);
-    if (run?.agentProgress) this.stopNow(run, false, true);
+    if (run?.agentProgress) this.stopNow(run, false, QUIET_LINE);
+  }
+  /** Tests, as the engine's watchdog (A2 second review): a native AI job ran past its time limit and was stopped. */
+  timeStop(runId: string): void {
+    const run = this.runs().find((item) => item.runId === runId);
+    if (run?.agentProgress) this.stopNow(run, false, TIME_LINE);
   }
 
-  private stopNow(run: RunDetail, cut: boolean, quiet = false): void {
+  private stopNow(run: RunDetail, cut: boolean, watchdog: string | null = null): void {
     if(run.agentProgress){this.host.nativeStop?.(run);delete run.agentProgress.pendingApproval;cut=false;}
-    const line = quiet ? QUIET_LINE : cut ? FORCE_STOPPED : STOPPED_BY_YOU;
+    const line = watchdog ?? (cut ? FORCE_STOPPED : STOPPED_BY_YOU);
     if (run.question) this.held.set(run.runId, { question: run.question });
     delete run.question;
     run.state = 'waiting';

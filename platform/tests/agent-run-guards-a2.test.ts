@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { call, getRun, orderWithFiles, owner, record, setup } from './venture-run-controls-env.ts';
-import { QUIET_LINE } from '../runtime/venture/delivery/harness/controls.ts';
+import { QUIET_LINE, TIME_LINE } from '../runtime/venture/delivery/harness/controls.ts';
 import { consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
 import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import type { AgentDriverInput, AgentTurnResult } from '../runtime/venture/agent-runtime/driver-types.ts';
@@ -157,4 +157,85 @@ test('the two turns of a nudge are counted as one growing total', async () => {
   assert.equal(turn, 2);
   const usage = record(env, started.id).agentJob!.usage!;
   assert.deepEqual([usage.inputTokens, usage.outputTokens], [14, 7], 'the second turn adds to the first');
+});
+
+// A2 second review (M2): the paused clock has a backstop. One tool may hold it at most toolMs; each turn forgets the
+// tool steps it started; and a job may run at most jobMs of its own time (time waiting on the owner does not count).
+test('a tool step that never finishes holds the clock only up to its cap, then the job is stopped and keeps its work', { timeout: 10_000 }, async () => {
+  const { env, order } = await ready();
+  const seen: string[] = [];
+  let started = 0, stopped = 0;
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, watchdog: { idleMs: 60, hardCloseMs: 60, toolMs: 300, jobMs: 60_000 }, driver: { async open(input: AgentDriverInput) {
+    let finish!: (result: AgentTurnResult) => void;
+    return {
+      run() {
+        started = Date.now();
+        input.onEvent({ type: 'text-delta', messageId: 'm1', text: 'Read half the books.' });
+        input.onEvent({ type: 'tool-started', toolUseId: 'tool-stuck', name: 'read_file' });
+        return new Promise<AgentTurnResult>(done => { finish = done; });
+      },
+      async interrupt() { stopped = Date.now(); seen.push('interrupt'); finish({ status: 'interrupted', text: 'Read half the books.' }); },
+      async close() {},
+    };
+  } } });
+  const run = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, run.id);
+  assert.deepEqual(seen, ['interrupt']);
+  assert.ok(stopped - started >= 300, 'not before the tool cap passed');
+  const kept = record(env, run.id);
+  assert.equal(kept.status, 'stopped');
+  assert.equal(kept.agentJob!.quiet, true);
+  assert.ok(kept.agentJob!.messages.some(message => message.text.includes('half the books')), 'the partial work is kept');
+});
+
+test('a tool step left open by the first turn does not pause the nudge turn', { timeout: 10_000 }, async () => {
+  const { env, order } = await ready();
+  const seen: string[] = [];
+  let turn = 0;
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, watchdog: { idleMs: 60, hardCloseMs: 60, toolMs: 60_000, jobMs: 60_000 }, driver: { async open(input: AgentDriverInput) {
+    let finish!: (result: AgentTurnResult) => void;
+    return {
+      async run() {
+        turn += 1;
+        if (turn === 1) {
+          input.onEvent({ type: 'tool-started', toolUseId: 'tool-1', name: 'read_file' });
+          return { status: 'completed' as const, text: 'Next I call draft_document({"draft": {}}).' };
+        }
+        return new Promise<AgentTurnResult>(done => { finish = done; });
+      },
+      async interrupt() { seen.push('interrupt'); finish?.({ status: 'interrupted', text: '' }); },
+      async close() {},
+    };
+  } } });
+  const run = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, run.id);
+  assert.equal(turn, 2, 'the nudge turn ran');
+  assert.deepEqual(seen, ['interrupt'], 'the quiet nudge turn was stopped');
+  assert.equal(record(env, run.id).agentJob!.quiet, true);
+});
+
+test('a job that keeps talking past its time limit is stopped, says so, and keeps its work', { timeout: 10_000 }, async () => {
+  const { env, order } = await ready();
+  const seen: string[] = [];
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, watchdog: { idleMs: 200, hardCloseMs: 60, toolMs: 60_000, jobMs: 300 }, driver: { async open(input: AgentDriverInput) {
+    let finish!: (result: AgentTurnResult) => void, talk: ReturnType<typeof setInterval> | undefined, n = 0;
+    return {
+      run() {
+        talk = setInterval(() => { n += 1; input.onEvent({ type: 'text-delta', messageId: 'm1', text: ` step ${n}.` }); }, 20);
+        return new Promise<AgentTurnResult>(done => { finish = done; });
+      },
+      async interrupt() { seen.push('interrupt'); clearInterval(talk); finish({ status: 'interrupted', text: '' }); },
+      async close() { clearInterval(talk); },
+    };
+  } } });
+  const run = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, run.id);
+  assert.deepEqual(seen, ['interrupt']);
+  const kept = record(env, run.id);
+  assert.equal(kept.status, 'stopped');
+  assert.equal(kept.agentJob!.overtime, true);
+  assert.ok(kept.agentJob!.messages.some(message => message.text.includes('step 1.')), 'what it wrote is kept');
+  const detail = await getRun(env, run.id) as any;
+  assert.equal(detail.stop?.line, TIME_LINE);
+  assert.equal(detail.result, TIME_LINE);
 });

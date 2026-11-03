@@ -380,8 +380,8 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   }
 
 /** A2: what the run says when the watchdog stopped a quiet job (one place: harness/controls.ts). */
-export { QUIET_LINE } from './harness/controls.ts';
-import { QUIET_LINE } from './harness/controls.ts';
+export { QUIET_LINE, TIME_LINE } from './harness/controls.ts';
+import { watchdogLine } from './harness/controls.ts';
 
 /** The installed AI owns its turns. Chausar keeps the job's sources, checks and exact outside-action proposal. */
 async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: OrderContext, playbook: PlaybookRecord, uploads: FileLike[], continuation: { resumeFrom?: string; existingRunId?: string }): Promise<DeliveryRunView> {
@@ -443,10 +443,10 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
         const named = result.status === 'failed' && result.failure
           ? failureWords({ code: AI_FAILURE_CODES[result.failure], message: result.error ?? '' }, { at: tx.now, dateOrder: context.venture.country.dateOrder }) : null;
         // A2: a job that went quiet was stopped by the watchdog; its notes so far stay, and the line says so.
-        const quietLine = result.quiet ? QUIET_LINE : null;
+        const quietLine = watchdogLine(result);
         if (latest && ['waiting-for-you', 'ready-for-review'].includes(latest.status) && result.status !== 'completed') {
           tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed',
-            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}), ...(result.quiet ? { quiet: true } : {}) } } : {}) });
+            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}), ...(result.quiet ? { quiet: true } : {}), ...(result.quiet && result.overtime ? { overtime: true } : {}) } } : {}) });
           tx.emit('run.failed', { runId: run.id, line: quietLine ?? named?.line ?? 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
           tx.emit('queue.changed', {});
           return;

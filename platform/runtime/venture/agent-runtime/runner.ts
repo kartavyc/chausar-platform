@@ -35,8 +35,11 @@ export function jobPrompt(settings: AgentDriverSettings, credentials?: AgentDriv
 /**
  * A2: the idle-run watchdog's times: a job that sends nothing (no text, tool step or usage) for ten minutes is asked to
  * stop, and a tool that ignores the stop is closed hard thirty seconds later. What it wrote so far is kept.
+ * A2 second review: the clock pauses while the owner decides or a tool step runs, but one tool step holds it at most
+ * toolMs (35 minutes), and a job runs at most jobMs (three hours) of its own time; time waiting on the owner does not
+ * count toward that. Tests pass smaller times through the route.
  */
-export const AGENT_WATCHDOG = Object.freeze({ idleMs: 10 * 60_000, hardCloseMs: 30_000 });
+export const AGENT_WATCHDOG = Object.freeze({ idleMs: 10 * 60_000, hardCloseMs: 30_000, toolMs: 35 * 60_000, jobMs: 3 * 60 * 60_000 });
 /** A2: the one nudge, when the AI wrote a tool request as text instead of making the call. */
 export const NUDGE_PROMPT = 'You wrote a Chausar tool request as text. Text does nothing: call the tool itself now, with the same arguments, or say what is missing.';
 const TOOL_WORDS = AGENT_MCP_TOOL_NAMES.join('|');
@@ -69,17 +72,18 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
   let events: Promise<unknown> = Promise.resolve();
   const buffers = new Map<string, string>();
   // A2: the watchdog's clock, and the usage of an earlier turn carried into a nudge turn's reports.
-  const watchdog = route.watchdog ?? AGENT_WATCHDOG;
-  let lastActivity = Date.now(), quiet = false, carried: AgentUsage | undefined;
+  const watchdog = { ...AGENT_WATCHDOG, ...route.watchdog };
+  let lastActivity = Date.now(), quiet = false, overtime = false, carried: AgentUsage | undefined;
   // A2 review: waiting on the owner (an approval card) or on a tool step still running is not going quiet.
+  // A2 second review: each tool step with when it started, so one that never finishes holds the clock only so long.
   let approvalsWaiting = 0;
-  const toolsRunning = new Set<string>();
+  const toolsRunning = new Map<string, number>();
   let idleTimer: ReturnType<typeof setInterval> | undefined, hardTimer: ReturnType<typeof setTimeout> | undefined;
   let closedHard!: () => void;
   const hardClosed = new Promise<AgentTurnResult>(done => { closedHard = () => done({ status: 'interrupted', text: '' }); });
   function onEvent(event: AgentDriverEvent) {
     lastActivity = Date.now();
-    if (event.type === 'tool-started') toolsRunning.add(event.toolUseId);
+    if (event.type === 'tool-started') toolsRunning.set(event.toolUseId, Date.now());
     if (event.type === 'tool-completed') toolsRunning.delete(event.toolUseId);
     if (event.type === 'usage' && carried) event = { ...event, usage: addUsage(carried, event.usage)! };
     if (abort.signal.aborted) return;
@@ -152,14 +156,26 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
     await billing.dispatched();
     // A2: the watchdog: a quiet job is asked to stop; a tool that ignores the stop is closed hard and the turn ends here.
     const live = session;
-    idleTimer = setInterval(() => {
-      if (approvalsWaiting > 0 || toolsRunning.size > 0) { lastActivity = Date.now(); return; }
-      if (quiet || Date.now() - lastActivity < watchdog.idleMs) return;
+    const stopQuiet = () => {
       quiet = true;
       void Promise.resolve().then(() => live.interrupt()).catch(() => undefined);
       hardTimer = setTimeout(() => { void Promise.resolve().then(() => live.close()).catch(() => undefined); closedHard(); }, watchdog.hardCloseMs);
-    }, Math.max(10, Math.min(Math.floor(watchdog.idleMs / 4), 15_000)));
-    const turn = (text: string) => Promise.race([live.run(text), hardClosed]);
+    };
+    // A2 second review: the job's own time, counted only while no approval waits on the owner.
+    let ownMs = 0, lastTick = Date.now();
+    idleTimer = setInterval(() => {
+      const now = Date.now();
+      if (approvalsWaiting === 0) ownMs += now - lastTick;
+      lastTick = now;
+      if (quiet) return;
+      if (ownMs >= watchdog.jobMs) { overtime = true; stopQuiet(); return; }
+      const holding = approvalsWaiting > 0 || [...toolsRunning.values()].some(started => now - started < watchdog.toolMs);
+      if (holding) { lastActivity = now; return; }
+      if (now - lastActivity < watchdog.idleMs) return;
+      stopQuiet();
+    }, Math.max(10, Math.min(Math.floor(Math.min(watchdog.idleMs, watchdog.toolMs, watchdog.jobMs) / 4), 15_000)));
+    // A2 second review: a turn that settled leaves no tool step running, so none of its steps holds the next turn's clock.
+    const turn = async (text: string) => { try { return await Promise.race([live.run(text), hardClosed]); } finally { toolsRunning.clear(); } };
     let result = await turn(prompt);
     // A2: one nudge when the AI wrote a tool request as text and kept nothing; a second stop ends the job as before.
     const saved = () => !!findRecord(deps.store.read(), 'venture-delivery-run', runId)?.agentJob?.draftDigest;
@@ -170,7 +186,7 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
       const usage = addUsage(first.usage, second.usage);
       result = { ...second, ...(usage ? { usage } : {}) };
     }
-    if (quiet) result = { ...result, status: 'interrupted', quiet: true };
+    if (quiet) result = { ...result, status: 'interrupted', quiet: true, ...(overtime ? { overtime: true as const } : {}) };
     await events;
     if (progressError) throw progressError;
     job.capability.assert();
