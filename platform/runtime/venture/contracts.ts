@@ -4189,7 +4189,8 @@ export type CliCheckRecord = RecordBase<'venture-cli-check'> & {
   flags: 'match' | 'mismatch' | 'unknown';
   missingFlags: string[];
   signedIn: 'yes' | 'no' | 'unknown';
-  lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed' } | null;
+  /** named (A2): a failure the tool named, in its owner words with the fix (models/ai-failure.ts). */
+  lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed'; named?: Display } | null;
 };
 
 /** The owner's goal for one month: money invoiced before tax (4I1). A newer goal for the same month is the one in use. */
@@ -4961,7 +4962,7 @@ export interface PhoneAccessView {
 export type CliStatusView = {
   cli: DelegateCli; label: Display; found: boolean; path: string | null; version: string | null;
   flags: 'match' | 'mismatch' | 'unknown'; missingFlags: string[]; signedIn: 'yes' | 'no' | 'unknown';
-  terms: 'accepted' | 'pending' | 'not-needed'; lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed' } | null;
+  terms: 'accepted' | 'pending' | 'not-needed'; lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed'; named?: Display } | null;
   state: ModelAvailability; line: Display; fix: Display | null;
 };
 export interface CliStatusList { clis: CliStatusView[]; line: Display }

@@ -506,6 +506,13 @@ test('unverified until one real task works, then ready; the last task is shown, 
   assert.deepEqual([claude.state, claude.lastTask?.outcome], ['unverified', 'failed']);
   assert.equal(claude.line, 'Claude Code 2.3.1 is on this computer and signed in. Its last task failed.');
   assert.equal(claude.fix, "Check that you're signed in to Claude Code, then try again.");
+  // A2 (hands-on row 132): a failure the tool named gives that fix, not "check you're signed in".
+  advance(60_000);
+  fake.model = () => ({ exitCode: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'Claude AI usage limit reached|1793400000' }) });
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('AI_USAGE_LIMIT'));
+  [claude] = (await status(deps)).clis;
+  assert.equal(claude.lastTask?.outcome, 'failed');
+  assert.equal(claude.fix, 'Claude Code has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
 });
 
 // ---------------------------------------------------------------------------

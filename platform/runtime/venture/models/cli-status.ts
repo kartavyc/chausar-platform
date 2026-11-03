@@ -20,6 +20,10 @@ import { CLI_COMMANDS, cliGateOpen, cliVersionOf, startableProgram } from './cli
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { AVAILABILITY_REASONS, CLI_LABELS, cliFlagsWords, cliNamed, cliSignedOutWords, type CliWords } from './presets.ts';
 import { VERSION_CHECK_TIMEOUT_MS } from './types.ts';
+import { AI_FAILURE_CODES } from './ai-failure.ts';
+
+/** A2: the codes of failures a tool named (ai-failure.ts), whose words carry the real fix. */
+const NAMED_CODES: ReadonlySet<string> = new Set(Object.values(AI_FAILURE_CODES));
 
 export { locateOnThisComputer } from './cli-look.ts';
 
@@ -185,11 +189,12 @@ export function lastCliTask(state: State, ventureId: string | null, cli: Delegat
   if (!ventureId) return null;
   const presetId = cli === 'claude-code' ? 'claude-code-cli' : 'codex-cli';
   let newest: CliStatusView['lastTask'] = null;
-  const consider = (at: IsoTime, outcome: 'succeeded' | 'failed') => { if (!newest || at >= newest.at) newest = { at, outcome }; };
+  const consider = (at: IsoTime, outcome: 'succeeded' | 'failed', named?: string) => { if (!newest || at >= newest.at) newest = { at, outcome, ...(named ? { named } : {}) }; };
   for (const call of listRecords(state, 'venture-model-call', ventureId)) {
     if (call.presetId !== presetId || call.replay) continue;
     if (call.status === 'completed') consider(call.at, 'succeeded');
-    else if (call.status === 'failed') consider(call.at, 'failed');
+    // A2: a failure the tool named keeps its owner words, so the fix says what really went wrong.
+    else if (call.status === 'failed') consider(call.at, 'failed', call.error && NAMED_CODES.has(call.error.code) ? call.error.message : undefined);
   }
   for (const run of listRecords(state, 'venture-delegate-run', ventureId)) {
     if (run.cli !== cli || run.outcome === 'cancelled') continue;
@@ -222,7 +227,7 @@ function statusWords(finding: CliFinding, terms: CliStatusView['terms'], lastTas
   const parts = [finding.signedIn === 'yes' ? `${named} is on this computer and signed in.` : `${named} is on this computer.`];
   if (finding.flags === 'unknown') parts.push("Chausar couldn't read its help, so its flags are not checked.");
   if (lastTask?.outcome === 'succeeded') return { state: 'ready', line: [...parts, 'Its last task worked.'].join(' '), fix: null };
-  if (lastTask?.outcome === 'failed') return { state: 'unverified', line: [...parts, 'Its last task failed.'].join(' '), fix: `Check that you're signed in to ${label}, then try again.` };
+  if (lastTask?.outcome === 'failed') return { state: 'unverified', line: [...parts, 'Its last task failed.'].join(' '), fix: lastTask.named ?? `Check that you're signed in to ${label}, then try again.` };
   parts.push(finding.signedIn === 'yes' ? 'Not yet tried on a real task.' : "Chausar can't check your sign-in without running a task. It will say so if the first task fails.");
   return { state: 'unverified', line: parts.join(' '), fix: null };
 }
