@@ -12,6 +12,8 @@ const takes = (rule: Rule, type: string) => rule.type === type || (Array.isArray
 /** The arguments with the two accepted slips undone; anything else is returned as it came. */
 export function acceptModelSlips(schema: unknown, args: unknown): unknown {
   if (!args || typeof args !== 'object' || Array.isArray(args) || Object.getPrototypeOf(args) !== Object.prototype) return args;
+  // A2 review: an own __proto__ key is never copied (it would set a prototype); the arguments go on as they came.
+  if (Object.hasOwn(args, '__proto__')) return args;
   const { properties = {}, required = [] } = (schema ?? {}) as Schema;
   const needed = new Set(Array.isArray(required) ? required : []);
   const result: Record<string, unknown> = {};

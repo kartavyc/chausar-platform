@@ -49,3 +49,8 @@ test('through a job tool: the two slips pass, anything else is still refused', a
   assert.equal((await call({ title: 'Draft', count: '3' }))?.error?.data?.code, 'INVALID_ARGUMENTS');
   assert.equal((await call({ title: 'Draft', tags: 'a, b' }))?.error?.data?.code, 'INVALID_ARGUMENTS');
 });
+
+test('A2 review: arguments with their own __proto__ key are returned unchanged, so the check still refuses them', () => {
+  const args = JSON.parse('{"title":"Draft","note":null,"__proto__":{"x":1}}');
+  assert.equal(acceptModelSlips(schema, args), args);
+});
