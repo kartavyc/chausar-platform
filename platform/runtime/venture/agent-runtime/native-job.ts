@@ -145,8 +145,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
     tx.replace({ ...run, agentJob: { ...run.agentJob!, unavailableSites } });
     tx.emit('run.step', { runId });
   }).catch(()=>undefined);});
-  const guardedSend=sites.wrap(async target=>{sourceNetworkGuard();const reply=await (deps.net?.send??pinnedSend)(target);sourceNetworkGuard();return reply;});
-  const sourceNet:PoliteNet={resolve:async hostname=>{sourceNetworkGuard();const addresses=await (deps.net?.resolve??systemResolver)(hostname);sourceNetworkGuard();return addresses;},send:guardedSend};
+  const sourceNet:PoliteNet={resolve:async hostname=>{sourceNetworkGuard();const addresses=await (deps.net?.resolve??systemResolver)(hostname);sourceNetworkGuard();return addresses;},send:async target=>{sourceNetworkGuard();const reply=await (deps.net?.send??pinnedSend)(target);sourceNetworkGuard();return reply;},sites};
   const supportsSourceClaims=()=>{const live=current();return sourceClaimOffer(deps.store.read(),live.run)&&calculationGrant(deps.store.read(),live.run).includes('seo.corroborate');};
   const ports: JobToolPorts = {
     prepareDraft: (_scope,draft)=>preserveOtherPosts(current().run,draft),

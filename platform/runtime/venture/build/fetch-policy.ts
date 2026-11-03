@@ -13,6 +13,7 @@
 // Chausar, nothing is copied from an outside source.
 import { ChausarError, check } from '../../contracts.ts';
 import { checkUrl, guardedFetch, pinnedSend, NET_WORDS, type GuardedRequest, type GuardedResponse, type NetResolver, type PinnedSender } from '../core/net-guard.ts';
+import type { SiteBreaker } from './site-breaker.ts';
 
 /** The name Chausar asks under, and the token a robots.txt group may name it by. */
 export const ROBOTS_TOKEN = 'Chausar';
@@ -159,7 +160,8 @@ export function policySafe(send: PinnedSender): PinnedSender {
   };
 }
 
-export type PoliteNet = { resolve?: NetResolver; send?: PinnedSender };
+/** sites (A2): a run's refusing-site breaker (site-breaker.ts), counted here where the policy's stops are raised. */
+export type PoliteNet = { resolve?: NetResolver; send?: PinnedSender; sites?: SiteBreaker };
 
 /** A page sender that checks robots.txt at every hop within the guarded request's remaining deadline. */
 export function robotsSafe(send: PinnedSender, resolve?: NetResolver): PinnedSender {
@@ -183,10 +185,19 @@ export async function politeFetch(request: Omit<GuardedRequest, 'method' | 'body
   refuseDisguise(request.headers);
   const url = checkFetchPolicy(request.url);
   check(request.method === undefined || request.method === 'GET' || request.method === 'HEAD', 'INVALID_VENTURE_REQUEST', 'Chausar only reads pages here.');
-  return guardedFetch(
-    { ...request, url: url.href, headers: { ...request.headers, 'user-agent': CHAUSAR_USER_AGENT } },
-    { resolve: net.resolve, send: policySafe(net.send ?? pinnedSend) },
-  );
+  // A2: a site this run closed after three refusals in a row is not asked again; each answer or stop is counted.
+  net.sites?.refuseClosed(url);
+  try {
+    const answer = await guardedFetch(
+      { ...request, url: url.href, headers: { ...request.headers, 'user-agent': CHAUSAR_USER_AGENT } },
+      { resolve: net.resolve, send: policySafe(net.send ?? pinnedSend) },
+    );
+    net.sites?.answered(url, answer.status);
+    return answer;
+  } catch (error) {
+    net.sites?.note(url, error);
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,11 @@
 // A2: a site that keeps refusing is closed for the rest of a run. When a site refuses Chausar three times in a row (an
-// answer of 401, 403, 429 or 451, or the fetch policy stopping at its CAPTCHA, its slow-down or its robots.txt), Chausar
-// stops asking it for the rest of that run and names it as unavailable, instead of trying it again and again. Any other
-// answer from the site resets its count. Another run starts fresh. Nothing here retries, waits out or gets around a
-// refusal: it only stops asking sooner.
+// answer of 401, 403, 429 or 451, or the fetch policy stopping at its CAPTCHA or challenge page, its slow-down or its
+// robots.txt), Chausar stops asking it for the rest of that run and names it as unavailable, instead of trying it again
+// and again. An answer the policy lets through resets the count. Another run starts fresh. Nothing here retries, waits
+// out or gets around a refusal: it only stops asking sooner.
+// A2 review: the count is kept at the policy layer (politeFetch carries the run's breaker in PoliteNet.sites), because
+// the CAPTCHA, robots and slow-down stops are raised there, above the network sender.
 import { ChausarError } from '../../contracts.ts';
-import type { PinnedSender } from '../core/net-guard.ts';
 
 export const SITE_CLOSED_AFTER = 3;
 /** Answers that are the site saying no. */
@@ -37,24 +38,20 @@ export class SiteBreaker {
     }
   }
 
-  /** A sender that refuses a closed site before anything is sent, and counts what each site answers. */
-  wrap(send: PinnedSender): PinnedSender {
-    return async target => {
-      const host = hostOf(target.url);
-      if (this.#closed.includes(host)) throw new ChausarError('SITE_UNAVAILABLE', SITE_WORDS.closed(host));
-      let answer: Awaited<ReturnType<PinnedSender>>;
-      try { answer = await send(target); }
-      catch (error) {
-        if (error instanceof ChausarError && REFUSING_CODES.has(error.code)) this.#refused(host);
-        throw error;
-      }
-      if (REFUSED_STATUSES.has(answer.status)) this.#refused(host);
-      else this.#streak.set(host, 0);
-      return answer;
-    };
+  /** Refuses a closed site before anything is asked of it. */
+  refuseClosed(url: URL | string): void {
+    const host = hostOf(url);
+    if (this.#closed.includes(host)) throw new ChausarError('SITE_UNAVAILABLE', SITE_WORDS.closed(host));
   }
 
-  /** For a policy layer that throws after looking at the answer (fetch-policy.ts noteAnswer): count its refusal too. */
+  /** An answer the policy let through: a refusing status counts, anything else resets the site's count. */
+  answered(url: URL | string, status: number): void {
+    const host = hostOf(url);
+    if (REFUSED_STATUSES.has(status)) this.#refused(host);
+    else this.#streak.set(host, 0);
+  }
+
+  /** A failed read: the policy's CAPTCHA, slow-down and robots stops count; a network fault does not. */
   note(url: URL | string, error: unknown): void {
     if (error instanceof ChausarError && REFUSING_CODES.has(error.code)) this.#refused(hostOf(url));
   }

@@ -7,7 +7,7 @@ import {htmlText} from './ai-access.ts';
 import {numberTokens,sourceDomain,validateClaims,claimNumbersMatch,type CorroborationInput} from './content-core.ts';
 /** Fetch candidate sources under the shared policy, recording actual page hashes and missing sources. */
 export async function corroborateClaims(raw:CorroborationInput,net:PoliteNet={}) {
- const input=validateClaims(raw),competitors=new Set(input.competitors.map(sourceDomain));const guarded={resolve:net.resolve,send:robotsSafe(net.send??pinnedSend,net.resolve)};
+ const input=validateClaims(raw),competitors=new Set(input.competitors.map(sourceDomain));const guarded={resolve:net.resolve,send:robotsSafe(net.send??pinnedSend,net.resolve),...(net.sites?{sites:net.sites}:{})};
  const cache=new Map<string,{url:string;domain:string;text:string;digest:string}|null>();
  const urls=[...new Set(input.claims.flatMap(c=>c.urls))].filter(url=>!competitors.has(sourceDomain(url)));if(urls.length>40)throw refusalError(new Error('Use at most forty unique source URLs.'),{code:'SEO_INPUT_INVALID'});
  for(const url of urls){try{const response=await politeFetch({url,maxBytes:512*1024,maxRedirects:3,timeoutMs:15000},guarded);const finalUrl=response.url??url;const domain=sourceDomain(String(finalUrl));cache.set(url,response.status===200&&!competitors.has(domain)?{url:String(finalUrl),domain,text:htmlText(response.body.toString('utf8')),digest:digest(response.body.toString('base64'))}:null);}catch{cache.set(url,null);}}
