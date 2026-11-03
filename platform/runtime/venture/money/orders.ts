@@ -8,6 +8,7 @@ import type { ForeignPrice } from './billing-types.ts';
 import { insertBooksFact, saleFact } from './facts.ts';
 import { orderIndex, orderSteps } from './order-steps.ts';
 import { buildPriceReceipt, receiptTaxable } from './quote.ts';
+import { clientFields, putClient } from './clients.ts';
 import { newestFirst, oneLine, quantityText, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
 import type { ClientRecord, CountryProfile, OrderListRow, OrderRecord, VentureDeps } from '../contracts.ts';
 import { localDayAt } from '../local-day.ts';
@@ -28,7 +29,11 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
   // Ink v2 wave 5 (5A2): the honest exit reads the kit playbooks (playbooks/kit/exit.ts), loaded on use; a test passes its own.
   const exit = await import('../playbooks/kit/exit.ts');
   const definitions = options.definitions ?? (await import('../playbooks/definitions.ts')).PLAYBOOK_DEFINITIONS;
-  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'intakeFiles', 'taxInclusive', 'dueDate', 'currency', 'unitPrice'], ['offerId', 'request']);
+  const body = exactPayload(payload, ['clientId', 'newClient', 'offerId', 'quantity', 'request', 'intake', 'intakeFiles', 'taxInclusive', 'dueDate', 'currency', 'unitPrice'], ['offerId', 'request']);
+  // One-shot A1 (row 10): a new client typed with the order is written in the order's own transaction, so an order that
+  // is refused never leaves its new client behind. One of clientId or newClient, never both.
+  check(body.clientId === undefined || body.newClient === undefined, 'INVALID_VENTURE_REQUEST', 'Choose a client or add a new one, not both.');
+  const newClient = body.newClient === undefined ? null : clientFields(body.newClient);
   // 6D1: when the whole order is due, the owner's own date.
   const dueDate = body.dueDate === undefined ? null : isoDate(body.dueDate, 'Due date');
   // 6D4: a client abroad may be billed in their own currency at a price the owner types in it; nothing is converted.
@@ -51,7 +56,8 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     requireYoutubeServiceBinding(tx.state,venture,offer);
     const selectedOffer = youtubeServiceOffer(flagshipPlan(venture.idea),offer)??flagshipOffer(flagshipPlan(venture.idea), offer);
     const internal = flagshipPlan(venture.idea)?.id === 'online-seller' && selectedOffer?.key === 'own-shop-back-office';
-    const client = internal ? tx.list('venture-client').find(item => item.self) ?? tx.put({ ...tx.base('venture-client'), self: true as const, name: 'Your own shop', email: null, countryCode: venture.country.code, taxId: null, stateCode: null, note: null }) : clientId ? tx.find('venture-client', clientId) : null;
+    const client = internal ? tx.list('venture-client').find(item => item.self) ?? tx.put({ ...tx.base('venture-client'), self: true as const, name: 'Your own shop', email: null, countryCode: venture.country.code, taxId: null, stateCode: null, note: null })
+      : newClient ? putClient(tx, newClient) : clientId ? tx.find('venture-client', clientId) : null;
     check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');
     check(internal || !client.self, 'INTERNAL_ORDER', 'Your own shop is only used for its internal back-office offer.');
     const foreignPrice = foreignAsk ? foreignPriceOf(foreignAsk, client, venture.country) : null;

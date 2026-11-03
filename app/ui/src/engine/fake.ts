@@ -316,6 +316,7 @@ export class FakeEngine {
       fingerprint: digestOf, recruitDigest: digestOf,
       receipt:id=>this.findReceipt(id),
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
+      dropClient: (id) => { this.clients[this.current] = (this.clients[this.current] ?? []).filter((c) => c.id !== id); this.evidence = this.evidence.filter((e) => e.subject !== `client:${id}`); },
       country:()=>{const country=this.ventureView()?.venture.country;if(!country)throw new EngineError('VENTURE_NOT_FOUND','Start a business first.');return country;},
       plan: () => this.desk.acceptedPlanFor(this.current),
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),

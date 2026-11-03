@@ -1,7 +1,7 @@
 // Clients of the venture. Client details are client data: they stay in the vault and never reach a model here.
 import { check, type Context } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
-import { activateTerm, exactPayload, listRecords, plainText, readVenture, singleLine, ventureAction } from '../records.ts';
+import { activateTerm, exactPayload, listRecords, plainText, readVenture, singleLine, ventureAction, type VentureTx } from '../records.ts';
 import { INDIA_STATES } from '../contracts.ts';
 import { newestFirst } from './shared.ts';
 import { recordOwnerFields } from '../evidence/ledger.ts';
@@ -11,9 +11,14 @@ import { owedPlan, sumReceipt } from './sums.ts';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const OTHER_TAX_ID = /^[A-Z0-9][A-Z0-9-]{4,22}[A-Z0-9]$/;
 
-/** venture.client.add (level prepare). */
-export async function addClient(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ClientRecord> {
-  const body = exactPayload(payload, ['name', 'email', 'countryCode', 'taxId', 'stateCode', 'note'], ['name']);
+/** A new client's fields as typed, checked before any write (venture.client.add, and an order's new client). */
+export type ClientFields = { name: string; email: string | null; countryCode: string | null; rawTaxId: string | null; stateCode: string | null; note: string | null };
+
+export const CLIENT_FIELDS = ['name', 'email', 'countryCode', 'taxId', 'stateCode', 'note'] as const;
+
+/** Checks a new client's fields; nothing is written. */
+export function clientFields(payload: unknown): ClientFields {
+  const body = exactPayload(payload, [...CLIENT_FIELDS], ['name']);
   const name = singleLine(body.name, 'Client name', { min: 2, max: 120 });
   let email: string | null = null;
   if (body.email !== undefined) {
@@ -33,36 +38,46 @@ export async function addClient(deps: VentureDeps, ctx: Context, payload: unknow
     stateCode = body.stateCode;
   }
   const note = body.note === undefined ? null : plainText(body.note, 'Note', { min: 1, max: 500 });
+  return { name, email, countryCode, rawTaxId: rawTaxId as string | null, stateCode, note };
+}
 
-  return ventureAction(deps, ctx, 'prepare', 'client.add', tx => {
-    const venture = tx.venture;
-    check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
-    const indiaVenture = venture.country.code === 'IN';
-    let taxId: string | null = null;
-    if (rawTaxId !== null) {
-      taxId = rawTaxId.toUpperCase().replace(/\s+/g, '');
-      const gstin = countryCode === 'IN' || (countryCode === null && indiaVenture);
-      if (gstin) check(gstinValid(taxId), 'INVALID_TAX_ID', "Check the client's GSTIN.");
-      else check(OTHER_TAX_ID.test(taxId), 'INVALID_TAX_ID', "Check the client's tax number.");
-    }
-    if (stateCode !== null) {
-      check(indiaVenture, 'INVALID_VENTURE_REQUEST', 'A state is used only for businesses in India.');
-      check(countryCode === null || countryCode === 'IN', 'INVALID_VENTURE_REQUEST', 'A state is used only for clients in India.');
-    }
-    if (indiaVenture && taxId !== null && gstinValid(taxId)) {
-      const fromGstin = taxId.slice(0, 2);
-      check(Object.hasOwn(INDIA_STATES, fromGstin), 'INVALID_TAX_ID', "Check the client's GSTIN.");
-      check(stateCode === null || stateCode === fromGstin, 'INVALID_TAX_ID', "The client's state must match the first two digits of their GSTIN.");
-      stateCode = fromGstin;
-    }
-    const client: ClientRecord = { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note };
-    const stored = tx.put(client);
-    // The evidence ledger: each field the owner typed is owner-entered and verified.
-    recordOwnerFields(tx, `client:${stored.id}`, { name, email, countryCode, taxId, stateCode, note });
-    activateTerm(tx, 'client', { recordId: stored.id, kind: 'venture-client' });
-    tx.emit('client-added', { clientId: stored.id });
-    return stored;
-  });
+/** Writes a checked new client inside the caller's transaction, so an order that fails takes its new client with it. */
+export function putClient(tx: VentureTx, fields: ClientFields): ClientRecord {
+  const venture = tx.venture;
+  check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
+  const { name, email, countryCode, rawTaxId, note } = fields;
+  let { stateCode } = fields;
+  const indiaVenture = venture.country.code === 'IN';
+  let taxId: string | null = null;
+  if (rawTaxId !== null) {
+    taxId = rawTaxId.toUpperCase().replace(/\s+/g, '');
+    const gstin = countryCode === 'IN' || (countryCode === null && indiaVenture);
+    if (gstin) check(gstinValid(taxId), 'INVALID_TAX_ID', "Check the client's GSTIN.");
+    else check(OTHER_TAX_ID.test(taxId), 'INVALID_TAX_ID', "Check the client's tax number.");
+  }
+  if (stateCode !== null) {
+    check(indiaVenture, 'INVALID_VENTURE_REQUEST', 'A state is used only for businesses in India.');
+    check(countryCode === null || countryCode === 'IN', 'INVALID_VENTURE_REQUEST', 'A state is used only for clients in India.');
+  }
+  if (indiaVenture && taxId !== null && gstinValid(taxId)) {
+    const fromGstin = taxId.slice(0, 2);
+    check(Object.hasOwn(INDIA_STATES, fromGstin), 'INVALID_TAX_ID', "Check the client's GSTIN.");
+    check(stateCode === null || stateCode === fromGstin, 'INVALID_TAX_ID', "The client's state must match the first two digits of their GSTIN.");
+    stateCode = fromGstin;
+  }
+  const client: ClientRecord = { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note };
+  const stored = tx.put(client);
+  // The evidence ledger: each field the owner typed is owner-entered and verified.
+  recordOwnerFields(tx, `client:${stored.id}`, { name, email, countryCode, taxId, stateCode, note });
+  activateTerm(tx, 'client', { recordId: stored.id, kind: 'venture-client' });
+  tx.emit('client-added', { clientId: stored.id });
+  return stored;
+}
+
+/** venture.client.add (level prepare). */
+export async function addClient(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ClientRecord> {
+  const fields = clientFields(payload);
+  return ventureAction(deps, ctx, 'prepare', 'client.add', tx => putClient(tx, fields));
 }
 
 /**

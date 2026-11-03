@@ -2030,6 +2030,8 @@ export interface EngineMethods {
   'venture.order.create': {
     params: {
       clientId?: string; offerId: string; quantity?: string; request: string;
+      /** One-shot A1 (row 10): a client typed with the order, added with it or not at all; never with clientId. */
+      newClient?: ClientAddParams;
       /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
       dueDate?: string; currency?: string; unitPrice?: string;
       intakeFiles?: Record<string, { name: string; contentBase64: string }>;

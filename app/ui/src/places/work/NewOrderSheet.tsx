@@ -64,16 +64,11 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
     setError(undefined);
     try {
       const intakeFiles = await kitIntakeFiles(ask, kitAnswers);
-      let forClient = who;
-      if (who === NEW_CLIENT) {
-        const added = await engine.request('venture.client.add', { name: name.trim() });
-        forClient = added.id;
-        // A retry after a refused order uses this client, never a second copy of it.
-        setClientId(added.id);
-        clients.reload();
-      }
       const told = ask?.kit ? { ...intakeParams(ask, intake), ...kitIntakeParams(ask, kitAnswers) } : intakeParams(ask, intake);
-      const order = await engine.request('venture.order.create', { clientId: forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}), ...(Object.keys(intakeFiles).length ? { intakeFiles } : {}) });
+      // One-shot A1 (row 10): a new client goes with the order in one request, so a refused order adds no client.
+      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim() } } : { clientId: who };
+      const order = await engine.request('venture.order.create', { ...forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}), ...(Object.keys(intakeFiles).length ? { intakeFiles } : {}) });
+      if (who === NEW_CLIENT) { setClientId(order.clientId); clients.reload(); }
       const refused: { name: string; message: string }[] = [];
       for (const file of files) {
         try {

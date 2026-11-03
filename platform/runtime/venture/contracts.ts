@@ -6158,6 +6158,8 @@ export type VenturePayloads = {
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
   'venture.order.create': {
     clientId?: string; offerId: string; quantity?: string; request: string;
+    /** One-shot A1 (row 10): a client typed with the order, written with it or not at all; never with clientId. */
+    newClient?: VenturePayloads['venture.client.add'];
     /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
     dueDate?: IsoDate; currency?: string; unitPrice?: string;
     intakeFiles?: Record<string, { name: string; contentBase64: string }>;

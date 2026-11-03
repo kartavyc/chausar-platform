@@ -80,6 +80,8 @@ export interface WorkHost {
   /** 4J3: the open business's invoices, which an order's Invoice and Paid steps are read from. */
   invoices?(): InvoiceLite[];
   ask?(method: string, params: Record<string, unknown>): unknown;
+  /** One-shot A1 (row 10): takes back a client added with an order that was then refused, with its evidence rows. */
+  dropClient?(id: string): void;
   fingerprint?(bytes: string): string;
   receipt?(id:string):ReceiptLite|undefined;
 }
@@ -251,7 +253,7 @@ export class FakeWorkDesk {
         const invoices = this.host.invoices?.() ?? [];
         return clone((this.orders[biz] ?? []).map((order) => withFakeOrderSteps(order, invoices)));
       }
-      case 'venture.order.create': {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p);});}
+      case 'venture.order.create': return this.withNewClient(p, p => {const docs=p.intakeFiles&&typeof p.intakeFiles==='object'&&!Array.isArray(p.intakeFiles)?Object.values(p.intakeFiles).filter(hasDocx):[];if(!docs.length)return this.create(biz,p);const plan=JSON.stringify(this.host.plan());return Promise.all(docs.map(file=>{if(Object.keys(file).sort().join(',')!=='contentBase64,name')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(file);})).then(()=>{if(this.host.current()!==biz||JSON.stringify(this.host.plan())!==plan)throw new EngineError('APPROVAL_STALE','The business or plan changed. Review the file again.');return this.create(biz,p);});});
       case 'venture.order.deliver': return this.deliver(biz, p);
       case 'venture.delivery.list': return clone(this.deliveries[biz] ?? []);
       case 'venture.delivery.run': return this.start(biz, p);
@@ -279,6 +281,23 @@ export class FakeWorkDesk {
     const order = (this.orders[biz] ?? []).find((o) => o.id === id);
     if (!order) throw new EngineError('ORDER_NOT_FOUND', 'That order was not found.');
     return order;
+  }
+
+  /**
+   * One-shot A1 (row 10), as money/orders.ts: a client typed with the order (newClient) is added with it or not at all,
+   * and never beside a chosen clientId. The client goes in first, so the order's checks read it, and comes out again
+   * when the order is refused.
+   */
+  private withNewClient<T>(p: Record<string, unknown>, make: (p: Record<string, unknown>) => T | Promise<T>): T | Promise<T> {
+    if (p.newClient === undefined) return make(p);
+    if (p.clientId !== undefined) throw invalid('Choose a client or add a new one, not both.');
+    const added = this.host.ask!('venture.client.add', (p.newClient ?? {}) as Record<string, unknown>) as ClientLite;
+    const { newClient: _typed, ...rest } = p;
+    const drop = (error: unknown): never => { this.host.dropClient?.(added.id); throw error; };
+    try {
+      const made = make({ ...rest, clientId: added.id });
+      return made instanceof Promise ? made.catch(drop) : made;
+    } catch (error) { return drop(error); }
   }
 
   private create(biz: string, p: Record<string, unknown>): OrderLite {

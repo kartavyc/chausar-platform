@@ -338,9 +338,9 @@ describe('Work: new order', () => {
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });
     fireEvent.change(within(sheet).getByLabelText('What they asked for'), { target: { value: 'One mention in her podcast' } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add order' })); });
-    expect(calls.find((c) => c.method === 'venture.client.add')?.params).toEqual({ name: 'Kavya Rao' });
-    const created = calls.find((c) => c.method === 'venture.order.create')?.params as { clientId: string };
-    expect(created.clientId).not.toBe('+new');
+    // One-shot A1 (row 10): one request, so a refused order never leaves the new client behind.
+    expect(calls.some((c) => c.method === 'venture.client.add')).toBe(false);
+    expect(calls.find((c) => c.method === 'venture.order.create')?.params).toEqual({ newClient: { name: 'Kavya Rao' }, offerId: 'offer_sponsor', request: 'One mention in her podcast' });
     const row = await rowOf('One mention in her podcast');
     await waitFor(() => expect(clientOf(row).textContent).toContain('Kavya Rao'));
   });
