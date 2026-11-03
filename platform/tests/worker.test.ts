@@ -132,5 +132,5 @@ test('A2: the worker turns off the process report network lookup first thing', a
   const first = source.split(/\r?\n/).find(line => /^import\b/.test(line));
   assert.equal(first, "import './process-report.ts';", 'the first import of the worker');
   await import('../runtime/worker.ts');
-  assert.equal(process.report.excludeNetwork, true);
+  assert.equal((process.report as NodeJS.ProcessReport & { excludeNetwork?: boolean }).excludeNetwork, true);
 });
