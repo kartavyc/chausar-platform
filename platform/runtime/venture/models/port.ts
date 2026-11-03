@@ -249,13 +249,46 @@ export function reportedModel(kind: ModelRouteKind, text: string): string | null
   }
 }
 
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** One folder name of the home path as Windows may also spell it: its 8.3 short name (NAME~1, or AB12CD~1 after many). */
+function shortNames(name: string): string[] {
+  const dot = name.lastIndexOf('.');
+  const stem = (dot > 0 ? name.slice(0, dot) : name).replace(/[^A-Za-z0-9]/g, '');
+  const whole = name.replace(/[^A-Za-z0-9]/g, '');
+  if (name.length <= 8 && !/[ .+,;=[\]]/.test(name)) return [];
+  const forms = new Set<string>();
+  for (const base of [stem, whole]) {
+    if (!base) continue;
+    forms.add(`${escapeRegExp(base.slice(0, 6))}~\\d{1,6}`);
+    forms.add(`${escapeRegExp(base.slice(0, 2))}[0-9A-Fa-f]{4}~\\d{1,6}`);
+  }
+  return [...forms].map(form => `${form}(?:\\.[A-Za-z0-9]{1,3})?`);
+}
+/**
+ * A2 second review: the home folder screened out of a tool's words, as '~'. On Windows in any case, with either
+ * separator (or a doubled one, as JSON writes it), and each folder name also in its 8.3 short form; elsewhere exactly.
+ */
+export function screenHome(text: string, home: string = homedir(), platform: NodeJS.Platform = process.platform): string {
+  if (!home || !text) return text;
+  const windows = platform === 'win32';
+  const parts = home.split(windows ? /[\\/]+/ : /\/+/).filter(Boolean);
+  if (!parts.length) return text;
+  const separator = windows ? '[\\\\/]+' : '/';
+  const names = parts.map((part, index) => {
+    const forms = [escapeRegExp(part), ...(windows && !(index === 0 && /^[A-Za-z]:$/.test(part)) ? shortNames(part) : [])];
+    return forms.length > 1 ? `(?:${forms.join('|')})` : forms[0];
+  });
+  const lead = !windows && home.startsWith('/') ? '/' : '';
+  const pattern = new RegExp(`${lead}${names.join(separator)}(?![A-Za-z0-9_~-])`, windows ? 'gi' : 'g');
+  return text.replace(pattern, '~');
+}
+
 /** A2: what a tool printed to stderr, secrets screened out, spacing folded: its start and end, at most 600 characters. */
 export function toolSaid(stderr: unknown): string | undefined {
   if (typeof stderr !== 'string' || !stderr.trim()) return undefined;
   const text = stderr.length > 8192 ? `${stderr.slice(0, 4096)}\n${stderr.slice(-4096)}` : stderr;
-  // A2 review: also the home folder (any spelling of its separators) and email addresses.
-  const home = homedir();
-  const homeless = home ? text.split(home).join('~').split(home.replace(/\\/g, '/')).join('~') : text;
+  // A2 review: also the home folder and email addresses. A2 second review: the home folder in every spelling (screenHome).
+  const homeless = screenHome(text);
   const screened = redactSecrets(homeless).replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]').replace(/\s+/g, ' ').trim();
   if (!screened) return undefined;
   return screened.length <= 600 ? screened : `${screened.slice(0, 297)}...${screened.slice(-300)}`;
