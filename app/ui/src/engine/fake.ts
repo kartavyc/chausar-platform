@@ -348,6 +348,8 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      // A2 review: the Codex setup Your AI shows, from the first run's Codex (fake-first-run.ts).
+      codexSetup: () => this.firstRun.connectionsSetup(),
       nativeCanResume:(run:RunDetail)=>this.work.nativeCanResume(run),
       nativeStop:(run:RunDetail)=>this.work.nativeStop(run),
       nativeRestart:(run:RunDetail,resume:boolean)=>this.work.nativeRestart(run,resume),

@@ -649,6 +649,16 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       return evidence?.kind === 'installed-help' ? evidence.executable : null;
     },
 
+    /** A2 review: the setup's program for an agent job, its digest checked again by the trust; refused without one. */
+    async codexVerifiedProgram() {
+      const trust = options.codexCli as { verifiedProgram?: () => Promise<string> } | undefined;
+      check(!hosted, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
+      if (trust && typeof trust.verifiedProgram === 'function') return trust.verifiedProgram();
+      const evidence = codexNow()?.capabilities.evidence;
+      check(evidence?.kind === 'installed-help', 'CODEX_SETUP_UNAVAILABLE', 'Choose the Codex Chausar found under Connect your AI first.');
+      return evidence.executable;
+    },
+
     /** A2: the Codex setup in use, else a review of the Codex the search path finds; null without a Codex trust. */
     async codexSetup() {
       const trust = options.codexCli as { review?: (found: string | null) => Promise<import('../core/first-run-types.ts').CodexSetupView> } | undefined;

@@ -134,7 +134,9 @@ describe('Your AI: Your AI apps', () => {
     expect(facts(claude)['Anthropic terms']).toBeUndefined();
     const codex = tool(section, 'Codex');
     expect(codex.textContent).toContain('Codex 0.131.0 is on this computer. Chausar runs it only through the reviewed Codex setup.');
-    expect(codex.querySelector('[data-fix-line]')!.textContent).toBe(CODEX_FIX);
+    // A2 review: this fake desktop found the owner's own Codex and asks first, in the engine's words, with the button.
+    expect(codex.querySelector('[data-fix-line]')!.textContent).toBe('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?');
+    expect(within(codex).getByRole('button', { name: 'Use this Codex' })).toBeTruthy();
     expect(codex.querySelector('details')!.textContent).toContain('C:\\Tools\\codex\\codex.exe');
     fireEvent.click(within(codex).getByText('Details'));
     expect(facts(codex)).toMatchObject({ Found: 'Yes', Where: 'C:\\Tools\\codex\\codex.exe', Version: '0.131.0', Flags: 'Knows every flag Chausar uses', 'Signed in': 'Yes' });

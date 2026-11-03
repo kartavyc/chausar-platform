@@ -87,7 +87,18 @@ export class FakeFirstRun {
   /** A2: which Codex setup this fake computer has: the bundled one in use, unless a test found the owner's own. */
   private setup: CodexSetupLite = { ...SETUP.bundled };
   /** Tests: the owner's own Codex is found and no setup is in use yet, so Chausar asks the owner first. */
-  reviewCodex(): void { this.setup = { ...SETUP.review }; }
+  reviewCodex(): void { this.setup = { ...SETUP.review }; this.heldReview = true; }
+  /** A2 review: whether a review of the owner's own Codex is held for its yes, as codex-trust.ts holds reviews. */
+  private heldReview = false;
+  /**
+   * A2 review: the setup Your AI shows. This fake desktop's Your AI has the owner's own Codex found and not yet chosen
+   * (a held review), until the owner chooses it.
+   */
+  connectionsSetup(): CodexSetupLite {
+    if (this.setup.state === 'trusted' && this.setup.origin === 'owner') return { ...this.setup };
+    this.heldReview = true;
+    return { ...SETUP.review };
+  }
   /** A2: the tiny test call's failure in the engine's words, or null when it passes. */
   private testProblem: string | null = null;
   /** Tests: the sample Codex says it is signed in, but its tiny test call fails with these words. */
@@ -133,12 +144,14 @@ export class FakeFirstRun {
 
   /** A2, as engine.ts #codexSetupTrust and codex-trust.ts record: only the exact Codex shown, in the app, here. */
   private trust(p: Record<string, unknown>): { setup: CodexSetupLite } {
+    // A2 review, in the engine's order: the app and the owner first (the hosted app is not the app), then the payload,
+    // then the review held for exactly that program; with nothing held the choice is refused as changed.
+    if (this.host.hosted()) throw new EngineError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     if (Object.keys(p).sort().join(',') !== 'cli,sha256' || p.cli !== 'codex') throw invalid('Choose the Codex Chausar showed you.');
-    if (this.host.hosted()) throw new EngineError('CODEX_SETUP_UNAVAILABLE', "Chausar can't keep a chosen Codex here.");
     if (typeof p.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(p.sha256)) throw invalid('Choose the Codex Chausar showed you.');
-    if (this.setup.state === 'trusted') return { setup: { ...this.setup } };
-    if (this.setup.state !== 'review' || p.sha256 !== this.setup.sha256) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
+    if (!this.heldReview || p.sha256 !== OWN_SHA) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
     this.setup = { ...SETUP.owner };
+    this.heldReview = false;
     return { setup: { ...this.setup } };
   }
   private claudeView(): ToolLite {

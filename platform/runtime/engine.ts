@@ -959,7 +959,8 @@ export class Engine {
   async #codexSetupTrust(payload: unknown): Promise<{ setup: unknown }> {
     const context = this.context;
     check(context && context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
-    check(context.role === 'owner' || context.role === 'cofounder', 'FORBIDDEN', 'An owner chooses the AI.');
+    // A2 review: only the owner says which program Chausar runs (AGENTS.md: the owner approves; a cofounder does not).
+    check(context.role === 'owner', 'FORBIDDEN', 'Only the owner chooses which Codex Chausar runs.');
     check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === 'cli,sha256' && (payload as { cli?: unknown }).cli === 'codex',
       'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
     const trust = this.options.venture?.codexCli as { record?: (sha256: unknown) => Promise<unknown> } | undefined;

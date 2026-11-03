@@ -7,7 +7,8 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CodexTrust, SETUP_WORDS, type CodexProbe } from '../runtime/codex-trust.ts';
+import { CodexTrust, REVIEWED_CODEX_VERSIONS, SEAL_SCOPE, SETUP_WORDS, type CodexProbe, type CodexSeal } from '../runtime/codex-trust.ts';
+import { CODEX_QUIET_ARGS } from '../runtime/providers/codex-cli.ts';
 
 const fixture = (name: string) => readFile(new URL(`./fixtures/venture/models/cli-help/${name}`, import.meta.url), 'utf8');
 const sha256 = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
@@ -30,7 +31,8 @@ function probeOf(answers: Partial<Record<string, { exitCode: number; stdout: str
   const seen: string[][] = [];
   const probe: CodexProbe = async (_command, args) => {
     seen.push(args);
-    const key = args.join(' ');
+    // A2 review: the checks lead with the quiet flags; the check itself is the rest.
+    const key = (args[0] === '--disable' ? args.slice(CODEX_QUIET_ARGS.length) : args).join(' ');
     if (answers[key]) return answers[key]!;
     if (key === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0\n' };
     if (key === 'exec --help') return { exitCode: 0, stdout: EXEC_HELP };
@@ -49,7 +51,7 @@ test('no operator values, no bundle and no choice: no Codex is trusted, and a fo
   const view = await trust.review(path);
   assert.deepEqual([view.state, view.version, view.sha256, view.origin], ['review', '0.166.0', sha256('synthetic codex program bytes'), null]);
   assert.equal(view.line, SETUP_WORDS.review('0.166.0'));
-  assert.deepEqual(seen, [['--version'], ['exec', '--help'], ['features', 'list']], 'only the three check commands, no prompt');
+  assert.deepEqual(seen, [[...CODEX_QUIET_ARGS, '--version'], [...CODEX_QUIET_ARGS, 'exec', '--help'], [...CODEX_QUIET_ARGS, 'features', 'list']], 'only the three check commands, no prompt, background features off');
   assert.equal(trust.profile(), null, 'looking keeps nothing');
   await assert.rejects(readFile(join(root, 'trust', 'trusted.json')), { code: 'ENOENT' });
   // Looked at again with nothing changed: the review is reused, nothing runs again.
@@ -81,7 +83,10 @@ test('the owner says yes to that exact program: it is recorded, loaded through t
   await changed.load();
   assert.equal(changed.profile(), null);
   // And a call through the earlier trust's process port is refused before it starts.
-  await assert.rejects(trust.process({ command: path, args: ['exec'], env: {}, stdin: '', cwd: root, timeoutMs: 1000 } as never), { code: 'CLI_HOST_EVIDENCE_INVALID' });
+  // A2 review: the earlier trust's next call drops the setup, says so, and the owner can review again.
+  await assert.rejects(trust.process({ command: path, args: ['exec'], env: {}, stdin: '', cwd: root, timeoutMs: 1000 } as never), { code: 'CODEX_SETUP_CHANGED', message: SETUP_WORDS.changed });
+  assert.equal(trust.profile(), null);
+  assert.equal((await trust.review(path)).state, 'review', 'a new review is offered');
 });
 
 test('a Codex whose help or features lack what Chausar needs cannot be chosen', async t => {
@@ -100,7 +105,7 @@ test('a Codex whose help or features lack what Chausar needs cannot be chosen', 
   assert.deepEqual([(await silent.review(path)).state, (await silent.review(path)).line], ['refused', SETUP_WORDS.noAnswer]);
   // A script or another program is never started.
   const script = new CodexTrust({ probe: probeOf().probe });
-  assert.equal((await script.review(join(root, 'codex.bat'))).line, SETUP_WORDS.notProgram);
+  assert.equal((await script.review(join(root, 'codex.bat'))).line, SETUP_WORDS.notProgram(false), 'no bundled Codex is named in a build without one');
 });
 
 test('no trust folder: a found Codex can be looked at but not kept', async t => {
@@ -149,4 +154,93 @@ test('the operator values win over the bundle and the owner\'s choice', async t 
   const trust = new CodexTrust({ environment: { CHAUSAR_CODEX_BUNDLE_DIR: join(root, 'none') }, operator: operator as never });
   await trust.load();
   assert.equal(trust.origin(), 'operator');
+});
+
+// A2 review findings 4, 5, 9, 10, 11 and 14.
+function sealStore(): CodexSeal & { saved: Map<string, string> } {
+  const saved = new Map<string, string>();
+  return { saved, async get(workspaceId, name) { return saved.get(`${workspaceId}/${name}`) ?? null; }, async set(workspaceId, name, value) { saved.set(`${workspaceId}/${name}`, value); } };
+}
+
+test('only reviewed Codex versions can be chosen; another version is told plainly, and the bundled Codex is offered when there is one', async t => {
+  assert.deepEqual([...REVIEWED_CODEX_VERSIONS], ['0.166.0']);
+  const root = await folder(t), path = await program(root);
+  const older = probeOf({ '--version': { exitCode: 0, stdout: 'codex-cli 0.154.0\n' } });
+  const plain = new CodexTrust({ environment: { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') }, probe: older.probe });
+  const view = await plain.review(path);
+  assert.deepEqual([view.state, view.version, view.line], ['refused', '0.154.0', SETUP_WORDS.otherVersion('0.154.0', false)]);
+  assert.match(view.line, /Chausar works with Codex 0\.166\.0/);
+  assert.doesNotMatch(view.line, /comes with Chausar/, 'no bundled Codex here, so none is offered');
+  assert.equal(older.seen.length, 1, 'nothing more is asked of an unreviewed version');
+  // With a bundled Codex in this install, it is offered in place of the unreviewed one.
+  const bundle = join(root, 'codex');
+  const bundled = await program(bundle, 'bundled codex bytes');
+  const probe: CodexProbe = async (command, args) => (command === bundled ? probeOf().probe(command, args, '') : older.probe(command, args, ''));
+  const offered = await new CodexTrust({ environment: { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust'), CHAUSAR_CODEX_BUNDLE_DIR: bundle }, probe }).review(path);
+  assert.deepEqual([offered.state, offered.sha256], ['review', sha256('bundled codex bytes')]);
+  assert.equal(SETUP_WORDS.otherVersion('0.154.0', true), 'This is Codex 0.154.0. Chausar works with Codex 0.166.0. Update it, or use the Codex that comes with Chausar.');
+});
+
+test('a program swapped between the review and the yes is refused as changed, and is reviewed again', async t => {
+  const root = await folder(t), path = await program(root);
+  const trust = new CodexTrust({ environment: { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') }, probe: probeOf().probe });
+  const view = await trust.review(path);
+  await writeFile(path, 'swapped program bytes');
+  await assert.rejects(trust.record(view.sha256), { code: 'CODEX_SETUP_CHANGED', message: SETUP_WORDS.changed });
+  assert.equal(trust.profile(), null);
+  assert.equal((await trust.review(path)).sha256, sha256('swapped program bytes'), 'the new program is reviewed afresh');
+});
+
+test('agent jobs get the program only after its digest is checked; none in use refuses, a changed one drops the setup', async t => {
+  const root = await folder(t), path = await program(root);
+  const trust = new CodexTrust({ environment: { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') }, probe: probeOf().probe });
+  await assert.rejects(trust.verifiedProgram(), { code: 'CODEX_SETUP_UNAVAILABLE', message: SETUP_WORDS.noSetup });
+  await trust.record((await trust.review(path)).sha256);
+  assert.equal(await trust.verifiedProgram(), path);
+  await writeFile(path, 'changed while running');
+  await assert.rejects(trust.verifiedProgram(), { code: 'CODEX_SETUP_CHANGED' });
+  assert.equal(trust.profile(), null);
+});
+
+test('on the desktop the choice is sealed: an unsealed or edited file is not taken, and each choice is in the decision journal', async t => {
+  const root = await folder(t), path = await program(root);
+  const seal = sealStore();
+  const environment = { CHAUSAR_CODEX_TRUST_DIR: join(root, 'trust') };
+  const trust = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  await trust.record((await trust.review(path)).sha256);
+  assert.match(seal.saved.get(`${SEAL_SCOPE.workspaceId}/${SEAL_SCOPE.name}`) ?? '', /^[a-f0-9]{64}$/, 'a key kept by the sealed store');
+  const kept = JSON.parse(await readFile(join(root, 'trust', 'trusted.json'), 'utf8'));
+  assert.match(kept.mac, /^[a-f0-9]{64}$/);
+  const again = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  await again.load();
+  assert.equal(again.origin(), 'owner', 'a sealed choice is taken');
+  // Written by anything else: an edited or unsealed file is refused.
+  await writeFile(join(root, 'trust', 'trusted.json'), JSON.stringify({ ...kept, at: '2026-11-04T00:00:00.000Z' }));
+  const edited = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  await edited.load();
+  assert.equal(edited.profile(), null);
+  const { mac: _mac, ...unsealed } = kept;
+  await writeFile(join(root, 'trust', 'trusted.json'), JSON.stringify(unsealed));
+  const bare = new CodexTrust({ environment, seal, probe: probeOf().probe });
+  await bare.load();
+  assert.equal(bare.profile(), null);
+  assert.equal((await bare.review(path)).state, 'review', 'the owner is asked again');
+  // Where the sealed store is unavailable the earlier, unsealed behaviour holds.
+  const unavailable: CodexSeal = { async get() { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_UNAVAILABLE' }); }, async set() { throw new Error('never'); } };
+  const noSeal = new CodexTrust({ environment, seal: unavailable, probe: probeOf().probe });
+  await noSeal.load();
+  assert.equal(noSeal.origin(), 'owner');
+  const journal = (await readFile(join(root, 'trust', 'decisions.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(journal.map(entry => [entry.decision, entry.by, entry.sha256, entry.version]), [['chose', 'owner', sha256('synthetic codex program bytes'), '0.166.0']]);
+  assert.match(journal[0].mac, /^[a-f0-9]{64}$/);
+});
+
+test('reviews already running are joined, and the shown path is the program that is hashed and run', async t => {
+  const root = await folder(t), path = await program(root);
+  const { probe, seen } = probeOf();
+  const trust = new CodexTrust({ probe });
+  const [one, two] = await Promise.all([trust.review(path), trust.review(path)]);
+  assert.deepEqual(one, two);
+  assert.equal(seen.length, 3, 'one review, not two');
+  assert.ok(one.path!.endsWith(join('bin', process.platform === 'win32' ? 'codex.exe' : 'codex')));
 });

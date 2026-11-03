@@ -36,6 +36,8 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  /** A2 review: the Codex setup Your AI shows (fake-first-run.ts connectionsSetup). */
+  codexSetup?(): import('./types').CodexSetupLite;
   nativeCanResume?(run:RunDetail):boolean;
   nativeStop?(run:RunDetail):void;
   nativeRestart?(run:RunDetail,resume:boolean):Promise<RunDetail>;

@@ -11,16 +11,20 @@
 //   exact digest is its manifest kept in the trust folder (CHAUSAR_CODEX_TRUST_DIR) and used.
 // Review runs only the program itself (never a shell or a script), with no prompt, in an empty folder, and reads no
 // sign-in file, token or key.
+// A2 review: only the reviewed Codex versions are accepted (REVIEWED_CODEX_VERSIONS); on the desktop the owner's choice
+// is sealed with a key Electron's safeStorage keeps, so a file written into the trust folder by anything else is not
+// taken; each choice is kept in a sealed decision journal; a program that changes while Chausar runs drops the setup and
+// asks for a new review; agent jobs get the program only after its digest is checked again.
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createReadStream, rmSync } from 'node:fs';
+import { appendFile, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { ChausarError, check } from './contracts.ts';
 import { defaultProcess, type GatewayOptions, type ProcessRequest, type ProcessResult } from './gateway.ts';
 import { loadCodexCliHostGateway } from './codex-cli-host.ts';
-import { CODEX_CLI_CONFIG, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
+import { CODEX_CLI_CONFIG, CODEX_QUIET_ARGS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 import { cliEnv } from './venture/models/cli.ts';
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './venture/models/npm-shim.ts';
 import { locateOnThisComputer } from './venture/models/cli-look.ts';
@@ -37,6 +41,9 @@ export type CodexSetupView = {
 };
 /** One check command: the program, its arguments, an empty folder. */
 export type CodexProbe = (command: string, args: string[], cwd: string) => Promise<{ exitCode: number; stdout: string }>;
+/** A2 review: the desktop's sealed key store (Electron safeStorage, through the worker's credential port). */
+export type CodexSeal = { get(workspaceId: string, name: string): Promise<string | null>; set(workspaceId: string, name: string, value: string): Promise<void> };
+export const SEAL_SCOPE = Object.freeze({ workspaceId: 'chausar-host', name: 'trust:codex-seal' });
 
 /**
  * The ordinary configuration keys Chausar's Codex route sends, as reviewed against the official reference: the same
@@ -47,6 +54,8 @@ export const CODEX_CONFIG_REVIEW = Object.freeze({
   reviewedAt: '2026-11-03T00:00:00.000Z',
   keys: Object.freeze(CODEX_CLI_CONFIG.map(value => value.split('=')[0]).filter(key => !key.startsWith('features.'))),
 });
+/** A2 review: the Codex versions that review (CODEX_CONFIG_REVIEW and the agent driver's protocol pin) covers. */
+export const REVIEWED_CODEX_VERSIONS: readonly string[] = Object.freeze(['0.166.0']);
 /** The three answers a setup pins, by the file names the loader accepts. */
 export const SETUP_FILES = Object.freeze({ versionOutput: 'version.stdout.txt', execHelp: 'exec-help.stdout.txt', features: 'features.stdout.txt' });
 const SETUP_ARGS: Readonly<Record<keyof typeof SETUP_FILES, string[]>> = Object.freeze({ versionOutput: ['--version'], execHelp: ['exec', '--help'], features: ['features', 'list'] });
@@ -58,6 +67,7 @@ const TARGETS: Readonly<Record<string, string>> = Object.freeze({
   'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-musl',
   'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
 });
+const REVIEWED = REVIEWED_CODEX_VERSIONS.join(' or ');
 
 export const SETUP_WORDS = Object.freeze({
   none: "Codex isn't on this computer.",
@@ -65,10 +75,14 @@ export const SETUP_WORDS = Object.freeze({
   owner: (version: string) => `Uses your Codex ${version}, which you chose.`,
   operator: (version: string) => `Uses the Codex ${version} this computer's setup names.`,
   review: (version: string) => `Codex ${version} is on this computer and has what Chausar needs. Use it?`,
-  notProgram: 'This Codex is in a form Chausar does not start. Use the Codex that comes with Chausar.',
+  notProgram: (bundle: boolean) => (bundle
+    ? 'This Codex is in a form Chausar does not start. Use the Codex that comes with Chausar.'
+    : 'This Codex is in a form Chausar does not start. Install Codex with its own installer, then check again.'),
+  otherVersion: (version: string, bundle: boolean) => `This is Codex ${version}. Chausar works with Codex ${REVIEWED}. ${bundle ? 'Update it, or use the Codex that comes with Chausar.' : 'Update it, then check again.'}`,
   lacking: (version: string | null) => `${version ? `Codex ${version}` : 'This Codex'} lacks a setting Chausar needs. Update it, then check again.`,
   noAnswer: 'This Codex did not answer its version check. Update or reinstall it, then check again.',
   noFolder: "Chausar can't keep a chosen Codex here.",
+  noSetup: 'Choose the Codex Chausar found under Connect your AI first.',
   changed: 'That Codex changed since you looked at it. Check it again.',
 });
 
@@ -150,6 +164,30 @@ async function loadSetup(manifest: string, sha256: string, base: Omit<GatewayOpt
   return gateway;
 }
 
+/** The sealed fields of the owner's choice, in a fixed order. */
+const sealText = (pin: { manifest: string; sha256: string; programSha256: string; at: string }) => JSON.stringify([pin.manifest, pin.sha256, pin.programSha256, pin.at]);
+const macOf = (key: string, text: string) => createHmac('sha256', Buffer.from(key, 'hex')).update(text).digest('hex');
+function sameMac(a: unknown, b: string): boolean {
+  if (typeof a !== 'string' || !/^[a-f0-9]{64}$/.test(a)) return false;
+  return timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+}
+
+/** Temp folders a trust made (review copies, a bundled setup without a trust folder), removed when the process exits. */
+const TEMP_FOLDERS = new Set<string>();
+let exitHooked = false;
+function keepTemp(folder: string): string {
+  TEMP_FOLDERS.add(folder);
+  if (!exitHooked) {
+    exitHooked = true;
+    process.once('exit', () => { for (const path of TEMP_FOLDERS) { try { rmSync(path, { recursive: true, force: true }); } catch { /* best effort */ } } });
+  }
+  return folder;
+}
+async function dropTemp(folder: string): Promise<void> {
+  TEMP_FOLDERS.delete(folder);
+  await rm(folder, { recursive: true, force: true }).catch(() => undefined);
+}
+
 export type CodexTrustOptions = {
   environment?: NodeJS.ProcessEnv;
   /** The operator's verified gateway (loadCodexCliHostGateway on the environment values), when they are set. */
@@ -159,6 +197,8 @@ export type CodexTrustOptions = {
   platform?: NodeJS.Platform;
   architecture?: string;
   locate?: (command: string) => string | null;
+  /** A2 review: the desktop's sealed key store; absent where safeStorage is not available (the file is then unsealed). */
+  seal?: CodexSeal;
 };
 
 /** The one Codex trust of an engine process: the setup in use, and the owner's review of a found Codex. */
@@ -170,9 +210,11 @@ export class CodexTrust {
   #path: string | null = null;
   #sha256: string | null = null;
   /** Reviews waiting for the owner's yes, by program digest: the review copy's folder and what it found. */
-  #reviews = new Map<string, { folder: string; evidence: Evidence }>();
+  #reviews = new Map<string, { folder: string; evidence: Evidence; found: string }>();
   /** The last review of a found path, kept while the program's size and time stay the same. */
   #looked = new Map<string, { key: string; view: CodexSetupView }>();
+  /** Reviews under way, by found path, so a poll joins the one already running. */
+  #inflight = new Map<string, Promise<CodexSetupView>>();
 
   constructor(options: CodexTrustOptions = {}) { this.#options = options; }
 
@@ -188,11 +230,57 @@ export class CodexTrust {
     const folder = this.#env.CHAUSAR_CODEX_TRUST_DIR;
     return typeof folder === 'string' && isAbsolute(folder) && !/[\0\r\n]/.test(folder) ? folder : null;
   }
+  /** The bundled Codex's program, when this install carries one. */
+  #bundleProgram(): string | null {
+    const bundle = this.#env.CHAUSAR_CODEX_BUNDLE_DIR;
+    return typeof bundle === 'string' && isAbsolute(bundle) ? join(bundle, 'bin', (this.#options.platform ?? process.platform) === 'win32' ? 'codex.exe' : 'codex') : null;
+  }
+  async #hasBundle(): Promise<boolean> {
+    const program = this.#bundleProgram();
+    if (!program) return false;
+    try { return (await lstat(program)).isFile(); } catch { return false; }
+  }
+
+  /** The seal key, made on first use; null where there is no sealed store (the file then stays unsealed). */
+  async #sealKey(create: boolean): Promise<string | null> {
+    const seal = this.#options.seal;
+    if (!seal) return null;
+    let key: string | null;
+    try { key = await seal.get(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name); }
+    catch (error) {
+      // safeStorage is not available here: keep the unsealed behaviour (noted in the A2 notes).
+      if ((error as { code?: unknown })?.code === 'CREDENTIAL_UNAVAILABLE') return null;
+      throw error;
+    }
+    if (key && /^[a-f0-9]{64}$/.test(key)) return key;
+    if (!create) return '';
+    key = randomBytes(32).toString('hex');
+    await seal.set(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name, key);
+    return key;
+  }
+
+  /** A2 review: one sealed line per choice, appended to the trust folder's decision journal. */
+  async #journal(decision: 'chose' | 'dropped', fields: { sha256: string | null; version: string | null; path: string | null }): Promise<void> {
+    const folder = this.#trustFolder();
+    if (!folder) return;
+    try {
+      const entry = { at: this.#now(), decision, by: 'owner', ...fields };
+      const key = await this.#sealKey(decision === 'chose');
+      const line = JSON.stringify({ ...entry, ...(key ? { mac: macOf(key, JSON.stringify(entry)) } : {}) });
+      await mkdir(folder, { recursive: true });
+      await appendFile(join(folder, 'decisions.jsonl'), line + '\n');
+    } catch { /* the journal never blocks the choice itself */ }
+  }
 
   /** The setup in use: the operator's, else the owner's choice, else the bundled Codex. Any failure leaves none. */
   async load(): Promise<void> {
     if (this.#options.operator?.codexCli) {
       this.#use(this.#options.operator, 'operator');
+      // The program digest the operator's pinned manifest names, for the agent route's own check.
+      try {
+        const manifest = JSON.parse(await readFile(String(this.#env.CHAUSAR_CODEX_CLI_EVIDENCE_FILE), 'utf8')) as { executable?: { sha256?: unknown } };
+        this.#sha256 = typeof manifest.executable?.sha256 === 'string' ? manifest.executable.sha256 : null;
+      } catch { this.#sha256 = null; }
       return;
     }
     if (await this.#loadOwner()) return;
@@ -206,15 +294,30 @@ export class CodexTrust {
     this.#path = evidence.kind === 'installed-help' ? evidence.executable : null;
   }
 
+  /** A2 review: the setup in use stopped matching its program: nothing runs it until the owner reviews it again. */
+  #drop(): void {
+    const was = { sha256: this.#sha256, version: this.#version, path: this.#path };
+    const owner = this.#origin === 'owner';
+    this.#gateway = undefined; this.#origin = null; this.#version = null; this.#path = null; this.#sha256 = null;
+    this.#looked.clear();
+    if (owner) void this.#journal('dropped', was);
+  }
+
   async #loadOwner(): Promise<boolean> {
     const folder = this.#trustFolder();
     if (!folder) return false;
     try {
-      const pin = JSON.parse(await readFile(join(folder, 'trusted.json'), 'utf8')) as { manifest?: unknown; sha256?: unknown; programSha256?: unknown };
-      check(typeof pin.manifest === 'string' && typeof pin.sha256 === 'string' && typeof pin.programSha256 === 'string', 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex choice is unreadable.');
+      const pin = JSON.parse(await readFile(join(folder, 'trusted.json'), 'utf8')) as { manifest?: unknown; sha256?: unknown; programSha256?: unknown; at?: unknown; mac?: unknown };
+      check(typeof pin.manifest === 'string' && typeof pin.sha256 === 'string' && typeof pin.programSha256 === 'string' && typeof pin.at === 'string', 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex choice is unreadable.');
+      // A2 review: on the desktop the choice is sealed; an unsealed or changed file is not taken, and the owner reviews again.
+      const key = await this.#sealKey(false);
+      if (key !== null) check(key !== '' && sameMac(pin.mac, macOf(key, sealText(pin as { manifest: string; sha256: string; programSha256: string; at: string }))), 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex choice is not sealed by this computer.');
       const manifest = join(folder, pin.manifest as string);
       check(dirname(dirname(manifest)) === folder, 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex choice points outside its folder.');
-      this.#use(await loadSetup(manifest, pin.sha256 as string, this.#base), 'owner');
+      const gateway = await loadSetup(manifest, pin.sha256 as string, this.#base);
+      const evidence = gateway.codexCli!.capabilities.evidence;
+      check(evidence.kind === 'installed-help' && REVIEWED_CODEX_VERSIONS.includes(evidence.version), 'CLI_HOST_EVIDENCE_INVALID', 'The kept Codex is not a reviewed version.');
+      this.#use(gateway, 'owner');
       this.#sha256 = pin.programSha256 as string;
       return true;
     } catch { return false; }
@@ -228,7 +331,7 @@ export class CodexTrust {
         version?: unknown; entrypoint?: unknown; files?: Record<string, { sha256?: unknown }>; evidence?: { recordedAt?: unknown; files?: Record<string, unknown> } | null;
       };
       const evidence = manifest.evidence;
-      check(typeof manifest.version === 'string' && typeof manifest.entrypoint === 'string' && manifest.files && evidence && typeof evidence.recordedAt === 'string' && evidence.files,
+      check(typeof manifest.version === 'string' && REVIEWED_CODEX_VERSIONS.includes(manifest.version) && typeof manifest.entrypoint === 'string' && manifest.files && evidence && typeof evidence.recordedAt === 'string' && evidence.files,
         'CLI_HOST_EVIDENCE_INVALID', 'The bundled Codex has no recorded setup.');
       const program = join(bundle, ...(manifest.entrypoint as string).split('/'));
       const programSha = manifest.files![manifest.entrypoint as string]?.sha256;
@@ -241,7 +344,7 @@ export class CodexTrust {
         check(sha256Of(bytes) === manifest.files![name as string]!.sha256, 'CLI_HOST_EVIDENCE_INVALID', 'The bundled Codex setup changed after it was built.');
         outputs[role] = bytes.toString('utf8');
       }
-      const base = this.#trustFolder() ?? await mkdtemp(join(tmpdir(), 'chausar-codex-trust-'));
+      const base = this.#trustFolder() ?? keepTemp(await mkdtemp(join(tmpdir(), 'chausar-codex-trust-')));
       const folder = join(base, `bundled-${(programSha as string).slice(0, 16)}`);
       await rm(folder, { recursive: true, force: true });
       const written = await writeSetup(folder, { executable: { path: program, sha256: programSha as string, version: manifest.version as string }, outputs, recordedAt: evidence!.recordedAt as string });
@@ -255,8 +358,37 @@ export class CodexTrust {
   profile(): CodexHostProfile | null { return (this.#gateway?.codexCli as CodexHostProfile | undefined) ?? null; }
   /** Where the setup in use came from. */
   origin(): CodexOrigin | null { return this.#origin; }
-  /** The trusted process port: the setup's own (it checks the program again before each call), else the plain one. */
-  readonly process = (request: ProcessRequest): Promise<ProcessResult> => (this.#gateway?.process ?? defaultProcess)(request);
+  /**
+   * The trusted process port: the setup's own (it checks the program again before each call), else the plain one.
+   * A2 review: a program that changed while Chausar runs drops the setup and says so, so the owner can review it again.
+   */
+  readonly process = async (request: ProcessRequest): Promise<ProcessResult> => {
+    const gateway = this.#gateway;
+    try { return await (gateway?.process ?? defaultProcess)(request); }
+    catch (error) {
+      if (gateway && gateway === this.#gateway && (error as { code?: unknown })?.code === 'CLI_HOST_EVIDENCE_INVALID') {
+        this.#drop();
+        throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
+      }
+      throw error;
+    }
+  };
+
+  /**
+   * A2 review: the native program of the setup in use, for an agent job, only after its digest is checked again against
+   * the setup. No setup in use, or a changed program, refuses: there is no search-path fallback.
+   */
+  async verifiedProgram(): Promise<string> {
+    const path = this.#path, expected = this.#sha256;
+    check(this.#gateway && path, 'CODEX_SETUP_UNAVAILABLE', SETUP_WORDS.noSetup);
+    let now = '';
+    try { now = await fileDigest(path); } catch { now = ''; }
+    if (!expected || now !== expected) {
+      this.#drop();
+      throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
+    }
+    return path;
+  }
 
   /** The setup in use as the owner reads it, or null when there is none. */
   current(): CodexSetupView | null {
@@ -268,52 +400,76 @@ export class CodexTrust {
   /**
    * The setup in use, else a review of the Codex found at `found`: its program's digest and version, and whether its help
    * and features have what Chausar needs (the same loader on a review copy). Nothing is kept until the owner says yes.
+   * A Codex of a version Chausar has not reviewed is refused; when this install has its own Codex, that one is offered.
    */
   async review(found: string | null): Promise<CodexSetupView> {
     const current = this.current();
     if (current) return current;
     if (!found) return { state: 'none', origin: null, path: null, version: null, sha256: null, line: SETUP_WORDS.none };
-    const refused = (line: string, version: string | null = null, sha256: string | null = null): CodexSetupView => ({ state: 'refused', origin: null, path: shown(found), version, sha256, line });
-    const program = await nativeCodexOf(found, this.#options.platform, this.#options.architecture, this.#options.locate ?? locateOnThisComputer);
-    if (!program) return refused(SETUP_WORDS.notProgram);
-    let key: string;
-    try { const info = await stat(program); key = `${program}|${info.size}|${info.mtimeMs}`; } catch { return refused(SETUP_WORDS.notProgram); }
-    const kept = this.#looked.get(found);
-    if (kept?.key === key) return structuredClone(kept.view);
-    const view = await this.#reviewProgram(found, program);
-    this.#looked.set(found, { key, view });
-    return structuredClone(view);
+    const running = this.#inflight.get(found);
+    if (running) return structuredClone(await running);
+    const work = this.#reviewFound(found).finally(() => { this.#inflight.delete(found); });
+    this.#inflight.set(found, work);
+    return structuredClone(await work);
   }
 
-  async #reviewProgram(found: string, program: string): Promise<CodexSetupView> {
-    const refused = (line: string, version: string | null = null, sha256: string | null = null): CodexSetupView => ({ state: 'refused', origin: null, path: shown(found), version, sha256, line });
+  async #reviewFound(found: string): Promise<CodexSetupView> {
+    const bundle = await this.#hasBundle();
+    const program = await nativeCodexOf(found, this.#options.platform, this.#options.architecture, this.#options.locate ?? locateOnThisComputer);
+    if (!program) return this.#offerBundle(found, { state: 'refused', origin: null, path: shown(found), version: null, sha256: null, line: SETUP_WORDS.notProgram(bundle) });
+    let key: string;
+    try { const info = await stat(program); key = `${program}|${info.size}|${info.mtimeMs}`; }
+    catch { return { state: 'refused', origin: null, path: shown(found), version: null, sha256: null, line: SETUP_WORDS.notProgram(bundle) }; }
+    const kept = this.#looked.get(found);
+    if (kept?.key === key) return kept.view;
+    const view = await this.#offerBundle(found, await this.#reviewProgram(found, program, bundle));
+    this.#looked.set(found, { key, view });
+    return view;
+  }
+
+  /** A found Codex that cannot be used, while this install has its own: the owner is offered the bundled one instead. */
+  async #offerBundle(found: string, view: CodexSetupView): Promise<CodexSetupView> {
+    const bundled = this.#bundleProgram();
+    if (view.state !== 'refused' || !bundled || !(await this.#hasBundle()) || found === bundled) return view;
+    const offered = await this.#reviewProgram(bundled, bundled, true);
+    return offered.state === 'review' ? offered : view;
+  }
+
+  async #reviewProgram(found: string, program: string, bundle: boolean): Promise<CodexSetupView> {
+    // A2 review: the path shown is the program that is hashed and run (codex.exe), not the shim that found it.
+    const refused = (line: string, version: string | null = null, sha256: string | null = null): CodexSetupView => ({ state: 'refused', origin: null, path: shown(program), version, sha256, line });
     let sha256: string;
-    try { sha256 = await fileDigest(program); } catch { return refused(SETUP_WORDS.notProgram); }
+    try { sha256 = await fileDigest(program); } catch { return refused(SETUP_WORDS.notProgram(bundle)); }
     const probe = this.#options.probe ?? defaultCodexProbe;
-    const cwd = await mkdtemp(join(tmpdir(), 'chausar-codex-review-'));
     const outputs = {} as Record<keyof typeof SETUP_FILES, string>;
+    const cwd = await mkdtemp(join(tmpdir(), 'chausar-codex-review-'));
     try {
       for (const role of Object.keys(SETUP_FILES) as (keyof typeof SETUP_FILES)[]) {
-        const answer = await probe(program, SETUP_ARGS[role], cwd);
+        const answer = await probe(program, [...CODEX_QUIET_ARGS, ...SETUP_ARGS[role]], cwd);
         if (answer.exitCode !== 0 || !answer.stdout.trim()) return role === 'versionOutput' ? refused(SETUP_WORDS.noAnswer, null, sha256) : refused(SETUP_WORDS.lacking(null), null, sha256);
         outputs[role] = answer.stdout;
+        // A2 review: only a reviewed version goes on to the rest of the checks.
+        if (role === 'versionOutput') {
+          const version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\s*$/.exec(answer.stdout.trim())?.[1] ?? null;
+          if (!version) return refused(SETUP_WORDS.noAnswer, null, sha256);
+          if (!REVIEWED_CODEX_VERSIONS.includes(version)) return refused(SETUP_WORDS.otherVersion(version, bundle), version, sha256);
+        }
       }
     } finally { await rm(cwd, { recursive: true, force: true }).catch(() => undefined); }
-    const version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\s*$/.exec(outputs.versionOutput.trim())?.[1] ?? null;
-    if (!version) return refused(SETUP_WORDS.noAnswer, null, sha256);
+    const version = /^codex-cli (\S+)/.exec(outputs.versionOutput.trim())![1]!;
     const evidence: Evidence = { executable: { path: program, sha256, version }, outputs, recordedAt: this.#now() };
-    const folder = await mkdtemp(join(tmpdir(), 'chausar-codex-review-copy-'));
+    const folder = keepTemp(await mkdtemp(join(tmpdir(), 'chausar-codex-review-copy-')));
     try {
       const written = await writeSetup(folder, evidence);
       await loadSetup(written.manifest, written.sha256, this.#base);
     } catch {
-      await rm(folder, { recursive: true, force: true }).catch(() => undefined);
+      await dropTemp(folder);
       return refused(SETUP_WORDS.lacking(version), version, sha256);
     }
     const earlier = this.#reviews.get(sha256);
-    if (earlier) await rm(earlier.folder, { recursive: true, force: true }).catch(() => undefined);
-    this.#reviews.set(sha256, { folder, evidence });
-    return { state: 'review', origin: null, path: shown(found), version, sha256, line: SETUP_WORDS.review(version) };
+    if (earlier) await dropTemp(earlier.folder);
+    this.#reviews.set(sha256, { folder, evidence, found });
+    return { state: 'review', origin: null, path: shown(program), version, sha256, line: SETUP_WORDS.review(version) };
   }
 
   /** venture.ai.setup.trust: the owner said yes to the Codex reviewed with this exact digest. */
@@ -326,15 +482,23 @@ export class CodexTrust {
     // The program must still be the one the owner was shown.
     let now: string;
     try { now = await fileDigest(review.evidence.executable.path); } catch { now = ''; }
-    check(now === sha256, 'CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
+    if (now !== sha256) {
+      await dropTemp(review.folder);
+      this.#reviews.delete(sha256);
+      this.#looked.clear();
+      throw new ChausarError('CODEX_SETUP_CHANGED', SETUP_WORDS.changed);
+    }
     const target = join(folder, `owner-${sha256.slice(0, 16)}`);
     await rm(target, { recursive: true, force: true });
     const written = await writeSetup(target, { ...review.evidence, recordedAt: this.#now() });
     const gateway = await loadSetup(written.manifest, written.sha256, this.#base);
-    await writeFile(join(folder, 'trusted.json'), JSON.stringify({ manifest: relative(folder, written.manifest).split(sep).join('/'), sha256: written.sha256, programSha256: sha256, at: this.#now() }, null, 2) + '\n');
+    const pin = { manifest: relative(folder, written.manifest).split(sep).join('/'), sha256: written.sha256, programSha256: sha256, at: this.#now() };
+    const key = await this.#sealKey(true);
+    await writeFile(join(folder, 'trusted.json'), JSON.stringify({ ...pin, ...(key ? { mac: macOf(key, sealText(pin)) } : {}) }, null, 2) + '\n');
     this.#use(gateway, 'owner');
     this.#sha256 = sha256;
-    await rm(review.folder, { recursive: true, force: true }).catch(() => undefined);
+    await this.#journal('chose', { sha256, version: review.evidence.executable.version, path: review.evidence.executable.path });
+    await dropTemp(review.folder);
     this.#reviews.delete(sha256);
     this.#looked.clear();
     return this.current()!;

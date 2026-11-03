@@ -714,6 +714,12 @@ test('A2: the agent route runs the Codex program the trust names, read at each u
   assert.equal(deps.models.codexProgram?.(), null, 'no setup in use: no program named');
   live = codexProfile(executable);
   assert.equal(deps.models.codexProgram?.(), executable);
+  // A2 review: the agent route asks for the checked program; a trust's own check is used, and none in use refuses.
+  assert.equal(await deps.models.codexVerifiedProgram!(), executable);
+  live = null;
+  await assert.rejects(deps.models.codexVerifiedProgram!(), { code: 'CODEX_SETUP_UNAVAILABLE' });
+  const checked = await setup({ codexCli: { profile: () => codexProfile(executable), verifiedProgram: async () => { throw Object.assign(new Error('changed'), { code: 'CODEX_SETUP_CHANGED' }); } } });
+  await assert.rejects(checked.deps.models.codexVerifiedProgram!(), { code: 'CODEX_SETUP_CHANGED' });
 });
 
 test('default transport: posts to a loopback server without the purpose, refuses redirects and oversized answers', async t => {

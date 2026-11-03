@@ -21,7 +21,8 @@ import { ownerError } from './owner-error.ts';
 export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
   // A2: the Codex in use: the operator's values first, else the owner's choice, else the bundled Codex (codex-trust.ts).
-  const codexTrust = new CodexTrust({ environment, ...(gateway ? { operator: gateway } : {}) });
+  // A2 review: on the desktop the owner's choice is sealed with a key Electron's safeStorage keeps (the credential port).
+  const codexTrust = new CodexTrust({ environment, ...(gateway ? { operator: gateway } : {}), ...(typeof process.send === 'function' ? { seal: processCredentialPort(process) } : {}) });
   await codexTrust.load();
   // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
   let engine: Engine | null = null;

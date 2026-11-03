@@ -35,9 +35,11 @@ export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId:
     check(executable && startableProgram(executable), 'CLI_UNAVAILABLE', 'Install Claude Code on this computer, then try again.');
     driver = createClaudeDriver({ executable });
   } else {
-    // A2: the program of the Codex setup in use (bundled, or the one the owner chose), else the one the search path finds.
-    const executable = deps.models.codexProgram?.() ?? undefined;
-    driver = new CodexDriver(executable ? { executable } : {});
+    // A2 review: only the program of the Codex setup in use (bundled, or the one the owner chose), its digest checked
+    // again now; with no setup in use the job is refused, never run on a Codex the search path happens to find.
+    const executable = await deps.models.codexVerifiedProgram?.();
+    check(executable, 'CODEX_SETUP_UNAVAILABLE', 'Choose the Codex Chausar found under Connect your AI first.');
+    driver = new CodexDriver({ executable });
   }
   return { driver, settings, presetId: serving.presetId, ...(apiKey ? { credentials: { apiKey, ...(serving.presetId === 'openrouter' ? { baseUrl: 'https://openrouter.ai/api/v1' } : {}) },
     billing: { connectionId: connection!.id, presetId: connection!.presetId, model: settings.model } } : {}) };
