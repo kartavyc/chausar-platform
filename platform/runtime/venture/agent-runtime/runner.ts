@@ -71,11 +71,16 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
   // A2: the watchdog's clock, and the usage of an earlier turn carried into a nudge turn's reports.
   const watchdog = route.watchdog ?? AGENT_WATCHDOG;
   let lastActivity = Date.now(), quiet = false, carried: AgentUsage | undefined;
+  // A2 review: waiting on the owner (an approval card) or on a tool step still running is not going quiet.
+  let approvalsWaiting = 0;
+  const toolsRunning = new Set<string>();
   let idleTimer: ReturnType<typeof setInterval> | undefined, hardTimer: ReturnType<typeof setTimeout> | undefined;
   let closedHard!: () => void;
   const hardClosed = new Promise<AgentTurnResult>(done => { closedHard = () => done({ status: 'interrupted', text: '' }); });
   function onEvent(event: AgentDriverEvent) {
     lastActivity = Date.now();
+    if (event.type === 'tool-started') toolsRunning.add(event.toolUseId);
+    if (event.type === 'tool-completed') toolsRunning.delete(event.toolUseId);
     if (event.type === 'usage' && carried) event = { ...event, usage: addUsage(carried, event.usage)! };
     if (abort.signal.aborted) return;
     events = events.then(async () => {
@@ -134,15 +139,21 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
     broker = await startJobBroker({ service: job.service, capability: job.capability });
     session = await route.driver.open({ jobId: job.capability.scope.jobId, jobRoot: root, settings: route.settings,
       mcp: broker.connection, guard: () => job.capability.assert(), onEvent, signal: abort.signal, credentials: route.credentials,
-      requestApproval: request => requestAgentApproval(deps, ctx, runId, request, {
-        guard: state => { job.capability.assert(); job.assertState(state); }, signal: abort.signal,
-        secretValues: route.credentials ? [route.credentials.apiKey] : [],
-      }) });
+      requestApproval: async request => {
+        approvalsWaiting += 1;
+        try {
+          return await requestAgentApproval(deps, ctx, runId, request, {
+            guard: state => { job.capability.assert(); job.assertState(state); }, signal: abort.signal,
+            secretValues: route.credentials ? [route.credentials.apiKey] : [],
+          });
+        } finally { approvalsWaiting -= 1; lastActivity = Date.now(); }
+      } });
     job.capability.assert();
     await billing.dispatched();
     // A2: the watchdog: a quiet job is asked to stop; a tool that ignores the stop is closed hard and the turn ends here.
     const live = session;
     idleTimer = setInterval(() => {
+      if (approvalsWaiting > 0 || toolsRunning.size > 0) { lastActivity = Date.now(); return; }
       if (quiet || Date.now() - lastActivity < watchdog.idleMs) return;
       quiet = true;
       void Promise.resolve().then(() => live.interrupt()).catch(() => undefined);

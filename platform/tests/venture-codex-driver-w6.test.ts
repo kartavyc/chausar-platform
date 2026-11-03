@@ -97,6 +97,11 @@ test('Codex refuses effective native tools or unqualified versions before sharin
     await assert.rejects(on.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' }, feature);
   }
 });
+test('A2 review: a job runs only the reviewed native program, never a search-path find or an npm shim', async () => {
+  for (const executable of [undefined, 'C:/npm/codex.cmd', '/usr/lib/node_modules/codex.ps1']) {
+    await assert.rejects(new CodexDriver({ ...(executable ? { executable } : {}), spawn: () => { throw new Error('never started'); } }).open(input()), { code: 'CODEX_NOT_INSTALLED' }, String(executable));
+  }
+});
 test('Codex retains final message content when the provider emits a completed item without deltas', async () => {
   const f = fixture(), session = await f.driver.open(input()), { run } = await starting(f, session);
   const item = { type: 'agentMessage', id: 'final-message', text: 'A completed synthetic draft.' };

@@ -75,3 +75,40 @@ test('no nudge when the AI stops in plain words', async () => {
   await waitForAgentWork(env.store, started.id);
   assert.equal(prompts.length, 1);
 });
+
+// A2 review (finding 1): waiting on the owner, or on a long tool, is not going quiet.
+test('the watchdog waits while an approval is pending on the owner', async () => {
+  const { env, order } = await ready();
+  const seen: string[] = [];
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, watchdog: { idleMs: 60, hardCloseMs: 60 }, driver: { async open(input: AgentDriverInput) {
+    return {
+      run() {
+        void input.requestApproval?.({ kind: 'file-change', requestId: 'req-1', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', name: 'Write', arguments: { path: 'notes.md' } }).catch(() => false);
+        return new Promise<AgentTurnResult>(done => { setTimeout(() => done({ status: 'completed', text: 'Waited for the owner.' }), 500); });
+      },
+      async interrupt() { seen.push('interrupt'); }, async close() {},
+    };
+  } } });
+  const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, started.id);
+  assert.deepEqual(seen, [], 'never asked to stop while the owner decides');
+  assert.notEqual(record(env, started.id).agentJob!.quiet, true);
+});
+
+test('the watchdog waits while a tool step is still running', async () => {
+  const { env, order } = await ready();
+  const seen: string[] = [];
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, watchdog: { idleMs: 60, hardCloseMs: 60 }, driver: { async open(input: AgentDriverInput) {
+    return {
+      run() {
+        input.onEvent({ type: 'tool-started', toolUseId: 'tool-1', name: 'read_file' });
+        return new Promise<AgentTurnResult>(done => { setTimeout(() => { input.onEvent({ type: 'tool-completed', toolUseId: 'tool-1', name: 'read_file', failed: false }); done({ status: 'completed', text: 'Read it.' }); }, 500); });
+      },
+      async interrupt() { seen.push('interrupt'); }, async close() {},
+    };
+  } } });
+  const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, started.id);
+  assert.deepEqual(seen, []);
+  assert.notEqual(record(env, started.id).agentJob!.quiet, true);
+});

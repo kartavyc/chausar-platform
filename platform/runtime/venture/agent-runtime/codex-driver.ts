@@ -1,11 +1,9 @@
-import { spawn } from 'node:child_process';
+import { spawnTree } from '../../process-tree.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { cliEnv } from '../models/cli.ts';
-import { locateOnThisComputer } from '../models/cli-look.ts';
-import { CODEX_NPM_ENTRY, resolveNpmShim } from '../models/npm-shim.ts';
 import { AGENT_MCP_TOOL_NAMES, type AgentDriver, type AgentDriverEvent, type AgentDriverInput, type AgentDriverSession, type AgentTurnResult, type AgentUsage } from './driver-types.ts';
 import { CodexError, CodexRpc, object, type CodexChild } from './codex-rpc.ts';
 import { canonical } from '../../portable.ts';
@@ -102,17 +100,18 @@ export async function qualifyCodexNativeBoundary({ rpc, jobRoot, profile }: Qual
     if (resolve(outside).startsWith(resolve(tmpdir()) + sep + 'chausar-codex-boundary-')) await rm(outside, { recursive: true, force: true });
   }
 }
+/** A2 review: Codex starts so that stopping it ends every helper it started too (process-tree.ts; taskkill /T on Windows). */
 function defaultSpawn(launch: Launch): CodexChild {
-  return spawn(launch.command, launch.args, { cwd: launch.cwd, env: launch.env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  return spawnTree(launch.command, launch.args, { cwd: launch.cwd, env: launch.env, stdio: ['pipe', 'pipe', 'pipe'] }) as unknown as CodexChild;
 }
+/**
+ * A2 review: only the native program of the reviewed Codex setup runs a job (the route passes it, checked); never a
+ * program found on the search path and never npm's script shim, whose own children a kill would leave behind.
+ */
 function executable(options: CodexDriverOptions): { command: string; prefix: string[] } {
-  const command = options.executable ?? locateOnThisComputer('codex');
-  if (!command) throw new CodexError('CODEX_NOT_INSTALLED', 'Install Codex on this computer first.');
-  if (/\.(cmd|ps1)$/i.test(command)) {
-    const shim = resolveNpmShim(command, locateOnThisComputer, CODEX_NPM_ENTRY);
-    if (!shim) throw new CodexError('CODEX_NOT_INSTALLED', 'This Codex launcher is not supported.');
-    return { command: shim.program, prefix: [shim.script] };
-  }
+  const command = options.executable;
+  if (!command) throw new CodexError('CODEX_NOT_INSTALLED', 'Choose the Codex Chausar showed you under Connect your AI first.');
+  if (/\.(cmd|ps1|bat)$/i.test(command)) throw new CodexError('CODEX_NOT_INSTALLED', 'Choose the Codex Chausar showed you under Connect your AI first.');
   return { command, prefix: [] };
 }
 type ConnectorItem = { tool: string; arguments: unknown; asked: boolean; approved: boolean };
