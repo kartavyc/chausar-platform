@@ -19,6 +19,7 @@ import { handlers, listCountries, previewPlan } from '../runtime/venture/core/in
 import { classifyIdea, offerWords, serviceTemplate, templateStrings } from '../runtime/venture/core/service-types.ts';
 import { BLUEPRINT_INSTRUCTIONS, blueprintDigest, structureFromBlueprint } from '../runtime/venture/core/blueprint.ts';
 import { validateInterviewOutput } from '../runtime/venture/core/interview.ts';
+import { ABOUT_INSTRUCTIONS } from '../runtime/venture/core/about.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const FIXED_NOW = '2026-10-15T10:00:00.000Z'; // at or before real time (rule 23)
@@ -103,6 +104,14 @@ function setup() {
 
 type Harness = ReturnType<typeof setup>;
 
+/** An about-read model call, as venture.create hands the draft's calls over into the business (A1 re-review). */
+async function seedAboutCall(h: ReturnType<typeof setup>) {
+  await ventureAction(h.deps, owner, 'admin', 'seed.about-call', tx => {
+    tx.put({ ...tx.base('venture-model-call'), purpose: 'decide', tier: 'fast', presetId: 'anthropic-sonnet-5-5', connectionId: null, routeKind: 'anthropic-messages', model: 'claude-sonnet-5-5',
+      consent: 'standing', endpoint: 'https://api.anthropic.com/v1/messages', payloadText: JSON.stringify({ system: ABOUT_INSTRUCTIONS }), payloadDigest: 'd', payloadTruncated: false, containsClientData: false,
+      status: 'completed', approvedDigest: null, approvedAt: null, approvedBy: null, estimatedMaxCostMicros: '0', priceConfirmed: true, usage: null, costMicros: '0', outputDigest: 'o', error: null, replay: false } as never);
+  });
+}
 const codeOf = (code: string) => (error: unknown) => { assert.equal((error as ChausarError).code, code); return true; };
 
 async function answer(h: Harness, questionId: string, given: Record<string, unknown>) {
@@ -1049,6 +1058,7 @@ test('review of A1 row 3: the first keep saves exactly the card: its name and of
   for (const [by, count] of [['model', 3], ['template', 1]] as const) {
     const h = setup();
     await interviewed(h, { model: 'monthly', price: null });
+    if (by === 'model') await seedAboutCall(h);
     const view = await h.call('venture.blueprint.draft', { useTemplate: true, shown: shown(by, count) });
     const plan = view.blueprint;
     assert.equal(plan.source, by, 'who wrote the words, never the owner for a first keep');
@@ -1074,3 +1084,20 @@ test('review of A1 row 3: the first keep saves exactly the card: its name and of
   await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'owner', offers: [{ name: 'Shoots', line: '' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
   assert.equal(await h.call('venture.blueprint.get'), null);
 });
+
+test('A1 re-review: the plan says the AI wrote it only when this business holds the AI call that read the owner', async () => {
+  const shown = { name: 'Pune Frames Studio', by: 'model', offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
+  // No about-read call in this business: the words are labelled the template's, never the AI's on the window's word.
+  const h = setup();
+  await interviewed(h);
+  const plain = (await h.call('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
+  assert.equal(plain.source, 'template');
+  assert.ok(plain.offers.every((offer: any) => offer.name.by === 'template'));
+  // With the about-read call handed over into this business, the AI's label stands.
+  const g = setup();
+  await interviewed(g);
+  await seedAboutCall(g);
+  const ai = (await g.call('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
+  assert.equal(ai.source, 'model');
+});
+

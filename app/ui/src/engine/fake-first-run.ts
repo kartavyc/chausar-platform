@@ -130,6 +130,11 @@ export class FakeFirstRun {
     return { id, label, line };
   }
 
+  /** A1 re-review: an AI about-read since the last business was made, as the engine's draft desk holds its call. */
+  private aiRead = false;
+  /** Hands the about-read over to the business being made (venture.create) and wipes it here, as the engine's handover. */
+  takeAiRead(): boolean { const read = this.aiRead; this.aiRead = false; return read; }
+
   private read(p: Record<string, unknown>): AboutReadLite {
     exact(p, ['text', 'attachment']);
     if (p.text === undefined && p.attachment === undefined) throw invalid('Write a few words about your work, or add your resume or LinkedIn export.');
@@ -163,6 +168,8 @@ export class FakeFirstRun {
       return phrase ? [{ country, evidence: phrase }] : [];
     });
     const country = found.length === 1 ? found[0]! : null;
+    // A1 re-review: the AI read the owner, as the engine's draft desk records the call (handed over at venture.create).
+    this.aiRead = true;
     return {
       family: this.family(familyId), offers: familyId ? offers.slice(0, 3) : [], country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
       idea, source: 'ai', ...(file ? { file } : {}),

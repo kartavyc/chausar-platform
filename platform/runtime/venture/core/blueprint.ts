@@ -30,6 +30,8 @@ import { recordDecision } from '../journal/decisions.ts';
 import { applyShareChange } from '../money/share-price.ts';
 import { countryProfile } from './countries.ts';
 import { blueprintCountry } from './country-history.ts';
+import { ABOUT_INSTRUCTIONS } from './about.ts';
+import type { ModelCallRecord } from '../contracts.ts';
 
 // ---------------------------------------------------------------------------
 // Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
@@ -864,6 +866,11 @@ function shownOf(value: unknown): Shown {
   return { name, by: body.by, offers };
 }
 
+/** True when this business holds a completed about-read model call (core/about.ts ABOUT_INSTRUCTIONS in what was sent). */
+function aboutReadCalled(calls: readonly ModelCallRecord[]): boolean {
+  return calls.some(call => call.purpose === 'decide' && call.status === 'completed' && call.payloadText.includes(ABOUT_INSTRUCTIONS.slice(0, 80)));
+}
+
 /** The kept card on the drafted record: its name and exactly its offers, with no price and the neutral per-project unit. */
 function applyShown(record: BlueprintRecord, shown: Shown): void {
   const words = (value: string) => labelled(value, 'assumption', shown.by);
@@ -939,7 +946,9 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
     if (shown) {
       // Kept once, on the first plan: a second keep (a retry after the plan was saved) changes nothing.
       check(!previous, 'PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
-      applyShown(record, shown);
+      // A1 re-review: the AI's label only when this business holds the AI call that read the owner (handed over from the
+      // draft at venture.create); on the window's word alone the words are labelled the template's, and the keep goes on.
+      applyShown(record, shown.by === 'model' && !aboutReadCalled(tx.list('venture-model-call')) ? { ...shown, by: 'template' } : shown);
     }
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });

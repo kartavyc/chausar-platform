@@ -207,6 +207,8 @@ export class FakeEngine {
   // Onboarding: the businesses on this computer, whether a vault is open, and each new business's interview.
   private businesses: HeldBusiness[];
   private ventures = new Map<string, HeldVenture>();
+  /** A1 re-review: the businesses that hold the AI call that read the owner (core/blueprint.ts aboutReadCalled). */
+  private aiRead = new Set<string>();
   private interviews = new Map<string, InterviewQuestionLite[]>();
   private open = true;
   private closedByOwner = false;
@@ -1110,6 +1112,7 @@ export class FakeEngine {
         if (p.workingName !== undefined && (named === null || named.length < 2 || named.length > 80)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The working name must be between 2 and 80 characters.');
         const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
         this.ventures.set(this.current, venture);
+        if (this.firstRun.takeAiRead()) this.aiRead.add(this.current);
         this.interviews.set(this.current, this.templateInterview(country.code));
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
         this.desk.adoptDraft(this.current);
@@ -1417,7 +1420,9 @@ export class FakeEngine {
     // Review of A1 (row 3), as core/blueprint.ts applyShown: exactly the card's name and offers, by who wrote them, with
     // no price and the neutral per-project unit.
     if (shown) {
-      const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by: shown.by });
+      // A1 re-review, as core/blueprint.ts: the AI's label only when this business holds the AI's about read.
+      const by = shown.by === 'model' && !this.aiRead.has(business.id) ? 'template' as const : shown.by;
+      const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);
       (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({
@@ -1425,7 +1430,7 @@ export class FakeEngine {
         name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name),
         pricing: { model: 'project' as const, quantityUnit: 'project' as const, unitPriceMinor: null, unitPriceLabel: 'not-set' as const, defaultQuantity: '1' },
       }));
-      view.blueprint.source = shown.by;
+      view.blueprint.source = by;
       view.blueprint.digest = digestOf({ ...view.blueprint, digest: '' });
       view.offerReceipts = Object.fromEntries(view.blueprint.offers.map((offer) => [offer.id, null]));
     }

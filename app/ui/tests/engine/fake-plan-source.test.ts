@@ -26,3 +26,27 @@ describe('fake plan draft with the kept card', () => {
     await expect(client.request('venture.blueprint.draft', { useTemplate: false, shown })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'The plan you kept is saved with the built-in plan only.' });
   });
 });
+
+// A1 re-review, as core/blueprint.ts aboutReadCalled: the AI's label stands only when the AI read the owner first.
+describe('fake plan draft: who wrote the kept card', () => {
+  async function keep(withAi: boolean) {
+    const client = createFakeClient(new FakeEngine({ fresh: true }));
+    const key = ['test', 'key', 'value'].join('-');
+    if (withAi) {
+      await client.request('venture.ai.connect', { presetId: 'openai-gpt-6-luna', consentDigest: 'consent-openai', apiKey: key, tiers: ['fast', 'main'] } as never);
+      expect((await client.request('venture.about.read', { text: 'I run a small weekend photography studio in Pune.' })).source).toBe('ai');
+    }
+    await client.request('workspace.create', { name: 'Kept Shop', pack: 'services', folder: null } as never);
+    await client.request('venture.create', { idea: 'Photography for parties and shops in Pune', countryCode: 'IN' } as never);
+    let view = await client.request('venture.interview.next', { useTemplate: true });
+    for (const question of view.interview.questions) view = await client.request('venture.interview.answer', { questionId: question.id, answer: question.required ? (question.kind === 'yesno' ? { yes: false } : { choiceId: question.choices[0]!.id }) : { skipped: true } } as never);
+    const shown = { name: 'Pune Frames Studio', by: 'model' as const, offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
+    return (await client.request('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
+  }
+  it('labels the words the AI’s only after an AI about read, else the template’s', async () => {
+    expect((await keep(true)).source).toBe('model');
+    const plain = await keep(false);
+    expect(plain.source).toBe('template');
+    expect(plain.offers[0]!.name.by).toBe('template');
+  });
+});
