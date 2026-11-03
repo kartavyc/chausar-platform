@@ -66,3 +66,27 @@ test('A3 review 3 L1: a count in the edit that a receipt contradicts fails; a ma
   assert.deepEqual(editNumbersCheck('We matched 14 payments to bills.', input), { check: 'receipts', passed: true, detail: 'Every number matches its receipt.' });
   assert.deepEqual(editNumbersCheck('We can meet 2 times next week.', input), { check: 'receipts', passed: true, detail: OWN_WORDS_NUMBER });
 });
+
+// One-shot A4 (A3 leftover): in a clause that holds an exact amount, any other number is money too ("Rs 5,000-9,000"):
+// it is never left out because the guard alone would not call a bare number money.
+test('A4: a bare number beside a receipted amount in one clause is the editor\'s own money words, never "from a receipt"', () => {
+  const receipted = { ...none, receipted: ['INR 5,000.00'] };
+  for (const text of ['The fee is Rs 5,000-9,000.', 'It is Rs 5,000 plus 4,000 more.', 'That is INR 5,000.00 x 3.']) {
+    assert.deepEqual([editAmountsCheck(text, receipted).passed, editAmountsCheck(text, receipted).detail], [true, OWN_WORDS_AMOUNT], text);
+    // The agent wrote the same clause with no receipt for the rest: it still fails when kept.
+    assert.equal(editAmountsCheck(text, { ...receipted, agentWords: text }).passed, false, `${text} kept from the agent`);
+  }
+  // A date, a time or a share in the same clause is not money.
+  for (const text of ['The fee is INR 5,000 by 3 Nov.', 'Pay Rs 5,000 before 10:30 on 12 December.', 'Rs 5,000 is 20% of the total.', 'Rs 5,000 on 2026-11-03.']) {
+    assert.equal(editAmountsCheck(text, receipted).detail, EVERY, text);
+  }
+});
+
+// One-shot A4 (A3 leftover): "$" names no one currency, so it is read as the business's own dollar; nothing defaults to INR.
+test('A4: "$" reads as the business\'s own dollar currency, else USD', () => {
+  assert.equal(editAmountsCheck('The fee is $5,000.', { ...none, receipted: ['SGD 5,000.00'], currency: 'SGD' }).detail, EVERY);
+  assert.equal(editAmountsCheck('The fee is $5,000.', { ...none, receipted: ['USD 5,000.00'], currency: 'SGD' }).detail, OWN_WORDS_AMOUNT);
+  assert.equal(editAmountsCheck('The fee is $5,000.', { ...none, receipted: ['USD 5,000.00'], currency: 'INR' }).detail, EVERY);
+  assert.equal(editAmountsCheck('The fee is $5,000.', { ...none, receipted: ['USD 5,000.00'] }).detail, EVERY);
+  assert.equal(editAmountsCheck('The fee is Rs 5,000.', { ...none, receipted: ['INR 5,000.00'], currency: 'SGD' }).detail, EVERY);
+});

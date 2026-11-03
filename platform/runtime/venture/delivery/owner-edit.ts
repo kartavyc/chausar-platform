@@ -81,22 +81,45 @@ function minorOf(number: string): bigint {
   return BigInt(whole!) * 100n + BigInt(`${fraction}00`.slice(0, 2));
 }
 
-/** The money in some words: each exact amount by its value, and each clause with money that is not, by its words. */
-function moneyIn(words: string): { key: string; text: string }[] {
+/** One-shot A4 (A3 leftover): the currencies "$" may stand for; it is the business's own when that is one of them. */
+const DOLLARS: ReadonlySet<string> = new Set(['USD', 'SGD', 'AUD', 'CAD', 'NZD', 'HKD']);
+/** One-shot A4: what a currency word or sign means, "$" as the business's own dollar (else USD); never INR by default. */
+function currencyOf(written: string, business: string | undefined): string {
+  const word = written.toLowerCase();
+  if (word === '$') return business && DOLLARS.has(business) ? business : 'USD';
+  return CURRENCY[word] ?? business ?? 'XXX';
+}
+/**
+ * One-shot A4 (A3 leftover): numbers beside an amount that are not money: a date (3 Nov, November 3rd, 2026-11-03,
+ * 03/11/2026), a time (10:30), a share (20%) and a year.
+ */
+const MONTH = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?`;
+const NOT_MONEY_NUMBERS = new RegExp([
+  String.raw`\b\d{4}-\d{2}-\d{2}\b`, String.raw`\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b`, String.raw`\b\d{1,2}:\d{2}\b`, String.raw`\b\d+(?:\.\d+)?\s?%`,
+  String.raw`\b\d{1,2}(?:st|nd|rd|th)?\s+${MONTH}`, String.raw`\b${MONTH}\s+\d{1,2}(?:st|nd|rd|th)?\b`, String.raw`\b(?:19|20)\d{2}\b`,
+].join('|'), 'giu');
+
+/**
+ * The money in some words: each exact amount by its value, and each clause with money that is not, by its words.
+ * currency: the business's own, for "$". One-shot A4: in a clause that holds an exact amount, any other number (not a
+ * date, a time or a share) is money words too ("Rs 5,000-9,000", "INR 5,000.00 x 3"), so it is never passed over.
+ */
+function moneyIn(words: string, currency?: string): { key: string; text: string }[] {
   const keys: { key: string; text: string }[] = [];
   for (const clause of words.split(/(?<=(?<!\brs)[.!?;])\s+|\n+/iu)) {
     if (!clause.trim() || !statesMoney(clause, '')) continue;
     let rest = clause;
+    let exact = false;
     for (const match of clause.matchAll(EXACT)) {
-      const currency = CURRENCY[(match[1] ?? match[4])!.toLowerCase()] ?? 'INR';
-      keys.push({ key: `${currency}:${minorOf((match[2] ?? match[3])!)}`, text: match[0].trim() });
+      keys.push({ key: `${currencyOf((match[1] ?? match[4])!, currency)}:${minorOf((match[2] ?? match[3])!)}`, text: match[0].trim() });
       rest = rest.replace(match[0], ' ');
+      exact = true;
     }
-    if (statesMoney(rest, '')) keys.push({ key: `words:${foldedWords(clause).toLowerCase()}`, text: foldedWords(clause) });
+    if (statesMoney(rest, '') || (exact && /\p{Nd}/u.test(rest.replace(NOT_MONEY_NUMBERS, ' ')))) keys.push({ key: `words:${foldedWords(clause).toLowerCase()}`, text: foldedWords(clause) });
   }
   return keys;
 }
-const keysOf = (words: string) => new Set(moneyIn(words).map(item => item.key));
+const keysOf = (words: string, currency?: string) => new Set(moneyIn(words, currency).map(item => item.key));
 
 /** The receipts this run's figures may come from: the venture's price receipts and this run's own work receipts. */
 function runReceipts(state: State, run: DeliveryRunRecord): AnyReceipt[] {
@@ -125,11 +148,12 @@ function agentWordsOf(run: DeliveryRunRecord): string {
  * own words hold is theirs; one the agent wrote with no receipt and that survives in the edit fails; any other is the
  * editor's own words.
  */
-export function editAmountsCheck(text: string, input: { receipted: readonly string[]; agentWords: string; clientWords: string }): CheckResult {
-  const receipted = new Set(input.receipted.flatMap(display => [...keysOf(display)]));
-  const client = keysOf(input.clientWords);
-  const agent = keysOf(input.agentWords);
-  const found = moneyIn(text);
+export function editAmountsCheck(text: string, input: { receipted: readonly string[]; agentWords: string; clientWords: string; currency?: string }): CheckResult {
+  const { currency } = input;
+  const receipted = new Set(input.receipted.flatMap(display => [...keysOf(display, currency)]));
+  const client = keysOf(input.clientWords, currency);
+  const agent = keysOf(input.agentWords, currency);
+  const found = moneyIn(text, currency);
   let own = 0, sourced = 0;
   for (const item of found) {
     if (receipted.has(item.key)) continue;
@@ -196,7 +220,7 @@ export function editChecks(state: State, run: DeliveryRunRecord, text: string, c
   const clientWords = [order?.request ?? '', venture?.idea ?? ''].join('\n');
   return [
     ...results,
-    editAmountsCheck(text, { receipted: receiptedDisplays(state, run, receipts), agentWords: agentWordsOf(run), clientWords }),
+    editAmountsCheck(text, { receipted: receiptedDisplays(state, run, receipts), agentWords: agentWordsOf(run), clientWords, ...(venture?.country?.currency ? { currency: venture.country.currency } : {}) }),
     // A3 review 3 (L1): the numbers in the edit, against the run's receipts, as the receipts check compares them.
     editNumbersCheck(text, { receipts, ventureId: run.ventureId, clientWords }),
   ];
