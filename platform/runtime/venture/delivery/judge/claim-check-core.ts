@@ -18,7 +18,7 @@ export type ClaimKind = 'figure' | 'date' | 'name' | 'certification';
 /** text: as the draft says it. key: the form compared with the sources. at: where it starts in the draft. */
 export type DraftClaim = { kind: ClaimKind; text: string; key: string; at: number };
 /** backs: the claim kinds this source may back; all of them when absent (the owner's own sources back names only). */
-export type SourceText = { id: string; text: string; backs?: readonly ClaimKind[] };
+export type SourceText = { id: string; text: string; backs?: ClaimKind[] };
 export type ClaimMatch = DraftClaim & { matched: boolean; sourceId: string | null };
 export type ClaimCheck = { passed: boolean; claims: ClaimMatch[]; unmatched: ClaimMatch[]; detail: string };
 export type ClaimOptions = {

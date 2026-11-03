@@ -108,8 +108,7 @@ export function ownerSourcesOf(names: readonly (string | null | undefined)[], pl
   const business = names.map(name => (name ?? '').trim()).filter(Boolean).join('\n');
   const inUse = new Set((playbook?.steps ?? []).flatMap(step => step.guidance ?? []));
   const orders = [...new Set((playbook?.patches ?? []).filter(patch => patch.proposedBy === 'owner' && patch.op === 'guidance.add' && inUse.has(patch.value)).map(patch => patch.value))].join('\n');
-  const backs = ['name'] as const;
-  return [...(business ? [{ id: 'owner.business', text: business, backs }] : []), ...(orders ? [{ id: 'owner.standing-orders', text: orders, backs }] : [])];
+  return [...(business ? [{ id: 'owner.business', text: business, backs: ['name' as const] }] : []), ...(orders ? [{ id: 'owner.standing-orders', text: orders, backs: ['name' as const] }] : [])];
 }
 
 /** Chausar's own name is never a claim a draft has to back. */
@@ -227,7 +226,7 @@ function noDoneClaims(input: CheckInput): CheckResult {
  */
 function claimsGrounded(input: CheckInput): CheckResult {
   const grounding = input.grounding;
-  const result = checkClaims(deliverableWords(input.deliverable), [...groundingSources(input.receipts, input.ventureId, grounding), ...(grounding?.ownerSources ?? []).map(source => ({ ...source, backs: ['name'] as const }))], {
+  const result = checkClaims(deliverableWords(input.deliverable), [...groundingSources(input.receipts, input.ventureId, grounding), ...(grounding?.ownerSources ?? []).map(source => ({ ...source, backs: ['name' as const] }))], {
     known: [...ALWAYS_KNOWN, ...(grounding?.known ?? [])],
     dateOrder: grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',
   });
