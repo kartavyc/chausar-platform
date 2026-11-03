@@ -1128,7 +1128,7 @@ export class FakeEngine {
       case 'venture.blueprint.draft': {
         const questions = this.interviews.get(this.current);
         if (!questions) return NOT_ONBOARDING;
-        return withPriceGuide(this.draftPlan(questions, p.shown), this.ventures.get(this.current)?.countryCode ?? 'IN');
+        return withPriceGuide(this.draftPlan(questions, p.shown, p.useTemplate === true), this.ventures.get(this.current)?.countryCode ?? 'IN');
       }
       default: return NOT_ONBOARDING;
     }
@@ -1350,8 +1350,10 @@ export class FakeEngine {
     return { name, by: body.by, offers };
   }
 
-  private draftPlan(questions: InterviewQuestionLite[], rawShown?: unknown): BlueprintViewLite {
+  private draftPlan(questions: InterviewQuestionLite[], rawShown?: unknown, useTemplate = true): BlueprintViewLite {
     const shown = this.shownOf(rawShown);
+    // A1 re-review, as core/blueprint.ts: the kept card goes only with the built-in plan.
+    if (shown && !useTemplate) throw new EngineError('INVALID_VENTURE_REQUEST', 'The plan you kept is saved with the built-in plan only.');
     if (!questions.every((q) => q.answer !== null)) throw new EngineError('INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
     if (shown && this.desk.blueprintFor(this.current)) throw new EngineError('PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
     const venture = this.ventures.get(this.current)!;

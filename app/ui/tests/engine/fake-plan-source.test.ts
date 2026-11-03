@@ -14,3 +14,15 @@ describe('fake plan source', () => {
     expect(named.blueprint.source).toBe('owner');
   });
 });
+
+// A1 re-review, as core/blueprint.ts blueprintDraft: the kept card goes only with the built-in plan.
+describe('fake plan draft with the kept card', () => {
+  it('refuses shown without useTemplate, in the engine words', async () => {
+    const client = createFakeClient(new FakeEngine({ fresh: true }));
+    await client.request('workspace.create', { name: 'Kept Shop', pack: 'services', folder: null } as never);
+    await client.request('venture.create', { idea: 'Photography for parties and shops in Pune', countryCode: 'IN' } as never);
+    const shown = { name: 'Pune Frames Studio', by: 'model' as const, offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
+    await expect(client.request('venture.blueprint.draft', { shown })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'The plan you kept is saved with the built-in plan only.' });
+    await expect(client.request('venture.blueprint.draft', { useTemplate: false, shown })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'The plan you kept is saved with the built-in plan only.' });
+  });
+});
