@@ -6,6 +6,7 @@ import { query, type HookCallback, type Options, type SDKMessage, type SDKUserMe
 import { AGENT_MCP_TOOL_NAMES, type AgentDriver, type AgentDriverInput, type AgentDriverSession, type AgentTurnResult, type AgentUsage } from './driver-types.ts';
 import { CONNECTOR_WORDS, claudeGmailServer, claudeGmailTool } from './connector-policy.ts';
 import { checkFetchPolicy } from '../build/fetch-policy.ts';
+import { aiFailureWords, classifyClaudeResult } from '../models/ai-failure.ts';
 import { profileHost } from '../network/protected.ts';
 
 type ClaudeQuery = AsyncIterable<SDKMessage> & { interrupt(): Promise<unknown>; close(): void; setMcpPermissionModeOverride?: (serverName: string, mode: 'default' | 'auto' | null) => Promise<unknown> };
@@ -272,7 +273,9 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
             const status = active.interrupted ? 'interrupted' : raw.subtype === 'success' && raw.is_error !== true ? 'completed' : 'failed';
             const text = status === 'completed' && typeof raw.result === 'string' ? raw.result : active.text;
             if (!active.text && text) append(active.id, text);
-            settle({ status, text, model, ...(usage ? { usage } : {}), ...(status === 'failed' ? { error: FAILED } : {}) });
+            // A2: a failure Claude Code named (its step limit, a used-up plan, a refused sign-in) in owner words with the fix.
+            const failure = status === 'failed' ? classifyClaudeResult(raw) ?? undefined : undefined;
+            settle({ status, text, model, ...(usage ? { usage } : {}), ...(status === 'failed' ? { error: failure ? aiFailureWords(failure, 'Claude Code') : FAILED } : {}), ...(failure ? { failure } : {}) });
           }
         }
         if (!closed) stop('failed', FAILED);

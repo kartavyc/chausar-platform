@@ -10,6 +10,7 @@ import { AGENT_MCP_TOOL_NAMES, type AgentDriver, type AgentDriverEvent, type Age
 import { CodexError, CodexRpc, object, type CodexChild } from './codex-rpc.ts';
 import { canonical } from '../../portable.ts';
 import { CODEX_APPS_SERVER, CONNECTOR_WORDS, GMAIL_CONNECTOR_ID, codexGmailTool, codexGmailToolsConfig } from './connector-policy.ts';
+import { aiFailureWords, classifyAiText, classifyCodexInfo, type AiFailureKind } from '../models/ai-failure.ts';
 
 type Launch = { command: string; args: string[]; cwd: string; env: Record<string, string> };
 type Qualification = { rpc: CodexRpc; jobRoot: string; profile: string };
@@ -34,6 +35,8 @@ const parsed = (value: unknown): unknown => { if (typeof value !== 'string') ret
 const sameArguments = (a: unknown, b: unknown) => { try { return canonical(parsed(a)) === canonical(parsed(b)); } catch { return false; } };
 const gmailName = (tool: unknown) => String(tool).replace(/^gmail\./, '');
 const failPolicy = () => new CodexError('CODEX_POLICY_UNSUPPORTED', 'This Codex installation cannot enforce this job’s permissions. No client prompt was sent.');
+/** A2: the kind of a Codex turn error, from its error info, else from its message's fixed phrases. */
+const codexFailure = (error: Record<string, any>): AiFailureKind | null => classifyCodexInfo(error.codexErrorInfo) ?? (typeof error.message === 'string' ? classifyAiText(error.message) : null);
 const samePath = (a: unknown, b: string) => typeof a === 'string' && resolve(a) === resolve(b);
 const inside = (root: string, path: string) => { const part = relative(root, path); return part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part); };
 
@@ -108,7 +111,7 @@ function executable(options: CodexDriverOptions): { command: string; prefix: str
   return { command, prefix: [] };
 }
 type ConnectorItem = { tool: string; arguments: unknown; asked: boolean; approved: boolean };
-type Active = { id?: string; interruptRequested?: boolean; baseline: Record<string, number>; resolve(result: AgentTurnResult): void; text: string; usage?: AgentUsage; items: Map<string, Record<string, any>>; queued: Array<[string, unknown]>; connector: Map<string, ConnectorItem> };
+type Active = { id?: string; interruptRequested?: boolean; failure?: AiFailureKind; baseline: Record<string, number>; resolve(result: AgentTurnResult): void; text: string; usage?: AgentUsage; items: Map<string, Record<string, any>>; queued: Array<[string, unknown]>; connector: Map<string, ConnectorItem> };
 export class CodexDriver implements AgentDriver {
   private readonly options: CodexDriverOptions;
   constructor(options: CodexDriverOptions = {}) { this.options = options; }
@@ -126,10 +129,13 @@ export class CodexDriver implements AgentDriver {
     let threadId = '', closed = false, active: Active | undefined;
     let threadUsage: Record<string, number> = {};
     const emit = (event: AgentDriverEvent) => { input.guard(); input.onEvent(event); };
-    const finish = (status: AgentTurnResult['status'], error?: string) => {
+    const finish = (status: AgentTurnResult['status'], error?: string, failure?: AiFailureKind) => {
       if (!active) return;
       const turn = active; active = undefined;
-      const result: AgentTurnResult = { status, text: turn.text, model: input.settings.model, threadId, turnId: turn.id, ...(turn.usage ? { usage: turn.usage } : {}), ...(error ? { error } : {}) };
+      // A2: a failure Codex named is said in owner words with its fix.
+      const named = status === 'failed' ? failure ?? turn.failure : undefined;
+      if (named) error = aiFailureWords(named, 'Codex');
+      const result: AgentTurnResult = { status, text: turn.text, model: input.settings.model, threadId, turnId: turn.id, ...(turn.usage ? { usage: turn.usage } : {}), ...(error ? { error } : {}), ...(named ? { failure: named } : {}) };
       try { emit({ type: 'terminal', status, threadId, turnId: turn.id, ...(error ? { error } : {}) }); } catch { result.text = ''; result.status = 'failed'; result.error = 'Access to this job was withdrawn.'; }
       turn.resolve(result);
     };
@@ -145,8 +151,12 @@ export class CodexDriver implements AgentDriver {
       try {
         input.guard();
         if (method === 'model/rerouted') { stop('Codex changed the requested model. This job was stopped without retrying.'); return; }
+        // A2: Codex's own error info says why a turn fails; it is kept for the turn's end, never shown as it came.
+        if (method === 'error' && object(value.error) && value.willRetry !== true) { active.failure ??= codexFailure(value.error) ?? undefined; return; }
         if (method === 'turn/completed') {
-          const status = value.turn.status; finish(status === 'completed' || status === 'interrupted' ? status : 'failed', status === 'failed' ? 'Codex could not complete this turn. It was not rerouted.' : undefined); return;
+          const status = value.turn.status;
+          const failure = status === 'failed' && object(value.turn.error) ? codexFailure(value.turn.error) ?? undefined : undefined;
+          finish(status === 'completed' || status === 'interrupted' ? status : 'failed', status === 'failed' ? 'Codex could not complete this turn. It was not rerouted.' : undefined, failure); return;
         }
         if (method === 'item/started' && object(value.item) && typeof value.item.id === 'string') {
           if (active.items.has(value.item.id)) return;

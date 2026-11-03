@@ -731,7 +731,7 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   usage: { inputTokens: number; outputTokens: number } | null;
   costMicros: MicroString | null;
   outputDigest: string | null;
-  error: { code: string; message: string; cause?: string } | null; // cause (4F2): the transport's class, such as 'not-connected', when it said one
+  error: { code: string; message: string; cause?: string; said?: string } | null; // cause (4F2): the transport's class, such as 'not-connected', when it said one; said (A2): what the tool printed on failure, screened and short
   replay: boolean; // true when served from a synthetic recording
   /** Ink v2 wave 4 (4H1, H36): the model the provider's answer named, else 'not reported'. Set when the call settles. */
   answeredBy?: string;
@@ -2292,9 +2292,9 @@ export type BreakerTrip = { trigger: BreakerTrigger; line: string; error: string
 /** 4F2: which rule of the repeat-failure breaker stopped a run. */
 export type BreakerTrigger = 'same-error' | 'same-action' | 'failures-in-row';
 /** 4F2 (O14): the kind of an AI call's failure, for the screen's own words (English and Hindi). */
-export type RunFailureKind = 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown';
+export type RunFailureKind = 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown' | 'plan-used-up' | 'step-limit' | 'connection-dropped' | 'model-missing';
 /** 4F2 (O14): what the owner does to fix a failure, as a code the screen words for itself. */
-export type FixKind = 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli';
+export type FixKind = 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli' | 'wait-for-plan' | 'run-again' | 'choose-model';
 /**
  * A stop the owner asked for (4F1). force: the step in progress is thrown away; else the call in progress finishes.
  * cutCallId: the model call a force stop cut while it was out, until its turn comes back and is settled (its cost
@@ -7005,6 +7005,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
+  'AI_USAGE_LIMIT', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
   // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
   'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
   // Wave 6 (6H2): recorded flows.

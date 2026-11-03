@@ -22,6 +22,7 @@ import { ChausarError,check,type Context,type State } from '../../contracts.ts';
 import { assertAgentDraftCurrent } from '../agent-runtime/native-job.ts';
 import { writeCapDenial } from './harness/write-caps.ts';
 import { failureWords } from './failure-words.ts';
+import { AI_FAILURE_CODES } from '../models/ai-failure.ts';
 import { selectAgentRoute } from '../agent-runtime/route.ts';
 import { launchAgentWork,runNativeAgent } from '../agent-runtime/runner.ts';
 import { voiceRules } from '../agents/voice.ts';
@@ -434,10 +435,13 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
       }, route);
       await ventureAction(deps, ctx, 'prepare', 'agent.job.finished', tx => {
         const latest = tx.find('venture-delivery-run', run.id);
+        // A2: a failure the AI tool named (a used-up plan, its step limit and the like) is the run's failure, with its fix.
+        const named = result.status === 'failed' && result.failure
+          ? failureWords({ code: AI_FAILURE_CODES[result.failure], message: result.error ?? '' }, { at: tx.now, dateOrder: context.venture.country.dateOrder }) : null;
         if (latest && ['waiting-for-you', 'ready-for-review'].includes(latest.status) && result.status !== 'completed') {
           tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed',
-            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false } } : {}) });
-          tx.emit('run.failed', { runId: run.id, line: 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
+            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}) } } : {}) });
+          tx.emit('run.failed', { runId: run.id, line: named?.line ?? 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
           tx.emit('queue.changed', {});
           return;
         }
@@ -447,8 +451,8 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
           return;
         }
         if (!latest || latest.status !== 'waiting-for-you') return;
-        tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed' });
-        tx.emit('run.failed', { runId: run.id, line: 'The AI stopped without a checked draft. Read its work notes before starting again.' });
+        tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed', ...(named && latest.agentJob ? { agentJob: { ...latest.agentJob, failure: named } } : {}) });
+        tx.emit('run.failed', { runId: run.id, line: named?.line ?? 'The AI stopped without a checked draft. Read its work notes before starting again.' });
       });
       if (result.status === 'completed') {
         const judge = await import('./judge-run.ts');

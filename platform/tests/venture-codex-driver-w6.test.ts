@@ -137,3 +137,21 @@ test('Codex normalizes repeated completed items without duplicating their stream
   f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } });
   assert.equal((await run).text, 'First second'); await session.close();
 });
+
+test('A2: a failed turn says why, from Codex\'s own error info, in owner words with the fix', async () => {
+  const { aiFailureWords } = await import('../runtime/venture/models/ai-failure.ts');
+  const f = fixture(), session = await f.driver.open(input());
+  const first = await starting(f, session);
+  f.receive({ method: 'error', params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: false, error: { message: 'rate', codexErrorInfo: 'usageLimitExceeded', additionalDetails: null } } });
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'failed', error: { message: 'You hit the limit', codexErrorInfo: 'usageLimitExceeded', additionalDetails: null } } } });
+  const failed = await first.run;
+  assert.equal(failed.status, 'failed'); assert.equal(failed.failure, 'usage-limit'); assert.equal(failed.error, aiFailureWords('usage-limit', 'Codex'));
+  const next = await starting(f, session);
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-2', status: 'failed', error: { message: 'stream disconnected before completion', codexErrorInfo: null, additionalDetails: null } } } });
+  assert.equal((await next.run).failure, 'stream-cut');
+  const plain = await starting(f, session);
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-3', status: 'failed', error: { message: 'odd', codexErrorInfo: 'internalServerError', additionalDetails: null } } } });
+  const odd = await plain.run;
+  assert.equal(odd.failure, undefined); assert.equal(odd.error, 'Codex could not complete this turn. It was not rerouted.');
+  await session.close();
+});

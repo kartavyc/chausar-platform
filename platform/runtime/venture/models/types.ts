@@ -17,7 +17,8 @@ export type Usage = { inputTokens: number; outputTokens: number };
  * (4H1, H36): the model the answer named, when it named one Chausar can read as a model id.
  */
 /** cause (Ink v2 wave 4, 4F2): the transport's class of a failure, such as 'not-connected', when it named one. */
-export type Parsed = ({ ok: true; value: unknown; usage: Usage | null } | { ok: false; code: string; message: string; usage: Usage | null; cause?: string }) & { answeredBy?: string | null };
+/** said (A2): what a command-line tool printed when it failed, screened for secrets and cut short; kept on the record, never shown as the owner's words. */
+export type Parsed = ({ ok: true; value: unknown; usage: Usage | null } | { ok: false; code: string; message: string; usage: Usage | null; cause?: string; said?: string }) & { answeredBy?: string | null };
 
 /** What a call record says when the provider's answer named no model (4H1, H36). Never a guess. */
 export const NOT_REPORTED = 'not reported';

@@ -667,6 +667,24 @@ test('Codex CLI: the profile executable, the host process port and the schema fi
   assert.deepEqual(record.usage, { inputTokens: 20, outputTokens: 6 });
 });
 
+test('A2: a failed Codex call says why in owner words, and keeps what Codex said on its record, screened and short', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  const secret = ['sk', 'proj', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6'].join('-');
+  const hostProcess = async (request: any) => {
+    if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
+    if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
+    return { exitCode: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: "You've hit your usage limit." } }), stderr: `ERROR: You've hit your usage limit. key ${secret} ${'x'.repeat(5000)}` };
+  };
+  const { deps, store } = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(deps, 'codex-cli');
+  await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'judge' })), (error: any) => error.code === 'AI_USAGE_LIMIT' && error.message === 'Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
+  const record = calls(store).at(-1);
+  assert.equal(record.error.code, 'AI_USAGE_LIMIT');
+  assert.match(record.error.said, /usage limit/);
+  assert.equal(record.error.said.includes(secret), false, 'a key in what Codex said is never kept');
+  assert.ok(record.error.said.length <= 600);
+});
+
 test('default transport: posts to a loopback server without the purpose, refuses redirects and oversized answers', async t => {
   const seen: { headers: Record<string, unknown>; body: string }[] = [];
   const server = createServer((request, response) => {

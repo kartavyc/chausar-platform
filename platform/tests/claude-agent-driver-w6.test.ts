@@ -255,3 +255,17 @@ test('6F3: research WebFetch follows the fetch policy: no terms-barred or Linked
     finish(f.output); await run;
   } finally { await session.close(); await f.cleanup(); }
 });
+
+test('A2: a failed Claude turn says why in owner words with the fix, never in its own text', async () => {
+  const { aiFailureWords } = await import('../runtime/venture/models/ai-failure.ts');
+  const f = await fixture(), session = await f.driver.open(f.input);
+  try {
+    const pending = session.run('Sample order'); await f.prompts.next();
+    f.output.push(frame({ type: 'result', subtype: 'error_max_turns', is_error: true }));
+    const result = await pending;
+    assert.equal(result.status, 'failed'); assert.equal(result.failure, 'max-turns'); assert.equal(result.error, aiFailureWords('max-turns', 'Claude Code'));
+    const next = session.run('Sample order again'); await f.prompts.next();
+    f.output.push(frame({ type: 'result', subtype: 'success', is_error: true, result: 'Claude AI usage limit reached|1793400000' }));
+    assert.equal((await next).failure, 'usage-limit');
+  } finally { await session.close(); await f.cleanup(); }
+});

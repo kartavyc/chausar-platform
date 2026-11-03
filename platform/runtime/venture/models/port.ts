@@ -245,6 +245,15 @@ export function reportedModel(kind: ModelRouteKind, text: string): string | null
   }
 }
 
+/** A2: what a tool printed to stderr, secrets screened out, spacing folded: its start and end, at most 600 characters. */
+export function toolSaid(stderr: unknown): string | undefined {
+  if (typeof stderr !== 'string' || !stderr.trim()) return undefined;
+  const text = stderr.length > 8192 ? `${stderr.slice(0, 4096)}\n${stderr.slice(-4096)}` : stderr;
+  const screened = redactSecrets(text).replace(/\s+/g, ' ').trim();
+  if (!screened) return undefined;
+  return screened.length <= 600 ? screened : `${screened.slice(0, 297)}...${screened.slice(-300)}`;
+}
+
 function failureOf(error: unknown, fallback: { code: string; message: string }): { code: string; message: string; cause?: string } {
   if (error instanceof ChausarError && (VENTURE_ERRORS as readonly string[]).includes(error.code)) {
     // Ink v2 wave 4 (4F2): the transport's own class of the failure (such as 'not-connected'), kept so the owner's
@@ -432,7 +441,9 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         return { ok: false, code: 'CLI_FLAGS_UNSUPPORTED', message: cliSentence(cliFlagsWords(cli, looks.get(cli)?.version ?? null, refused)), usage: null };
       }
       const parsed = plan.kind === 'claude-cli' ? parseClaudeCli(response) : parseCodexCli(response);
-      return { ...parsed, answeredBy: typeof response.stdout === 'string' ? reportedModel(plan.kind, response.stdout) : null };
+      // A2: what the tool printed on failure stays on the record (screened, cut short), so a fault can be traced later.
+      const said = !parsed.ok ? toolSaid(response.stderr) : undefined;
+      return { ...parsed, ...(said ? { said } : {}), answeredBy: typeof response.stdout === 'string' ? reportedModel(plan.kind, response.stdout) : null };
     } catch (error) {
       return { ok: false, ...failureOf(error, transportFailure), usage: null };
     } finally {
@@ -452,7 +463,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       ? { ok: false, code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing, usage: null }
       : await dispatch(prepared, apiKey, call.purpose, onDispatch);
     // 4F2: the transport's class of a failure (parsed.cause) stays on the call record beside Chausar's words.
-    let failure: { code: string; message: string; cause?: string } | null = parsed.ok ? null : { code: parsed.code, message: parsed.message, ...(parsed.cause ? { cause: parsed.cause } : {}) };
+    let failure: { code: string; message: string; cause?: string; said?: string } | null = parsed.ok ? null : { code: parsed.code, message: parsed.message, ...(parsed.cause ? { cause: parsed.cause } : {}), ...(parsed.said ? { said: parsed.said } : {}) };
     let value: T | undefined;
     if (parsed.ok) {
       try { value = validate(parsed.value); } catch (error) {
