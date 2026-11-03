@@ -72,8 +72,11 @@ function stubModels() {
       if (fixture === undefined) {
         return { value: task.template!(), by: 'template' as const, callId: null, presetId: 'built-in-templates' as const, model: null, costMicros: '0', priceConfirmed: true };
       }
-      const value = task.validate(structuredClone(typeof fixture === 'function' ? (fixture as (task: ModelTask<T>) => unknown)(task) : fixture));
-      return { value, by: 'model' as const, callId: 'modelcall_synthetic', presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5', costMicros: '0', priceConfirmed: true };
+      const answer = typeof fixture === 'function' ? (fixture as (task: ModelTask<T>) => unknown)(task) : fixture;
+      // A scripted answer of 'template' is the port falling back to the built-in words for that call.
+      if (answer === 'template') return { value: task.template!(), by: 'template' as const, callId: null, presetId: 'built-in-templates' as const, model: null, costMicros: '0', priceConfirmed: true };
+      const value = task.validate(structuredClone(answer));
+      return { value, by: 'model' as const, callId: task.schemaName === 'venture-brief-fill' ? 'modelcall_fill' : 'modelcall_synthetic', presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5', costMicros: '0', priceConfirmed: true };
     },
   };
   return { port, tasks, setFixture(value: unknown) { fixture = value; } };
@@ -427,6 +430,12 @@ test('one-shot A1 row 13: a long field is trimmed, and only an empty field is as
   assert.equal(fill.containsClientData, false);
   assert.ok(sectionLines(filled.markdown, '## 7. Look and feel').includes('Warm and simple, with large type.'));
   assert.ok(sectionLines(filled.markdown, '## 1. What to build').length > 0, 'the rest of the first answer is kept');
+  // Review of A1 (row 13): the fill call is recorded, and a fill the template answered makes the brief mixed.
+  assert.deepEqual([filled.wordsBy, filled.modelCallId, filled.fillCallId], ['model', 'modelcall_synthetic', 'modelcall_fill']);
+  models.setFixture((task: ModelTask<unknown>) => task.schemaName === 'venture-brief-fill' ? 'template' : { ...briefFixture.output, lookAndFeel: '' });
+  const mixed = await brief(deps, {});
+  assert.deepEqual([mixed.wordsBy, mixed.modelCallId, mixed.fillCallId], ['mixed', 'modelcall_synthetic', null]);
+  assert.equal(sectionLines(mixed.markdown, '## 7. Look and feel')[0], 'Calm and plain, with plenty of white space, one accent colour and large, easy to read text.');
 
   // Still empty after asking again: refused, naming the field, and nothing is stored.
   const before = listRecords(store.read(), 'venture-brief').length;

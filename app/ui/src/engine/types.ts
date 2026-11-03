@@ -617,7 +617,7 @@ export interface BlueprintPatchLite {
 /** `venture.build.*` (BriefRecord, HandoffPlan, HandoffRecord, BuildFollowRecord, BuildStatus), trimmed. */
 export type BuilderId = 'lovable' | 'replit' | 'bolt' | 'v0';
 export interface BriefLite {
-  id: string; at: string; briefId: string; version: number; markdown: string; chars: number; wordsBy: 'model' | 'template';
+  id: string; at: string; briefId: string; version: number; markdown: string; chars: number; wordsBy: 'model' | 'template' | 'mixed';
   lint: { ok: boolean; findings: { rule: string; line: number | null; message: string }[] }; estimate?: true;
 }
 export interface HandoffPlanLite {

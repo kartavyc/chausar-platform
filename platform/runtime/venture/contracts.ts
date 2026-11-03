@@ -1221,8 +1221,11 @@ export type BriefRecord = RecordBase<'venture-brief'> & {
   digest: string;
   blueprintDigest: string;
   priceReceiptIds: string[];
-  wordsBy: 'model' | 'template';
+  /** mixed (review of A1, row 13): the AI wrote the brief, but a field it left empty came from the built-in words. */
+  wordsBy: 'model' | 'template' | 'mixed';
   modelCallId: string | null;
+  /** The call that asked again for a field the first answer left empty (review of A1, row 13); null when the template answered it. */
+  fillCallId?: string | null;
   lint: BriefLint;
   /** True when the model's words hold a number: a model estimate. Prices in the brief come only from receipts. */
   estimate?: true;

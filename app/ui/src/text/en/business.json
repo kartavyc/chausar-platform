@@ -59,6 +59,7 @@
   "business.versionAccepted": "Version {version}, accepted",
   "business.versionDraft": "Version {version}, not accepted yet",
   "business.fromTemplates": "Written from built-in templates, not by AI.",
+  "business.fromTemplatesSome": "Some of it is from built-in templates.",
   "business.for": "For: {customer}",
   "business.offers": "Offers",
   "business.steps": "Steps",

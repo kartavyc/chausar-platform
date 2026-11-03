@@ -401,8 +401,9 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     name: blueprint.name.value, customer: blueprint.customer.value, pages: planPages(blueprint), clientArea: hasClientArea(blueprint),
   });
   let words: BriefModelOutput;
-  let wordsBy: 'model' | 'template' = 'template';
+  let wordsBy: BriefRecord['wordsBy'] = 'template';
   let modelCallId: string | null = null;
+  let fillCallId: string | null = null;
   if (body.useTemplate === true) {
     words = template();
   } else {
@@ -413,7 +414,13 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     modelCallId = outcome.callId;
     // One-shot A1 (row 13): a field the AI left empty is asked for again on its own; the rest of its answer stays.
     const missing = missingTextFields(words);
-    if (missing.length) words = { ...words, ...(await deps.models.generate(ctx, briefFillTask(task, missing, words, template))).value };
+    if (missing.length) {
+      const fill = await deps.models.generate(ctx, briefFillTask(task, missing, words, template));
+      words = { ...words, ...fill.value };
+      // Review of A1 (row 13): the fill call is recorded; a fill the built-in words answered makes the brief mixed.
+      fillCallId = fill.callId;
+      if (fill.by === 'template' && wordsBy === 'model') wordsBy = 'mixed';
+    }
   }
 
   return ventureAction(deps, ctx, 'prepare', 'build.brief', tx => {
@@ -433,10 +440,10 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     const record: BriefRecord = {
       ...tx.base('venture-brief'),
       briefId, version, markdown, chars: markdown.length, digest: digest(markdown), blueprintDigest: plan.digest,
-      priceReceiptIds: receipts.map(receipt => receipt.id), wordsBy, modelCallId,
+      priceReceiptIds: receipts.map(receipt => receipt.id), wordsBy, modelCallId, ...(fillCallId !== null || wordsBy === 'mixed' ? { fillCallId } : {}),
       lint: lintFor(markdown, receipts, briefId, clientArea),
       // A number in the model's words is a model estimate, never a receipt.
-      ...(wordsBy === 'model' && briefWordList(words).some(line => modelNumbers(line, copiedTokens(current.idea))) ? { estimate: true as const } : {}),
+      ...(wordsBy !== 'template' && briefWordList(words).some(line => modelNumbers(line, copiedTokens(current.idea))) ? { estimate: true as const } : {}),
     };
     const stored = tx.put(record);
     tx.emit('brief-ready', { briefId, version, lintOk: record.lint.ok });
