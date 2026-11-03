@@ -20,7 +20,8 @@ import type { State } from '../../contracts.ts';
 import type { CheckId, CheckResult, Deliverable, DeliveryRunRecord, DraftEditRecord, ServiceType, TextPart } from '../contracts.ts';
 import type { AnyReceipt } from './deliverable.ts';
 import { copiedTokens, findRecord, listRecords } from '../records.ts';
-import { runChecks } from './checks.ts';
+import { runChecks, summaryReceipts } from './checks.ts';
+import { statesMoney } from './harness/patches.ts';
 import { ventureReceipts } from './shared.ts';
 import { proofsOf } from './harness/loop.ts';
 
@@ -59,28 +60,43 @@ export function jobLevelFailure(checks: readonly CheckResult[]): CheckResult | n
 // Amounts, by value
 // ---------------------------------------------------------------------------
 
-type Amount = { currency: string; minor: bigint; text: string };
+// A3 review 3 (M2): money is found with the money guard's own detector (statesMoney, which holds assertNoMoney), one
+// clause at a time, so every way of writing money the guard knows is seen. Only an amount written exactly as a currency
+// and a number (no scale word, no "k", no number run on after it) is read for its value; a clause the guard still calls
+// money once those are taken out is kept by its words, never parsed in part.
 const CURRENCY: Readonly<Record<string, string>> = {
   '₹': 'INR', rs: 'INR', 'rs.': 'INR', inr: 'INR', rupee: 'INR', rupees: 'INR', '$': 'USD', usd: 'USD', dollar: 'USD', dollars: 'USD',
   '€': 'EUR', eur: 'EUR', euro: 'EUR', euros: 'EUR', '£': 'GBP', gbp: 'GBP', pound: 'GBP', pounds: 'GBP',
+  aed: 'AED', dirham: 'AED', dirhams: 'AED', sgd: 'SGD', aud: 'AUD', cad: 'CAD', nzd: 'NZD', jpy: 'JPY',
 };
 const NUMBER = String.raw`\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?`;
-const BEFORE = new RegExp(String.raw`(₹|\$|€|£|\b(?:rs\.?|inr|usd|eur|gbp))\s?(${NUMBER})`, 'giu');
-const AFTER = new RegExp(String.raw`\b(${NUMBER})\s?(rupees?|inr|usd|dollars?|euros?|eur|pounds?|gbp)\b`, 'giu');
+const SCALE = String.raw`(?:lakhs?|lacs?|crores?|thousand|hundred|k|cr|l|mn|m|bn)\b`;
+/** Nothing that would make the number part of a longer amount: more digits, a decimal, a letter, or a scale word. */
+const ENDS = String.raw`(?![.,]?\d|\s*\d|\p{L}|\s*${SCALE})`;
+const STARTS = String.raw`(?<![\p{L}\d.,])`;
+const EXACT = new RegExp(String.raw`${STARTS}(₹|\$|€|£|(?:rs\.?|inr|usd|eur|gbp|aed|sgd|aud|cad|nzd|jpy)(?!\p{L}))\s{0,3}(${NUMBER})${ENDS}|${STARTS}(${NUMBER})\s{0,3}(rupees?|rs\.?|inr|usd|dollars?|euros?|eur|pounds?|gbp|aed|dirhams?|sgd|aud|cad|nzd|jpy)(?!\p{L})`, 'giu');
 
 function minorOf(number: string): bigint {
   const [whole, fraction = ''] = number.replace(/,/g, '').split('.');
   return BigInt(whole!) * 100n + BigInt(`${fraction}00`.slice(0, 2));
 }
 
-/** Every amount of money written in the words, with its currency and its value in minor units. */
-export function amountsIn(text: string): Amount[] {
-  const found: Amount[] = [];
-  for (const match of text.matchAll(BEFORE)) found.push({ currency: CURRENCY[match[1]!.toLowerCase()] ?? 'INR', minor: minorOf(match[2]!), text: match[0] });
-  for (const match of text.matchAll(AFTER)) found.push({ currency: CURRENCY[match[2]!.toLowerCase()] ?? 'INR', minor: minorOf(match[1]!), text: match[0] });
-  return found;
+/** The money in some words: each exact amount by its value, and each clause with money that is not, by its words. */
+function moneyIn(words: string): { key: string; text: string }[] {
+  const keys: { key: string; text: string }[] = [];
+  for (const clause of words.split(/(?<=(?<!\brs)[.!?;])\s+|\n+/iu)) {
+    if (!clause.trim() || !statesMoney(clause, '')) continue;
+    let rest = clause;
+    for (const match of clause.matchAll(EXACT)) {
+      const currency = CURRENCY[(match[1] ?? match[4])!.toLowerCase()] ?? 'INR';
+      keys.push({ key: `${currency}:${minorOf((match[2] ?? match[3])!)}`, text: match[0].trim() });
+      rest = rest.replace(match[0], ' ');
+    }
+    if (statesMoney(rest, '')) keys.push({ key: `words:${foldedWords(clause).toLowerCase()}`, text: foldedWords(clause) });
+  }
+  return keys;
 }
-const keyOf = (amount: Amount) => `${amount.currency}:${amount.minor}`;
+const keysOf = (words: string) => new Set(moneyIn(words).map(item => item.key));
 
 /** The receipts this run's figures may come from: the venture's price receipts and this run's own work receipts. */
 function runReceipts(state: State, run: DeliveryRunRecord): AnyReceipt[] {
@@ -88,36 +104,56 @@ function runReceipts(state: State, run: DeliveryRunRecord): AnyReceipt[] {
   return [...ventureReceipts(state, run.ventureId), ...work] as AnyReceipt[];
 }
 
-/** The values the run's receipts hold: the figures the draft cited and the order's own price. */
-function receiptedValues(state: State, run: DeliveryRunRecord, receipts: readonly AnyReceipt[]): Set<string> {
+/** What the run's receipts show: the figures the draft cited and the order's own price, as their displays. */
+function receiptedDisplays(state: State, run: DeliveryRunRecord, receipts: readonly AnyReceipt[]): string[] {
   const cited = new Set<string>();
   const order = findRecord(state, 'venture-order', run.orderId);
   if (order?.priceReceiptId) cited.add(order.priceReceiptId);
   for (const section of run.deliverable?.sections ?? []) for (const part of section.parts) if (part.kind === 'figure') cited.add(part.receiptId);
-  const values = new Set<string>();
-  for (const receipt of receipts) {
-    if (!cited.has(receipt.id)) continue;
-    for (const figure of (receipt.figures as readonly { display?: string }[] | undefined) ?? []) for (const amount of amountsIn(figure.display ?? '')) values.add(keyOf(amount));
-  }
-  return values;
+  return receipts.filter(receipt => cited.has(receipt.id)).flatMap(receipt => ((receipt.figures as readonly { display?: string }[] | undefined) ?? []).map(figure => figure.display ?? ''));
 }
 
-/** The values the agent wrote in its own words (never its figure parts). */
-function agentValues(run: DeliveryRunRecord): Set<string> {
+/** The words the agent wrote itself (never its figure parts), a line each. */
+function agentWordsOf(run: DeliveryRunRecord): string {
   const words = (run.deliverable?.sections ?? []).flatMap(section => section.parts.flatMap(part => (part.kind === 'text' ? [part.text] : [])));
-  return new Set(amountsIn([run.deliverable?.title ?? '', ...words, ...(run.deliverable?.questionsForClient ?? [])].join('\n')).map(keyOf));
+  return [run.deliverable?.title ?? '', ...words, ...(run.deliverable?.questionsForClient ?? [])].join('\n');
 }
 
-/** The amounts check on an edit's words, under the money rule's id. */
-function amountsCheck(text: string, receipted: ReadonlySet<string>, agent: ReadonlySet<string>): CheckResult {
-  let own = 0;
-  for (const amount of amountsIn(text)) {
-    const key = keyOf(amount);
-    if (receipted.has(key)) continue;
-    if (agent.has(key)) return { check: 'no-numeric-prose', passed: false, detail: `This keeps an amount the agent wrote with no receipt: "${amount.text}". Change it or take it out.` };
+/**
+ * The amounts check on an edit's words, under the money rule's id. receipted: what the run's receipts show; agentWords:
+ * the agent's own words; clientWords: the client's message and the owner's idea. An amount a receipt or the client's
+ * own words hold is theirs; one the agent wrote with no receipt and that survives in the edit fails; any other is the
+ * editor's own words.
+ */
+export function editAmountsCheck(text: string, input: { receipted: readonly string[]; agentWords: string; clientWords: string }): CheckResult {
+  const receipted = new Set(input.receipted.flatMap(display => [...keysOf(display)]));
+  const client = keysOf(input.clientWords);
+  const agent = keysOf(input.agentWords);
+  const found = moneyIn(text);
+  let own = 0, sourced = 0;
+  for (const item of found) {
+    if (receipted.has(item.key)) continue;
+    if (client.has(item.key)) { sourced += 1; continue; }
+    if (agent.has(item.key)) return { check: 'no-numeric-prose', passed: false, detail: `This keeps an amount the agent wrote with no receipt: "${item.text}". Change it or take it out.` };
     own += 1;
   }
-  return { check: 'no-numeric-prose', passed: true, detail: own ? OWN_WORDS_AMOUNT : 'Every amount comes from a receipt.' };
+  const detail = own ? OWN_WORDS_AMOUNT : sourced ? "Every amount comes from a receipt or the client's message." : found.length ? 'Every amount comes from a receipt.' : 'The words state no amount.';
+  return { check: 'no-numeric-prose', passed: true, detail };
+}
+
+/** A3 review 3 (L1): the words for a number in an edit that no receipt holds. */
+export const OWN_WORDS_NUMBER = 'This number is in your own words, not from a receipt.';
+
+/**
+ * A3 review 3 (L1): the receipts check's number comparison on an edit's own words: a count or figure a receipt of the run
+ * contradicts fails; any other number with no receipt is the editor's own words. Money is the amounts check's.
+ */
+export function editNumbersCheck(text: string, input: { receipts: readonly AnyReceipt[]; ventureId: string; clientWords: string }): CheckResult {
+  const numbers = summaryReceipts(text, { receipts: input.receipts, ventureId: input.ventureId, clientRequest: input.clientWords }).numbers.filter(item => !item.amount);
+  const refuted = numbers.find(item => item.status === 'refuted');
+  if (refuted) return { check: 'receipts', passed: false, detail: `This number does not match its receipt: "${refuted.text}". Change it or take it out.` };
+  if (numbers.some(item => item.status === 'estimate')) return { check: 'receipts', passed: true, detail: OWN_WORDS_NUMBER };
+  return { check: 'receipts', passed: true, detail: numbers.length ? 'Every number matches its receipt.' : 'The words state no number.' };
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +193,13 @@ export function editChecks(state: State, run: DeliveryRunRecord, text: string, c
     allowed: copiedTokens(order?.request ?? '', venture?.idea ?? ''), receipts, ventureId: run.ventureId,
     mocks: [], mockModes: {}, agentTurns: 1, turnLimit: 1, askedQuestions: false, proofs: proofsOf(run.harness ?? null),
   });
-  return [...results, amountsCheck(text, receiptedValues(state, run, receipts), agentValues(run))];
+  const clientWords = [order?.request ?? '', venture?.idea ?? ''].join('\n');
+  return [
+    ...results,
+    editAmountsCheck(text, { receipted: receiptedDisplays(state, run, receipts), agentWords: agentWordsOf(run), clientWords }),
+    // A3 review 3 (L1): the numbers in the edit, against the run's receipts, as the receipts check compares them.
+    editNumbersCheck(text, { receipts, ventureId: run.ventureId, clientWords }),
+  ];
 }
 
 /**
