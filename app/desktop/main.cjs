@@ -230,6 +230,9 @@ function createWindow(hash = '') {
 }
 if (singleInstance) app.whenReady().then(async () => {
   if (stopping) return;
+  // One-shot A4 (hands-on S10): no default File, Edit, View, Window bar on Windows and Linux (typing shortcuts still
+  // work in the page); a Mac keeps its menu, where copy and paste live.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu?.(null);
   // Listed before the engine starts, so an unbuilt Ink app stops the start with its own plain reason.
   try { inkFiles = await listInkFiles(); }
   catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); return; }

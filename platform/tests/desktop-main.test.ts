@@ -11,7 +11,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
 async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
-  const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [];
+  const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
   app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); };
@@ -49,7 +49,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -65,7 +65,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -107,6 +107,13 @@ test('the real desktop starts its file worker without starting a bundled databas
 test('the worker is told where the Ink build is, for the phone server', async () => {
   const d = await desktop(['--production'], Promise.resolve(), true);
   assert.equal(d.engines[0].options.environment.CHAUSAR_INK_ROOT, require('node:path').join(require('node:path').resolve('/owned/app/app/desktop', '../..'), 'app/ui/dist'));
+});
+
+// One-shot A4 (hands-on S10): the window had Electron's default menu bar (File, Edit, View, Window). On Windows and
+// Linux there is none; typing shortcuts still work in the page.
+test('the window has no default menu bar on Windows', async () => {
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  assert.deepEqual(d.appMenus, [null]);
 });
 
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {
