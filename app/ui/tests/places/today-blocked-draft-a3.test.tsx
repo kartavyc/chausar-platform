@@ -96,5 +96,10 @@ describe('the fake refuses an edit that changes nothing (A3 review, H1)', () => 
     const rows = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: QueueRow[] };
     const row = rows.rows.find((item) => item.id === BLOCKED.id)!;
     expect(await engine.request('venture.queue.edit', { rowId: row.id, digest: row.digest, text: `${run.renderedText!}  \n` })).toEqual({ outcome: 'refused', reason: 'NO_CHANGE', line: 'Nothing changed. Edit the words first.' });
+    // A3 review 2 (M-a): an invisible character is no change either.
+    for (const mark of ['​', '⁠', '­']) {
+      const text = run.renderedText!.replace('Boat', `Bo${mark}at`);
+      expect(await engine.request('venture.queue.edit', { rowId: row.id, digest: row.digest, text })).toEqual({ outcome: 'refused', reason: 'NO_CHANGE', line: 'Nothing changed. Edit the words first.' });
+    }
   });
 });

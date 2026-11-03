@@ -199,8 +199,9 @@ export class FakeApprovalsDesk {
     const approvable = seen.actions.some((action) => action.id === 'approve');
     const run = this.held(runId);
     if (!approvable && run?.canEdit !== true) return { outcome: 'refused', reason: 'NOT_OFFERED', line: run?.acceptBlocked ?? FAKE_4J19_WORDS.editNotOffered };
-    // A3 review (H1), as views/queue-actions.ts: the same words with only spaces changed are no edit.
-    const fold = (words: string | null | undefined) => (words ?? '').replace(/\s+/g, ' ').trim();
+    // A3 review (H1), as views/queue-actions.ts and delivery/owner-edit.ts: the same words with only spaces or invisible
+    // characters (format characters, the soft hyphen) changed are no edit.
+    const fold = (words: string | null | undefined) => (words ?? '').normalize('NFC').replace(/[\p{Cf}­]/gu, '').replace(/\s+/g, ' ').trim();
     if (run && fold(p.text) === fold(run.editedText ?? run.renderedText)) return { outcome: 'refused', reason: 'NO_CHANGE', line: FAKE_4J19_WORDS.noChange };
     const text = p.text;
     this.revise(runId, (current) => ({ ...current, editedText: text, ...(approvable ? {} : { canAccept: true, acceptBlocked: null }) }));

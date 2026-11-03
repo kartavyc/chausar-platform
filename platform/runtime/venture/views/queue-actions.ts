@@ -188,6 +188,7 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
   // reading, or whose files are held is not edited: it says why in the engine's own words.
   if (!shown.canEdit && !regulatedSignoffBlock(state, venture, run)) return refused('NOT_OFFERED', shown.acceptBlocked ?? ACTION_WORDS.editNotOffered);
   // One-shot A3 (after review): the same words with only spaces changed are no edit.
+  // A3 review 2 (M-a): invisible characters (U+200B, U+2060, the soft hyphen) are no change either (owner-edit.ts).
   if (sameWords(text, run.editedText ?? run.renderedText)) return refused('NO_CHANGE', ACTION_WORDS.noChange);
   // Regulated papers in the owner's words go to the CA of record first: that edit is made in Work.
   const unsignedEdit = regulatedSignoff(state, venture, { ...run, status: 'edited', editedText: text });

@@ -74,7 +74,7 @@ import { loadQuarantineCheck,refuseQuarantined } from './quarantine-gate.ts';
 import { landRevision } from './revise.ts';
 import { freezeScope,refuseMissingCapability,refuseNewWork } from './run-guards.ts';
 import { acceptedBlueprint,newestFirst,optionalFlag,readAs,todayIso,ventureReceipts } from './shared.ts';
-import { checksWithOwnerEdit, ownerEditOf } from './owner-edit.ts';
+import { checksWithEdit, editInForce, jobLevelFailure, ownAmounts, OWN_WORDS_AMOUNT, type EditContext } from './owner-edit.ts';
 import { agentMayDraft, isLiveStage, isPracticeStage } from '../core/launch-stage.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
 import { playbookForOrder,playbookForRun,type RunPlaybook } from './workflow.ts';
@@ -589,7 +589,9 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     tx.replace(next);
     keepSocialPostPlan(tx,next);
     // 4J1 (O17): who decided and when, wherever the owner reviewed it (Today, Work or the run sheet).
-    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: 'owner', ruleId: null, reason: REVIEW_DECISION_WORDS[verdict], rowId: null });
+    // A3 review 2 (M-c): an amount the editor wrote themself is theirs, and the decision says so.
+    const ownWordsAmount = verdict === 'accepted' && ownAmounts(checksInForce(tx.state, run));
+    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: 'owner', ruleId: null, reason: ownWordsAmount ? `${REVIEW_DECISION_WORDS[verdict]} ${OWN_WORDS_AMOUNT}` : REVIEW_DECISION_WORDS[verdict], rowId: null });
     if (verdict !== 'accepted') {
       const signal: SignalRecord = { ...tx.base('venture-signal'), source: verdict === 'edited' ? 'owner-edited' : 'owner-rejected', runId, reason, scenarioId: null };
       tx.put(signal);
@@ -619,6 +621,9 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
  */
 export function failedCheckReason(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]): string | null {
   const failed = checks.filter(result => !result.passed && !result.notChecked);
+  // One-shot A3 review 2 (M-b): a check about the run itself no edit can fix, so the words say to reject it.
+  const job = jobLevelFailure(failed);
+  if (job) return `This draft failed a check: ${job.detail} An edit can't fix this, so reject it.`;
   if (failed.some(result => result.check === 'no-done-claims')) return DONE_CLAIM_REASON;
   if (failed.length) return `This draft failed a check: ${failed[0].detail} Edit it or reject it.`;
   const playbook = failedPlaybookCheck(playbookChecks);
@@ -631,12 +636,25 @@ function acceptableAsIs(checks: readonly CheckResult[], playbookChecks?: readonl
 }
 
 /**
- * One-shot A3 (S2, after review): the checks a draft is held to now. With the owner's own edit in force
- * (owner-edit.ts), the agent's judge, claim and style checks are lifted and the word checks are the owner's version's.
+ * One-shot A3 (S2, after two reviews): the checks a draft is held to now. With an edit in force (owner-edit.ts), its own
+ * words are checked again, whoever made it; the owner's own edit also lifts the agent's authorship and figure checks.
  */
 function checksInForce(state: State | undefined, run: DeliveryRunRecord): readonly CheckResult[] {
-  const edit = state ? ownerEditOf(state, run) : null;
-  return edit && state ? checksWithOwnerEdit(state, run, edit) : run.checks;
+  const edit = state ? editInForce(state, run) : null;
+  return edit && state ? checksWithEdit(state, run, edit, editContext(state, run)) : run.checks;
+}
+
+/** How the run's own checks were set: the sections its draft had to have, and the business's service type. */
+function editContext(state: State, run: DeliveryRunRecord): EditContext {
+  try {
+    const venture = listRecords(state, 'venture-record').find(row => row.id === run.ventureId)!;
+    const context = orderContext(state, venture, run.orderId);
+    const playbook = playbookForRun(state, run);
+    const draft = playbook ? flagshipDraft(playbook as PlaybookRecord, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null) : null;
+    return { sections: draft?.sections ?? REQUIRED_SECTIONS[context.blueprint.serviceType], serviceType: context.blueprint.serviceType };
+  } catch {
+    return { sections: null, serviceType: 'consulting' as EditContext['serviceType'] };
+  }
 }
 
 /**
@@ -674,7 +692,8 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   // data-entry and career reports) takes no owner edit, so Today offers none.
   const deskBound = !!(run.appTestingBinding || run.watchReportBinding || run.triageReportBinding || run.phoneReportBinding || run.devReportBinding || run.formsSourceBinding)
     || (!!state && playbookForRun(state, run)?.flagship === 'job-search-desk');
-  const canEdit = ready && !cancelled && before === null && held === null && !deskBound;
+  // A3 review 2 (M-b): nor a draft whose failed check is about the run itself, which no edit can fix.
+  const canEdit = ready && !cancelled && before === null && held === null && !deskBound && !jobLevelFailure(run.checks);
   // One-shot A1 (row 9, after review): a draft the AI handed over while its job still runs (reviewReady not set, nothing
   // pending the owner's approval) is the AI's work in progress: nothing says it waits on the owner, and Today holds no
   // row for it until the job hands over.
