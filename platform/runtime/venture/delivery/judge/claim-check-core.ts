@@ -17,7 +17,8 @@ import { quote } from '../quote.ts';
 export type ClaimKind = 'figure' | 'date' | 'name' | 'certification';
 /** text: as the draft says it. key: the form compared with the sources. at: where it starts in the draft. */
 export type DraftClaim = { kind: ClaimKind; text: string; key: string; at: number };
-export type SourceText = { id: string; text: string };
+/** backs: the claim kinds this source may back; all of them when absent (the owner's own sources back names only). */
+export type SourceText = { id: string; text: string; backs?: readonly ClaimKind[] };
 export type ClaimMatch = DraftClaim & { matched: boolean; sourceId: string | null };
 export type ClaimCheck = { passed: boolean; claims: ClaimMatch[]; unmatched: ClaimMatch[]; detail: string };
 export type ClaimOptions = {
@@ -274,9 +275,9 @@ function matches(claim: DraftClaim, source: SourceIndex): boolean {
  */
 export function checkClaims(draft: string, sources: readonly SourceText[], options: ClaimOptions = {}): ClaimCheck {
   const order = options.dateOrder ?? 'day-month-year';
-  const indexed = sources.map(source => indexSource(source, order));
+  const indexed = sources.map(source => ({ index: indexSource(source, order), backs: source.backs ?? null }));
   const claims: ClaimMatch[] = extractClaims(draft, options).map(claim => {
-    const source = indexed.find(item => matches(claim, item));
+    const source = indexed.find(item => (!item.backs || item.backs.includes(claim.kind)) && matches(claim, item.index))?.index;
     return { ...claim, matched: !!source, sourceId: source?.id ?? null };
   });
   const unmatched = claims.filter(claim => !claim.matched);

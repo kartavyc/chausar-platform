@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { ChausarError } from '../runtime/contracts.ts';
 import { CHECK_IDS } from '../runtime/venture/contracts.ts';
 import type { CaseScore, Deliverable, HarnessState, ModelTask, PriceReceiptRecord, SignalRecord } from '../runtime/venture/contracts.ts';
-import { judgeDraftRules, preferDraft, runChecks, type CheckInput } from '../runtime/venture/delivery/checks.ts';
+import { judgeDraftRules, ownerSourcesOf, preferDraft, runChecks, type CheckInput } from '../runtime/venture/delivery/checks.ts';
 import { DEFAULT_LIMITS, newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';
 import { practiceFiles } from '../runtime/venture/delivery/harness/practice.ts';
 import { gate } from '../runtime/venture/delivery/improve.ts';
@@ -224,4 +224,25 @@ test('one-shot A1 row 4: the owner sign-off from a standing order is the owner\'
   const plain = runChecks(input(priced, { checks: ['receipts'], grounding }))[0]!;
   assert.deepEqual(withOwner, plain, 'the receipts check reads no owner source');
   assert.match(withOwner.detail, /model estimate/);
+});
+
+test('review of A1 row 4: only the owner standing orders and names back a draft, and only its names', () => {
+  const grounding = { clientRequest: 'Please close my September books.' };
+  const patch = (id: string, value: string, proposedBy: 'owner' | 'model') => ({ id, level: 'harness', op: 'guidance.add', stepId: 'draft', value, note: { hypothesis: '', expectedFixes: [], likelyRegressions: [] }, proposedBy, parentHash: '' }) as never;
+  const playbook = {
+    steps: [{ id: 'draft', guidance: ['Never say we are ISO 9001 certified.', 'Never say we are ISO certified.', 'Keep every reply under 80 words and sign off with Warmly, Pune Frames.', 'Mention Sunrise Partners as a reference.'] }],
+    patches: [patch('p1', 'Keep every reply under 80 words and sign off with Warmly, Pune Frames.', 'owner'), patch('p2', 'Mention Sunrise Partners as a reference.', 'model')],
+  };
+  const ownerSources = ownerSourcesOf(['Ledger Cafe Books', 'Bookkeeping studio'], playbook);
+  assert.equal(ownerSources.map(source => source.text).join('\n').includes('ISO'), false, 'plan guidance is not the owner\'s standing order');
+  assert.equal(ownerSources.map(source => source.text).join('\n').includes('Sunrise'), false, 'a model patch is not the owner\'s standing order');
+  const check = (...lines: string[]) => runChecks(input(draftOf(...lines), { grounding: { ...grounding, ownerSources } }))[0]!;
+  assert.equal(check('Your books are ready.', 'Warmly, Pune Frames').passed, true);
+  assert.equal(check('We are ISO certified.').passed, false, 'a never-say line backs nothing');
+  assert.equal(check('We are ISO 9001 certified.').passed, false);
+  assert.equal(check('We have served 80 clients.').passed, false, '"80 words" is not "80 clients"');
+  // Even an owner order that names a certification or a figure backs only names.
+  const own = [{ id: 'owner.standing-orders', text: 'Say we are ISO certified and have served 80 clients.' }];
+  assert.equal(runChecks(input(draftOf('We are ISO certified.'), { grounding: { ...grounding, ownerSources: own } }))[0]!.passed, false);
+  assert.equal(runChecks(input(draftOf('We have served 80 clients.'), { grounding: { ...grounding, ownerSources: own } }))[0]!.passed, false);
 });
