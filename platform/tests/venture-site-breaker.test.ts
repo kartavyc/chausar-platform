@@ -59,3 +59,21 @@ test('through the job\'s real source check: a site that keeps answering with cha
   await corroborateClaims({ text: '35% [claim:c1] of visitors.', claims, competitors: [] }, { resolve, send, sites });
   assert.deepEqual(sites.unavailable(), ['wall.example']);
 });
+
+// A2 second review (L4): a refusal is counted against the site that gave it, the last hop of any redirect, not the
+// link that led there; and a redirect into a closed site is refused before anything is asked of it.
+test('refusals after a redirect count against the final site, and a redirect into a closed site is refused', async () => {
+  const sites = new SiteBreaker();
+  const { sent, net: wired } = net(target => (target.url.hostname === 'short.example'
+    ? answer(301, '', { location: `https://wall.example${target.url.pathname}` })
+    : target.url.hostname === 'wall.example' ? answer(200, CHALLENGE) : answer(200)), sites);
+  for (const path of ['/a', '/b', '/c']) await assert.rejects(politeFetch({ url: `https://short.example${path}` }, wired), { code: 'CAPTCHA_STOP' });
+  assert.deepEqual(sites.unavailable(), ['wall.example'], 'the site that refused is closed, not the link');
+  const before = sent.length;
+  await assert.rejects(politeFetch({ url: 'https://short.example/d' }, wired), { code: 'SITE_UNAVAILABLE', message: SITE_WORDS.closed('wall.example') });
+  assert.equal(sent.slice(before).some(url => url.includes('wall.example')), false, 'nothing more is asked of the closed site');
+  const fine = new SiteBreaker();
+  const { net: ok } = net(target => (target.url.hostname === 'short.example' ? answer(302, '', { location: 'https://shop.example/' }) : answer(403)), fine);
+  for (let n = 0; n < 3; n++) assert.equal((await politeFetch({ url: 'https://short.example/' }, ok)).status, 403);
+  assert.deepEqual(fine.unavailable(), ['shop.example'], 'a refusing status after a redirect counts against the final site');
+});

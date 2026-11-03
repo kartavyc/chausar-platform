@@ -186,16 +186,25 @@ export async function politeFetch(request: Omit<GuardedRequest, 'method' | 'body
   const url = checkFetchPolicy(request.url);
   check(request.method === undefined || request.method === 'GET' || request.method === 'HEAD', 'INVALID_VENTURE_REQUEST', 'Chausar only reads pages here.');
   // A2: a site this run closed after three refusals in a row is not asked again; each answer or stop is counted.
+  // A2 second review: against the site of the hop that gave it (the final one after redirects), and a redirect into a
+  // closed site is refused at that hop, before anything is asked of it.
   net.sites?.refuseClosed(url);
+  const polite = policySafe(net.send ?? pinnedSend);
+  let hop: URL = url;
+  const send: PinnedSender = async target => {
+    hop = target.url;
+    net.sites?.refuseClosed(hop);
+    return polite(target);
+  };
   try {
     const answer = await guardedFetch(
       { ...request, url: url.href, headers: { ...request.headers, 'user-agent': CHAUSAR_USER_AGENT } },
-      { resolve: net.resolve, send: policySafe(net.send ?? pinnedSend) },
+      { resolve: net.resolve, send },
     );
-    net.sites?.answered(url, answer.status);
+    net.sites?.answered(hop, answer.status);
     return answer;
   } catch (error) {
-    net.sites?.note(url, error);
+    net.sites?.note(hop, error);
     throw error;
   }
 }
