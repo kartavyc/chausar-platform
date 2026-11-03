@@ -20,3 +20,14 @@ test('owner error: a JavaScript error or a Node file error becomes one plain sen
   }
   assert.doesNotMatch(UNEXPECTED_WORDS, /\u2014/);
 });
+
+test('review of A1: an upper-case code is not enough; a network library error never shows its words', () => {
+  // undici's connect timeout: an upper-case code, no syscall, and a message with the host and port in it.
+  const undici = Object.assign(new Error('Connect Timeout Error (attempted address: api.example.com:443, timeout: 10000ms)'), { name: 'ConnectTimeoutError', code: 'UND_ERR_CONNECT_TIMEOUT' });
+  assert.deepEqual(ownerError(undici), { code: 'REQUEST_FAILED', message: UNEXPECTED_WORDS });
+  assert.deepEqual(ownerError(Object.assign(new Error('Some library said no at C:/x'), { code: 'SOME_LIBRARY_CODE' })), { code: 'REQUEST_FAILED', message: UNEXPECTED_WORDS });
+  // The engine's own codes on a plain error keep their words.
+  assert.deepEqual(ownerError(Object.assign(new Error('This session ended.'), { code: 'UNAUTHENTICATED' })), { code: 'UNAUTHENTICATED', message: 'This session ended.' });
+  assert.deepEqual(ownerError(Object.assign(new Error('Pick a price.'), { code: 'PRICE_REQUIRED' })), { code: 'PRICE_REQUIRED', message: 'Pick a price.' });
+  assert.deepEqual(ownerError(Object.assign(new Error('Open it from the list.'), { code: 'TRANSFER_SAME_BUSINESS' })), { code: 'TRANSFER_SAME_BUSINESS', message: 'Open it from the list.' });
+});
