@@ -4,6 +4,7 @@
  * making chat and permission screen; each app card says what it reads and opens it; the last tile says what every app
  * can do, what asks first and what it never does. An app opens at #/apps?app=<id> (AppView.tsx).
  */
+import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, useRoute } from '../../shell/navigation';
@@ -27,9 +28,16 @@ function AppsHome() {
   const list = useResource('venture.apps.list', {}, { refreshOn: never });
   const data = list.data;
 
+  // One-shot A4 (hands-on row 75): "Your AI is writing it." only while the make is on its way, never at rest.
+  const [making, setMaking] = useState(false);
   async function make(text: string) {
-    const done = await client.request('venture.apps.make', { ask: text });
-    goTo('apps', undefined, { app: done.app.id });
+    setMaking(true);
+    try {
+      const done = await client.request('venture.apps.make', { ask: text });
+      goTo('apps', undefined, { app: done.app.id });
+    } finally {
+      setMaking(false);
+    }
   }
 
   return (
@@ -38,7 +46,7 @@ function AppsHome() {
       <Bento>
         <Tile as="section" span={12} labelledBy="apps-make" className={s.make}>
           <TileHead id="apps-make" title={t('apps.make.title')} />
-          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} suggestions={data?.ideas ?? []} hint={t('apps.make.busy')} />
+          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} suggestions={data?.ideas ?? []} hint={making ? t('apps.make.busy') : undefined} />
         </Tile>
         {list.error && <p className={s.problem} role="alert">{t('apps.failed', { message: list.error.message })}</p>}
         {data && data.apps.length === 0 && <p className={s.quiet}>{t('apps.empty')}</p>}
