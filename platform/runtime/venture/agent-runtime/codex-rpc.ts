@@ -1,14 +1,24 @@
 import type { EventEmitter } from 'node:events';
 import type { Readable, Writable } from 'node:stream';
+import { markRefusal } from '../refusal-brand.ts';
 
 /** Only stdio is exposed. Neither prompts nor provider errors are logged here. */
 export interface CodexChild extends EventEmitter {
   stdin: Writable; stdout: Readable; stderr: Readable;
   kill(signal?: NodeJS.Signals): boolean;
 }
+/**
+ * A2 (A1 carry-over): the codes that tell the owner what to do (Codex missing, a policy this install cannot enforce, the
+ * job's own AGENT_* stops) are Chausar's refusals and branded, so their words reach the owner. The protocol, timeout,
+ * exit and refusal codes describe what Codex itself did; they stay unbranded engine faults.
+ */
+const OWNER_CODES = new Set(['CODEX_NOT_INSTALLED', 'CODEX_POLICY_UNSUPPORTED']);
 export class CodexError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) { super(message); this.name = 'CodexError'; this.code = code; }
+  constructor(code: string, message: string) {
+    super(message); this.name = 'CodexError'; this.code = code;
+    if (OWNER_CODES.has(code) || code.startsWith('AGENT_')) markRefusal(this);
+  }
 }
 export function object(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 type RpcOptions = {
