@@ -147,6 +147,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
             </>
           ) : <p className={s.hint}>{signedIn && preset ? t('first-run.ai.sends', { text: preset.consentText }) : tool.found ? hint : tool.login.line}</p>}
           {tool.login.state === 'failed' && tool.login.line && <p className={s.problem} role="alert">{tool.login.line}</p>}
+          {tool.tested === 'failed' && tool.problem && <p className={s.problem} role="alert">{tool.problem}</p>}
         </div>
       </Tile>
     );

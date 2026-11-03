@@ -224,7 +224,8 @@ function statusWords(finding: CliFinding, terms: CliStatusView['terms'], lastTas
   if (finding.flags === 'mismatch') return needsSetup(cliFlagsWords(finding.cli, finding.version, finding.missingFlags));
   if (!finding.profile) return needsSetup({ line: `${named} is on this computer. Chausar runs it only through the reviewed Codex setup.`, fix: AVAILABILITY_REASONS.codexMissing });
   if (finding.signedIn === 'no') return needsSetup(cliSignedOutWords(finding.cli, finding.version));
-  const parts = [finding.signedIn === 'yes' ? `${named} is on this computer and signed in.` : `${named} is on this computer.`];
+  // A2: "signed in" is earned: the tool's own status says so and a real task on it worked.
+  const parts = [finding.signedIn === 'yes' && lastTask?.outcome === 'succeeded' ? `${named} is on this computer and signed in.` : `${named} is on this computer.`];
   if (finding.flags === 'unknown') parts.push("Chausar couldn't read its help, so its flags are not checked.");
   if (lastTask?.outcome === 'succeeded') return { state: 'ready', line: [...parts, 'Its last task worked.'].join(' '), fix: null };
   if (lastTask?.outcome === 'failed') return { state: 'unverified', line: [...parts, 'Its last task failed.'].join(' '), fix: lastTask.named ?? `Check that you're signed in to ${label}, then try again.` };

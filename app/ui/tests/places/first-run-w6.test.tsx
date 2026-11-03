@@ -90,6 +90,18 @@ describe('first run, step 1: the Codex Chausar runs (A2)', () => {
   });
 });
 
+describe('first run, step 1: "Signed in" is earned (A2)', () => {
+  it('a Codex that says it is signed in but fails the tiny test shows why, and no Signed in or Use', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.signIn();
+    engine.firstRun.failTest('Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
+    start(engine);
+    expect(await screen.findByText('Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.')).toBeTruthy();
+    expect(screen.queryByText('Signed in')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use Codex' })).toBeNull();
+  });
+});
+
 describe('first run, step 2: About you, A that becomes B', () => {
   it('opens as A: the message box, the country from the time zone, and the eleven field tiles', async () => {
     timeZone('Asia/Kolkata');

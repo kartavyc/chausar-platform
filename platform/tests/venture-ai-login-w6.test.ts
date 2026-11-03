@@ -135,3 +135,36 @@ test('Claude Code starts its own auth login; a missing tool or the terms gate re
   assert.deepEqual((await gated.tools()).tools.map(tool => tool.cli), ['codex']);
   await assert.rejects(gated.start('claude-code'), { code: 'PRESET_UNAVAILABLE' });
 });
+
+test('A2: "Signed in" is earned: the tool\'s own status is not enough until one tiny test call worked', async () => {
+  const signedIn = { code: 0, text: 'Logged in using ChatGPT\n' };
+  const tests: string[] = [];
+  let answer: { ok: true } | { ok: false; code: string; line: string } = { ok: false, code: 'AI_USAGE_LIMIT', line: 'Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.' };
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from(signedIn.text)); child.finish(signedIn.code); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0, testRetryMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    testCall: async cli => { tests.push(cli); return answer; },
+  });
+  let codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual([codex.signedIn, codex.tested, codex.problem], ['unknown', 'failed', answer.line]);
+  answer = { ok: true };
+  codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual([codex.signedIn, codex.tested, codex.problem], ['yes', 'passed', undefined]);
+  await desk.tools();
+  assert.equal(tests.length, 2, 'a passed test is not run again');
+});
+
+test('A2: no test call for a Codex the owner has not chosen yet', async () => {
+  const tests: string[] = [];
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from('Logged in using ChatGPT\n')); child.finish(0); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    codex: { async review() { return { state: 'review' as const, origin: null, path: '/usr/local/bin/codex', version: '0.166.0', sha256: 'a'.repeat(64), line: 'x' }; } },
+    testCall: async cli => { tests.push(cli); return { ok: true }; },
+  });
+  const codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.equal(codex.signedIn, 'unknown');
+  assert.deepEqual(tests, []);
+});

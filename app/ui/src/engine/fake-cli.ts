@@ -32,7 +32,7 @@ const LOOK: readonly CliStatusView[] = [
   {
     cli: 'claude-code', label: 'Claude Code', found: true, path: '~\\.local\\bin\\claude.exe', version: '2.3.1', flags: 'match', missingFlags: [],
     signedIn: 'yes', terms: 'accepted', lastTask: null, state: 'unverified',
-    line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
+    line: 'Claude Code 2.3.1 is on this computer. Not yet tried on a real task.', fix: null,
   },
   {
     cli: 'codex', label: 'Codex', found: true, path: 'C:\\Tools\\codex\\codex.exe', version: '0.131.0', flags: 'match', missingFlags: [],

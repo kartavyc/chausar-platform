@@ -206,7 +206,7 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   const [claude, codex] = result.clis;
   assert.deepEqual(claude, {
     cli: 'claude-code', label: 'Claude Code', found: true, path: homePath(CLAUDE_EXE), version: '2.3.1', flags: 'match', missingFlags: [], signedIn: 'yes',
-    terms: 'accepted', lastTask: null, state: 'unverified', line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
+    terms: 'accepted', lastTask: null, state: 'unverified', line: 'Claude Code 2.3.1 is on this computer. Not yet tried on a real task.', fix: null,
   });
   // Codex without the reviewed host profile: found and checked, but Chausar's Codex route does not run it.
   assert.deepEqual(codex, {
@@ -255,7 +255,7 @@ test('Codex with the reviewed host profile: its own executable is checked, and i
   const [claude, codex] = (await status(deps)).clis;
   assert.equal(claude.found, false);
   assert.equal(codex.state, 'unverified');
-  assert.equal(codex.line, 'Codex 0.154.0 is on this computer and signed in. Not yet tried on a real task.');
+  assert.equal(codex.line, 'Codex 0.154.0 is on this computer. Not yet tried on a real task.', 'A2: "signed in" only once a real task worked');
   assert.equal(codex.path, homePath(executable));
   assert.ok(fake.seen.filter(request => /codex$/.test(request.command)).every(request => request.command === executable));
 });
@@ -525,7 +525,7 @@ test('unverified until one real task works, then ready; the last task is shown, 
   await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
   [claude] = (await status(deps)).clis;
   assert.deepEqual([claude.state, claude.lastTask?.outcome], ['unverified', 'failed']);
-  assert.equal(claude.line, 'Claude Code 2.3.1 is on this computer and signed in. Its last task failed.');
+  assert.equal(claude.line, 'Claude Code 2.3.1 is on this computer. Its last task failed.');
   assert.equal(claude.fix, "Check that you're signed in to Claude Code, then try again.");
   // A2 (hands-on row 132): a failure the tool named gives that fix, not "check you're signed in".
   advance(60_000);

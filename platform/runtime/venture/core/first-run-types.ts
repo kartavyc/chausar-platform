@@ -46,5 +46,9 @@ export type CodexSetupView = {
   path: string | null; version: string | null; sha256: string | null; line: string;
 };
 /** setup (A2): Codex only, when the host keeps a Codex trust. */
-export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin; setup?: CodexSetupView };
+/**
+ * tested and problem (A2): the tiny test call that earns "Signed in" (models/cli-test.ts); signedIn is 'yes' only once it
+ * passed, and problem holds its failure in owner words.
+ */
+export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin; setup?: CodexSetupView; tested?: 'passed' | 'failed'; problem?: string };
 export type ToolsView = { tools: ToolView[]; line: string };

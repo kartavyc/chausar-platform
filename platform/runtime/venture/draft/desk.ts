@@ -17,6 +17,7 @@ import { DRAFT_HANDLERS, type ComposeSession, type DeskHandle } from './handlers
 import { createHandover } from './handover.ts';
 import { DraftStore } from './store.ts';
 import { LoginDesk } from '../models/login.ts';
+import { hostTestCall } from '../models/cli-test.ts';
 
 export type DraftDeskOptions = VentureHostOptions & {
   demo: boolean;
@@ -88,7 +89,9 @@ export class DraftDesk {
       idleUntil: () => this.#idleUntil(),
       session: () => (this.#generation === generation ? this.#session : null),
       keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
-      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli) })),
+      // A2: the setup the owner is shown, and the tiny test call that earns "Signed in" (models/cli-test.ts).
+      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli),
+        testCall: (cli, program) => hostTestCall(cli, program, this.#options.codexCli, parts.deps.models) })),
     };
     const handler = DRAFT_HANDLERS[method];
     check(handler, 'NOT_BUILT_YET', 'This part of Chausar is not built yet.');

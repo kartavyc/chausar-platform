@@ -88,11 +88,16 @@ export class FakeFirstRun {
   private setup: CodexSetupLite = { ...SETUP.bundled };
   /** Tests: the owner's own Codex is found and no setup is in use yet, so Chausar asks the owner first. */
   reviewCodex(): void { this.setup = { ...SETUP.review }; }
+  /** A2: the tiny test call's failure in the engine's words, or null when it passes. */
+  private testProblem: string | null = null;
+  /** Tests: the sample Codex says it is signed in, but its tiny test call fails with these words. */
+  failTest(line: string): void { this.testProblem = line; }
+
   /** Whether Codex can be used: a setup in use, as the engine's tools view needs. */
   codexTrusted(): boolean { return this.setup.state === 'trusted'; }
 
   /** Whether the sample Codex says it is signed in (its presets can then connect). */
-  codexSignedIn(): boolean { return this.codex.signedIn === 'yes' && this.codexTrusted(); }
+  codexSignedIn(): boolean { return this.codex.signedIn === 'yes' && this.codexTrusted() && !this.testProblem; }
 
   /** Tests: the sample Codex is already signed in. */
   signIn(): void { this.codex = { signedIn: 'yes', login: { state: 'idle', code: null, link: null, line: null }, looks: 0 }; }
@@ -119,7 +124,11 @@ export class FakeFirstRun {
   }
 
   private codexView(): ToolLite {
-    return { cli: 'codex', label: 'Codex', found: true, signedIn: this.codex.signedIn, login: { ...this.codex.login }, setup: { ...this.setup } };
+    // A2, as models/login.ts: the tool's own "signed in" counts once the tiny test call worked; a Codex not chosen is not tried.
+    const said = this.codex.signedIn, chosen = this.setup.state === 'trusted';
+    const tested = said === 'yes' && chosen ? (this.testProblem ? { tested: 'failed' as const, problem: this.testProblem } : { tested: 'passed' as const }) : {};
+    const signedIn = said === 'yes' && (!chosen || this.testProblem) ? 'unknown' as const : said;
+    return { cli: 'codex', label: 'Codex', found: true, signedIn, login: { ...this.codex.login }, setup: { ...this.setup }, ...tested };
   }
 
   /** A2, as engine.ts #codexSetupTrust and codex-trust.ts record: only the exact Codex shown, in the app, here. */

@@ -179,7 +179,7 @@ export class FakeBusinessDesk {
   private presets() {
     const signedIn = this.host.codexSignedIn?.() === true;
     const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' && signedIn
-      ? { ...preset, availability: 'unverified' as const, availabilityReason: 'Codex is on this computer and signed in. Not yet tried on a real task.' }
+      ? { ...preset, availability: 'unverified' as const, availabilityReason: 'Uses the reviewed Codex install.' }
       : preset));
     if (!this.host.hosted?.()) return presets;
     return presets.map((preset) => (preset.runsOn === 'this-computer'

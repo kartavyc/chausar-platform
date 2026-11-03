@@ -74,7 +74,7 @@ describe('the fake engine answers the CLI status and the role models as the engi
     const [claude, codex] = answer.clis as [CliStatusView, CliStatusView];
     expect(claude).toMatchObject({
       label: 'Claude Code', terms: 'accepted', version: '2.3.1', flags: 'match', signedIn: 'yes', state: 'unverified', lastTask: null,
-      line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
+      line: 'Claude Code 2.3.1 is on this computer. Not yet tried on a real task.', fix: null,
     });
     expect(codex).toMatchObject({ label: 'Codex', terms: 'not-needed', flags: 'match', state: 'needs-setup', fix: CODEX_FIX });
     // The home folder shows as ~ (cli-status.ts homePath).
@@ -150,7 +150,7 @@ describe('Your AI: Your AI apps', () => {
   it('a tool whose last task failed says so on its chip, with the fix at rest', async () => {
     const failed: CliStatusView = {
       ...SEEN, signedIn: 'yes', lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'failed' },
-      line: 'Codex 0.131.0 is on this computer and signed in. Its last task failed.', fix: "Check that you're signed in to Codex, then try again.",
+      line: 'Codex 0.131.0 is on this computer. Its last task failed.', fix: "Check that you're signed in to Codex, then try again.",
     };
     start({ intercept: { 'venture.models.cli.status': async (_params, original) => {
       const answer = (await original()) as { clis: CliStatusView[]; line: string };

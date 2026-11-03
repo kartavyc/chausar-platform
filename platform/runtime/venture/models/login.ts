@@ -21,6 +21,7 @@ import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { CLI_LABELS } from './presets.ts';
 
 import type { CodexSetupView, LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
+import type { CliTestResult } from './cli-test.ts';
 
 export type { LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
 
@@ -46,6 +47,12 @@ export type LoginDeskOptions = {
    * must say yes to (venture.ai.setup.trust) before Codex can be used. Absent: no setup is shown (tests, older hosts).
    */
   codex?: { review(found: string | null): Promise<CodexSetupView> };
+  /**
+   * A2: one tiny test call (cli-test.ts), so "Signed in" shows only once a real call worked. A passed test is kept for the
+   * desk's life; a failed one is tried again after testRetryMs (a minute) so a two-second poll does not call the AI.
+   */
+  testCall?: (cli: DelegateCli, program: { command: string; lead: string[]; located: string }) => Promise<CliTestResult>;
+  testRetryMs?: number;
 };
 
 export const LOGIN_TIMEOUT_MS = 15 * 60_000;
@@ -75,6 +82,7 @@ const WORDS = Object.freeze({
   timedOut: (label: string) => `The ${label} sign-in timed out. Start it again.`,
   terms: 'Claude Code is switched off on this computer.',
   noProgram: (label: string) => `${label} is on this computer in a form Chausar does not start. Sign in inside ${label} itself.`,
+  testFailed: (label: string) => `${label} did not finish the test. Try again.`,
 });
 
 /** The sign-in link (on the tool's own site only) and, for Codex, the one-time code, from what the tool printed. */
@@ -105,6 +113,8 @@ export class LoginDesk {
   #logins = new Map<DelegateCli, ToolLogin>();
   #running = new Map<DelegateCli, Running>();
   #status = new Map<DelegateCli, { at: number; value: ToolView['signedIn'] }>();
+  /** A2: the last test call of each tool, by the program it ran. */
+  #tests = new Map<DelegateCli, { located: string; at: number; result: CliTestResult }>();
 
   constructor(options: LoginDeskOptions = {}) { this.options = options; }
 
@@ -171,15 +181,36 @@ export class LoginDesk {
     if (!program && setup.setup?.state === 'trusted') return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: null }, ...setup };
     if (!program) return { cli, label, found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.notInstalled(label) }, ...setup };
     if (!program.command) return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.noProgram(label) }, ...setup };
-    const signedIn = await this.#signedIn(cli, program, fresh);
+    const said = await this.#signedIn(cli, program, fresh);
+    // A2: the tool's own "signed in" counts only once a tiny test call worked; a Codex not yet chosen is not tried.
+    const earned = said === 'yes' ? await this.#earned(cli, program, setup.setup) : null;
+    const signedIn: ToolView['signedIn'] = said === 'yes' && earned && !earned.ok ? 'unknown' : earned === undefined ? 'unknown' : said;
+    const tested = earned ? { tested: earned.ok ? 'passed' as const : 'failed' as const, ...(earned.ok ? {} : { problem: earned.line }) } : {};
     const login = this.#login(cli);
     // Claude Code's login waits for its page: once its own status says signed in, its process is done.
     if (signedIn === 'yes' && (login.state === 'starting' || login.state === 'waiting')) {
       this.#stop(cli);
       this.#logins.set(cli, { state: 'signed-in', code: null, link: null, line: null });
-      return { cli, label, found: true, signedIn, login: this.#login(cli), ...setup };
+      return { cli, label, found: true, signedIn, login: this.#login(cli), ...setup, ...tested };
     }
-    return { cli, label, found: true, signedIn, login, ...setup };
+    return { cli, label, found: true, signedIn, login, ...setup, ...tested };
+  }
+
+  /**
+   * A2: the tiny test call's result for a tool its own status calls signed in: null when no test is set up (tests, older
+   * hosts), undefined when it cannot be tried yet (a Codex the owner has not chosen), else the kept or a new result.
+   */
+  async #earned(cli: DelegateCli, program: Program, setup: CodexSetupView | undefined): Promise<CliTestResult | null | undefined> {
+    if (!this.options.testCall) return null;
+    if (cli === 'codex' && setup && setup.state !== 'trusted') return undefined;
+    const kept = this.#tests.get(cli);
+    const retry = this.options.testRetryMs ?? 60_000;
+    if (kept && kept.located === program.located && (kept.result.ok || Date.now() - kept.at < retry)) return kept.result;
+    let result: CliTestResult;
+    try { result = await this.options.testCall(cli, program); }
+    catch { result = { ok: false, code: 'MODEL_FAILED', line: WORDS.testFailed(CLI_LABELS[cli]) }; }
+    this.#tests.set(cli, { located: program.located, at: Date.now(), result });
+    return result;
   }
 
   /** venture.ai.tools {}: each tool, whether it is found, its own sign-in state, and any login in flight. */
@@ -253,5 +284,6 @@ export class LoginDesk {
     for (const cli of [...this.#running.keys()]) this.#stop(cli);
     this.#logins.clear();
     this.#status.clear();
+    this.#tests.clear();
   }
 }

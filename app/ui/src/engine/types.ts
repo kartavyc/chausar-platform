@@ -1621,6 +1621,9 @@ export interface ToolLite {
   login: { state: ToolLoginState; code: string | null; link: string | null; line: string | null };
   /** A2: Codex only, when the engine keeps a Codex trust. */
   setup?: CodexSetupLite;
+  /** A2: the tiny test call that earns "Signed in"; problem holds its failure in the engine's owner words. */
+  tested?: 'passed' | 'failed';
+  problem?: string;
 }
 export interface ToolsLite { tools: ToolLite[]; line: string }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
