@@ -237,8 +237,10 @@ test('server.ts and worker.ts never load host.ts, and replay files need demo mod
 
   // W6 6F7: the local server also hands the engine its phone access port; the rest of the options are unchanged.
   const server = async (env: Record<string, string>, args: string[]) => {
-    const { phoneAccess, ...rest } = (await createServerEngine(env, args)).options.venture as Record<string, any>;
+    const { phoneAccess, codexCli, hostProcess, statusPages, ...rest } = (await createServerEngine(env, args)).options.venture as Record<string, any>;
     assert.equal(typeof phoneAccess?.link, 'function', 'the local server passes its phone access port');
+    // A2: the Codex trust (its live profile and checked process port) and the status-page reads are always passed.
+    assert.equal(typeof codexCli?.profile, 'function'); assert.equal(hostProcess, codexCli.process); assert.equal(statusPages, true);
     return rest;
   };
   assert.deepEqual(await server(base, ['--demo']), { host: 'local-web', ...defaults });
@@ -249,8 +251,9 @@ test('server.ts and worker.ts never load host.ts, and replay files need demo mod
 
   const worker = { ...base, CHAUSAR_DEMO: '1' };
   const desktop = async (env: Record<string, string>) => {
-    const { phoneAccess, ...rest } = (await createWorkerEngine(env)).options.venture as Record<string, any>;
+    const { phoneAccess, codexCli, hostProcess, statusPages, ...rest } = (await createWorkerEngine(env)).options.venture as Record<string, any>;
     assert.equal(typeof phoneAccess?.link, 'function', 'the desktop worker passes its phone access port');
+    assert.equal(typeof codexCli?.profile, 'function'); assert.equal(hostProcess, codexCli.process); assert.equal(statusPages, true);
     return rest;
   };
   assert.deepEqual(await desktop({ ...worker, ...replayFiles }), { host: 'desktop', ...defaults });
