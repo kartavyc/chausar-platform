@@ -1,16 +1,20 @@
 /**
  * One-shot A3 (S1): a rename the owner asks for in the About you chat, read by code. The AI read names a field and its
  * offers, never a business, so "Please call the business Pune Frames Studio." used to go to the AI again and the card
- * kept the field's name. Only a request to call, name or rename the business counts. A3 review (L2): the name stops at
- * the first comma, " and ", " but " or " instead", and is refused when it is longer than five words, does not start with
+ * kept the field's name. Only a request to call, name or rename the business counts. A3 reviews (L2, L-d): the name
+ * stops where the request goes on (see STOP), and is refused when it is longer than five words, does not start with
  * a capital letter, a digit or a quote, or starts with a pronoun or "I". What the message says after the name (rest)
  * still goes to the AI as usual, so "Call it Pune Frames, and add wedding shoots too" renames and asks for the shoots.
  */
 
 const ASK = /^\s*(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:(?:call|name)\s+(?:it|this|the business|my business|this business|the studio|my studio|the shop|my shop)\s+(?:as\s+)?|rename\s+(?:it|this|the business|my business|this business)\s+(?:to\s+|as\s+)?|change\s+(?:the|its|my business(?:'s)?)\s+name\s+to\s+)(.+?)\s*$/iu;
 const QUOTED = /^["'“‘](.+?)["'”’](.*)$/u;
-/** Where a name stops: a comma or other stop, a full stop before a space or the end, " and ", " but ", " instead". */
-const STOP = /\s*(?:[,;!?]|\.(?=\s|$)|\s+(?:and|but|instead)\b)/iu;
+/**
+ * Where a name stops: a comma or other stop; a full stop before a space or the end, except after Mr, Mrs, Ms, Dr, St
+ * or a single capital (an initial); " and " or " but " only when a request follows ("and add", "but keep"), so
+ * "Bread and Butter Bakery" stays whole; " instead".
+ */
+const STOP = /\s*(?:[,;!?]|(?<!\b(?:Mr|Mrs|Ms|Dr|St|\p{Lu}))\.(?=\s|$)|\s+(?:and|but)\s+(?=(?:add|keep|make|change|include|also|remove)\b)|\s+instead\b)/iu;
 /** Words that start a sentence, never a business name. */
 const NOT_A_NAME = /^(?:i|i'm|i'd|i'll|me|my|we|we're|you|your|he|she|they|it|it's|this|that|something|anything|whatever)\b/iu;
 const NAME_MIN = 2;

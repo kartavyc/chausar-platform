@@ -55,6 +55,16 @@ describe('a rename by code (A3, S1)', () => {
     expect(renameIn('Call it My Lovely Little Weekend Photo Studio')).toBeNull();
     expect(renameIn('Call it We Shoot Parties')).toBeNull();
   });
+
+  it('A3 review 2 L-d: "and" or "but" inside a name, and a full stop after Mr or an initial, stay in the name', () => {
+    expect(renameIn('Call it Bread and Butter Bakery')).toEqual({ name: 'Bread and Butter Bakery', rest: '' });
+    expect(renameIn('Call it Salt but Sweet')).toEqual({ name: 'Salt but Sweet', rest: '' });
+    expect(renameIn('Call it Mr. Frames')).toEqual({ name: 'Mr. Frames', rest: '' });
+    expect(renameIn('Call it Dr. Rao Clinic.')).toEqual({ name: 'Dr. Rao Clinic', rest: '' });
+    expect(renameIn('Call it A. R. Photos')).toEqual({ name: 'A. R. Photos', rest: '' });
+    expect(renameIn('Call it Bread and Butter and also add cake orders')).toEqual({ name: 'Bread and Butter', rest: 'also add cake orders' });
+    expect(renameIn('Call it Pune Frames and include wedding shoots')).toEqual({ name: 'Pune Frames', rest: 'include wedding shoots' });
+  });
 });
 
 describe('first run: the name the owner asked for is the name kept (A3, S1)', () => {
