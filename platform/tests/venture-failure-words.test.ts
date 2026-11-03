@@ -21,11 +21,12 @@ const words = (code: string, message: string, tool?: string, cause?: string) => 
 
 test('failure words: one sentence and a fix for each kind; only offline is transient; an unknown error has no fix', () => {
   const kinds = Object.keys(FAILURE_TABLE) as FailureKind[];
-  assert.deepEqual(kinds.sort(), ['allowance-spent', 'connection-dropped', 'model-missing', 'not-signed-in', 'offline', 'out-of-date', 'plan-used-up', 'step-limit', 'too-long', 'unknown']);
+  assert.deepEqual(kinds.sort(), ['allowance-spent', 'connection-dropped', 'model-missing', 'not-signed-in', 'offline', 'out-of-date', 'plan-used-up', 'rate-limited', 'step-limit', 'too-long', 'unknown']);
   for (const kind of kinds) {
     const row = FAILURE_TABLE[kind];
     assert.equal(row.line.split(/[.!?](?:\s|$)/).filter(Boolean).length <= 2, true, kind);
-    assert.equal(row.transient, kind === 'offline', kind);
+    // A2 review: a dropped connection and a short rate limit pass too; only those and offline are transient.
+    assert.equal(row.transient, ['offline', 'connection-dropped', 'rate-limited'].includes(kind), kind);
     assert.equal(row.fix === null, kind === 'unknown', kind);
     assert.ok(Object.isFrozen(row));
   }
@@ -172,7 +173,8 @@ test('A2: the failures a tool names have their kind and fix in the table', () =>
   assert.deepEqual([words('AI_STREAM_CUT', 'x')!.kind, words('AI_STREAM_CUT', 'x')!.fixKind], ['connection-dropped', 'run-again-online']);
   assert.deepEqual([words('AI_SIGN_IN_REFUSED', 'x')!.kind, words('AI_SIGN_IN_REFUSED', 'x')!.fixKind], ['not-signed-in', 'sign-in']);
   assert.deepEqual([words('AI_MODEL_UNAVAILABLE', 'x')!.kind, words('AI_MODEL_UNAVAILABLE', 'x')!.fixKind], ['model-missing', 'choose-model']);
-  assert.equal(FAILURE_TABLE['connection-dropped'].transient, false, 'something may have been sent before it dropped');
+  assert.equal(FAILURE_TABLE['connection-dropped'].transient, true, 'A2 review: a dropped connection passes');
+  assert.deepEqual([words('AI_RATE_LIMITED', 'x')!.kind, words('AI_RATE_LIMITED', 'x')!.fixKind], ['rate-limited', 'wait-a-minute']);
 });
 
 test('A2: a native job whose AI named its failure shows that failure and its fix on the run', async () => {

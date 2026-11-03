@@ -139,7 +139,7 @@ test('Claude Code starts its own auth login; a missing tool or the terms gate re
 test('A2: "Signed in" is earned: the tool\'s own status is not enough until one tiny test call worked', async () => {
   const signedIn = { code: 0, text: 'Logged in using ChatGPT\n' };
   const tests: string[] = [];
-  let answer: { ok: true } | { ok: false; code: string; line: string } = { ok: false, code: 'AI_USAGE_LIMIT', line: 'Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.' };
+  let answer: { ok: true } | { ok: false; code: string; line: string } = { ok: false, code: 'AI_USAGE_LIMIT', line: 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.' };
   const desk = new LoginDesk({
     spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from(signedIn.text)); child.finish(signedIn.code); }); return child as any; },
     platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0, testRetryMs: 0,

@@ -678,7 +678,7 @@ test('A2: a failed Codex call says why in owner words; what Codex said is kept f
   };
   const { deps, store } = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
   await connect(deps, 'codex-cli');
-  await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'judge' })), (error: any) => error.code === 'AI_USAGE_LIMIT' && error.message === 'Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
+  await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'judge' })), (error: any) => error.code === 'AI_USAGE_LIMIT' && error.message === 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
   const record = calls(store).at(-1);
   assert.equal(record.error.code, 'AI_USAGE_LIMIT');
   // A2 review: never in the vault (so never in an export or a backup) and never in what the app reads.

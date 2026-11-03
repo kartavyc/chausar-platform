@@ -536,7 +536,7 @@ test('unverified until one real task works, then ready; the last task is shown, 
   await assert.rejects(deps.models.generate(owner, wordsTask()), code('AI_USAGE_LIMIT'));
   [claude] = (await status(deps)).clis;
   assert.equal(claude.lastTask?.outcome, 'failed');
-  assert.equal(claude.fix, 'Claude Code has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
+  assert.equal(claude.fix, 'Claude Code has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
 });
 
 // ---------------------------------------------------------------------------

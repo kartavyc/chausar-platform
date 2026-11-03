@@ -25,7 +25,7 @@ test('every failure code is one of Chausar\'s own, so its words reach the owner'
 
 test('Codex app-server error info names the kind', () => {
   assert.equal(classifyCodexInfo('usageLimitExceeded'), 'usage-limit');
-  assert.equal(classifyCodexInfo('rateLimitExceeded'), 'usage-limit');
+  assert.equal(classifyCodexInfo('rateLimitExceeded'), 'rate-limited', 'A2 review: a short wait, not a used-up plan');
   assert.equal(classifyCodexInfo('contextWindowExceeded'), 'context-full');
   assert.equal(classifyCodexInfo('sessionBudgetExceeded'), 'max-turns');
   assert.equal(classifyCodexInfo('unauthorized'), 'sign-in-refused');
@@ -34,6 +34,15 @@ test('Codex app-server error info names the kind', () => {
   assert.equal(classifyCodexInfo({ responseStreamConnectionFailed: { httpStatusCode: 502 } }), 'stream-cut');
   assert.equal(classifyCodexInfo('internalServerError'), null);
   assert.equal(classifyCodexInfo(null), null);
+});
+
+test('A2 review: a rate limit is a short wait; the fixes point at Connections, Your AI', () => {
+  assert.equal(classifyAiText('429 Too Many Requests'), 'rate-limited');
+  assert.equal(classifyAiText('Rate limit reached for requests, try again in 20s'), 'rate-limited');
+  assert.equal(aiFailureWords('rate-limited', 'Codex'), 'Codex is busy and asked Chausar to wait. Try again in a minute.');
+  assert.match(aiFailureWords('usage-limit', 'Codex'), /under Connections, Your AI\.$/);
+  assert.match(aiFailureWords('model-missing', 'Codex'), /under Connections, Your AI\.$/);
+  assert.equal(AI_FAILURE_CODES['rate-limited'], 'AI_RATE_LIMITED');
 });
 
 test('text from a tool names the kind; ordinary failures name none', () => {

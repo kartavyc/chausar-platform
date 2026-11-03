@@ -32,7 +32,7 @@ test('a Codex test call sends only the fixed sample through the reviewed argumen
 
 test('a failed test call says why in owner words and keeps what Codex said, screened', async () => {
   const usage = await tinyTestCall({ cli: 'codex', codex, model: 'gpt-6-luna', process: async () => ({ exitCode: 1, stdout: jsonl({ type: 'turn.failed', error: { message: "You've hit your usage limit." } }), stderr: 'ERROR: usage limit' }) as never });
-  assert.deepEqual(usage, { ok: false, code: 'AI_USAGE_LIMIT', line: 'Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.', said: 'ERROR: usage limit' });
+  assert.deepEqual(usage, { ok: false, code: 'AI_USAGE_LIMIT', line: 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.', said: 'ERROR: usage limit' });
   const wrong = await tinyTestCall({ cli: 'codex', codex, model: 'gpt-6-luna', process: async () => ({ exitCode: 0, stdout: answered({ ok: false }) }) as never });
   assert.deepEqual(wrong, { ok: false, code: 'MODEL_OUTPUT_REJECTED', line: TEST_WORDS.wrong('Codex') });
   assert.deepEqual(await tinyTestCall({ cli: 'codex', codex: null, model: 'gpt-6-luna', process: async () => { throw new Error('never runs'); } }), { ok: false, code: 'PRESET_UNAVAILABLE', line: TEST_WORDS.noSetup });

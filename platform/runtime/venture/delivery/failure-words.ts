@@ -31,14 +31,15 @@ export const FAILURE_TABLE: Readonly<Record<FailureKind, Row>> = Object.freeze({
   // A2: what the tool itself said went wrong (models/ai-failure.ts).
   'plan-used-up': Object.freeze({ line: "Your AI's own plan is used up for now.", fix: 'Wait for it to reset, or choose another AI under Connections, Your AI.', fixKind: 'wait-for-plan', transient: false }),
   'step-limit': Object.freeze({ line: 'Your AI reached its step limit before it finished.', fix: 'Run it again.', fixKind: 'run-again', transient: false }),
-  'connection-dropped': Object.freeze({ line: 'The connection to your AI dropped before it finished.', fix: 'Run it again once you are back online.', fixKind: 'run-again-online', transient: false }),
+  'connection-dropped': Object.freeze({ line: 'The connection to your AI dropped before it finished.', fix: 'Run it again once you are back online.', fixKind: 'run-again-online', transient: true }),
+  'rate-limited': Object.freeze({ line: 'Your AI asked Chausar to wait a moment.', fix: 'Wait a minute, then run it again.', fixKind: 'wait-a-minute', transient: true }),
   'model-missing': Object.freeze({ line: "Your AI account doesn't offer the model Chausar asked for.", fix: "Choose a model from your AI's list under Connections, Your AI.", fixKind: 'choose-model', transient: false }),
   unknown: Object.freeze({ line: "The AI service answered with an error Chausar doesn't know. Nothing was retried.", fix: null, fixKind: null, transient: false }),
 } satisfies Record<FailureKind, Row>);
 
 /** A2: the failures a tool names (models/ai-failure.ts AI_FAILURE_CODES), by their code. */
 const NAMED: Readonly<Record<string, FailureKind>> = Object.freeze({
-  AI_USAGE_LIMIT: 'plan-used-up', AI_CONTEXT_FULL: 'too-long', AI_MAX_TURNS: 'step-limit', AI_STREAM_CUT: 'connection-dropped',
+  AI_USAGE_LIMIT: 'plan-used-up', AI_RATE_LIMITED: 'rate-limited', AI_CONTEXT_FULL: 'too-long', AI_MAX_TURNS: 'step-limit', AI_STREAM_CUT: 'connection-dropped',
   AI_SIGN_IN_REFUSED: 'not-signed-in', AI_MODEL_UNAVAILABLE: 'model-missing',
 });
 /** Engine codes that place an AI call's failure in the table. Codes not here keep their own words. */

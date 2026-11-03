@@ -167,8 +167,8 @@ export interface RunDetail extends RunSummary {
   /** 4F2 (O14): "How to fix it", only when the owner must act on a failed or breaker-stopped run. */
   fix?: Display;
   /** 4F2 (O14): the failure in the table's plain words, and codes for the screen's own words (English and Hindi). */
-  failure?: { kind: 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown' | 'plan-used-up' | 'step-limit' | 'connection-dropped' | 'model-missing'; line: Display };
-  fixKind?: 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli' | 'wait-for-plan' | 'run-again' | 'choose-model';
+  failure?: { kind: 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown' | 'plan-used-up' | 'rate-limited' | 'step-limit' | 'connection-dropped' | 'model-missing'; line: Display };
+  fixKind?: 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli' | 'wait-for-plan' | 'run-again' | 'choose-model' | 'wait-a-minute';
   /** 4J3 (A17): the Delivered card, on an accepted or edited delivery run only. */
   delivered?: DeliveredView;
   /** 4J14 (Q8): on a run that acted outside: Success only when a code check of the real result passed. Absent otherwise. */

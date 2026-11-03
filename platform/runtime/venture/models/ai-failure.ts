@@ -3,11 +3,13 @@
 // fixed phrases and never shown. A failure that matches none keeps the plain "stopped with an error" words.
 // The codes are in VENTURE_ERRORS (contracts.ts), so owner-error.ts lets their words through.
 
-export type AiFailureKind = 'usage-limit' | 'context-full' | 'max-turns' | 'stream-cut' | 'sign-in-refused' | 'model-missing';
+export type AiFailureKind = 'usage-limit' | 'rate-limited' | 'context-full' | 'max-turns' | 'stream-cut' | 'sign-in-refused' | 'model-missing';
 export type AiToolName = 'Codex' | 'Claude Code' | 'Claude' | 'The AI';
 
 export const AI_FAILURE_CODES = Object.freeze({
   'usage-limit': 'AI_USAGE_LIMIT',
+  // A2 review: a short wait the provider asked for, not a used-up plan.
+  'rate-limited': 'AI_RATE_LIMITED',
   'context-full': 'AI_CONTEXT_FULL',
   'max-turns': 'AI_MAX_TURNS',
   'stream-cut': 'AI_STREAM_CUT',
@@ -18,12 +20,13 @@ export const AI_FAILURE_CODES = Object.freeze({
 /** The owner's words: what happened, then the fix. */
 export function aiFailureWords(kind: AiFailureKind, tool: AiToolName): string {
   switch (kind) {
-    case 'usage-limit': return `${tool} has used up your plan for now. Wait for it to reset, or choose another AI in Settings.`;
+    case 'usage-limit': return `${tool} has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.`;
+    case 'rate-limited': return `${tool} is busy and asked Chausar to wait. Try again in a minute.`;
     case 'context-full': return `This was too long for ${tool} to read in one go. Try again with fewer or smaller files.`;
     case 'max-turns': return `${tool} reached its step limit before it finished. Run it again.`;
     case 'stream-cut': return `The connection to ${tool} dropped before it finished. Check your internet, then try again.`;
     case 'sign-in-refused': return `${tool} refused your sign-in. Sign in to ${tool} again, then try again.`;
-    case 'model-missing': return `Your ${tool} account doesn't offer this model. Choose one from your AI's list in Settings.`;
+    case 'model-missing': return `Your ${tool} account doesn't offer this model. Choose one from your AI's list under Connections, Your AI.`;
   }
 }
 
@@ -31,7 +34,8 @@ export function aiFailureWords(kind: AiFailureKind, tool: AiToolName): string {
 export function classifyCodexInfo(info: unknown): AiFailureKind | null {
   const name = typeof info === 'string' ? info : info && typeof info === 'object' && !Array.isArray(info) ? Object.keys(info)[0] ?? '' : '';
   switch (name) {
-    case 'usageLimitExceeded': case 'rateLimitExceeded': return 'usage-limit';
+    case 'usageLimitExceeded': return 'usage-limit';
+    case 'rateLimitExceeded': return 'rate-limited';
     case 'contextWindowExceeded': return 'context-full';
     case 'sessionBudgetExceeded': return 'max-turns';
     case 'unauthorized': return 'sign-in-refused';
@@ -45,7 +49,9 @@ export function classifyCodexInfo(info: unknown): AiFailureKind | null {
 const PHRASES: readonly [AiFailureKind, RegExp][] = [
   ['sign-in-refused', /\b(?:401|unauthori[sz]ed|not (?:logged|signed) in|please (?:run )?\/?login|(?:log|sign) ?in again|invalid (?:api[ _-]?key|x-api-key|bearer)|authentication (?:failed|error)|token (?:has )?expired|refresh token|oauth token)\b/i],
   ['model-missing', /\b(?:model_not_found|model not found|(?:does not|doesn't) (?:exist|have access)|model is not supported|not supported when using codex)\b/i],
-  ['usage-limit', /\b(?:usage[ _]limit|rate[ _]limit|insufficient_quota|quota (?:exceeded|reached)|exceeded your (?:current )?quota|too many requests|credit balance is too low|limit (?:reached|exceeded))\b/i],
+  ['usage-limit', /\b(?:usage[ _]limit|insufficient_quota|quota (?:exceeded|reached)|exceeded your (?:current )?quota|credit balance is too low)\b/i],
+  ['rate-limited', /\b(?:rate[ _]limit|too many requests|429)\b/i],
+  ['usage-limit', /\blimit (?:reached|exceeded)\b/i],
   ['context-full', /\b(?:context[ _](?:window|length)|context_length_exceeded|prompt is too long|maximum context|input is too long|too many tokens)\b/i],
   ['max-turns', /\b(?:max(?:imum)?[ _-]?turns|error_max_turns|turn limit)\b/i],
   ['stream-cut', /\b(?:stream (?:disconnected|closed|ended|error)|stream_error|disconnected before completion|connection (?:reset|closed|dropped|refused)|ECONNRESET|socket hang up|premature close|network error)\b/i],

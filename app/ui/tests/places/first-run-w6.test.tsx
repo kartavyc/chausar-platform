@@ -94,9 +94,9 @@ describe('first run, step 1: "Signed in" is earned (A2)', () => {
   it('a Codex that says it is signed in but fails the tiny test shows why, and no Signed in or Use', async () => {
     const engine = new FakeEngine({ fresh: true });
     engine.firstRun.signIn();
-    engine.firstRun.failTest('Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
+    engine.firstRun.failTest('Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
     start(engine);
-    expect(await screen.findByText('Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.')).toBeTruthy();
+    expect(await screen.findByText('Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.')).toBeTruthy();
     expect(screen.queryByText('Signed in')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Use Codex' })).toBeNull();
   });
