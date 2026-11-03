@@ -150,7 +150,9 @@ function draftReading(context: StageContext): StageReading {
     default: break;
   }
   const view = runView(run, index.venture, index.nowMs, index.state);
-  if (!view.awaitingYou) return view.status === 'ready-for-review' && view.practiceNow ? notYet('a practice draft, not for clients', 'practice') : notYet('the agent is working', 'working');
+  // One-shot A1 (row 9): a draft the AI is still finishing reads as the agent working, practice or not.
+  const finishing = view.status === 'ready-for-review' && !!view.agentJob && !view.agentJob.reviewReady;
+  if (!view.awaitingYou) return view.status === 'ready-for-review' && view.practiceNow && !finishing ? notYet('a practice draft, not for clients', 'practice') : notYet('the agent is working', 'working');
   if (view.status === 'ready-for-review') return waits('ready, waits for you to read it', 'ready', draftWhat(context.label, 'draft'));
   if (view.status === 'needs-answer') return waits('a question waits on you', 'question', 'a question');
   if (view.status === 'brief-waiting') return waits('a brief waits for your approval', 'brief', 'a brief to approve');

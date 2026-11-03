@@ -639,7 +639,11 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
       ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)) // 5A4: consent and its files' asset records
     : null;
   const canAccept = ready && blocked === null;
-  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && (!practiceNow || isPracticeStage(stage)));
+  // One-shot A1 (row 9, after review): a draft the AI handed over while its job still runs (reviewReady not set, nothing
+  // pending the owner's approval) is the AI's work in progress: nothing says it waits on the owner, and Today holds no
+  // row for it until the job hands over.
+  const finishing = ready && !!run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval;
+  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && !finishing && (!practiceNow || isPracticeStage(stage)));
   // 4H1 (U17): which engine wrote the draft, read from its own call record; only with the vault's state.
   return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
 }

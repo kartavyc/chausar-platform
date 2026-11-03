@@ -169,7 +169,11 @@ test('native toolbox requires consent, stores a receipt-backed proposal and surf
   const stored = findRecord(env.store.read(), 'venture-delivery-run', env.run.id)!;
   assert.equal(stored.status, 'ready-for-review');
   assert.equal(stored.agentJob?.proposal?.body, stored.renderedText);
-  const today = await queueListHandler(env.deps, owner, { scope: 'current' });
+  // Review of A1 (row 9): while the job still runs the draft is not on Today; it arrives once the job hands over.
+  let today = await queueListHandler(env.deps, owner, { scope: 'current' });
+  assert.equal(today.rows.some(row => row.viewRef?.id === env.run.id), false);
+  await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace({ ...run, agentJob: { ...run.agentJob!, reviewReady: true } }); });
+  today = await queueListHandler(env.deps, owner, { scope: 'current' });
   assert.ok(today.rows.some(row => row.viewRef?.id === env.run.id && row.kind === 'draft'));
   assert.equal(env.store.read().actions.length, 0);
   assert.equal(stored.verdict, null);
@@ -277,10 +281,20 @@ test('one-shot A1 row 9: a saved draft the AI is still finishing never says it w
   const stored = findRecord(state, 'venture-delivery-run', env.run.id)!;
   assert.equal(stored.status, 'ready-for-review');
   assert.notEqual(stored.agentJob?.reviewReady, true, 'the job has not handed over yet');
-  // Today may show the draft, locked with the card's own words; the run and the agent tile say the AI is working.
+  // Review of A1: nothing says it waits on the owner while the AI is still working. Not on Today, not counted, and
+  // the order and the run say the agent is finishing.
   const view = runView(stored, venture, Date.now(), state);
+  assert.equal(view.awaitingYou, false);
   assert.equal(view.canAccept, false);
   assert.equal(view.acceptBlocked, 'AI work must finish before you can approve this draft.');
+  const today = await queueListHandler(env.deps, owner, { scope: 'current' });
+  assert.equal(today.rows.some(row => row.viewRef?.id === env.run.id), false, 'no Needs you row while the AI works');
+  const orders = await env.call('venture.order.list', {});
+  const order = orders.find((item: any) => item.id === stored.orderId);
+  assert.equal(order.waitsOnYou ?? null, null, 'the order does not wait on the owner');
+  assert.ok(JSON.stringify(order.stages).includes('the agent is working'));
+  const finishing = deliveryRunDetails(env.deps, state, venture).find(item => item.runId === env.run.id)!;
+  assert.equal(finishing.result, 'AI work must finish before you can approve this draft.');
   const detail = deliveryRunDetails(env.deps, state, venture).find(item => item.runId === env.run.id)!;
   assert.equal(detail.state, 'active', 'the run reads as working, so the agent tile says working');
   assert.equal(detail.steps.find(step => step.state === 'current')?.id !== undefined, true, 'one step is the current one');
@@ -292,5 +306,7 @@ test('one-shot A1 row 9: a saved draft the AI is still finishing never says it w
   await ventureAction(env.deps, owner, 'prepare', 'test.finished', tx => { const run = tx.find('venture-delivery-run', env.run.id)!; tx.replace({ ...run, agentJob: { ...run.agentJob!, reviewReady: true } }); });
   const after = env.store.read(), ready = findRecord(after, 'venture-delivery-run', env.run.id)!;
   assert.equal(runView(ready, venture, Date.now(), after).acceptBlocked === 'AI work must finish before you can approve this draft.', false);
+  assert.equal(runView(ready, venture, Date.now(), after).awaitingYou, true);
+  assert.ok((await queueListHandler(env.deps, owner, { scope: 'current' })).rows.some(row => row.viewRef?.id === env.run.id && row.kind === 'draft'));
   assert.equal(deliveryRunDetails(env.deps, after, venture).find(item => item.runId === env.run.id)!.state, 'waiting');
 });
