@@ -217,6 +217,19 @@ test('a routine needs a check first: ROUTINE_NEEDS_CHECK until a check has a row
   assert.throws(() => requireConnectorChecked(env.store.read(), env.venture.id, 'mailbox'), code('ROUTINE_NEEDS_CHECK'));
 });
 
+test('one-shot A1 row 6: a Claude Code or Codex check counts for a routine on that AI (its row is cli:<tool>)', async () => {
+  const env = await setup();
+  for (const [presetId, cli] of [['claude-code-cli', 'claude-code'], ['codex-cli', 'codex']] as const) {
+    assert.throws(() => requireConnectorChecked(env.store.read(), env.venture.id, `model:${presetId}`), code('ROUTINE_NEEDS_CHECK'));
+    await ventureAction(env.deps, owner, 'prepare', 'seed.check', tx => {
+      tx.put({ ...tx.base('venture-connector-check'), rows: [{ connectorId: `cli:${cli}`, name: cli, outcome: 'answered', line: 'Signed in.', account: null, expiresOn: null, fix: null }] } as never);
+    });
+    requireConnectorChecked(env.store.read(), env.venture.id, `model:${presetId}`);
+  }
+  // A key route still needs its own row: a command-line row never stands in for it.
+  assert.throws(() => requireConnectorChecked(env.store.read(), env.venture.id, 'model:anthropic-sonnet-5-5'), code('ROUTINE_NEEDS_CHECK'));
+});
+
 test('the check needs prepare: a viewer is refused', async () => {
   const env = await setup();
   await assert.rejects(check(env.deps, { ...owner, role: 'viewer' } as Context), (error: any) => typeof error?.code === 'string');
