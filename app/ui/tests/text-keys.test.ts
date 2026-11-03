@@ -34,7 +34,8 @@ describe('every text key the UI builds exists', () => {
     expect(missing).toEqual([]);
   });
   it('the version in use has words for every origin the engine sends', () => {
-    expect(PLAYBOOK_ORIGINS).toEqual(['plan', 'improvement', 'owner']);
+    // The engine's own list (review of A1): a new origin there needs its words here before this passes.
+    expect(PLAYBOOK_ORIGINS.length).toBeGreaterThan(0);
     for (const origin of PLAYBOOK_ORIGINS) expect(keys.has(`business.practice.inUse.${origin}`), origin).toBe(true);
   });
 });

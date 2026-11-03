@@ -3,6 +3,7 @@
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
 // Owned by package P0. Other packages import from here and never redefine these shapes.
 import type { Context, StateStore } from '../contracts.ts';
+import type { PlaybookOrigin } from './playbook-origins.ts';
 import type {
   ApprovalBlockId, ComposeAttachmentNote, ComposedNote, ComposedPage, ComposeModelOutput, CompositionRecord, DecideModelOutput, DraftHandoverPort,
   OfferBlockId, OnboardingPayloads, OnboardingResults, PlanKind, StepBlockId, ToolBlockId, ViewSelection,
@@ -1774,7 +1775,7 @@ export type PlaybookRecord = RecordBase<'venture-playbook'> & {
   patches?: PlaybookPatch[];
   parentId?: string | null; // the version this one was patched from
   /** 'owner': a version the owner's own words made from chat ("from now on", 4B1). */
-  origin?: 'plan' | 'improvement' | 'owner';
+  origin?: PlaybookOrigin;
   /**
    * The flagship playbook whose typed steps these are (venture/playbooks/steps.ts), for a plan that playbook made.
    * Its checks run on every draft (playbookChecks) and its roles are the team. Absent on the eight fixed steps.
@@ -2537,7 +2538,7 @@ export type ImprovementStatus = {
    * made from, with that version's number; null unless it came from an improvement run and the older one still fits.
    */
   inUse?: {
-    playbookId: string; version: number; hash: string; origin: 'plan' | 'improvement' | 'owner';
+    playbookId: string; version: number; hash: string; origin: PlaybookOrigin;
     rollback: { playbookId: string; version: number; digest: string } | null;
   } | null;
 };
@@ -4665,7 +4666,7 @@ export type StandingOrderView = { stepId: string; step: Display; text: string; s
  * steps in that version, with their guidance and check ids. undo: what Undo would do now: point back at the version the
  * last change was made from, rebuild without it, or null when the agent has no change from the owner in use.
  */
-export type StandingPlaybookView = { id: string; version: number; hash: string; origin: 'plan' | 'improvement' | 'owner'; at: IsoTime };
+export type StandingPlaybookView = { id: string; version: number; hash: string; origin: PlaybookOrigin; at: IsoTime };
 export type StandingStepView = { stepId: string; title: Display; guidance: string[]; checks: CheckId[] };
 export type StandingUndoView = { kind: 'back'; version: number } | { kind: 'rebuild' };
 export interface StandingOrdersView { orders: StandingOrderView[]; playbook: StandingPlaybookView | null; rebuildDue: boolean; steps: StandingStepView[]; undo: StandingUndoView | null }
