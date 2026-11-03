@@ -7052,6 +7052,8 @@ export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
   'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
   'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
+  // One-shot A4: Chausar's own PDF reader (core/pdf-text-core.ts) refuses a locked or unreadable file.
+  'PDF_ENCRYPTED', 'PDF_UNREADABLE',
   // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
   'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
   // Wave 6 (6H2): recorded flows.
