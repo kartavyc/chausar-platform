@@ -379,6 +379,9 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     });
   }
 
+/** A2: what the run says when the watchdog stopped a quiet job. */
+export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
+
 /** The installed AI owns its turns. Chausar keeps the job's sources, checks and exact outside-action proposal. */
 async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: OrderContext, playbook: PlaybookRecord, uploads: FileLike[], continuation: { resumeFrom?: string; existingRunId?: string }): Promise<DeliveryRunView> {
   const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
@@ -438,10 +441,12 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
         // A2: a failure the AI tool named (a used-up plan, its step limit and the like) is the run's failure, with its fix.
         const named = result.status === 'failed' && result.failure
           ? failureWords({ code: AI_FAILURE_CODES[result.failure], message: result.error ?? '' }, { at: tx.now, dateOrder: context.venture.country.dateOrder }) : null;
+        // A2: a job that went quiet was stopped by the watchdog; its notes so far stay, and the line says so.
+        const quietLine = result.quiet ? QUIET_LINE : null;
         if (latest && ['waiting-for-you', 'ready-for-review'].includes(latest.status) && result.status !== 'completed') {
           tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed',
-            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}) } } : {}) });
-          tx.emit('run.failed', { runId: run.id, line: named?.line ?? 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
+            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}), ...(result.quiet ? { quiet: true } : {}) } } : {}) });
+          tx.emit('run.failed', { runId: run.id, line: quietLine ?? named?.line ?? 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
           tx.emit('queue.changed', {});
           return;
         }

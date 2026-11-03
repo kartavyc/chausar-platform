@@ -1910,6 +1910,8 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     draftDigest: string | null;
     /** The native tool and automatic quality review settled before owner acceptance. */
     reviewReady?: boolean;
+    /** A2: the job went quiet and was stopped by the watchdog; its notes so far are kept. */
+    quiet?: boolean;
     failure?: import('./delivery/failure-words.ts').FailureWords;
     recalled?: string[];
     sourcesRead?: { id: string; version: string }[];

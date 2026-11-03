@@ -33,6 +33,8 @@ export type AgentTurnResult = {
   status: AgentTurnStatus; text: string; model?: string; usage?: AgentUsage; error?: string; threadId?: string; turnId?: string;
   /** A2: why a failed turn failed, when the tool named it (models/ai-failure.ts); error then holds the owner words with the fix. */
   failure?: import('../models/ai-failure.ts').AiFailureKind;
+  /** A2: the job went quiet and the watchdog stopped it (runner.ts); what it wrote so far is kept. */
+  quiet?: true;
 };
 /** Exact native request identity and complete inputs, never partial streamed arguments. */
 export type AgentApprovalRequest = {
