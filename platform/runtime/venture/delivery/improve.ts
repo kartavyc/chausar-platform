@@ -551,8 +551,8 @@ export async function improveGetHandler(deps: VentureDeps, ctx: Context, payload
   return run;
 }
 
-/** Why a kept candidate can no longer be adopted, or null when it still fits. */
-function staleReason(state: State, venture: VentureRecord, run: ImprovementRunRecord): string | null {
+/** Why a kept candidate can no longer be adopted, or null when it still fits. One-shot A4: Work's line reads it too. */
+export function staleReason(state: State, venture: VentureRecord, run: ImprovementRunRecord): string | null {
   const candidate = run.candidatePlaybookId ? findRecord(state, 'venture-playbook', run.candidatePlaybookId) : undefined;
   if (!candidate) return 'The new version was not found.';
   if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';

@@ -30,6 +30,7 @@ import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
+import { staleReason } from '../delivery/improve.ts';
 import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
@@ -575,7 +576,10 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
     startedAt, elapsed: elapsedText(startedAt, record.at),
-    result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300) : IMPROVEMENT_RESULT[record.status],
+    // One-shot A4 (rows 38, 128): a kept version Practice no longer offers (adopted, rolled back, or the plan changed)
+    // says why, in Practice's own words, never that it is ready to adopt.
+    result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300)
+      : record.status === 'kept-candidate' ? staleReason(state, venture, record) ?? IMPROVEMENT_RESULT[record.status] : IMPROVEMENT_RESULT[record.status],
   };
   const steps: RunStep[] = record.rounds.map(round => plain({
     id: `round-${round.round}`, state: 'done' as const,
