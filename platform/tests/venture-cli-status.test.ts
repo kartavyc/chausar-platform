@@ -331,6 +331,16 @@ test('the real Claude Code 2.1.286 help: every flag the route sends matches, and
   await connect(deps, 'claude-code-cli');
 });
 
+// A2: the bundled Codex moved to 0.166.0; its real help pages were captured the same way on 3 Nov 2026 (no em dashes in
+// them, nothing personal, nothing changed).
+test('A2: the real Codex 0.166.0 help: exec lists every flag the route sends, and the top help lists login', async () => {
+  const codexReal: Tool = { ...CODEX_OK, version: 'codex-cli 0.166.0', help: realHelp('codex-cli-0.166.0-help.txt'), execHelp: realHelp('codex-cli-0.166.0-exec-help.txt') };
+  const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
+  const [, codex] = (await status(deps)).clis;
+  assert.deepEqual([codex.version, codex.flags, codex.missingFlags], ['0.166.0', 'match', []]);
+  assert.ok(fake.seen.some(request => request.args.join(' ') === 'login status'));
+});
+
 test('the real Codex 0.154.0 help: exec lists every flag the route sends, and the top help lists login', async () => {
   const codexReal: Tool = { ...CODEX_OK, help: realHelp('codex-cli-0.154.0-help.txt'), execHelp: realHelp('codex-cli-0.154.0-exec-help.txt') };
   const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });

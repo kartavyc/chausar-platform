@@ -17,7 +17,7 @@ function fixture(change?: (method: string, response: any) => unknown) {
       const message = JSON.parse(String(chunk)); sent.push(message); done();
       if (!('id' in message) || !message.method) return;
       let result: any = {};
-      if (message.method === 'initialize') result = { userAgent: 'codex_cli_rs/0.154.0' };
+      if (message.method === 'initialize') result = { userAgent: 'chausar/0.166.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)' };
       if (message.method === 'thread/start') result = { thread: { id: 'thread-1', ephemeral: true }, model: message.params.model, cwd: message.params.cwd, runtimeWorkspaceRoots: message.params.runtimeWorkspaceRoots, activePermissionProfile: { id: message.params.permissions }, approvalsReviewer: message.params.approvalsReviewer, approvalPolicy: message.params.approvalPolicy, instructionSources: [] };
       if (message.method === 'mcpServerStatus/list') result = { data: [{ name: 'chausar', runtimeStatus: 'connected', tools: Object.fromEntries(AGENT_MCP_TOOL_NAMES.map(name => [name, {}])) }], nextCursor: null };
       if (message.method === 'experimentalFeature/list') result = { data: Object.entries(codexConfig(input(), 'fixture', 'win32').features).map(([name, enabled]) => ({ name, enabled: typeof enabled === 'boolean' ? enabled : false })), nextCursor: null };
@@ -87,6 +87,15 @@ test('Codex refuses effective native tools or unqualified versions before sharin
   }
   const f = fixture((method, result) => method === 'initialize' ? { userAgent: 'codex_cli_rs/9.9.9' } : result);
   await assert.rejects(f.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' });
+  // A2: the bundled 0.166.0 is the one qualified protocol; the earlier 0.154.0 and a look-alike version are refused.
+  for (const userAgent of ['chausar/0.154.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)', 'chausar/10.166.01 (Windows)']) {
+    const old = fixture((method, result) => method === 'initialize' ? { userAgent } : result);
+    await assert.rejects(old.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' }, userAgent);
+  }
+  for (const feature of ['daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch']) {
+    const on = fixture((method, result) => method === 'experimentalFeature/list' ? { ...result, data: result.data.map((item: any) => item.name === feature ? { ...item, enabled: true } : item) } : result);
+    await assert.rejects(on.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' }, feature);
+  }
 });
 test('Codex retains final message content when the provider emits a completed item without deltas', async () => {
   const f = fixture(), session = await f.driver.open(input()), { run } = await starting(f, session);

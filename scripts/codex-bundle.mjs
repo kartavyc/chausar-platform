@@ -11,10 +11,11 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const CODEX_BUNDLE = Object.freeze({
-  version: '0.154.0',
+  // A2: 0.166.0 (the founder's own Codex on 3 Nov 2026). Its LICENSE and NOTICE at rust-v0.166.0 hash the same as before.
+  version: '0.166.0',
   licence: 'Apache-2.0',
   repository: 'https://github.com/openai/codex',
-  tag: 'rust-v0.154.0',
+  tag: 'rust-v0.166.0',
   // The files in openai/codex at the tag above; the npm package carries no licence files of its own.
   licenseSha256: 'd17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc',
   noticeSha256: '9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915',
@@ -25,6 +26,13 @@ const TARGETS = Object.freeze({
 });
 const OS_WORD = Object.freeze({ win32: 'win', linux: 'linux' });
 const MAX_FILES = 200;
+/**
+ * A2: folders of the Codex package the beta leaves out. 0.166.0 adds native voice libraries (GStreamer and GLib under the
+ * LGPL, and Microsoft's vcruntime140.dll, whose runtime terms alone do not allow passing it on). Chausar never uses voice
+ * (the agent driver and the text route turn in_app_voice off), so they are not shipped and need no notice.
+ */
+export const LEFT_OUT = Object.freeze(['codex-resources/voice']);
+const leftOut = name => LEFT_OUT.some(folder => name === folder || name.startsWith(`${folder}/`));
 const safeName = /^[A-Za-z0-9._+@-]+$/;
 
 /** The target triple the official Codex launcher (bin/codex.js) picks for this platform. */
@@ -103,7 +111,7 @@ async function checkExecutables(folder, files, platform, architecture, entrypoin
 export async function stageCodexBundle({ source, destination, platform, architecture, root = projectRoot }) {
   const vendor = await codexVendorFolder(source, platform, architecture);
   const { target, entrypoint } = await readLayout(vendor, platform, architecture);
-  const files = (await listTree(vendor)).sort();
+  const files = (await listTree(vendor)).filter(name => !leftOut(name)).sort();
   for (const name of files) await regularFile(join(vendor, name));
   if (!files.includes(entrypoint)) throw new Error(`Codex entrypoint ${entrypoint} is missing`);
   await checkExecutables(vendor, files, platform, architecture, entrypoint);
@@ -120,7 +128,7 @@ export async function stageCodexBundle({ source, destination, platform, architec
   }
   await copyFile(license, join(destination, 'LICENSE'));
   await copyFile(notice, join(destination, 'NOTICE'));
-  const manifest = { schemaVersion: 1, name: 'OpenAI Codex CLI', version: CODEX_BUNDLE.version, licence: CODEX_BUNDLE.licence, source: `${CODEX_BUNDLE.repository} (${CODEX_BUNDLE.tag}); files from the @openai/codex npm package`, target, entrypoint, files: {} };
+  const manifest = { schemaVersion: 1, name: 'OpenAI Codex CLI', version: CODEX_BUNDLE.version, licence: CODEX_BUNDLE.licence, source: `${CODEX_BUNDLE.repository} (${CODEX_BUNDLE.tag}); files from the @openai/codex npm package`, target, entrypoint, leftOut: [...LEFT_OUT], files: {} };
   for (const name of [...files, 'LICENSE', 'NOTICE'].sort()) {
     const path = join(destination, ...name.split('/'));
     manifest.files[name] = { size: (await lstat(path)).size, sha256: await sha256(path) };

@@ -20,7 +20,12 @@ export type CodexDriverOptions = {
   spawn?: (launch: Launch) => CodexChild;
   qualify?: (input: Qualification) => Promise<void>;
 };
-const prohibitedFeatures = ['apps', 'plugins', 'hooks', 'memories', 'goals', 'multi_agent', 'multi_agent_v2', 'view_image', 'image_generation', 'computer_use', 'browser_use', 'browser_use_external', 'in_app_browser', 'tool_suggest', 'request_permissions_tool', 'skill_mcp_dependency_install', 'skill_search', 'sleep_tool'];
+/** A2: the one Codex app-server protocol the agent driver is qualified against (the bundled Codex, scripts/codex-bundle.mjs). */
+export const CODEX_PROTOCOL_VERSION = '0.166.0';
+// A2: Codex 0.166.0 turns on a background app-server daemon, a browser annotation surface, in-app voice and plugin prefetching
+// by default (read live with this config on 3 Nov 2026); a job needs none of them, so they are off and checked off too.
+const prohibitedFeatures = ['apps', 'plugins', 'hooks', 'memories', 'goals', 'multi_agent', 'multi_agent_v2', 'view_image', 'image_generation', 'computer_use', 'browser_use', 'browser_use_external', 'in_app_browser', 'tool_suggest', 'request_permissions_tool', 'skill_mcp_dependency_install', 'skill_search', 'sleep_tool',
+  'daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch'];
 const APPROVAL_POLICY = { granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: false } };
 /**
  * W6 6F5 (D34): the owner's own Gmail connection in ChatGPT, used only with the ChatGPT plan login (never with a key) and
@@ -291,7 +296,8 @@ export class CodexDriver implements AgentDriver {
     try {
       const hello = await rpc.request('initialize', { clientInfo: { name: 'chausar', version: '0.1.0' }, capabilities: { experimentalApi: true, requestAttestation: false } });
       // Tool enforcement is qualified against this exact installed protocol, not inferred from a version range.
-      if (!object(hello) || typeof hello.userAgent !== 'string' || !/\b0\.154\.0\b/.test(hello.userAgent)) throw failPolicy();
+      // A2: 0.166.0 (its user agent leads with the client's name, then the version: "chausar/0.166.0 (...)").
+      if (!object(hello) || typeof hello.userAgent !== 'string' || !new RegExp(`/${CODEX_PROTOCOL_VERSION.replace(/\./g, '\\.')}\\b`).test(hello.userAgent)) throw failPolicy();
       rpc.notify('initialized', {});
       input.guard();
       // Config tables merge with the owner's configuration. Discover names through the runtime,

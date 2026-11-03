@@ -28,7 +28,7 @@ export const CODEX_CLI_CONFIG = Object.freeze([
   'web_search="disabled"', 'project_doc_max_bytes=0', 'history.persistence="none"',
   ...(process.platform === 'win32' ? ['windows.sandbox=unelevated'] : []),
   'skills.bundled.enabled=false',
-  // The qualified discovery control is experimental in 0.154; suppress only its startup notice, not error events.
+  // The qualified discovery control is experimental in 0.154 and 0.166; suppress only its startup notice, not error events.
   'suppress_unstable_features_warning=true',
   'features.view_image=false', 'features.image_generation=false', 'features.sleep_tool=false',
   'features.tool_suggest=false', 'features.request_permissions_tool=false',
@@ -37,6 +37,10 @@ export const CODEX_CLI_CONFIG = Object.freeze([
   'features.skip_host_skill_discovery=true',
   'features.plugins=false', 'features.skill_search=false',
   'features.skill_mcp_dependency_install=false',
+  // A2: on by default in 0.166.0 (a background app-server daemon, a browser annotation surface, in-app voice, plugin
+  // prefetching); a text-only call needs none of them.
+  'features.daemon_auto_start=false', 'features.browser_annotation_api=false', 'features.in_app_voice=false',
+  'features.plugin_discovery_prefetch=false',
 ]);
 export const CODEX_CLI_LIMITS = Object.freeze({
   stdoutBytes: 1048576, eventBytes: 262144, events: 256,

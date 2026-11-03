@@ -25,15 +25,20 @@ async function vendorFixture(t: any, layout: Record<string, unknown> = {}, machi
   await writeFile(join(vendor, 'bin/codex.exe'), peHeader(machine));
   await writeFile(join(vendor, 'codex-path/rg.exe'), peHeader(machine));
   await writeFile(join(vendor, 'codex-resources/codex-command-runner.exe'), peHeader(machine));
-  await writeFile(join(vendor, 'codex-package.json'), JSON.stringify({ layoutVersion: 1, version: '0.154.0', target: 'x86_64-pc-windows-msvc', variant: 'codex', entrypoint: 'bin/codex.exe', resourcesDir: 'codex-resources', pathDir: 'codex-path', ...layout }));
-  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.154.0', license: 'Apache-2.0' }));
+  // A2: 0.166.0 carries native voice libraries (GStreamer, GLib, Microsoft's runtime DLL) that Chausar leaves out.
+  await mkdir(join(vendor, 'codex-resources/voice/bin'), { recursive: true });
+  await writeFile(join(vendor, 'codex-resources/voice/bin/codex-voice-host.exe'), peHeader(machine));
+  await writeFile(join(vendor, 'codex-resources/voice/bin/vcruntime140.dll'), 'runtime');
+  await writeFile(join(vendor, 'codex-resources/voice/NOTICE.md'), '# Native voice libraries');
+  await writeFile(join(vendor, 'codex-package.json'), JSON.stringify({ layoutVersion: 1, version: '0.166.0', target: 'x86_64-pc-windows-msvc', variant: 'codex', entrypoint: 'bin/codex.exe', resourcesDir: 'codex-resources', pathDir: 'codex-path', ...layout }));
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.166.0', license: 'Apache-2.0' }));
   return { root, vendor, destination: join(root, 'staged') };
 }
 
 test('the shipped Codex LICENSE and NOTICE are byte for byte the files in openai/codex at the pinned release tag', async () => {
-  assert.equal(CODEX_BUNDLE.version, '0.154.0');
+  assert.equal(CODEX_BUNDLE.version, '0.166.0');
   assert.equal(CODEX_BUNDLE.licence, 'Apache-2.0');
-  assert.equal(CODEX_BUNDLE.tag, 'rust-v0.154.0');
+  assert.equal(CODEX_BUNDLE.tag, 'rust-v0.166.0');
   const license = await readFile(new URL('app/desktop/notices/codex/LICENSE', repo));
   const notice = await readFile(new URL('app/desktop/notices/codex/NOTICE', repo));
   assert.equal(sha256(license), CODEX_BUNDLE.licenseSha256);
@@ -79,7 +84,7 @@ test('staging copies the platform Codex layout with LICENSE, NOTICE and a manife
   const { root, vendor, destination } = await vendorFixture(t);
   assert.equal(await codexVendorFolder(root, 'win32', 'x64'), vendor);
   const manifest = await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64' });
-  assert.equal(manifest.version, '0.154.0');
+  assert.equal(manifest.version, '0.166.0');
   assert.equal(manifest.target, 'x86_64-pc-windows-msvc');
   assert.equal(manifest.licence, 'Apache-2.0');
   assert.equal(manifest.entrypoint, 'bin/codex.exe');
@@ -88,6 +93,9 @@ test('staging copies the platform Codex layout with LICENSE, NOTICE and a manife
   assert.deepEqual(await readFile(join(destination, 'NOTICE')), await readFile(new URL('app/desktop/notices/codex/NOTICE', repo)));
   const files = Object.keys(manifest.files).sort();
   assert.deepEqual(files, ['LICENSE', 'NOTICE', 'bin/codex.exe', 'codex-package.json', 'codex-path/rg.exe', 'codex-resources/codex-command-runner.exe']);
+  // A2: the voice folder is left out, and the manifest says so.
+  assert.deepEqual(await readdir(join(destination, 'codex-resources')), ['codex-command-runner.exe']);
+  assert.deepEqual(manifest.leftOut, ['codex-resources/voice']);
   assert.equal(manifest.files['bin/codex.exe'].sha256, sha256(peHeader()));
   assert.deepEqual(JSON.parse(await readFile(join(destination, 'BUNDLE.json'), 'utf8')), manifest);
   assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), manifest);
@@ -106,8 +114,8 @@ test('a local npm install keeps the platform package beside @openai/codex, and t
 });
 
 test('staging refuses a different Codex version, a wrong target or architecture, links, and a folder already in use', async t => {
-  const wrongVersion = await vendorFixture(t, { version: '0.155.0' });
-  await assert.rejects(stageCodexBundle({ source: wrongVersion.root, destination: wrongVersion.destination, platform: 'win32', architecture: 'x64' }), /0\.154\.0/);
+  const wrongVersion = await vendorFixture(t, { version: '0.167.0' });
+  await assert.rejects(stageCodexBundle({ source: wrongVersion.root, destination: wrongVersion.destination, platform: 'win32', architecture: 'x64' }), /0\.166\.0/);
   const wrongTarget = await vendorFixture(t, { target: 'aarch64-pc-windows-msvc' });
   await assert.rejects(stageCodexBundle({ source: wrongTarget.root, destination: wrongTarget.destination, platform: 'win32', architecture: 'x64' }), /target/);
   const wrongMachine = await vendorFixture(t, {}, 0xaa64);

@@ -4,10 +4,11 @@ The Chausar beta installer for Windows and the Linux AppImage and tar.gz carry t
 
 Chausar bundles Codex so the owner can connect their own ChatGPT plan without installing anything else. Chausar is not endorsed by OpenAI, and it is not made by or affiliated with OpenAI. Codex runs only with the owner's own sign-in, started through Codex's own login.
 
-## OpenAI Codex CLI 0.154.0
+## OpenAI Codex CLI 0.166.0
 
 - What: the `codex` program and its helper programs, copied unchanged from the official `@openai/codex` npm package for this computer's platform (`bin`, `codex-resources`, `codex-path`, `codex-package.json`).
-- Source: https://github.com/openai/codex, release tag `rust-v0.154.0`.
+- Left out: the package's `codex-resources/voice` folder (native voice libraries). Chausar does not use voice, so that folder and the libraries in it are not in the installer.
+- Source: https://github.com/openai/codex, release tag `rust-v0.166.0`.
 - Licence: Apache License 2.0. Files: `codex/LICENSE` and `codex/NOTICE`, byte for byte the files in that repository at that tag (the npm package itself carries no licence files).
 
 ## Ratatui (inside Codex)
