@@ -18,7 +18,7 @@ test('every failure code is one of Chausar\'s own, so its words reach the owner'
   }
   for (const kind of Object.keys(AI_FAILURE_CODES) as (keyof typeof AI_FAILURE_CODES)[]) {
     const words = aiFailureWords(kind, 'Codex');
-    assert.doesNotMatch(words, /—/);
+    assert.doesNotMatch(words, /\u2014/);
     assert.ok(words.split(/\s+/).length <= 30, `${kind} is short: ${words}`);
   }
 });
