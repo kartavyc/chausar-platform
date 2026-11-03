@@ -223,7 +223,8 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   // limit each, nothing on standard input, no key in the environment.
   assert.deepEqual(fake.seen.map(request => [request.command, request.args.join(' '), request.timeoutMs]), [
     [CLAUDE_EXE, '--version', 10000], [CLAUDE_EXE, '--help', 5000], [CLAUDE_EXE, 'auth status', 5000],
-    [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, [...CODEX_QUIET_ARGS, 'login', 'status'].join(' '), 5000],
+    // A2 second review: this Codex is 0.154.0, older than the reviewed one, so its status runs without the quiet flags.
+    [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, 'login status', 5000],
   ]);
   for (const request of fake.seen) {
     assert.equal(request.purpose, 'version-check');
@@ -360,7 +361,9 @@ test('the real Codex 0.154.0 help: exec lists every flag the route sends, and th
   const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
   const [, codex] = (await status(deps)).clis;
   assert.deepEqual([codex.version, codex.flags, codex.missingFlags, codex.signedIn, codex.state], ['0.154.0', 'match', [], 'yes', 'unverified']);
-  assert.ok(fake.seen.some(request => request.args.join(' ') === [...CODEX_QUIET_ARGS, 'login', 'status'].join(' ')));
+  // A2 second review: the quiet flags go only to a reviewed Codex version.
+  assert.ok(fake.seen.some(request => request.args.join(' ') === 'login status'));
+  assert.ok(fake.seen.every(request => !request.args.includes('--disable')));
   await connect(deps, 'codex-cli');
 });
 
@@ -700,7 +703,7 @@ test('npm-installed Codex: the status runs node with the entry script and an arg
   assert.equal(codex.line, 'Codex 0.154.0 is on this computer. Chausar runs it only through the reviewed Codex setup.');
   assert.deepEqual(fake.seen.filter(request => request.command !== 'claude').map(request => [request.command, ...request.args]), [
     [join(npm.folder, 'node.exe'), npm.entry, '--version'], [join(npm.folder, 'node.exe'), npm.entry, 'exec', '--help'],
-    [join(npm.folder, 'node.exe'), npm.entry, '--help'], [join(npm.folder, 'node.exe'), npm.entry, ...CODEX_QUIET_ARGS, 'login', 'status'],
+    [join(npm.folder, 'node.exe'), npm.entry, '--help'], [join(npm.folder, 'node.exe'), npm.entry, 'login', 'status'],
   ]);
   // A shim that is not the standard form is never run: the command-script words stay.
   const odd = npmFolder('codex.cmd', `${REAL_CMD}calc.exe\r\n`, { localNode: true });

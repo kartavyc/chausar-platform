@@ -20,7 +20,7 @@ import { CLI_COMMANDS, cliGateOpen, cliVersionOf, startableProgram } from './cli
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { AVAILABILITY_REASONS, CLI_LABELS, cliFlagsWords, cliNamed, cliSignedOutWords, type CliWords } from './presets.ts';
 import { VERSION_CHECK_TIMEOUT_MS } from './types.ts';
-import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
+import { codexQuietArgsFor } from '../../providers/codex-cli.ts';
 import { AI_FAILURE_CODES } from './ai-failure.ts';
 
 /** A2: the codes of failures a tool named (ai-failure.ts), whose words carry the real fix. */
@@ -45,10 +45,13 @@ export const CLI_STATUS_WORDS = Object.freeze({
 const ROUTE_KINDS: Readonly<Record<DelegateCli, 'claude-cli' | 'codex-cli'>> = Object.freeze({ 'claude-code': 'claude-cli', codex: 'codex-cli' });
 /** Codex's route flags are its exec command's; Claude Code lists its flags and its commands on one help page. */
 const FLAG_HELP: Readonly<Record<DelegateCli, string[]>> = Object.freeze({ 'claude-code': ['--help'], codex: ['exec', '--help'] });
-/** The sign-in status command, run only when the tool's own top help lists the command it belongs to. */
+/**
+ * The sign-in status command, run only when the tool's own top help lists the command it belongs to. A2 second review:
+ * Codex's leads with the quiet flags only when its version answer is a reviewed version (codexQuietArgsFor).
+ */
 const STATUS_COMMANDS: Readonly<Record<DelegateCli, { listed: RegExp; args: string[] }>> = Object.freeze({
   'claude-code': { listed: /^[ \t]{1,8}auth\b/m, args: ['auth', 'status'] },
-  codex: { listed: /^[ \t]{1,8}login\b/m, args: [...CODEX_QUIET_ARGS, 'login', 'status'] },
+  codex: { listed: /^[ \t]{1,8}login\b/m, args: ['login', 'status'] },
 });
 /** The fixed phrases. Signed out wins over signed in; signed in also needs a clean exit. Anything else is unknown. */
 const SIGNED_OUT: readonly RegExp[] = [/\bnot (?:logged|signed) in\b/i, /"loggedIn"\s*:\s*false\b/];
@@ -178,7 +181,8 @@ async function checksOf(cli: DelegateCli, look: CliLook, target: Target, finding
   const commands = cli === 'codex' ? await run(look, cli, target, ['--help'], HELP_TIMEOUT_MS, HELP_READ_CHARS) : help;
   if (!commands || !commands.ok || !STATUS_COMMANDS[cli].listed.test(commands.text)) return finding;
   finding.statusCommand = true;
-  finding.signedIn = signedInFrom(await run(look, cli, target, STATUS_COMMANDS[cli].args, STATUS_TIMEOUT_MS, SHORT_READ_CHARS));
+  const quiet = cli === 'codex' ? codexQuietArgsFor(named) : [];
+  finding.signedIn = signedInFrom(await run(look, cli, target, [...quiet, ...STATUS_COMMANDS[cli].args], STATUS_TIMEOUT_MS, SHORT_READ_CHARS));
   return finding;
 }
 

@@ -70,6 +70,15 @@ export const CODEX_FEATURES_LEFT_ON: Readonly<Record<string, string>> = Object.f
 });
 /** A2 review: the default-on features the check commands (version, help, features, models, login) also switch off. */
 export const CODEX_QUIET_ARGS = Object.freeze(['daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch', 'in_app_updates'].flatMap(name => ['--disable', name]));
+/** A2 review: the Codex versions that review (codex-trust.ts CODEX_CONFIG_REVIEW and the agent driver's protocol pin) covers. */
+export const REVIEWED_CODEX_VERSIONS: readonly string[] = Object.freeze(['0.166.0']);
+/**
+ * A2 second review: the quiet flags go only to a reviewed Codex version, which is known to take them; any other Codex
+ * (an older one earlier on the search path) may not know them, so its commands run without them.
+ */
+export function codexQuietArgsFor(version: string | null | undefined): readonly string[] {
+  return typeof version === 'string' && REVIEWED_CODEX_VERSIONS.includes(version) ? CODEX_QUIET_ARGS : [];
+}
 export const CODEX_CLI_LIMITS = Object.freeze({
   stdoutBytes: 1048576, eventBytes: 262144, events: 256,
   planBytes: 65536, stdinBytes: 262144, schemaBytes: 65536, timeoutMs: 120000,

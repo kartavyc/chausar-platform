@@ -24,7 +24,7 @@ import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { ChausarError, check } from './contracts.ts';
 import { defaultProcess, type GatewayOptions, type ProcessRequest, type ProcessResult } from './gateway.ts';
 import { loadCodexCliHostGateway } from './codex-cli-host.ts';
-import { CODEX_CLI_CONFIG, CODEX_QUIET_ARGS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
+import { CODEX_CLI_CONFIG, CODEX_QUIET_ARGS, REVIEWED_CODEX_VERSIONS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 import { cliEnv } from './venture/models/cli.ts';
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './venture/models/npm-shim.ts';
 import { locateOnThisComputer } from './venture/models/cli-look.ts';
@@ -55,7 +55,7 @@ export const CODEX_CONFIG_REVIEW = Object.freeze({
   keys: Object.freeze(CODEX_CLI_CONFIG.map(value => value.split('=')[0]).filter(key => !key.startsWith('features.'))),
 });
 /** A2 review: the Codex versions that review (CODEX_CONFIG_REVIEW and the agent driver's protocol pin) covers. */
-export const REVIEWED_CODEX_VERSIONS: readonly string[] = Object.freeze(['0.166.0']);
+export { REVIEWED_CODEX_VERSIONS };
 /** The three answers a setup pins, by the file names the loader accepts. */
 export const SETUP_FILES = Object.freeze({ versionOutput: 'version.stdout.txt', execHelp: 'exec-help.stdout.txt', features: 'features.stdout.txt' });
 const SETUP_ARGS: Readonly<Record<keyof typeof SETUP_FILES, string[]>> = Object.freeze({ versionOutput: ['--version'], execHelp: ['exec', '--help'], features: ['features', 'list'] });

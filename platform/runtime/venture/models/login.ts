@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError, check } from '../../contracts.ts';
 import type { DelegateCli } from '../contracts.ts';
-import { cliEnv } from './cli.ts';
-import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
+import { cliEnv, codexCommand, codexHost } from './cli.ts';
+import { codexQuietArgsFor } from '../../providers/codex-cli.ts';
 import { CLI_COMMANDS, locateOnThisComputer, startableProgram } from './cli-look.ts';
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { CLI_LABELS } from './presets.ts';
@@ -46,8 +46,9 @@ export type LoginDeskOptions = {
   /**
    * A2: the host's Codex trust (codex-trust.ts): the setup in use, else a review of the Codex found here, which the owner
    * must say yes to (venture.ai.setup.trust) before Codex can be used. Absent: no setup is shown (tests, older hosts).
+   * A2 second review: profile() is the setup in use, whose own program Codex's sign-in and status then run on.
    */
-  codex?: { review(found: string | null): Promise<CodexSetupView> };
+  codex?: { review(found: string | null): Promise<CodexSetupView>; profile?(): unknown };
   /**
    * A2: one tiny test call (cli-test.ts), so "Signed in" shows only once a real call worked. A passed test is kept for the
    * desk's life; a failed one is tried again after testRetryMs (a minute) so a two-second poll does not call the AI.
@@ -62,10 +63,12 @@ export const LOGIN_TIMEOUT_MS = 15 * 60_000;
 const STATUS_TIMEOUT_MS = 8_000;
 const READ_CHARS = 8_192;
 const CLIS: readonly DelegateCli[] = ['codex', 'claude-code'];
-/** The login and status arguments of each tool's own commands. */
+/**
+ * The login and status arguments of each tool's own commands. A2 review: Codex's own sign-in and its status run with its
+ * background and update features off (CODEX_QUIET_ARGS); A2 second review: only on a reviewed Codex (Program.lead).
+ */
 const COMMANDS: Readonly<Record<DelegateCli, { login: string[]; status: string[] }>> = Object.freeze({
-  // A2 review: Codex's own sign-in and its status run with its background and update features off (CODEX_QUIET_ARGS).
-  codex: { login: [...CODEX_QUIET_ARGS, 'login', '--device-auth'], status: [...CODEX_QUIET_ARGS, 'login', 'status'] },
+  codex: { login: ['login', '--device-auth'], status: ['login', 'status'] },
   'claude-code': { login: ['auth', 'login'], status: ['auth', 'status'] },
 });
 /** The only sites a sign-in link may point at. Anything else the output says is never shown. */
@@ -126,6 +129,16 @@ export class LoginDesk {
 
   #program(cli: DelegateCli): Program | null {
     const platform = this.options.platform ?? process.platform;
+    // A2 second review: with a setup in use, Codex's sign-in and status run on that setup's own program (a reviewed
+    // version, so with the quiet flags), never on whatever Codex the search path finds first.
+    if (cli === 'codex') {
+      const host = codexHost(this.options.codex);
+      const command = host ? codexCommand(host) : null;
+      if (host && command && command !== 'codex') {
+        const evidence = host.capabilities.evidence as { version?: unknown };
+        return { command, lead: [...codexQuietArgsFor(typeof evidence.version === 'string' ? evidence.version : null)], located: command };
+      }
+    }
     const locate = this.options.locate ?? ((command: string) => locateOnThisComputer(command));
     let path: string | null;
     try { path = locate(CLI_COMMANDS[cli]); } catch { path = null; }
