@@ -203,6 +203,7 @@ function checkTask(task: ModelTask<unknown>) {
   if (!Number.isInteger(task.maxOutputTokens) || task.maxOutputTokens < 256 || task.maxOutputTokens > 8192) throw malformed('maxOutputTokens must be from 256 to 8192');
   if (typeof task.validate !== 'function') throw malformed('validate must be a function');
   if (task.template !== undefined && typeof task.template !== 'function') throw malformed('template must be a function when given');
+  if (task.keep !== undefined && typeof task.keep !== 'function') throw malformed('keep must be a function when given');
   if (typeof task.containsClientData !== 'boolean') throw malformed('containsClientData must be true or false');
   if (task.capLeftMicros !== undefined && (typeof task.capLeftMicros !== 'string' || !/^\d{1,30}$/.test(task.capLeftMicros))) throw malformed('capLeftMicros must be whole micro units');
   let input: string | undefined;
@@ -443,7 +444,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
    * Steps 8 to 11: dispatch once, parse, validate, then record the result in its own action. The table is the price
    * the call was reserved at (the owner's rate card or the list price); a metered call settles its spend there too.
    */
-  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean, beforeDispatch?: () => void): Promise<ModelOutcome<T>> => {
+  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean, beforeDispatch?: () => void, keep?: (value: T) => unknown): Promise<ModelOutcome<T>> => {
     const apiKey = spec.needsKey ? secrets.get(SECRET(spec.id)) : null;
     let sent = false;
     const onDispatch = () => { const result: unknown = beforeDispatch?.(); if (result && typeof (result as { then?: unknown }).then === 'function') void Promise.resolve(result).catch(() => undefined); check(result === undefined, 'INVALID_VENTURE_REQUEST', 'A dispatch guard must finish synchronously.'); sent = true; };
@@ -462,13 +463,18 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     if(unpricedNativeModel)failure={code:'SPEND_UNPRICED',message:'The quality check did not report the exact model priced for this job. Its cost remains held.'};
     const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
+    // A2: a task may keep a small plain part of its checked answer on the record (About you keeps its offers).
+    let kept: unknown;
+    if (!failure && keep) {
+      try { const value_ = keep(value as T); const text = JSON.stringify(value_); kept = typeof text === 'string' && text.length <= 4096 ? JSON.parse(text) : undefined; } catch { kept = undefined; }
+    }
     // H36: the model the answer named, else 'not reported'. Kept on the call, so its spend row and run lines can say it.
     const answeredBy = parsed.answeredBy ?? NOT_REPORTED;
     await ventureAction(actionDeps, ctx, level, 'models.result', tx => {
       const current = tx.find('venture-model-call', call.id);
       check(current, 'INVALID_VENTURE_REQUEST', 'This model call record no longer exists.');
       if(current.erasedAt && failure) failure={code:failure.code,message:'This call text was forgotten.'};
-      replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure, answeredBy });
+      replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure, answeredBy, ...(kept !== undefined ? { kept } : {}) });
       if (metered) settleSpend(tx, spendKey(call.id), spendOutcome(sent, parsed.usage !== null, failure !== null, costMicros));
     });
     if (failure) throw new ChausarError(failure.code, failure.message);
@@ -630,7 +636,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         if (rate) reserveSpend(tx, { ...callSpend(record, route.spec), rate, estimateMicros: estimate });
         return putRecord(tx, record);
       }).catch(error => spendRefused(actionDeps, ctx, error));
-      return send(ctx, 'prepare', call, prepared, route.spec, task.validate, table, rate !== null);
+      return send(ctx, 'prepare', call, prepared, route.spec, task.validate, table, rate !== null, undefined, task.keep);
     },
 
     async preview<T>(ctx: Context, task: ModelTask<T>): Promise<ModelPreview | null> {

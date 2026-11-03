@@ -868,12 +868,26 @@ function shownOf(value: unknown): Shown {
   return { name, by: body.by, callId: (body.callId as string | undefined) ?? null, offers };
 }
 
+/** Offers as the card folds them: each name and line with its spacing folded, in order. */
+const foldedOffers = (offers: readonly { name: string; line: string }[]) => JSON.stringify(offers.map(offer => [offer.name.replace(/\s+/g, ' ').trim(), offer.line.replace(/\s+/g, ' ').trim()]));
+
+/** The offers a call kept of its checked answer (ModelTask.keep), or null when it kept none in that shape. */
+function keptOffers(call: ModelCallRecord): { name: string; line: string }[] | null {
+  const kept = call.kept as { offers?: unknown } | undefined;
+  if (!kept || typeof kept !== 'object' || !Array.isArray(kept.offers)) return null;
+  return kept.offers.every(offer => offer && typeof offer === 'object' && typeof (offer as { name?: unknown }).name === 'string' && typeof (offer as { line?: unknown }).line === 'string')
+    ? kept.offers as { name: string; line: string }[] : null;
+}
+
 /**
  * A1 final check: true when the About you read the card names is among this business's calls (copied from the draft at
  * venture.create) or the draft still held: that exact call, completed, with the About you instructions in what was sent.
+ * A2 (A1 carry-over): and the card's offers are the ones that call answered, so owner-changed offers are never the AI's.
  */
-function aboutReadCalled(calls: readonly ModelCallRecord[], callId: string | null): boolean {
-  return !!callId && calls.some(call => call.id === callId && call.purpose === 'decide' && call.status === 'completed' && call.payloadText.includes(ABOUT_INSTRUCTIONS.slice(0, 80)));
+function aboutReadCalled(calls: readonly ModelCallRecord[], shown: Shown): boolean {
+  const call = shown.callId ? calls.find(row => row.id === shown.callId && row.purpose === 'decide' && row.status === 'completed' && row.payloadText.includes(ABOUT_INSTRUCTIONS.slice(0, 80))) : undefined;
+  const answered = call ? keptOffers(call) : null;
+  return !!answered && foldedOffers(answered) === foldedOffers(shown.offers);
 }
 
 /** The kept card on the drafted record: its name and exactly its offers, with no price and the neutral per-project unit. */
@@ -954,7 +968,7 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
       // A1 re-review: the AI's label only when this business holds the AI call that read the owner (handed over from the
       // draft at venture.create); on the window's word alone the words are labelled the template's, and the keep goes on.
       const calls = [...tx.list('venture-model-call'), ...(deps.draft?.ai()?.calls ?? [])];
-      applyShown(record, shown.by === 'model' && !aboutReadCalled(calls, shown.callId) ? { ...shown, by: 'template' } : shown);
+      applyShown(record, shown.by === 'model' && !aboutReadCalled(calls, shown) ? { ...shown, by: 'template' } : shown);
     }
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });

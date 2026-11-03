@@ -20,7 +20,7 @@ import type { BackupLite, BlueprintViewLite, InterviewAnswer, KeptShownLite, Off
 import { createStatusStore } from './client';
 import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
-import { FakeFirstRun, FIRST_RUN_METHODS } from './fake-first-run';
+import { FakeFirstRun, FIRST_RUN_METHODS, type AboutCallLite } from './fake-first-run';
 import type { ModelStatusLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
@@ -208,7 +208,7 @@ export class FakeEngine {
   private businesses: HeldBusiness[];
   private ventures = new Map<string, HeldVenture>();
   /** A1 final check: each business's About you read calls, handed over at venture.create (core/blueprint.ts aboutReadCalled). */
-  private aiReads = new Map<string, Set<string>>();
+  private aiReads = new Map<string, AboutCallLite[]>();
   private interviews = new Map<string, InterviewQuestionLite[]>();
   private open = true;
   private closedByOwner = false;
@@ -1112,7 +1112,7 @@ export class FakeEngine {
         if (p.workingName !== undefined && (named === null || named.length < 2 || named.length > 80)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The working name must be between 2 and 80 characters.');
         const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
         this.ventures.set(this.current, venture);
-        this.aiReads.set(this.current, new Set(this.firstRun.takeAiReads()));
+        this.aiReads.set(this.current, this.firstRun.takeAiReads());
         this.interviews.set(this.current, this.templateInterview(country.code));
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
         this.desk.adoptDraft(this.current);
@@ -1337,6 +1337,8 @@ export class FakeEngine {
     if (!value || typeof value !== 'object' || !['by,name,offers', 'by,callId,name,offers'].includes(Object.keys(value).sort().join(','))) throw bad();
     const body = value as Record<string, unknown>;
     if (body.by !== 'model' && body.by !== 'template') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+    // A2, as core/blueprint.ts shownOf: the call id is checked right after who wrote it, before the name and offers.
+    if (body.callId !== undefined && (typeof body.callId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.callId))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
     const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : '';
     if (name.length < 2 || name.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The business name must be between 2 and 60 characters.');
     if (!Array.isArray(body.offers) || body.offers.length < 1 || body.offers.length > 3) throw new EngineError('INVALID_VENTURE_REQUEST', 'Keep one to 3 offers.');
@@ -1350,7 +1352,6 @@ export class FakeEngine {
       if (/[\p{N}\p{Sc}]|:\/\//u.test(offerName) || /[\p{N}\p{Sc}]|:\/\//u.test(line)) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
       return { name: offerName, line };
     });
-    if (body.callId !== undefined && (typeof body.callId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.callId))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
     return { name, by: body.by, ...(typeof body.callId === 'string' ? { callId: body.callId } : {}), offers };
   }
 
@@ -1422,7 +1423,10 @@ export class FakeEngine {
     // no price and the neutral per-project unit.
     if (shown) {
       // A1 re-review, as core/blueprint.ts: the AI's label only when this business holds the AI's about read.
-      const by = shown.by === 'model' && !(shown.callId && this.aiReads.get(business.id)?.has(shown.callId)) ? 'template' as const : shown.by;
+      // A2: and only when the card's offers are the ones that read answered (core/blueprint.ts aboutReadCalled).
+      const fold = (offers: readonly { name: string; line: string }[]) => JSON.stringify(offers.map((offer) => [offer.name.replace(/\s+/g, ' ').trim(), offer.line.replace(/\s+/g, ' ').trim()]));
+      const read = shown.callId ? this.aiReads.get(business.id)?.find((call) => call.callId === shown.callId) : undefined;
+      const by = shown.by === 'model' && !(read && fold(read.offers) === fold(shown.offers)) ? 'template' as const : shown.by;
       const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);

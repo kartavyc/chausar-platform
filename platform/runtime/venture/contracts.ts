@@ -740,6 +740,8 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
    * digest, ids, costs and times stay; nothing checks a finished call's text against its digest.
    */
   erasedAt?: IsoTime;
+  /** A2: what the task chose to keep of its checked answer (ModelTask.keep), such as the offers About you answered. */
+  kept?: Json;
 };
 
 /** One unit of model work. Built by P1, P4 and P5; executed by P2. */
@@ -752,6 +754,8 @@ export type ModelTask<T> = {
   schemaName: string; // [a-z][a-z0-9-]{0,40}
   schema: Json; // JSON Schema: objects closed, every property required, no number or integer types
   validate: (raw: unknown) => T; // local authority; throws MODEL_OUTPUT_REJECTED
+  /** A2: a small plain part of the checked answer kept on the call record (About you keeps its offers), at most 4096 characters as JSON. */
+  keep?(value: T): Json;
   template?: () => T; // used only when no model serves this tier
   containsClientData: boolean; // true forces preview and owner approval
   maxOutputTokens: number; // 256 to 8192

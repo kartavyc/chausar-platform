@@ -64,6 +64,9 @@ function profileText(contentBase64: unknown): string {
   return profileTextFromCsv(new TextDecoder('utf-8', { fatal: true }).decode(entry.packed));
 }
 
+/** A1 final check and A2: one AI About you read, by its call id, with the offers it answered. */
+export type AboutCallLite = { callId: string; offers: { name: string; line: string }[] };
+
 export class FakeFirstRun {
   private readonly host: FirstRunHost;
   private codex: { signedIn: 'yes' | 'no'; login: ToolLite['login']; looks: number } = { signedIn: 'no', login: { state: 'idle', code: null, link: null, line: null }, looks: 0 };
@@ -130,10 +133,13 @@ export class FakeFirstRun {
     return { id, label, line };
   }
 
-  /** A1 final check: the AI about-read calls since the last business was made, as the engine's draft desk holds them. */
-  private aiReads: string[] = [];
+  /**
+   * A1 final check: the AI about-read calls since the last business was made, as the engine's draft desk holds them.
+   * A2: each with the offers it answered, as the engine keeps them on the call record.
+   */
+  private aiReads: AboutCallLite[] = [];
   /** Hands the about-read calls over to the business being made (venture.create) and wipes them here, as the handover. */
-  takeAiReads(): string[] { const reads = this.aiReads; this.aiReads = []; return reads; }
+  takeAiReads(): AboutCallLite[] { const reads = this.aiReads; this.aiReads = []; return reads; }
 
   private read(p: Record<string, unknown>): AboutReadLite {
     exact(p, ['text', 'attachment']);
@@ -170,9 +176,10 @@ export class FakeFirstRun {
     const country = found.length === 1 ? found[0]! : null;
     // A1 final check: the AI read the owner, as the engine's draft desk records the call (handed over at venture.create).
     const callId = `modelcall_about_${this.aiReads.length + 1}`;
-    this.aiReads.push(callId);
+    const answered = familyId ? offers.slice(0, 3) : [];
+    this.aiReads.push({ callId, offers: answered.map((offer) => ({ name: offer.name, line: offer.line })) });
     return {
-      family: this.family(familyId), offers: familyId ? offers.slice(0, 3) : [], country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
+      family: this.family(familyId), offers: answered, country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
       idea, source: 'ai', callId, ...(file ? { file } : {}),
     };
   }

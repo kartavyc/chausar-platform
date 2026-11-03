@@ -67,6 +67,8 @@ export function aboutTask({ text, file }: { text: string; file: DroppedFile | nu
       },
     },
     containsClientData: false, maxOutputTokens: 600,
+    // A2: the offers this read answered stay on its call record, so a kept card is the AI's only with these offers.
+    keep: answer => ({ offers: answer.offers.map(offer => ({ name: offer.name, line: offer.line })) }),
     validate(raw): AboutAnswer {
       const body = exactPayload(raw, ['familyId', 'offers', 'countryCode', 'evidence'], ['familyId', 'offers', 'countryCode', 'evidence'], 'MODEL_OUTPUT_REJECTED');
       check(body.familyId === null || isFamilyId(body.familyId), 'MODEL_OUTPUT_REJECTED', 'Choose a family from the supplied list.');

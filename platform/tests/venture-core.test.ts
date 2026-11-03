@@ -105,11 +105,11 @@ function setup() {
 type Harness = ReturnType<typeof setup>;
 
 /** An about-read model call, as venture.create hands the draft's calls over into the business (A1 re-review). */
-async function seedAboutCall(h: ReturnType<typeof setup>, id = 'modelcall_about_1') {
+async function seedAboutCall(h: ReturnType<typeof setup>, id = 'modelcall_about_1', offers: { name: string; line: string }[] | null = [{ name: 'Party photos', line: 'Photos of the party.' }]) {
   await ventureAction(h.deps, owner, 'admin', 'seed.about-call', tx => {
     tx.put({ ...tx.base('venture-model-call'), id, purpose: 'decide', tier: 'fast', presetId: 'anthropic-sonnet-5-5', connectionId: null, routeKind: 'anthropic-messages', model: 'claude-sonnet-5-5',
       consent: 'standing', endpoint: 'https://api.anthropic.com/v1/messages', payloadText: JSON.stringify({ system: ABOUT_INSTRUCTIONS }), payloadDigest: 'd', payloadTruncated: false, containsClientData: false,
-      status: 'completed', approvedDigest: null, approvedAt: null, approvedBy: null, estimatedMaxCostMicros: '0', priceConfirmed: true, usage: null, costMicros: '0', outputDigest: 'o', error: null, replay: false } as never);
+      status: 'completed', approvedDigest: null, approvedAt: null, approvedBy: null, estimatedMaxCostMicros: '0', priceConfirmed: true, usage: null, costMicros: '0', outputDigest: 'o', error: null, replay: false, ...(offers ? { kept: { offers } } : {}) } as never);
   });
 }
 const codeOf = (code: string) => (error: unknown) => { assert.equal((error as ChausarError).code, code); return true; };
@@ -1058,7 +1058,7 @@ test('review of A1 row 3: the first keep saves exactly the card: its name and of
   for (const [by, count] of [['model', 3], ['template', 1]] as const) {
     const h = setup();
     await interviewed(h, { model: 'monthly', price: null });
-    if (by === 'model') await seedAboutCall(h);
+    if (by === 'model') await seedAboutCall(h, 'modelcall_about_1', shown(by, count).offers);
     const view = await h.call('venture.blueprint.draft', { useTemplate: true, shown: shown(by, count) });
     const plan = view.blueprint;
     assert.equal(plan.source, by, 'who wrote the words, never the owner for a first keep');
@@ -1120,3 +1120,22 @@ test('A1 final check: the AI label needs the About you call the card names; a wi
   await assert.rejects(bad.call('venture.blueprint.draft', { useTemplate: true, shown: card('../x') }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 
+
+test('A2: the AI label needs the offers that About you call answered; other offers on the card give template', async () => {
+  const card = (offers: { name: string; line: string }[]) => ({ name: 'Pune Frames Studio', by: 'model', callId: 'modelcall_about_1', offers });
+  const other = setup();
+  await interviewed(other);
+  await seedAboutCall(other);
+  const changed = (await other.call('venture.blueprint.draft', { useTemplate: true, shown: card([{ name: 'Wedding films', line: 'Films of the wedding day.' }]) })).blueprint;
+  assert.equal(changed.source, 'template', 'the card names the right call but not its answer');
+  // The same offers with the spacing the card folds still count as the AI's.
+  const same = setup();
+  await interviewed(same);
+  await seedAboutCall(same);
+  assert.equal((await same.call('venture.blueprint.draft', { useTemplate: true, shown: card([{ name: 'Party  photos', line: ' Photos of the party.' }]) })).blueprint.source, 'model');
+  // A call that kept no answer (recorded before A2) is not enough.
+  const old = setup();
+  await interviewed(old);
+  await seedAboutCall(old, 'modelcall_about_1', null);
+  assert.equal((await old.call('venture.blueprint.draft', { useTemplate: true, shown: card([{ name: 'Party photos', line: 'Photos of the party.' }]) })).blueprint.source, 'template');
+});
