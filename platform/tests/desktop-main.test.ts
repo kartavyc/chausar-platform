@@ -102,6 +102,13 @@ test('the real desktop starts its file worker without starting a bundled databas
   assert.equal(d.engines[0].options.environment.CHAUSAR_POSTGRES_URL, undefined);
 });
 
+// One-shot A4 (hands-on row 107): the worker runs from app.asar.unpacked; the Ink build stays inside the archive, so
+// main tells the worker where it is, or a pairing link answers "The Ink app is not built".
+test('the worker is told where the Ink build is, for the phone server', async () => {
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_INK_ROOT, require('node:path').join(require('node:path').resolve('/owned/app/app/desktop', '../..'), 'app/ui/dist'));
+});
+
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {
   let release!: () => void; const gate = new Promise<void>(accept => { release = accept; });
   const d = await desktop([], gate);

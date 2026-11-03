@@ -3,10 +3,19 @@
 // the only app: there is no switch, and a server refuses to start until the build exists (npm run build:ui).
 import { readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { check } from './contracts.ts';
 
 export const INK_ROOT = fileURLToPath(new URL('../../app/ui/dist/', import.meta.url));
+/**
+ * One-shot A4 (hands-on row 107): the Ink build a worker serves to a phone. The packaged desktop runs the worker from
+ * app.asar.unpacked while the build stays inside app.asar, so desktop main names it (CHAUSAR_INK_ROOT, an absolute path;
+ * Electron's Node mode reads inside the archive). Anything else is the build beside this file.
+ */
+export function inkFolderFor(environment: NodeJS.ProcessEnv): string {
+  const named = environment.CHAUSAR_INK_ROOT;
+  return typeof named === 'string' && isAbsolute(named) ? named : INK_ROOT;
+}
 /** The content types of the files the Ink build makes. */
 export const INK_TYPES: Readonly<Record<string, string>> = Object.freeze({
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml',

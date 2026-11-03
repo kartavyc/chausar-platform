@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createLocalServer } from '../runtime/server.ts';
-import { listInkFiles } from '../runtime/ui-ink.ts';
+import { INK_ROOT, inkFolderFor, listInkFiles } from '../runtime/ui-ink.ts';
 import type { Engine } from '../runtime/engine.ts';
 
 const require = createRequire(new URL('../../app/desktop/main.cjs', import.meta.url));
@@ -24,6 +24,16 @@ async function dist() {
   await writeFile(join(folder, 'assets/notes.exe'), 'MZ');
   return folder;
 }
+
+// One-shot A4 (hands-on row 107): in the packaged app the worker runs from app.asar.unpacked, so the Ink build beside it
+// does not exist; desktop main names the build inside the archive, and the phone server reads it from there.
+test('the worker reads the Ink build where desktop main says it is, and only from an absolute path', () => {
+  const named = join(tmpdir(), 'resources', 'app.asar', 'app', 'ui', 'dist');
+  assert.equal(inkFolderFor({ CHAUSAR_INK_ROOT: named }), named);
+  assert.equal(inkFolderFor({}), INK_ROOT);
+  assert.equal(inkFolderFor({ CHAUSAR_INK_ROOT: 'app/ui/dist' }), INK_ROOT);
+  assert.equal(inkFolderFor({ CHAUSAR_INK_ROOT: '' }), INK_ROOT);
+});
 
 test('the Ink allowlist holds the built files of known types and refuses an unbuilt or missing folder', async t => {
   const folder = await dist(); t.after(() => rm(folder, { recursive: true, force: true }));
