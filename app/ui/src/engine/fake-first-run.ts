@@ -32,6 +32,13 @@ const SETUP = {
   review: { state: 'review', origin: null, path: String.raw`~\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`, version: '0.166.0', sha256: OWN_SHA, line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' },
   owner: { state: 'trusted', origin: 'owner', path: String.raw`~\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`, version: '0.166.0', sha256: OWN_SHA, line: 'Uses your Codex 0.166.0, which you chose.' },
 } as const satisfies Record<string, CodexSetupLite>;
+/**
+ * A2 second review, as app/desktop/codex-choice.cjs: main's own dialog for the owner's choice, its words from the held
+ * review's real program (the path that is hashed and run, not the one shown from ~).
+ */
+const OWN_PROGRAM = String.raw`C:\Users\owner\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe`;
+const DIALOG = { title: 'Use this Codex?', detail: (version: string, path: string) => `Chausar will run Codex ${version} from ${path} for your AI work.`, buttons: ['Use this Codex', 'Cancel'] } as const;
+const NOT_CHOSEN = "Nothing changed. Codex wasn't chosen.";
 /** A synthetic one-time code in Codex's own shape. Never a real code. */
 export const FAKE_DEVICE_CODE = ['WXYZ', '12345'].join('-');
 const DEVICE_LINK = 'https://auth.openai.com/codex/device';
@@ -102,6 +109,14 @@ export class FakeFirstRun {
   }
   /** A2: the tiny test call's failure in the engine's words, or null when it passes. */
   private testProblem: string | null = null;
+  /**
+   * Tests (A2 second review): how the owner answers main's own dialog: 'use' (the default, "Use this Codex"), 'cancel'
+   * (Cancel or Escape), or 'missing' (a route with no desktop main process, such as the local web page).
+   */
+  codexDialog(answer: 'use' | 'cancel' | 'missing'): void { this.dialogAnswer = answer; }
+  private dialogAnswer: 'use' | 'cancel' | 'missing' = 'use';
+  /** Tests: the dialogs main showed, in order. */
+  readonly dialogs: { title: string; detail: string; buttons: string[] }[] = [];
   /** Tests: the sample Codex says it is signed in, but its tiny test call fails with these words. */
   failTest(line: string): void { this.testProblem = line; }
 
@@ -143,14 +158,20 @@ export class FakeFirstRun {
     return { cli: 'codex', label: 'Codex', found: true, signedIn, login: { ...this.codex.login }, setup: { ...this.setup }, ...tested };
   }
 
-  /** A2, as engine.ts #codexSetupTrust and codex-trust.ts record: only the exact Codex shown, in the app, here. */
+  /**
+   * A2, as engine.ts and codex-trust.ts record: only the exact Codex shown, in the app, here. A2 second review, as the
+   * desktop main process answers it (codex-choice.cjs): only the window's cli and sha256 go on; a Codex already in use
+   * is answered without a dialog; else main shows its own dialog from the held review, and only "Use this Codex"
+   * records it. A route without main (the hosted app, the local web page) is refused.
+   */
   private trust(p: Record<string, unknown>): { setup: CodexSetupLite } {
-    // A2 review, in the engine's order: the app and the owner first (the hosted app is not the app), then the payload,
-    // then the review held for exactly that program; with nothing held the choice is refused as changed.
-    if (this.host.hosted()) throw new EngineError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
-    if (Object.keys(p).sort().join(',') !== 'cli,sha256' || p.cli !== 'codex') throw invalid('Choose the Codex Chausar showed you.');
-    if (typeof p.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(p.sha256)) throw invalid('Choose the Codex Chausar showed you.');
-    if (!this.heldReview || p.sha256 !== OWN_SHA) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
+    if (this.host.hosted() || this.dialogAnswer === 'missing') throw new EngineError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    const asked = { cli: p.cli, sha256: p.sha256 };
+    if (asked.cli !== 'codex' || typeof asked.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(asked.sha256)) throw invalid('Choose the Codex Chausar showed you.');
+    if (this.setup.state === 'trusted' && this.setup.sha256 === asked.sha256) return { setup: { ...this.setup } };
+    if (!this.heldReview || asked.sha256 !== OWN_SHA) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
+    this.dialogs.push({ title: DIALOG.title, detail: DIALOG.detail(SETUP.review.version, OWN_PROGRAM), buttons: [...DIALOG.buttons] });
+    if (this.dialogAnswer === 'cancel') throw new EngineError('CODEX_NOT_CHOSEN', NOT_CHOSEN);
     this.setup = { ...SETUP.owner };
     this.heldReview = false;
     return { setup: { ...this.setup } };

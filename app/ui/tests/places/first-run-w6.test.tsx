@@ -88,6 +88,19 @@ describe('first run, step 1: the Codex Chausar runs (A2)', () => {
     expect(await screen.findByRole('button', { name: 'Sign in with Codex' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Use this Codex' })).toBeNull();
   });
+  // A2 second review: Cancel in main's own dialog changes nothing, and the step says so calmly, not as an error.
+  it('Cancel in Chausar\'s own dialog keeps the question and says nothing changed, calmly', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.reviewCodex();
+    engine.firstRun.codexDialog('cancel');
+    start(engine);
+    await screen.findByText('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?');
+    await press('Use this Codex');
+    const said = await screen.findByText("Nothing changed. Codex wasn't chosen.");
+    expect(said.getAttribute('role')).toBe('status');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Use this Codex' })).toBeTruthy();
+  });
 });
 
 describe('first run, step 1: "Signed in" is earned (A2)', () => {

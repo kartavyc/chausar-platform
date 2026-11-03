@@ -193,6 +193,22 @@ describe('Your AI: Your AI apps', () => {
     expect(calls.filter(call => call.method === 'venture.models.cli.status').length).toBeGreaterThan(1);
   });
 
+  it('A2 second review: Cancel in Chausar\'s own dialog says nothing changed, calmly, and keeps the question', async () => {
+    const engine = new FakeEngine();
+    engine.firstRun.reviewCodex();
+    engine.firstRun.codexDialog('cancel');
+    start({ engine });
+    const section = await region('Your AI apps');
+    const line = 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?';
+    await within(section).findByText(line);
+    const codex = tool(section, 'Codex');
+    await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Use this Codex' })); });
+    const said = await within(codex).findByText("Nothing changed. Codex wasn't chosen.");
+    expect(said.getAttribute('role')).toBe('status');
+    expect(within(codex).queryByRole('alert')).toBeNull();
+    expect(within(codex).getByText(line)).toBeTruthy();
+  });
+
   it('A2: after a failed task, the provider status page says when the trouble is theirs, with where and when it was read', async () => {
     const failed: CliStatusView = {
       ...SEEN, lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'failed' }, line: 'Codex 0.131.0 is on this computer. Its last task failed.', fix: 'x',

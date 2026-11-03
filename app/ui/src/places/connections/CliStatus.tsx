@@ -110,14 +110,19 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
   const nameId = useId();
   const [choosing, setChoosing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // A2 second review: Cancel in main's own dialog is not a problem; it is said calmly.
+  const [note, setNote] = useState<string | null>(null);
   // A2: a found Codex the owner has not chosen is asked about first, in the engine's words; one that cannot be used says why.
   const setup = view.setup && (view.setup.state === 'review' || view.setup.state === 'refused') ? view.setup : null;
   const atRest = setup ? setup.line : view.state === 'ready' ? null : view.fix ?? view.line;
   async function choose() {
     if (!setup?.sha256 || choosing) return;
-    setChoosing(true); setProblem(null);
+    setChoosing(true); setProblem(null); setNote(null);
     try { await client.request('venture.ai.setup.trust', { cli: 'codex', sha256: setup.sha256 }); onChosen(); }
-    catch (error) { setProblem(error instanceof Error ? error.message : String(error)); }
+    catch (error) {
+      if (error instanceof EngineError && error.code === 'CODEX_NOT_CHOSEN') setNote(error.message);
+      else setProblem(error instanceof Error ? error.message : String(error));
+    }
     finally { setChoosing(false); }
   }
   const failed = view.state === 'unverified' && view.lastTask?.outcome === 'failed';
@@ -139,6 +144,7 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
       {view.provider && <ProviderTrouble trouble={view.provider} className={s.line} />}
       {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {note && <p className={s.said} role="status">{note}</p>}
       <details className={`${s.fold} ${c.more}`}>
         <summary>{t('connections.cli.details')}</summary>
         {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}

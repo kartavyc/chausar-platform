@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import type { ModelStatusLite, ToolLite, ToolsLite } from '../../engine/types';
+import { EngineError, type ModelStatusLite, type ToolLite, type ToolsLite } from '../../engine/types';
 import { Bento, Tile } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
@@ -36,6 +36,8 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   const [view, setView] = useState<ToolsLite | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // A2 second review: Cancel in main's own dialog is not a problem; it is said calmly.
+  const [note, setNote] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const opened = useRef(new Set<string>());
@@ -76,11 +78,14 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   async function choose(tool: ToolLite) {
     const sha256 = tool.setup?.sha256;
     if (!sha256) return;
-    setProblem(null); setBusy(tool.cli);
+    setProblem(null); setNote(null); setBusy(tool.cli);
     try {
       await client.request('venture.ai.setup.trust', { cli: 'codex', sha256 });
       setView(await client.request('venture.ai.tools', {}));
-    } catch (error) { setProblem(messageOf(error)); }
+    } catch (error) {
+      if (error instanceof EngineError && error.code === 'CODEX_NOT_CHOSEN') setNote(error.message);
+      else setProblem(messageOf(error));
+    }
     finally { setBusy(null); }
   }
 
@@ -205,6 +210,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
         </Tile>
       </Bento>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {note && <p className={s.status} role="status">{note}</p>}
       {tools.error && <p className={s.problem} role="alert">{tools.error.message}</p>}
     </div>
   );
