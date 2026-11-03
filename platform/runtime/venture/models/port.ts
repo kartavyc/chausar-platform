@@ -9,7 +9,7 @@
 // time per tool; the status screen's look is reused for a minute, a connection always looks again; and a real call the
 // tool refuses for a route flag it does not know marks that tool's flags a mismatch for the rest of the session.
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
@@ -124,6 +124,8 @@ export function viewCall(call: CallRecord, nowMs: number): CallRecord {
   if (call.status === 'dispatching' && nowMs - Date.parse(call.approvedAt ?? call.at) > STALE_DISPATCH_MS) {
     return { ...call, status: 'failed', error: { code: 'MODEL_TIMEOUT', message: STALE_DISPATCH_MESSAGE } };
   }
+  // A2 review: what a tool printed is never shown; a record an earlier build kept with it is shown without it.
+  if (call.error && 'said' in call.error) { const { said: _said, ...error } = call.error; void _said; return { ...call, error }; }
   return call;
 }
 
@@ -132,7 +134,7 @@ function sweep(tx: VentureTx) {
   const nowMs = Date.parse(tx.now);
   for (const call of txCalls(tx)) {
     const view = viewCall(call, nowMs);
-    if (view === call) continue;
+    if (view.status === call.status) continue;
     replaceRecord(tx, view);
     // A send that never reported back may still have been billed: its spend stays held, marked unknown.
     if (view.status === 'failed') settleSpend(tx, spendKey(call.id), { kind: 'unknown' });
@@ -251,7 +253,10 @@ export function reportedModel(kind: ModelRouteKind, text: string): string | null
 export function toolSaid(stderr: unknown): string | undefined {
   if (typeof stderr !== 'string' || !stderr.trim()) return undefined;
   const text = stderr.length > 8192 ? `${stderr.slice(0, 4096)}\n${stderr.slice(-4096)}` : stderr;
-  const screened = redactSecrets(text).replace(/\s+/g, ' ').trim();
+  // A2 review: also the home folder (any spelling of its separators) and email addresses.
+  const home = homedir();
+  const homeless = home ? text.split(home).join('~').split(home.replace(/\\/g, '/')).join('~') : text;
+  const screened = redactSecrets(homeless).replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]').replace(/\s+/g, ' ').trim();
   if (!screened) return undefined;
   return screened.length <= 600 ? screened : `${screened.slice(0, 297)}...${screened.slice(-300)}`;
 }
@@ -293,6 +298,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const refusedFlags = new Map<DelegateCli, Set<string>>();
   const answered = (cli: DelegateCli) => looks.get(cli)?.answered === true;
   const pending = new Map<string, Pending>();
+  /** A2 review: what a tool printed on its last failed calls, screened, this session only: never in the vault. */
+  const said = new Map<string, string>();
 
   /** What availabilityOf needs now: the looks, the terms gate, the Codex profile, and whether a real task on each worked. */
   const liveOf = (state: State) => {
@@ -469,7 +476,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       ? { ok: false, code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing, usage: null }
       : await dispatch(prepared, apiKey, call.purpose, onDispatch);
     // 4F2: the transport's class of a failure (parsed.cause) stays on the call record beside Chausar's words.
-    let failure: { code: string; message: string; cause?: string; said?: string } | null = parsed.ok ? null : { code: parsed.code, message: parsed.message, ...(parsed.cause ? { cause: parsed.cause } : {}), ...(parsed.said ? { said: parsed.said } : {}) };
+    let failure: { code: string; message: string; cause?: string } | null = parsed.ok ? null : { code: parsed.code, message: parsed.message, ...(parsed.cause ? { cause: parsed.cause } : {}) };
+    if (!parsed.ok && parsed.said) { said.set(call.id, parsed.said); while (said.size > 50) said.delete(said.keys().next().value!); }
     let value: T | undefined;
     if (parsed.ok) {
       try { value = validate(parsed.value); } catch (error) {
@@ -667,6 +675,9 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       try { found = locate('codex'); } catch { found = null; }
       try { return await trust.review(found); } catch { return null; }
     },
+
+    /** A2 review: what the tool printed on a failed call this session, screened and short; never stored or shown. */
+    toolSaid(callId: string) { return said.get(callId) ?? null; },
 
     async inspectCli(cli: DelegateCli, options?: { fresh?: boolean }): Promise<CliFinding> {
       check(cli === 'claude-code' || cli === 'codex', 'INVALID_VENTURE_REQUEST', 'Only Claude Code and Codex can be looked for on this computer.');

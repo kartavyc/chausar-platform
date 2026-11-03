@@ -7,7 +7,8 @@ import { spendPolicySet } from '../runtime/venture/money/spend.ts';
 import { createServer } from 'node:http';
 import { readdir, readFile } from 'node:fs/promises';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { viewCall } from '../runtime/venture/models/port.ts';
 import { isAbsolute, join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
@@ -667,22 +668,30 @@ test('Codex CLI: the profile executable, the host process port and the schema fi
   assert.deepEqual(record.usage, { inputTokens: 20, outputTokens: 6 });
 });
 
-test('A2: a failed Codex call says why in owner words, and keeps what Codex said on its record, screened and short', async () => {
+test('A2: a failed Codex call says why in owner words; what Codex said is kept for this session only, screened and short', async () => {
   const executable = join(tmpdir(), 'codex.exe');
   const secret = ['sk', 'proj', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6'].join('-');
   const hostProcess = async (request: any) => {
     if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
     if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
-    return { exitCode: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: "You've hit your usage limit." } }), stderr: `ERROR: You've hit your usage limit. key ${secret} ${'x'.repeat(5000)}` };
+    return { exitCode: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: "You've hit your usage limit." } }), stderr: `ERROR: You've hit your usage limit. key ${secret} for owner@example.com at ${join(homedir(), 'AppData', 'Local', 'codex.log')} ${'x'.repeat(5000)}` };
   };
   const { deps, store } = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
   await connect(deps, 'codex-cli');
   await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'judge' })), (error: any) => error.code === 'AI_USAGE_LIMIT' && error.message === 'Codex has used up your plan for now. Wait for it to reset, or choose another AI in Settings.');
   const record = calls(store).at(-1);
   assert.equal(record.error.code, 'AI_USAGE_LIMIT');
-  assert.match(record.error.said, /usage limit/);
-  assert.equal(record.error.said.includes(secret), false, 'a key in what Codex said is never kept');
-  assert.ok(record.error.said.length <= 600);
+  // A2 review: never in the vault (so never in an export or a backup) and never in what the app reads.
+  assert.equal(record.error.said, undefined);
+  assert.equal(JSON.stringify(store.read()).includes('usage limit. key'), false);
+  // A record kept by an earlier build with the field is shown without it.
+  assert.equal((viewCall({ ...record, error: { ...record.error, said: 'ERROR: x' } }, Date.now()).error as any).said, undefined);
+  const said = deps.models.toolSaid!(record.id)!;
+  assert.match(said, /usage limit/);
+  assert.equal(said.includes(secret), false, 'a key in what Codex said is never kept');
+  assert.equal(said.includes('owner@example.com'), false, 'nor an email address');
+  assert.equal(said.includes(homedir()), false, 'nor the home folder');
+  assert.ok(said.length <= 600);
 });
 
 test('A2: connecting Codex takes the route model from Codex’s own list; the fixed id stands only when the list cannot be read', async () => {

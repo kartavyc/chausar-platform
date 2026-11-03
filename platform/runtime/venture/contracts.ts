@@ -731,7 +731,7 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   usage: { inputTokens: number; outputTokens: number } | null;
   costMicros: MicroString | null;
   outputDigest: string | null;
-  error: { code: string; message: string; cause?: string; said?: string } | null; // cause (4F2): the transport's class, such as 'not-connected', when it said one; said (A2): what the tool printed on failure, screened and short
+  error: { code: string; message: string; cause?: string } | null; // cause (4F2): the transport's class, such as 'not-connected', when it said one
   replay: boolean; // true when served from a synthetic recording
   /** Ink v2 wave 4 (4H1, H36): the model the provider's answer named, else 'not reported'. Set when the call settles. */
   answeredBy?: string;
@@ -827,6 +827,8 @@ export interface ModelPort {
   codexProgram?(): string | null;
   /** A2 review: the same program after its digest is checked again against the setup; refuses with no setup in use. */
   codexVerifiedProgram?(): Promise<string>;
+  /** A2 review: what a tool printed on a failed call this session, screened; kept in memory only. */
+  toolSaid?(callId: string): string | null;
   /** A2: the models Codex offers this account (codex debug models), and the ones Chausar uses; the fixed ids when unread. */
   codexModels?(): Promise<import('./models/codex-models.ts').CodexModels>;
 }
