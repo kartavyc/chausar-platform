@@ -387,6 +387,18 @@ export function desktopPackageCommands(plan, { cliPath, viteCli }) {
   ];
 }
 
+/**
+ * The receipt's line for the beta's bundled Codex. A2 second review: whether its setup was recorded at staging, and
+ * when the beta was built with --allow-unrecorded-codex.
+ */
+export function bundledReceipt(codex, plan) {
+  return {
+    codex: { version: codex.version, target: codex.target, licence: codex.licence, files: Object.keys(codex.files).length, setup: codex.evidence ? 'recorded' : 'not recorded',
+      ...(plan.allowUnrecordedCodex === true ? { allowUnrecordedCodex: true } : {}) },
+    notices: 'notices/THIRD-PARTY-NOTICES.md',
+  };
+}
+
 /** Windows preview uses ZIP without NSIS; the beta (6J1) builds an unsigned per-user NSIS installer. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
 export async function packageDesktop({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env, checkOnly = false } = {}) {
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
@@ -418,7 +430,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     await cp(join(root, 'app/desktop/notices'), join(root, plan.output, 'notices'), { recursive: true, errorOnExist: true, force: false });
     const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
-    bundled = { codex: { version: codex.version, target: codex.target, licence: codex.licence, files: Object.keys(codex.files).length }, notices: 'notices/THIRD-PARTY-NOTICES.md' };
+    bundled = bundledReceipt(codex, plan);
   }
   const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });

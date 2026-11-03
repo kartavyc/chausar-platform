@@ -476,3 +476,16 @@ test('report keys: packaging stages them before electron-builder runs, and only 
   assert.match(body.slice(0, build), /plan\.mode !== 'preview'/);
   assert.doesNotMatch(source, /console\.(?:log|error)\([^)]*(?:posthogKey|sentryDsn|CHAUSAR_FEEDBACK_)/, 'no key value is ever printed');
 });
+
+// A2 second review (nit): the receipt says when a beta was built with --allow-unrecorded-codex, and whether its
+// bundled Codex carries a recorded setup.
+test('the beta receipt records the bundled Codex setup and the --allow-unrecorded-codex flag', () => {
+  const { bundledReceipt } = desktopPackage;
+  const codex = { version: '0.166.0', target: 'x86_64-pc-windows-msvc', licence: 'Apache-2.0', files: { 'bin/codex.exe': {}, LICENSE: {} } };
+  assert.deepEqual(bundledReceipt({ ...codex, evidence: { recordedAt: '2026-11-03T00:00:00.000Z' } }, { allowUnrecordedCodex: false }), {
+    codex: { version: '0.166.0', target: 'x86_64-pc-windows-msvc', licence: 'Apache-2.0', files: 2, setup: 'recorded' }, notices: 'notices/THIRD-PARTY-NOTICES.md',
+  });
+  assert.deepEqual(bundledReceipt({ ...codex, evidence: null }, { allowUnrecordedCodex: true }).codex, {
+    version: '0.166.0', target: 'x86_64-pc-windows-msvc', licence: 'Apache-2.0', files: 2, setup: 'not recorded', allowUnrecordedCodex: true,
+  });
+});
