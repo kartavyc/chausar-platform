@@ -194,6 +194,84 @@ test('A3 S2: a draft whose agent is still working, or that the quality check is 
   assert.equal((await runOf(judged.env, judged.run.id)).canEdit, false);
 });
 
+// A3 review (H1): only a real edit lifts a check, and only the checks that read the agent's own authorship. The checks
+// that read the words themselves run again on the owner's version before Accept.
+test('A3 review H1: re-saving the agent\'s draft with only spaces changed is no edit, and the failed check stays', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING)]);
+  for (const same of [`${run.renderedText!} `, run.renderedText!.replace(/\n\n/g, '\n\n\n'), `  ${run.renderedText!.replace(/ /g, '  ')}\n`]) {
+    const refusal = await edit(env, await draftRow(env), same);
+    assert.deepEqual([refusal.outcome, refusal.reason, refusal.line], ['refused', 'NO_CHANGE', 'Nothing changed. Edit the words first.']);
+  }
+  assert.equal(listRecords(env.store.read(), 'venture-draft-edit').length, 0);
+  assert.equal((await runOf(env, run.id)).canAccept, false);
+  void row;
+});
+
+test('A3 review H1: an edit that still claims work not done stays blocked by that check; money nobody worked out stays blocked', async () => {
+  const claimed = await readyDraft([report(FAILING)]);
+  await edit(claimed.env, claimed.row, 'Hello Aroma. We reconciled your bank statement and filed your GST return. Warm regards.');
+  const still = await runOf(claimed.env, claimed.run.id);
+  assert.equal(still.canAccept, false);
+  assert.match(still.acceptBlocked!, /claims work that was not done/);
+  // It stays on Today as a new version of its card, so the owner can edit it again or reject it.
+  const back = await draftRow(claimed.env);
+  assert.ok(back && back.id !== claimed.row.id, 'the card is back after the edit');
+  await assert.rejects(call(claimed.env, 'venture.delivery.review', { runId: claimed.run.id, verdict: 'accepted' }), code('INVALID_VENTURE_REQUEST'));
+  const priced = await readyDraft([report(FAILING)]);
+  await edit(priced.env, priced.row, 'Hello Aroma. We will match each payment to a bill. The fee is INR 9,999 for the month.');
+  const money = await runOf(priced.env, priced.run.id);
+  assert.equal(money.canAccept, false);
+  assert.match(money.acceptBlocked!, /amount of money the calculator did not make/);
+  // The amount the agent's draft showed from its receipt may stay in the owner's words.
+  const kept = await readyDraft([report(FAILING)]);
+  const fee = /(?:INR|₹)\s?[\d,]+(?:\.\d{2})?/.exec(kept.run.renderedText!)?.[0];
+  assert.ok(fee, 'the agent\'s draft shows its receipted fee');
+  await edit(kept.env, kept.row, `Hello Aroma. We will match each payment to a bill. The fee for the month is ${fee}.`);
+  assert.equal((await runOf(kept.env, kept.run.id)).canAccept, true);
+});
+
+test('A3 review H1: a real edit lifts the agent\'s judge, claim and style checks, and no other', async () => {
+  const { env, run, row } = await readyDraft();
+  await ventureAction(env.deps, owner, 'prepare', 'seed.judged', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    tx.replace({ ...current, checks: [...current.checks,
+      { check: 'rules-judge', passed: false, detail: 'Failed: policy-followed. The reply offers a discount the plan does not have.' },
+      { check: 'claims-grounded', passed: false, detail: 'This claim is not in the client\'s files or the run\'s evidence: "Pune Frames".' },
+      { check: 'house-style', passed: false, detail: 'The draft uses a long dash.' }] });
+  });
+  assert.equal((await runOf(env, run.id)).canAccept, false);
+  await edit(env, await draftRow(env), 'Hello Aroma. We will match each payment to a bill. Please send the bank statement. Warmly, Pune Frames');
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null]);
+  // A check that is not about the agent's words alone (one the playbook ran on the run itself) is never lifted.
+  const other = await readyDraft();
+  await ventureAction(other.env.deps, owner, 'prepare', 'seed.turns', tx => {
+    const current = tx.find('venture-delivery-run', other.run.id)!;
+    tx.replace({ ...current, checks: [...current.checks, { check: 'no-outside-writes', passed: false, detail: 'Something tried to act outside Chausar: mail-app.' }] });
+  });
+  await edit(other.env, await draftRow(other.env), 'Hello Aroma. We will match each payment to a bill.');
+  assert.equal((await runOf(other.env, other.run.id)).canAccept, false);
+});
+
+test('A3 review L3: a cofounder may edit a failed draft, but only the owner\'s edit lifts the agent\'s checks', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING)]);
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  const mine = 'Hello Aroma. We will match each payment to a bill. Please send the bank statement.';
+  assert.equal((await edit(env, row, mine, cofounder)).outcome, 'done');
+  const [kept] = listRecords(env.store.read(), 'venture-draft-edit');
+  assert.deepEqual([kept.by, kept.role], ['cofounder-1', 'cofounder']);
+  assert.equal((await runOf(env, run.id)).canAccept, false, 'the checks stay until the owner\'s own edit');
+  // The owner's own edit of it then lifts them.
+  await edit(env, await draftRow(env), `${mine} Warm regards.`);
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  // Each decision records who made it, by role.
+  const reopened = await draftRow(env);
+  await call(env, 'venture.queue.decide', { id: reopened.id, digest: reopened.digest, action: 'approve', viewed: true });
+  const decision = listRecords(env.store.read(), 'venture-decision').find(item => item.subject === `run:${run.id}` && item.action === 'accepted')!;
+  assert.equal(decision.role, 'owner');
+});
+
 // ---------------------------------------------------------------------------
 // A later revision never overwrites the owner's edit
 // ---------------------------------------------------------------------------

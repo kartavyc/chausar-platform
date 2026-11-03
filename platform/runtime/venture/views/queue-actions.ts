@@ -16,6 +16,7 @@ import type {
 import { GONE_LINE, queueDecideHandler, queueRowsWithSubjects, STALE_LINE } from './queue.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import { PRACTICE_REASON, runView } from '../delivery/runs.ts';
+import { sameWords } from '../delivery/owner-edit.ts';
 import { screenReadback } from '../core/secrets.ts';
 import { reopenMark, RESTORED_LINE, revisionWords, SEND_BACK_MAX, startRevision, TOO_LATE_LINE, undoRevision } from '../delivery/revise.ts';
 import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
@@ -34,6 +35,7 @@ export const ACTION_WORDS = Object.freeze({
   tooLong: `Keep it to ${SEND_BACK_MAX} characters.`,
   notOffered: 'Send back works on drafts and on plan changes. Use the row\'s own buttons here.',
   editNotOffered: 'Only a draft waiting for your review can be edited here.',
+  noChange: 'Nothing changed. Edit the words first.',
   caEdit: "Your version of these papers needs the CA's sign-off. Edit it in Work, where it goes to the CA.",
   signoffEdit: "Your version of these papers needs its professional's signature. Edit it in Work, then send it from the sign-off desk.",
   nothing: 'Nothing to undo here.',
@@ -182,9 +184,11 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
   const shown = runView(run, venture, deps.clock().getTime(), state);
   if (shown.practiceNow) return refused('PRACTICE_DRAFT', PRACTICE_REASON);
   // One-shot A3 (S2): a draft that failed a check is edited here too; the owner's own version is then not held to the
-  // agent's failed checks (delivery/runs.ts ownerEditInForce). One the AI is still working on, the quality check is still
+  // agent's failed checks (delivery/owner-edit.ts ownerEditOf). One the AI is still working on, the quality check is still
   // reading, or whose files are held is not edited: it says why in the engine's own words.
   if (!shown.canEdit && !regulatedSignoffBlock(state, venture, run)) return refused('NOT_OFFERED', shown.acceptBlocked ?? ACTION_WORDS.editNotOffered);
+  // One-shot A3 (after review): the same words with only spaces changed are no edit.
+  if (sameWords(text, run.editedText ?? run.renderedText)) return refused('NO_CHANGE', ACTION_WORDS.noChange);
   // Regulated papers in the owner's words go to the CA of record first: that edit is made in Work.
   const unsignedEdit = regulatedSignoff(state, venture, { ...run, status: 'edited', editedText: text });
   if (unsignedEdit) return refused(unsignedEdit.code, unsignedEdit.code === 'CA_SIGNOFF_REQUIRED' ? ACTION_WORDS.caEdit : ACTION_WORDS.signoffEdit);
@@ -195,7 +199,7 @@ export async function queueEditHandler(deps: VentureDeps, ctx: Context, payload:
       const shown = current.editedText ?? current.renderedText ?? '';
       tx.put<DraftEditRecord>({
         ...tx.base('venture-draft-edit'), runId, rowId: found.row.id, text, replacedHash: digest(shown), by: ctx.memberId, undoneAt: null,
-        replaced: shown, prior: current.editedText ?? null,
+        replaced: shown, prior: current.editedText ?? null, role: ctx.role,
       });
       tx.replace({ ...current, editedText: text, merge: null, reopened: reopenMark(current, tx.now) });
       putDecision(tx, ctx, found, ACTION_WORDS.edited);

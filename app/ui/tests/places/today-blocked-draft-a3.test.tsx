@@ -88,3 +88,13 @@ describe('Today: a draft that failed a check gets Edit, then Approve (A3, S2)', 
     expect(await engine.request('venture.queue.edit', { rowId: row.id, digest: row.digest, text: MINE })).toEqual({ outcome: 'refused', reason: 'NOT_OFFERED', line: 'AI work must finish before you can approve this draft.' });
   });
 });
+
+describe('the fake refuses an edit that changes nothing (A3 review, H1)', () => {
+  it('the same words with only spaces changed are no edit, in the engine\'s words', async () => {
+    const engine = new FakeEngine({ now: () => NOW, queue: [BLOCKED] });
+    const run = engine.reviseDelivery('d-ep14-script', (current) => ({ ...current, canAccept: false, acceptBlocked: FAILED, canEdit: true }));
+    const rows = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: QueueRow[] };
+    const row = rows.rows.find((item) => item.id === BLOCKED.id)!;
+    expect(await engine.request('venture.queue.edit', { rowId: row.id, digest: row.digest, text: `${run.renderedText!}  \n` })).toEqual({ outcome: 'refused', reason: 'NO_CHANGE', line: 'Nothing changed. Edit the words first.' });
+  });
+});

@@ -324,7 +324,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
             // Where the judge stands, so a verdict that is not in never reads like a pass (judge-run.ts).
             line: [`Read it, then approve it. You send it yourself.`, judgeStateLine(state, venture, record, nowMs)].filter(Boolean).join(' '),
             actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] }
-          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
+          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : run.reopened ? `review-blocked-${run.reopened.count + 1}` : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
             actions: toCa
               ? [action('deny', 'Reject', false), action('read', 'Read', false), action('send-to-ca', 'Send to CA', true, { requiresView: true })]
               : [action('deny', 'Reject', false), action('read', 'Read', true)] },

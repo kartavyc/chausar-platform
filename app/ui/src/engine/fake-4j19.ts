@@ -30,6 +30,7 @@ export const FAKE_4J19_WORDS = {
   tooLong: 'Keep it to 300 characters.',
   notOffered: "Send back works on drafts and on plan changes. Use the row's own buttons here.",
   editNotOffered: 'Only a draft waiting for your review can be edited here.',
+  noChange: 'Nothing changed. Edit the words first.',
   // views/queue.ts: the line of a draft that can be approved now.
   readThenApprove: 'Read it, then approve it. You send it yourself.',
   nothing: 'Nothing to undo here.',
@@ -198,6 +199,9 @@ export class FakeApprovalsDesk {
     const approvable = seen.actions.some((action) => action.id === 'approve');
     const run = this.held(runId);
     if (!approvable && run?.canEdit !== true) return { outcome: 'refused', reason: 'NOT_OFFERED', line: run?.acceptBlocked ?? FAKE_4J19_WORDS.editNotOffered };
+    // A3 review (H1), as views/queue-actions.ts: the same words with only spaces changed are no edit.
+    const fold = (words: string | null | undefined) => (words ?? '').replace(/\s+/g, ' ').trim();
+    if (run && fold(p.text) === fold(run.editedText ?? run.renderedText)) return { outcome: 'refused', reason: 'NO_CHANGE', line: FAKE_4J19_WORDS.noChange };
     const text = p.text;
     this.revise(runId, (current) => ({ ...current, editedText: text, ...(approvable ? {} : { canAccept: true, acceptBlocked: null }) }));
     const { digest: _digest, ...rest } = seen;

@@ -30,7 +30,8 @@ export type DecisionInput = Pick<DecisionRecord, 'subject' | 'action' | 'who' | 
 
 /** Records one decision inside the caller's transaction, as the member the transaction runs for. Writes only; callers emit. */
 export function recordDecision(tx: VentureTx, input: DecisionInput): DecisionRecord {
-  return tx.put<DecisionRecord>({ ...tx.base('venture-decision'), ...input });
+  // One-shot A3 (after review): with the role of the member it runs for, so a cofounder's decision is never the owner's.
+  return tx.put<DecisionRecord>({ ...tx.base('venture-decision'), role: tx.ctx.role, ...input });
 }
 
 /** Each Today action in a few words, for the record's line. */

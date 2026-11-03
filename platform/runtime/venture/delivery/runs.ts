@@ -74,6 +74,7 @@ import { loadQuarantineCheck,refuseQuarantined } from './quarantine-gate.ts';
 import { landRevision } from './revise.ts';
 import { freezeScope,refuseMissingCapability,refuseNewWork } from './run-guards.ts';
 import { acceptedBlueprint,newestFirst,optionalFlag,readAs,todayIso,ventureReceipts } from './shared.ts';
+import { checksWithOwnerEdit, ownerEditOf } from './owner-edit.ts';
 import { agentMayDraft, isLiveStage, isPracticeStage } from '../core/launch-stage.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
 import { playbookForOrder,playbookForRun,type RunPlaybook } from './workflow.ts';
@@ -562,8 +563,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');
     check(!(practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
     if (verdict === 'accepted') {
-      // One-shot A3 (S2): the owner's own edit in force is theirs to accept; the agent's draft must pass its checks.
-      if (!ownerEditInForce(tx.state, run)) acceptableAsIs(run.checks, run.playbookChecks);
+      // One-shot A3 (S2): the owner's own edit in force is held to the word checks; the agent's draft to all of its own.
+      acceptableAsIs(checksInForce(tx.state, run), run.playbookChecks);
       check(!judgeReading(run, Date.parse(tx.now)), 'INVALID_VENTURE_REQUEST', JUDGE_READING);
       // Regulated papers (the CA firm's, and every sign-off desk output, W6 6E5) are accepted only once the professional of
       // record signed this exact draft (playbooks/kit/signoff-gate.ts).
@@ -627,15 +628,12 @@ function acceptableAsIs(checks: readonly CheckResult[], playbookChecks?: readonl
 }
 
 /**
- * One-shot A3 (S2): the draft's text is the owner's own edit from Today, as they typed it: the newest edit of this run
- * that was not undone is the text in force, and no agent revision is waiting or merged into it. The agent's failed checks
- * read the agent's draft, so they do not hold the owner's own words back from Accept. A revision that lands later merges
- * the agent's words in, and its checks count again.
+ * One-shot A3 (S2, after review): the checks a draft is held to now. With the owner's own edit in force
+ * (owner-edit.ts), the agent's judge, claim and style checks are lifted and the word checks are the owner's version's.
  */
-export function ownerEditInForce(state: State, run: DeliveryRunRecord): boolean {
-  if (typeof run.editedText !== 'string' || run.merge || run.revision) return false;
-  const edit = listRecords(state, 'venture-draft-edit', run.ventureId).filter(item => item.runId === run.id && !item.undoneAt).at(-1);
-  return !!edit && edit.text === run.editedText;
+function checksInForce(state: State | undefined, run: DeliveryRunRecord): readonly CheckResult[] {
+  const edit = state ? ownerEditOf(state, run) : null;
+  return edit && state ? checksWithOwnerEdit(state, run, edit) : run.checks;
 }
 
 /**
@@ -660,7 +658,7 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   // Practice, or AI work that has not handed over: neither Accept nor an edit.
   const before = ready ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : null) : null;
   // One-shot A3 (S2): the owner's own edit in force is not held to the agent's failed checks.
-  const failed = ready && !before && !(state && ownerEditInForce(state, run)) ? failedCheckReason(run.checks, run.playbookChecks) : null;
+  const failed = ready && !before ? failedCheckReason(checksInForce(state, run), run.playbookChecks) : null;
   // The quality check still reading it, a CA's sign-off, or its files' consent and asset records (5A4).
   const held = ready && !before
     ? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? regulatedSignoffBlock(state, venture, run) : null)

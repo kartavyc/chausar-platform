@@ -4228,6 +4228,8 @@ export type DecisionRecord = RecordBase<'venture-decision'> & {
   ruleId: string | null;
   reason: string;
   rowId: string | null;
+  /** One-shot A3 (after review): the role of the member who decided (an owner, or a cofounder deciding for them). */
+  role?: import('../contracts.ts').Role;
 };
 
 /** The owner's own edit of a draft (4J2), with the hash of the draft it replaced; a later agent revision never overwrites it. */
@@ -4235,6 +4237,8 @@ export type DraftEditRecord = RecordBase<'venture-draft-edit'> & {
   runId: string; rowId: string; text: string; replacedHash: string; by: string; undoneAt: IsoTime | null;
   /** The text the edit replaced (the merge base when an agent revision lands later) and the owner's edit before it, for Undo. */
   replaced?: string; prior?: string | null;
+  /** One-shot A3 (after review): the role of the member who edited; only the owner's own edit lifts the agent's checks. */
+  role?: import('../contracts.ts').Role;
 };
 /**
  * 4J2 (O5): the owner sent a draft back with words, or asked the agent to fix failed checks. words: what the revision
