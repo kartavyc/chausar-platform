@@ -64,12 +64,14 @@ test('the model schema is strict: listed family, offers without amounts, evidenc
     { ...good, offers: [{ name: 'Monthly books', line: 'From 5000 a month' }] },
     { ...good, offers: [{ name: 'Books for ₹ less', line: 'x' }] },
     { ...good, offers: [1, 2, 3, 4].map(() => ({ name: 'Books', line: 'line' })) },
-    { ...good, evidence: 'The owner lives in India.' },
     { ...good, countryCode: 'ZZ' },
     { ...good, extra: true },
     { ...good, familyId: null },
   ]) assert.throws(() => task.validate(bad), { code: 'MODEL_OUTPUT_REJECTED' }, JSON.stringify(bad));
   assert.deepEqual(task.validate({ familyId: null, offers: [], countryCode: null, evidence: null }), { familyId: null, offers: [], countryCode: null, evidence: null });
+  // One-shot A4 (live on Codex, a resume PDF): evidence that is not copied from the owner's words or file never sets the
+  // country, and no longer throws the whole read away: the field and offers stand, the country is left unknown.
+  assert.deepEqual(task.validate({ ...good, evidence: 'The owner lives in India.' }), { ...good, countryCode: null, evidence: null });
 });
 
 test('a LinkedIn export gives only headline, summary, industry and location from Profile.csv', () => {

@@ -89,7 +89,10 @@ export function aboutTask({ text, file }: { text: string; file: DroppedFile | nu
         check(body.evidence === null, 'MODEL_OUTPUT_REJECTED', 'An unclear owner location has no country evidence.');
       } else {
         check(countries.some(country => country.code === body.countryCode), 'MODEL_OUTPUT_REJECTED', 'Choose a country from the supplied list.');
-        check(typeof body.evidence === 'string' && body.evidence.trim().length >= 3 && source.includes(body.evidence), 'MODEL_OUTPUT_REJECTED', 'Country evidence must be copied from the owner words.');
+        // One-shot A4 (live on Codex): evidence not copied from the owner's words or file never sets the country, and the
+        // read stands without one (the owner picks it later), rather than the whole read being thrown away.
+        const copied = typeof body.evidence === 'string' && body.evidence.trim().length >= 3 && source.includes(body.evidence);
+        if (!copied) return { familyId: body.familyId as FamilyId | null, offers, countryCode: null, evidence: null };
       }
       return { familyId: body.familyId as FamilyId | null, offers, countryCode: body.countryCode as CountryCode | null, evidence: (body.evidence as string | null) ?? null };
     },
