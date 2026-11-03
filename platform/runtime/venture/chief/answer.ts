@@ -327,8 +327,17 @@ const AI_CALL_FAILED: ReadonlySet<string> = new Set([
 
 /** The lead of a records answer after the AI call failed: the plain line, then the failure's own words when it has them. */
 function failedLead(error: unknown): { lead: string; reason: string | null } {
-  const named = error instanceof ChausarError && NAMED_FAILURES.has(error.code) && error.message.trim() ? error.message.trim() : null;
-  return { lead: AI_FAILED_LEAD, reason: named };
+  // A3 review 2 (L-b): a call whose outcome is unknown says in its own words that it may have run and charged.
+  const said = error instanceof ChausarError && (NAMED_FAILURES.has(error.code) || error.code === 'MODEL_OUTCOME_UNKNOWN') && error.message.trim();
+  return { lead: AI_FAILED_LEAD, reason: said || null };
+}
+
+/**
+ * A3 review 2 (L-a): a refusal from the models port of the chief's own task (its schema, its shape) is an engine bug,
+ * not something the owner can fix: it is thrown unbranded, so the owner sees REQUEST_FAILED and it is noted as a crash.
+ */
+function engineBug(error: ChausarError): Error {
+  return new Error(`The chief's model task was refused: ${error.message}`, { cause: error });
 }
 
 /**
@@ -365,6 +374,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
     } catch (error) {
       const code = codeOf(error);
       if (code === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
+      if (error instanceof ChausarError && error.code === 'INVALID_VENTURE_REQUEST') throw engineBug(error);
       if (!(error instanceof ChausarError) || !AI_CALL_FAILED.has(error.code)) throw error;
       // One-shot A3 (S3): the AI call itself failed. The owner still gets what the records say, with the figures read so
       // far, and the plain words that the AI couldn't answer.

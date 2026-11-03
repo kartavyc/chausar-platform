@@ -32,18 +32,26 @@ test('A3 S3: an AI call that fails with a named failure is answered from the rec
   assert.equal(kept.author, 'template', 'the answer is the records\', not the AI\'s');
 });
 
-test('A3 S3: a failure with no owner words of its own (a time-out, a dropped connection) gets the lead alone', async () => {
-  for (const failure of [new ChausarError('MODEL_TIMEOUT', 'The installed model command timed out.'), new ChausarError('MODEL_OUTCOME_UNKNOWN', 'The connection to the model provider broke part way. It may have run and charged for it. Chausar did not retry it.')]) {
-    const env = await chiefBusiness();
-    await chatConsent(env);
-    scriptChief(env, [answer([text('never used')])]);
-    env.models.failNextSend = failure as ChausarError;
-    const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
-    const parts = sent.added[1].parts;
-    assert.deepEqual(parts[0], { kind: 'text', text: AI_FAILED_LEAD });
-    assert.equal(parts.some((part: any) => part.kind === 'text' && /timed out|broke part way/.test(part.text)), false, 'no tool or library words');
-    assert.ok(parts.some((part: any) => part.kind === 'figure'));
-  }
+test('A3 S3: a failure with no owner words of its own (a time-out) gets the lead alone', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text('never used')])]);
+  env.models.failNextSend = new ChausarError('MODEL_TIMEOUT', 'The installed model command timed out.');
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  const parts = sent.added[1].parts;
+  assert.deepEqual(parts[0], { kind: 'text', text: AI_FAILED_LEAD });
+  assert.equal(parts.some((part: any) => part.kind === 'text' && /timed out/.test(part.text)), false, 'no tool words');
+  assert.ok(parts.some((part: any) => part.kind === 'figure'));
+});
+
+test('A3 review 2 L-b: a call whose outcome is unknown says it may have run and charged, after the lead', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text('never used')])]);
+  const words = 'The connection to the model provider broke part way. It may have run and charged for it. Chausar did not retry it.';
+  env.models.failNextSend = new ChausarError('MODEL_OUTCOME_UNKNOWN', words);
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  assert.deepEqual(sent.added[1].parts.slice(0, 2), [{ kind: 'text', text: AI_FAILED_LEAD }, { kind: 'text', text: words }]);
 });
 
 test('A3 S3: a failure on a later turn keeps the figures read so far', async () => {
@@ -140,5 +148,8 @@ test('A3 review M2: an engine error is never hidden: a plain error and a refused
   await chatConsent(schema);
   scriptChief(schema, [answer([text('never used')])]);
   schema.models.refusePreview = () => new ChausarError('INVALID_VENTURE_REQUEST', 'The model schema is not allowed at the root.');
-  await assert.rejects(schema.chief('venture.chief.thread.send', { text: QUESTION }), { code: 'INVALID_VENTURE_REQUEST' });
+  // A3 review 2 (L-a): an INVALID_VENTURE_REQUEST from the models port is an engine bug, not a refusal for the owner.
+  const refused = await schema.chief('venture.chief.thread.send', { text: QUESTION }).then(() => null, (error: unknown) => error);
+  assert.ok(refused, 'not answered from the records');
+  assert.equal(ownerError(refused).code, 'REQUEST_FAILED');
 });
