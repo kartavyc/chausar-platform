@@ -14,9 +14,17 @@ import s from './TodayActions.module.css';
 /** The most characters the owner's words may have (delivery/revise.ts SEND_BACK_MAX). */
 export const SEND_BACK_MAX = 300;
 
-/** A draft waiting for the owner's review on Today: its run id, or null for any other row. */
+/**
+ * A draft waiting for the owner's review on Today: its run id, or null for any other row. One-shot A3 (S2): a draft
+ * that failed a check waits too (Reject and Read, no Approve); whether it may be edited is its run's `canEdit`.
+ */
 export function draftRunOf(row: QueueRow): string | null {
-  return row.kind === 'draft' && row.viewRef?.kind === 'draft' && row.actions.some((action) => action.id === 'approve') ? row.viewRef.id : null;
+  return row.kind === 'draft' && row.viewRef?.kind === 'draft' && row.actions.some((action) => action.id === 'approve' || action.id === 'deny') ? row.viewRef.id : null;
+}
+
+/** Whether a draft card offers Send back and Edit: one with Approve, or one held by a failed check that the engine says the owner may edit. */
+export function draftEditable(row: QueueRow, run: DeliveryLite | undefined): boolean {
+  return row.actions.some((action) => action.id === 'approve') || run?.canEdit === true;
 }
 
 /** The checks that failed on a draft, each by the id venture.delivery.fix takes, with the engine's words. */
@@ -57,6 +65,8 @@ export function DraftTools({ api }: { api: ApprovalToolsApi }) {
   const [problem, setProblem] = useState<string>();
   const [picked, setPicked] = useState<readonly string[]>([]);
   if (!runId) return null;
+  // A3 (S2): a draft with no Approve shows its tools only once its run says the owner may edit it.
+  if (!draftEditable(row, run)) return null;
   const failed = failedChecks(run);
   const editable = typeof (run?.editedText ?? run?.renderedText) === 'string';
   const open = api.open;

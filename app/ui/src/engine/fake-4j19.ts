@@ -30,6 +30,8 @@ export const FAKE_4J19_WORDS = {
   tooLong: 'Keep it to 300 characters.',
   notOffered: "Send back works on drafts and on plan changes. Use the row's own buttons here.",
   editNotOffered: 'Only a draft waiting for your review can be edited here.',
+  // views/queue.ts: the line of a draft that can be approved now.
+  readThenApprove: 'Read it, then approve it. You send it yourself.',
   nothing: 'Nothing to undo here.',
   restored: 'Restored until you edit this again.',
   stale: 'This click did not run anything. Here is the new version.',
@@ -77,7 +79,7 @@ export function withFakeMeta(rows: QueueRow[]): QueueRow[] {
   });
 }
 
-type Undo = { kind: 'edit' | 'send-back'; row: QueueRow; madeId: string | null; runId: string | null };
+type Undo = { kind: 'edit' | 'send-back'; row: QueueRow; madeId: string | null; runId: string | null; held?: Pick<DeliveryLite, 'canAccept' | 'acceptBlocked'> };
 const ID_OK = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 400;
 
 /** The fake's answers, as the engine's queue-actions, revise, changes, triage and decisions modules give them. */
@@ -148,9 +150,17 @@ export class FakeApprovalsDesk {
     this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.now() });
   }
 
-  /** A draft waiting for review: its run id (the fake's draft rows open their draft by viewRef). */
+  /**
+   * A draft waiting for review: its run id (the fake's draft rows open their draft by viewRef). One-shot A3 (S2): as the
+   * engine's review rows, one held by a failed check (Reject and Read, no Approve) waits for review too.
+   */
   private static reviewRun(row: QueueRow): string | null {
-    return row.kind === 'draft' && row.viewRef?.kind === 'draft' && row.actions.some((action) => action.id === 'approve') ? row.viewRef.id : null;
+    return row.kind === 'draft' && row.viewRef?.kind === 'draft' && row.actions.some((action) => action.id === 'approve' || action.id === 'deny') ? row.viewRef.id : null;
+  }
+
+  /** The delivery a review row opens, when the fake's list holds it (a sample row may have none). */
+  private held(runId: string): DeliveryLite | undefined {
+    try { return (this.host.ask('venture.delivery.list', {}) as DeliveryLite[]).find((item) => item.id === runId); } catch { return undefined; }
   }
 
   private sendBack(p: Record<string, unknown>): QueueDecision {
@@ -183,13 +193,21 @@ export class FakeApprovalsDesk {
     if (!('id' in seen)) return seen;
     const runId = FakeApprovalsDesk.reviewRun(seen);
     if (!runId) return { outcome: 'refused', reason: 'NOT_OFFERED', line: FAKE_4J19_WORDS.editNotOffered };
+    // One-shot A3 (S2), as views/queue-actions.ts: a draft with no Approve is edited only when its run says so
+    // (canEdit), and the owner's own version is then not held to the agent's failed checks: it waits with Approve.
+    const approvable = seen.actions.some((action) => action.id === 'approve');
+    const run = this.held(runId);
+    if (!approvable && run?.canEdit !== true) return { outcome: 'refused', reason: 'NOT_OFFERED', line: run?.acceptBlocked ?? FAKE_4J19_WORDS.editNotOffered };
     const text = p.text;
-    this.revise(runId, (run) => ({ ...run, editedText: text }));
+    this.revise(runId, (current) => ({ ...current, editedText: text, ...(approvable ? {} : { canAccept: true, acceptBlocked: null }) }));
     const { digest: _digest, ...rest } = seen;
     const madeId = `${seen.id}-edit${(this.seq += 1)}`;
-    const made: QueueRow = { ...rest, id: madeId, createdAt: this.now(), digest: '' };
+    const made: QueueRow = approvable ? { ...rest, id: madeId, createdAt: this.now(), digest: '' } : {
+      ...rest, id: madeId, createdAt: this.now(), digest: '', line: FAKE_4J19_WORDS.readThenApprove,
+      actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Approve', primary: true, requiresView: true }],
+    };
     made.digest = this.host.digest({ ...made, digest: undefined, text });
-    this.undos.set(seen.id, { kind: 'edit', row: seen, madeId, runId });
+    this.undos.set(seen.id, { kind: 'edit', row: seen, madeId, runId, ...(approvable || !run ? {} : { held: { canAccept: run.canAccept ?? false, acceptBlocked: run.acceptBlocked ?? null } }) });
     this.record(`run:${runId}`, 'deny', FAKE_4J19_WORDS.edited, `You chose No on Today: ${FAKE_4J19_WORDS.edited}`);
     this.remove(seen.id, made);
     return { outcome: 'done', line: FAKE_4J19_WORDS.editLine };
@@ -206,7 +224,7 @@ export class FakeApprovalsDesk {
     if (!undo) throw new EngineError('UNDO_NOTHING', FAKE_4J19_WORDS.nothing);
     if (undo.madeId && !this.host.rows().some((row) => row.id === undo.madeId)) throw new EngineError('UNDO_TOO_LATE', 'Too late to undo: this draft moved on since your edit.');
     this.undos.delete(p.rowId);
-    if (undo.kind === 'edit' && undo.runId) this.revise(undo.runId, (run) => ({ ...run, editedText: null }));
+    if (undo.kind === 'edit' && undo.runId) this.revise(undo.runId, (run) => ({ ...run, editedText: null, ...(undo.held ?? {}) }));
     // The row comes back as a new version (the engine's reopen mark gives it a new id and digest).
     const { digest: _digest, ...rest } = undo.row;
     const back: QueueRow = { ...rest, id: `${undo.row.id}-r${(this.seq += 1)}`, createdAt: this.now(), digest: '' };

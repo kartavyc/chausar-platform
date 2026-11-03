@@ -778,6 +778,8 @@ export interface DeliveryLite {
   playbookChecks?: PlaybookCheckLite[];
   canAccept?: boolean;
   acceptBlocked?: Display | null;
+  /** One-shot A3 (S2): the owner may edit this draft on Today, also when its only block is a failed check. */
+  canEdit?: boolean;
   judge?: DeliveryJudgeLite;
   /** Ink v2 wave 4 (4H1, U17): which engine wrote the draft, in the engine's words ("Written by Claude Sonnet 5.5"); null before an answer. */
   writtenBy?: Display | null;
