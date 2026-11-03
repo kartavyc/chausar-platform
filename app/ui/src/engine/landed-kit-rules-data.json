@@ -4383,8 +4383,8 @@
         {
           "id": "sebi-ia-2013",
           "platform": "financial-planner",
-          "rule": "Investment advice needs a SEBI registration; returns are never assured.",
-          "checkedOn": "2026-11-01",
+          "rule": "Advice on securities needs SEBI investment adviser registration; advisers never promise or imply assured returns.",
+          "checkedOn": "2026-11-03",
           "stale": false,
           "usedBy": [
             "check"
@@ -4393,22 +4393,22 @@
             "Chausar does not give legal, medical or investment advice; the professional decides."
           ],
           "source": {
-            "title": "SEBI (Investment Advisers) Regulations, 2013",
-            "url": "https://www.sebi.gov.in/legal/regulations/"
+            "title": "SEBI (Investment Advisers) Regulations, 2013, regulation 3(1), and the Master Circular for Investment Advisers, 2026",
+            "url": "https://www.sebi.gov.in/sebi_data/attachdocs/aug-2026/1785912187595.pdf"
           },
           "sources": [
             {
-              "title": "SEBI (Investment Advisers) Regulations, 2013",
-              "url": "https://www.sebi.gov.in/legal/regulations/"
+              "title": "SEBI (Investment Advisers) Regulations, 2013, regulation 3(1), and the Master Circular for Investment Advisers, 2026",
+              "url": "https://www.sebi.gov.in/sebi_data/attachdocs/aug-2026/1785912187595.pdf"
             }
           ],
-          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+          "line": "Current. Read on the regulator's own page."
         },
         {
           "id": "sebi-ra-2014",
           "platform": "financial-planner",
-          "rule": "Buy or sell calls and target prices need a research analyst registration.",
-          "checkedOn": "2026-11-01",
+          "rule": "Buy, sell or hold calls, price targets and trading calls on listed securities need SEBI research analyst registration.",
+          "checkedOn": "2026-11-03",
           "stale": false,
           "usedBy": [
             "check"
@@ -4417,22 +4417,22 @@
             "Chausar does not give legal, medical or investment advice; the professional decides."
           ],
           "source": {
-            "title": "SEBI (Research Analysts) Regulations, 2014",
-            "url": "https://www.sebi.gov.in/legal/regulations/"
+            "title": "SEBI (Research Analysts) Regulations, 2014, regulation 3(1) read with regulation 2(1)(wa)",
+            "url": "https://www.sebi.gov.in/sebi_data/attachdocs/oct-2026/1792127227860.pdf"
           },
           "sources": [
             {
-              "title": "SEBI (Research Analysts) Regulations, 2014",
-              "url": "https://www.sebi.gov.in/legal/regulations/"
+              "title": "SEBI (Research Analysts) Regulations, 2014, regulation 3(1) read with regulation 2(1)(wa)",
+              "url": "https://www.sebi.gov.in/sebi_data/attachdocs/oct-2026/1792127227860.pdf"
             }
           ],
-          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+          "line": "Current. Read on the regulator's own page."
         },
         {
           "id": "cs-act-1980",
           "platform": "company-secretary",
-          "rule": "A company secretary in practice does not solicit clients by advertisement.",
-          "checkedOn": "2026-11-01",
+          "rule": "A practising company secretary does not solicit clients or advertise, except through a write-up under ICSI guidelines.",
+          "checkedOn": "2026-11-03",
           "stale": false,
           "usedBy": [
             "check"
@@ -4441,22 +4441,22 @@
             "Chausar does not give legal, medical or investment advice; the professional decides."
           ],
           "source": {
-            "title": "Company Secretaries Act, 1980, First Schedule",
-            "url": "https://www.icsi.edu/"
+            "title": "Company Secretaries Act, 1980, First Schedule, Part I, items (6) and (7)",
+            "url": "https://stimulate.icsi.edu/practicingcompanysecretary/images/PM/Second-Schedules.pdf"
           },
           "sources": [
             {
-              "title": "Company Secretaries Act, 1980, First Schedule",
-              "url": "https://www.icsi.edu/"
+              "title": "Company Secretaries Act, 1980, First Schedule, Part I, items (6) and (7)",
+              "url": "https://stimulate.icsi.edu/practicingcompanysecretary/images/PM/Second-Schedules.pdf"
             }
           ],
-          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+          "line": "Current. Read on the regulator's own page."
         },
         {
           "id": "ca-act-1949",
           "platform": "chartered-accountant",
-          "rule": "A chartered accountant in practice does not solicit clients by advertisement.",
-          "checkedOn": "2026-11-01",
+          "rule": "A practising chartered accountant does not solicit clients or advertise, except through a write-up under ICAI guidelines.",
+          "checkedOn": "2026-11-03",
           "stale": false,
           "usedBy": [
             "check"
@@ -4465,19 +4465,19 @@
             "Chausar does not give legal, medical or investment advice; the professional decides."
           ],
           "source": {
-            "title": "Chartered Accountants Act, 1949, First Schedule",
+            "title": "Chartered Accountants Act, 1949, First Schedule, Part I, items (6) and (7)",
             "url": "https://resource.cdn.icai.org/75789ca-act-61309.pdf"
           },
           "sources": [
             {
-              "title": "Chartered Accountants Act, 1949, First Schedule",
+              "title": "Chartered Accountants Act, 1949, First Schedule, Part I, items (6) and (7)",
               "url": "https://resource.cdn.icai.org/75789ca-act-61309.pdf"
             }
           ],
-          "line": "Not confirmed against a source yet. The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed."
+          "line": "Current. Read on the regulator's own page."
         }
       ],
-      "summary": "5 current, 0 to recheck, 4 not confirmed against a source yet.",
+      "summary": "9 current, 0 to recheck.",
       "recipes": [
         {
           "id": "sign-before-send",
@@ -4551,32 +4551,32 @@
       },
       "sebi-ia-2013": {
         "topic": "Investment advice",
-        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
-        "read": "unconfirmed",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
         "window": 90,
         "needs": null,
         "confirmed": false
       },
       "sebi-ra-2014": {
         "topic": "Research calls and target prices",
-        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
-        "read": "unconfirmed",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
         "window": 90,
         "needs": null,
         "confirmed": false
       },
       "cs-act-1980": {
         "topic": "Company secretaries and advertising",
-        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
-        "read": "unconfirmed",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
         "window": 90,
         "needs": null,
         "confirmed": false
       },
       "ca-act-1949": {
         "topic": "Chartered accountants and advertising",
-        "how": "The regulator's page did not show the rule text to Chausar's reader, so it is not confirmed.",
-        "read": "unconfirmed",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
         "window": 90,
         "needs": null,
         "confirmed": false
