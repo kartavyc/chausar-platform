@@ -32,8 +32,8 @@ test('A3 S3: an AI call that fails with a named failure is answered from the rec
   assert.equal(kept.author, 'template', 'the answer is the records\', not the AI\'s');
 });
 
-test('A3 S3: a failure with no owner words of its own (a timeout, an unknown error) gets the lead alone', async () => {
-  for (const failure of [new ChausarError('MODEL_TIMEOUT', 'The installed model command timed out.'), Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })]) {
+test('A3 S3: a failure with no owner words of its own (a time-out, a dropped connection) gets the lead alone', async () => {
+  for (const failure of [new ChausarError('MODEL_TIMEOUT', 'The installed model command timed out.'), new ChausarError('MODEL_OUTCOME_UNKNOWN', 'The connection to the model provider broke part way. It may have run and charged for it. Chausar did not retry it.')]) {
     const env = await chiefBusiness();
     await chatConsent(env);
     scriptChief(env, [answer([text('never used')])]);
@@ -41,7 +41,7 @@ test('A3 S3: a failure with no owner words of its own (a timeout, an unknown err
     const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
     const parts = sent.added[1].parts;
     assert.deepEqual(parts[0], { kind: 'text', text: AI_FAILED_LEAD });
-    assert.equal(parts.some((part: any) => part.kind === 'text' && /timed out|socket|ECONNRESET/.test(part.text)), false, 'no tool or library words');
+    assert.equal(parts.some((part: any) => part.kind === 'text' && /timed out|broke part way/.test(part.text)), false, 'no tool or library words');
     assert.ok(parts.some((part: any) => part.kind === 'figure'));
   }
 });
@@ -101,4 +101,44 @@ test('A3 S3: with the schema rule held at every preview, as the real models port
   const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
   assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: 'Nothing is invoiced yet this month.' }]);
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.author, 'model');
+});
+
+// A3 review (M2): the records answer is only for the AI call itself failing. A refusal that tells the owner what to fix
+// says its own words; anything else (an engine bug, a refused schema) is an error, noted as a crash, never hidden.
+test('A3 review M2: only the AI call failing falls back to the records; the allow-list', async () => {
+  for (const code of ['AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_STREAM_CUT', 'MODEL_FAILED', 'MODEL_TIMEOUT', 'MODEL_OUTCOME_UNKNOWN', 'RESPONSE_TOO_LARGE']) {
+    const env = await chiefBusiness();
+    await chatConsent(env);
+    scriptChief(env, [answer([text('never used')])]);
+    env.models.failNextSend = new ChausarError(code, 'Synthetic failure words.');
+    const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+    assert.deepEqual(sent.added[1].parts[0], { kind: 'text', text: AI_FAILED_LEAD }, code);
+  }
+});
+
+test('A3 review M2: a refusal with its own fix says its own words, not the records lead', async () => {
+  for (const code of ['MODEL_KEY_MISSING', 'BUDGET_REACHED', 'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'PRESET_UNAVAILABLE', 'CLI_UNAVAILABLE']) {
+    const env = await chiefBusiness();
+    await chatConsent(env);
+    scriptChief(env, [answer([text('never used')])]);
+    env.models.failNextSend = new ChausarError(code, `Synthetic words with the fix for ${code}.`);
+    await assert.rejects(env.chief('venture.chief.thread.send', { text: QUESTION }), (error: any) => error.code === code && error.message.includes('the fix'), code);
+    assert.equal(listRecords(env.store.read(), 'venture-chief-message').length, 0, `${code}: nothing stored`);
+  }
+});
+
+test('A3 review M2: an engine error is never hidden: a plain error and a refused schema are thrown, and become REQUEST_FAILED', async () => {
+  const { ownerError } = await import('../runtime/owner-error.ts');
+  const plain = await chiefBusiness();
+  await chatConsent(plain);
+  scriptChief(plain, [answer([text('never used')])]);
+  plain.models.failNextSend = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }) as never;
+  const thrown = await plain.chief('venture.chief.thread.send', { text: QUESTION }).then(() => null, (error: unknown) => error);
+  assert.ok(thrown, 'not answered from the records');
+  assert.equal(ownerError(thrown).code, 'REQUEST_FAILED');
+  const schema = await chiefBusiness();
+  await chatConsent(schema);
+  scriptChief(schema, [answer([text('never used')])]);
+  schema.models.refusePreview = () => new ChausarError('INVALID_VENTURE_REQUEST', 'The model schema is not allowed at the root.');
+  await assert.rejects(schema.chief('venture.chief.thread.send', { text: QUESTION }), { code: 'INVALID_VENTURE_REQUEST' });
 });

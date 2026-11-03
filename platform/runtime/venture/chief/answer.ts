@@ -312,17 +312,18 @@ const codeOf = (error: unknown): string | null => {
   return typeof code === 'string' ? code : null;
 };
 
-/**
- * One-shot A3 (S3): what stops an answer instead of falling back to the records, because the owner has to act or the
- * question no longer holds: the chat consent, the business or a client's records changing while it answered, a client's
- * AI permission, a locked vault, a role or channel that may not do this, the engine closing.
- */
-const OWNER_MUST_ACT: ReadonlySet<string> = new Set([
-  'CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE', 'JOB_SCOPE_CHANGED', 'JOB_SOURCE_CHANGED', 'CLIENT_AI_CONSENT_CHANGED', 'CLIENT_AI_CONSENT_REQUIRED',
-  'CLIENT_NOT_FOUND', 'VAULT_LOCKED', 'VAULT_BUSY', 'FORBIDDEN', 'APP_APPROVAL_REQUIRED', 'ACCESS_REVOKED', 'BUSINESS_CONTEXT_STALE', 'ENGINE_STOPPING',
-]);
 /** The AI failures that carry their own owner words and fix (models/ai-failure.ts), said after the lead. */
 const NAMED_FAILURES: ReadonlySet<string> = new Set(Object.values(AI_FAILURE_CODES));
+/**
+ * One-shot A3 (S3, after review M2): the only failures answered from the records: the AI call itself failed (a named AI
+ * failure, a failed or timed-out call, an answer cut off, refused or too large, a connection that broke part way).
+ * Everything else is thrown: a refusal with its own fix (no key, the spend cap, the Codex setup, an AI not available)
+ * says its own words, what needs the owner (the consent, a changed record) stops the answer, and an engine error (a
+ * plain error, a refused schema) becomes REQUEST_FAILED and is noted as a crash, never hidden behind the records.
+ */
+const AI_CALL_FAILED: ReadonlySet<string> = new Set([
+  ...NAMED_FAILURES, 'MODEL_FAILED', 'MODEL_TIMEOUT', 'MODEL_OUTPUT_REJECTED', 'MODEL_INCOMPLETE', 'MODEL_REFUSAL', 'MODEL_OUTCOME_UNKNOWN', 'RESPONSE_TOO_LARGE',
+]);
 
 /** The lead of a records answer after the AI call failed: the plain line, then the failure's own words when it has them. */
 function failedLead(error: unknown): { lead: string; reason: string | null } {
@@ -364,7 +365,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
     } catch (error) {
       const code = codeOf(error);
       if (code === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
-      if (code && OWNER_MUST_ACT.has(code)) throw error;
+      if (!(error instanceof ChausarError) || !AI_CALL_FAILED.has(error.code)) throw error;
       // One-shot A3 (S3): the AI call itself failed. The owner still gets what the records say, with the figures read so
       // far, and the plain words that the AI couldn't answer.
       const { lead, reason } = failedLead(error);
