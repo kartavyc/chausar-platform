@@ -80,3 +80,67 @@ test('cancelling a sign-in started through the npm shim leaves no codex program 
   assert.equal(alive(pid), false, 'no codex program is left after the cancel');
   assert.equal(alive(helper), false, 'nor the helper it started');
 });
+
+// One-shot A3 (L2, L3 from the A2 final review): what spawnTree does after a tool exits is the caller's choice.
+const helperOf = (parent: ReturnType<typeof spawnTree>) => new Promise<number>((resolve, reject) => {
+  let text = '';
+  parent.stdout!.on('data', chunk => { text += String(chunk); const pid = Number.parseInt(text, 10); if (Number.isSafeInteger(pid) && text.includes('\n')) resolve(pid); });
+  setTimeout(() => reject(new Error('no helper')), 10_000);
+});
+/** A tool that starts a helper (detached on Windows, as a browser a sign-in opens is), prints its pid, and then exits or waits. */
+const helperScript = (exits: boolean) => "const { spawn } = require('node:child_process'); const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: " + String(process.platform === 'win32') + " }); g.unref(); console.log(g.pid); " + (exits ? 'setTimeout(() => process.exit(0), 300);' : 'setInterval(() => {}, 1000);');
+const stop = (pid: number) => { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } };
+
+test('A3 L2: afterExit never leaves what the tool started running after it exits on its own (a sign-in\'s browser)', { timeout: 30_000 }, async t => {
+  const parent = spawnTree(process.execPath, ['-e', helperScript(true)], { stdio: ['ignore', 'pipe', 'ignore'] }, { afterExit: 'never' });
+  const helper = await helperOf(parent);
+  t.after(() => stop(helper));
+  await new Promise(done => parent.once('exit', done));
+  // Longer than the sweep takes when it runs (one PowerShell search on Windows).
+  await wait(4_000);
+  assert.equal(alive(helper), true, 'the helper is still running');
+});
+
+test('A3 L2: afterExit never still ends the whole tree on kill (a cancelled sign-in)', { timeout: 30_000 }, async () => {
+  const parent = spawnTree(process.execPath, ['-e', helperScript(false)], { stdio: ['ignore', 'pipe', 'ignore'] }, { afterExit: 'never' });
+  const helper = await helperOf(parent);
+  parent.kill();
+  for (let n = 0; n < 50 && (alive(helper) || alive(parent.pid!)); n++) await wait(100);
+  assert.equal(alive(parent.pid!), false);
+  assert.equal(alive(helper), false, 'kill ends what it started');
+});
+
+test('A3 L3: afterExit killed searches nothing after a tool that ended on its own, and ends the tree when it was killed', { timeout: 30_000 }, async t => {
+  const ended = spawnTree(process.execPath, ['-e', helperScript(true)], { stdio: ['ignore', 'pipe', 'ignore'] }, { afterExit: 'killed' });
+  const left = await helperOf(ended);
+  t.after(() => stop(left));
+  await new Promise(done => ended.once('exit', done));
+  await wait(4_000);
+  assert.equal(alive(left), true, 'no search after a tool that ended on its own');
+  const killed = spawnTree(process.execPath, ['-e', helperScript(false)], { stdio: ['ignore', 'pipe', 'ignore'] }, { afterExit: 'killed' });
+  const helper = await helperOf(killed);
+  killed.kill();
+  for (let n = 0; n < 80 && (alive(helper) || alive(killed.pid!)); n++) await wait(100);
+  assert.equal(alive(helper), false, 'a killed tool leaves nothing behind');
+});
+
+test('A3 L3: the exec route (defaultProcess) searches for helpers only after a time-out', { timeout: 40_000 }, async t => {
+  const { defaultProcess } = await import('../runtime/gateway.ts');
+  const dir = await mkdtemp(join(tmpdir(), 'chausar-exec-tree-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
+  const pidFile = (name: string) => join(dir, name);
+  const script = (file: string, exits: boolean) => `const { spawn } = require('node:child_process'); const { writeFileSync } = require('node:fs'); const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: ${String(process.platform === 'win32')} }); g.unref(); writeFileSync(${JSON.stringify(file)}, String(g.pid)); ${exits ? 'setTimeout(() => process.exit(0), 2500);' : 'setInterval(() => {}, 1000);'}`;
+  const request = (file: string, exits: boolean, timeoutMs: number) => ({ command: process.execPath, args: ['-e', script(file, exits)], cwd: tmpdir(), env: { ...process.env } as Record<string, string>, stdin: '', timeoutMs });
+  // A call that ran a while (over the old 2 s mark) and ended on its own.
+  const done = await defaultProcess(request(pidFile('ended.pid'), true, 20_000) as never);
+  assert.equal(done.exitCode, 0);
+  const left = Number.parseInt(await readFile(pidFile('ended.pid'), 'utf8'), 10);
+  t.after(() => stop(left));
+  await wait(4_000);
+  assert.equal(alive(left), true, 'no PowerShell search after an ordinary call');
+  // A call that timed out.
+  await assert.rejects(defaultProcess(request(pidFile('timed.pid'), false, 3_000) as never), (error: any) => error.code === 'MODEL_TIMEOUT');
+  const helper = Number.parseInt(await readFile(pidFile('timed.pid'), 'utf8'), 10);
+  for (let n = 0; n < 80 && alive(helper); n++) await wait(100);
+  assert.equal(alive(helper), false, 'a timed-out call leaves nothing behind');
+});

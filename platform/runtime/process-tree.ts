@@ -50,22 +50,30 @@ export function sweepAfterExit(pid: number | undefined, startedAt: Date, endedAt
  * How spawnTree cleans up. sweepAfterMs: on Windows, the search after an exit (which starts PowerShell) runs only for a
  * tool that ran at least this long; a quick check that answered at once is not searched. Elsewhere the group is always
  * ended. 0 (the default) searches after every exit.
+ * One-shot A3 (L2, L3): afterExit says when that clean-up runs at all. 'sweep' (the default): after every exit, as above.
+ * 'killed': only after Chausar killed the tool (a time-out, a stop, too much output), so an ordinary exec-route call
+ * starts no PowerShell. 'never': never after an exit, so a sign-in that finishes leaves the browser it opened. kill()
+ * ends the whole tree in every case.
  */
-export type TreeOptions = { sweepAfterMs?: number };
+export type TreeOptions = { sweepAfterMs?: number; afterExit?: 'sweep' | 'killed' | 'never' };
 
 /** Starts a program without a shell so that its kill() ends its whole tree, and its own exit leaves nothing behind. */
 export function spawnTree(command: string, args: readonly string[], options: SpawnOptions, tree: TreeOptions = {}): ChildProcess {
   const startedAt = new Date();
   const child = spawn(command, args, { ...options, shell: false, windowsHide: true, ...(process.platform === 'win32' ? {} : { detached: true }) });
   const plain = child.kill.bind(child);
+  let killed = false;
   child.kill = (signal?: NodeJS.Signals | number) => {
     if (child.exitCode !== null || child.signalCode !== null) return false;
+    killed = true;
     killTree(child.pid);
     try { return plain(signal ?? 'SIGKILL'); } catch { return true; }
   };
   child.once('exit', () => {
     const endedAt = new Date();
-    if (process.platform !== 'win32' || endedAt.getTime() - startedAt.getTime() >= (tree.sweepAfterMs ?? 0)) sweepAfterExit(child.pid, startedAt, endedAt);
+    const after = tree.afterExit ?? 'sweep';
+    if (after === 'never' || (after === 'killed' && !killed)) return;
+    if (process.platform !== 'win32' || killed || endedAt.getTime() - startedAt.getTime() >= (tree.sweepAfterMs ?? 0)) sweepAfterExit(child.pid, startedAt, endedAt);
   });
   return child;
 }
