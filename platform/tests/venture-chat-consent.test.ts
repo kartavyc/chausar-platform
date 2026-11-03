@@ -84,6 +84,26 @@ test('consent: a settings save that keeps the same AI (a new model setting or co
   assert.equal(view.consent.digest, first.consent.digest);
 });
 
+test('review of A1 row 11: on OpenRouter the model company is who gets the data, so a new company asks again', async () => {
+  const env = await agentBusiness();
+  const status = env.models.status.bind(env.models);
+  let model = 'openai/gpt-6-luna';
+  env.models.status = () => {
+    const now = status();
+    return { ...now, tiers: { ...now.tiers, main: { ...now.tiers.main, presetId: 'openrouter', model } } };
+  };
+  const first = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.match(first.consent.text, /OpenRouter/);
+  assert.match(first.consent.text, /openai/);
+  await env.agents('venture.chats.consent', { digest: first.consent.digest });
+  model = 'openai/gpt-6-luna-mini';
+  assert.equal((await env.agents('venture.agents.thread.list', { agent: 'story-editor' })).consent.state, 'given', 'the same company');
+  model = 'deepseek/deepseek-v4';
+  const moved = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.equal(moved.consent.state, 'stale');
+  assert.match(moved.consent.text, /deepseek/);
+});
+
 test('consent: with templates only nothing is sent, so none is asked and the agent answers from code', async () => {
   const env = await agentBusiness();
   env.models.main = 'template';

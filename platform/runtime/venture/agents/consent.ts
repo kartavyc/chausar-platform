@@ -35,7 +35,17 @@ export function chatRoute(status: ModelStatusView): ChatRoute | null {
  * runs. 4D3: it names what a network search sends too, so a consent given before that text is stale and asked again.
  */
 export function chatConsentText(route: ChatRoute): string {
-  return `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}. Keys, passphrases and bank or card numbers are never sent.`;
+  const vendor = routedVendor(route);
+  return `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${vendor ? `, which passes it to the ${vendor} model you chose` : ''}. Keys, passphrases and bank or card numbers are never sent.`;
+}
+
+/**
+ * Review of A1 (row 11): on a router (OpenRouter) the model's company, the part of the model id before its slash, is
+ * who reads what is sent. It is named in the consent text, so choosing another company's model asks again.
+ */
+export function routedVendor(route: Pick<ChatRoute, 'presetId' | 'model'>): string | null {
+  if (route.presetId !== 'openrouter' || !route.model || !route.model.includes('/')) return null;
+  return route.model.replace(/^~/, '').split('/')[0]!.toLowerCase();
 }
 
 type Standing = { view: ChatConsentView; route: ChatRoute | null };
@@ -48,8 +58,8 @@ export function chatConsentState(deps: VentureDeps, ctx: Context, state: State, 
   const textDigest = digest(text);
   const last = listRecords(state, 'venture-chat-consent', venture.id).at(-1);
   if (!last) return { view: { state: 'needed', text, digest: textDigest, at: null }, route };
-  // One-shot A1 (row 11): the consent is to what is sent (the text) and to whom (the AI named in it). Saving settings
-  // again (a new connection record or model setting for the same AI) changes neither, so it is not asked again.
+  // One-shot A1 (row 11): the consent is to what is sent (the text) and to whom (the AI named in it, and on OpenRouter
+  // the model's company, also named in the text). Saving the same AI's settings again changes neither.
   const same = last.textDigest === textDigest && last.presetId === route.presetId;
   return { view: { state: same ? 'given' : 'stale', text, digest: textDigest, at: same ? last.at : null }, route };
 }

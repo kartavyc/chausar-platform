@@ -100,4 +100,18 @@ describe('fake chat consent', () => {
     await client.request('venture.models.connect', { presetId: 'openrouter', consentDigest: 'consent-openrouter', apiKey: key, tiers: ['fast', 'main'] } as never);
     expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
   });
+
+  it('on OpenRouter, a model from another company asks again (review of A1 row 11)', async () => {
+    const { client } = fake(NOW);
+    const key = ['test', 'key', 'value'].join('-');
+    const connect = (model: string) => client.request('venture.models.connect', { presetId: 'openrouter', consentDigest: 'consent-openrouter', apiKey: key, model, tiers: ['fast', 'main'] } as never);
+    await connect('openai/gpt-6-luna');
+    const consent = (await client.request('venture.chief.threads', {})).consent;
+    expect(consent.text).toContain('openai');
+    await client.request('venture.chats.consent', { digest: consent.digest! });
+    await connect('openai/gpt-6-luna-mini');
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('given');
+    await connect('deepseek/deepseek-v4');
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
+  });
 });

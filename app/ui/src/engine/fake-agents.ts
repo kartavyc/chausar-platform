@@ -344,7 +344,9 @@ export class FakeAgentsDesk {
   private consentView(): ChatConsentView {
     const route = this.route();
     if (!route) return { state: 'not-needed', text: null, digest: null, at: null };
-    const text = `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}. Keys, passphrases and bank or card numbers are never sent.`;
+    // As agents/consent.ts routedVendor: on OpenRouter the model's company is named, so another company asks again.
+    const vendor = route.presetId === 'openrouter' && route.model?.includes('/') ? route.model.replace(/^~/, '').split('/')[0]!.toLowerCase() : null;
+    const text = `Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to ${route.label}${route.withKey ? ' with your key' : ''}${vendor ? `, which passes it to the ${vendor} model you chose` : ''}. Keys, passphrases and bank or card numbers are never sent.`;
     const digest = this.hex(text);
     const last = this.book().consent;
     if (!last) return { state: 'needed', text, digest, at: null };
