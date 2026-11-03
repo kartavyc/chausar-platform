@@ -9,6 +9,7 @@ import type { DeskActPayload, DeskActView, DeskGetPayload, DeskItemView, DeskLis
 import { deskHandler } from '../desks.ts';
 import {kitDefinition} from './installed.ts';
 import {CLIENT_ROOM_DESK} from './client-room.ts';
+import { refusals } from '../../refusals.ts';
 
 const NOT_BUILT = 'This part of Chausar is not built yet.';
 type Ops = { list: [DeskListPayload, DeskListView]; get: [DeskGetPayload, DeskItemView]; act: [DeskActPayload, DeskActView] };
@@ -20,6 +21,7 @@ export function deskRoute<Op extends keyof Ops>(op: Op): (deps: VentureDeps, ctx
     const handler = typeof body.playbook === 'string' && typeof body.kind === 'string' ? body.kind==='room'&&kitDefinition(body.playbook)?.clientRoom===true?CLIENT_ROOM_DESK:deskHandler(body.playbook, body.kind) : null;
     const run = handler?.[op] as ((deps: VentureDeps, ctx: Context, payload: Ops[Op][0]) => Promise<Ops[Op][1]>) | undefined;
     if (!run) throw new ChausarError('NOT_BUILT_YET', NOT_BUILT);
-    return run.call(handler, deps, ctx, payload as Ops[Op][0]);
+    // A1 re-review: a desk's coded plain refusal reaches the owner in its own words (refusals.ts).
+    return refusals(() => run.call(handler, deps, ctx, payload as Ops[Op][0]));
   };
 }

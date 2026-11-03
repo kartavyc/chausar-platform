@@ -31,3 +31,16 @@ test('review of A1: an upper-case code is not enough; a network library error ne
   assert.deepEqual(ownerError(Object.assign(new Error('Pick a price.'), { code: 'PRICE_REQUIRED' })), { code: 'PRICE_REQUIRED', message: 'Pick a price.' });
   assert.deepEqual(ownerError(Object.assign(new Error('Open it from the list.'), { code: 'TRANSFER_SAME_BUSINESS' })), { code: 'TRANSFER_SAME_BUSINESS', message: 'Open it from the list.' });
 });
+
+test('A1 re-review: a playbook refusal thrown as a coded plain error is Chausar\'s own; a library or system error is not', async () => {
+  const { asRefusal } = await import('../runtime/venture/refusals.ts');
+  const seo = asRefusal(Object.assign(new Error('Give the Search Console export and the recorded content and AI-answer gaps.'), { code: 'GSC_EXPORT_INVALID' }));
+  assert.ok(seo instanceof ChausarError);
+  assert.deepEqual(ownerError(seo), { code: 'GSC_EXPORT_INVALID', message: 'Give the Search Console export and the recorded content and AI-answer gaps.' });
+  for (const other of [
+    Object.assign(new Error('Connect Timeout Error (attempted address: api.example.com:443)'), { code: 'UND_ERR_CONNECT_TIMEOUT' }),
+    Object.assign(new Error('bad argument'), { code: 'ERR_INVALID_ARG_TYPE' }),
+    Object.assign(new Error("EPERM: operation not permitted, open 'C:/x'"), { code: 'EPERM', syscall: 'open', errno: -1 }),
+    new TypeError('x is not a function'), 'a string',
+  ]) assert.equal(asRefusal(other), null);
+});
