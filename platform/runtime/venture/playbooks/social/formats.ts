@@ -1,4 +1,5 @@
 // Original browser-safe Chausar social format router, catalogue S2 (MIT ideas only).
+import { refusalError } from '../../refusal-brand.ts';
 import {SOCIAL_CHANNELS,type SocialChannel} from './channel-ids.ts';
 export type SocialFormat = {
     channel: SocialChannel;
@@ -14,7 +15,7 @@ export function socialFormats(input: {
     images: boolean;
 }): SocialFormat[] {
     if (!Array.isArray(input.channels) || input.channels.length < 3 || input.channels.length > 5 || new Set(input.channels).size !== input.channels.length || input.channels.some(channel => !CHANNELS.includes(channel)) || typeof input.footage !== 'boolean' || typeof input.images !== 'boolean') {
-        throw Object.assign(new Error('Pick three to five different channels and say which media the order contains.'), { code: 'SOCIAL_INPUT_INVALID' });
+        throw refusalError(new Error('Pick three to five different channels and say which media the order contains.'), { code: 'SOCIAL_INPUT_INVALID' });
     }
     return input.channels.map(channel => socialFormat(channel, input));
 }

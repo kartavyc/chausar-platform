@@ -1,4 +1,5 @@
 // Original Chausar community preflight, catalogue S13 (marketing-skill, MIT ideas only).
+import { refusalError } from '../../refusal-brand.ts';
 export type CommunityDecision = {
     go: boolean;
     reasons: {
@@ -15,9 +16,9 @@ export function communityDecision(input: {
     flair: string;
 }): CommunityDecision {
     if (typeof input.rules !== 'string' || !input.rules.trim())
-        throw Object.assign(new Error('Paste this community\'s rules before drafting.'), { code: 'COMMUNITY_RULES_REQUIRED' });
+        throw refusalError(new Error('Paste this community\'s rules before drafting.'), { code: 'COMMUNITY_RULES_REQUIRED' });
     if (input.rules.length > 20000 || typeof input.promotion !== 'boolean' || typeof input.links !== 'boolean' || typeof input.flair !== 'string' || input.flair.length > 100)
-        throw Object.assign(new Error('Give the community rules and the planned promotion, links and flair.'), { code: 'SOCIAL_INPUT_INVALID' });
+        throw refusalError(new Error('Give the community rules and the planned promotion, links and flair.'), { code: 'SOCIAL_INPUT_INVALID' });
     const reasons: CommunityDecision['reasons'] = [];
     for (const [index, raw] of input.rules.split(/\r?\n/u).entries()) {
         const rule = raw.trim();
@@ -33,7 +34,7 @@ export function communityDecision(input: {
 /** A blocked decision never reaches a model call. */
 export function requireCommunityGo(decision: CommunityDecision): void {
     if (!decision.go)
-        throw Object.assign(new Error('This community\'s rules do not allow the planned post. Change it before drafting.'), { code: 'COMMUNITY_NO_GO' });
+        throw refusalError(new Error('This community\'s rules do not allow the planned post. Change it before drafting.'), { code: 'COMMUNITY_NO_GO' });
 }
 /** Deterministic promotional phrases supplement the owner's planned intent; the judge checks paraphrases. */
 export function hasCommunityPromotion(text: string): boolean {

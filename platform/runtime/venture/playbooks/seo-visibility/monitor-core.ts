@@ -1,4 +1,5 @@
 // Chausar bounded monitor state. beyondseo (MIT), original implementation and browser-safe validation.
+import { refusalError } from '../../refusal-brand.ts';
 export type SeoMonitorBody = {
     url: string;
     root: string;
@@ -25,7 +26,7 @@ export function checkedMonitorPlan(raw: unknown): {
     cycles: number;
     intervalSeconds: number;
 } {
-    const fail = () => { throw Object.assign(new Error('Use bounded whole cycles at least a minute apart.'), { code: 'MONITOR_INVALID' }); };
+    const fail = () => { throw refusalError(new Error('Use bounded whole cycles at least a minute apart.'), { code: 'MONITOR_INVALID' }); };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         return fail();
     const p = raw as Record<string, unknown>;

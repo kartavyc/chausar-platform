@@ -1,6 +1,7 @@
 // Original Chausar seven-day hook check, shared by live approval and rehearsal.
+import { refusalError } from '../../refusal-brand.ts';
 export {};
-function check(condition:unknown,code:string,message:string):asserts condition { if(!condition)throw Object.assign(new Error(message),{code}); }
+function check(condition:unknown,code:string,message:string):asserts condition { if(!condition)throw refusalError(new Error(message),{code}); }
 /** A formula may be used again only after seven full days; future history never passes silently. */
 export function hookVariety(formula: string, history: readonly {
     formula: string;

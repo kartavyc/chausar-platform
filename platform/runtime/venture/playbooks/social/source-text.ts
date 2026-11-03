@@ -1,4 +1,5 @@
 // Original Chausar source decoding. Transcript timestamps are never source claims.
+import { refusalError } from '../../refusal-brand.ts';
 import { parseTranscript } from '../youtube/transcript.ts';
 import { csvRows } from '../../../csv.ts';
 export function socialSourceText(format: string, raw: string): string {
@@ -9,5 +10,5 @@ export function socialSourceText(format: string, raw: string): string {
         if (column >= 0)
             return rows.slice(1).map(row => row[column] ?? '').join('\n');
     }
-    throw Object.assign(new Error('Use a source transcript or a CSV with a text, source or content column.'), { code: 'SOCIAL_SOURCE_INVALID' });
+    throw refusalError(new Error('Use a source transcript or a CSV with a text, source or content column.'), { code: 'SOCIAL_SOURCE_INVALID' });
 }

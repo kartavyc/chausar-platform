@@ -1,8 +1,9 @@
+import { refusalError } from '../../refusal-brand.ts';
 export {};
 // Chausar flagship playbook, social media agency: calendar slots made by code. The offer sets how many posts each
 // channel gets in a month and the owner picks the weekdays; code spreads the posts evenly over those days. The agent
 // only fills topics and hooks into the slots, so dates and counts never come from a model.
-function check(condition:unknown,code:string,message:string):asserts condition { if(!condition)throw Object.assign(new Error(message),{code}); }
+function check(condition:unknown,code:string,message:string):asserts condition { if(!condition)throw refusalError(new Error(message),{code}); }
 type IsoDate = string;
 import { SOCIAL_CHANNELS, type SocialChannel } from './channel-ids.ts';
 

@@ -1,6 +1,7 @@
 // Browser-safe lintapple report contract. lintapple (MIT), independently validated public JSON shape.
+import { refusalError } from '../../refusal-brand.ts';
 import type { WebsiteCheckData } from './records.ts';
-const reportError = (code: string, words: string) => Object.assign(new Error(words), { code });
+const reportError = (code: string, words: string) => refusalError(new Error(words), { code });
 export function parseWebsiteReport(url: string, raw: unknown, hash: (value: unknown) => string, previousReceipt: string | null = null): WebsiteCheckData {
     let parsed: URL;
     try {

@@ -7,6 +7,7 @@
 // and the script text is escaped, so a value holding </script> can never end the tag. A parsed JSON-LD block is not a
 // promise of rich results (the measurement-boundaries rule, P6). The idea (catalogue row SEO5) comes from seo-agent and
 // beyondseo (both MIT); no code of theirs was read or copied. Written for Chausar from schema.org's published vocabulary.
+import { refusalError } from '../../refusal-brand.ts';
 export const JSONLD_CORE_BROWSER_SAFE = true;
 
 /** The types a JSON-LD block may have at its top. */
@@ -46,7 +47,7 @@ const SCHEMA: Readonly<Record<JsonLdType | JsonLdInnerType, { properties: Readon
 const AVAILABILITY = new Set(['InStock', 'OutOfStock', 'PreOrder', 'SoldOut', 'LimitedAvailability', 'OnlineOnly', 'InStoreOnly'].map(name => `https://schema.org/${name}`));
 
 function refuse(code: string, message: string): never {
-  throw Object.assign(new Error(message), { code });
+  throw refusalError(new Error(message), { code });
 }
 
 function isNode(value: JsonLdValue): value is JsonLdNode {

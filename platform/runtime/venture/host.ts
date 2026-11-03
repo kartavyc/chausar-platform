@@ -7,7 +7,7 @@
 // - The constructor stores references only: it never throws, never loads a package, never calls a
 //   transport factory and never touches the network or the disk.
 // - Secrets live on a memory-only shelf that close() empties; the engine closes the host on lock and attach.
-import { asRefusal } from './refusals.ts';
+import { settleError } from './refusals.ts';
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type State, type StateStore } from '../contracts.ts';
 import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
@@ -266,10 +266,10 @@ export class VentureHost {
       if (SETTINGS_SAVE_METHODS.has(name)) await import('./core/settings-drafts.ts').then(drafts => drafts.clearSavedDraft(this.#deps, ctx, name, payload ?? {})).catch(() => false);
       return answer;
     } catch (thrown) {
-      // A1 re-review: a playbook's coded plain refusal is Chausar's own (refusals.ts), never a crash.
-      const error = asRefusal(thrown) ?? thrown;
+      // A1 re-review: a playbook's branded coded refusal is Chausar's own (refusals.ts), never a crash.
+      const { error, crash } = settleError(thrown);
       // Wave 6 (6J2): an error that is not one of Chausar's own refusals is noted as a crash, only while crash reports are on.
-      if (!(error instanceof ChausarError)) await import('./core/feedback.ts').then(feedback => feedback.noteEngineCrash(this.#deps, ctx, error, name)).catch(() => {});
+      if (crash) await import('./core/feedback.ts').then(feedback => feedback.noteEngineCrash(this.#deps, ctx, error, name)).catch(() => {});
       throw error;
     } finally {
       // The centre looks at Today before the request answers, so a screen that reads it next sees what changed.

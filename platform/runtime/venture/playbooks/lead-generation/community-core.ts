@@ -1,5 +1,6 @@
 // Chausar browser-safe community lead report. reddit-skills (no licence) informs the idea only; no code copied.
-export class CommunityError extends Error { code: string; constructor(code: string, message: string) { super(message); this.code = code; } }
+import { markRefusal } from '../../refusal-brand.ts';
+export class CommunityError extends Error { code: string; constructor(code: string, message: string) { super(message); this.code = code;markRefusal(this); } }
 function check(condition: unknown, code: string, message: string): asserts condition { if (!condition) throw new CommunityError(code, message); }
 function exact(value: unknown, keys: string[]): void {
   check(value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key)) && keys.every(key => Object.hasOwn(value, key)), 'INVALID_VENTURE_REQUEST', 'Send the required community fields and nothing else.');

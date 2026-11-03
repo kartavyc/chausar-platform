@@ -1,8 +1,9 @@
 // Original Chausar post plan: plain owner-review metadata, bound to actual post ordinals by code.
+import { refusalError } from '../../refusal-brand.ts';
 export const HOOK_FORMULAS = ['Question','Contrast','Lesson','Story','How to','Mistake','Myth','Checklist','Before and after','Observation','Behind the scenes','Example','Challenge','Quick tip','Comparison','Problem and solution'] as const;
 export type PostPlan = {postId:string;kind:'value'|'sell';goals:string[];actions:string[];hookFormula:string};
 export const POST_PLAN_GUIDANCE = 'For every actual channel post, add one line under Post plan: Post 1 | Value | Goal: Teach one useful idea | Reader action: Try it | Hook: Question. Number only actual posts in their text order. Use Value or Sell honestly, one goal and one reader action; separate multiple goals or actions with semicolons so code can flag them. Choose a plain hook name from: '+HOOK_FORMULAS.join(', ')+'. Never repeat a hook within seven code-dated calendar days; later reuse is allowed. An undated pack shares one window. Do not invent post ids, dates or history. Code binds each row to the exact post text and checks the owner selling cap and approved client history.';
-const invalid=():never=>{throw Object.assign(new Error('Give every actual post one Post plan row with its kind, goal, reader action and hook.'),{code:'SOCIAL_POST_PLAN_INVALID'});};
+const invalid=():never=>{throw refusalError(new Error('Give every actual post one Post plan row with its kind, goal, reader action and hook.'),{code:'SOCIAL_POST_PLAN_INVALID'});};
 /** Parse all declared rows; duplicates, absent posts and extras refuse instead of being guessed. */
 export function readPostPlan(lines:readonly string[],postIds:readonly string[]):PostPlan[]{
  if(!postIds.length||postIds.length>155||lines.length!==postIds.length)return invalid();
