@@ -180,7 +180,8 @@ export class FakeApprovalsDesk {
     }
     if (seen.kind === 'plan' || seen.kind === 'price') {
       this.undos.set(seen.id, { kind: 'send-back', row: seen, madeId: null, runId: null });
-      this.record(`plan:${seen.id}`, 'deny', FAKE_4J19_WORDS.planKept(text), `You chose No on Today: ${FAKE_4J19_WORDS.planKept(text)}`);
+      // One-shot A4 (rows 33, 46): the plan's row is decided on Today, in Prices or on the plan page; the line names no place.
+      this.record(`plan:${seen.id}`, 'deny', FAKE_4J19_WORDS.planKept(text), `You chose No: ${FAKE_4J19_WORDS.planKept(text)}`);
       this.remove(seen.id);
       return { outcome: 'done', line: FAKE_4J19_WORDS.planLine };
     }

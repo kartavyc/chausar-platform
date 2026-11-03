@@ -143,11 +143,14 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
   }
   const [first, ...rest] = changes;
   const name = first.name.value;
+  const title = changes.length === 1 ? `New price for ${name}` : 'New prices in your plan';
+  // One-shot A4 (hands-on rows 33, 46): the decision names the price it accepted, not "Plan accepted".
+  const acceptPrice: Perform = async (deps, ctx) => { await blueprintAccept(deps, ctx, { digest: latest.digest }); return { line: `${title} accepted.` }; };
   // Changing prices always asks twice; the change is on the row itself, so it needs no separate read.
   return [{
-    subject, perform: { approve: accept },
+    subject, perform: { approve: acceptPrice },
     row: {
-      ...base(business, 'price', subject, latest.id, latest.at), title: changes.length === 1 ? `New price for ${name}` : 'New prices in your plan',
+      ...base(business, 'price', subject, latest.id, latest.at), title,
       line: rest.length ? `Also changes ${rest.map(offer => offer.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
       change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency) },
       viewRef, actions: [action('read', 'Read', false), action('approve', 'Accept', true, { secondAsk: true })],

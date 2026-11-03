@@ -79,8 +79,11 @@ test('decisions.list: who decided, when, on what rule and why, newest first: the
   assert.deepEqual([setting.subject, setting.by, setting.line, setting.ruleId], ['step:work', 'owner', "You set 'Sort and match every entry' to run on its own.", null]);
   assert.deepEqual([timeout.rule, timeout.ruleId, timeout.reason, timeout.by], [null, null, 'No answer by 16:00, so the held call was declined.', null]);
   assert.match(timeout.line, /^No answer in time/);
-  assert.deepEqual([mine.reason, mine.by, mine.subject], ['Plan accepted.', 'owner', price.id.slice(0, price.id.lastIndexOf(':'))]);
-  assert.equal(mine.line, 'You chose Approve on Today: Plan accepted.');
+  // One-shot A4 (hands-on rows 33, 46): a price row says which price was accepted, and, since Prices and the plan page
+  // decide the same row, never claims it was done on Today.
+  assert.deepEqual([mine.reason, mine.by, mine.subject], [`${price.title} accepted.`, 'owner', price.id.slice(0, price.id.lastIndexOf(':'))]);
+  assert.match(price.title, /^New price for /);
+  assert.equal(mine.line, `You chose Approve: ${price.title} accepted.`);
   // Reading needs no app: the phone sees the record too. It takes no fields.
   assert.equal((await decisions(env, phone)).length, 4);
   await assert.rejects(call(env, 'venture.decisions.list', { limit: 5 }), code('INVALID_VENTURE_REQUEST'));
@@ -108,6 +111,34 @@ test('decisions made outside Today reach the record: a review from Work, a plan 
   assert.equal(list[0].line, `You approved it: Issue the invoice for ${CLIENT_NAME}.`);
   assert.equal(list[1].line, 'You decided: Draft accepted.');
   assert.equal(list[2].line, 'You decided: Plan version 2 accepted.');
+});
+
+// One-shot A4 (A3 leftover): a cofounder's decisions read as the cofounder's everywhere, never as "You".
+test('a cofounder\'s plan accept, Today click and approved invoice read as the cofounder\'s', async () => {
+  const env = await setup();
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  const plan = await seedBlueprint(env, { price2: '1500000' });
+  const { order } = await seedOrder(env, plan);
+  const draft = await seedBlueprint(env, { status: 'draft', version: 2, price1: '299900', price2: '1500000' });
+  await core['venture.blueprint.accept']!(env.deps, cofounder, { digest: draft.digest });
+  env.advance(1000);
+  const outline = await delivery['venture.delivery.run']!(env.deps, owner, { orderId: order.id, useTemplate: true }) as DeliveryRunRecord;
+  const [row] = (await call<QueueList>(env, 'venture.queue.list', {})).rows.filter(item => item.kind === 'draft');
+  assert.equal((await call<QueueDecision>(env, 'venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve', viewed: true }, cofounder)).outcome, 'done');
+  env.advance(1000);
+  const prepared = await money['venture.invoice.prepare']!(env.deps, cofounder, { orderId: order.id, dueInDays: 15 }) as InvoiceView;
+  await money['venture.invoice.issue']!(env.deps, cofounder, { invoiceId: prepared.invoice.id, digest: prepared.invoice.digest });
+  const list = await decisions(env);
+  const venture = listRecords(env.store.read(), 'venture-record')[0];
+  assert.deepEqual(list.map(item => [item.who, item.subject, item.by]), [
+    ['cofounder', `invoice:${prepared.invoice.id}`, 'cofounder-1'],
+    ['cofounder', `run:${outline.id}`, 'cofounder-1'],
+    ['cofounder', `plan:${venture.id}`, 'cofounder-1'],
+  ]);
+  assert.equal(list[0].line, `Your cofounder approved it: Issue the invoice for ${CLIENT_NAME}.`);
+  assert.equal(list[1].line, 'Your cofounder chose Approve on Today: Draft accepted. You send it to the client.');
+  assert.equal(list[2].line, 'Your cofounder decided: Plan version 2 accepted.');
 });
 
 test('a decision made on Today is listed once, however many records it left', async () => {

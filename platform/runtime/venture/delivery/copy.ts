@@ -31,7 +31,7 @@ export async function deliveryCopyHandler(deps: VentureDeps, ctx: Context, paylo
       renderedText: text, checks: [], verdict: null, editedText: text, copiedFrom: source.id,
     };
     tx.put(copy);
-    recordDecision(tx, { subject: `run:${copy.id}`, action: 'copy', who: 'owner', ruleId: null, reason: 'You made a copy of a draft that went out, to work on.', rowId: null });
+    recordDecision(tx, { subject: `run:${copy.id}`, action: 'copy', ruleId: null, reason: 'You made a copy of a draft that went out, to work on.', rowId: null });
     tx.emit('run.started', { runId: copy.id });
     tx.emit('run.waiting', { runId: copy.id });
     return runView(copy, tx.venture!, Date.parse(tx.now), tx.state);

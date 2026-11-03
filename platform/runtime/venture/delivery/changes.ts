@@ -88,7 +88,7 @@ export async function decideChangeHandler(deps: VentureDeps, ctx: Context, paylo
     const next: DeliveryRunRecord = { ...run, merge, editedText: textOf(run, merge), reopened: reopenMark(run, tx.now) };
     tx.replace(next);
     const what = changeId === REPLACEMENT_ID ? (accept ? 'You took the agent\'s whole version.' : 'You kept your own version.') : accept ? 'You took one of the agent\'s changes.' : 'You dropped one of the agent\'s changes.';
-    recordDecision(tx, { subject: `run:${runId}`, action: accept ? 'change-taken' : 'change-dropped', who: 'owner', ruleId: null, reason: what, rowId: null });
+    recordDecision(tx, { subject: `run:${runId}`, action: accept ? 'change-taken' : 'change-dropped', ruleId: null, reason: what, rowId: null });
     tx.emit('run.step', { runId });
     return changesView(next);
   });

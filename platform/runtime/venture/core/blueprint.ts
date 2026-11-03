@@ -1054,7 +1054,7 @@ export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: 
     activateTerm(tx, 'offer', { recordId: accepted.id, kind: 'venture-blueprint' });
     // 4J1 (O17): who accepted the plan and when, wherever they did (journal/decisions.ts).
     // rowId: the Today row this version is shown as (views/queue.ts planRows), so a click there is listed once.
-    recordDecision(tx, { subject: `plan:${venture.id}`, action: 'accept', who: 'owner', ruleId: null, reason: `Plan version ${accepted.version} accepted.`, rowId: `plan:${venture.id}:${accepted.id}` });
+    recordDecision(tx, { subject: `plan:${venture.id}`, action: 'accept', ruleId: null, reason: `Plan version ${accepted.version} accepted.`, rowId: `plan:${venture.id}:${accepted.id}` });
     tx.emit('blueprint-accepted', { blueprintId: accepted.id, version: accepted.version, digest: accepted.digest });
     return blueprintView(tx.state, accepted, deps.host);
   });

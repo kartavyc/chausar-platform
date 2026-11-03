@@ -100,7 +100,7 @@ export async function decideAgentApproval(deps: VentureDeps, ctx: Context, paylo
       && digest({ jobId: waiter.jobId, request: pending.request }) === waiter.digest, 'APPROVAL_STALE', STALE);
     const { pendingApproval: _pending, ...job } = run.agentJob;
     tx.replace({ ...run, agentJob: job });
-    recordDecision(tx, { subject: `agent-step:${runId}:${waiter.digest}`, action: choice, who: 'owner', ruleId: null,
+    recordDecision(tx, { subject: `agent-step:${runId}:${waiter.digest}`, action: choice, ruleId: null,
       reason: choice === 'approve' ? 'Approved this exact AI step once.' : 'Declined this AI step.', rowId: null });
     tx.emit('queue.changed', {}); tx.emit('run.step', { runId });
   }); } catch (error) { if (invalidated) waiter.finish({ approved: false }); throw error; }
