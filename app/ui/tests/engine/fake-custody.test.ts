@@ -140,7 +140,7 @@ describe('fake engine: export and delete', () => {
   it('delete needs the name exactly; it removes the business and its backups and closes it', async () => {
     const engine = new FakeEngine();
     expect(await refusal(engine.request('workspace.delete', { confirmation: 'lumen studio' }))).toMatchObject({ code: 'CONFIRMATION_REQUIRED' });
-    const kept = await engine.request('workspace.export', { confirmed: true, plaintext: false });
+    const kept = (await engine.request('workspace.export', { confirmed: true, plaintext: false })) as { path: string };
     const gone = await engine.request('workspace.delete', { confirmation: 'Lumen Studio' });
     // One-shot A1 (row 1), as the engine: the copy exported to keep stays and is named.
     expect(gone).toMatchObject({ deleted: true, exportsKept: [kept.path], externalCopies: 'Copies made outside this app must be removed by their owner.' });
