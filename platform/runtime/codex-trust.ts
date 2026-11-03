@@ -15,13 +15,13 @@
 // is sealed with a key Electron's safeStorage keeps, so a file written into the trust folder by anything else is not
 // taken; each choice is kept in a sealed decision journal; a program that changes while Chausar runs drops the setup and
 // asks for a new review; agent jobs get the program only after its digest is checked again.
-import { spawn } from 'node:child_process';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createReadStream, rmSync } from 'node:fs';
 import { appendFile, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { ChausarError, check } from './contracts.ts';
+import { spawnTree } from './process-tree.ts';
 import { defaultProcess, type GatewayOptions, type ProcessRequest, type ProcessResult } from './gateway.ts';
 import { loadCodexCliHostGateway } from './codex-cli-host.ts';
 import { CODEX_CLI_CONFIG, CODEX_QUIET_ARGS, REVIEWED_CODEX_VERSIONS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
@@ -102,8 +102,9 @@ async function fileDigest(path: string): Promise<string> {
 export const defaultCodexProbe: CodexProbe = (command, args, cwd) => new Promise(resolve => {
   let stdout = '', settled = false;
   const done = (exitCode: number) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ exitCode, stdout }); } };
-  let child: ReturnType<typeof spawn>;
-  try { child = spawn(command, args, { cwd, env: cliEnv('codex-cli'), shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }); }
+  let child: ReturnType<typeof spawnTree>;
+  // A2 second review: through spawnTree, so a check that hangs is ended with anything it started.
+  try { child = spawnTree(command, args, { cwd, env: cliEnv('codex-cli'), stdio: ['ignore', 'pipe', 'ignore'] }, { sweepAfterMs: 2_000 }); }
   catch { resolve({ exitCode: -1, stdout: '' }); return; }
   const timer = setTimeout(() => { child.kill(); done(-1); }, PROBE_TIMEOUT_MS);
   child.stdout?.on('data', chunk => { if (stdout.length < PROBE_LIMIT) stdout += String(chunk).slice(0, PROBE_LIMIT - stdout.length); });

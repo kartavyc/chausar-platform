@@ -9,11 +9,11 @@
 // with an argument array, no shell, the tool's minimal environment (cliEnv: no keys), in an empty folder made for it.
 // A login is stopped when the owner cancels, when it fails, after fifteen minutes (Codex's code expiry), or when the
 // draft desk clears.
-import { spawn as nodeSpawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError, check } from '../../contracts.ts';
+import { spawnTree } from '../../process-tree.ts';
 import type { DelegateCli } from '../contracts.ts';
 import { cliEnv, codexCommand, codexHost } from './cli.ts';
 import { codexQuietArgsFor } from '../../providers/codex-cli.ts';
@@ -150,10 +150,15 @@ export class LoginDesk {
     return startableProgram(path, platform) ? { command: path, lead: [], located: path } : { command: '', lead: [], located: path };
   }
 
-  #spawn(cli: DelegateCli, program: Program, args: string[], cwd: string): LoginChild {
+  /**
+   * A2 second review: through spawnTree, so a cancel or a time-out ends what the tool started too (npm's node, the native
+   * codex.exe and its helpers), and a tool that ends on its own leaves nothing behind. A quick status check is searched
+   * after its exit only when it ran long (sweepAfterMs).
+   */
+  #spawn(cli: DelegateCli, program: Program, args: string[], cwd: string, quick = false): LoginChild {
     const launch: LoginLaunch = { cli, command: program.command, args: [...program.lead, ...args], env: cliEnv(cli === 'codex' ? 'codex-cli' : 'claude-cli'), cwd };
     if (this.options.spawn) return this.options.spawn(launch);
-    return nodeSpawn(launch.command, launch.args, { cwd, env: launch.env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }) as unknown as LoginChild;
+    return spawnTree(launch.command, launch.args, { cwd, env: launch.env, stdio: ['pipe', 'pipe', 'pipe'] }, quick ? { sweepAfterMs: 2_000 } : {}) as unknown as LoginChild;
   }
 
   /** The tool's own status command, its answer matched and dropped. Unknown on any failure to answer. */
@@ -167,7 +172,7 @@ export class LoginDesk {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const done = (answer: ToolView['signedIn']) => { if (!settled) { settled = true; clearTimeout(timer); resolve(answer); } };
       let child: LoginChild;
-      try { child = this.#spawn(cli, program, COMMANDS[cli].status, folder); } catch { done('unknown'); return; }
+      try { child = this.#spawn(cli, program, COMMANDS[cli].status, folder, true); } catch { done('unknown'); return; }
       timer = setTimeout(() => { child.kill(); done('unknown'); }, STATUS_TIMEOUT_MS);
       const read = (chunk: Buffer | string) => { if (text.length < READ_CHARS) text += String(chunk).slice(0, READ_CHARS - text.length); };
       child.stdout?.on('data', read); child.stderr?.on('data', read);

@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnTree } from '../platform/runtime/process-tree.ts';
 
 // Wave 6, package 6J1 (D3, D12): the beta installer bundles Codex (Apache-2.0) with its LICENSE and NOTICE. The files
 // are copied unchanged from a Codex npm install already on this computer (the platform package's vendor folder); this
@@ -125,7 +125,8 @@ export function stagedProbe(command, args, cwd) {
   return new Promise(resolveRun => {
     let stdout = '', settled = false;
     const env = Object.fromEntries(['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA'].filter(name => process.env[name]).map(name => [name, process.env[name]]));
-    const child = spawn(command, args, { cwd, env, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    // A2 second review: through the engine's spawnTree, so a check that hangs is ended with anything it started.
+    const child = spawnTree(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'ignore'] }, { sweepAfterMs: 2000 });
     const done = exitCode => { if (!settled) { settled = true; clearTimeout(timer); resolveRun({ exitCode, stdout }); } };
     const timer = setTimeout(() => { child.kill(); done(-1); }, 15000);
     child.stdout.on('data', chunk => { if (stdout.length < 262144) stdout += String(chunk); });
