@@ -62,7 +62,7 @@ import { keepSocialPostPlan,socialSlotContext } from '../playbooks/social/slots-
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { copiedTokens,digest,exactPayload,findRecord,identifier,listRecords,plainText,requireAppChannel,ventureAction,type VentureTx } from '../records.ts';
 import { recordCheckSignal } from './check-signals.ts';
-import { correctDraft,knownNames,runChecks,withDraftChecks,type CheckInput } from './checks.ts';
+import { correctDraft,knownNames,ownerSourcesOf,runChecks,withDraftChecks,type CheckInput } from './checks.ts';
 import { orderRefs,renderDeliverable,TEMPLATE_OUTLINE_LINE,templateOutline,templateTotal,type DraftRefs,type DraftTimes } from './deliverable.ts';
 import { acceptManifest } from './file-manifest.ts';
 import { orderUploads,uploadsById } from './harness/env.ts';
@@ -245,6 +245,7 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
       codeSources: (extras.toolCalls ?? []).filter(call => call.envelope.ok).map(call => ({ id: call.id, text: JSON.stringify(call.envelope.ok ? call.envelope.result : '') })),
       clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [], outputFiles: extras.outputFiles??[],
       known: context.known, dateOrder: context.venture.country.dateOrder, ownerWords: context.ownerWords,
+      ownerSources: ownerSourcesOf([context.venture.workingName, context.blueprint.name.value], playbook),
     },
   };
 }

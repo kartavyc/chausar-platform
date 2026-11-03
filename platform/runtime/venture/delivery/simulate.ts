@@ -10,7 +10,7 @@ import type {
   ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, ToolCallRecord, VentureDeps, VentureRecord,
   WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
-import { correctDraft, firstFailedCheck, judgeDraftRules, knownNames, runChecks, withDraftChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
+import { correctDraft, firstFailedCheck, judgeDraftRules, knownNames, ownerSourcesOf, runChecks, withDraftChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, rehearsalRefs, renderDeliverable, renderForJudge, type DraftRefs } from './deliverable.ts';
 import { buildToolEnv, fileList, namer } from './harness/env.ts';
 import { manifest } from './harness/dictionary.ts';
@@ -211,7 +211,7 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
     }
 
     // The calculator's figure in place of each number it refutes (correctDraft), before the record-only send and the checks.
-    const grounding = { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
+    const grounding = { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea], ownerSources: ownerSourcesOf([env.venture.workingName, env.blueprint.name.value], env.playbook) };
     // A case stored before the receipts and prompt-leak checks never lists them; every practice draft runs them anyway.
     const caseChecks = withDraftChecks(scenario.checks);
     const allowed = draftAllowedTokens(request, env.venture.idea);
@@ -333,7 +333,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     state = finishWrite(state, { by: draft.by, callId: draft.callId, costMicros: draft.costMicros });
     const receipts = [...env.receipts, ...toolEnv.receipts];
     // The calculator's figure in place of each number it refutes (correctDraft), before the draft is rendered and checked.
-    const grounding = { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
+    const grounding = { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea], ownerSources: ownerSourcesOf([env.venture.workingName, env.blueprint.name.value], env.playbook) };
     const caseChecks = withDraftChecks(scenario.checks);
     // 4J16 (Q4): round 1 of the quote check first, a quote's time moved to where the practice transcript says it.
     const corrected = correctDraft({ checks: caseChecks, deliverable: withQuoteFixes(draft.value, files, env.playbook.flagship), receipts, ventureId: env.venture.id, allowed, grounding });

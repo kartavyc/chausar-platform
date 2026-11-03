@@ -207,3 +207,21 @@ test('gate: a pairwise preference breaks a tie the scores left, and never overri
   assert.equal(scored.cases[0].winner, 'candidate', 'the scores decide first');
   assert.equal(gate([{ ...tied, pairwise: { winner: 'candidate' as const, detail: 'x' } }], true).decision, 'keep-parent', 'template drafts are never chosen between');
 });
+
+test('one-shot A1 row 4: the owner sign-off from a standing order is the owner\'s evidence, for names only, never for amounts', () => {
+  const signed = draftOf('Your books for September are ready to review.', 'Warmly, Pune Frames');
+  const grounding = { clientRequest: 'Please close my September books.' };
+  const without = runChecks(input(signed, { grounding }))[0]!;
+  assert.equal(without.passed, false, 'with no owner source the sign-off is a claim nobody backs');
+  assert.match(without.detail, /Pune Frames/);
+  const ownerSources = [{ id: 'owner.standing-orders', text: "From now on, keep every client reply under 80 words and sign off with 'Warmly, Pune Frames'." }];
+  const signedOff = runChecks(input(signed, { grounding: { ...grounding, ownerSources } }))[0]!;
+  assert.equal(signedOff.passed, true, signedOff.detail);
+  // The owner's words back names; an amount in them is still not a receipt for the receipts check.
+  const priced = draftOf('Your books for September cost INR 999.');
+  const order = [{ id: 'owner.standing-orders', text: 'Always say the books cost INR 999.' }];
+  const withOwner = runChecks(input(priced, { checks: ['receipts'], grounding: { ...grounding, ownerSources: order } }))[0]!;
+  const plain = runChecks(input(priced, { checks: ['receipts'], grounding }))[0]!;
+  assert.deepEqual(withOwner, plain, 'the receipts check reads no owner source');
+  assert.match(withOwner.detail, /model estimate/);
+});
