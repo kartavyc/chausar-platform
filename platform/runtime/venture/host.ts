@@ -21,9 +21,53 @@ import { requireAppChannel } from './records.ts';
 import { endSessionAllowances } from './policy/allow-session.ts';
 import {clearSessionMemory} from './core/session-cleanup.ts';
 import { closeCredentialSession } from './models/credential-state.ts';
+import { pickCodexModels } from './models/codex-models.ts';
 
 const NOT_BUILT_MESSAGE = 'This part of Chausar is not built yet.';
 const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YET', message);
+
+/**
+ * One-shot A3: every method of the models port, in one list. The type below fails to compile when the port gains a
+ * method this list leaves out, so the host can never again forget to forward one (it forwarded only seven, and every
+ * Codex agent job on the desktop was refused for want of codexVerifiedProgram).
+ */
+export const MODEL_PORT_METHODS = Object.freeze(['status', 'presets', 'checkCli', 'inspectCli', 'generate', 'preview', 'runPreview', 'codexSetup', 'codexProgram', 'codexVerifiedProgram', 'toolSaid', 'codexModels'] as const satisfies readonly (keyof ModelPort)[]);
+type Unforwarded = Exclude<keyof ModelPort, (typeof MODEL_PORT_METHODS)[number]>;
+const EVERY_METHOD_FORWARDED: [Unforwarded] extends [never] ? true : never = true;
+void EVERY_METHOD_FORWARDED;
+
+/**
+ * deps.models as the packages see it: a frozen object whose every method forwards to the port read at each call. A port
+ * without an optional method answers as its contract says: no Codex setup or program (null), nothing a tool printed
+ * (null), Codex's fixed model ids, and no setup in use for an agent job; a look at a tool is not built yet.
+ */
+export function forwardModels(port: () => ModelPort): ModelPort {
+  return Object.freeze({
+    status(ctx: Context): ModelStatusView { return port().status(ctx); },
+    presets(): ModelPreset[] { return port().presets(); },
+    async checkCli(presetId: ModelPresetId): Promise<void> { return port().checkCli(presetId); },
+    // Ink v2 wave 4 (4H1): a look at the owner's Claude Code or Codex for venture.models.cli.status ({ fresh } on "Check again").
+    async inspectCli(...args: Parameters<NonNullable<ModelPort['inspectCli']>>) {
+      const real = port();
+      if (!real.inspectCli) throw notBuilt();
+      return real.inspectCli(...args);
+    },
+    async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
+    async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
+    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]) {
+      return port().runPreview(ctx, callId, approvedDigest, validate, options);
+    },
+    async codexSetup() { const real = port(); return real.codexSetup ? real.codexSetup() : null; },
+    codexProgram() { const real = port(); return real.codexProgram ? real.codexProgram() : null; },
+    async codexVerifiedProgram() {
+      const real = port();
+      if (!real.codexVerifiedProgram) throw new ChausarError('CODEX_SETUP_UNAVAILABLE', 'Choose the Codex Chausar found under Connect your AI first.');
+      return real.codexVerifiedProgram();
+    },
+    toolSaid(callId: string) { const real = port(); return real.toolSaid ? real.toolSaid(callId) : null; },
+    async codexModels() { const real = port(); return real.codexModels ? real.codexModels() : pickCodexModels(null); },
+  });
+}
 
 /** A memory-only secret shelf. Nothing on it is ever written to state, a log or the renderer. */
 export function createSecretShelf(): SecretShelf {
@@ -517,22 +561,7 @@ export class VentureHost {
       if (!this.#port) throw notBuilt(this.#portFailure);
       return this.#port;
     };
-    return Object.freeze({
-      status(ctx: Context): ModelStatusView { return port().status(ctx); },
-      presets(): ModelPreset[] { return port().presets(); },
-      async checkCli(presetId: ModelPresetId): Promise<void> { return port().checkCli(presetId); },
-      // Ink v2 wave 4 (4H1): a look at the owner's Claude Code or Codex for venture.models.cli.status ({ fresh } on "Check again").
-      async inspectCli(...args: Parameters<NonNullable<ModelPort['inspectCli']>>) {
-        const real = port();
-        if (!real.inspectCli) throw notBuilt();
-        return real.inspectCli(...args);
-      },
-      async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
-      async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
-      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]) {
-        return port().runPreview(ctx, callId, approvedDigest, validate, options);
-      },
-    });
+    return forwardModels(port);
   }
 
   // ---------------------------------------------------------------------------
