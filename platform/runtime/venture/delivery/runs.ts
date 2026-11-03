@@ -547,13 +547,16 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
     if (verdict !== 'rejected') check(!run.agentJob || run.agentJob.reviewReady === true, 'DELIVERY_NOT_READY', 'AI work must finish before you can approve this draft.');
     if (verdict !== 'rejected') assertAgentDraftCurrent(tx.state, run);
-    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(verdict!=='edited','APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
-    if(verdict!=='rejected'&&run.watchReportBinding)check(watchStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.watchReportBinding&&verdict!=='edited','DERIVED_STALE','Review current measured sources in the monitored desk and prepare a new report.');
-    if(verdict!=='rejected'&&run.triageReportBinding)check(triageStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.triageReportBinding&&verdict!=='edited','DERIVED_STALE','Review current source excerpts in the triage desk and prepare a new report.');
-    if(verdict!=='rejected'&&run.phoneReportBinding){const report=phoneRunSource(tx.state,tx.venture!.id,run.orderId).report;check(report.digest===run.phoneReportBinding&&verdict!=='edited','DERIVED_STALE','Revise the approved script or imported evidence in the receptionist desk and prepare a new report.');}
-    if(verdict!=='rejected'&&run.devReportBinding){const report=devStateSource(tx.state,tx.venture!.id,run.orderId,tx.now,true).report;check(report.digest===run.devReportBinding&&verdict!=='edited','DERIVED_STALE','Revise the source evidence in the developer desk and prepare a new report.');}
-    if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(verdict!=='edited','FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
-    if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(verdict!=='edited'||editedText===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
+    // One-shot A3 review (M1): an owner's edit from Today, then accepted, is the owner's own words as an edited verdict is,
+    // so each desk's no-edit rule holds for it too.
+    const ownWords = verdict === 'edited' || (verdict === 'accepted' && typeof run.editedText === 'string');
+    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(!ownWords,'APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
+    if(verdict!=='rejected'&&run.watchReportBinding)check(watchStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.watchReportBinding&&!ownWords,'DERIVED_STALE','Review current measured sources in the monitored desk and prepare a new report.');
+    if(verdict!=='rejected'&&run.triageReportBinding)check(triageStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.triageReportBinding&&!ownWords,'DERIVED_STALE','Review current source excerpts in the triage desk and prepare a new report.');
+    if(verdict!=='rejected'&&run.phoneReportBinding){const report=phoneRunSource(tx.state,tx.venture!.id,run.orderId).report;check(report.digest===run.phoneReportBinding&&!ownWords,'DERIVED_STALE','Revise the approved script or imported evidence in the receptionist desk and prepare a new report.');}
+    if(verdict!=='rejected'&&run.devReportBinding){const report=devStateSource(tx.state,tx.venture!.id,run.orderId,tx.now,true).report;check(report.digest===run.devReportBinding&&!ownWords,'DERIVED_STALE','Revise the source evidence in the developer desk and prepare a new report.');}
+    if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(!ownWords,'FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
+    if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(!ownWords||(verdict==='edited'?editedText:run.editedText)===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'){const order=tx.find('venture-order',run.orderId);if(order)voiceGuard(tx.state,tx.venture!,order);}
@@ -667,7 +670,11 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   const blocked = ready ? before ?? failed ?? held : null;
   const canAccept = ready && blocked === null;
   // One-shot A3 (S2): a draft whose only block is a failed check can be edited, as one with none can.
-  const canEdit = ready && !cancelled && before === null && held === null;
+  // A3 review (M1): a desk whose drafts are exact approved evidence (testing, monitored, triage, receptionist, developer,
+  // data-entry and career reports) takes no owner edit, so Today offers none.
+  const deskBound = !!(run.appTestingBinding || run.watchReportBinding || run.triageReportBinding || run.phoneReportBinding || run.devReportBinding || run.formsSourceBinding)
+    || (!!state && playbookForRun(state, run)?.flagship === 'job-search-desk');
+  const canEdit = ready && !cancelled && before === null && held === null && !deskBound;
   // One-shot A1 (row 9, after review): a draft the AI handed over while its job still runs (reviewReady not set, nothing
   // pending the owner's approval) is the AI's work in progress: nothing says it waits on the owner, and Today holds no
   // row for it until the job hands over.
