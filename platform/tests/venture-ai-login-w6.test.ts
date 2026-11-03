@@ -223,3 +223,18 @@ test('with a trusted setup in use, login and status run its own program, even wi
   const done = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
   assert.deepEqual([done.login.state, done.signedIn, done.setup?.origin], ['signed-in', 'yes', 'bundled']);
 });
+
+// One-shot A4 (hands-on row 96): "Looking for Codex and Claude Code" took about 30 s, one tool after the other, each
+// with its own test call. Both are looked at together; the answer keeps the same order.
+test('A4: both tools are looked at together, and answer in the same order', async () => {
+  let running = 0, most = 0;
+  const desk = new LoginDesk({
+    spawn: launch => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from(launch.cli === 'codex' ? 'Logged in using ChatGPT\n' : '{"loggedIn": true}')); child.finish(0); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : command === 'claude' ? '/usr/local/bin/claude' : null),
+    testCall: async () => { running += 1; most = Math.max(most, running); await new Promise(done => setTimeout(done, 50)); running -= 1; return { ok: true }; },
+  });
+  const { tools } = await desk.tools();
+  assert.deepEqual(tools.map(tool => tool.cli), ['codex', 'claude-code']);
+  assert.equal(most, 2, 'the two test calls overlap');
+});

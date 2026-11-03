@@ -254,8 +254,8 @@ export class LoginDesk {
 
   /** venture.ai.tools {}: each tool, whether it is found, its own sign-in state, and any login in flight. */
   async tools(): Promise<ToolsView> {
-    const tools: ToolView[] = [];
-    for (const cli of this.#clis()) tools.push(await this.#view(cli));
+    // One-shot A4 (hands-on row 96): both tools at once (each look may make a test call), answered in the same order.
+    const tools: ToolView[] = await Promise.all(this.#clis().map(cli => this.#view(cli)));
     return { tools, line: WORDS.line };
   }
 
