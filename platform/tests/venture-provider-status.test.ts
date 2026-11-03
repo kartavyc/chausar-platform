@@ -33,3 +33,16 @@ test('read through the guard as Chausar, kept for two minutes; a refused or priv
   const inside = new ProviderStatusReader({ net: { resolve: async () => [{ address: '127.0.0.1', family: 4 }], send: async () => { throw new Error('never sent'); } } });
   assert.deepEqual([(await inside.read('openai')).state, (await inside.read('openai')).line], ['unknown', null]);
 });
+
+test('A2 review: reads at the same time share one request, and a redirect is never followed', async () => {
+  const sent: PinnedTarget[] = [];
+  const resolve = async (): Promise<NetAddress[]> => [{ address: '93.184.216.34', family: 4 }];
+  const reader = new ProviderStatusReader({ net: { resolve, send: async target => { sent.push(target); await new Promise(done => setTimeout(done, 20)); return { status: 200, headers: {}, body: Buffer.from(page('none')) }; } } });
+  const [a, b] = await Promise.all([reader.read('openai'), reader.read('openai')]);
+  assert.deepEqual(a, b);
+  assert.equal(sent.length, 1);
+  const moved = new ProviderStatusReader({ net: { resolve, send: async target => { sent.push(target); return { status: 302, headers: { location: 'https://elsewhere.example/status.json' }, body: Buffer.from('') }; } } });
+  const view = await moved.read('claude');
+  assert.equal(view.state, 'unknown');
+  assert.equal(sent.filter(target => target.url.hostname === 'elsewhere.example').length, 0);
+});

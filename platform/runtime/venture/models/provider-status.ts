@@ -52,18 +52,31 @@ export class ProviderStatusReader {
     this.#now = options.now ?? (() => new Date());
   }
 
+  /** A2 review: a read under way, which every other asker joins. */
+  readonly #inflight = new Map<ProviderId, Promise<ProviderStatusView>>();
+
   async read(provider: ProviderId): Promise<ProviderStatusView> {
     const now = this.#now();
     const kept = this.#kept.get(provider);
     if (kept && now.getTime() - kept.at < STATUS_KEEP_MS) return structuredClone(kept.view);
+    let flight = this.#inflight.get(provider);
+    if (!flight) {
+      flight = this.#fetch(provider, now).finally(() => { this.#inflight.delete(provider); });
+      this.#inflight.set(provider, flight);
+    }
+    return structuredClone(await flight);
+  }
+
+  async #fetch(provider: ProviderId, now: Date): Promise<ProviderStatusView> {
     let view: ProviderStatusView;
     try {
-      const answer = await politeFetch({ url: STATUS_PAGES[provider].url, headers: { accept: 'application/json' }, timeoutMs: 8_000, maxBytes: READ_LIMIT }, this.#net);
+      // A2 review: the provider's own page only; a redirect elsewhere is never followed.
+      const answer = await politeFetch({ url: STATUS_PAGES[provider].url, headers: { accept: 'application/json' }, timeoutMs: 8_000, maxBytes: READ_LIMIT, maxRedirects: 0 }, this.#net);
       view = answer.status === 200 ? statusFromPage(provider, answer.body.toString('utf8'), now.toISOString()) : statusFromPage(provider, '', now.toISOString());
     } catch {
       view = statusFromPage(provider, '', now.toISOString());
     }
     this.#kept.set(provider, { at: now.getTime(), view });
-    return structuredClone(view);
+    return view;
   }
 }
