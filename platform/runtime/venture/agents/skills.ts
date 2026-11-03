@@ -11,18 +11,34 @@ const NAME_CHARS = 60;
 
 const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 
-/** A step's short name: its title up to the first comma, tidied. */
+/** Words a short name never ends on (one-shot A4): it would read as cut off. */
+const JOINING = /^(?:and|or|but|the|a|an|to|of|for|from|with|in|on|at|by|what|which|that|is|are|be|it|its|their|your)$/i;
+
+/** A step's title up to the first comma, tidied. */
+const clauseOf = (step: Pick<PlaybookStep, 'title'>) => tidyWords(step.title).split(',')[0].trim();
+
+/**
+ * A step's short name: its first clause. One-shot A4 (hands-on row 54): a clause longer than 60 characters stops at the
+ * last whole word that fits, never on a joining word, rather than mid-word.
+ */
 function nameOf(step: Pick<PlaybookStep, 'title'>): string {
-  const first = tidyWords(step.title).split(',')[0].trim();
-  return first.length <= NAME_CHARS ? first : `${first.slice(0, NAME_CHARS - 1).trimEnd()}.`;
+  const first = clauseOf(step);
+  if (first.length <= NAME_CHARS) return first;
+  const words: string[] = [];
+  for (const word of first.split(/\s+/)) {
+    if ([...words, word].join(' ').length > NAME_CHARS) break;
+    words.push(word);
+  }
+  while (words.length > 1 && JOINING.test(words.at(-1)!)) words.pop();
+  return words.join(' ') || first.slice(0, NAME_CHARS);
 }
 
 /**
  * The starter for a step, by its kind: a question about how the agent would do it on the owner's next order. It asks
- * only, so the chat answers it and nothing is drafted, ordered or proposed.
+ * only, so the chat answers it and nothing is drafted, ordered or proposed. It asks about the whole first clause.
  */
 function starterOf(step: Pick<PlaybookStep, 'kind' | 'title'>): string {
-  const name = lowerFirst(nameOf(step)).replace(/[.]$/, '');
+  const name = lowerFirst(clauseOf(step)).replace(/[.]$/, '');
   if (step.kind === 'gather') return `What do you need from me before you ${name}?`;
   if (step.kind === 'question') return 'What would you ask about on my next order?';
   return `How would you ${name} for my next order?`;
