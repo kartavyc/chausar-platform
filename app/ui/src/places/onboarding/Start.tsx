@@ -48,7 +48,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
    * W6 6C2: the plan About you kept (its idea and the confirmed country). Start then shows no box: it keeps that plan at
    * once, asking only what the engine forces (a passphrase, the recovery code), and calls onKept instead of opening Today.
    */
-  plan?: { idea: string; countryCode: string; name?: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template' } | undefined;
+  plan?: { idea: string; countryCode: string; name?: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string } | undefined;
   onKept?: (() => void | Promise<void>) | undefined;
 }) {
   const t = useT();
@@ -174,12 +174,12 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     }
   }
 
-  async function begin(idea: string, code: string, shown?: { name?: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template' }) {
+  async function begin(idea: string, code: string, shown?: { name?: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string }) {
     setCountryCheck(null);
     setStage({ kind: 'working', step: 'read' });
     // One-shot A1 (row 3): a plan kept on About you keeps the name and offers its card showed.
     const name = shown?.name?.trim() || (await client.request('venture.preview', { idea, countryCode: code })).serviceLabel.trim() || DEFAULT_NAME;
-    await keep({ idea, countryCode: code, name, ...(shown?.offers?.length ? { offers: shown.offers, by: shown.by ?? 'template' } : {}) });
+    await keep({ idea, countryCode: code, name, ...(shown?.offers?.length ? { offers: shown.offers, by: shown.by ?? 'template', ...(shown.callId ? { callId: shown.callId } : {}) } : {}) });
   }
 
   function confirmCountry(code: string) {

@@ -842,7 +842,7 @@ function mirrorIntoInterview(tx: VentureTx, venture: VentureRecord, blueprint: B
 /** venture.blueprint.draft { useTemplate? } (prepare). "Rewrite with AI" is this call without useTemplate. */
 /** A card offer: words only, never an amount, a currency or a link (core/about.ts keeps the same rule for the AI's). */
 const NOT_IN_SHOWN = /[\p{N}\p{Sc}]|:\/\/|[\u0000-\u001F\u007F]/u;
-type Shown = { name: string; by: 'model' | 'template'; offers: { name: string; line: string }[] };
+type Shown = { name: string; by: 'model' | 'template'; callId: string | null; offers: { name: string; line: string }[] };
 /** The ids a kept card's offers take, in order (Offer.id: 'offer_1' .. 'offer_3'); About you shows at most three. */
 const SHOWN_OFFER_IDS = ['offer_1', 'offer_2', 'offer_3'] as const;
 
@@ -851,8 +851,10 @@ const SHOWN_OFFER_IDS = ['offer_1', 'offer_2', 'offer_3'] as const;
  * ('model') or the keywords or a tile ('template'); never the owner, whose own edits go through venture.blueprint.update.
  */
 function shownOf(value: unknown): Shown {
-  const body = exactPayload(value, ['name', 'by', 'offers'], ['name', 'by', 'offers']);
+  const body = exactPayload(value, ['name', 'by', 'offers', 'callId'], ['name', 'by', 'offers']);
   check(body.by === 'model' || body.by === 'template', 'INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+  // A1 final check: the About you read's own call, which the AI label is checked against.
+  check(body.callId === undefined || (typeof body.callId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(body.callId)), 'INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
   const name = singleLine(body.name, 'The business name', { min: 2, max: 60 });
   check(Array.isArray(body.offers) && body.offers.length >= 1 && body.offers.length <= SHOWN_OFFER_IDS.length, 'INVALID_VENTURE_REQUEST', `Keep one to ${SHOWN_OFFER_IDS.length} offers.`);
   const offers = (body.offers as unknown[]).map(item => {
@@ -863,12 +865,15 @@ function shownOf(value: unknown): Shown {
     check(!NOT_IN_SHOWN.test(offerName) && !NOT_IN_SHOWN.test(line), 'INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
     return { name: offerName, line };
   });
-  return { name, by: body.by, offers };
+  return { name, by: body.by, callId: (body.callId as string | undefined) ?? null, offers };
 }
 
-/** True when this business holds a completed about-read model call (core/about.ts ABOUT_INSTRUCTIONS in what was sent). */
-function aboutReadCalled(calls: readonly ModelCallRecord[]): boolean {
-  return calls.some(call => call.purpose === 'decide' && call.status === 'completed' && call.payloadText.includes(ABOUT_INSTRUCTIONS.slice(0, 80)));
+/**
+ * A1 final check: true when the About you read the card names is among this business's calls (copied from the draft at
+ * venture.create) or the draft still held: that exact call, completed, with the About you instructions in what was sent.
+ */
+function aboutReadCalled(calls: readonly ModelCallRecord[], callId: string | null): boolean {
+  return !!callId && calls.some(call => call.id === callId && call.purpose === 'decide' && call.status === 'completed' && call.payloadText.includes(ABOUT_INSTRUCTIONS.slice(0, 80)));
 }
 
 /** The kept card on the drafted record: its name and exactly its offers, with no price and the neutral per-project unit. */
@@ -948,7 +953,8 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
       check(!previous, 'PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
       // A1 re-review: the AI's label only when this business holds the AI call that read the owner (handed over from the
       // draft at venture.create); on the window's word alone the words are labelled the template's, and the keep goes on.
-      applyShown(record, shown.by === 'model' && !aboutReadCalled(tx.list('venture-model-call')) ? { ...shown, by: 'template' } : shown);
+      const calls = [...tx.list('venture-model-call'), ...(deps.draft?.ai()?.calls ?? [])];
+      applyShown(record, shown.by === 'model' && !aboutReadCalled(calls, shown.callId) ? { ...shown, by: 'template' } : shown);
     }
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });

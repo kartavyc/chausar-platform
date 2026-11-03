@@ -106,6 +106,8 @@ test('about.read through the connected AI returns its family, offers and country
   assert.deepEqual(read.country, { code: 'IN', name: 'India', currency: 'INR' });
   assert.equal(read.evidence, 'near me in India');
   assert.equal(read.idea, CA);
+  // A1 final check: the read names its own call, which the kept card carries so the plan can say the AI wrote it.
+  assert.match(read.callId, /^[A-Za-z0-9_-]{1,128}$/);
   assert.ok(!JSON.stringify(read).match(/price|amount/i));
 });
 

@@ -6132,7 +6132,7 @@ export type VenturePayloads = {
   'venture.interview.next': { useTemplate?: boolean };
   'venture.interview.answer': { questionId: string; answer: InterviewAnswer };
   /** shown (review of A1, row 3): the plan About you showed, kept on the first template draft; by is who wrote its words. */
-  'venture.blueprint.draft': { useTemplate?: boolean; shown?: { name: string; by: 'model' | 'template'; offers: { name: string; line: string }[] } };
+  'venture.blueprint.draft': { useTemplate?: boolean; shown?: { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] } };
   'venture.blueprint.get': Empty;
   /** basedOn (4J8): refused APPROVAL_STALE unless the newest plan is still this one, as a suggestion read it. */
   'venture.blueprint.update': { patch: BlueprintPatch; basedOn?: { blueprintId: string; digest: string } };

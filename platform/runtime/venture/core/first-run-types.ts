@@ -18,6 +18,8 @@ export type AboutRead = {
   /** The sentence venture.preview and venture.create start the plan from, or null until a family is chosen. */
   idea: string | null;
   source: 'ai' | 'keywords' | 'tile';
+  /** A1 final check: the AI read's own call, when the AI read it; the kept card names it so the plan can say who wrote it. */
+  callId?: string;
   file?: AboutFile;
 };
 

@@ -181,7 +181,7 @@ export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknow
   const answer = outcome.value;
   return {
     family: familyView(answer.familyId), offers: answer.offers, country: countryView(answer.countryCode), evidence: answer.evidence,
-    idea: ideaFor(answer.familyId, text, answer.offers), source: 'ai', ...(fileNote ? { file: fileNote } : {}),
+    idea: ideaFor(answer.familyId, text, answer.offers), source: 'ai', ...(outcome.callId ? { callId: outcome.callId } : {}), ...(fileNote ? { file: fileNote } : {}),
   };
 }
 

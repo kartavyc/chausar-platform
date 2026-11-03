@@ -572,7 +572,7 @@ export interface BlueprintStepLite { id: string; title: LabelledLite<string>; do
  */
 export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
 /** The plan About you showed: its name, its offers and who wrote them (the AI's reading, or the keywords or a tile). */
-export interface KeptShownLite { name: string; by: 'model' | 'template'; offers: { name: string; line: string }[] }
+export interface KeptShownLite { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] }
 export interface BlueprintLite {
   country?: CountryLite;
   id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template' | 'owner'; digest: string; serviceType: ServiceType;
@@ -1623,6 +1623,8 @@ export interface AboutReadLite {
   evidence: string | null;
   idea: string | null;
   source: 'ai' | 'keywords' | 'tile';
+  /** A1 final check: the AI read's own call id, carried by the kept card. */
+  callId?: string;
   file?: { name: string; included: boolean; line: string | null };
 }
 /** Wave 6 (6C7): what the business needs from outside, as core/needs.ts answers. */

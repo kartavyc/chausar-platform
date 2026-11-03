@@ -30,7 +30,7 @@ export type Request = EngineClient['request'];
  * offers and by (one-shot A1, row 3): the offers the owner saw and kept on About you and who wrote them (the AI's
  * reading, or the keywords or a tile), saved as the plan's offers; without them the plan keeps the template's.
  */
-export interface Sentence { idea: string; countryCode: string; name: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template' }
+export interface Sentence { idea: string; countryCode: string; name: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string }
 
 const ZONE_COUNTRIES: Readonly<Record<string, string>> = Object.freeze({
   ...Object.fromEntries(Object.entries(COUNTRY_TIME_ZONES).map(([country, zone]) => [zone, country])),
@@ -151,7 +151,7 @@ export async function setUpPlan(request: Request, sentence: Sentence): Promise<v
   const shownName = sentence.name.trim();
   try {
     await request('venture.blueprint.draft', offers.length && shownName.length >= 2 && shownName.length <= 60
-      ? { useTemplate: true, shown: { name: shownName, by: sentence.by ?? 'template', offers } } : { useTemplate: true });
+      ? { useTemplate: true, shown: { name: shownName, by: sentence.by ?? 'template', ...(sentence.callId ? { callId: sentence.callId } : {}), offers } } : { useTemplate: true });
   } catch (error) {
     // A retry after the kept plan was saved: it is saved already, so running this again stays safe.
     if (!(error instanceof EngineError && error.code === 'PLAN_ALREADY_KEPT')) throw error;

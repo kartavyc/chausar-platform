@@ -105,9 +105,9 @@ function setup() {
 type Harness = ReturnType<typeof setup>;
 
 /** An about-read model call, as venture.create hands the draft's calls over into the business (A1 re-review). */
-async function seedAboutCall(h: ReturnType<typeof setup>) {
+async function seedAboutCall(h: ReturnType<typeof setup>, id = 'modelcall_about_1') {
   await ventureAction(h.deps, owner, 'admin', 'seed.about-call', tx => {
-    tx.put({ ...tx.base('venture-model-call'), purpose: 'decide', tier: 'fast', presetId: 'anthropic-sonnet-5-5', connectionId: null, routeKind: 'anthropic-messages', model: 'claude-sonnet-5-5',
+    tx.put({ ...tx.base('venture-model-call'), id, purpose: 'decide', tier: 'fast', presetId: 'anthropic-sonnet-5-5', connectionId: null, routeKind: 'anthropic-messages', model: 'claude-sonnet-5-5',
       consent: 'standing', endpoint: 'https://api.anthropic.com/v1/messages', payloadText: JSON.stringify({ system: ABOUT_INSTRUCTIONS }), payloadDigest: 'd', payloadTruncated: false, containsClientData: false,
       status: 'completed', approvedDigest: null, approvedAt: null, approvedBy: null, estimatedMaxCostMicros: '0', priceConfirmed: true, usage: null, costMicros: '0', outputDigest: 'o', error: null, replay: false } as never);
   });
@@ -1048,7 +1048,7 @@ test('5A2: a share on the first offer clears the interview\'s price, and a rewri
 
 test('review of A1 row 3: the first keep saves exactly the card: its name and offers, by who wrote them, with a neutral price unit', async () => {
   const shown = (by: 'model' | 'template', count: number) => ({
-    name: 'Pune Frames Studio', by,
+    name: 'Pune Frames Studio', by, ...(by === 'model' ? { callId: 'modelcall_about_1' } : {}),
     offers: [
       { name: 'Birthday party photography', line: 'Candid photos of the party, edited and shared.' },
       { name: 'Shop product photos', line: 'Clean photos of what a shop sells.' },
@@ -1086,7 +1086,7 @@ test('review of A1 row 3: the first keep saves exactly the card: its name and of
 });
 
 test('A1 re-review: the plan says the AI wrote it only when this business holds the AI call that read the owner', async () => {
-  const shown = { name: 'Pune Frames Studio', by: 'model', offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
+  const shown = { name: 'Pune Frames Studio', by: 'model', callId: 'modelcall_about_1', offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
   // No about-read call in this business: the words are labelled the template's, never the AI's on the window's word.
   const h = setup();
   await interviewed(h);
@@ -1099,5 +1099,24 @@ test('A1 re-review: the plan says the AI wrote it only when this business holds 
   await seedAboutCall(g);
   const ai = (await g.call('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
   assert.equal(ai.source, 'model');
+});
+
+test('A1 final check: the AI label needs the About you call the card names; a wiped draft gives template, never a refusal', async () => {
+  const card = (callId?: string) => ({ name: 'Pune Frames Studio', by: 'model', ...(callId ? { callId } : {}), offers: [{ name: 'Party photos', line: 'Photos of the party.' }] });
+  // The draft store was wiped between About you and venture.create: the call the card names never reached the business.
+  const wiped = setup();
+  await interviewed(wiped);
+  await seedAboutCall(wiped, 'modelcall_other_read');
+  const plan = (await wiped.call('venture.blueprint.draft', { useTemplate: true, shown: card('modelcall_about_lost') })).blueprint;
+  assert.equal(plan.source, 'template', 'another about read in the business does not stand in for the one the card names');
+  // No call id at all: template too.
+  const none = setup();
+  await interviewed(none);
+  await seedAboutCall(none);
+  assert.equal((await none.call('venture.blueprint.draft', { useTemplate: true, shown: card() })).blueprint.source, 'template');
+  // A call id that is not an id is refused as a bad request, before anything is drafted.
+  const bad = setup();
+  await interviewed(bad);
+  await assert.rejects(bad.call('venture.blueprint.draft', { useTemplate: true, shown: card('../x') }), codeOf('INVALID_VENTURE_REQUEST'));
 });
 

@@ -207,8 +207,8 @@ export class FakeEngine {
   // Onboarding: the businesses on this computer, whether a vault is open, and each new business's interview.
   private businesses: HeldBusiness[];
   private ventures = new Map<string, HeldVenture>();
-  /** A1 re-review: the businesses that hold the AI call that read the owner (core/blueprint.ts aboutReadCalled). */
-  private aiRead = new Set<string>();
+  /** A1 final check: each business's About you read calls, handed over at venture.create (core/blueprint.ts aboutReadCalled). */
+  private aiReads = new Map<string, Set<string>>();
   private interviews = new Map<string, InterviewQuestionLite[]>();
   private open = true;
   private closedByOwner = false;
@@ -1112,7 +1112,7 @@ export class FakeEngine {
         if (p.workingName !== undefined && (named === null || named.length < 2 || named.length > 80)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The working name must be between 2 and 80 characters.');
         const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
         this.ventures.set(this.current, venture);
-        if (this.firstRun.takeAiRead()) this.aiRead.add(this.current);
+        this.aiReads.set(this.current, new Set(this.firstRun.takeAiReads()));
         this.interviews.set(this.current, this.templateInterview(country.code));
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
         this.desk.adoptDraft(this.current);
@@ -1334,7 +1334,7 @@ export class FakeEngine {
   private shownOf(value: unknown): KeptShownLite | null {
     if (value === undefined) return null;
     const bad = () => new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
-    if (!value || typeof value !== 'object' || Object.keys(value).sort().join(',') !== 'by,name,offers') throw bad();
+    if (!value || typeof value !== 'object' || !['by,name,offers', 'by,callId,name,offers'].includes(Object.keys(value).sort().join(','))) throw bad();
     const body = value as Record<string, unknown>;
     if (body.by !== 'model' && body.by !== 'template') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
     const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : '';
@@ -1350,7 +1350,8 @@ export class FakeEngine {
       if (/[\p{N}\p{Sc}]|:\/\//u.test(offerName) || /[\p{N}\p{Sc}]|:\/\//u.test(line)) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
       return { name: offerName, line };
     });
-    return { name, by: body.by, offers };
+    if (body.callId !== undefined && (typeof body.callId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.callId))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
+    return { name, by: body.by, ...(typeof body.callId === 'string' ? { callId: body.callId } : {}), offers };
   }
 
   private draftPlan(questions: InterviewQuestionLite[], rawShown?: unknown, useTemplate = true): BlueprintViewLite {
@@ -1421,7 +1422,7 @@ export class FakeEngine {
     // no price and the neutral per-project unit.
     if (shown) {
       // A1 re-review, as core/blueprint.ts: the AI's label only when this business holds the AI's about read.
-      const by = shown.by === 'model' && !this.aiRead.has(business.id) ? 'template' as const : shown.by;
+      const by = shown.by === 'model' && !(shown.callId && this.aiReads.get(business.id)?.has(shown.callId)) ? 'template' as const : shown.by;
       const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);

@@ -130,10 +130,10 @@ export class FakeFirstRun {
     return { id, label, line };
   }
 
-  /** A1 re-review: an AI about-read since the last business was made, as the engine's draft desk holds its call. */
-  private aiRead = false;
-  /** Hands the about-read over to the business being made (venture.create) and wipes it here, as the engine's handover. */
-  takeAiRead(): boolean { const read = this.aiRead; this.aiRead = false; return read; }
+  /** A1 final check: the AI about-read calls since the last business was made, as the engine's draft desk holds them. */
+  private aiReads: string[] = [];
+  /** Hands the about-read calls over to the business being made (venture.create) and wipes them here, as the handover. */
+  takeAiReads(): string[] { const reads = this.aiReads; this.aiReads = []; return reads; }
 
   private read(p: Record<string, unknown>): AboutReadLite {
     exact(p, ['text', 'attachment']);
@@ -168,11 +168,12 @@ export class FakeFirstRun {
       return phrase ? [{ country, evidence: phrase }] : [];
     });
     const country = found.length === 1 ? found[0]! : null;
-    // A1 re-review: the AI read the owner, as the engine's draft desk records the call (handed over at venture.create).
-    this.aiRead = true;
+    // A1 final check: the AI read the owner, as the engine's draft desk records the call (handed over at venture.create).
+    const callId = `modelcall_about_${this.aiReads.length + 1}`;
+    this.aiReads.push(callId);
     return {
       family: this.family(familyId), offers: familyId ? offers.slice(0, 3) : [], country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
-      idea, source: 'ai', ...(file ? { file } : {}),
+      idea, source: 'ai', callId, ...(file ? { file } : {}),
     };
   }
 

@@ -29,24 +29,31 @@ describe('fake plan draft with the kept card', () => {
 
 // A1 re-review, as core/blueprint.ts aboutReadCalled: the AI's label stands only when the AI read the owner first.
 describe('fake plan draft: who wrote the kept card', () => {
-  async function keep(withAi: boolean) {
+  async function keep(withAi: boolean, named: (callId: string | undefined) => string | undefined = (callId) => callId) {
     const client = createFakeClient(new FakeEngine({ fresh: true }));
     const key = ['test', 'key', 'value'].join('-');
+    let callId: string | undefined;
     if (withAi) {
       await client.request('venture.ai.connect', { presetId: 'openai-gpt-6-luna', consentDigest: 'consent-openai', apiKey: key, tiers: ['fast', 'main'] } as never);
-      expect((await client.request('venture.about.read', { text: 'I run a small weekend photography studio in Pune.' })).source).toBe('ai');
+      const read = await client.request('venture.about.read', { text: 'I run a small weekend photography studio in Pune.' });
+      expect(read.source).toBe('ai');
+      callId = read.callId;
     }
     await client.request('workspace.create', { name: 'Kept Shop', pack: 'services', folder: null } as never);
     await client.request('venture.create', { idea: 'Photography for parties and shops in Pune', countryCode: 'IN' } as never);
     let view = await client.request('venture.interview.next', { useTemplate: true });
     for (const question of view.interview.questions) view = await client.request('venture.interview.answer', { questionId: question.id, answer: question.required ? (question.kind === 'yesno' ? { yes: false } : { choiceId: question.choices[0]!.id }) : { skipped: true } } as never);
-    const shown = { name: 'Pune Frames Studio', by: 'model' as const, offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
+    const id = named(callId);
+    const shown = { name: 'Pune Frames Studio', by: 'model' as const, ...(id ? { callId: id } : {}), offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
     return (await client.request('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
   }
   it('labels the words the AI’s only after an AI about read, else the template’s', async () => {
     expect((await keep(true)).source).toBe('model');
     const plain = await keep(false);
     expect(plain.source).toBe('template');
+    // A1 final check: the card must name the read that reached this business; another id, or none, is template.
+    expect((await keep(true, () => 'modelcall_about_lost')).source).toBe('template');
+    expect((await keep(true, () => undefined)).source).toBe('template');
     expect(plain.offers[0]!.name.by).toBe('template');
   });
 });
