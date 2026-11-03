@@ -618,6 +618,13 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
      * The status screen's look: joins one under way, else reuses one started within the last minute, unless fresh
      * ("Check again"), which always starts one when none is under way.
      */
+    /** A2: the native program of the Codex setup in use, so agent jobs run the program the owner chose; null without one. */
+    codexProgram() {
+      const codex = codexNow();
+      const evidence = codex?.capabilities.evidence;
+      return evidence?.kind === 'installed-help' ? evidence.executable : null;
+    },
+
     /** A2: the Codex setup in use, else a review of the Codex the search path finds; null without a Codex trust. */
     async codexSetup() {
       const trust = options.codexCli as { review?: (found: string | null) => Promise<import('../core/first-run-types.ts').CodexSetupView> } | undefined;

@@ -12,7 +12,7 @@ import { isAbsolute, join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
-import { DRAFT_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
@@ -685,6 +685,15 @@ test('A2: a failed Codex call says why in owner words, and keeps what Codex said
   assert.ok(record.error.said.length <= 600);
 });
 
+test('A2: the agent route runs the Codex program the trust names, read at each use', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  let live: unknown = null;
+  const { deps } = await setup({ codexCli: { profile: () => live } });
+  assert.equal(deps.models.codexProgram?.(), null, 'no setup in use: no program named');
+  live = codexProfile(executable);
+  assert.equal(deps.models.codexProgram?.(), executable);
+});
+
 test('default transport: posts to a loopback server without the purpose, refuses redirects and oversized answers', async t => {
   const seen: { headers: Record<string, unknown>; body: string }[] = [];
   const server = createServer((request, response) => {
@@ -1052,7 +1061,8 @@ test('replay through the port: calls are marked replay and status says synthetic
 test('handlers: exactly the fifteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
   // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
   // Five, and the two Ink v2 wave 4 added (the CLI status and per-role models, 4H1).
-  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method));
+  // A2: the owner's Codex choice is owned by models too, but the engine answers it itself (ENGINE_METHODS).
+  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method) && !ENGINE_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   // W6 6F1 adds the curated MCP list and OAuth sign-in, 6F2 lists, adds and removes packs.
   assert.equal(owned.length, 15);

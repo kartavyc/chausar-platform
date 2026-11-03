@@ -823,6 +823,8 @@ export interface ModelPort {
   inspectCli?(cli: DelegateCli, options?: { fresh?: boolean }): Promise<CliFinding>;
   /** A2: the Codex setup in use, or a review of the Codex found on this computer; null without a Codex trust. */
   codexSetup?(): Promise<import('./core/first-run-types.ts').CodexSetupView | null>;
+  /** A2: the native Codex program the setup in use names, for the agent route; null without one. */
+  codexProgram?(): string | null;
 }
 
 /**

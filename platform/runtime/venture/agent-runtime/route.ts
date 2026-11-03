@@ -32,7 +32,11 @@ export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId:
     const executable = locateOnThisComputer('claude');
     check(executable && startableProgram(executable), 'CLI_UNAVAILABLE', 'Install Claude Code on this computer, then try again.');
     driver = createClaudeDriver({ executable });
-  } else driver = new CodexDriver();
+  } else {
+    // A2: the program of the Codex setup in use (bundled, or the one the owner chose), else the one the search path finds.
+    const executable = deps.models.codexProgram?.() ?? undefined;
+    driver = new CodexDriver(executable ? { executable } : {});
+  }
   return { driver, settings, presetId: serving.presetId, ...(apiKey ? { credentials: { apiKey, ...(serving.presetId === 'openrouter' ? { baseUrl: 'https://openrouter.ai/api/v1' } : {}) },
     billing: { connectionId: connection!.id, presetId: connection!.presetId, model: settings.model } } : {}) };
 }
