@@ -23,7 +23,7 @@ import type {
 } from '../contracts.ts';
 // 4F3: the scope's cap in rupees at the owner's rate.
 import { rupeeFigure, rupeeRateWords, rupeesOf } from '../money/spend.ts';
-import { STOPPED_BY_YOU, stopAsked } from '../delivery/harness/controls.ts';
+import { QUIET_LINE, STOPPED_BY_YOU, stopAsked } from '../delivery/harness/controls.ts';
 import { usualDuration } from '../delivery/estimates.ts';
 import { auditedSteps, type StepAudit } from '../delivery/judge/auditor.ts';
 import { runView } from '../delivery/runs.ts';
@@ -183,13 +183,14 @@ function runStateOf(run: ReturnType<typeof runView>, position: Position): RunSta
 }
 
 /** unsigned: why a CA firm's regulated papers wait for the CA's sign-off (signoff-gate.ts), which an edit needs too. */
-function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null): string | undefined {
+function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null, quiet = false): string | undefined {
   switch (run.status) {
     case 'accepted': return 'Draft accepted. You send it to the client.';
     case 'edited': return unsigned ? short(unsigned) : 'You edited the draft. You send your version.';
     case 'rejected': return run.verdict?.reason ? `Draft rejected: ${REASON_WORDS[run.verdict.reason]}.` : 'Draft rejected.';
     case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
-    case 'stopped': return run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
+    // A2 review: the watchdog's stop of a quiet AI job says so, never "Stopped by you".
+    case 'stopped': return quiet ? QUIET_LINE : run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
     default: return undefined;
   }
 }
@@ -281,7 +282,7 @@ function deliveryRun(
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
-  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null);
+  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null, record.agentJob?.quiet === true);
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
@@ -392,7 +393,7 @@ function controlSummary(state: State, venture: VentureRecord, record: DeliveryRu
   // 4F2: a breaker stop names its rule as a code too, for the screen's own words.
   const trigger = record.status === 'stopped' && breakerStopped(record.harness) ? record.harness!.breaker!.trigger : null;
   // 4J13: a run a crash cut reads Interrupted (delivery/leases.ts), never "Stopped by you".
-  const stop = record.status === 'stopped' ? { state: 'stopped' as const, line: record.harness?.control?.line ?? record.interrupted?.line ?? STOPPED_BY_YOU, ...(trigger ? { trigger } : {}) }
+  const stop = record.status === 'stopped' ? { state: 'stopped' as const, line: record.agentJob?.quiet ? QUIET_LINE : record.harness?.control?.line ?? record.interrupted?.line ?? STOPPED_BY_YOU, ...(trigger ? { trigger } : {}) }
     : record.status === 'waiting-for-you' && stopAsked(record.harness) ? { state: 'stopping' as const, line: 'Stopping: the step in progress finishes first.' }
       : null;
   return { ...(usually ? { usually } : {}), ...(stop ? { stop } : {}) };

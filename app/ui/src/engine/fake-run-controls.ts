@@ -22,6 +22,8 @@ export const FAKE_4F3_METHODS: readonly string[] = [
 
 /** The engine's words (delivery/harness/controls.ts, delivery/run-controls.ts, views/runs.ts, delivery/away.ts). */
 export const STOPPED_BY_YOU = 'Stopped by you. Finished steps are kept.';
+/** A2, as the engine's harness/controls.ts: the idle-run watchdog stopped a quiet AI job. */
+export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
 const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 const STOPPING = 'Stopping: the step in progress finishes first.';
 const RECEIVED = 'Stop received. The step in progress finishes, then the run stops.';
@@ -226,9 +228,15 @@ export class FakeRunControls {
   }
 
   /** The run stops: it waits at the step it stopped on for Resume, its question kept for then, and Today gets its row. */
-  private stopNow(run: RunDetail, cut: boolean): void {
+  /** Tests, as the engine's watchdog (agent-runtime/runner.ts): a native AI job went quiet and was stopped, its notes kept. */
+  quietStop(runId: string): void {
+    const run = this.runs().find((item) => item.runId === runId);
+    if (run?.agentProgress) this.stopNow(run, false, true);
+  }
+
+  private stopNow(run: RunDetail, cut: boolean, quiet = false): void {
     if(run.agentProgress){this.host.nativeStop?.(run);delete run.agentProgress.pendingApproval;cut=false;}
-    const line = cut ? FORCE_STOPPED : STOPPED_BY_YOU;
+    const line = quiet ? QUIET_LINE : cut ? FORCE_STOPPED : STOPPED_BY_YOU;
     if (run.question) this.held.set(run.runId, { question: run.question });
     delete run.question;
     run.state = 'waiting';

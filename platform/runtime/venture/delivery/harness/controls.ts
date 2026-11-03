@@ -16,6 +16,8 @@ import { TURN_CHOICES } from './patches.ts';
 export const STOPPED_CALL = 'You stopped the run, so this call did not run.';
 /** The run's line once the owner's stop took effect. */
 export const STOPPED_BY_YOU = 'Stopped by you. Finished steps are kept.';
+/** A2: what a run says when the idle-run watchdog stopped a quiet AI job (agent-runtime/runner.ts). */
+export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
 /** The run's line once the owner's force stop cut the step in progress. */
 export const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 /** Why the gate stopped a run that kept ending the same way. */

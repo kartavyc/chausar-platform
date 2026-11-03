@@ -82,6 +82,14 @@ it('AI cost is visible with its receipt, while unknown cost has no invented rece
  expect(screen.getByText('Final cost is not known. The allowance stays held.')).toBeTruthy();expect(screen.queryByRole('button',{name:/Receipt for/})).toBeNull();
 });
 
+it('A2 review: a job the watchdog stopped says it went quiet, never "Stopped by you"',async()=>{
+ const engine=new FakeEngine({agentProgress:true}),client=createFakeClient(engine);
+ engine.quietStop('31');
+ const run=await client.request('venture.runs.get',{runId:'31'});
+ expect(run.stop?.line).toBe('The AI went quiet, so Chausar stopped it. Its work so far is kept.');
+ expect(run.result).toBe('The AI went quiet, so Chausar stopped it. Its work so far is kept.');
+});
+
 it('A2: a site the job stopped asking after three refusals is named as unavailable for this run',()=>{
  const progress:RunDetail['agentProgress']={messages:[],tools:[],unavailableSites:['news.example','shop.example']};
  render(<TextProvider language="en"><AgentProgress progress={progress}/></TextProvider>);

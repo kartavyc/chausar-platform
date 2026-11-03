@@ -3,7 +3,8 @@
 // making the call gets one more turn asking for the call; a second stop always ends the job as before.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { call, orderWithFiles, owner, record, setup } from './venture-run-controls-env.ts';
+import { call, getRun, orderWithFiles, owner, record, setup } from './venture-run-controls-env.ts';
+import { QUIET_LINE } from '../runtime/venture/delivery/harness/controls.ts';
 import { consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
 import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import type { AgentDriverInput, AgentTurnResult } from '../runtime/venture/agent-runtime/driver-types.ts';
@@ -34,6 +35,10 @@ test('a job that goes quiet is stopped, keeps the notes it wrote, and says it we
   assert.equal(run.agentJob!.quiet, true);
   assert.ok(run.agentJob!.messages.some(message => message.text.includes('half done')), 'the partial work is kept');
   assert.equal(seen[0], 'interrupt');
+  // A2 review: the run says it went quiet, never "Stopped by you".
+  const detail = await getRun(env, started.id) as any;
+  assert.equal(detail.stop?.line, QUIET_LINE);
+  assert.equal(detail.result, QUIET_LINE);
 });
 
 test('a tool that ignores the stop is closed hard, and the job still ends', async () => {

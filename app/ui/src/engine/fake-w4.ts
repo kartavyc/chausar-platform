@@ -149,6 +149,9 @@ export class FakeW4Desk {
   }
 
   /** A receipt a wave 4 desk made (4J6's figures across businesses), for venture.receipt.get. */
+  /** Tests (A2): the engine's watchdog stopped this native AI job because it went quiet. */
+  quietStop(runId: string): void { this.runControls.quietStop(runId); }
+
   receipt(id: string): ReceiptLite | undefined {
     return this.across.receipt(id) ?? this.team.receipt(id) ?? this.goals.receipt(id) ?? this.runControls.receipt(id);
   }

@@ -379,8 +379,9 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     });
   }
 
-/** A2: what the run says when the watchdog stopped a quiet job. */
-export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so far is kept.';
+/** A2: what the run says when the watchdog stopped a quiet job (one place: harness/controls.ts). */
+export { QUIET_LINE } from './harness/controls.ts';
+import { QUIET_LINE } from './harness/controls.ts';
 
 /** The installed AI owns its turns. Chausar keeps the job's sources, checks and exact outside-action proposal. */
 async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: OrderContext, playbook: PlaybookRecord, uploads: FileLike[], continuation: { resumeFrom?: string; existingRunId?: string }): Promise<DeliveryRunView> {
