@@ -1,5 +1,6 @@
 // One-shot A4 (hands-on row 103, S10): Rehearse and the improvement loop said "USD 0.0000" after a live run on Claude
-// Code or Codex, as if the AI were free. Those calls run on the owner's own plan, so the cost says so (A4 review L4: with\n// no amount at all when nothing was charged to a key).
+// Code or Codex, as if the AI were free. Those calls run on the owner's own plan, so the cost says so (A4 review L4: with
+// no amount at all when nothing was charged to a key).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spendSummary } from '../runtime/venture/delivery/simulate.ts';
