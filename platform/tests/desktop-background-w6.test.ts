@@ -314,3 +314,22 @@ test('A5 fix round 1 (the founder): an older silent login item stays until the o
     assert.deepEqual([(await next.state()).asked, app.run.has('Chausar')], [true, answer], 'the answer sticks');
   }
 });
+
+// A5 fix round 2 (finding 4): "Not now" on Today is an answer that keeps what the computer has (the window sends Keep
+// running as it is). A login item the computer switched off stays there and off, at once and at the next start.
+test('A5 fix round 2: an answer that keeps the computer as it is leaves a switched-off login item there and off', async () => {
+  const app = fakeApp();
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: false });
+  const fs = memoryFs();
+  const background = createBackground({ ...base(), app, fs });
+  const kept = await background.change({ keepRunning: true });
+  assert.deepEqual(kept, { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
+  assert.deepEqual(app.logins, []);
+  await createBackground({ ...base(), app, fs }).apply();
+  assert.deepEqual([app.logins.length, app.run.get('Chausar')?.enabled], [0, false]);
+  // A registered one stays registered; with none, none.
+  const on = fakeApp();
+  on.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+  assert.equal((await createBackground({ ...base(), app: on, fs: memoryFs() }).change({ keepRunning: true })).registered, true);
+  assert.equal((await createBackground({ ...base(), app: fakeApp(), fs: memoryFs() }).change({ keepRunning: true })).registered, false);
+});

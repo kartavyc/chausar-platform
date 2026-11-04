@@ -137,7 +137,7 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
   }
   /**
    * Save a change from onboarding, Settings or the tray menu, apply it at once, and answer the new state. A change of
-   * Keep running alone, before start at login was answered, saves what the computer does now, never the suggestion.
+   * Keep running alone, before start at login was answered, saves what the computer has now, never the suggestion.
    */
   /**
    * A5 fix round 1: changes run one after another (onboarding's save and a tray click can come together), so each reads
@@ -153,7 +153,9 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (!supported) return state();
     const before = await settings();
     const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning };
-    if (!before.asked && typeof update?.startAtLogin !== 'boolean') next.startAtLogin = (await presence()) === 'on';
+    // A5 fix round 2: a login item there but switched off by the computer counts as a yes it switched off, so the next
+    // start leaves it there and off (a saved no would remove it); "Not now" on Today sends Keep running alone for this.
+    if (!before.asked && typeof update?.startAtLogin !== 'boolean') next.startAtLogin = (await presence()) !== 'none';
     for (const key of ['startAtLogin', 'keepRunning']) if (typeof update?.[key] === 'boolean') next[key] = update[key];
     await fs.mkdir(directory, { recursive: true });
     await fs.writeFile(file, JSON.stringify(next), { mode: 0o600 });
