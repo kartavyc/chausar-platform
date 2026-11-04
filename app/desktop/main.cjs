@@ -158,6 +158,19 @@ async function setBackground(update) {
   return value;
 }
 function changeBackground(update) { void setBackground(update).catch(error => console.error(publicError(error).message)); }
+/**
+ * A5 fix round 1: read start at login from the computer again (its own startup settings may have changed it) and
+ * rebuild the tray menu when the tick moved. Called as the pointer reaches the tray icon, before its menu opens, and
+ * when the window comes to the front.
+ */
+function refreshBackground() {
+  if (!background) return;
+  void background.state().then(value => {
+    const moved = value.registered !== backgroundValue.registered || value.systemOff !== backgroundValue.systemOff || value.keepRunning !== backgroundValue.keepRunning;
+    backgroundValue = value;
+    if (moved) tray?.setContextMenu(trayMenu());
+  }, error => console.error(publicError(error).message));
+}
 function setTrayCount(count) {
   if (count === trayCount) return;
   trayCount = count;
@@ -218,6 +231,7 @@ function createTray() {
   tray.setToolTip(trayTooltip());
   tray.setContextMenu(trayMenu());
   tray.on('double-click', () => openWindow());
+  tray.on('mouse-enter', refreshBackground);
 }
 function createWindow(hash = '') {
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa', title: appName(), show: false,
@@ -243,6 +257,7 @@ function createWindow(hash = '') {
     if (watching) { setTrayCount(0); clearCountNotice(); }
   };
   for (const change of ['focus', 'blur', 'show', 'hide', 'minimize', 'restore', 'closed']) window.on(change, tellWatching);
+  window.on('focus', refreshBackground);
   lifecycleChanged();
 }
 if (singleInstance) app.whenReady().then(async () => {

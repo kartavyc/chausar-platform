@@ -17,6 +17,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   // A5: the computer's login items as Electron reads them back (Windows launch items, this program's only).
   const run = new Map<string, any>();
   app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: settings.args, enabled: true }); else run.delete(settings.name); };
+  app.loginRun = run;
   app.getLoginItemSettings = (options: any) => ({ openAtLogin: false, launchItems: [...run].filter(([, item]) => item.path === options?.path).map(([name, item]) => ({ name, path: item.path, args: item.args, scope: 'user', enabled: item.enabled })) });
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
@@ -456,4 +457,21 @@ test('A5: the real preload forwards only the two ticks', async () => {
     { channel: 'chausar:background:set', input: { startAtLogin: true, keepRunning: false } },
     { channel: 'chausar:background:set', input: {} },
   ]);
+});
+
+// A5 fix round 1 (finding 5): the tray tick is read from the computer again just before the menu opens (the pointer
+// reaches the icon) and when the window comes to the front, so a change made in the computer's own settings shows.
+test('A5: the tray reads start at login again as the pointer reaches it and when the window is focused', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const contract = require('./ipc-contract.cjs');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
+  const tick = () => d.menus.at(-1).find((item: any) => item.label === 'Start at login').checked;
+  assert.equal(tick(), true);
+  d.app.loginRun.get('Chausar').enabled = false;
+  d.trays[0].emit('mouse-enter'); await flush(); await flush();
+  assert.equal(tick(), false, 'switched off in Task Manager');
+  d.app.loginRun.get('Chausar').enabled = true;
+  d.windows[0].emit('focus'); await flush(); await flush();
+  assert.equal(tick(), true);
 });
