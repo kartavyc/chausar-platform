@@ -249,7 +249,8 @@ async function shareInvoice(event, input, deps) {
         // The mail link only when the gate opens it (a long message is too long for one link): then nothing opened.
         try { await deps.shell.openExternal(validateExternalUrl(mail.link)); opened = 'link'; } catch { opened = 'none'; }
       }
-      return { ok: true, result: { how, opened, file: kept, to: mail.to, note: file.note } };
+      // A6 round 2: the draft attaches the file under the engine's name; kept is the file on disk, for Show the PDF in its folder.
+      return { ok: true, result: { how, opened, file: kept, attached: file.name, to: mail.to, note: file.note } };
     }
     let opened = 'web';
     if (deps.whatsappApp()) {

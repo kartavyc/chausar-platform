@@ -107,7 +107,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     const file = result.file;
     const line = result.how === 'whatsapp'
       ? t(result.opened === 'app' ? 'money-pay.wa.app' : 'money-pay.wa.web', { file })
-      : t(result.opened === 'draft' ? (result.to ? 'money-pay.mail.draft' : 'money-pay.mail.draftNoTo') : result.opened === 'link' ? 'money-pay.mail.link' : 'money-pay.mail.none', { file });
+      : t(result.opened === 'draft' ? (result.to ? 'money-pay.mail.draft' : 'money-pay.mail.draftNoTo') : result.opened === 'link' ? 'money-pay.mail.link' : 'money-pay.mail.none', { file: result.opened === 'draft' ? result.attached : file });
     setSaid(result.note ? `${line} ${result.note}` : line);
     // A6 round 1: on a draft too, since a mail app that opens it read-only leaves the owner to attach the file again.
     setKept(file);

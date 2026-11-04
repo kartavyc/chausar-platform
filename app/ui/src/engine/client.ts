@@ -120,7 +120,7 @@ function shareResult(value: unknown): InvoiceShareResult {
   const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const file = typeof v.file === 'string' && /^[A-Za-z0-9-]{1,80}\.(?:pdf|html)$/.test(v.file) ? v.file : null;
   const note = typeof v.note === 'string' ? v.note : null;
-  if (file && v.how === 'email' && (v.opened === 'draft' || v.opened === 'link' || v.opened === 'none')) return { how: 'email', opened: v.opened, file, to: v.to === true, note };
+  if (file && v.how === 'email' && (v.opened === 'draft' || v.opened === 'link' || v.opened === 'none')) return { how: 'email', opened: v.opened, file, attached: typeof v.attached === 'string' && /^[A-Za-z0-9-]{1,80}\.(?:pdf|html)$/.test(v.attached) ? v.attached : file, to: v.to === true, note };
   if (file && v.how === 'whatsapp' && (v.opened === 'app' || v.opened === 'web')) return { how: 'whatsapp', opened: v.opened, file, note };
   throw new EngineError('REQUEST_FAILED', 'The desktop could not share the invoice.');
 }

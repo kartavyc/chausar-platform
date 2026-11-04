@@ -38,7 +38,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe('A6: Email it and Share on WhatsApp on the desktop', () => {
   it('Email it opens an email in the mail app with the PDF attached, says what to do when it has no Send button, and offers the PDF', async () => {
-    const shareInvoice = shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', to: true, note: null });
+    const shareInvoice = shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', attached: 'INV-0039.pdf', to: true, note: null });
     const { calls, panel, pay } = await start({ shareInvoice, showShared: vi.fn(async () => undefined) });
     await click(within(pay).getByRole('button', { name: 'Email it' }));
     await waitFor(() => expect(shareInvoice).toHaveBeenCalledWith('inv-0039', 'email'));
@@ -51,21 +51,21 @@ describe('A6: Email it and Share on WhatsApp on the desktop', () => {
   });
 
   it('with no client email the To line is empty, and the sheet says to add the address', async () => {
-    const { pay } = await start({ shareInvoice: shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', to: false, note: null }) });
+    const { pay } = await start({ shareInvoice: shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', attached: 'INV-0039.pdf', to: false, note: null }) });
     await click(within(pay).getByRole('button', { name: 'Email it' }));
     expect(await within(pay).findByText("Your mail app opened an email with INV-0039.pdf attached. Add the client's email address, then send it. If it has no Send button, use Forward or Edit as new.")).toBeTruthy();
   });
 
   it('when no mail app takes the draft, the sheet says what opened and offers the PDF in its folder', async () => {
     const showShared = vi.fn(async (_name: string) => undefined);
-    const shareInvoice = shared({ how: 'email', opened: 'link', file: 'INV-0039.pdf', to: true, note: null });
+    const shareInvoice = shared({ how: 'email', opened: 'link', file: 'INV-0039.pdf', attached: 'INV-0039.pdf', to: true, note: null });
     const { pay } = await start({ shareInvoice, showShared });
     await click(within(pay).getByRole('button', { name: 'Email it' }));
     expect(await within(pay).findByText('Your mail app opened with the words filled in, but a mail link cannot carry a file. Attach INV-0039.pdf, then press send.')).toBeTruthy();
     await click(within(pay).getByRole('button', { name: 'Show the PDF in its folder' }));
     await waitFor(() => expect(showShared).toHaveBeenCalledWith('INV-0039.pdf'));
 
-    shareInvoice.mockResolvedValueOnce({ how: 'email', opened: 'none', file: 'INV-0039.pdf', to: true, note: null });
+    shareInvoice.mockResolvedValueOnce({ how: 'email', opened: 'none', file: 'INV-0039.pdf', attached: 'INV-0039.pdf', to: true, note: null });
     await click(within(pay).getByRole('button', { name: 'Email it' }));
     expect(await within(pay).findByText('No mail app opened on this computer. INV-0039.pdf is saved, so you can attach it to an email yourself.')).toBeTruthy();
     expect(within(pay).getByRole('button', { name: 'Show the PDF in its folder' })).toBeTruthy();
@@ -87,6 +87,15 @@ describe('A6: Email it and Share on WhatsApp on the desktop', () => {
     await click(within(pay).getByRole('button', { name: 'Share on WhatsApp' }));
     expect(await within(pay).findByText('WhatsApp opened in your browser with the invoice note. A WhatsApp link cannot carry a file, so attach INV-0039.pdf and send it yourself.')).toBeTruthy();
     expect(pay.textContent).not.toMatch(/\bsent\b/i);
+  });
+
+  it('A6 round 2 (low 7): the email names the file as the client gets it; the folder shows the copy kept on this computer', async () => {
+    const showShared = vi.fn(async (_name: string) => undefined);
+    const { pay } = await start({ shareInvoice: shared({ how: 'email', opened: 'draft', file: 'INV-0039-2.pdf', attached: 'INV-0039.pdf', to: true, note: null }), showShared });
+    await click(within(pay).getByRole('button', { name: 'Email it' }));
+    expect(await within(pay).findByText('Your mail app opened an email with INV-0039.pdf attached. Check it and send it. If it has no Send button, use Forward or Edit as new.')).toBeTruthy();
+    await click(within(pay).getByRole('button', { name: 'Show the PDF in its folder' }));
+    await waitFor(() => expect(showShared).toHaveBeenCalledWith('INV-0039-2.pdf'));
   });
 
   it('A6 round 1 (low 9): a file that cannot be shown says so in its own words, and the stale line goes', async () => {

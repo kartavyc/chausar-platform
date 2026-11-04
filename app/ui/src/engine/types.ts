@@ -894,10 +894,12 @@ export type BillingPatch = Partial<Omit<BillingSettingsLite, 'razorpay' | 'bank'
 /**
  * One-shot A6: what the desktop opened for Email it or Share on WhatsApp (app/desktop/invoice-share.cjs). email: 'draft'
  * is an .eml with the file attached in the mail app, 'link' the mail link without the file, 'none' nothing opened;
- * to says whether the client's email is filled in. whatsapp: the desktop app or the web page, never with the file.
+ * to says whether the client's email is filled in; attached is the name the client gets, while file is the copy kept
+ * on disk (maybe INV-0001-2.pdf), for Show the PDF in its folder. whatsapp: the desktop app or the web page, never
+ * with the file.
  */
 export type InvoiceShareResult =
-  | { how: 'email'; opened: 'draft' | 'link' | 'none'; file: string; to: boolean; note: string | null }
+  | { how: 'email'; opened: 'draft' | 'link' | 'none'; file: string; attached: string; to: boolean; note: string | null }
   | { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null };
 
 export interface InvoicePdfView {

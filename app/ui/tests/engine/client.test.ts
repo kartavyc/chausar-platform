@@ -59,7 +59,7 @@ describe('desktop transport', () => {
       showShared: vi.fn(async () => { throw Object.assign(new Error('That file is not there any more. Press the button again to make it.'), { code: 'SHARE_FILE_GONE' }); }),
     };
     const client = createEngineClient({ bridge });
-    expect(await client.shareInvoice!('inv-0001', 'email')).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: false, note: null });
+    expect(await client.shareInvoice!('inv-0001', 'email')).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: false, note: null });
     const odd = await client.shareInvoice!('inv-0001', 'whatsapp').catch((e: unknown) => e);
     expect(odd).toBeInstanceOf(EngineError);
     expect((odd as EngineError).code).toBe('REQUEST_FAILED');

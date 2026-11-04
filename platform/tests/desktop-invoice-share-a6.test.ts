@@ -124,7 +124,7 @@ async function shareDeps(t: any, options: { file?: any; openPath?: string; app?:
 test('A6: Email it writes the PDF and an .eml draft in the share folder and opens the draft; the window names only the invoice', async t => {
   const s = await shareDeps(t);
   const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
-  assert.deepEqual(reply, { ok: true, result: { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: true, note: null } });
+  assert.deepEqual(reply, { ok: true, result: { how: 'email', opened: 'draft', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: true, note: null } });
   assert.deepEqual(s.asked, [['venture.invoice.pdf', { invoiceId: 'inv-0001' }]], 'main asks the engine itself');
   assert.deepEqual(s.paths, [join(s.folder, 'INV-0001.eml')]);
   assert.deepEqual(s.opened, [], 'no link is opened when the draft opens');
@@ -147,15 +147,15 @@ test('A6: Email it writes the PDF and an .eml draft in the share folder and open
 test('A6: a client with no email gets a draft with no To line; with no mail app for email files the mail link opens, else it says none opened', async t => {
   const none = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('') } }) });
   const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, none.deps);
-  assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: false, note: null });
+  assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: false, note: null });
   assert.ok(!(await readFile(join(none.folder, 'INV-0001.eml'), 'utf8')).includes('To:'));
 
   const link = await shareDeps(t, { openPath: 'There is no application associated with the given file name extension.' });
-  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, link.deps)).result, { how: 'email', opened: 'link', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, link.deps)).result, { how: 'email', opened: 'link', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: true, note: null });
   assert.deepEqual(link.opened, [mailto('client@example.com')], 'the checked mail link, as the gate rebuilds it');
 
   const nothing = await shareDeps(t, { openPath: 'No app.', openFails: () => true });
-  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, nothing.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, nothing.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: true, note: null });
   assert.deepEqual(await readFile(join(nothing.folder, 'INV-0001.pdf')), PDF, 'the PDF stays for the owner to attach');
 });
 
@@ -236,9 +236,9 @@ test('A6: a message too long for one mail link still goes as a draft; with no ma
   const long = 'Line of the invoice note. '.repeat(1500);
   const file = engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('client@example.com', SUBJECT, long) } });
   const drafted = await shareDeps(t, { file });
-  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, drafted.deps)).result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, drafted.deps)).result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: true, note: null });
   const noApp = await shareDeps(t, { file, openPath: 'No app.' });
-  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, noApp.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, noApp.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: true, note: null });
   assert.deepEqual(noApp.opened, [], 'a link the gate refuses is never opened');
 });
 
@@ -286,7 +286,7 @@ test('A6 round 1 (medium 2): a client email the engine keeps but a mail link can
     const file = engineFile({ share: { ...engineFile().share, mailtoUrl: mailto(address) } });
     const s = await shareDeps(t, { file });
     const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
-    assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: false, note: null }, address);
+    assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: false, note: null }, address);
     const eml = await readFile(join(s.folder, 'INV-0001.eml'), 'utf8');
     assert.ok(!eml.includes('To:') && eml.includes(`Subject: ${SUBJECT}`), address);
     const link = await shareDeps(t, { file, openPath: 'No app.' });
@@ -320,7 +320,7 @@ test('A6 round 1 (medium 1): a file another app holds keeps its name; the share 
   await writeFile(join(s.folder, 'INV-0001.eml'), 'a draft open in the mail app');
   held.add(join(s.folder, 'INV-0001.pdf')); held.add(join(s.folder, 'INV-0001.eml'));
   const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
-  assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', to: true, note: null });
+  assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001.pdf', to: true, note: null });
   assert.deepEqual(s.paths, [join(s.folder, 'INV-0001-2.eml')]);
   assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
   assert.ok((await readFile(join(s.folder, 'INV-0001-2.eml'), 'utf8')).includes('filename="INV-0001.pdf"'), 'the client still gets INV-0001.pdf');
@@ -398,7 +398,7 @@ test('A6 round 1 (low 8): an old folder, junction or link named like a share fil
 test('A6 round 1 (medium 3): with no app known for email files, the draft is not opened (no Open with box); the mail link opens instead', async t => {
   const s = await shareDeps(t);
   (s.deps as any).emlApp = async () => false;
-  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps)).result, { how: 'email', opened: 'link', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps)).result, { how: 'email', opened: 'link', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: true, note: null });
   assert.deepEqual(s.paths, [], 'shell.openPath is never asked to open a file no app takes');
   assert.deepEqual(s.opened, [mailto('client@example.com')]);
   const known = await shareDeps(t);
