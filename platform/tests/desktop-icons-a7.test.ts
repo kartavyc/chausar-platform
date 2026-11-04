@@ -159,13 +159,34 @@ test('the favicon and the web app icons are the logo: the SVG and the 512 as giv
   assert.equal(sha(Buffer.from(svg, 'utf8')), '3f8ab8b901fe80373d870a2813b95c9d65a83805ba46617397dfceafecd3e629', 'icon.svg is chausar-logo.svg');
   const given512 = '71667079ebf6a997cd3d6d14390de2de3e0034ede94a2c890664308c62e3a9b4';
   // icon-192.png: the founder gave no 192, so it was rendered from chausar-logo.svg with this repo's Electron (A7 notes).
-  for (const [name, size, hash] of [['icon-512.png', 512, given512], ['icon-maskable-512.png', 512, given512], ['icon-192.png', 192, '1572e154143939bd3f32cde7af57dff4c14651509531e2bf50a518d297433055']] as const) {
+  for (const [name, size, hash] of [['icon-512.png', 512, given512], ['icon-192.png', 192, '1572e154143939bd3f32cde7af57dff4c14651509531e2bf50a518d297433055']] as const) {
     const bytes = await read(`app/ui/public/${name}`);
     assert.equal(sha(bytes), hash, name);
     const png = decodePng(bytes, name);
     assert.deepEqual([png.width, png.height, png.colour], [size, size, 6], name);
     assertLogo(png, name);
   }
+});
+
+// A7 fix round 1 (low 1): a square or teardrop launcher mask would show the background through the rounded corners, so
+// the maskable icon is full-bleed: the founder's 512 laid over the tile colour, which changes only the clear and
+// part-clear corner pixels. Opaque RGB, made by a fixed script (A7 notes), so the bytes are pinned too.
+test('the maskable icon is the founder\'s 512 laid over the tile: fully opaque, and every other pixel unchanged', async () => {
+  const bytes = await read('app/ui/public/icon-maskable-512.png');
+  assert.equal(sha(bytes), '3f211b0418f8311941816f272919528fbba83455faaa626f1d02dd73fc88ed71');
+  const png = decodePng(bytes, 'maskable'), given = decodePng(await read('app/ui/public/icon-512.png'), 'icon-512');
+  assert.deepEqual([png.width, png.height, png.colour], [512, 512, 2], 'colour type 2 is RGB: opaque by construction');
+  let changed = 0;
+  for (let y = 0; y < 512; y++) {
+    for (let x = 0; x < 512; x++) {
+      const [r, g, b, a] = given.pixel(x, y);
+      const expected = [r!, g!, b!].map((value, i) => Math.round((value * a! + TILE[i]! * (255 - a!)) / 255));
+      assert.deepEqual(png.pixel(x, y), [...expected, 255], `(${x}, ${y})`);
+      if (a !== 255) changed++;
+    }
+  }
+  assert.ok(changed > 0 && changed < 512 * 4 * 48, `only the corners change (${changed} pixels)`);
+  for (const [x, y] of [[0, 0], [511, 0], [0, 511], [511, 511]]) assert.deepEqual(png.pixel(x, y), [...TILE, 255], `the corner (${x}, ${y}) is the tile`);
 });
 
 test('the maskable icon keeps both squares inside the safe circle (80% of the icon), so no launcher mask cuts them', async () => {
@@ -176,9 +197,7 @@ test('the maskable icon keeps both squares inside the safe circle (80% of the ic
     for (let x = 0; x < png.width; x++) {
       if (Math.hypot(x + 0.5 - centre, y + 0.5 - centre) <= safe) continue;
       const [r, g, b, a] = png.pixel(x, y);
-      // The tile's own rounded edge is blended with clear there; neither square's grey or green ever is.
-      const dark = Math.max(r!, g!, b!) <= 0x10;
-      assert.ok(dark || a! < 0x40, `(${x}, ${y}) outside the safe circle is the tile or clear`);
+      assert.ok(Math.max(r!, g!, b!) <= 0x10 && a === 255, `(${x}, ${y}) outside the safe circle is the opaque tile`);
       outside++;
     }
   }
