@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -27,6 +27,8 @@ export function ProfessionSetting({ onChanged }: { onChanged?: () => void }) {
   const [picked, setPicked] = useState('');
   const [said, setSaid] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  /** A5 fix round 2: a second press while one write is on its way sends nothing. */
+  const writing = useRef(false);
   const data = view.data;
   // The engine answers "Choose a profession" when nothing is recorded: that is "not picked yet", not a failure.
   const none = !data && view.error?.code === 'INVALID_VENTURE_REQUEST';
@@ -43,30 +45,39 @@ export function ProfessionSetting({ onChanged }: { onChanged?: () => void }) {
 
   /**
    * A5 fix round 1: all or nothing. The field goes first; if it fails nothing is recorded. Then the profession and the
-   * side-work answer; if that fails, the field is put back, so the two never disagree.
+   * side-work answer; if that fails, the field is put back, so the two never disagree. Fix round 2: the field kept or
+   * put back is the owner's own (venture.owner.get), also when no profession is recorded yet; one write at a time.
    */
   async function record(answer: ComplianceAnswer) {
-    const family = familyOf(answer.profession);
-    const before = data?.profession.family ?? null;
-    const moves = family !== null && family !== before;
-    setProblem(null);
+    if (writing.current) return;
+    writing.current = true;
     try {
-      if (moves) await client.request('venture.owner.set', { familyId: family });
+      const family = familyOf(answer.profession);
+      const before = (await client.request('venture.owner.get', {})).familyId ?? null;
+      const moves = family !== null && family !== before;
+      setProblem(null);
+      try {
+        if (moves) await client.request('venture.owner.set', { familyId: family });
+      } catch (error) {
+        setProblem(messageOf(error));
+        return;
+      }
+      try {
+        await client.request('venture.compliance.set', { profession: answer.profession, sideWork: answer.sideWork, digest: answer.digest, ...(answer.size ? { size: answer.size } : {}) });
+      } catch (error) {
+        if (moves) await client.request('venture.owner.set', { familyId: before }).catch(() => undefined);
+        setProblem(messageOf(error));
+        return;
+      }
+      setSaid(true);
+      setOpen(false);
+      view.reload();
+      onChanged?.();
     } catch (error) {
       setProblem(messageOf(error));
-      return;
+    } finally {
+      writing.current = false;
     }
-    try {
-      await client.request('venture.compliance.set', { profession: answer.profession, sideWork: answer.sideWork, digest: answer.digest, ...(answer.size ? { size: answer.size } : {}) });
-    } catch (error) {
-      if (moves && before) await client.request('venture.owner.set', { familyId: before }).catch(() => undefined);
-      setProblem(messageOf(error));
-      return;
-    }
-    setSaid(true);
-    setOpen(false);
-    view.reload();
-    onChanged?.();
   }
 
   if (view.error && !data && !none) return <TileSection title={t('business.profession.title')}><p className={b.problem} role="alert">{messageOf(view.error)}</p></TileSection>;

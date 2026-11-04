@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { Button } from './Button';
@@ -46,8 +46,11 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
   const noteId = useId();
   const data: ComplianceLite | undefined = view.data;
 
+  /** A5 fix round 2: a second press while the first is on its way sends nothing. */
+  const sending = useRef(false);
   async function done() {
-    if (!data || !answer) return;
+    if (!data || !answer || sending.current) return;
+    sending.current = true;
     setBusy(true);
     setProblem(null);
     const size = data.size && picked ? { size: picked } : {};
@@ -57,6 +60,7 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
     } catch (error) {
       setProblem(t('compliance.failed', { message: error instanceof Error ? error.message : String(error) }));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
