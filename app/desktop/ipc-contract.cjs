@@ -255,18 +255,22 @@ function assertTrustedSender(event, contents) {
 // (no second address, no cc or bcc, no attachment, no header slipped in with a line break) and the owner presses send
 // there. The link is read field by field from the text as given (a broken escape refuses it), then rebuilt with each
 // field encoded again, and the rebuilt link is the one opened: the engine's handoff (network/handoff.ts) spells it the same.
+// One-shot A6 (S7): the address may be empty, as the engine leaves it for an invoice to a client with no email on file;
+// the owner types it in their mail app. The .eml draft (mail-draft.cjs) reads the same checked fields (mailtoParts).
 const MAILTO_ADDRESS = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})+$/;
 // Any control character (NUL, tab, CR and LF among them), next line, line separator or paragraph separator: a header
 // break in some mail app, so never in the address or the subject. The body keeps its CRLF line breaks.
 const MAILTO_BREAKS = /[\p{Cc}\u0085\u2028\u2029]/u;
-function rebuiltMailto(input) {
+/** A mail link's fields as given: the address (maybe empty), and the subject and body when present; null when anything is off. */
+function mailtoFields(input) {
+  if (typeof input !== 'string' || !/^mailto:/i.test(input)) return null;
   const decode = value => { try { return decodeURIComponent(value); } catch { return null; } };
   const rest = input.replace(/^mailto:/i, '');
   const mark = rest.indexOf('?');
   const rawAddress = mark < 0 ? rest : rest.slice(0, mark), rawQuery = mark < 0 ? '' : rest.slice(mark + 1);
   if (rest.includes('#')) return null;
   const address = decode(rawAddress);
-  if (address === null || MAILTO_BREAKS.test(address) || !MAILTO_ADDRESS.test(address)) return null;
+  if (address === null || MAILTO_BREAKS.test(address) || (address !== '' && !MAILTO_ADDRESS.test(address))) return null;
   const fields = {};
   for (const pair of rawQuery ? rawQuery.split('&') : []) {
     const equals = pair.indexOf('=');
@@ -276,6 +280,17 @@ function rebuiltMailto(input) {
     if (key === 'subject' && MAILTO_BREAKS.test(value)) return null;
     fields[key] = value;
   }
+  return { address, fields };
+}
+/** A6: the checked address (maybe empty), subject and body of a mail link, or null. */
+function mailtoParts(input) {
+  const read = mailtoFields(input);
+  return read === null ? null : { address: read.address, subject: read.fields.subject ?? '', body: read.fields.body ?? '' };
+}
+function rebuiltMailto(input) {
+  const read = mailtoFields(input);
+  if (read === null) return null;
+  const { address, fields } = read;
   const query = ['subject', 'body'].filter(key => Object.hasOwn(fields, key)).map(key => `${key}=${encodeURIComponent(fields[key])}`).join('&');
   return `mailto:${encodeURIComponent(address).replace(/%40/g, '@')}${query ? `?${query}` : ''}`;
 }
@@ -321,4 +336,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
