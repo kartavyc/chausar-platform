@@ -233,47 +233,98 @@ export function checkParts(raw: readonly RawPart[], figures: readonly ToolFigure
 
 /**
  * The chief has read tools only: no tool call of its turns can send, book, pay or change anything. Only a brief to an
- * agent is carried out in that turn, by code (threads.ts posts it in the agent's chat and says so). So a sentence where
- * it says it acted ("I've emailed the client") is taken out and one offer line is said instead, unless it is about the
- * brief that was passed. "I proposed" is true only when the answer carries a proposal. Reading ("I checked your books"),
- * offers ("I can send it once you approve") and conditions ("if I sent it now") stay.
+ * agent is carried out in its turn, by code, which says so in its own line (threads.ts), after this check. So the
+ * model's own words may not claim an action. A4 review (M2): what counts as a claim, sentence by sentence:
+ * - the AI in the first person ("I", "I've", "I have"), never "we" (business history) and never Chausar;
+ * - a lead with no subject ("Done,", "Sent it", "Booked it");
+ * - a passive claim about an outward action ("has been sent", "is sent", "is on its way").
+ * Words inside quotation marks are someone else's and never count. "I proposed", "I've drafted" and "I've prepared"
+ * are true only when the answer carries a proposal card. Reasoning ("I made a rough estimate"), reads ("I checked your
+ * books"), offers ("I can send it") and conditions ("if I sent it now") stay. A sentence taken out goes whole, figure
+ * parts included, and one offer line is said instead (none when every sentence taken out was about the brief code
+ * passed and named in its own line).
  */
 export const ACTION_OFFER = "I can't do that myself. I can propose it, and you approve it on Today.";
-const ACTED = 'passed|prepared|sent|handed|forwarded|emailed|mailed|messaged|texted|posted|published|shared|scheduled|booked|assigned|delegated|briefed|created|made|drafted|wrote|written|started|launched|ordered|paid|invoiced|charged|refunded|cancelled|canceled|deleted|removed|updated|changed|saved|added|filed|submitted|uploaded|notified|reminded|contacted|called|queued|approved|accepted|rejected|marked|issued|replied|asked|instructed|arranged|set up|put together|reached out';
-const PROPOSED = 'proposed|suggested|raised';
-const CLAIM = (verbs: string) => new RegExp(String.raw`\b(?:I|we|Chausar)(?:'ve|’ve|\s+have|\s+had|\s+has)?(?:\s+(?:just|already|also|now|then|quickly|gone\s+ahead\s+and|went\s+ahead\s+and))*\s+(?:${verbs})\b`, 'giu');
+/** A4 review (M2): the offer when the answer carries a proposal card. */
+export const PROPOSED_OFFER = "It's proposed below for you to approve.";
+const ACTED = [
+  'passed', 'sent', 'handed', 'forwarded', 'emailed', 'mailed', 'messaged', 'texted', 'posted', 'published', 'shared', 'scheduled', 'booked',
+  'assigned', 'delegated', 'briefed', 'created', 'wrote', 'written', 'started', 'launched', 'ordered', 'paid', 'invoiced', 'charged', 'refunded',
+  'cancelled', 'canceled', 'deleted', 'removed', 'updated', 'changed', 'saved', 'noted', 'recorded', 'logged', 'added', 'filed', 'submitted',
+  'uploaded', 'notified', 'reminded', 'contacted', 'called', 'queued', 'approved', 'accepted', 'rejected', 'marked', 'issued', 'replied', 'asked',
+  'instructed', 'arranged', 'set up', 'reached out', 'told', 'confirmed', 'followed up', String.raw`let\s+[\p{L}'’]+(?:\s+[\p{L}'’]+)?\s+know`,
+].join('|');
+/** Claims a proposal card makes true: the card is the draft. */
+const PROPOSED = 'proposed|suggested|raised|drafted|prepared|put together';
+const ADVERBS = String.raw`(?:\s+(?:just|already|also|now|then|quickly|gone\s+ahead\s+and|went\s+ahead\s+and))*`;
+const FIRST_PERSON = (verbs: string) => new RegExp(String.raw`(?<![\p{L}'’])I(?:'ve|’ve|\s+have|\s+had)?${ADVERBS}\s+(?:${verbs})\b`, 'gu');
+const SUBJECTLESS = /^\W*(?:(?:all\s+)?done\b\s*[,.!:]|(?:sent|booked|emailed|mailed|paid|posted|filed|submitted|scheduled|forwarded|invoiced|messaged|texted)\s+(?:it|that|them|this|to)\b)/iu;
+const PASSIVE = /\b(?:(?:has|have|had)\s+(?:now\s+|already\s+|just\s+)*been\s+(?:sent|emailed|mailed|booked|paid|posted|filed|submitted|forwarded|scheduled|invoiced|published|shared|messaged|texted)|(?:is|are)\s+(?:now\s+)?sent|(?:is|are)\s+on\s+(?:its|their)\s+way)\b/iu;
 /** Words before "I" that make it a condition or a question, not a claim. */
 const NOT_A_CLAIM = /\b(?:if|once|when|whenever|after|before|until|unless|should|shall|could|would|have|has|did)\s*$/iu;
+/** Quoted words are someone else's: "...", “...” and «...». */
+const QUOTED = /"[^"]*"|“[^”]*”|«[^»]*»/gu;
 
 function claimsAction(sentence: string, proposals: number): boolean {
-  for (const pattern of [CLAIM(ACTED), ...(proposals ? [] : [CLAIM(PROPOSED)])]) {
-    for (const match of sentence.matchAll(pattern)) if (!NOT_A_CLAIM.test(sentence.slice(0, match.index))) return true;
+  const own = sentence.replace(QUOTED, ' ');
+  if (SUBJECTLESS.test(own) || PASSIVE.test(own)) return true;
+  for (const pattern of [FIRST_PERSON(ACTED), ...(proposals ? [] : [FIRST_PERSON(PROPOSED)])]) {
+    for (const match of own.matchAll(pattern)) if (!NOT_A_CLAIM.test(own.slice(0, match.index))) return true;
   }
   return false;
 }
 
-/**
- * The answer's parts with every claim of an action taken out, and the offer line once at the end when one was.
- * proposals: how many proposals the answer carries; briefed: the agents a brief was passed to in this turn.
- */
-export function withoutActionClaims(parts: readonly ChatPart[], done: { proposals: number; briefed: readonly string[] }): ChatPart[] {
-  const kept: ChatPart[] = [];
-  let claimed = false;
-  for (const item of parts) {
-    if (item.kind !== 'text' && item.kind !== 'estimate') { kept.push(item); continue; }
-    const sentences = item.text.split(/(?<=[.!?])\s+/u);
-    // A sentence about the brief passed this turn (it says brief, or names the agent briefed) is true, so it stays.
-    const aboutBrief = (sentence: string) => done.briefed.length > 0 && (/\bbrief/i.test(sentence) || done.briefed.some(name => sentence.toLowerCase().includes(name.toLowerCase())));
-    const honest = sentences.filter(sentence => !claimsAction(sentence, done.proposals) || aboutBrief(sentence));
-    if (honest.length === sentences.length) { kept.push(item); continue; }
-    claimed = true;
-    const text = honest.join(' ').trim();
-    if (text) kept.push({ ...item, text });
-  }
-  if (claimed) kept.push({ kind: 'text', text: ACTION_OFFER });
-  return kept;
+/** One piece of a sentence: a slice of a word part, or a figure part, with the index of the part it came from. */
+type Piece = { from: number; part: ChatPart; text: string };
+
+/** The parts split into sentences; a sentence ends at ".", "!" or "?" (and any closing quote) before a space or the end. */
+function sentencesOf(parts: readonly ChatPart[]): Piece[][] {
+  const sentences: Piece[][] = [];
+  let current: Piece[] = [];
+  parts.forEach((part, from) => {
+    if (part.kind !== 'text' && part.kind !== 'estimate') { current.push({ from, part, text: '' }); return; }
+    let at = 0;
+    for (const end of part.text.matchAll(/[.!?]["'”’)]*(?:\s+|$)/gu)) {
+      const until = end.index! + end[0].length;
+      current.push({ from, part, text: part.text.slice(at, until) });
+      sentences.push(current); current = []; at = until;
+    }
+    if (at < part.text.length) current.push({ from, part, text: part.text.slice(at) });
+  });
+  if (current.length) sentences.push(current);
+  return sentences;
 }
 
+/**
+ * The answer's parts with every claim of an action taken out, sentence by sentence, and one offer line at the end when
+ * one was: the proposal line when the answer carries a proposal card, else the plain offer. proposals: the cards drafted.
+ */
+export function withoutActionClaims(parts: readonly ChatPart[], done: { proposals: number; briefed?: readonly string[] }): ChatPart[] {
+  const sentences = sentencesOf(parts);
+  const said = (pieces: Piece[]) => pieces.map(piece => (piece.part.kind === 'figure' ? piece.part.display : piece.text)).join('');
+  const claims = sentences.filter(pieces => claimsAction(said(pieces), done.proposals));
+  if (!claims.length) return [...parts];
+  // The parts that lost a sentence: their words lose the space the cut left at the end.
+  const touched = new Set(claims.flatMap(pieces => pieces.map(piece => piece.from)));
+  const out: { from: number; part: ChatPart }[] = [];
+  for (const piece of sentences.filter(pieces => !claims.includes(pieces)).flat()) {
+    if (piece.part.kind !== 'text' && piece.part.kind !== 'estimate') { out.push({ from: piece.from, part: piece.part }); continue; }
+    const previous = out.at(-1);
+    if (previous && previous.from === piece.from) { previous.part = { ...previous.part, text: (previous.part as { text: string }).text + piece.text } as ChatPart; continue; }
+    out.push({ from: piece.from, part: { ...piece.part, text: piece.text } as ChatPart });
+  }
+  const result: ChatPart[] = out.flatMap(({ from, part }): ChatPart[] => {
+    if (part.kind !== 'text' && part.kind !== 'estimate') return [part];
+    const words = touched.has(from) ? part.text.replace(/\s+$/u, '') : part.text;
+    return words.trim() ? [{ ...part, text: words }] : [];
+  });
+  // Every sentence taken out was about the brief code passed this turn (briefed: its agents), and code's own line says what
+  // happened: no offer then, so the reply never says it can't do what it just did.
+  const briefed = done.briefed ?? [];
+  const aboutBrief = (words: string) => briefed.length > 0 && (/\bbrief/iu.test(words) || briefed.some(name => words.toLowerCase().includes(name.toLowerCase())));
+  if (!claims.every(pieces => aboutBrief(said(pieces)))) result.push({ kind: 'text', text: done.proposals ? PROPOSED_OFFER : ACTION_OFFER });
+  return result;
+}
 // ---------------------------------------------------------------------------
 // The turns
 // ---------------------------------------------------------------------------

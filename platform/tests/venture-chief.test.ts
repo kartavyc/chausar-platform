@@ -549,7 +549,8 @@ test('chief: a claim of an action it never took is taken out, and it offers to p
     { kind: 'text', text: 'Your books show no invoices yet. I can send a reminder once you approve.' },
     { kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." },
   ]);
-  for (const claim of ["I've emailed the client.", 'We have already booked the shoot.', 'I went ahead and scheduled it for Monday.', 'I proposed a reminder.']) {
+  // A4 review (M2): "we" is business history, not a claim by the AI, so it is not in this list.
+  for (const claim of ["I've emailed the client.", 'I have already booked the shoot.', 'I went ahead and scheduled it for Monday.', 'I proposed a reminder.']) {
     scriptChief(env, [answer([text(claim)])]);
     const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
     assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }], claim);
@@ -561,23 +562,23 @@ test('chief: a claim of an action it never took is taken out, and it offers to p
   }
 });
 
-// One-shot A4 (live on Codex): a brief the chief proposes is passed to the agent at once by code, so "I've prepared a
-// brief for Story editor" is true in that turn; a claim of anything else is still taken out.
-test('chief: a claim of briefing an agent stays when a brief was passed in that turn; other claims still go (A4)', async () => {
+// One-shot A4 (live on Codex; review M2): a brief the chief proposes is passed to the agent at once by code, and code's own
+// line says so. The model's own sentences about it are still checked and taken out; with code's line there, no offer is
+// added for them, so the reply never says it can't do what it just did.
+test("chief: only code says a brief was passed; the model's own claims go, with no offer when code's line covers them (A4)", async () => {
   const env = await chiefBusiness();
   await chatConsent(env);
   scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks. I've emailed Asha the plan.")], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks for the budgets episode.' })])]);
   const sent = await env.chief('venture.chief.thread.send', { text: 'Ask the story editor for five hooks.' });
   const words = sent.added[1].parts.map((part: { text?: string }) => part.text);
   assert.deepEqual(words, [
-    "I’ve prepared a brief for Story editor to draft five hooks.",
     "I can't do that myself. I can propose it, and you approve it on Today.",
     'I passed a brief to Story editor.',
   ]);
-  // A sentence naming the agent briefed in that turn is about that brief too (live on Codex: "I asked Studio agent to ...").
+  // A sentence naming the agent briefed is taken out too; code's line is the one that says what happened.
   scriptChief(env, [answer([text('I asked Story editor to draft five hooks for you.')], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks.' })])]);
   const named = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'Hooks please.' });
-  assert.deepEqual(named.added[1].parts.map((part: { text?: string }) => part.text), ['I asked Story editor to draft five hooks for you.', 'I passed a brief to Story editor.']);
+  assert.deepEqual(named.added[1].parts.map((part: { text?: string }) => part.text), ['I passed a brief to Story editor.']);
   // With no brief passed, the same claim goes.
   scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks.")])]);
   const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });

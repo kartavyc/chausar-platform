@@ -244,8 +244,8 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
       const proposal: ProposalRecord = draftProposal(tx, { ...drafted.input, threadId: thread.id, messageId: answer.id });
       proposalIds.push(proposal.id);
     }
-    // One-shot A4 (A3 leftover): the model's words claim only what this turn did: a brief code passed, or a proposal it
-    // drafted. Any other claim of an action is taken out and an offer said instead (chief/answer.ts).
+    // One-shot A4 (A3 leftover, review M2): the model's words may claim no action; only code's own brief line says one
+    // happened. A proposal card makes 'I've drafted' true (chief/answer.ts withoutActionClaims).
     const parts = [...(reply.author === 'model' ? withoutActionClaims(reply.parts, { proposals: proposalIds.length, briefed }) : reply.parts), ...done];
     answer = tx.replace<ChiefMessageRecord>({
       ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null,
