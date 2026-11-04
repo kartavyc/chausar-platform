@@ -48,7 +48,8 @@ const everything = files(src).filter((f) => TEXT_FILE.test(f)).map((f) => ({ f: 
 const sheets = everything.filter(({ f }) => f.endsWith('.css') && f !== 'tokens/tokens.css').map((c) => ({ ...c, css: uncomment(c.text) }));
 /** Code that renders, where a colour could hide in an SVG attribute or a string. */
 const scripts = everything.filter(({ f }) => /\.tsx?$/.test(f));
-/** Files outside src that may hold colour literals; their own tests check them against the tokens (w3 plan). */
+/** Files outside src that may hold colour literals, each checked by its own test: icon.svg against the founder's logo
+ * (shell/rail.test.tsx, one-shot A7), the manifest and index.html against the tokens (shell/phone.test.tsx, w3 plan). */
 const LITERAL_FILES = ['public/icon.svg', 'public/manifest.webmanifest', 'index.html'];
 /** Every custom property tokens.css defines. */
 const TOKEN_NAMES = new Set([...uncomment(readFileSync(join(src, 'tokens/tokens.css'), 'utf8')).matchAll(/(?<![\w-])(--[\w-]+)\s*:/g)].map((m) => m[1]!));
