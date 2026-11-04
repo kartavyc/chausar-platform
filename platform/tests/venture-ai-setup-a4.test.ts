@@ -165,3 +165,16 @@ test('deleting another business keeps the setup a business still open saved', as
   await engine.request('workspace.delete', { confirmation: 'Plain Studio' });
   assert.equal(await readFile(path, 'utf8'), kept);
 });
+
+// A4 review round 3: a kept setup's jobs are checked against the preset's own jobs, by the check connect runs. Both AI
+// apps suggest fast and main today, so the test narrows Codex's list for its length and puts it back.
+test('a kept setup asking a job the preset does not suggest gives no AI; one it suggests carries over', async () => {
+  const tiers = presetSpec('codex-cli').tiers as unknown as string[];
+  tiers.splice(0, tiers.length, 'main');
+  try {
+    const refused = await gallery(noteFor('codex-cli'));
+    assert.deepEqual([refused.connections.length, refused.decisions.length], [0, 0]);
+    const kept = await gallery(noteFor('codex-cli', { tiers: ['main'] }));
+    assert.deepEqual(kept.connections.map(item => item.tiers), [['main']]);
+  } finally { tiers.splice(0, tiers.length, 'fast', 'main'); }
+});

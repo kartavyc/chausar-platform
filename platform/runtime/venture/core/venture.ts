@@ -22,7 +22,7 @@ import { classifyIdea } from './service-types.ts';
 import { DEFAULT_WORKING_NAME, labelled } from './words.ts';
 import { recordPlanEvidence } from '../evidence/ledger.ts';
 import { readAiSetup, rememberAiSetup, settingsFrom, type AiSetupNote } from '../models/ai-setup.ts';
-import { cliGates } from '../models/gates.ts';
+import { cliGates, presetTiers } from '../models/gates.ts';
 import { endpointFor, presetSpec } from '../models/presets.ts';
 import { recordDecision } from '../journal/decisions.ts';
 /** A4 fix round: a reused connection's monthly cap, as venture.models.connect sets one by default (USD 5). */
@@ -130,12 +130,15 @@ function rebased<R extends ModelConnectionRecord | ModelCallRecord>(record: R, t
   return { ...structuredClone(record), ventureId: (tx.venture as VentureRecord).id, memberId: tx.ctx.memberId, epoch: tx.ctx.epoch };
 }
 
-/** A4 review round 2 (H2): the newest setup of another business, when every AI in it passes connect's gates; else none. */
+/** A4 review rounds 2 and 3: the newest setup of another business, when every AI in it passes connect's gates and asks only jobs its preset suggests; else none. */
 async function reusableSetup(deps: VentureDeps, workspaceId: string): Promise<AiSetupNote | null> {
   const note = deps.aiSetup ? readAiSetup(await deps.aiSetup.read().catch(() => null)) : null;
   if (!note || note.from.workspaceId === workspaceId) return null;
-  try { for (const item of note.connections) await cliGates(deps, item.presetId, item.consentDigest); } catch { return null; }
-  return note;
+  try {
+    const connections = [];
+    for (const item of note.connections) { await cliGates(deps, item.presetId, item.consentDigest); connections.push({ ...item, tiers: presetTiers(item.presetId, item.tiers) }); }
+    return { ...note, connections };
+  } catch { return null; }
 }
 
 /**

@@ -11,7 +11,7 @@ import { CLI_STATUS_WORDS, cliListLine, cliStatusView, lastCliTask } from './cli
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
 import { claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
-import { liveGates, presetGates } from './gates.ts';
+import { liveGates, presetGates, presetTiers } from './gates.ts';
 import { refreshAiSetup, rememberAiSetup } from './ai-setup.ts';
 import { rolesHandler } from './roles.ts';
 import type { ConnectionRecord } from './types.ts';
@@ -63,11 +63,7 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
     check(typeof input.model === 'string' && (presetId === 'openrouter' ? GATEWAY_MODEL_ID : MODEL_ID).test(input.model), 'INVALID_VENTURE_REQUEST', 'Type the model id your account shows, in lower case, like gpt-6-luna.');
     model = input.model;
   }
-  let tiers: ModelTier[] = [...spec.tiers];
-  if (input.tiers !== undefined) {
-    check(Array.isArray(input.tiers) && input.tiers.length > 0 && input.tiers.every(tier => spec.tiers.includes(tier as ModelTier)), 'INVALID_VENTURE_REQUEST', 'Choose which jobs this connection does from the ones it suggests.');
-    tiers = spec.tiers.filter(tier => (input.tiers as unknown[]).includes(tier));
-  }
+  const tiers: ModelTier[] = presetTiers(presetId, input.tiers);
   const capMicros = input.monthlyCapUsd === undefined ? '5000000' : monthlyCapMicros(input.monthlyCapUsd);
 
   // Only now is a command-line tool looked at, fresh (4H1): not answering, a flag it does not know
