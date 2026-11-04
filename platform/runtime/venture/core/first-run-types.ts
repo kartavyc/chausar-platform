@@ -12,6 +12,11 @@ export type FamilyOffer = { name: string; line: string };
 export type AboutFile = { name: string; included: boolean; line: string | null };
 export type AboutRead = {
   family: { id: FamilyId; label: string; line: string } | null;
+  /**
+   * One-shot A5 (founder answer 3a): the owner's exact profession as the AI picked it, checked against the catalogue
+   * (core/professions.ts) and the family; null when nothing was picked (keywords, a tile, or no clear pick).
+   */
+  profession: { id: string; label: string } | null;
   offers: FamilyOffer[];
   country: { code: string; name: string; currency: string } | null;
   evidence: string | null;
@@ -22,6 +27,9 @@ export type AboutRead = {
   callId?: string;
   file?: AboutFile;
 };
+
+/** A family tile (venture.about.families) with its professions in the catalogue's order (A5). */
+export type FamilyTile = { id: FamilyId; label: string; line: string; professions: { id: string; label: string }[] };
 
 export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
 /** How the owner connects it: the service's own sign-in, a key into the keychain, a setup guide, or nothing yet. */

@@ -1636,9 +1636,13 @@ export interface ToolLite {
 }
 export interface ToolsLite { tools: ToolLite[]; line: string }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
-export interface FamilyTileLite { id: string; label: string; line: string }
+/** A field tile; venture.about.families lists its professions too (one-shot A5), venture.about.read and .pick do not. */
+export interface FamilyLite { id: string; label: string; line: string }
+export interface FamilyTileLite extends FamilyLite { professions: { id: string; label: string }[] }
 export interface AboutReadLite {
-  family: FamilyTileLite | null;
+  family: FamilyLite | null;
+  /** One-shot A5: the owner's exact profession as the AI picked it (a catalogue profession of that field), else null. */
+  profession: { id: string; label: string } | null;
   offers: { name: string; line: string }[];
   country: CountryLite | null;
   evidence: string | null;

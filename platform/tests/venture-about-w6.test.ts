@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { FAMILIES, FAMILY_IDS } from '../runtime/venture/core/families.ts';
 import { familyIdea, keywordFamily } from '../runtime/venture/core/family-plan.ts';
 import { aboutTask, linkedinProfileText } from '../runtime/venture/core/about.ts';
+import { PROFESSIONS } from '../runtime/venture/core/professions.ts';
 import { businessNeeds } from '../runtime/venture/core/needs.ts';
 import { classifyIdea } from '../runtime/venture/core/service-types.ts';
 import { zip } from '../runtime/venture/playbooks/kit/ooxml/zip.ts';
@@ -13,6 +14,7 @@ import { engineFor, connectPair, PASSPHRASE } from './fixtures/venture/compose-u
 import { anthropicEntry } from './fixtures/venture/compose-unit/plans.ts';
 
 const CA = "I'm a CA with 6 years in audit. I want to do books and GST for small shops near me in India.";
+const ADVOCATE = 'I am an advocate in Pune, India. I want to help small firms with contracts and notices.';
 const csv = (rows: string[][]) => rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
 const linkedinZip = (profile: string[][] | null, extra: Record<string, string> = {}) => Buffer.from(zip([
   ...(profile ? [{ name: 'Profile.csv', bytes: new TextEncoder().encode(csv(profile)) }] : []),
@@ -56,8 +58,9 @@ test('familyIdea keeps owner words that already plan as the family, else leads w
 test('the model schema is strict: listed family, offers without amounts, evidence copied from the owner words', () => {
   const task = aboutTask({ text: CA, file: null });
   assert.equal(task.purpose, 'decide');
-  assert.equal(task.schemaName, 'chausar-owner-about-v1');
-  const good = { familyId: 'money-tax', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India' };
+  // A5: v2 adds the exact profession (its own tests are below).
+  assert.equal(task.schemaName, 'chausar-owner-about-v2');
+  const good = { familyId: 'money-tax', professionId: 'chartered-accountant', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India' };
   assert.deepEqual(task.validate(good), good);
   for (const bad of [
     { ...good, familyId: 'astronaut' },
@@ -68,7 +71,7 @@ test('the model schema is strict: listed family, offers without amounts, evidenc
     { ...good, extra: true },
     { ...good, familyId: null },
   ]) assert.throws(() => task.validate(bad), { code: 'MODEL_OUTPUT_REJECTED' }, JSON.stringify(bad));
-  assert.deepEqual(task.validate({ familyId: null, offers: [], countryCode: null, evidence: null }), { familyId: null, offers: [], countryCode: null, evidence: null });
+  assert.deepEqual(task.validate({ familyId: null, professionId: null, offers: [], countryCode: null, evidence: null }), { familyId: null, professionId: null, offers: [], countryCode: null, evidence: null });
   // One-shot A4 (live on Codex, a resume PDF): evidence that is not copied from the owner's words or file never sets the
   // country, and no longer throws the whole read away: the field and offers stand, the country is left unknown.
   assert.deepEqual(task.validate({ ...good, evidence: 'The owner lives in India.' }), { ...good, countryCode: null, evidence: null });
@@ -238,4 +241,56 @@ test('a resume PDF is read through the trusted PDF helper before the vault, as t
   assert.equal(read.country.code, 'IN');
   assert.equal(read.file.included, true);
   desk.clear();
+});
+
+// ---------------------------------------------------------------------------
+// One-shot A5 (founder answer 3a): the AI's read picks the owner's exact profession, never only the field, and the
+// owner confirms it in "Which of these are you?". Code checks the pick is a real profession of the chosen field; any
+// other pick (unknown, another field's, or one with no field) is dropped, so the owner chooses from the field's list.
+// ---------------------------------------------------------------------------
+
+test('A5: the schema offers every profession of the catalogue, or null, and the instructions ask for the exact one', () => {
+  const task = aboutTask({ text: ADVOCATE, file: null });
+  assert.equal(task.schemaName, 'chausar-owner-about-v2');
+  const property = (task.schema as any).properties.professionId;
+  assert.deepEqual(property.type, ['string', 'null']);
+  assert.deepEqual(property.enum, [...PROFESSIONS.map(item => item.id), null]);
+  assert.ok((task.schema as any).required.includes('professionId'));
+  assert.deepEqual((task.input as any).professions, PROFESSIONS.map(item => ({ id: item.id, label: item.label, familyId: item.family })));
+  assert.match(task.instructions, /exact profession/);
+  assert.match(task.instructions, /null for professionId/);
+});
+
+test('A5: a pick in the chosen field is kept; an unknown pick, another field\'s, or one with no field becomes null', () => {
+  const task = aboutTask({ text: ADVOCATE, file: null });
+  const good = { familyId: 'licensed', professionId: 'advocate', offers: [{ name: 'Consultations', line: 'Booked calls with notes' }], countryCode: 'IN', evidence: 'in Pune, India' };
+  assert.deepEqual(task.validate(good), good);
+  for (const pick of ['astronaut', 'doctor-of-stars', 'photographer', 'licensed', 42]) {
+    assert.deepEqual(task.validate({ ...good, professionId: pick }), { ...good, professionId: null }, String(pick));
+  }
+  const { professionId: _left, ...missing } = good;
+  assert.deepEqual(task.validate(missing), { ...good, professionId: null }, 'no pick is no pick');
+  assert.deepEqual(task.validate({ familyId: null, professionId: 'advocate', offers: [], countryCode: null, evidence: null }), { familyId: null, professionId: null, offers: [], countryCode: null, evidence: null });
+});
+
+test('A5: about.read through the AI names the profession it picked; keywords and tiles pick none', async t => {
+  const answer = { familyId: 'licensed', professionId: 'advocate', offers: [{ name: 'Consultations', line: 'Booked calls with notes' }], countryCode: 'IN', evidence: 'in Pune, India' };
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, [ADVOCATE, 'professionId', 'exact profession', 'Chartered accountant'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { text: ADVOCATE }) as any;
+  assert.equal(read.family.id, 'licensed');
+  assert.deepEqual(read.profession, { id: 'advocate', label: 'Advocate' });
+  const { engine: plain } = await engineFor(t);
+  assert.equal((await plain.request('venture.about.read', { text: ADVOCATE }) as any).profession, null);
+  assert.equal((await plain.request('venture.about.pick', { familyId: 'licensed' }) as any).profession, null);
+});
+
+test('A5: about.families lists each field\'s professions in the catalogue\'s order, every profession once', async t => {
+  const { engine } = await engineFor(t);
+  const { families } = await engine.request('venture.about.families', {}) as any;
+  for (const family of families) {
+    assert.deepEqual(family.professions, PROFESSIONS.filter(item => item.family === family.id).map(item => ({ id: item.id, label: item.label })), family.id);
+    assert.ok(family.professions.length >= 2, family.id);
+  }
+  assert.deepEqual(families.flatMap((family: any) => family.professions.map((item: any) => item.id)).sort(), PROFESSIONS.map(item => item.id).sort());
 });

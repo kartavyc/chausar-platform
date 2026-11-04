@@ -9,9 +9,10 @@
  *       reader.
  *   venture.needs.list                                what the business needs (core/needs-data.ts), the same data.
  */
-import { EngineError, type AboutReadLite, type CountryLite, type ModelStatusLite, type NeedsListLite, type ToolLite, type ToolsLite, type CodexSetupLite } from './types';
+import { EngineError, type AboutReadLite, type FamilyTileLite, type CountryLite, type ModelStatusLite, type NeedsListLite, type ToolLite, type ToolsLite, type CodexSetupLite } from './types';
 import { FAMILIES, familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith, type FamilyId } from '../../../../platform/runtime/venture/core/families';
 import { businessFamily, businessNeeds } from '../../../../platform/runtime/venture/core/needs-data';
+import { PROFESSIONS } from '../../../../platform/runtime/venture/core/professions';
 import { profileEntry, profileTextFromCsv } from '../../../../platform/runtime/venture/core/profile-csv';
 import { pdfText } from '../../../../platform/runtime/venture/core/pdf-text-core';
 import { isRefusal } from '../../../../platform/runtime/venture/refusal-brand';
@@ -87,6 +88,22 @@ function profileText(contentBase64: unknown): string {
   return profileTextFromCsv(new TextDecoder('utf-8', { fatal: true }).decode(entry.packed));
 }
 
+/**
+ * One-shot A5: the synthetic AI's pick of the owner's exact profession, as the engine's checked pick looks. It stands
+ * in for the model: the first profession of the guessed field whose own name (a part of its label, such as "home
+ * chef" in "Home chef or tiffin") is in the owner's words, else none, so the owner chooses. Only catalogue professions.
+ */
+function professionPick(familyId: FamilyId | null, words: string): AboutReadLite['profession'] {
+  if (!familyId) return null;
+  const text = ` ${words.toLowerCase().replace(/[^a-z]+/g, ' ')} `;
+  const found = PROFESSIONS.find((item) => item.family === familyId && item.label.toLowerCase().split(/[(),]| or /).map((part) => part.replace(/[^a-z]+/g, ' ').trim()).some((part) => part.length >= 4 && text.includes(` ${part} `)));
+  return found ? { id: found.id, label: found.label } : null;
+}
+/** The field tiles with their professions in the catalogue's order, as core/about.ts aboutFamilies lists them. */
+function familiesWithProfessions(): FamilyTileLite[] {
+  return familyTiles().map((tile) => ({ ...tile, professions: PROFESSIONS.filter((item) => item.family === tile.id).map(({ id, label }) => ({ id, label })) }));
+}
+
 /** A1 final check and A2: one AI About you read, by its call id, with the offers it answered. */
 export type AboutCallLite = { callId: string; offers: { name: string; line: string }[] };
 
@@ -145,7 +162,7 @@ export class FakeFirstRun {
       case 'venture.ai.login.cancel': return this.cancel(this.cli(p));
       case 'venture.about.read': return this.read(p);
       case 'venture.about.pick': return this.pick(p);
-      case 'venture.about.families': exact(p, []); return { families: familyTiles() };
+      case 'venture.about.families': exact(p, []); return { families: familiesWithProfessions() };
       case 'venture.needs.list': return this.needs(p);
       default: throw new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.');
     }
@@ -250,7 +267,7 @@ export class FakeFirstRun {
     const familyId = keywordFamilyWith(`${text}\n${fileText}`, this.host.classify);
     const offers = familyId ? familyOf(familyId).offers.map((offer) => ({ ...offer })) : [];
     const idea = familyId ? familyIdeaWith(familyId, text || offers.map((offer) => offer.name).join(', '), this.host.classify) : null;
-    if (status.tiers.fast.presetId === 'built-in-templates') return { family: this.family(familyId), offers, country: null, evidence: null, idea, source: 'keywords', ...(file ? { file } : {}) };
+    if (status.tiers.fast.presetId === 'built-in-templates') return { family: this.family(familyId), profession: null, offers, country: null, evidence: null, idea, source: 'keywords', ...(file ? { file } : {}) };
     if (!status.tiers.fast.usable) throw new EngineError('TIER_UNAVAILABLE', status.tiers.fast.reason);
     const source = `${text}\n${fileText}`;
     const found = this.host.countries.filter((country) => country.code !== 'XX').flatMap((country) => {
@@ -263,7 +280,7 @@ export class FakeFirstRun {
     const answered = familyId ? offers.slice(0, 3) : [];
     this.aiReads.push({ callId, offers: answered.map((offer) => ({ name: offer.name, line: offer.line })) });
     return {
-      family: this.family(familyId), offers: answered, country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
+      family: this.family(familyId), profession: professionPick(familyId, source), offers: answered, country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
       idea, source: 'ai', callId, ...(file ? { file } : {}),
     };
   }
@@ -273,7 +290,7 @@ export class FakeFirstRun {
     if (!isFamilyId(p.familyId)) throw invalid('Choose one of the listed fields.');
     const text = p.text === undefined ? '' : plain(p.text, 'What you do', 0, 2000);
     const family = familyOf(p.familyId);
-    return { family: this.family(family.id), offers: family.offers.map((offer) => ({ ...offer })), country: null, evidence: null, idea: familyIdeaWith(family.id, text, this.host.classify), source: 'tile' };
+    return { family: this.family(family.id), profession: null, offers: family.offers.map((offer) => ({ ...offer })), country: null, evidence: null, idea: familyIdeaWith(family.id, text, this.host.classify), source: 'tile' };
   }
 
   private needs(p: Record<string, unknown>): NeedsListLite {
