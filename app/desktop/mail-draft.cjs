@@ -10,6 +10,9 @@ const { randomBytes } = require('node:crypto');
 const { MAILTO_ADDRESS } = require('./ipc-contract.cjs');
 
 const BREAKS = /[\p{Cc}\u0085\u2028\u2029]/u;
+// A6 round 1: hidden format characters (direction overrides like U+202E, the byte order mark, zero-width spaces) could
+// make a subject read as something else, so they are refused. The two joiners Indian scripts need (U+200C, U+200D) stay.
+const HIDDEN = /(?!\u{200C}|\u{200D})\p{Cf}/u;
 const FILE_NAME = /^[A-Za-z0-9-]{1,80}\.(pdf|html)$/;
 const TYPES = Object.freeze({ pdf: 'application/pdf', html: 'text/html' });
 const MAX_SUBJECT = 1000;
@@ -25,13 +28,17 @@ function base64Lines(bytes) {
   return lines.join('\r\n');
 }
 
-/** A subject header value: plain ASCII as it is, otherwise RFC 2047 encoded words that never split a character, folded. */
+/**
+ * A subject header value: short plain ASCII as it is (never with "=?", which a mail app could read as an encoded word),
+ * otherwise RFC 2047 encoded words that never split a character, folded. Every line stays within 76 characters: the
+ * first word carries at most 36 bytes after "Subject: " (69 characters), the others at most 45 bytes after a space (73).
+ */
 function subjectValue(subject) {
-  if (/^[\x20-\x7e]*$/.test(subject) && subject.length <= 900) return subject;
+  if (/^[\x20-\x7e]*$/.test(subject) && subject.length <= 76 - 'Subject: '.length && !subject.includes('=?')) return subject;
   const words = [];
   let chunk = '';
   for (const character of subject) {
-    if (Buffer.byteLength(chunk + character, 'utf8') > 45) { words.push(chunk); chunk = ''; }
+    if (Buffer.byteLength(chunk + character, 'utf8') > (words.length === 0 ? 36 : 45)) { words.push(chunk); chunk = ''; }
     chunk += character;
   }
   if (chunk) words.push(chunk);
@@ -45,7 +52,7 @@ function subjectValue(subject) {
 function buildEml(input) {
   const { to, subject, body, attachment } = input ?? {};
   if (typeof to !== 'string' || (to !== '' && (BREAKS.test(to) || !MAILTO_ADDRESS.test(to)))) throw failure('The client\'s email address cannot go in a draft.');
-  if (typeof subject !== 'string' || subject.length > MAX_SUBJECT || BREAKS.test(subject)) throw failure('The subject cannot go in a draft.');
+  if (typeof subject !== 'string' || subject.length > MAX_SUBJECT || BREAKS.test(subject) || HIDDEN.test(subject)) throw failure('The subject cannot go in a draft.');
   if (typeof body !== 'string' || body.length > MAX_BODY) throw failure('The message cannot go in a draft.');
   const name = attachment?.name, match = typeof name === 'string' ? FILE_NAME.exec(name) : null;
   if (!match || attachment.mimeType !== TYPES[match[1]]) throw failure('The file cannot go in a draft.');

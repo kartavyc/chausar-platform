@@ -251,3 +251,25 @@ test('A6 round 1 (low 7): a mail link with no address needs at least a subject',
   assert.equal(contract.validateExternalUrl('mailto:?subject=Invoice'), 'mailto:?subject=Invoice');
   assert.equal(contract.validateExternalUrl('mailto:client@example.com'), 'mailto:client@example.com', 'with an address the subject may be left out, as before');
 });
+
+test('A6 round 1 (lows 4 and 5): every header line of the draft stays within 76; "=?" is encoded; hidden direction marks are refused', () => {
+  const headLines = (subject: string) => split(draft({ subject })).head;
+  const decodeSubject = (head: string[]) => {
+    const at = head.findIndex(line => line.startsWith('Subject: '));
+    const words = [head[at]!.slice('Subject: '.length)];
+    for (let next = at + 1; head[next]!.startsWith(' '); next++) words.push(head[next]!.slice(1));
+    return Buffer.concat(words.map(word => Buffer.from(/^=\?UTF-8\?B\?([A-Za-z0-9+/=]+)\?=$/.exec(word)![1]!, 'base64'))).toString('utf8');
+  };
+  for (const subject of [`Invoice INV-0002 from ${'नमस्ते Studio '.repeat(6)}`.trim(), '😀'.repeat(40) + ' क्ष', `Invoice INV-0003 from ${'Ledger Cafe Books and Sons '.repeat(4)}`.trim()]) {
+    const head = headLines(subject);
+    assert.ok(head.every(line => line.length <= 76), JSON.stringify(head.map(line => line.length)));
+    assert.equal(decodeSubject(head), subject);
+  }
+  const tricky = 'Invoice =?UTF-8?B?SGk=?= from Ledger';
+  const head = headLines(tricky);
+  assert.ok(!head.includes(`Subject: ${tricky}`), 'never raw, so a mail app cannot read it as an encoded word');
+  assert.equal(decodeSubject(head), tricky);
+  for (const subject of ['Invoice ‮fdp.exe', '﻿Invoice', 'Invoice⁦x⁩', 'Invoice​x']) assert.throws(() => draft({ subject }), (error: any) => error.code === 'MAIL_DRAFT_INVALID', JSON.stringify(subject));
+  const joined = 'Invoice from क्‌ष Studio';
+  assert.equal(decodeSubject(headLines(joined)), joined, 'the joiners Indian scripts need are kept');
+});
