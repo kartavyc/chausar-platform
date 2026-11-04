@@ -21,12 +21,23 @@ const AUTOSTART_FILE = 'chausar.desktop';
 const LATER_FILE = 'start-at-login-later.json';
 const DAY = /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
 
+/** A5 fix round 4: a real calendar day from 2000 on, YYYY-MM-DD (2026-02-31 is refused). */
+function realDay(day) {
+  const parts = typeof day === 'string' ? DAY.exec(day) : null;
+  if (!parts) return false;
+  const [year, month, date] = [Number(parts[1]), Number(parts[2]), Number(parts[3])];
+  const at = new Date(Date.UTC(year, month - 1, date));
+  return year >= 2000 && at.getUTCFullYear() === year && at.getUTCMonth() === month - 1 && at.getUTCDate() === date;
+}
 /** startAtLogin here is the suggestion onboarding ticks; it is never applied until the owner answers (asked). */
 function defaultsFor(beta) { return { startAtLogin: beta, keepRunning: beta, asked: false }; }
 function parseSettings(text, defaults) {
   try {
     const value = JSON.parse(text);
-    if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.startAtLogin !== 'boolean' || typeof value.keepRunning !== 'boolean') return defaults;
+    if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.keepRunning !== 'boolean') return defaults;
+    // A5 fix round 4: Keep running saved on its own, before start at login was answered: still unasked.
+    if (!Object.hasOwn(value, 'startAtLogin') && Object.keys(value).length === 1) return { ...defaults, keepRunning: value.keepRunning };
+    if (typeof value.startAtLogin !== 'boolean') return defaults;
     // A5 fix round 3: systemOff, kept only when true, remembers that the computer had switched the login item off.
     return { startAtLogin: value.startAtLogin, keepRunning: value.keepRunning, asked: true, off: value.systemOff === true };
   } catch { return defaults; }
@@ -66,10 +77,12 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     const { startAtLogin, keepRunning, asked } = await saved();
     return { startAtLogin, keepRunning, asked };
   }
+  /** next.asked false (A5 fix round 4): Keep running alone is saved, and start at login stays unanswered. */
   async function write(next) {
+    const asked = next.asked !== false;
     await fs.mkdir(directory, { recursive: true });
-    await fs.writeFile(file, JSON.stringify({ startAtLogin: next.startAtLogin, keepRunning: next.keepRunning, ...(next.off ? { systemOff: true } : {}) }), { mode: 0o600 });
-    current = { startAtLogin: next.startAtLogin, keepRunning: next.keepRunning, asked: true, off: next.off === true };
+    await fs.writeFile(file, JSON.stringify(asked ? { startAtLogin: next.startAtLogin, keepRunning: next.keepRunning, ...(next.off ? { systemOff: true } : {}) } : { keepRunning: next.keepRunning }), { mode: 0o600 });
+    current = asked ? { startAtLogin: next.startAtLogin, keepRunning: next.keepRunning, asked: true, off: next.off === true } : { ...defaults, keepRunning: next.keepRunning, off: false };
   }
   /**
    * The computer's own login item for this program: 'on', 'off' (there, but switched off by the computer's startup
@@ -144,14 +157,20 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (kept.startAtLogin && found === 'none') await loginItem(true, { off: kept.off });
     else if (!kept.startAtLogin && found !== 'none') await loginItem(false);
     else if (kept.startAtLogin && platform === 'linux') await refreshAutostart();
-    if (found !== 'none') await remember(found === 'off');
+    await remember();
   }
   /**
-   * A5 fix round 3: what the computer shows of a switch-off, kept with a saved answer (through the queue, so it never
-   * writes over a change), so a later move of the program registers the item as the computer had it.
+   * A5 fix round 3: what the computer shows of a switch-off, kept with a saved yes (through the queue, so it never
+   * writes over a change), so a later move of the program registers the item as the computer had it. Fix round 4: the
+   * computer is read inside the queue, after any change before it, and nothing is kept beside a saved no.
    */
-  function remember(off) {
-    const run = queue.then(async () => { const kept = await saved(); if (kept.asked && kept.off !== off) await write({ ...kept, off }); });
+  function remember() {
+    const run = queue.then(async () => {
+      const kept = await saved();
+      if (!kept.asked || !kept.startAtLogin) return;
+      const found = await presence();
+      if (found !== 'none' && kept.off !== (found === 'off')) await write({ ...kept, off: found === 'off' });
+    });
     queue = run.then(() => undefined, () => undefined);
     return queue;
   }
@@ -161,13 +180,9 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
   async function read(remembering) {
     const kept = await saved();
     const found = await presence();
-    if (remembering && kept.asked && found !== 'none' && kept.off !== (found === 'off')) await remember(found === 'off');
+    if (remembering && kept.asked && kept.startAtLogin && found !== 'none' && kept.off !== (found === 'off')) await remember();
     return { supported, asked: kept.asked, startAtLogin: kept.startAtLogin, keepRunning: kept.keepRunning, registered: found === 'on', systemOff: found === 'off' };
   }
-  /**
-   * Save a change from onboarding, Settings or the tray menu, apply it at once, and answer the new state. A change of
-   * Keep running alone, before start at login was answered, saves what the computer has now, never the suggestion.
-   */
   /**
    * A5 fix round 1: changes run one after another (onboarding's save and a tray click can come together), so each reads
    * what the one before it saved; a failed change is reported to its caller and does not stop the next.
@@ -181,14 +196,10 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
   async function changeNow(update) {
     if (!supported) return read(false);
     const before = await saved();
-    const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning, off: before.off };
-    // A5 fix round 2: before start at login was answered, a change of Keep running alone saves what the computer has; a
-    // login item there but switched off by the computer counts as a yes it switched off (a saved no would remove it).
-    if (!before.asked && typeof update?.startAtLogin !== 'boolean') {
-      const found = await presence();
-      next.startAtLogin = found !== 'none';
-      next.off = found === 'off';
-    }
+    const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning, off: before.off, asked: true };
+    // A5 fix round 4: only an answer answers. Keep running alone, before start at login was answered, is saved on its
+    // own: start at login stays unanswered (Today still asks) and the login item is left exactly as it is.
+    if (!before.asked && typeof update?.startAtLogin !== 'boolean') next.asked = false;
     for (const key of ['startAtLogin', 'keepRunning']) if (typeof update?.[key] === 'boolean') next[key] = update[key];
     // The owner's own tick is the owner's act: the item is on (or gone) as they said, never remembered as switched off.
     if (typeof update?.startAtLogin === 'boolean') next.off = false;
@@ -213,13 +224,13 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (!supported) return null;
     if (later !== undefined) return later;
     let day = null;
-    try { const value = JSON.parse(await fs.readFile(path.join(directory, LATER_FILE), 'utf8')); day = typeof value?.day === 'string' && DAY.test(value.day) ? value.day : null; } catch { day = null; }
+    try { const value = JSON.parse(await fs.readFile(path.join(directory, LATER_FILE), 'utf8')); day = realDay(value?.day) ? value.day : null; } catch { day = null; }
     later = day;
     return later;
   }
   async function askLater(day) {
     if (!supported) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
-    if (typeof day !== 'string' || !DAY.test(day)) throw Object.assign(new Error('Send the day as YYYY-MM-DD.'), { code: 'INVALID_REQUEST' });
+    if (!realDay(day)) throw Object.assign(new Error('Send the day as YYYY-MM-DD.'), { code: 'INVALID_REQUEST' });
     await fs.mkdir(directory, { recursive: true });
     await fs.writeFile(path.join(directory, LATER_FILE), JSON.stringify({ day }), { mode: 0o600 });
     later = day;

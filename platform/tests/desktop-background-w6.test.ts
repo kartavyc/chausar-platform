@@ -123,12 +123,19 @@ test('A5: a saved no removes a login item left by an older start, at the next st
   assert.equal((await unasked.state()).registered, true);
 });
 
-test('A5: changing only Keep running before start at login was answered saves what the computer does now', async () => {
+test('A5 fix round 4: Keep running changed before start at login was answered is saved on its own: still unasked, nothing registered', async () => {
   const fs = memoryFs(), app = fakeApp();
   const background = createBackground({ ...base(), app, fs });
   const state = await background.change({ keepRunning: false });
   assert.deepEqual(app.logins, []);
-  assert.deepEqual(state, { supported: true, asked: true, startAtLogin: false, keepRunning: false, registered: false, systemOff: false });
+  assert.deepEqual(state, { supported: true, asked: false, startAtLogin: true, keepRunning: false, registered: false, systemOff: false });
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { keepRunning: false });
+  const next = createBackground({ ...base(), app, fs });
+  assert.deepEqual(await next.settings(), { startAtLogin: true, keepRunning: false, asked: false });
+  await next.apply();
+  assert.deepEqual(app.logins, [], 'the start registers nothing before the answer');
+  // The answer, when it comes, keeps the Keep running choice.
+  assert.deepEqual(JSON.parse((await next.change({ startAtLogin: true }), fs.files.get(SAVED))!), { startAtLogin: true, keepRunning: false });
 });
 
 test('on Linux the owner\'s yes writes an XDG autostart file for the AppImage (or the unpacked app), and no deletes it (6J1, A5)', async () => {
@@ -282,7 +289,8 @@ test('A5 fix 3: two changes at once both land, in order: the saved file and the 
   assert.equal(refused.status, 'rejected');
   assert.equal((refused as PromiseRejectedResult).reason.code, 'ENOSPC');
   assert.equal(next2.status, 'fulfilled');
-  assert.deepEqual(JSON.parse(disk.files.get(SAVED)!), { startAtLogin: false, keepRunning: false });
+  // A5 fix round 4: the first change failed, so start at login is still unanswered and Keep running is saved alone.
+  assert.deepEqual(JSON.parse(disk.files.get(SAVED)!), { keepRunning: false });
 });
 
 test('A5 fix 9: Exec quotes the program as the desktop entry spec asks: %% for %, backslash escapes inside the quotes, then doubled', async () => {
@@ -317,29 +325,27 @@ test('A5 fix round 1 (the founder): an older silent login item stays until the o
 
 // A5 fix round 2 (finding 4): "Not now" on Today is an answer that keeps what the computer has (the window sends Keep
 // running as it is). A login item the computer switched off stays there and off, at once and at the next start.
-test('A5 fix round 2: an answer that keeps the computer as it is leaves a switched-off login item there and off', async () => {
-  const app = fakeApp();
-  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: false });
-  const fs = memoryFs();
-  const background = createBackground({ ...base(), app, fs });
-  const kept = await background.change({ keepRunning: true });
-  assert.deepEqual(kept, { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
-  assert.deepEqual(app.logins, []);
-  await createBackground({ ...base(), app, fs }).apply();
-  assert.deepEqual([app.logins.length, app.run.get('Chausar')?.enabled], [0, false]);
-  // A registered one stays registered; with none, none.
-  const on = fakeApp();
-  on.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
-  assert.equal((await createBackground({ ...base(), app: on, fs: memoryFs() }).change({ keepRunning: true })).registered, true);
-  assert.equal((await createBackground({ ...base(), app: fakeApp(), fs: memoryFs() }).change({ keepRunning: true })).registered, false);
+test('A5 fix round 4: on an older silent install, Keep running changed before the answer leaves the login item exactly as it is', async () => {
+  for (const enabled of [true, false]) {
+    const app = fakeApp(), fs = memoryFs();
+    app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled });
+    const background = createBackground({ ...base(), app, fs });
+    const state = await background.change({ keepRunning: false });
+    assert.deepEqual([state.asked, state.registered, state.systemOff], [false, enabled, !enabled]);
+    await createBackground({ ...base(), app, fs }).apply();
+    assert.deepEqual(app.logins, []);
+    assert.equal(app.run.get('Chausar')!.enabled, enabled);
+  }
 });
 
 // A5 fix round 3 (finding 2): a login item the computer switched off is never switched back on by Chausar moving to a
 // new path (a reinstall elsewhere, an update): the start registers this program's item switched off, as it was.
 test('A5 fix round 3: a saved yes the computer had switched off is registered again off when the program moves', async () => {
   const app = fakeApp(), fs = memoryFs();
-  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: false });
-  await createBackground({ ...base(), app, fs }).change({ keepRunning: true });
+  const first = createBackground({ ...base(), app, fs });
+  await first.change({ startAtLogin: true });
+  app.run.get('Chausar')!.enabled = false;
+  await createBackground({ ...base(), app, fs }).apply();
   const moved = base({ execPath: 'D:/new/Chausar.exe' });
   const background = createBackground({ ...moved, app, fs });
   await background.apply();
@@ -391,4 +397,41 @@ test('A5 fix round 3: putting the question aside keeps only the day: no answer, 
   const preview = createBackground({ ...base({ beta: false }), app, fs: memoryFs() });
   assert.equal(await preview.laterDay(), null);
   await assert.rejects(preview.askLater('2026-11-04'), { code: 'BACKGROUND_UNAVAILABLE' });
+});
+
+// A5 fix round 4 (finding 2): what the computer shows is read inside the queue, so a look taken before the owner's own
+// yes never saves a switch-off over it; and a switch-off is kept only beside a saved yes.
+test('A5 fix round 4: a look queued behind the owner\'s fresh yes never saves the old switch-off over it', async () => {
+  const later = (ms: number) => new Promise(accept => setTimeout(accept, ms));
+  const disk = memoryFs(), app = fakeApp();
+  const fs = { ...disk, writeFile: async (path: string, data: string, options: any) => { await later(5); await disk.writeFile(path, data, options); } };
+  const background = createBackground({ ...base(), app, fs });
+  await background.change({ startAtLogin: true });
+  app.run.get('Chausar')!.enabled = false;
+  const yes = background.change({ startAtLogin: true });
+  const look = background.state();
+  await Promise.all([yes, look]);
+  await later(30);
+  assert.deepEqual(JSON.parse(disk.files.get(SAVED)!), { startAtLogin: true, keepRunning: true });
+  assert.equal(app.run.get('Chausar')!.enabled, true);
+  await createBackground({ ...base({ execPath: 'D:/new/Chausar.exe' }), app, fs: disk }).apply();
+  assert.equal(app.run.get('Chausar')!.enabled, true, 'the move keeps the owner\'s yes on');
+});
+
+test('A5 fix round 4: a switch-off is never remembered beside a saved no', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  const background = createBackground({ ...base(), app, fs });
+  await background.change({ startAtLogin: false });
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: false });
+  await background.state();
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { startAtLogin: false, keepRunning: true });
+  await createBackground({ ...base(), app, fs }).apply();
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { startAtLogin: false, keepRunning: true });
+  assert.equal(app.run.has('Chausar'), false, 'the saved no removed it');
+});
+
+test('A5 fix round 4: an impossible calendar day is refused', async () => {
+  const background = createBackground({ ...base(), app: fakeApp(), fs: memoryFs() });
+  for (const bad of ['2026-02-31', '2026-04-31', '2025-02-29', '0000-01-01', '1999-12-31']) await assert.rejects(background.askLater(bad), { code: 'INVALID_REQUEST' }, bad);
+  for (const good of ['2028-02-29', '2026-12-31', '2026-11-04']) assert.equal(await background.askLater(good), good);
 });
