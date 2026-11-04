@@ -3709,7 +3709,7 @@ export type NoteSnapshot = { text: string; hash: string; scope: AgentNoteScope; 
 export type AgentNoteChangeRecord = RecordBase<'venture-agent-note-change'> & {
   agent: string;
   noteId: string;
-  who: 'owner' | 'proposal' | 'undo';
+  who: 'owner' | 'cofounder' | 'proposal' | 'undo';
   before: NoteSnapshot | null;
   after: NoteSnapshot | null;
   undoOf: string | null;
@@ -4707,7 +4707,7 @@ export interface StandingOrdersView { orders: StandingOrderView[]; playbook: Sta
 /** 4B2. */
 export type AgentNoteView = { id: string; scope: AgentNoteScope; load: AgentNoteLoad; text: string; source: Display; captured: IsoDate; hash: string };
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget (the UI asks first). */
-export type NoteChangeView = { id: string; noteId: string; at: IsoTime; who: 'owner' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean };
+export type NoteChangeView = { id: string; noteId: string; at: IsoTime; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean };
 /** 4B2. forgetLine: what the owner reads before Forget, which erases the words and cannot be undone. */
 export interface AgentNotesView { notes: AgentNoteView[]; changes: NoteChangeView[]; usedChars: number; limitChars: number; forgetLine?: Display }
 export interface AgentNoteChange { note: AgentNoteView | null; change: NoteChangeView }

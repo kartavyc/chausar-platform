@@ -1216,7 +1216,7 @@ export interface AgentSendResult { added: AgentThreadItem[]; line: Display | nul
 export interface StandingOrderView { stepId: string; step: Display; text: string; since: number; quote: string; at: string }
 export interface AgentNoteView { id: string; scope: AgentNoteScope; load: AgentNoteLoad; text: string; source: Display; captured: string; hash: string }
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget. */
-export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
+export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
 export interface AgentNotesView { notes: AgentNoteView[]; changes: NoteChangeView[]; usedChars: number; limitChars: number; forgetLine?: Display }
 export interface AgentNoteChange { note: AgentNoteView | null; change: NoteChangeView }
 /** 4B3: the check ids a step's work must pass (contracts.ts CHECK_IDS), worded by the UI. */
