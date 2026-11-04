@@ -41,6 +41,9 @@ test('A4 review: what is not a claim stays exactly as written', () => {
     ['Shall I send it?', 0],
     ['Noted.', 0],
     ['The reminder is sent.', 0],
+    // A4 review round 3: only the forms that refer back to the conversation make "as" a reference.
+    ['As I mentioned, March was slow.', 0],
+    ['As I noted earlier, two invoices are due.', 0],
   ] as const) {
     assert.deepEqual(check([text(words)], proposals), [text(words)], words);
   }
@@ -65,6 +68,9 @@ test('A4 review: first-person, subject-less and passive claims of an action are 
     "I've drafted a reminder below.",
     'Got it, I have saved your preference.',
     'Done. I sent Priya the invoice.',
+    // A4 review round 3: any other "as" before a claim is still a claim.
+    'As I sent it, Priya replied.',
+    'As I booked it for Monday, the room is ready.',
   ]) {
     assert.deepEqual(check([text(words)]), [text(ACTION_OFFER)], words);
   }

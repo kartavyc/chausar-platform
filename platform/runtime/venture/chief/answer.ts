@@ -279,7 +279,10 @@ const ON_ITS_WAY = new RegExp(String.raw`\b(?:is|are)\s+on\s+(?:its|their)\s+way
 /** Reported speech: someone else said it. */
 const REPORTED = /\b(?:said|says|wrote|writes|told\s+me|mentioned|replied)\b/iu;
 /** Words before "I" that make it a condition, a question or a reference to the conversation, not a claim. */
-const NOT_A_CLAIM = /\b(?:if|once|when|whenever|after|before|until|unless|should|shall|could|would|have|has|did|as)\s*$/iu;
+const NOT_A_CLAIM = /\b(?:if|once|when|whenever|after|before|until|unless|should|shall|could|would|have|has|did)\s*$/iu;
+/** A4 review round 3: "as" is a reference to the conversation only before told, wrote, said, mentioned or noted. */
+const AS_BEFORE = /\bas\s*$/iu;
+const AS_REFERENCE = /^I(?:'ve|’ve|\s+have|\s+had)?\s+(?:told|wrote|said|mentioned|noted)\b/iu;
 /** Quoted words are someone else's: "...", “...” and «...». */
 const QUOTED = /"[^"]*"|“[^”]*”|«[^»]*»/gu;
 
@@ -288,7 +291,10 @@ function claimsAction(sentence: string, proposals: number): boolean {
   if (SUBJECTLESS.test(own) || NOTED_ALONE.test(own) || PASSIVE_NOW.test(own) || PASSIVE_TO.test(own)) return true;
   if (ON_ITS_WAY.test(own) && !REPORTED.test(own)) return true;
   for (const pattern of [FIRST_PERSON(ACTED), FIRST_PERSON(TOLD), ...(proposals ? [] : [FIRST_PERSON(PROPOSED)])]) {
-    for (const match of own.matchAll(pattern)) if (!NOT_A_CLAIM.test(own.slice(0, match.index))) return true;
+    for (const match of own.matchAll(pattern)) {
+      const before = own.slice(0, match.index);
+      if (!NOT_A_CLAIM.test(before) && !(AS_BEFORE.test(before) && AS_REFERENCE.test(own.slice(match.index)))) return true;
+    }
   }
   return false;
 }
