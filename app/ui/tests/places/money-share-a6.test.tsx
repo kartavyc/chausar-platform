@@ -37,23 +37,23 @@ const shared = (result: InvoiceShareResult) => vi.fn(async (_invoiceId: string, 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('A6: Email it and Share on WhatsApp on the desktop', () => {
-  it('Email it opens a draft in the mail app with the PDF attached, and the owner presses send there', async () => {
+  it('Email it opens an email in the mail app with the PDF attached, says what to do when it has no Send button, and offers the PDF', async () => {
     const shareInvoice = shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', to: true, note: null });
     const { calls, panel, pay } = await start({ shareInvoice, showShared: vi.fn(async () => undefined) });
     await click(within(pay).getByRole('button', { name: 'Email it' }));
     await waitFor(() => expect(shareInvoice).toHaveBeenCalledWith('inv-0039', 'email'));
-    expect(await within(pay).findByText('Your mail app has the email ready with INV-0039.pdf attached. Check it and press send.')).toBeTruthy();
+    expect(await within(pay).findByText('Your mail app opened an email with INV-0039.pdf attached. Check it and send it. If it has no Send button, use Forward or Edit as new.')).toBeTruthy();
     expect(calls.map(([method]) => method)).not.toContain('venture.invoice.pdf');
-    expect(within(pay).queryByRole('button', { name: 'Show the PDF in its folder' })).toBeNull();
+    expect(within(pay).getByRole('button', { name: 'Show the PDF in its folder' })).toBeTruthy();
     expect(pay.textContent).not.toMatch(/\bsent\b/i);
     assertInkRules(panel);
     assertOnePrimary(panel);
   });
 
-  it('with no client email the draft has an empty To line, and the sheet says to add it', async () => {
+  it('with no client email the To line is empty, and the sheet says to add the address', async () => {
     const { pay } = await start({ shareInvoice: shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', to: false, note: null }) });
     await click(within(pay).getByRole('button', { name: 'Email it' }));
-    expect(await within(pay).findByText('Your mail app has the email ready with INV-0039.pdf attached. The client has no email here, so add it, then press send.')).toBeTruthy();
+    expect(await within(pay).findByText("Your mail app opened an email with INV-0039.pdf attached. Add the client's email address, then send it. If it has no Send button, use Forward or Edit as new.")).toBeTruthy();
   });
 
   it('when no mail app takes the draft, the sheet says what opened and offers the PDF in its folder', async () => {

@@ -11,6 +11,7 @@
 //   in ("Show the PDF in its folder", showShared). Every link opened is built here from a checked engine link.
 const fsp = require('node:fs/promises');
 const { randomBytes } = require('node:crypto');
+const { execFile } = require('node:child_process');
 const { basename, dirname, join, relative } = require('node:path');
 const { mailtoParts, validateExternalUrl } = require('./ipc-contract.cjs');
 const { buildEml, FILE_NAME, TYPES } = require('./mail-draft.cjs');
@@ -130,6 +131,51 @@ async function prune(fs, folder, now) {
   }
 }
 
+/** Runs a read-only system command with no window and a time limit: { code, stdout }. */
+function quietRun(command, args) {
+  return new Promise(done => {
+    execFile(command, args, { windowsHide: true, timeout: 5000, encoding: 'utf8', maxBuffer: 64 * 1024 }, (error, stdout) => {
+      done({ code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout: typeof stdout === 'string' ? stdout : '' });
+    });
+  });
+}
+
+const PROG_ID = /^[A-Za-z0-9._-]{1,200}$/;
+/** The registry value a `reg query` printed, or null. */
+function regValue(stdout, name) {
+  for (const line of String(stdout).split(/\r?\n/)) {
+    const match = /^\s+(\S.*?)\s+REG_(?:SZ|EXPAND_SZ)\s+(.*)$/.exec(line);
+    if (match && match[1].toLowerCase() === name.toLowerCase()) return match[2].trim() || null;
+  }
+  return null;
+}
+
+/**
+ * A6 round 1: whether this computer names an app for email files, read quietly (no window, nothing changed). Windows:
+ * the owner's own choice (Explorer's UserChoice), else the .eml class, and that program's shell verbs must be there.
+ * Linux: xdg-mime's default for message/rfc822. macOS: Mail opens email files on every Mac. Any failure is no.
+ */
+async function emlHandler({ platform = process.platform, run = quietRun } = {}) {
+  try {
+    if (platform === 'darwin') return true;
+    if (platform === 'linux') {
+      const reply = await run('xdg-mime', ['query', 'default', 'message/rfc822']);
+      return reply.code === 0 && /^[A-Za-z0-9._-]+\.desktop$/.test(String(reply.stdout).trim());
+    }
+    if (platform !== 'win32') return false;
+    const user = await run('reg', ['query', String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.eml\UserChoice`, '/v', 'ProgId']);
+    let progId = user.code === 0 ? regValue(user.stdout, 'ProgId') : null;
+    if (!progId) {
+      const fallback = await run('reg', ['query', String.raw`HKCR\.eml`, '/ve']);
+      progId = fallback.code === 0 ? regValue(fallback.stdout, '(Default)') : null;
+    }
+    if (!progId || !PROG_ID.test(progId) || progId.includes('..')) return false;
+    return (await run('reg', ['query', `HKCR\\${progId}\\shell`])).code === 0;
+  } catch {
+    return false;
+  }
+}
+
 /** The invoice:share handler: { ok: true, result } or { ok: false, error } in plain words. */
 async function shareInvoice(event, input, deps) {
   try {
@@ -164,7 +210,10 @@ async function shareInvoice(event, input, deps) {
     if (how === 'email') {
       const draftPath = join(deps.folder, await keepFile(fs, deps.folder, file.name.replace(/\.(?:pdf|html)$/, '.eml'), Buffer.from(eml, 'utf8')));
       let opened = 'draft';
-      const problem = await Promise.resolve(deps.shell.openPath(draftPath)).catch(error => String(error?.message ?? error) || 'failed');
+      // A6 round 1: a file no app takes may bring up Windows' "How do you want to open this file?" box while openPath
+      // still answers '', so the draft is opened only when this computer names an app for email files.
+      const known = typeof deps.emlApp === 'function' ? await Promise.resolve().then(deps.emlApp).then(value => value === true, () => false) : true;
+      const problem = known ? await Promise.resolve(deps.shell.openPath(draftPath)).catch(error => String(error?.message ?? error) || 'failed') : 'no app for email files';
       if (problem !== '') {
         // The mail link only when the gate opens it (a long message is too long for one link): then nothing opened.
         try { await deps.shell.openExternal(validateExternalUrl(mail.link)); opened = 'link'; } catch { opened = 'none'; }
@@ -199,4 +248,4 @@ async function showShared(event, input, deps) {
   }
 }
 
-module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl });
+module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl, emlHandler });

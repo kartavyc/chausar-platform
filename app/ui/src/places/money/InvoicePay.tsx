@@ -102,14 +102,15 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     if (!saveFile(made)) { setProblem(t('money-pay.cantSave')); return; }
     setSaid(made.note ?? t('money-pay.saved', { name: made.fileName }));
   });
-  /** A6: what the desktop opened, in words; the file is offered in its folder whenever it did not go with the message. */
+  /** A6: what the desktop opened, in words, and the file offered in its folder. */
   const shared = (result: InvoiceShareResult) => {
     const file = result.file;
     const line = result.how === 'whatsapp'
       ? t(result.opened === 'app' ? 'money-pay.wa.app' : 'money-pay.wa.web', { file })
       : t(result.opened === 'draft' ? (result.to ? 'money-pay.mail.draft' : 'money-pay.mail.draftNoTo') : result.opened === 'link' ? 'money-pay.mail.link' : 'money-pay.mail.none', { file });
     setSaid(result.note ? `${line} ${result.note}` : line);
-    if (result.how === 'whatsapp' || result.opened !== 'draft') setKept(file);
+    // A6 round 1: on a draft too, since a mail app that opens it read-only leaves the owner to attach the file again.
+    setKept(file);
   };
   const whatsapp = () => {
     if (engine.shareInvoice) { void act(async () => shared(await engine.shareInvoice!(invoice.id, 'whatsapp')), 'money-pay.whatsappFailed'); return; }

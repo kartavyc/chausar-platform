@@ -365,3 +365,46 @@ test('A6 round 1 (low 8): an old folder, junction or link named like a share fil
     assert.equal(reply.ok, false, name);
   }
 });
+
+test('A6 round 1 (medium 3): with no app known for email files, the draft is not opened (no Open with box); the mail link opens instead', async t => {
+  const s = await shareDeps(t);
+  (s.deps as any).emlApp = async () => false;
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps)).result, { how: 'email', opened: 'link', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual(s.paths, [], 'shell.openPath is never asked to open a file no app takes');
+  assert.deepEqual(s.opened, [mailto('client@example.com')]);
+  const known = await shareDeps(t);
+  (known.deps as any).emlApp = async () => true;
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, known.deps)).result.opened, 'draft');
+  const broken = await shareDeps(t);
+  (broken.deps as any).emlApp = async () => { throw new Error('reg failed'); };
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, broken.deps)).result.opened, 'link', 'a check that fails counts as no app');
+});
+
+test('A6 round 1 (medium 3): the app for email files is read quietly from the computer, per system', async () => {
+  const runs: string[][] = [];
+  const answers = (table: Record<string, { code: number; stdout: string }>) => async (command: string, args: string[]) => {
+    runs.push([command, ...args]);
+    return table[[command, ...args].join(' ')] ?? { code: 1, stdout: '' };
+  };
+  const USER = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.eml\UserChoice`;
+  // Classic Outlook, as on this computer: no user choice, the class default, and its shell verbs.
+  assert.equal(await share.emlHandler({ platform: 'win32', run: answers({
+    [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: 'HKEY_CLASSES_ROOT\.eml\r\n    (Default)    REG_SZ    Outlook.File.eml.15\r\n' },
+    [String.raw`reg query HKCR\Outlook.File.eml.15\shell`]: { code: 0, stdout: 'x' },
+  }) }), true);
+  assert.deepEqual(runs.map(run => run.slice(0, 3)), [['reg', 'query', USER], ['reg', 'query', String.raw`HKCR\.eml`], ['reg', 'query', String.raw`HKCR\Outlook.File.eml.15\shell`]]);
+  // The user's own choice comes first.
+  assert.equal(await share.emlHandler({ platform: 'win32', run: answers({
+    [`reg query ${USER} /v ProgId`]: { code: 0, stdout: `${USER}\r\n    ProgId    REG_SZ    AppXabc123\r\n` },
+    [String.raw`reg query HKCR\AppXabc123\shell`]: { code: 0, stdout: 'x' },
+  }) }), true);
+  for (const table of [{}, { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    \r\n' } },
+    { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    Gone.Prog\r\n' } },
+    { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    a\..\b\r\n' } }]) {
+    assert.equal(await share.emlHandler({ platform: 'win32', run: answers(table) }), false, JSON.stringify(table));
+  }
+  assert.equal(await share.emlHandler({ platform: 'linux', run: answers({ 'xdg-mime query default message/rfc822': { code: 0, stdout: 'thunderbird.desktop\n' } }) }), true);
+  assert.equal(await share.emlHandler({ platform: 'linux', run: answers({}) }), false);
+  assert.equal(await share.emlHandler({ platform: 'darwin', run: answers({}) }), true, 'Mail opens email files on every Mac');
+  assert.equal(await share.emlHandler({ platform: 'win32', run: async () => { throw new Error('no reg'); } }), false);
+});

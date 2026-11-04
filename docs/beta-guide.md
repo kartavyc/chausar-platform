@@ -260,7 +260,7 @@ Open the issued invoice. Under **How clients pay** you now see:
 Then use:
 
 - **Save file** to save the invoice as a PDF;
-- **Email it**. In the desktop app, your own mail app opens a new email with the invoice PDF attached; check it and press send there. If the client has no email in Chausar, add the address in your mail app. In the browser it opens a mail link with the words filled in, and you attach the file yourself.
+- **Email it**. In the desktop app, your own mail app opens an email with the invoice PDF attached; check it and send it there. Some mail apps open it without a Send button: then use Forward or Edit as new. If the client has no email in Chausar (or one a mail link cannot carry), add the address in your mail app. If this computer has no mail app for email files, Chausar opens a mail link with the words filled in instead, and **Show the PDF in its folder** shows the file to attach. In the browser it opens a mail link, and you attach the file yourself.
 - **Share on WhatsApp**. The WhatsApp desktop app opens if this computer has it, otherwise WhatsApp in your browser, with the message ready. A WhatsApp link cannot carry a file, so attach the PDF yourself: **Show the PDF in its folder** shows where it is.
 - Chausar sends nothing: you press send yourself each time.
 
