@@ -1,0 +1,20 @@
+/* Business > About you, the profession (ProfessionSetting.tsx, one-shot A5). Tokens only. */
+
+.change {
+  display: grid;
+  gap: var(--sp-4);
+  max-width: 480px;
+}
+
+.choice {
+  display: grid;
+  gap: calc(var(--sp-1) * 1.5);
+}
+
+.label {
+  composes: label from '../../parts/Field.module.css';
+}
+
+.select {
+  composes: input from '../../parts/Field.module.css';
+}
