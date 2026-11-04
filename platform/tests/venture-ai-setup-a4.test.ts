@@ -170,11 +170,14 @@ test('deleting another business keeps the setup a business still open saved', as
 // apps suggest fast and main today, so the test narrows Codex's list for its length and puts it back.
 test('a kept setup asking a job the preset does not suggest gives no AI; one it suggests carries over', async () => {
   const tiers = presetSpec('codex-cli').tiers as unknown as string[];
+  // A5 (A4 leftover): put back exactly what the preset held, whatever that is.
+  const found = [...tiers];
   tiers.splice(0, tiers.length, 'main');
   try {
     const refused = await gallery(noteFor('codex-cli'));
     assert.deepEqual([refused.connections.length, refused.decisions.length], [0, 0]);
     const kept = await gallery(noteFor('codex-cli', { tiers: ['main'] }));
     assert.deepEqual(kept.connections.map(item => item.tiers), [['main']]);
-  } finally { tiers.splice(0, tiers.length, 'fast', 'main'); }
+  } finally { tiers.splice(0, tiers.length, ...found); }
+  assert.deepEqual(presetSpec('codex-cli').tiers, found);
 });
