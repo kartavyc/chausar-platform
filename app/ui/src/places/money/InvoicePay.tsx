@@ -132,7 +132,8 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     setSaid(t('money-pay.shareNote'));
   }, 'money-pay.emailFailed');
   const showKept = async (name: string) => {
-    try { await engine.showShared?.(name); } catch (error) { setProblem(t('money-pay.failed', { message: messageOf(error) })); }
+    // A6 round 1: a file that cannot be shown takes the line above with it, so no stale "opened" line sits over the problem.
+    try { await engine.showShared?.(name); } catch (error) { setSaid(null); setKept(null); setProblem(t('money-pay.showFailed', { message: messageOf(error) })); }
   };
   const makeLink = (digest: string) => act(async () => {
     setAsking(false);

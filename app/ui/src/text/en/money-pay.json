@@ -28,6 +28,7 @@
   "money-pay.wa.web": "WhatsApp opened in your browser with the invoice note. A WhatsApp link cannot carry a file, so attach {file} and send it yourself.",
   "money-pay.showPdf": "Show the PDF in its folder",
   "money-pay.showFile": "Show the file in its folder",
+  "money-pay.showFailed": "Couldn't show the file: {message}",
   "money-pay.link": "Payment link",
   "money-pay.fixture": "fixture-tested",
   "money-pay.linkMake": "Make a payment link",

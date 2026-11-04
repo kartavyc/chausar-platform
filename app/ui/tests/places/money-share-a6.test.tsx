@@ -89,6 +89,16 @@ describe('A6: Email it and Share on WhatsApp on the desktop', () => {
     expect(pay.textContent).not.toMatch(/\bsent\b/i);
   });
 
+  it('A6 round 1 (low 9): a file that cannot be shown says so in its own words, and the stale line goes', async () => {
+    const showShared = vi.fn(async (_name: string): Promise<void> => { throw Object.assign(new Error('That file is not there any more. Press the button again to make it.'), { code: 'SHARE_FILE_GONE' }); });
+    const { pay } = await start({ shareInvoice: shared({ how: 'whatsapp', opened: 'app', file: 'INV-0039.pdf', note: null }), showShared });
+    await click(within(pay).getByRole('button', { name: 'Share on WhatsApp' }));
+    await click(await within(pay).findByRole('button', { name: 'Show the PDF in its folder' }));
+    expect(await within(pay).findByText("Couldn't show the file: That file is not there any more. Press the button again to make it.")).toBeTruthy();
+    expect(pay.textContent).not.toContain('WhatsApp opened');
+    expect(within(pay).queryByRole('button', { name: 'Show the PDF in its folder' })).toBeNull();
+  });
+
   it('a refusal names the button that failed, in the desktop\'s words', async () => {
     const shareInvoice = vi.fn(async (_invoiceId: string, _how: 'email' | 'whatsapp'): Promise<InvoiceShareResult> => { throw Object.assign(new Error('The invoice file could not be made. Try again.'), { code: 'REQUEST_FAILED' }); });
     const { pay } = await start({ shareInvoice });
