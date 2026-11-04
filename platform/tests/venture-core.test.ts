@@ -1067,6 +1067,9 @@ test('review of A1 row 3: the first keep saves exactly the card: its name and of
     assert.ok(plan.offers.every((offer: any) => offer.name.by === by && offer.name.label === 'assumption'));
     assert.ok(plan.offers.every((offer: any) => offer.pricing.model === 'project' && offer.pricing.unitPriceMinor === null), 'no per month on a birthday shoot');
     if (count === 3) assert.equal(plan.offers[2].description.value, 'Monthly photo support', 'an empty line falls back to the name');
+    // One-shot B1 (A3 notes line 51): the one line is the kept card's, never the template's.
+    assert.equal(plan.oneLiner.value, count === 3 ? 'Birthday party photography, shop product photos and monthly photo support.' : 'Birthday party photography.');
+    assert.equal(plan.oneLiner.by, by);
     // The kept plan works like any plan: accepted, then its last offer priced and accepted again.
     const accepted = await h.call('venture.blueprint.accept', { digest: plan.digest });
     const last = accepted.blueprint.offers.at(-1);

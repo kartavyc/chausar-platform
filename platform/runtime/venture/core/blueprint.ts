@@ -2,6 +2,7 @@
 // Code makes the structure (offers and their pricing, steps, approval count, back office, starter connectors)
 // from the interview; a model or the templates only write words into named slots. The structure is hashed before
 // the model writes and again inside the write, so nothing moves while it writes (APPROVAL_STALE otherwise).
+import { shownLine } from './shown-line.ts';
 import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
 import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
@@ -896,6 +897,8 @@ function applyShown(record: BlueprintRecord, shown: Shown): void {
   const template = record.offers.filter(offer => !offer.addedByOwner);
   const owned = record.offers.filter(offer => offer.addedByOwner);
   record.name = words(shown.name);
+  // One-shot B1 (A3 notes line 51): the one line is the kept card's offers, never the template's line.
+  record.oneLiner = words(shownLine(shown.offers.map(kept => kept.name)));
   record.offers = [...shown.offers.map((kept, index) => {
     const was = template[index];
     return {

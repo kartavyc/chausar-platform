@@ -1,5 +1,6 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
 import { ownerError } from './owner-errors';
+import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
@@ -1458,6 +1459,10 @@ export class FakeEngine {
       const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);
+      // One-shot B1 (A3 notes line 51), as applyShown: the one line from the kept offers, on the plan and its Today row.
+      view.blueprint.oneLiner = words(shownLine(shown.offers.map((kept) => kept.name)));
+      const planRow = this.rows.find((row) => row.id === `q-plan-${business.id}`);
+      if (planRow) { planRow.line = view.blueprint.oneLiner.value; const { digest: _was, ...seed } = planRow; planRow.digest = digestOf(seed); }
       (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({
         id: `offer_${index + 1}`, ...(template[index]?.playbookOffer ? { playbookOffer: template[index]!.playbookOffer } : {}),
         name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name),

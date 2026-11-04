@@ -70,3 +70,20 @@ describe('fake plan draft: who wrote the kept card', () => {
       .rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'Send the id of the reading that wrote the plan.' });
   });
 });
+
+// One-shot B1 (A3 notes line 51), as core/blueprint.ts applyShown: the kept plan's one line is made from the card's
+// offers (core/shown-line.ts), never the template's, and Today's plan row says it.
+describe("fake plan draft: the kept card's one line", () => {
+  it('is the offers in one sentence, on the plan and on the plan row', async () => {
+    const client = createFakeClient(new FakeEngine({ fresh: true }));
+    await client.request('workspace.create', { name: 'Kept Shop', pack: 'services', folder: null } as never);
+    await client.request('venture.create', { idea: 'Photography for parties and shops in Pune', countryCode: 'IN' } as never);
+    let view = await client.request('venture.interview.next', { useTemplate: true });
+    for (const question of view.interview.questions) view = await client.request('venture.interview.answer', { questionId: question.id, answer: question.required ? (question.kind === 'yesno' ? { yes: false } : { choiceId: question.choices[0]!.id }) : { skipped: true } } as never);
+    const shown = { name: 'Pune Frames Studio', by: 'template' as const, offers: [{ name: 'Birthday party photography', line: 'Photos of the party.' }, { name: 'Shop product photos', line: '' }] };
+    const plan = (await client.request('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
+    expect(plan.oneLiner.value).toBe('Birthday party photography and shop product photos.');
+    const rows = (await client.request('venture.queue.list', {})).rows;
+    expect(rows.find((row) => row.kind === 'plan')?.line).toBe('Birthday party photography and shop product photos.');
+  });
+});
