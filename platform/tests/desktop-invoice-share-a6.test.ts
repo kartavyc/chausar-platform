@@ -5,7 +5,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runInNewContext } from 'node:vm';
@@ -290,4 +291,53 @@ test('A6 round 1 (medium 2): a client email the engine keeps but a mail link can
   const bad = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: `mailto:${encodeURIComponent("o'brien@example.com")}?subject=${encodeURIComponent('Hi\r\nBcc: x@example.com')}&body=x` } }) });
   assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, bad.deps)).error.code, 'REQUEST_FAILED');
   assert.throws(() => contract.validateExternalUrl(mailto("o'brien@example.com")), (error: any) => error.code === 'INVALID_EXTERNAL_URL', 'links stay strict');
+});
+
+test('A6 round 1 (medium 1): three shares of one invoice at once all work, and the same file is kept, not rewritten', async t => {
+  const s = await shareDeps(t, { app: true });
+  const replies = await Promise.all([
+    share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps), share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps),
+    share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps)]);
+  assert.deepEqual(replies.map(reply => [reply.ok, reply.result?.file]), [[true, 'INV-0001.pdf'], [true, 'INV-0001.pdf'], [true, 'INV-0001.pdf']]);
+  assert.deepEqual(await readFile(join(s.folder, 'INV-0001.pdf')), PDF);
+  assert.ok((await readdir(s.folder)).every(name => !name.endsWith('.tmp')), 'no temporary file is left');
+});
+
+test('A6 round 1 (medium 1): a file another app holds keeps its name; the share uses a fresh one, or says to close the file', async t => {
+  // A stand-in for Windows: renaming over a file another app has open fails with EPERM.
+  const held = new Set<string>();
+  const s = await shareDeps(t);
+  const fsHeld = { ...(await import('node:fs/promises')), rename: async (from: string, to: string) => { if (held.has(to)) throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' }); return rename(from, to); } };
+  (s.deps as any).fs = fsHeld;
+  await mkdir(s.folder, { recursive: true });
+  await writeFile(join(s.folder, 'INV-0001.pdf'), 'an older copy open in a PDF viewer');
+  await writeFile(join(s.folder, 'INV-0001.eml'), 'a draft open in the mail app');
+  held.add(join(s.folder, 'INV-0001.pdf')); held.add(join(s.folder, 'INV-0001.eml'));
+  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+  assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', to: true, note: null });
+  assert.deepEqual(s.paths, [join(s.folder, 'INV-0001-2.eml')]);
+  assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
+  assert.ok((await readFile(join(s.folder, 'INV-0001-2.eml'), 'utf8')).includes('filename="INV-0001.pdf"'), 'the client still gets INV-0001.pdf');
+  assert.equal(await readFile(join(s.folder, 'INV-0001.pdf'), 'utf8'), 'an older copy open in a PDF viewer');
+
+  for (let n = 2; n <= 9; n++) held.add(join(s.folder, `INV-0001-${n}.pdf`));
+  await writeFile(join(s.folder, 'INV-0001-2.pdf'), 'another copy');
+  const busy = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+  assert.deepEqual([busy.ok, busy.error.code, busy.error.message], [false, 'SHARE_FILE_IN_USE', 'INV-0001.pdf is open in another app. Close it there and try again.']);
+  assert.ok((await readdir(s.folder)).every(name => !name.endsWith('.tmp')));
+});
+
+test('A6 round 1 (medium 1): on Windows, a PDF held open without delete sharing still lets the share go through', { skip: process.platform !== 'win32' }, async t => {
+  const s = await shareDeps(t, { app: true });
+  await mkdir(s.folder, { recursive: true });
+  const path = join(s.folder, 'INV-0001.pdf');
+  await writeFile(path, 'an older copy');
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$f=[System.IO.File]::Open('${path}', 'Open', 'Read', 'Read'); Write-Output held; [Console]::In.ReadLine() | Out-Null; $f.Close()`], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  t.after(() => { holder.stdin.end(); holder.kill(); });
+  await new Promise(done => holder.stdout.once('data', done));
+  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+  assert.deepEqual([reply.ok, reply.result?.file], [true, 'INV-0001-2.pdf']);
+  assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
+  holder.stdin.end();
+  await new Promise(done => holder.once('exit', done));
 });

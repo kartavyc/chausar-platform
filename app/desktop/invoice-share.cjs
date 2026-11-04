@@ -79,8 +79,44 @@ async function writeWhole(fs, target, bytes) {
     await fs.rename(temp, target);
   } catch (error) {
     await fs.rm(temp, { force: true }).catch(() => {});
-    throw plain(error);
+    throw error;
   }
+}
+
+// A6 round 1: on Windows a file another app holds open (the PDF in a viewer after "Show the PDF in its folder", the
+// .eml in the mail app) cannot be replaced: the rename fails with EPERM, EBUSY or EACCES.
+const IN_USE = new Set(['EPERM', 'EBUSY', 'EACCES']);
+// Shares of the same name run one after another, so two at once never race for one file.
+const writing = new Map();
+function oneAtATime(key, work) {
+  const next = (writing.get(key) ?? Promise.resolve()).then(work, work);
+  const settled = next.then(() => {}, () => {});
+  writing.set(key, settled);
+  void settled.then(() => { if (writing.get(key) === settled) writing.delete(key); });
+  return next;
+}
+
+/**
+ * Keeps bytes in the share folder under the name, and answers the name used: a file already there with the same bytes
+ * is used as it is; one another app holds open is left alone and the next free name is used (INV-0001-2.pdf up to -9).
+ * When every name is held, the owner is asked to close the file in the other app.
+ */
+function keepFile(fs, folder, name, bytes) {
+  return oneAtATime(join(folder, name), async () => {
+    const dot = name.lastIndexOf('.');
+    for (let n = 1; n <= 9; n++) {
+      const candidate = n === 1 ? name : `${name.slice(0, dot)}-${n}${name.slice(dot)}`;
+      if (!OURS.test(candidate)) break;
+      const path = join(folder, candidate);
+      const found = await fs.lstat(path).catch(() => null);
+      if (found && found.isFile() && found.size === bytes.length) {
+        const there = await fs.readFile(path).catch(() => null);
+        if (there && there.equals(bytes)) return candidate;
+      }
+      try { await writeWhole(fs, path, bytes); return candidate; } catch (error) { if (!IN_USE.has(error?.code)) throw plain(error); }
+    }
+    throw failure('SHARE_FILE_IN_USE', `${name} is open in another app. Close it there and try again.`);
+  });
 }
 
 /** Takes our files older than a day out of the share folder. Anything else there is left alone. */
@@ -124,24 +160,23 @@ async function shareInvoice(event, input, deps) {
     }
     try { await fs.mkdir(deps.folder, { recursive: true }); } catch (error) { throw plain(error); }
     await prune(fs, deps.folder, (deps.now ?? Date.now)());
-    await writeWhole(fs, join(deps.folder, file.name), file.bytes);
+    const kept = await keepFile(fs, deps.folder, file.name, file.bytes);
     if (how === 'email') {
-      const draftPath = join(deps.folder, file.name.replace(/\.(?:pdf|html)$/, '.eml'));
-      await writeWhole(fs, draftPath, Buffer.from(eml, 'utf8'));
+      const draftPath = join(deps.folder, await keepFile(fs, deps.folder, file.name.replace(/\.(?:pdf|html)$/, '.eml'), Buffer.from(eml, 'utf8')));
       let opened = 'draft';
       const problem = await Promise.resolve(deps.shell.openPath(draftPath)).catch(error => String(error?.message ?? error) || 'failed');
       if (problem !== '') {
         // The mail link only when the gate opens it (a long message is too long for one link): then nothing opened.
         try { await deps.shell.openExternal(validateExternalUrl(mail.link)); opened = 'link'; } catch { opened = 'none'; }
       }
-      return { ok: true, result: { how, opened, file: file.name, to: mail.to, note: file.note } };
+      return { ok: true, result: { how, opened, file: kept, to: mail.to, note: file.note } };
     }
     let opened = 'web';
     if (deps.whatsappApp()) {
       try { await deps.shell.openExternal(appLink); opened = 'app'; } catch { opened = 'web'; }
     }
     if (opened === 'web') await deps.shell.openExternal(webLink);
-    return { ok: true, result: { how, opened, file: file.name, note: file.note } };
+    return { ok: true, result: { how, opened, file: kept, note: file.note } };
   } catch (error) {
     return { ok: false, error: deps.publicError(error) };
   }
