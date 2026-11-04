@@ -42,7 +42,7 @@ export const PRACTICE_WORDS = Object.freeze({
   failedCheck: 'Fix the failed check first; the quality check reads only drafts that pass the code checks.',
   notReady: 'The quality check reads a draft once it is ready for your review.',
   outline: 'The quality check reads drafts an agent wrote; this is a template outline.',
-  practice: 'Practice drafts are not for clients. Move to approve each to use drafts.',
+  practice: 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.',
   noAi: 'Connect an AI for quick work first; the quality check runs on your own AI.',
   already: 'The quality check already read this draft.',
   notWaiting: 'Ask the quality check first, then send it.',

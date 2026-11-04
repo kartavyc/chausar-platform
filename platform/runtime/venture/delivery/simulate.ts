@@ -437,7 +437,7 @@ const ON_OWN_PLAN: ReadonlySet<string> = new Set(PRESETS.filter(preset => preset
 /** Some calls ran on a key, some on the owner's own plan. */
 export const OWN_PLAN_PART = ' (plus calls on your own plan)';
 /** A4 review (L4): what a rehearsal or loop costs when it all ran on the owner's own plan. */
-export const RAN_ON_OWN_PLAN = 'Ran on your own plan.';
+export const RAN_ON_OWN_PLAN = 'Nothing extra, it ran on your own AI plan.';
 
 /** Cost words and the model mode for a list of spends. */
 export function spendSummary(spend: readonly Spend[]): { costMicros: string; costDisplay: string; modelMode: SimulationRunRecord['modelMode'] } {

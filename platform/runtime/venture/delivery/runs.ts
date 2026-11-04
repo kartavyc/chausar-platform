@@ -86,7 +86,7 @@ const REVIEW_DECISION_WORDS: Readonly<Record<'accepted' | 'edited' | 'rejected',
 });
 
 export const STAGE_BLOCKED_REASON = 'Move the business to Practice or Live first.';
-export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
+export const PRACTICE_REASON = 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.';
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
 /** The judge's line on a run the owner edited: the edit is the owner's own words, which the judge never reads. */

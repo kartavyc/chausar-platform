@@ -276,7 +276,7 @@ describe('the fake engine judges by the engine rules', () => {
   it('refuses a template outline and a draft that is practice at this stage', async () => {
     for (const [change, code, message] of [
       [{ servedBy: 'template' }, 'JUDGE_NOT_READY', 'The quality check reads drafts an agent wrote; this is a template outline.'],
-      [{ practiceNow: true }, 'PRACTICE_DRAFT', 'Practice drafts are not for clients. Move to approve each to use drafts.'],
+      [{ practiceNow: true }, 'PRACTICE_DRAFT', 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.'],
     ] as const) {
       const engine = await withAi();
       const work = (engine as unknown as { work: { reviseRun(biz: string, runId: string, revise: (run: DeliveryLite) => DeliveryLite): DeliveryLite } }).work;
