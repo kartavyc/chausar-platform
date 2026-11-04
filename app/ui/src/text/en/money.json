@@ -7,6 +7,8 @@
   "money.sub.journal": "Journal",
   "money.line": "Every figure opens its receipt.",
   "money.tile.invoiced": "Invoiced this month",
+  "money.tile.invoicedNone": "Nothing invoiced yet this month.",
+  "money.tile.invoicedNoneIn": "Nothing invoiced in {month}.",
   "money.goal.ready": "ready to issue",
   "money.goal.ahead": "ahead of pace",
   "money.goal.behind": "behind pace",

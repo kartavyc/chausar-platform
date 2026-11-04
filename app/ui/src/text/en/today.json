@@ -42,6 +42,7 @@
   "today.sub.across": {"one": "{count} needs you, across {businesses} businesses", "other": "{count} need you, across {businesses} businesses"},
   "today.sub.working": { "one": "{count} agent is working.", "other": "{count} agents are working." },
   "today.goal.invoiced": "Invoiced this month",
+  "today.goal.invoicedNone": "Nothing invoiced yet this month.",
   "today.goal.beforeTax": "Before tax",
   "today.goal.month": "{month} goal",
   "today.goal.received": "Received this month",

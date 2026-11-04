@@ -155,6 +155,8 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
           <ProvedFigure value={data.invoiced.value} proof={{ receiptId: data.invoiced.receiptId! }} size="stat" />
         </div>
       )}
+      {/* One-shot B1 (bug 14): an empty invoiced sum (zero, no receipt) says so; the tile is never blank. */}
+      {data && !data.invoiced && data.invoicedNone && <p className={s.tileSub}>{month ? t('money.tile.invoicedNoneIn', { month: monthWords(month) }) : t('money.tile.invoicedNone')}</p>}
       {books && (
         <>
           <div className={s.tileValue}>

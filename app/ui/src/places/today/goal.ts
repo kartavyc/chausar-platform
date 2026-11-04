@@ -40,6 +40,9 @@ interface GoalBase {
   /** Money invoiced this month, before tax. Null when there is no figure with a receipt: then the card says nothing
    *  about it, rather than guess. */
   invoiced: GoalAmount | null;
+  /** One-shot B1 (bug 14): the goals view's invoiced sum was empty, which the engine sends as zero with no receipt.
+   *  Then the card says nothing was invoiced yet. A figure that only lacks its receipt (the books' fallback) is not. */
+  invoicedNone?: boolean | undefined;
   /** The open business, named when Today spans businesses. */
   business?: string | undefined;
 }
@@ -117,7 +120,7 @@ export function goalFromView(view: GoalView, extras: GoalExtras, t: T): GoalCard
   const invoiced = goalAmount(view.invoiced);
   const received = goalAmount(view.receivedSoFar);
   const goal = view.state === 'set' ? goalAmount(view.goal) : null;
-  const base = { month: extras.month, invoiced, ...(extras.business ? { business: extras.business } : {}) };
+  const base = { month: extras.month, invoiced, ...(view.invoiced.receiptId === null ? { invoicedNone: true } : {}), ...(extras.business ? { business: extras.business } : {}) };
   if (!goal || view.invoicedPermille === null || view.invoicedPercent === null) {
     const last = goalAmount(view.lastMonth);
     return { ...base, state: 'unset', received, ...(last ? { lastMonth: { month: extras.lastMonth, amount: last } } : {}) };

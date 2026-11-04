@@ -74,6 +74,8 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
         {data.state === 'set' && <span className={cx(s.percent, 'mono')}>{data.percent}</span>}
       </div>
       {data.invoiced?.stale && <p className={s.stale}>{t('money.changed')}</p>}
+      {/* One-shot B1 (bug 14): an empty invoiced sum (zero, no receipt) says so, never a blank space. */}
+      {!data.invoiced && data.invoicedNone && <p className={s.askLine}>{t('today.goal.invoicedNone')}</p>}
 
       {data.state === 'set' && (
         <>
