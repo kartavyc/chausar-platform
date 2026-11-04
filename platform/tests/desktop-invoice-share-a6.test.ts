@@ -326,8 +326,8 @@ test('A6 round 1 (medium 1): a file another app holds keeps its name; the share 
   assert.ok((await readFile(join(s.folder, 'INV-0001-2.eml'), 'utf8')).includes('filename="INV-0001.pdf"'), 'the client still gets INV-0001.pdf');
   assert.equal(await readFile(join(s.folder, 'INV-0001.pdf'), 'utf8'), 'an older copy open in a PDF viewer');
 
-  for (let n = 2; n <= 9; n++) held.add(join(s.folder, `INV-0001-${n}.pdf`));
-  await writeFile(join(s.folder, 'INV-0001-2.pdf'), 'another copy');
+  // Every other name is a file there too, each open in another app (round 2: a held file is one that is there).
+  for (let n = 2; n <= 9; n++) { held.add(join(s.folder, `INV-0001-${n}.pdf`)); await writeFile(join(s.folder, `INV-0001-${n}.pdf`), 'another copy'); }
   const busy = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
   assert.deepEqual([busy.ok, busy.error.code, busy.error.message], [false, 'SHARE_FILE_IN_USE', 'INV-0001.pdf is open in another app. Close it there and try again.']);
   assert.ok((await readdir(s.folder)).every(name => !name.endsWith('.tmp')));
@@ -464,4 +464,40 @@ test('A6 round 2 (medium 2): a business name pasted with a hidden mark still get
     assert.ok((await readFile(join(s.folder, 'INV-0001.eml'), 'utf8')).startsWith(['To: client@example.com', 'Subject: Invoice INV-0001 from ChaiPoint', ''].join('\r\n')), code.toString(16));
   }
   assert.throws(() => draft({ subject: ['Invoice', 'Bcc: other@example.com'].join('\r\n') }), (error: any) => error.code === 'MAIL_DRAFT_INVALID', 'line breaks are still refused');
+});
+
+test('A6 round 2 (low 5): a file used as it is gets a fresh time, so the next prune keeps a file the sheet still offers', async t => {
+  const s = await shareDeps(t);
+  await mkdir(s.folder, { recursive: true });
+  const path = join(s.folder, 'INV-0001.pdf');
+  await writeFile(path, PDF);
+  const earlier = new Date(Date.now() - 20 * 60 * 60_000);
+  await utimes(path, earlier, earlier);
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps)).result.file, 'INV-0001.pdf');
+  assert.ok(Date.now() - (await stat(path)).mtimeMs < 60_000, 'the reused file was touched');
+});
+
+test('A6 round 2 (low 6): only a file in use counts as open in another app; a plain refusal to write says so', async t => {
+  const fsp = await import('node:fs/promises');
+  const refusing = (code: string, options: { readOnly?: boolean } = {}) => ({ ...fsp,
+    rename: async () => { throw Object.assign(new Error('refused'), { code }); },
+    access: async (path: string, mode?: number) => { if (options.readOnly) throw Object.assign(new Error('read-only'), { code: 'EACCES' }); return fsp.access(path, mode); } });
+  const NOT_ALLOWED = ['SHARE_NOT_ALLOWED', "Chausar isn't allowed to write in its share folder. Check that folder's permissions, then try again."];
+  // No file there yet: a refusal to write is not "open in another app".
+  for (const code of ['EPERM', 'EACCES']) {
+    const s = await shareDeps(t);
+    (s.deps as any).fs = refusing(code);
+    const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+    assert.deepEqual([reply.ok, reply.error.code, reply.error.message], [false, ...NOT_ALLOWED], code);
+  }
+  // A read-only file there: the same honest words.
+  const readOnly = await shareDeps(t);
+  await mkdir(readOnly.folder, { recursive: true });
+  await writeFile(join(readOnly.folder, 'INV-0001.pdf'), 'an older copy');
+  (readOnly.deps as any).fs = refusing('EPERM', { readOnly: true });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, readOnly.deps)).error.code, NOT_ALLOWED[0]);
+  // EBUSY is always a file in use: every name is tried, then the owner is asked to close it.
+  const busy = await shareDeps(t);
+  (busy.deps as any).fs = refusing('EBUSY');
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, busy.deps)).error.code, 'SHARE_FILE_IN_USE');
 });

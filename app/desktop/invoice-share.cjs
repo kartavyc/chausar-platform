@@ -13,6 +13,7 @@ const fsp = require('node:fs/promises');
 const { randomBytes } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { basename, dirname, join, relative } = require('node:path');
+const { constants: fsConstants } = require('node:fs');
 const { mailtoParts, validateExternalUrl } = require('./ipc-contract.cjs');
 const { buildEml, FILE_NAME, TYPES } = require('./mail-draft.cjs');
 
@@ -84,9 +85,18 @@ async function writeWhole(fs, target, bytes) {
   }
 }
 
-// A6 round 1: on Windows a file another app holds open (the PDF in a viewer after "Show the PDF in its folder", the
-// .eml in the mail app) cannot be replaced: the rename fails with EPERM, EBUSY or EACCES.
-const IN_USE = new Set(['EPERM', 'EBUSY', 'EACCES']);
+// A6 rounds 1 and 2: on Windows a file another app holds open (the PDF in a viewer after "Show the PDF in its folder",
+// the .eml in the mail app) cannot be replaced: the rename fails with EBUSY, or with EPERM or EACCES over a file that is
+// there and writable. EPERM or EACCES with no such file is a plain refusal to write, said as that.
+const DENIED = new Set(['EPERM', 'EACCES']);
+const notAllowed = () => failure('SHARE_NOT_ALLOWED', "Chausar isn't allowed to write in its share folder. Check that folder's permissions, then try again.");
+async function heldOpen(fs, path, error) {
+  if (error?.code === 'EBUSY') return true;
+  if (!DENIED.has(error?.code)) return false;
+  const found = await fs.lstat(path).catch(() => null);
+  if (!found || !found.isFile()) return false;
+  return fs.access(path, fsConstants.W_OK).then(() => true, () => false);
+}
 // Shares of the same name run one after another, so two at once never race for one file.
 const writing = new Map();
 function oneAtATime(key, work) {
@@ -112,9 +122,17 @@ function keepFile(fs, folder, name, bytes) {
       const found = await fs.lstat(path).catch(() => null);
       if (found && found.isFile() && found.size === bytes.length) {
         const there = await fs.readFile(path).catch(() => null);
-        if (there && there.equals(bytes)) return candidate;
+        if (there && there.equals(bytes)) {
+          // A6 round 2: a fresh time, so the next prune never takes a file the sheet still offers.
+          const now = new Date();
+          await fs.utimes(path, now, now).catch(() => {});
+          return candidate;
+        }
       }
-      try { await writeWhole(fs, path, bytes); return candidate; } catch (error) { if (!IN_USE.has(error?.code)) throw plain(error); }
+      try { await writeWhole(fs, path, bytes); return candidate; } catch (error) {
+        if (await heldOpen(fs, path, error)) continue;
+        throw DENIED.has(error?.code) ? notAllowed() : plain(error);
+      }
     }
     throw failure('SHARE_FILE_IN_USE', `${name} is open in another app. Close it there and try again.`);
   });
