@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -340,4 +340,28 @@ test('A6 round 1 (medium 1): on Windows, a PDF held open without delete sharing 
   assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
   holder.stdin.end();
   await new Promise(done => holder.once('exit', done));
+});
+
+test('A6 round 1 (low 8): an old folder, junction or link named like a share file is never taken out, nor what it points to', async t => {
+  const s = await shareDeps(t);
+  await mkdir(s.folder, { recursive: true });
+  const outside = join(s.root, 'outside');
+  await mkdir(outside);
+  await writeFile(join(outside, 'INV-0005.pdf'), 'not in the share folder');
+  const old = new Date(Date.now() - 3 * 24 * 60 * 60_000);
+  await mkdir(join(s.folder, 'INV-0004.eml'));
+  await utimes(join(s.folder, 'INV-0004.eml'), old, old);
+  await symlink(outside, join(s.folder, 'INV-0006.pdf'), 'junction');
+  let fileLink = true;
+  try { await symlink(join(outside, 'INV-0005.pdf'), join(s.folder, 'INV-0005.pdf'), 'file'); } catch { fileLink = false; }
+  await utimes(join(outside, 'INV-0005.pdf'), old, old);
+  await utimes(outside, old, old);
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+  const left = (await readdir(s.folder)).sort();
+  assert.deepEqual(left, ['INV-0001.pdf', 'INV-0004.eml', ...(fileLink ? ['INV-0005.pdf'] : []), 'INV-0006.pdf']);
+  assert.equal(await readFile(join(outside, 'INV-0005.pdf'), 'utf8'), 'not in the share folder');
+  for (const name of ['INV-0004.eml', 'INV-0006.pdf', ...(fileLink ? ['INV-0005.pdf'] : [])]) {
+    const reply = await share.showShared({}, { name }, s.deps);
+    assert.equal(reply.ok, false, name);
+  }
 });

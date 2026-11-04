@@ -125,7 +125,7 @@ async function prune(fs, folder, now) {
   for (const entry of entries) {
     if (!entry.isFile() || !(OURS.test(entry.name) || STAGED.test(entry.name))) continue;
     const path = join(folder, entry.name);
-    const found = await fs.stat(path).catch(() => null);
+    const found = await fs.lstat(path).catch(() => null);
     if (found && now - found.mtimeMs > DAY_MS) await fs.rm(path, { force: true }).catch(() => {});
   }
 }
@@ -190,7 +190,7 @@ async function showShared(event, input, deps) {
     if (typeof name !== 'string' || !FILE_NAME.test(name)) throw failure('INVALID_REQUEST', 'Choose the invoice file Chausar kept.');
     const path = join(deps.folder, name);
     if (relative(deps.folder, path) !== name) throw failure('INVALID_REQUEST', 'Choose the invoice file Chausar kept.');
-    const found = await (deps.fs ?? fsp).stat(path).catch(() => null);
+    const found = await (deps.fs ?? fsp).lstat(path).catch(() => null);
     if (!found || !found.isFile()) throw failure('SHARE_FILE_GONE', 'That file is not there any more. Press the button again to make it.');
     deps.shell.showItemInFolder(path);
     return { ok: true };
