@@ -157,7 +157,8 @@ describe('the rules check sends one write for a double press of Continue (A5 fix
     const client: EngineClient = { ...fake, request: (async (method: MethodName, params?: unknown) => { calls.push(method); return fake.request(method as never, params as never); }) as EngineClient['request'] };
     const answers: unknown[] = [];
     render(<TextProvider language="en"><EngineProvider client={client}><ComplianceCheck profession="advocate" onDone={(answer) => answers.push(answer)} /></EngineProvider></TextProvider>);
-    await act(async () => { fireEvent.click(await screen.findByRole('radio', { name: 'I am not sure' }, { timeout: 4000 })); });
+    const unsure = await screen.findByRole('radio', { name: 'I am not sure' }, { timeout: 4000 });
+    await act(async () => { fireEvent.click(unsure); });
     const go = screen.getByRole('button', { name: 'Continue' });
     await act(async () => { fireEvent.click(go); fireEvent.click(go); });
     await waitFor(() => expect(answers).toHaveLength(1));
