@@ -26,7 +26,8 @@ export function createFakeBackground(start: FakeBackgroundStart = {}) {
       const keys = Object.keys(update);
       if (keys.length === 0 || keys.some((key) => !['startAtLogin', 'keepRunning'].includes(key) || typeof update[key as keyof typeof update] !== 'boolean')) throw new EngineError('INVALID_REQUEST', 'Change start at login or keep running, as on or off.');
       changes.push({ ...update });
-      if (!saved.asked && typeof update.startAtLogin !== 'boolean') saved.startAtLogin = computer.registered;
+      // As background.cjs: what the computer has now; a login item it switched off counts as a yes it switched off.
+      if (!saved.asked && typeof update.startAtLogin !== 'boolean') saved.startAtLogin = computer.registered || computer.systemOff;
       if (typeof update.startAtLogin === 'boolean') {
         saved.startAtLogin = update.startAtLogin;
         if (!start.refuses) { computer.registered = update.startAtLogin; computer.systemOff = false; }

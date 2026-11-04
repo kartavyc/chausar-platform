@@ -17,7 +17,11 @@ export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.s
  *   first-run: on the services step, above the services, so it is seen before any Set up. Nothing is registered
  *     here: onChoice hands the tick to the first run, which saves it when the owner leaves the step.
  *   today (A5 fix round 1): when the first run ended without an answer (the app closed on the services step, or Go to
- *     Today before the computer answered), Today asks with the same words and the same tick, and Save answers.
+ *     Today before the computer answered), Today asks with the same words and the same tick, and Save answers. Not
+ *     now (fix round 2) is an answer too: it keeps what the computer has (Keep running sent as it is), so the question
+ *     shows once only.
+ * The tick starts as the desktop's suggestion, except that a login item the computer's own startup settings switched
+ * off starts unticked (fix round 2): one Save never undoes the owner's own no there.
  * Shown only while asksStartAtLogin holds; a preview, the web and the hosted app have no start at login, and a
  * computer that answered keeps its answer (it is changed in Business > Notifications).
  */
@@ -26,6 +30,7 @@ export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'
   const client = useEngine();
   const hintId = useId();
   const [ticked, setTicked] = useState<boolean | null>(null);
+  const [shown, setShown] = useState<BackgroundStateLite | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -33,18 +38,21 @@ export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'
     let live = true;
     client.getBackground?.().then((state) => {
       if (!live || !asksStartAtLogin(state)) return;
-      setTicked(state.startAtLogin);
-      onChoice?.(state.startAtLogin);
+      const start = state.systemOff ? false : state.startAtLogin;
+      setShown(state);
+      setTicked(start);
+      onChoice?.(start);
     }, () => { /* Not readable: nothing is asked, and nothing is registered. */ });
     return () => { live = false; };
   }, [client, onChoice]);
 
-  async function save() {
-    if (ticked === null || !client.setBackground) return;
+  /** Save answers with the tick; Not now (later) answers by keeping the computer as it is. */
+  async function save(later = false) {
+    if (ticked === null || busy || !client.setBackground || !shown) return;
     setBusy(true);
     setProblem(null);
     try {
-      await client.setBackground({ startAtLogin: ticked });
+      await client.setBackground(later ? { keepRunning: shown.keepRunning } : { startAtLogin: ticked });
       setTicked(null);
     } catch (error) {
       setProblem(t('business.notify.failed', { message: error instanceof Error ? error.message : String(error) }));
@@ -64,6 +72,7 @@ export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'
       {place === 'today' && (
         <span className={s.buttons}>
           <Button variant="secondary" size="sm" disabled={busy} onClick={() => void save()}>{t('first-run.login.save')}</Button>
+          <Button variant="quiet" size="sm" disabled={busy} onClick={() => void save(true)}>{t('first-run.login.later')}</Button>
         </span>
       )}
       {problem && <p className={s.problem} role="alert">{problem}</p>}

@@ -204,10 +204,41 @@ describe('an older install with a silent login item is asked once on Today (foun
       expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
     }, 20000);
   }
-  it('one the computer switched off is asked too', async () => {
-    start({ fresh: false, computer: createFakeBackground({ systemOff: true }) });
-    expect(await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 })).toBeTruthy();
+  // A5 fix round 2 (finding 1): the owner's own no in the computer's startup settings is not undone by one Save.
+  it('one the computer switched off is asked too, unticked, and Save as it is leaves it off', async () => {
+    const computer = createFakeBackground({ systemOff: true });
+    start({ fresh: false, computer });
+    const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
+    expect(tick.checked).toBe(false);
+    await press('Save');
+    await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
+    expect(computer.computer.registered).toBe(false);
   });
+});
+
+// A5 fix round 2 (finding 4): "asked once" means Today's question can be put aside for good: Not now is an answer that
+// keeps what the computer has now, and the question never shows again.
+describe('Not now on Today keeps the computer as it is (A5 fix round 2)', () => {
+  for (const [name, start0, registered, systemOff] of [
+    ['a registered login item stays registered', { registered: true }, true, false],
+    ['no login item stays none', {}, false, false],
+    ['a switched-off login item stays there and off', { systemOff: true }, false, true],
+  ] as const) {
+    it(name, async () => {
+      const computer = createFakeBackground(start0);
+      start({ fresh: false, computer });
+      await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+      await press('Not now');
+      await waitFor(() => expect(computer.changes).toEqual([{ keepRunning: true }]), { timeout: 4000 });
+      expect([computer.computer.registered, computer.computer.systemOff]).toEqual([registered, systemOff]);
+      await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
+      cleanup();
+      start({ fresh: false, computer });
+      await screen.findByRole('navigation', {}, { timeout: 4000 });
+      await act(async () => { await new Promise((accept) => setTimeout(accept, 20)); });
+      expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
+    }, 20000);
+  }
 });
 
 describe('Business > Notifications reads the computer again (A5 fix round 1, finding 5)', () => {
