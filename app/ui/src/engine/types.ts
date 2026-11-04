@@ -2471,6 +2471,8 @@ export type ResultOf<M extends MethodName> = EngineMethods[M]['result'];
 export class EngineError extends Error {
   readonly code: string;
   readonly reason?: string;
+  /** One-shot B1: the engine's own text when the owner sees other words (engine/owner-errors.ts), kept for reports. */
+  detail?: string;
   constructor(code: string, message: string, reason?: string) {
     super(message);
     this.name = 'EngineError';

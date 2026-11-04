@@ -265,7 +265,7 @@
   "diff.undone": "Undone. {name} is back on version {from}.",
   "diff.failed": "Couldn't send your decision. {message}",
   "approval.elsewhere": "Resolved elsewhere",
-  "custody.refused.UNLOCK_FAILED": "That didn't open it. Check what you typed and try again.",
+  "custody.refused.UNLOCK_FAILED": "That passphrase or code didn't open it. Check Caps Lock and try again.",
   "custody.refused.VAULT_OPEN": "Another business is open. Close it first.",
   "custody.refused.VAULT_LOCKED": "This business is closed. Open it first.",
   "custody.refused.WEAK_PASSPHRASE": "Use a passphrase of at least 12 characters.",

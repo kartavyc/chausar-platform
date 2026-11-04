@@ -1,4 +1,5 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
+import { ownerError } from './owner-errors';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
@@ -1477,7 +1478,8 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
   return {
     engine,
     transport: 'fake',
-    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return engine.request(method, params) as Promise<ResultOf<M>>; },
+    // One-shot B1: refusals in the owner's words at the same edge as the real client (owner-errors.ts).
+    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return (engine.request(method, params) as Promise<ResultOf<M>>).catch((error: unknown) => { throw ownerError(error); }); },
     subscribe: (listener) => engine.subscribe(listener),
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),

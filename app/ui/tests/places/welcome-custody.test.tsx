@@ -54,7 +54,7 @@ describe('Welcome back: a business locked with a passphrase', () => {
     fireEvent.change(field, { target: { value: 'not the passphrase' } });
     await press(screen.getByRole('button', { name: 'Open' }));
     expect(field.value).toBe('');
-    expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again.");
+    expect(screen.getByRole('alert').textContent).toBe("That passphrase or code didn't open it. Check Caps Lock and try again.");
 
     fireEvent.change(field, { target: { value: SAMPLE_PASSPHRASE } });
     await press(screen.getByRole('button', { name: 'Open' }));
@@ -71,7 +71,7 @@ describe('Welcome back: a business locked with a passphrase', () => {
     const field = screen.getByLabelText('Passphrase for Sitara Events') as HTMLInputElement;
     fireEvent.change(field, { target: { value: 'not the passphrase' } });
     await press(screen.getByRole('button', { name: 'Open' }));
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again."));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("That passphrase or code didn't open it. Check Caps Lock and try again."));
     expect((screen.getByRole('button', { name: 'Open' }) as HTMLButtonElement).disabled).toBe(false);
     expect(field.value).toBe('');
   });
@@ -106,7 +106,7 @@ describe('Welcome back: the recovery code', () => {
     expect(sent(calls, 'workspace.recover')).toEqual([]);
     fireEvent.change(screen.getByLabelText('Recovery code'), { target: { value: 'WRONG-CODE' } });
     await press(screen.getByRole('button', { name: 'Recover' }));
-    expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again.");
+    expect(screen.getByRole('alert').textContent).toBe("That passphrase or code didn't open it. Check Caps Lock and try again.");
     expect((screen.getByLabelText('Recovery code') as HTMLInputElement).value).toBe('');
     fireEvent.change(screen.getByLabelText('Recovery code'), { target: { value: SAMPLE_RECOVERY_CODE } });
     await press(screen.getByRole('button', { name: 'Recover' }));

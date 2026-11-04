@@ -8,6 +8,7 @@
  */
 
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
+import { ownerError } from './owner-errors';
 import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
@@ -126,9 +127,9 @@ function shareResult(value: unknown): InvoiceShareResult {
 }
 
 function asEngineError(error: unknown): EngineError {
-  if (error instanceof EngineError) return error;
+  if (error instanceof EngineError) return ownerError(error);
   const e = error as { code?: unknown; message?: unknown; reason?: unknown } | null;
-  return new EngineError(typeof e?.code === 'string' ? e.code : 'REQUEST_FAILED', typeof e?.message === 'string' ? e.message : 'The engine could not complete the request.', typeof e?.reason === 'string' ? e.reason : undefined);
+  return ownerError(new EngineError(typeof e?.code === 'string' ? e.code : 'REQUEST_FAILED', typeof e?.message === 'string' ? e.message : 'The request did not finish.', typeof e?.reason === 'string' ? e.reason : undefined));
 }
 
 export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient {
@@ -249,7 +250,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     transport,
     request<M extends MethodName>(method: M, params?: ParamsOf<M>): Promise<ResultOf<M>> {
       const payload = params ?? {};
-      return (bridge ? overDesktop(method, payload) : overHttp(method, payload)) as Promise<ResultOf<M>>;
+      // One-shot B1: a refusal reaches the page in the owner's words (owner-errors.ts), with its code kept.
+      return (bridge ? overDesktop(method, payload) : overHttp(method, payload)).catch((error: unknown) => { throw ownerError(error); }) as Promise<ResultOf<M>>;
     },
     subscribe(listener: (event: VentureRunEvent) => void) { return feed.subscribe(listener); },
     status: () => status.get(),

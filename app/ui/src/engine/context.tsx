@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { ownerError } from './owner-errors';
 import { EngineError, type EngineClient, type EngineStatus, type MethodName, type ParamsOf, type ResultOf, type VentureRunEvent } from './types';
 
 const EngineContext = createContext<EngineClient | null>(null);
@@ -47,7 +48,7 @@ export function useResource<M extends MethodName>(method: M, params: ParamsOf<M>
       (data) => { if (mine === generation.current) setState({ data, error: undefined, loading: false }); },
       (error: unknown) => {
         if (mine !== generation.current) return;
-        const e = error instanceof EngineError ? error : new EngineError('REQUEST_FAILED', error instanceof Error ? error.message : String(error));
+        const e = error instanceof EngineError ? error : ownerError(new EngineError('REQUEST_FAILED', error instanceof Error ? error.message : String(error)));
         setState((s) => ({ data: s.data, error: e, loading: false }));
       },
     );
