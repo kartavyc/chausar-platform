@@ -75,7 +75,7 @@ describe('desktop transport', () => {
       expect(await client.shareInvoice!('inv-0001', 'email'), JSON.stringify(attached)).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001-2.pdf', to: true, note: null });
     }
     (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001.pdf', to: true, note: null });
-    expect((await client.shareInvoice!('inv-0001', 'email')).attached).toBe('INV-0001.pdf');
+    expect(await client.shareInvoice!('inv-0001', 'email')).toMatchObject({ file: 'INV-0001-2.pdf', attached: 'INV-0001.pdf' });
     expect(createEngineClient({ bridge: { request: vi.fn() } }).shareInvoice).toBeUndefined();
   });
 
