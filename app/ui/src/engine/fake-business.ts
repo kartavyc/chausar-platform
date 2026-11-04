@@ -207,11 +207,11 @@ export class FakeBusinessDesk {
       case 'venture.models.presets': return this.presets();
       case 'venture.models.status': return clone(this.modelsOf(biz));
       case 'venture.models.connect': return this.connect(this.modelsOf(biz), p, biz);
-      case 'venture.models.disconnect': return this.disconnect(this.modelsOf(biz), p);
+      case 'venture.models.disconnect': return this.disconnect(this.modelsOf(biz), p, biz);
       case 'venture.ai.options': return { presets: this.presets(), status: clone(this.draftAi), unchecked: true };
       case 'venture.ai.status': return clone(this.draftAi);
       case 'venture.ai.connect': return this.connect(this.draftAi, p, null);
-      case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p);
+      case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p, null);
       // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
       case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
@@ -277,12 +277,17 @@ export class FakeBusinessDesk {
     if (this.draftAi.connections.some((c) => c.status === 'connected') || !this.lastCli || this.lastCli === biz) return null;
     const from = this.lastCli;
     const carried = this.modelsOf(from).connections.filter((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli'));
-    if (!carried.length) return null;
+    // A4 review round 2 (H2): every AI passes connect's gates now, with the agreement and its time from there.
+    const presets = this.presets();
+    if (!carried.length || carried.some((c) => { const preset = presets.find((x) => x.id === c.presetId); return !preset || preset.availability === 'unavailable' || preset.availability === 'needs-setup'; })) return null;
     const state = this.modelsOf(biz);
-    for (const connection of carried) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}`, consentedAt: this.host.now() });
+    for (const connection of carried) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}` });
     this.retier(state);
     return from;
   }
+
+  /** A4 review round 2 (M2): workspace.delete clears the setup the deleted business saved. */
+  forgetAiSetup(biz: string): void { if (this.lastCli === biz) this.lastCli = null; }
 
   adoptDraft(biz: string): void {
     const connected = this.draftAi.connections.filter((c) => c.status === 'connected');
@@ -340,11 +345,13 @@ export class FakeBusinessDesk {
     return clone(state);
   }
 
-  private disconnect(state: ModelStatusLite, p: Record<string, unknown>): ModelStatusLite {
+  private disconnect(state: ModelStatusLite, p: Record<string, unknown>, biz: string | null): ModelStatusLite {
     const connection = state.connections.find((c) => c.id === p.connectionId && c.status === 'connected');
     if (!connection) throw invalid('No such AI connection.');
     Object.assign(connection, { status: 'disconnected', usable: false, keyLoaded: false, reason: 'Disconnected.' });
     this.retier(state);
+    // A4 review round 2 (M2): the setup this business saved goes with its last Codex or Claude Code connection.
+    if (biz && this.lastCli === biz && !state.connections.some((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli'))) this.lastCli = null;
     return clone(state);
   }
 

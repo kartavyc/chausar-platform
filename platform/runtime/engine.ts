@@ -70,7 +70,7 @@ import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
-import { aiSetupFile } from './venture/models/ai-setup-file.ts';
+import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
 import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
@@ -261,6 +261,11 @@ export class Engine {
       add: async (values: readonly string[]) => { await this.snapshotStore()?.neverContactAdd(values); },
     }),
   });
+  /** A4 fix round: the newest AI setup on this computer (models/ai-setup.ts); none on the hosted app. */
+  #aiSetup() {
+    const venture = this.options.venture ?? {};
+    return venture.host === 'hosted-web' ? null : venture.aiSetup ?? aiSetupFile(join(this.options.directory, 'custody', 'ai-setup.json'));
+  }
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
@@ -268,7 +273,7 @@ export class Engine {
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper, speech: this.services.speech },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
-          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover, aiSetup: venture.aiSetup ?? aiSetupFile(join(this.options.directory, 'custody', 'ai-setup.json')) }),
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover, aiSetup: this.#aiSetup()! }),
           workspace: venture.workspace ?? this.#ventureWorkspace,
           notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); },
           watching: venture.watching ?? (() => this.#watchingAt()),
@@ -1721,7 +1726,11 @@ export class Engine {
         this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
         // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
         const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
-        const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
+        const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id;
+        await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
+        // A4 review round 2 (M2): the AI setup it saved goes too, so no later business names it. Never fails the delete.
+        const aiSetup = this.#aiSetup();
+        if (aiSetup) await forgetAiSetup(aiSetup, deletedWorkspace).catch(() => {});
         // One-shot A4 (hands-on S10): the business's own folder goes too, only when nothing is left in it.
         await this.removeEmptyFolder(this.workspacePath(deletedFolder ?? undefined));
         return { deleted: true, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };

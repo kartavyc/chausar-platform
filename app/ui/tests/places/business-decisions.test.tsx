@@ -61,4 +61,29 @@ describe('Business > Decisions', () => {
     expect(first.querySelector('[data-who]')!.textContent).toContain('You');
     expect(first.textContent).toContain('Sent back with your words: Revise this to cut the intro');
   });
+
+  // A4 review round 2: the eyebrow names who decided as the reader reads it: You for the reader's own, else the role,
+  // and Chausar for its own note.
+  it('names the reader as You, another member by their role, and Chausar for its own note', async () => {
+    window.location.hash = '#/business/decisions';
+    const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T10:00:00.000Z' }));
+    const real = client.request.bind(client);
+    const one = (id: string, who: string, mine: boolean, line: string) => ({
+      id, at: '2026-10-23T09:00:00.000Z', subject: `price:${id}`, action: 'accept', who, rule: null, ruleId: null, reason: line, line, by: mine || who !== 'chausar' ? id : null, agentId: null, mine,
+    });
+    const listed = { decisions: [
+      one('d1', 'owner', true, 'You decided: Keep the price.'),
+      one('d2', 'owner', false, 'The owner decided: Keep the price.'),
+      one('d3', 'accountant', false, 'Your accountant decided: Keep the price.'),
+      one('d4', 'chausar', false, 'This business uses the same AI as Pune Frames.'),
+    ] };
+    vi.spyOn(client, 'request').mockImplementation(((method: string, payload: unknown) => (method === 'venture.decisions.list' ? Promise.resolve(listed) : real(method as never, payload as never))) as never);
+    render(<App client={client} language="en" />);
+    const rows = await waitFor(() => {
+      const found = [...document.querySelectorAll<HTMLElement>('[data-decisions] li')];
+      expect(found.length).toBe(4);
+      return found;
+    });
+    expect(rows.map((row) => row.querySelector('[data-who]')!.firstChild!.textContent)).toEqual(['You', 'The owner', 'Your accountant', 'Chausar']);
+  });
 });

@@ -1130,7 +1130,7 @@ export class FakeEngine {
         // A4 fix round (core/venture.ts reuseAi): from the Start gallery, with no AI from the first run, the newest
         // Codex or Claude Code setup of another business comes along, and the decision says where from.
         const reusedFrom = p.reuseAi === true ? this.desk.reuseAi(this.current) : null;
-        if (reusedFrom) this.w4.noteDecision(`ai-setup:${reusedFrom}`, 'reuse-ai', `Uses the same AI as ${this.ventures.get(reusedFrom)?.workingName ?? 'your other business'}.`);
+        if (reusedFrom) this.w4.chausarNote(`ai-setup:${reusedFrom}`, 'reuse-ai', `This business uses the same AI as ${this.ventures.get(reusedFrom)?.workingName ?? 'your other business'}.`);
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
         this.desk.adoptDraft(this.current);
         return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };
@@ -1296,6 +1296,7 @@ export class FakeEngine {
     this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);
     this.ventures.delete(business.id);
+    this.desk.forgetAiSetup(business.id);
     const exportsKept = this.desk.exportsOf(business.id);
     this.desk.dropBackups(business.id);
     this.rows = this.rows.filter((r) => r.businessId !== business.id);

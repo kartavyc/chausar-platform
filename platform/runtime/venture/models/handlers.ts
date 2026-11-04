@@ -10,8 +10,9 @@ import { currentVenture, exactPayload, identifier, listRecords, readVenture, req
 import { CLI_STATUS_WORDS, cliListLine, cliStatusView, lastCliTask } from './cli-status.ts';
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
-import { AVAILABILITY_REASONS, claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
-import { rememberAiSetup } from './ai-setup.ts';
+import { claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
+import { liveGates, presetGates } from './gates.ts';
+import { refreshAiSetup, rememberAiSetup } from './ai-setup.ts';
 import { rolesHandler } from './roles.ts';
 import type { ConnectionRecord } from './types.ts';
 import { payerChangeLine } from '../money/spend.ts';
@@ -48,10 +49,7 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
   const presetId = input.presetId as ModelPresetId;
   check(!(options.draft && presetId === 'built-in-templates'), 'INVALID_VENTURE_REQUEST', 'Built-in templates need no connection. Continue without AI instead.');
   const spec = presetSpec(presetId);
-  check(!(deps.host === 'hosted-web' && spec.runsOn === 'this-computer'), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
-  check(presetId !== 'claude-code-cli' || claudeTermsOpen(deps.claudeCodeTerms), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.claudeTerms);
-
-  check(typeof input.consentDigest === 'string' && input.consentDigest === spec.consentDigest, 'MODEL_CONSENT_REQUIRED', 'Read and accept what this connection sends before connecting.');
+  presetGates(deps, presetId, input.consentDigest);
   let apiKey: string | null = null;
   if (spec.needsKey) {
     check(typeof input.apiKey === 'string' && input.apiKey.length >= 20 && input.apiKey.length <= 400 && !/\s/.test(input.apiKey), 'INVALID_VENTURE_REQUEST', 'Paste the whole key, with no spaces.');
@@ -77,9 +75,7 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
   if (spec.runsOn === 'this-computer') await deps.models.checkCli(presetId);
   // A2: Codex's route model comes from Codex's own list unless the owner typed one; the fixed id only when it is unread.
   if (presetId === 'codex-cli' && input.model === undefined && deps.models.codexModels) model = (await deps.models.codexModels()).route;
-  const live = deps.models.presets().find(preset => preset.id === presetId);
-  check(live && live.availability !== 'unavailable', 'PRESET_UNAVAILABLE', live?.availabilityReason ?? 'This AI option is not available here.');
-  check(presetId !== 'codex-cli' || live.availability !== 'needs-setup', 'PRESET_UNAVAILABLE', live.availabilityReason);
+  liveGates(deps, presetId);
 
   const secretName = SECRET(presetId);
   const previousKey = apiKey !== null ? deps.secrets.get(secretName) : null;
@@ -165,6 +161,8 @@ export function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): P
       throw error;
     }
     if (removeKey) deps.secrets.delete(name);
+    // A4 review round 2 (M2): the AI setup this business saved no longer holds an AI it has disconnected.
+    await refreshAiSetup(deps);
     return deps.models.status(ctx);
   });
 }

@@ -4224,7 +4224,7 @@ export type GoalRecord = RecordBase<'venture-goal'> & { month: string; amountMin
 export type DecisionRecord = RecordBase<'venture-decision'> & {
   subject: string;
   action: string;
-  who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout';
+  who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout' | 'chausar';
   ruleId: string | null;
   reason: string;
   rowId: string | null;
@@ -5054,7 +5054,7 @@ export interface GoalSuggestion { amountMinor: MinorString; display: Display; es
  * record (a team gate, an allow for this session), with rule its words; both null when no rule decided.
  */
 export type DecisionView = {
-  id: string; at: IsoTime; subject: string; action: string; who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout';
+  id: string; at: IsoTime; subject: string; action: string; who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout' | 'chausar';
   rule: Display | null; ruleId: string | null; reason: Display; line: Display; by: string | null;
   /** A4 review (L5): the reader's own decision. */
   mine: boolean;

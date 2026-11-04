@@ -27,7 +27,8 @@ export const DECISIONS_MAX = 500;
 
 /**
  * What one decision recorded outside Today says. ruleId: the saved rule's record, when a rule decided. who: only for a
- * decision no member made (a timeout, a saved rule); a member's decision is the member's own (recordDecision).
+ * decision no member made (a timeout, a saved rule, or Chausar's own note, such as a gallery business reusing another's
+ * AI); a member's decision is the member's own (recordDecision).
  */
 export type DecisionInput = Pick<DecisionRecord, 'subject' | 'action' | 'ruleId' | 'reason' | 'rowId'> & { who?: DecisionRecord['who'] };
 
@@ -40,8 +41,9 @@ const whoIs = (state: State, memberId: string | null | undefined) => memberWho(s
 /** Records one decision inside the caller's transaction, as the member the transaction runs for. Writes only; callers emit. */
 export function recordDecision(tx: VentureTx, input: DecisionInput): DecisionRecord {
   // One-shot A3 (after review): with the role of the member it runs for, so a cofounder's decision is never the owner's.
-  // One-shot A4: who, too, comes from that role for every member's decision; only a timeout or a saved rule names itself.
-  const who = input.who === 'timeout' || input.who === 'saved-rule' ? input.who : memberWho(tx.ctx.role);
+  // One-shot A4: who, too, comes from that role for every member's decision; only a timeout, a saved rule or Chausar's
+  // own note names itself.
+  const who = input.who === 'timeout' || input.who === 'saved-rule' || input.who === 'chausar' ? input.who : memberWho(tx.ctx.role);
   return tx.put<DecisionRecord>({ ...tx.base('venture-decision'), role: tx.ctx.role, ...input, who });
 }
 
@@ -268,7 +270,7 @@ export function decisionViews(state: State, venture: VentureRecord, reader: stri
   });
   const others: DecisionView[] = [];
   for (const record of listRecords(state, 'venture-decision', venture.id)) {
-    const member = record.who !== 'timeout' && record.who !== 'saved-rule';
+    const member = record.who !== 'timeout' && record.who !== 'saved-rule' && record.who !== 'chausar';
     const line = member ? DECISION_WORDS.decided(subjectOf(state, record.memberId, reader), record.reason) : record.who === 'timeout' ? DECISION_WORDS.timeout(record.reason) : record.reason;
     others.push({
       id: record.id, at: record.at, subject: record.subject, action: record.action, who: record.who, rule: ruleWords(state, venture, record.ruleId), ruleId: record.ruleId,

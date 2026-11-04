@@ -127,9 +127,12 @@ export class FakeApprovalsDesk {
 
   /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
   noteDecision(subject: string, action: string, reason: string): void { this.record(subject, action, reason, `You decided: ${reason}`); }
+  /** A4 review round 2: Chausar's own note (journal/decisions.ts who 'chausar'), its reason as its line. */
+  chausarNote(subject: string, action: string, reason: string): void { this.record(subject, action, reason, reason, 'chausar'); }
 
-  private record(subject: string, action: string, reason: string, line: string): void {
-    this.decisions.push({ id: `fake-decision-${(this.seq += 1)}`, at: this.now(), subject, action, who: 'owner', rule: null, ruleId: null, reason, line, by: 'owner', agentId: null, mine: true });
+  private record(subject: string, action: string, reason: string, line: string, who: 'owner' | 'chausar' = 'owner'): void {
+    const mine = who === 'owner';
+    this.decisions.push({ id: `fake-decision-${(this.seq += 1)}`, at: this.now(), subject, action, who, rule: null, ruleId: null, reason, line, by: mine ? 'owner' : null, agentId: null, mine });
   }
 
   /** The row the owner saw, or what the engine answers instead: stale with the latest, or resolved elsewhere. */

@@ -442,6 +442,7 @@
   "business.decisions.who.cofounder": "Your cofounder",
   "business.decisions.who.saved-rule": "A saved rule",
   "business.decisions.who.timeout": "No answer in time",
+  "business.decisions.who.chausar": "Chausar",
   "business.decisions.rule": "Rule: {rule}",
   "business.decisions.stopAllowing": "Stop always allowing",
   "business.decisions.stopped": "'{step}' waits for you again.",
