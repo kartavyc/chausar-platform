@@ -254,12 +254,14 @@ test('A6 round 1 (low 7): a mail link with no address needs at least a subject',
   assert.equal(contract.validateExternalUrl('mailto:client@example.com'), 'mailto:client@example.com', 'with an address the subject may be left out, as before');
 });
 
-test('A6 round 1 (lows 4 and 5): every header line of the draft stays within 76; "=?" is encoded; hidden direction marks are refused', () => {
+test('A6 round 1 (lows 4 and 5): every header line of the draft stays within 76; "=?" is encoded; hidden marks are taken out', () => {
   const headLines = (subject: string) => split(draft({ subject })).head;
   const decodeSubject = (head: string[]) => {
     const at = head.findIndex(line => line.startsWith('Subject: '));
     const words = [head[at]!.slice('Subject: '.length)];
     for (let next = at + 1; head[next]!.startsWith(' '); next++) words.push(head[next]!.slice(1));
+    // A short plain subject goes as it is; anything else as encoded words.
+    if (words.length === 1 && !words[0]!.startsWith('=?')) return words[0]!;
     return Buffer.concat(words.map(word => Buffer.from(/^=\?UTF-8\?B\?([A-Za-z0-9+/=]+)\?=$/.exec(word)![1]!, 'base64'))).toString('utf8');
   };
   for (const subject of [`Invoice INV-0002 from ${'नमस्ते Studio '.repeat(6)}`.trim(), '😀'.repeat(40) + ' क्ष', `Invoice INV-0003 from ${'Ledger Cafe Books and Sons '.repeat(4)}`.trim()]) {
@@ -271,7 +273,10 @@ test('A6 round 1 (lows 4 and 5): every header line of the draft stays within 76;
   const head = headLines(tricky);
   assert.ok(!head.includes(`Subject: ${tricky}`), 'never raw, so a mail app cannot read it as an encoded word');
   assert.equal(decodeSubject(head), tricky);
-  for (const subject of ['Invoice ‮fdp.exe', '﻿Invoice', 'Invoice⁦x⁩', 'Invoice​x']) assert.throws(() => draft({ subject }), (error: any) => error.code === 'MAIL_DRAFT_INVALID', JSON.stringify(subject));
+  // A6 round 2: hidden format marks are taken out of the subject (a name pasted with one still works), never refused.
+  const mark = (code: number) => String.fromCodePoint(code);
+  for (const code of [0x202E, 0xFEFF, 0x2066, 0x2069, 0x200B, 0x00AD, 0x200E, 0x200F]) assert.equal(decodeSubject(headLines(`Invoice ${mark(code)}from Chai${mark(code)}Point`)), 'Invoice from ChaiPoint', code.toString(16));
+  assert.equal(decodeSubject(headLines(`Invoice  from   Chai ${mark(0x200B)} Point `)), 'Invoice from Chai Point', 'white space folds to one space, as the engine folds a name');
   const joined = 'Invoice from क्‌ष Studio';
   assert.equal(decodeSubject(headLines(joined)), joined, 'the joiners Indian scripts need are kept');
 });
@@ -431,4 +436,15 @@ test('A6 round 1 (medium 3): the app for email files is read quietly from the co
   assert.equal(await share.emlHandler({ platform: 'linux', run: answers({}) }), false);
   assert.equal(await share.emlHandler({ platform: 'darwin', run: answers({}) }), true, 'Mail opens email files on every Mac');
   assert.equal(await share.emlHandler({ platform: 'win32', run: async () => { throw new Error('no reg'); } }), false);
+});
+
+test('A6 round 2 (medium 2): a business name pasted with a hidden mark still gets its email (Chai{ZWSP,SHY,LRM}Point)', async t => {
+  for (const code of [0x200B, 0x00AD, 0x200E]) {
+    const subject = `Invoice INV-0001 from Chai${String.fromCodePoint(code)}Point`;
+    const s = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('client@example.com', subject) } }) });
+    const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+    assert.equal(reply.result?.opened, 'draft', code.toString(16));
+    assert.ok((await readFile(join(s.folder, 'INV-0001.eml'), 'utf8')).startsWith(['To: client@example.com', 'Subject: Invoice INV-0001 from ChaiPoint', ''].join('\r\n')), code.toString(16));
+  }
+  assert.throws(() => draft({ subject: ['Invoice', 'Bcc: other@example.com'].join('\r\n') }), (error: any) => error.code === 'MAIL_DRAFT_INVALID', 'line breaks are still refused');
 });

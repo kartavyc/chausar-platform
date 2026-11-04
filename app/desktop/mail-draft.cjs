@@ -10,9 +10,12 @@ const { randomBytes } = require('node:crypto');
 const { MAILTO_ADDRESS } = require('./ipc-contract.cjs');
 
 const BREAKS = /[\p{Cc}\u0085\u2028\u2029]/u;
-// A6 round 1: hidden format characters (direction overrides like U+202E, the byte order mark, zero-width spaces) could
-// make a subject read as something else, so they are refused. The two joiners Indian scripts need (U+200C, U+200D) stay.
-const HIDDEN = /(?!\u{200C}|\u{200D})\p{Cf}/u;
+// A6 rounds 1 and 2: hidden format characters (direction marks and overrides like U+200E and U+202E, the byte order mark,
+// zero-width spaces, soft hyphens) could make a subject read as something else, so they are taken out of it; a name
+// pasted with one still gets its email. The two joiners Indian scripts need (U+200C, U+200D) stay.
+const HIDDEN = /(?!\u{200C}|\u{200D})\p{Cf}/gu;
+/** The subject as it goes in the draft: hidden marks out, white space folded to one space, as the engine folds a name. */
+const cleanSubject = subject => subject.replace(HIDDEN, '').replace(/\s+/g, ' ').trim();
 const FILE_NAME = /^[A-Za-z0-9-]{1,80}\.(pdf|html)$/;
 const TYPES = Object.freeze({ pdf: 'application/pdf', html: 'text/html' });
 const MAX_SUBJECT = 1000;
@@ -52,7 +55,8 @@ function subjectValue(subject) {
 function buildEml(input) {
   const { to, subject, body, attachment } = input ?? {};
   if (typeof to !== 'string' || (to !== '' && (BREAKS.test(to) || !MAILTO_ADDRESS.test(to)))) throw failure('The client\'s email address cannot go in a draft.');
-  if (typeof subject !== 'string' || subject.length > MAX_SUBJECT || BREAKS.test(subject) || HIDDEN.test(subject)) throw failure('The subject cannot go in a draft.');
+  // Line breaks are refused, never folded: a subject with one is not what the engine wrote.
+  if (typeof subject !== 'string' || subject.length > MAX_SUBJECT || BREAKS.test(subject)) throw failure('The subject cannot go in a draft.');
   if (typeof body !== 'string' || body.length > MAX_BODY) throw failure('The message cannot go in a draft.');
   const name = attachment?.name, match = typeof name === 'string' ? FILE_NAME.exec(name) : null;
   if (!match || attachment.mimeType !== TYPES[match[1]]) throw failure('The file cannot go in a draft.');
@@ -61,7 +65,7 @@ function buildEml(input) {
   const text = body.replace(/\r\n|\r|\n/g, '\r\n');
   return [
     ...(to ? [`To: ${to}`] : []),
-    `Subject: ${subjectValue(subject)}`,
+    `Subject: ${subjectValue(cleanSubject(subject))}`,
     'X-Unsent: 1',
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
