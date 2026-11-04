@@ -246,13 +246,17 @@ describe('Ink v2 rules the UI keeps (w3 plan)', () => {
     for (const sheet of sheets) expect(broken('customProperties', sheet), sheet.f).toEqual([]);
   });
 
-  it('the accent is a token: 2fb67c appears in src only in tokens.css, and the old neon green nowhere', () => {
+  // One-shot A7: the founder's logo (public/icon.svg, held to the logo file by rail.test.tsx) has its own green, the
+  // old neon. That one file keeps it; the app's accent stays Jade and the neon stays out of everything else.
+  it('the accent is a token: 2fb67c appears in src only in tokens.css, and the old neon green nowhere but the logo', () => {
     const neon = new RegExp(['46', 'f0', '9b'].join(''), 'i');
     for (const { f, text } of everything) {
       if (f !== 'tokens/tokens.css') expect(text, f).not.toMatch(/2fb67c/i);
       expect(text, f).not.toMatch(neon);
     }
-    for (const path of [...files(join(app, 'public')).filter((p) => TEXT_FILE.test(p)), join(app, 'index.html')]) expect(readFileSync(path, 'utf8'), path).not.toMatch(neon);
+    const logo = join(app, 'public', 'icon.svg');
+    for (const path of [...files(join(app, 'public')).filter((p) => TEXT_FILE.test(p) && p !== logo), join(app, 'index.html')]) expect(readFileSync(path, 'utf8'), path).not.toMatch(neon);
+    expect(readFileSync(logo, 'utf8')).toMatch(neon);
   });
 
   it('no emoji in src or the text catalogues', () => {

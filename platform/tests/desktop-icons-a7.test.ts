@@ -152,3 +152,34 @@ test('the tray icon is the founder\'s tray PNGs as given: the logo at 16, 24 and
   const main = (await read('app/desktop/main.cjs')).toString('utf8');
   assert.match(main, /nativeImage\.createFromPath\(join\(__dirname, 'icon\.png'\)\)/, 'the tray reads icon.png');
 });
+
+test('the favicon and the web app icons are the logo: the SVG and the 512 as given, the 192 rendered once from the SVG', async () => {
+  const svg = (await read('app/ui/public/icon.svg')).toString('utf8').replace(/\r\n/g, '\n');
+  assert.equal(sha(Buffer.from(svg, 'utf8')), '3f8ab8b901fe80373d870a2813b95c9d65a83805ba46617397dfceafecd3e629', 'icon.svg is chausar-logo.svg');
+  const given512 = '71667079ebf6a997cd3d6d14390de2de3e0034ede94a2c890664308c62e3a9b4';
+  // icon-192.png: the founder gave no 192, so it was rendered from chausar-logo.svg with this repo's Electron (A7 notes).
+  for (const [name, size, hash] of [['icon-512.png', 512, given512], ['icon-maskable-512.png', 512, given512], ['icon-192.png', 192, '1572e154143939bd3f32cde7af57dff4c14651509531e2bf50a518d297433055']] as const) {
+    const bytes = await read(`app/ui/public/${name}`);
+    assert.equal(sha(bytes), hash, name);
+    const png = decodePng(bytes, name);
+    assert.deepEqual([png.width, png.height, png.colour], [size, size, 6], name);
+    assertLogo(png, name);
+  }
+});
+
+test('the maskable icon keeps both squares inside the safe circle (80% of the icon), so no launcher mask cuts them', async () => {
+  const png = decodePng(await read('app/ui/public/icon-maskable-512.png'), 'maskable');
+  const centre = png.width / 2, safe = png.width * 0.4;
+  let outside = 0;
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      if (Math.hypot(x + 0.5 - centre, y + 0.5 - centre) <= safe) continue;
+      const [r, g, b, a] = png.pixel(x, y);
+      // The tile's own rounded edge is blended with clear there; neither square's grey or green ever is.
+      const dark = Math.max(r!, g!, b!) <= 0x10;
+      assert.ok(dark || a! < 0x40, `(${x}, ${y}) outside the safe circle is the tile or clear`);
+      outside++;
+    }
+  }
+  assert.ok(outside > 0);
+});
