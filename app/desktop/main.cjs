@@ -108,6 +108,11 @@ async function startEngine() {
 // looked, and a number left standing could be wrong. The first time the window closes while Chausar keeps running in
 // the background on Windows, one balloon says so, never again (a file in the app's own folder remembers). A click on
 // any of them opens the window and nothing more: a notification never acts on its own.
+/** A4 review (L7): the keys a hidden menu keeps on Windows and Linux. */
+const HIDDEN_MENU = [
+  { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
+  { label: 'View', submenu: [{ role: 'zoomIn' }, { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false }, { role: 'zoomOut' }, { role: 'resetZoom' }] },
+];
 const APPROVE_HASH = '#/approve/next';
 const BUSY_LINGER_MS = 1500;
 const BUSY_EVENTS = ['run.started', 'run.step', 'run.call'];
@@ -208,6 +213,8 @@ function createWindow(hash = '') {
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa', title: appName(), show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
+  // A4 review (L7): the hidden menu's keys work; its bar never shows, not even with Alt.
+  if (process.platform !== 'darwin') window.setMenuBarVisibility?.(false);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   // Wave 6 (6J2): a window that stopped is noted for the next report, only while the owner has crash reports on.
@@ -230,9 +237,10 @@ function createWindow(hash = '') {
 }
 if (singleInstance) app.whenReady().then(async () => {
   if (stopping) return;
-  // One-shot A4 (hands-on S10): no default File, Edit, View, Window bar on Windows and Linux (typing shortcuts still
-  // work in the page); a Mac keeps its menu, where copy and paste live.
-  if (process.platform !== 'darwin') Menu.setApplicationMenu?.(null);
+  // One-shot A4 (hands-on S10, review L7): no File, Edit, View, Window bar on Windows and Linux, but a hidden menu keeps
+  // the keys owners use: zoom (Ctrl+=, Ctrl+-, Ctrl+0) and editing. Its bar is never shown (each window hides it). A
+  // Mac keeps its own menu, where copy and paste live.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu?.(Menu.buildFromTemplate(HIDDEN_MENU));
   // Listed before the engine starts, so an unbuilt Ink app stops the start with its own plain reason.
   try { inkFiles = await listInkFiles(); }
   catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); return; }

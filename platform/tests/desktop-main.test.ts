@@ -22,6 +22,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     urls: string[] = [];
     loadURL(url: string) { this.webContents.mainFrame.url = url; this.urls.push(url); }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
+    menuBar: boolean[] = [];
+    setMenuBarVisibility(visible: boolean) { this.menuBar.push(visible); }
     // Ink v2 wave 4 (4G1): what main.cjs reads to tell the engine whether the owner is watching.
     visible = true; focused = false; minimized = false;
     isVisible() { return this.visible; } isFocused() { return this.focused; }
@@ -111,9 +113,14 @@ test('the worker is told where the Ink build is, for the phone server', async ()
 
 // One-shot A4 (hands-on S10): the window had Electron's default menu bar (File, Edit, View, Window). On Windows and
 // Linux there is none; typing shortcuts still work in the page.
-test('the window has no default menu bar on Windows', async () => {
+test('the window has no default menu bar on Windows, and the zoom keys still work', async () => {
   const d = await desktop(['--production'], Promise.resolve(), true);
-  assert.deepEqual(d.appMenus, [null]);
+  // A4 review (L7): a hidden menu keeps Ctrl+=, Ctrl+- and Ctrl+0 (and the editing keys); its bar is never shown.
+  assert.equal(d.appMenus.length, 1);
+  const roles = (d.appMenus[0] as any[]).flatMap((menu: any) => menu.submenu).map((item: any) => [item.role, item.accelerator ?? null]);
+  for (const role of ['zoomIn', 'zoomOut', 'resetZoom', 'copy', 'paste', 'selectAll']) assert.ok(roles.some(([name]: any) => name === role), role);
+  assert.ok(roles.some(([name, key]: any) => name === 'zoomIn' && key === 'CommandOrControl+='), 'Ctrl+= zooms in');
+  assert.deepEqual(d.windows[0].menuBar, [false]);
 });
 
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {
