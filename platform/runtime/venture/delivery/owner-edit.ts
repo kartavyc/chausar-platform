@@ -103,9 +103,11 @@ const SIZED = String.raw`(?:\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d{3,}(?:\.\d{1,2
 const JOINED_OR = new RegExp(String.raw`^\s*(?:or|and)\s+${SIZED}`, 'iu');
 /**
  * The same joins written before the amount ("3 x INR 5,000.00", "from 3,000 to", "between 4,000 and"), never part of an
- * id ("INV-0001 -") or of a phone number written in groups ("98200 12345 or").
+ * id ("INV-0001 -") or of a phone number written in groups ("98200 12345 or"). A4 review round 3: a dash joins only
+ * with no space around it ("4,000-INR 5,000.00"), so a label or a year before " - " stays words ("Package 1 - INR
+ * 5,000.00", "For 2026 - INR 5,000.00"); "to", "plus", "and" and "or" join only an amount-sized number.
  */
-const JOINED_BEFORE = new RegExp(String.raw`(?<![\p{L}\d.,-])(?<!\d\s)(?:\d[\d,.]*\s*(?:[-–]|to|plus|\+|x|×|\*|times)|${SIZED}\s+(?:and|or))\s*$`, 'iu');
+const JOINED_BEFORE = new RegExp(String.raw`(?<![\p{L}\d.,-])(?<!\d\s)(?:\d[\d,.]*[-–]|\d[\d,.]*\s*(?:x|×|\*|times)|${SIZED}\s*(?:to|plus|\+)|${SIZED}\s+(?:and|or))\s*$`, 'iu');
 
 /**
  * The money in some words: each exact amount by its value, and each clause with money that is not, by its words.

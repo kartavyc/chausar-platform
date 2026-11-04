@@ -120,3 +120,17 @@ test('A4 review round 2: joins before the amount, and "or" or "and" after it, ar
     assert.deepEqual([editAmountsCheck(text, { ...input, agentWords: agent }).passed, editAmountsCheck(text, { ...input, agentWords: agent }).detail], [true, EVERY], text);
   }
 });
+
+// A4 review round 3 (Q1): a small label or a year before " - " is not joined to the amount; only an amount-sized number
+// before "to" or "plus", a number before "x", or a dash with no spaces ("4,000-INR 5,000.00") joins it.
+test('A4 review round 3: "Package 1 -", "Option 2 -" and "For 2026 -" before an amount the agent wrote stay words', () => {
+  const agent = 'Package 1 - INR 5,000.00 for the shoot. Due 3 Nov - INR 5,000.00. Call 98200 12345 or INR 5,000.00 by card. Step 2: INR 5,000.00 and 2 hours. For 2026 - INR 5,000.00 per shoot. Option 2 - INR 5,000.00.';
+  const input = { receipted: ['INR 5,000.00'], agentWords: agent, clientWords: '', currency: 'INR' };
+  for (const text of agent.split(/(?<=\.)\s+/)) {
+    assert.deepEqual([editAmountsCheck(`Hi! ${text}`, input).passed, editAmountsCheck(`Hi! ${text}`, input).detail], [true, EVERY], text);
+  }
+  for (const text of ['It is 4,000-INR 5,000.00.', 'It is 3 x INR 5,000.00 in total.', 'From 3,000 to INR 5,000.00.']) {
+    assert.equal(editAmountsCheck(text, { ...input, agentWords: '' }).detail, OWN_WORDS_AMOUNT, text);
+    assert.equal(editAmountsCheck(text, { ...input, agentWords: text }).passed, false, `${text} kept from the agent`);
+  }
+});
