@@ -17,6 +17,9 @@ const BACKGROUND_FILE = 'background.json';
 const LOGIN_ARGS = Object.freeze(['--background', '--hidden']);
 const LOGIN_NAME = 'Chausar';
 const AUTOSTART_FILE = 'chausar.desktop';
+// A5 fix round 3: the day the owner put the start-at-login question aside ("Not now" on Today), beside the answer.
+const LATER_FILE = 'start-at-login-later.json';
+const DAY = /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
 
 /** startAtLogin here is the suggestion onboarding ticks; it is never applied until the owner answers (asked). */
 function defaultsFor(beta) { return { startAtLogin: beta, keepRunning: beta, asked: false }; }
@@ -201,7 +204,28 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
       { label: 'Keep running in the tray', type: 'checkbox', checked: value.keepRunning, click: item => onChange({ keepRunning: item.checked === true }) },
     ];
   }
-  return { settings, state, apply, change, menuItems, supported };
+  /**
+   * A5 fix round 3: "Not now" on Today is no answer. The window keeps the local day it was pressed (YYYY-MM-DD, this
+   * computer's calendar), so Today asks again on a later day; nothing else changes: no answer, no login item.
+   */
+  let later;
+  async function laterDay() {
+    if (!supported) return null;
+    if (later !== undefined) return later;
+    let day = null;
+    try { const value = JSON.parse(await fs.readFile(path.join(directory, LATER_FILE), 'utf8')); day = typeof value?.day === 'string' && DAY.test(value.day) ? value.day : null; } catch { day = null; }
+    later = day;
+    return later;
+  }
+  async function askLater(day) {
+    if (!supported) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+    if (typeof day !== 'string' || !DAY.test(day)) throw Object.assign(new Error('Send the day as YYYY-MM-DD.'), { code: 'INVALID_REQUEST' });
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(path.join(directory, LATER_FILE), JSON.stringify({ day }), { mode: 0o600 });
+    later = day;
+    return later;
+  }
+  return { settings, state, apply, change, menuItems, laterDay, askLater, supported };
 }
 
 /** The engine's environment with the bundled Codex folder last on PATH, when the bundle is there. */

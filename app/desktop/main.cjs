@@ -328,6 +328,19 @@ if (singleInstance) app.whenReady().then(async () => {
     try { assertTrustedSender(event, window?.webContents); return { ok: true, result: await setBackground(contract.validateBackgroundChange(input)) }; }
     catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // A5 fix round 3: "Not now" on Today keeps only the day; it is no answer and never touches the login item.
+  ipcMain.handle(contract.BACKGROUND_LATER_GET_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: { day: background ? await background.laterDay() : null } }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(contract.BACKGROUND_LATER_SET_CHANNEL, async (event, input) => {
+    try {
+      assertTrustedSender(event, window?.webContents);
+      const day = contract.validateLaterDay(input);
+      if (!background) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+      return { ok: true, result: { day: await background.askLater(day) } };
+    } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

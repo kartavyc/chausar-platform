@@ -25,6 +25,9 @@ const REPORT_SAVE_CHANNEL = 'chausar:report:save';
 // the login item read back from the computer) and change either; the window sends only the two ticks.
 const BACKGROUND_GET_CHANNEL = 'chausar:background:get';
 const BACKGROUND_SET_CHANNEL = 'chausar:background:set';
+// A5 fix round 3: the day the owner put Today's start-at-login question aside; it changes nothing else.
+const BACKGROUND_LATER_GET_CHANNEL = 'chausar:background:later:get';
+const BACKGROUND_LATER_SET_CHANNEL = 'chausar:background:later:set';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -290,6 +293,11 @@ function validateExternalUrl(input) {
   if (!EXTERNAL_ORIGINS.includes(url.origin)) throw failure('EXTERNAL_URL_NOT_ALLOWED', 'Chausar opens only its listed partner sites.');
   return url.href;
 }
+/** A5 fix round 3: { day: 'YYYY-MM-DD' } and nothing else. */
+function validateLaterDay(input) {
+  if (!isRecord(input) || Object.keys(input).length !== 1 || typeof input.day !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(input.day)) throw failure('INVALID_REQUEST', 'Send the day as YYYY-MM-DD.');
+  return input.day;
+}
 /** A5: one change of start at login or keep running, as true or false; anything else is refused. */
 function validateBackgroundChange(input) {
   const keys = isRecord(input) ? Object.keys(input) : [];
@@ -313,4 +321,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

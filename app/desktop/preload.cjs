@@ -67,6 +67,17 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
+  // A5 fix round 3: the day the owner put Today's start-at-login question aside; only the day goes to main.
+  getAskLater: async () => {
+    const reply = await ipcRenderer.invoke('chausar:background:later:get');
+    if (reply?.ok === true) return typeof reply.result?.day === 'string' ? reply.result.day : null;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  setAskLater: async day => {
+    const reply = await ipcRenderer.invoke('chausar:background:later:set', { day: String(day) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not save this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   setBackground: async update => {
     const request = {};
     if (typeof update?.startAtLogin === 'boolean') request.startAtLogin = update.startAtLogin;

@@ -475,3 +475,29 @@ test('A5: the tray reads start at login again as the pointer reaches it and when
   d.windows[0].emit('focus'); await flush(); await flush();
   assert.equal(tick(), true);
 });
+
+test('A5 fix round 3: the window keeps and reads the day the owner put the question aside, and nothing else changes', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const contract = require('./ipc-contract.cjs');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(await d.handlers.get(contract.BACKGROUND_LATER_SET_CHANNEL)(own, { day: '2026-11-04' })), { ok: true, result: { day: '2026-11-04' } });
+  assert.deepEqual(plain(await d.handlers.get(contract.BACKGROUND_LATER_GET_CHANNEL)(own, undefined)), { ok: true, result: { day: '2026-11-04' } });
+  assert.deepEqual(d.logins, []);
+  for (const bad of [{}, { day: 'today' }, { day: '2026-11-04', startAtLogin: true }, null]) {
+    const reply = await d.handlers.get(contract.BACKGROUND_LATER_SET_CHANNEL)(own, bad);
+    assert.deepEqual([reply.ok, reply.error.code], [false, 'INVALID_REQUEST'], JSON.stringify(bad));
+  }
+  assert.equal((await d.handlers.get(contract.BACKGROUND_LATER_SET_CHANNEL)({ sender: {}, senderFrame: own.senderFrame }, { day: '2026-11-04' })).error.code, 'UNTRUSTED_SENDER');
+  const preview = await desktop([]);
+  const previewOwn = { sender: preview.windows[0].webContents, senderFrame: preview.windows[0].webContents.mainFrame };
+  assert.deepEqual(plain(await preview.handlers.get(contract.BACKGROUND_LATER_GET_CHANNEL)(previewOwn, undefined)), { ok: true, result: { day: null } });
+});
+
+test('A5 fix round 3: the real preload forwards only the day to put the question aside', async () => {
+  let bridge: any; const calls: any[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (channel: string, input: any) => { calls.push({ channel, input }); return { ok: true, result: { day: '2026-11-04' } }; } } }) });
+  assert.equal(await bridge.getAskLater(), '2026-11-04');
+  await bridge.setAskLater('2026-11-04', { startAtLogin: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ channel: 'chausar:background:later:get' }, { channel: 'chausar:background:later:set', input: { day: '2026-11-04' } }]);
+});

@@ -13,6 +13,10 @@ export const REPORT_SAVE_CHANNEL: string;
 export const BACKGROUND_GET_CHANNEL: string;
 export const BACKGROUND_SET_CHANNEL: string;
 export function validateBackgroundChange(input: unknown): { startAtLogin?: boolean; keepRunning?: boolean };
+/** A5 fix round 3: the day the owner put Today's start-at-login question aside. */
+export const BACKGROUND_LATER_GET_CHANNEL: string;
+export const BACKGROUND_LATER_SET_CHANNEL: string;
+export function validateLaterDay(input: unknown): string;
 export const TRUSTED_DOCUMENT: string;
 export const MAX_REQUEST_BYTES: number;
 export const OPEN_EXTERNAL_CHANNEL: string;

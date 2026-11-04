@@ -373,3 +373,22 @@ test('A5 fix round 3: on Linux a saved yes the desktop had switched off is writt
   await at('/home/owner/Apps/Chausar-1.1.AppImage').apply();
   assert.match(fs.files.get(AUTOSTART)!, /\nX-GNOME-Autostart-enabled=false\n/);
 });
+
+// A5 fix round 3 (finding 1): "Not now" on Today is no answer. It keeps the day the owner put the question aside, in
+// the app's own folder beside the answer (never a business's vault, never the login item), so Today asks again on a
+// later day. It changes nothing else.
+test('A5 fix round 3: putting the question aside keeps only the day: no answer, no login item touched', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+  const background = createBackground({ ...base(), app, fs });
+  assert.equal(await background.laterDay(), null);
+  assert.equal(await background.askLater('2026-11-04'), '2026-11-04');
+  assert.equal(await createBackground({ ...base(), app, fs }).laterDay(), '2026-11-04');
+  assert.deepEqual(app.logins, []);
+  assert.equal(fs.files.has(SAVED), false, 'no answer saved');
+  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+  for (const bad of ['4 Nov', '2026-13-40', '', 20261104, null]) await assert.rejects(background.askLater(bad), { code: 'INVALID_REQUEST' }, String(bad));
+  const preview = createBackground({ ...base({ beta: false }), app, fs: memoryFs() });
+  assert.equal(await preview.laterDay(), null);
+  await assert.rejects(preview.askLater('2026-11-04'), { code: 'BACKGROUND_UNAVAILABLE' });
+});
