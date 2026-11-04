@@ -280,6 +280,8 @@ function mailtoFields(input) {
     if (key === 'subject' && MAILTO_BREAKS.test(value)) return null;
     fields[key] = value;
   }
+  // A6 round 1: a link with no address carries at least a subject, so a bare "mailto:" never opens an empty email.
+  if (address === '' && !fields.subject) return null;
   return { address, fields };
 }
 /** A6: the checked address (maybe empty), subject and body of a mail link, or null. */

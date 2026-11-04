@@ -239,3 +239,15 @@ test('A6: a message too long for one mail link still goes as a draft; with no ma
   assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, noApp.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', to: true, note: null });
   assert.deepEqual(noApp.opened, [], 'a link the gate refuses is never opened');
 });
+
+// ---------------------------------------------------------------------------
+// A6 fix round 1.
+// ---------------------------------------------------------------------------
+test('A6 round 1 (low 7): a mail link with no address needs at least a subject', () => {
+  for (const bad of ['mailto:', 'mailto:?', 'mailto:?body=Hello', 'mailto:?subject=', 'mailto:?subject=&body=Hello']) {
+    assert.throws(() => contract.validateExternalUrl(bad), (error: any) => error.code === 'INVALID_EXTERNAL_URL', bad);
+    assert.equal(contract.mailtoParts(bad), null, bad);
+  }
+  assert.equal(contract.validateExternalUrl('mailto:?subject=Invoice'), 'mailto:?subject=Invoice');
+  assert.equal(contract.validateExternalUrl('mailto:client@example.com'), 'mailto:client@example.com', 'with an address the subject may be left out, as before');
+});
