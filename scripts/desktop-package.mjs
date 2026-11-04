@@ -218,7 +218,8 @@ export function validateIconConfig(config) {
 // A7 fix round 1: the unsigned builds keep electron-builder's exe editing off (it needs the winCodeSign download), so
 // one pinned afterPack hook sets Chausar.exe's icon and names with the rcedit.exe in node_modules, checked by its
 // sha256 (desktop-after-pack.cjs). It is the only hook allowed, spelled exactly so; every other hook is refused.
-export const AFTER_PACK_HOOK = 'scripts/desktop-after-pack.cjs';
+// Fix round 2: spelled as a path, so electron-builder resolves it from the project and never as a package name.
+export const AFTER_PACK_HOOK = './scripts/desktop-after-pack.cjs';
 const RCEDIT_PATH = 'node_modules/electron-winstaller/vendor/rcedit.exe';
 const RCEDIT_CHECK = 'Windows exe icon tool (rcedit.exe)';
 const onlyPinnedHook = config => {

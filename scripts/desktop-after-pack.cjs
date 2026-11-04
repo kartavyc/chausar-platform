@@ -9,13 +9,15 @@
 const { execFile } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { readFile } = require('node:fs/promises');
-const { join } = require('node:path');
+const { basename, join } = require('node:path');
 
 const ROOT = join(__dirname, '..');
 const RCEDIT = join(ROOT, 'node_modules', 'electron-winstaller', 'vendor', 'rcedit.exe');
 const RCEDIT_SHA256 = 'e2df7b664db830f159d0dc6b3da8a95442cca175b9577f2d19952646d37ac32f';
 const ICON = join(ROOT, 'app', 'desktop', 'icons', 'icon.ico');
-const NAME = 'Chausar';
+// Fix round 2: the copyright holder and line as NOTICE has them (a test holds them to NOTICE).
+const COPYRIGHT = 'Copyright (C) 2026 Kartavy Chauhan';
+const COMPANY = 'Kartavy Chauhan';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -30,9 +32,16 @@ async function checkRcedit({ path = RCEDIT, readFile: read = readFile, sha256: h
   return path;
 }
 
-/** The arguments: the logo, and "Chausar" where Windows shows a program's name (Task Manager, the file's details). */
-function rceditArguments(exe) {
-  return [exe, '--set-icon', ICON, '--set-version-string', 'FileDescription', NAME, '--set-version-string', 'ProductName', NAME];
+/**
+ * The arguments: the logo, and the details Windows shows for a program (Task Manager, the file's Properties), from the
+ * build itself: the product's own name (the beta "Chausar", the preview "Chausar Unsigned Preview"), the exe's file
+ * name, the copyright holder, and the app version (electron-builder's build version when it gives one).
+ */
+function rceditArguments(exe, { productName, version }) {
+  return [exe, '--set-icon', ICON,
+    '--set-version-string', 'FileDescription', productName, '--set-version-string', 'ProductName', productName,
+    '--set-version-string', 'CompanyName', COMPANY, '--set-version-string', 'LegalCopyright', COPYRIGHT,
+    '--set-version-string', 'OriginalFilename', basename(exe), '--set-file-version', version, '--set-product-version', version];
 }
 
 function quietRun(command, args) {
@@ -46,7 +55,9 @@ async function afterPack(context, { platform = process.platform, run = quietRun,
   if (platform !== 'win32' || context?.electronPlatformName !== 'win32') return { edited: false };
   if (context.packager?.platformSpecificBuildOptions?.signAndEditExecutable !== false) return { edited: false };
   const tool = await checkRcedit({ readFile: read, sha256: hash });
-  await run(tool, rceditArguments(join(context.appOutDir, `${context.packager.appInfo.productFilename}.exe`)));
+  const { appInfo } = context.packager;
+  const exe = join(context.appOutDir, `${appInfo.productFilename}.exe`);
+  await run(tool, rceditArguments(exe, { productName: appInfo.productName, version: appInfo.buildVersion || appInfo.version }));
   return { edited: true };
 }
 
@@ -57,3 +68,5 @@ module.exports.checkRcedit = checkRcedit;
 module.exports.rceditArguments = rceditArguments;
 module.exports.RCEDIT = RCEDIT;
 module.exports.RCEDIT_SHA256 = RCEDIT_SHA256;
+module.exports.COPYRIGHT = COPYRIGHT;
+module.exports.COMPANY = COMPANY;

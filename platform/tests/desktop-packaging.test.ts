@@ -19,7 +19,7 @@ async function fixture(t: any, config = preview, betaConfig = beta) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-package-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const path of ['app/desktop/icons/png', 'app/ui/src', 'platform/runtime', 'scripts']) await mkdir(join(root, path), { recursive: true });
-  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, 'scripts/desktop-after-pack.cjs', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
+  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, './scripts/desktop-after-pack.cjs', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
   await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
   await writeFile(join(root, 'app/desktop/builder.preview.json'), JSON.stringify(config));
   await writeFile(join(root, 'app/desktop/builder.json'), JSON.stringify(final));

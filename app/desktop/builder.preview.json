@@ -73,5 +73,5 @@
   },
   "publish": null,
   "electronDist": "node_modules/electron/dist",
-  "afterPack": "scripts/desktop-after-pack.cjs"
+  "afterPack": "./scripts/desktop-after-pack.cjs"
 }

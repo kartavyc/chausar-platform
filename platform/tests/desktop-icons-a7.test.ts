@@ -207,17 +207,23 @@ test('the maskable icon keeps both squares inside the safe circle (80% of the ic
 // A7 fix round 1: Chausar.exe's own icon. The unsigned builds keep signAndEditExecutable off (it needs electron-builder's
 // winCodeSign download), so one pinned afterPack hook sets the icon and the names with the rcedit.exe already in
 // node_modules (electron-winstaller's vendor folder), checked by its sha256 first. Nothing is downloaded.
-const HOOK = 'scripts/desktop-after-pack.cjs';
+// Fix round 2: spelled as a path ("./"), so electron-builder never tries it as a package name first.
+const HOOK = './scripts/desktop-after-pack.cjs';
 const RCEDIT_SHA256 = 'e2df7b664db830f159d0dc6b3da8a95442cca175b9577f2d19952646d37ac32f';
 const { createRequire } = await import('node:module');
 const hook = createRequire(import.meta.url)('../../scripts/desktop-after-pack.cjs');
 const { join: joinPath } = await import('node:path');
-const context = (platform: string, sign: boolean | undefined, productFilename = 'Chausar') => ({
+const context = (platform: string, sign: boolean | undefined, productName = 'Chausar', version = '0.1.0-preview.1', buildVersion: string | undefined = version) => ({
   appOutDir: 'D:/out/win-unpacked', electronPlatformName: platform,
-  packager: { appInfo: { productFilename }, platformSpecificBuildOptions: sign === undefined ? {} : { signAndEditExecutable: sign } },
+  packager: { appInfo: { productName, productFilename: productName, version, buildVersion }, platformSpecificBuildOptions: sign === undefined ? {} : { signAndEditExecutable: sign } },
 });
+/** What the hook must ask rcedit for: the logo, and the details Windows shows for a program, from the build itself. */
+const expectedArguments = (product: string, version: string) => [joinPath('D:/out/win-unpacked', `${product}.exe`), '--set-icon', joinPath(fileURLPath(repo), ICO),
+  '--set-version-string', 'FileDescription', product, '--set-version-string', 'ProductName', product,
+  '--set-version-string', 'CompanyName', 'Kartavy Chauhan', '--set-version-string', 'LegalCopyright', 'Copyright (C) 2026 Kartavy Chauhan',
+  '--set-version-string', 'OriginalFilename', `${product}.exe`, '--set-file-version', version, '--set-product-version', version];
 
-test('the exe hook runs rcedit with the icon, FileDescription and ProductName on Windows, hidden, after checking its sha256', async () => {
+test('the exe hook runs rcedit with the icon and the build\'s own names and version on Windows, hidden, after checking its sha256', async () => {
   const runs: unknown[][] = [], reads: string[] = [];
   const result = await hook.afterPack(context('win32', false), {
     platform: 'win32', readFile: async (path: string) => { reads.push(path); return Buffer.from('rcedit'); }, sha256: () => RCEDIT_SHA256,
@@ -227,10 +233,19 @@ test('the exe hook runs rcedit with the icon, FileDescription and ProductName on
   assert.deepEqual(reads, [hook.RCEDIT]);
   assert.equal(hook.RCEDIT, joinPath(fileURLPath(repo), 'node_modules', 'electron-winstaller', 'vendor', 'rcedit.exe'));
   assert.equal(hook.RCEDIT_SHA256, RCEDIT_SHA256);
-  assert.deepEqual(runs, [[hook.RCEDIT, [joinPath('D:/out/win-unpacked', 'Chausar.exe'), '--set-icon', joinPath(fileURLPath(repo), ICO), '--set-version-string', 'FileDescription', 'Chausar', '--set-version-string', 'ProductName', 'Chausar']]]);
+  assert.deepEqual(runs, [[hook.RCEDIT, expectedArguments('Chausar', '0.1.0-preview.1')]], 'the beta');
   const preview: unknown[][] = [];
-  await hook.afterPack(context('win32', false, 'Chausar Unsigned Preview'), { platform: 'win32', readFile: async () => Buffer.from(''), sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { preview.push(args); } });
-  assert.equal((preview[0]![1] as string[])[0], joinPath('D:/out/win-unpacked', 'Chausar Unsigned Preview.exe'), 'the exe is named after the product');
+  await hook.afterPack(context('win32', false, 'Chausar Unsigned Preview', '0.2.0', '0.2.0.7'), { platform: 'win32', readFile: async () => Buffer.from(''), sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { preview.push(args); } });
+  assert.deepEqual(preview, [[hook.RCEDIT, expectedArguments('Chausar Unsigned Preview', '0.2.0.7')]], 'the preview, with the build version electron-builder gives');
+  const plain: unknown[][] = [];
+  await hook.afterPack(context('win32', false, 'Chausar', '0.3.0', undefined), { platform: 'win32', readFile: async () => Buffer.from(''), sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { plain.push(args); } });
+  assert.deepEqual(plain, [[hook.RCEDIT, expectedArguments('Chausar', '0.3.0')]], 'no build version: the app version');
+});
+
+test('the exe\'s company and copyright are NOTICE\'s own line', async () => {
+  const notice = (await read('NOTICE')).toString('utf8').split(/\r?\n/);
+  assert.equal(notice[1], 'Copyright (C) 2026 Kartavy Chauhan');
+  assert.deepEqual([hook.COPYRIGHT, hook.COMPANY], [notice[1], notice[1]!.replace(/^Copyright \(C\) \d{4} /, '')]);
 });
 
 test('the exe hook does nothing off Windows, for another target, or when electron-builder edits the exe itself', async () => {
@@ -260,7 +275,7 @@ test('the unsigned configs name exactly the pinned hook, and the package checks 
   }
   const beta = await json('app/desktop/builder.beta.json');
   validateBetaConfig(beta);
-  for (const variant of [{ afterPack: 'unexpected-hook.cjs' }, { afterPack: `./${HOOK}` }, { afterPack: undefined }, { afterSign: HOOK }, { beforePack: HOOK }, { afterAllArtifactBuild: HOOK }]) {
+  for (const variant of [{ afterPack: 'unexpected-hook.cjs' }, { afterPack: 'scripts/desktop-after-pack.cjs' }, { afterPack: '.\\scripts\\desktop-after-pack.cjs' }, { afterPack: undefined }, { afterSign: HOOK }, { beforePack: HOOK }, { afterAllArtifactBuild: HOOK }]) {
     assert.throws(() => validateBetaConfig({ ...beta, ...variant }), /hook/, JSON.stringify(variant));
   }
 });
