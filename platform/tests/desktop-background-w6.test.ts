@@ -293,3 +293,19 @@ test('A5 fix 9: Exec quotes the program as the desktop entry spec asks: %% for %
   assert.equal(exec, `"/home/owner/My Apps/100%% ${two}"ok${two}"${two}${two}x${two}$${two}${tick}y/Chausar.AppImage" --background --hidden`);
   assert.equal(/\nTryExec=(.*)\n/.exec(text)![1], `/home/owner/My Apps/100% "ok"${two}x$${tick}y/Chausar.AppImage`);
 });
+
+test('A5 fix round 1 (the founder): an older silent login item stays until the owner answers; yes keeps it, no removes it', async () => {
+  for (const answer of [true, false]) {
+    const app = fakeApp();
+    app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+    const fs = memoryFs();
+    const background = createBackground({ ...base(), app, fs });
+    await background.apply();
+    assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+    const after = await background.change({ startAtLogin: answer });
+    assert.deepEqual([after.asked, after.registered, app.run.has('Chausar')], [true, answer, answer]);
+    const next = createBackground({ ...base(), app, fs });
+    await next.apply();
+    assert.deepEqual([(await next.state()).asked, app.run.has('Chausar')], [true, answer], 'the answer sticks');
+  }
+});
