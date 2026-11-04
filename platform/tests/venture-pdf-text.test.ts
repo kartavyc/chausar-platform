@@ -87,3 +87,40 @@ test('an encrypted PDF is refused in plain words; a PDF with no text gives no te
   assert.equal(pdfText(many, { maxChars: 5 }), 'One\nT');
   assert.throws(() => pdfText(new Uint8Array(Buffer.from('not a pdf'))), (error: { code?: string }) => error.code === 'PDF_UNREADABLE');
 });
+
+// A4 review (M3, L1, L2): one work budget per read, so no PDF can hold the engine: inflated bytes, map entries and
+// objects are counted, a range is never walked code by code, and object streams are opened only when needed.
+const cmapPdf = (cmap: string) => pdf([
+  '<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+  '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+  '<< /Type /Font /Subtype /Type0 /ToUnicode 6 0 R >>', stream('', Buffer.from('BT /F1 12 Tf <00030004> Tj ET', 'latin1')),
+  stream('', Buffer.from(cmap, 'latin1')),
+]);
+const timed = <T>(work: () => T): { ms: number; value: T | Error } => { const at = Date.now(); let value: T | Error; try { value = work(); } catch (error) { value = error as Error; } return { ms: Date.now() - at, value }; };
+
+test('A4 review: a thousand full-width ranges read in well under a second', () => {
+  let cmap = 'begincodespacerange <0000> <FFFF> endcodespacerange 1000 beginbfrange ';
+  for (let index = 0; index < 1000; index += 1) cmap += '<0000> <FFFF> <0041> ';
+  const { ms, value } = timed(() => pdfText(cmapPdf(`${cmap}endbfrange`)));
+  assert.ok(ms < 1000, `${ms} ms`);
+  assert.equal(value, 'DE');
+});
+
+test('A4 review: object streams that inflate to 31 MB each are refused as too complex, in well under a second', () => {
+  const plain = Buffer.alloc(31 * 1024 * 1024, 0x20); Buffer.from('100 0 ').copy(plain, 0);
+  const packed = deflateSync(plain, { level: 9 });
+  const objects: (string | Buffer)[] = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [] /Count 0 >>'];
+  for (let index = 0; index < 32; index += 1) objects.push(stream('/Type /ObjStm /N 1 /First 6 /Filter /FlateDecode', packed));
+  const { ms, value } = timed(() => pdfText(pdf(objects)));
+  assert.ok(ms < 1000, `${ms} ms`);
+  assert.ok(value instanceof Error && (value as Error & { code?: string }).code === 'PDF_TOO_COMPLEX', String(value));
+  assert.equal((value as Error).message, 'This PDF is too complex to read. Paste the text instead.');
+});
+
+test('A4 review: a range to a surrogate pair or a ligature reads; /Encrypt<< with no space is refused', () => {
+  const base = 'begincodespacerange <0000> <FFFF> endcodespacerange 1 beginbfrange ';
+  assert.equal(pdfText(cmapPdf(`${base}<0003> <0004> <D83DDCF7> endbfrange`)), '\u{1F4F7}\u{1F4F8}');
+  assert.equal(pdfText(cmapPdf(`${base}<0003> <0004> <00660069> endbfrange`)), 'fifj');
+  const locked = pdf(['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [] /Count 0 >>'], '/Root 1 0 R /Encrypt<</Filter/Standard/V 1>>');
+  assert.throws(() => pdfText(locked), (error: { code?: string }) => error.code === 'PDF_ENCRYPTED');
+});
