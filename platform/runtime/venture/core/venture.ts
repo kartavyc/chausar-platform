@@ -21,6 +21,11 @@ import { engineQuestions, storedQuestion, taxRateQuestion } from './interview.ts
 import { classifyIdea } from './service-types.ts';
 import { DEFAULT_WORKING_NAME, labelled } from './words.ts';
 import { recordPlanEvidence } from '../evidence/ledger.ts';
+import { readAiSetup, rememberAiSetup, settingsFrom } from '../models/ai-setup.ts';
+import { endpointFor, presetSpec } from '../models/presets.ts';
+import { recordDecision } from '../journal/decisions.ts';
+/** A4 fix round: a reused connection's monthly cap, as venture.models.connect sets one by default (USD 5). */
+const DEFAULT_CAP_MICROS = '5000000';
 
 /** Records are kept for ten years, as tax rules expect; the owner is told under More of your plan and in Trust. */
 export const VENTURE_RETENTION_DAYS = 3650;
@@ -124,13 +129,18 @@ function rebased<R extends ModelConnectionRecord | ModelCallRecord>(record: R, t
   return { ...structuredClone(record), ventureId: (tx.venture as VentureRecord).id, memberId: tx.ctx.memberId, epoch: tx.ctx.epoch };
 }
 
-/** venture.create { idea, countryCode, workingName?, composeId?, composedDigest? } (admin, inside the app). */
+/**
+ * venture.create { idea, countryCode, workingName?, composeId?, composedDigest?, reuseAi? } (admin, inside the app).
+ * reuseAi (A4 fix round, the Start gallery): with no AI from the first run, the newest AI setup of another business on
+ * this computer comes along (models/ai-setup.ts): its Codex or Claude Code connection and the agents' models only.
+ */
 export function createVenture(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
   return credentialChange(deps, () => createVentureUnlocked(deps, ctx, payload));
 }
 async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureView> {
   requireAppChannel(ctx, 'venture.create');
-  const body = exactPayload(payload, ['idea', 'countryCode', 'workingName', 'composeId', 'composedDigest'], ['idea', 'countryCode']);
+  const body = exactPayload(payload, ['idea', 'countryCode', 'workingName', 'composeId', 'composedDigest', 'reuseAi'], ['idea', 'countryCode']);
+  check(body.reuseAi === undefined || body.reuseAi === true, 'INVALID_VENTURE_REQUEST', 'Send reuseAi as true, or leave it out.');
   const idea = plainText(body.idea, 'Your idea', { min: 10, max: 2000 });
   const named = Object.hasOwn(body, 'workingName') ? singleLine(body.workingName, 'The working name', { min: 2, max: 80 }) : null;
   authorize(deps.store, ctx, 'admin');
@@ -163,6 +173,9 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
   // 5. The venture record and its interview, in one action; with a composed plan also the composition and blueprint
   // version 1; with an AI connected before the vault also its connections and calls (they count toward the cap).
   const connections = ai ? ai.connections.filter(connection => connection.status === 'connected') : [];
+  // The setup to reuse: only when asked, only when the first run brought no AI, and only another business's.
+  const reuse = body.reuseAi === true && !connections.length && deps.aiSetup ? readAiSetup(await deps.aiSetup.read().catch(() => null)) : null;
+  const reused = reuse && reuse.from.workspaceId !== state.workspace.id ? reuse : null;
   const keys = await prepareAdoptedCredentials(deps, ctx, connections);
   let view: VentureView;
   try { view = await ventureAction(deps, ctx, 'admin', 'create', tx => {
@@ -233,6 +246,17 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
       for (const call of ai.calls) tx.put(rebased(call, tx));
       for (const connection of connections) tx.emit('model-connected', { presetId: connection.presetId, tiers: [...connection.tiers] });
     }
+    if (reused) {
+      // A4 fix round: the AI setup only, each connection agreed to this preset's own words as the owner did there; the
+      // agents' models; and the decision, so the owner sees where it came from. No call, consent or record of the other
+      // business comes along.
+      for (const item of reused.connections) {
+        tx.put<ModelConnectionRecord>({ ...tx.base('venture-model-connection'), presetId: item.presetId, routeKind: item.routeKind, model: item.model, endpoint: endpointFor(presetSpec(item.presetId)), tiers: [...item.tiers], consentDigest: presetSpec(item.presetId).consentDigest, consentedAt: tx.now, monthlyCapMicros: DEFAULT_CAP_MICROS, status: 'connected' });
+        tx.emit('model-connected', { presetId: item.presetId, tiers: [...item.tiers] });
+      }
+      tx.touch({ aiSettings: settingsFrom(reused) });
+      recordDecision(tx, { subject: `ai-setup:${reused.from.workspaceId}`, action: 'reuse-ai', ruleId: null, reason: `Uses the same AI as ${reused.from.name}.`, rowId: null });
+    }
     if (retentionChanged) tx.emit('retention-changed', { from: before, to: VENTURE_RETENTION_DAYS });
     const view = buildView(tx.state);
     check(view, 'VENTURE_NOT_FOUND', 'Start a business first.');
@@ -246,7 +270,9 @@ async function createVentureUnlocked(deps: VentureDeps, ctx: Context, payload: u
     deps.draft.settle();
   }
   // Connecting changes send nothing to send question shapes, as the consent text says (venture.models.connect does the same).
-  if (connections.some(connection => connection.presetId !== 'built-in-templates') && deps.store.read().policy.send === 'nothing') {
+  // A4 fix round: this business's AI setup is now the newest on this computer.
+  await rememberAiSetup(deps);
+  if ((reused || connections.some(connection => connection.presetId !== 'built-in-templates')) && deps.store.read().policy.send === 'nothing') {
     await deps.services.trust.updatePolicy(ctx, { send: 'shape' });
     await ventureAction(deps, ctx, 'admin', 'models.send-policy', tx => { tx.emit('send-policy-changed', { from: 'nothing', to: 'shape' }); });
     return buildView(deps.store.read()) ?? view;

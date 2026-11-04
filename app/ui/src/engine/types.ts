@@ -2086,7 +2086,7 @@ export interface EngineMethods {
   'workspace.create': { params: WorkspaceCreateParams; result: WorkspaceCreated };
   'venture.countries': { params: Record<string, never>; result: CountryLite[] };
   'venture.preview': { params: { idea: string; countryCode: string; pricingModel?: PricingModel }; result: PlanPreviewLite };
-  'venture.create': { params: { idea: string; countryCode: string; workingName?: string }; result: VentureViewLite };
+  'venture.create': { params: { idea: string; countryCode: string; workingName?: string; reuseAi?: true }; result: VentureViewLite };
   'venture.interview.next': { params: { useTemplate?: boolean }; result: InterviewViewLite };
   'venture.interview.answer': { params: { questionId: string; answer: InterviewAnswer }; result: InterviewViewLite };
   /** shown (review of A1, row 3): the plan About you showed, kept on the first template draft; by is who wrote its words. */

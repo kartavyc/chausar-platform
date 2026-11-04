@@ -127,6 +127,8 @@ export class FakeW4Desk {
   private readonly runControls: FakeRunControls;
   private readonly sets: FakeSets;
   private readonly approvals: FakeApprovalsDesk;
+  /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision). */
+  noteDecision(subject: string, action: string, reason: string): void { this.approvals.noteDecision(subject, action, reason); }
   private readonly setup: FakeSetupDesk;
   private readonly extras: FakeAgentExtras;
   /** 4J22a's desk; public so tests can break the chain or put a contract on an order. */

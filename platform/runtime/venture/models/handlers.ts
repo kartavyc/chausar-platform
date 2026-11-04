@@ -11,6 +11,7 @@ import { CLI_STATUS_WORDS, cliListLine, cliStatusView, lastCliTask } from './cli
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
 import { AVAILABILITY_REASONS, claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
+import { rememberAiSetup } from './ai-setup.ts';
 import { rolesHandler } from './roles.ts';
 import type { ConnectionRecord } from './types.ts';
 import { payerChangeLine } from '../money/spend.ts';
@@ -127,6 +128,8 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
     await deps.services.trust.updatePolicy(ctx, { send: 'shape' });
     await ventureAction(deps, ctx, 'admin', 'models.send-policy', tx => { tx.emit('send-policy-changed', { from: 'nothing', to: 'shape' }); });
   }
+  // A4 fix round: a business that now has Codex or Claude Code keeps it as the newest setup on this computer.
+  if (!options.draft) await rememberAiSetup(deps);
   const status = deps.models.status(ctx);
   return answer.payerLine ? { ...status, payerLine: answer.payerLine } : status;
 }

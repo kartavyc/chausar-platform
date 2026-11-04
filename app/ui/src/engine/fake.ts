@@ -1117,6 +1117,7 @@ export class FakeEngine {
         };
       }
       case 'venture.create': {
+        if (p.reuseAi !== undefined && p.reuseAi !== true) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send reuseAi as true, or leave it out.');
         if (this.ventures.has(this.current)) throw new EngineError('VENTURE_EXISTS', 'This workspace already has a business. Chausar keeps one business per workspace.');
         const idea = this.idea(p.idea);
         const country = this.country(p.countryCode);
@@ -1126,6 +1127,10 @@ export class FakeEngine {
         this.ventures.set(this.current, venture);
         this.aiReads.set(this.current, this.firstRun.takeAiReads());
         this.interviews.set(this.current, this.templateInterview(country.code));
+        // A4 fix round (core/venture.ts reuseAi): from the Start gallery, with no AI from the first run, the newest
+        // Codex or Claude Code setup of another business comes along, and the decision says where from.
+        const reusedFrom = p.reuseAi === true ? this.desk.reuseAi(this.current) : null;
+        if (reusedFrom) this.w4.noteDecision(`ai-setup:${reusedFrom}`, 'reuse-ai', `Uses the same AI as ${this.ventures.get(reusedFrom)?.workingName ?? 'your other business'}.`);
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
         this.desk.adoptDraft(this.current);
         return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };

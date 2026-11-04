@@ -7349,6 +7349,8 @@ export type VentureDeps = {
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
   phoneAccess?: PhoneAccessPort;
+  /** A4 fix round: the newest AI setup on this computer (models/ai-setup.ts); absent on the hosted app. */
+  aiSetup?: import('./models/ai-setup.ts').AiSetupPort;
   /** Trusted test or desktop composition. Never accepted from an engine request. */
   agentRoute?: (ctx: Context, agentId: string) => Promise<import('./agent-runtime/route-types.ts').AgentRoute>;
   store: StateStore;
@@ -7475,6 +7477,8 @@ export type VentureHostOptions = {
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener, never supplied by an engine request. */
   phoneAccess?: PhoneAccessPort;
+  /** A4 fix round: where the newest AI setup on this computer is kept, never supplied by an engine request. */
+  aiSetup?: import('./models/ai-setup.ts').AiSetupPort;
   modelTransport?: ModelTransport;
   /** A transport, or a factory the host calls once with its store (fixtures use it to fill {{briefId}}). */
   githubTransport?: GitHubTransport | ((store: StateStore) => GitHubTransport);

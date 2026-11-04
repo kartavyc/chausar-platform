@@ -125,6 +125,9 @@ export class FakeApprovalsDesk {
 
   private now(): string { return this.host.now(); }
 
+  /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
+  noteDecision(subject: string, action: string, reason: string): void { this.record(subject, action, reason, `You decided: ${reason}`); }
+
   private record(subject: string, action: string, reason: string, line: string): void {
     this.decisions.push({ id: `fake-decision-${(this.seq += 1)}`, at: this.now(), subject, action, who: 'owner', rule: null, ruleId: null, reason, line, by: 'owner', agentId: null, mine: true });
   }

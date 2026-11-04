@@ -137,7 +137,8 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
 
   async function finish(sentence: Sentence) {
     setStage({ kind: 'working', step: 'plan' });
-    await setUpPlan(client.request, sentence);
+    // A4 fix round (founder, 4 Nov): a business made from the Start gallery reuses the AI already set up.
+    await setUpPlan(client.request, sentence, { reuseAi: variant === 'place' });
     if (onKept) { await onKept(); return; }
     goTo('today');
     onStarted();

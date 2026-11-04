@@ -265,6 +265,25 @@ export class FakeBusinessDesk {
    * venture.create's handover (core/venture.ts, draft/handover.ts): the AI connected before the vault comes into the
    * new business, connected connections only, and the draft desk is wiped. Nothing connected: nothing changes.
    */
+  /** A4 fix round, as models/ai-setup.ts: the business that last connected Codex or Claude Code, the newest setup. */
+  private lastCli: string | null = null;
+
+  /**
+   * A4 fix round (core/venture.ts reuseAi): with no AI from the first run, the newest Codex or Claude Code connection of
+   * another business comes into this one (its preset, model and jobs; no key, call or consent). Answers where it came
+   * from, or null.
+   */
+  reuseAi(biz: string): string | null {
+    if (this.draftAi.connections.some((c) => c.status === 'connected') || !this.lastCli || this.lastCli === biz) return null;
+    const from = this.lastCli;
+    const carried = this.modelsOf(from).connections.filter((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli'));
+    if (!carried.length) return null;
+    const state = this.modelsOf(biz);
+    for (const connection of carried) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}`, consentedAt: this.host.now() });
+    this.retier(state);
+    return from;
+  }
+
   adoptDraft(biz: string): void {
     const connected = this.draftAi.connections.filter((c) => c.status === 'connected');
     if (connected.length) {
@@ -312,6 +331,7 @@ export class FakeBusinessDesk {
       keyLoaded: preset.needsKey, usable: true, reason: preset.availabilityReason, verificationNote: preset.verificationNote ?? null,
     });
     this.retier(state);
+    if (biz && (preset.id === 'codex-cli' || preset.id === 'claude-code-cli')) this.lastCli = biz;
     if (biz && preset.kind !== 'template') {
       // Today's "Connect your AI" leaves once an AI serves the business.
       for (const row of this.host.rows()) if (row.businessId === biz && row.kind === 'setup' && row.actions.some((a) => a.id === 'connect')) this.host.settle(row.id);

@@ -224,6 +224,7 @@ export class VentureHost {
       secrets: this.#secrets,
       ...(options.credentials && options.host !== 'hosted-web' ? { credentials: options.credentials } : {}),
       ...(options.phoneAccess && options.host !== 'hosted-web' ? { phoneAccess: options.phoneAccess } : {}),
+      ...(options.aiSetup && options.host !== 'hosted-web' ? { aiSetup: options.aiSetup } : {}),
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,

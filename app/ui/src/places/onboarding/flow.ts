@@ -129,11 +129,14 @@ export async function makeVault(request: Request, transport: Transport, name: st
 }
 
 /**
- * Inside the new vault: the business, the template interview, the plan. Running it again after a failure is safe:
+ * Inside the new vault: the business, the template interview, the plan. reuseAi: the Start gallery's business reuses the
+ * AI set up in another business on this computer. Running it again after a failure is safe:
  * an existing business is kept (VENTURE_EXISTS) and only unanswered questions are answered.
  */
-export async function setUpPlan(request: Request, sentence: Sentence): Promise<void> {
-  const payload: { idea: string; countryCode: string; workingName?: string } = { idea: sentence.idea, countryCode: sentence.countryCode };
+export async function setUpPlan(request: Request, sentence: Sentence, options: { reuseAi?: boolean } = {}): Promise<void> {
+  const payload: { idea: string; countryCode: string; workingName?: string; reuseAi?: true } = { idea: sentence.idea, countryCode: sentence.countryCode };
+  // A4 fix round: from the Start gallery, the AI set up in another business comes along (the engine decides what).
+  if (options.reuseAi) payload.reuseAi = true;
   const name = sentence.name.trim();
   if (name.length >= 2 && name.length <= 80) payload.workingName = name;
   try { await request('venture.create', payload); }
