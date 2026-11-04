@@ -2513,6 +2513,12 @@ export interface EngineClient {
   getBackground?(): Promise<BackgroundStateLite>;
   setBackground?(update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<BackgroundStateLite>;
   /**
+   * Desktop only (A5 fix round 3): the local day (YYYY-MM-DD) the owner put Today's start-at-login question aside with
+   * Not now, kept by the desktop beside the answer; null when never. Keeping it changes nothing else.
+   */
+  getAskLater?(): Promise<string | null>;
+  setAskLater?(day: string): Promise<void>;
+  /**
    * Desktop only (5A5): the desktop makes a draft's client report (venture.report.render, the PDF included) and saves
    * every file and manifest.json in a new folder where the owner picks, atomically. Null when cancelled; EXPORT_EXISTS
    * when that folder is there already. Absent on the web, the hosted app and the fake, where the page downloads files.

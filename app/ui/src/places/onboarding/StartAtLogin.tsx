@@ -17,42 +17,47 @@ export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.s
  *   first-run: on the services step, above the services, so it is seen before any Set up. Nothing is registered
  *     here: onChoice hands the tick to the first run, which saves it when the owner leaves the step.
  *   today (A5 fix round 1): when the first run ended without an answer (the app closed on the services step, or Go to
- *     Today before the computer answered), Today asks with the same words and the same tick, and Save answers. Not
- *     now (fix round 2) is an answer too: it keeps what the computer has (Keep running sent as it is), so the question
- *     shows once only.
+ *     Today before the computer answered), Today asks with the same words and the same tick, and only Save answers.
+ *     Not now (fix round 3) is no answer: it sends nothing to the computer, and the desktop keeps only the day, so the
+ *     question is put aside for the rest of this computer's day and asked again on a later day, by the same rules.
  * The tick starts as the desktop's suggestion, except that a login item the computer's own startup settings switched
  * off starts unticked (fix round 2): one Save never undoes the owner's own no there.
  * Shown only while asksStartAtLogin holds; a preview, the web and the hosted app have no start at login, and a
  * computer that answered keeps its answer (it is changed in Business > Notifications).
  */
+/** This computer's calendar day, YYYY-MM-DD (never UTC: an evening in India is still today). */
+function localDay(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'; onChoice?: (startAtLogin: boolean | null) => void }) {
   const t = useT();
   const client = useEngine();
   const hintId = useId();
   const [ticked, setTicked] = useState<boolean | null>(null);
-  const [shown, setShown] = useState<BackgroundStateLite | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
-    client.getBackground?.().then((state) => {
-      if (!live || !asksStartAtLogin(state)) return;
+    const aside = place === 'today' && client.getAskLater ? client.getAskLater().catch(() => null) : Promise.resolve(null);
+    Promise.all([client.getBackground?.(), aside]).then(([state, later]) => {
+      if (!live || !state || !asksStartAtLogin(state) || later === localDay()) return;
       const start = state.systemOff ? false : state.startAtLogin;
-      setShown(state);
       setTicked(start);
       onChoice?.(start);
     }, () => { /* Not readable: nothing is asked, and nothing is registered. */ });
     return () => { live = false; };
   }, [client, onChoice]);
 
-  /** Save answers with the tick; Not now (later) answers by keeping the computer as it is. */
+  /** Save answers with the tick. Not now (later) answers nothing: only today's day is kept, so it asks again tomorrow. */
   async function save(later = false) {
-    if (ticked === null || busy || !client.setBackground || !shown) return;
+    if (ticked === null || busy || !(later ? client.setAskLater : client.setBackground)) return;
     setBusy(true);
     setProblem(null);
     try {
-      await client.setBackground(later ? { keepRunning: shown.keepRunning } : { startAtLogin: ticked });
+      if (later) await client.setAskLater!(localDay());
+      else await client.setBackground!({ startAtLogin: ticked });
       setTicked(null);
     } catch (error) {
       setProblem(t('business.notify.failed', { message: error instanceof Error ? error.message : String(error) }));

@@ -50,6 +50,16 @@ describe('desktop transport', () => {
     expect(bridge.setBackground).toHaveBeenCalledWith({ startAtLogin: true });
     expect(createEngineClient({ bridge: { request: vi.fn() } }).getBackground).toBeUndefined();
   });
+
+  // A5 fix round 3: the day the owner put the start-at-login question aside; anything but a day reads as never.
+  it('reads and keeps the day the start-at-login question was put aside', async () => {
+    const days: unknown[] = ['2026-11-04', 'tomorrow', null];
+    const bridge: ChausarBridge = { request: vi.fn(), getAskLater: vi.fn(async () => days.shift()), setAskLater: vi.fn(async () => {}) };
+    const client = createEngineClient({ bridge });
+    expect([await client.getAskLater!(), await client.getAskLater!(), await client.getAskLater!()]).toEqual(['2026-11-04', null, null]);
+    await client.setAskLater!('2026-11-04');
+    expect(bridge.setAskLater).toHaveBeenCalledWith('2026-11-04');
+  });
 });
 
 describe('web transport', () => {

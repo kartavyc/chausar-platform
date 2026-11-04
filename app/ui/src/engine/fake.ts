@@ -1484,6 +1484,6 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
     // W4 4J21: as the hosted page's client reads `me` from the session (client.ts hostedMe).
     ...(engine.hostedMe() ? { hostedMe: async () => structuredClone(engine.hostedMe()) } : {}),
     // A5: the installed app's start at login, as the desktop answers it.
-    ...(engine.background ? { getBackground: engine.background.getBackground, setBackground: engine.background.setBackground } : {}),
+    ...(engine.background ? { getBackground: engine.background.getBackground, setBackground: engine.background.setBackground, getAskLater: engine.background.getAskLater, setAskLater: engine.background.setAskLater } : {}),
   };
 }

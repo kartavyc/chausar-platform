@@ -33,6 +33,9 @@ export interface ChausarBridge {
   /** Desktop only (one-shot A5): start at login and keep running, read back from this computer (background.cjs). */
   getBackground?(): Promise<unknown>;
   setBackground?(update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<unknown>;
+  /** Desktop only (A5 fix round 3): the day the owner put the start-at-login question aside. */
+  getAskLater?(): Promise<unknown>;
+  setAskLater?(day: string): Promise<void>;
   /** Desktop only (5A5): makes a draft's client report and saves its files in a new folder where the owner picks. Null when cancelled. */
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
   saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
@@ -248,6 +251,9 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.showExport ? { showExport: (name: string) => bridge.showExport!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A5: start at login and keep running, with the desktop's refusals as engine errors.
     ...(bridge?.getBackground ? { getBackground: () => bridge.getBackground!().then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),
+    // A5 fix round 3: the day the owner put the question aside; anything but a day reads as never.
+    ...(bridge?.getAskLater ? { getAskLater: () => bridge.getAskLater!().then((day) => (typeof day === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(day) ? day : null), (error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.setAskLater ? { setAskLater: (day: string) => bridge.setAskLater!(day).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.setBackground ? { setBackground: (update: { startAtLogin?: boolean; keepRunning?: boolean }) => bridge.setBackground!(update).then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),
     // 5A5: a client report saved by the desktop through the atomic export, with its refusals as engine errors.
     ...(bridge?.saveReport ? { saveReport: (runId: string) => bridge.saveReport!(runId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),

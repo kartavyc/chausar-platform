@@ -25,7 +25,7 @@ function start(options: { fresh?: boolean; hash?: string; computer?: ReturnType<
   window.location.hash = options.hash ?? '#/today';
   const fake = createFakeClient(new FakeEngine({ fresh: options.fresh ?? true }));
   const computer = options.computer === undefined ? createFakeBackground() : options.computer;
-  const client: EngineClient = { ...fake, ...(computer ? { getBackground: computer.getBackground, setBackground: computer.setBackground } : {}) };
+  const client: EngineClient = { ...fake, ...(computer ? { getBackground: computer.getBackground, setBackground: computer.setBackground, getAskLater: computer.getAskLater, setAskLater: computer.setAskLater } : {}) };
   render(<App client={client} language="en" />);
   return { computer };
 }
@@ -218,29 +218,61 @@ describe('an older install with a silent login item is asked once on Today (foun
   });
 });
 
-// A5 fix round 2 (finding 4): "asked once" means Today's question can be put aside for good: Not now is an answer that
-// keeps what the computer has now, and the question never shows again.
-describe('Not now on Today keeps the computer as it is (A5 fix round 2)', () => {
-  for (const [name, start0, registered, systemOff] of [
-    ['a registered login item stays registered', { registered: true }, true, false],
-    ['no login item stays none', {}, false, false],
-    ['a switched-off login item stays there and off', { systemOff: true }, false, true],
+// A5 fix round 3 (finding 1): Not now is no answer. It sends nothing to the computer and saves no answer: the question
+// is put aside for the rest of this computer's day, kept by the desktop, and asks again on a later day with the same
+// rules. Only Save answers.
+describe('Not now on Today puts the question aside until tomorrow (A5 fix round 3)', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const at = (day: number, hour: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 10, day, hour, 0, 0)); };
+  for (const [name, first, ticked] of [
+    ['a silent login item that is on', { registered: true }, true],
+    ['no login item', {}, true],
+    ['a login item the computer switched off', { systemOff: true }, false],
   ] as const) {
-    it(name, async () => {
-      const computer = createFakeBackground(start0);
+    it(`${name}: nothing changes, it is gone for today and back tomorrow, ${ticked ? 'ticked' : 'unticked'}`, async () => {
+      const computer = createFakeBackground(first);
+      const was = { ...computer.computer };
+      at(4, 23);
       start({ fresh: false, computer });
       await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
       await press('Not now');
-      await waitFor(() => expect(computer.changes).toEqual([{ keepRunning: true }]), { timeout: 4000 });
-      expect([computer.computer.registered, computer.computer.systemOff]).toEqual([registered, systemOff]);
       await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
+      expect(computer.changes).toEqual([]);
+      expect(computer.computer).toEqual(was);
+      expect((await computer.getBackground()).asked).toBe(false);
+      expect(await computer.getAskLater()).toBe('2026-11-04');
       cleanup();
       start({ fresh: false, computer });
       await screen.findByRole('navigation', {}, { timeout: 4000 });
       await act(async () => { await new Promise((accept) => setTimeout(accept, 20)); });
       expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
+      cleanup();
+      at(5, 0);
+      start({ fresh: false, computer });
+      const again = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
+      expect(again.checked).toBe(ticked);
     }, 20000);
   }
+
+  it('Save after a Not now answers once and for all', async () => {
+    const computer = createFakeBackground({ registered: true });
+    at(4, 9);
+    start({ fresh: false, computer });
+    await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+    await press('Not now');
+    cleanup();
+    at(5, 9);
+    start({ fresh: false, computer });
+    await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+    await press('Save');
+    await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
+    cleanup();
+    at(9, 9);
+    start({ fresh: false, computer });
+    await screen.findByRole('navigation', {}, { timeout: 4000 });
+    await act(async () => { await new Promise((accept) => setTimeout(accept, 20)); });
+    expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
+  }, 20000);
 });
 
 describe('Business > Notifications reads the computer again (A5 fix round 1, finding 5)', () => {
