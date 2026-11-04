@@ -234,7 +234,7 @@ function createTray() {
   tray.on('mouse-enter', refreshBackground);
 }
 // One-shot A7: the window shows the founder's logo on Windows (the ico, every size) and Linux (a tar.gz has no desktop
-// entry to take it from); macOS takes the bundle's icns. The unsigned beta leaves Chausar.exe's own icon unedited.
+// entry to take it from); macOS takes the bundle's icns. Chausar.exe carries the logo too (scripts/desktop-after-pack.cjs).
 const WINDOW_ICON = { win32: 'icons/icon.ico', linux: 'icons/png/256x256.png' }[process.platform];
 function createWindow(hash = '') {
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa', title: appName(), show: false,
