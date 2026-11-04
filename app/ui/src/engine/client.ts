@@ -8,7 +8,7 @@
  */
 
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
-import { EngineError, type EngineClient, type EngineStatus, type HostedMeLite, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
@@ -30,6 +30,9 @@ export interface ChausarBridge {
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   /** Desktop only (review of A1, row 1): shows a kept export in the file manager, by its file name. */
   showExport?(name: string): Promise<void>;
+  /** Desktop only (one-shot A5): start at login and keep running, read back from this computer (background.cjs). */
+  getBackground?(): Promise<unknown>;
+  setBackground?(update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<unknown>;
   /** Desktop only (5A5): makes a draft's client report and saves its files in a new folder where the owner picks. Null when cancelled. */
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
   saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
@@ -97,6 +100,13 @@ export function hostedMeOf(value: unknown): HostedMeLite | null {
   const ok = typeof trial === 'object' && trial.temporary === true && typeof trial.line === 'string' && typeof trial.expiresAt === 'string'
     && typeof trial.endsSoon === 'boolean' && (trial.warning === null || typeof trial.warning === 'string');
   return ok ? { trials: me.trials, trial: { temporary: true, line: trial.line as string, expiresAt: trial.expiresAt as string, endsSoon: trial.endsSoon as boolean, warning: trial.warning as string | null } } : { trials: me.trials, trial: null };
+}
+
+/** One-shot A5: the desktop's start-at-login state, checked field by field; anything else reads as not here. */
+function backgroundState(value: unknown): BackgroundStateLite {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const flag = (key: string) => v[key] === true;
+  return { supported: flag('supported'), asked: flag('asked'), startAtLogin: flag('startAtLogin'), keepRunning: flag('keepRunning'), registered: flag('registered'), systemOff: flag('systemOff') };
 }
 
 function asEngineError(error: unknown): EngineError {
@@ -236,6 +246,9 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string) => bridge.saveMoneyExport!(month).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // Review of A1 (row 1): a kept export shown in the file manager, with its refusals as engine errors.
     ...(bridge?.showExport ? { showExport: (name: string) => bridge.showExport!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // One-shot A5: start at login and keep running, with the desktop's refusals as engine errors.
+    ...(bridge?.getBackground ? { getBackground: () => bridge.getBackground!().then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.setBackground ? { setBackground: (update: { startAtLogin?: boolean; keepRunning?: boolean }) => bridge.setBackground!(update).then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),
     // 5A5: a client report saved by the desktop through the atomic export, with its refusals as engine errors.
     ...(bridge?.saveReport ? { saveReport: (runId: string) => bridge.saveReport!(runId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.saveYoutubeProject ? { saveYoutubeProject: (editId: string, digest: string) => bridge.saveYoutubeProject!(editId, digest).catch((error: unknown) => { throw asEngineError(error); }) } : {}),

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { NeedLite } from '../../engine/types';
@@ -14,9 +14,9 @@ import f from './FirstRun.module.css';
  * opens its own connector sheet in Connections (the service's own sign-in, or a key into this computer's keychain); a
  * planned one says what it waits on and what to do meanwhile, and offers nothing to press. Every one can be skipped,
  * and skipping all of them still leaves a working business. The same list is Connections' "Services your business
- * needs" page (`place="connections"`).
+ * needs" page (`place="connections"`). foot (one-shot A5): what the first run asks above Go to Today (start at login).
  */
-export function BusinessNeeds({ place, onDone }: { place: 'first-run' | 'connections'; onDone?: () => void }) {
+export function BusinessNeeds({ place, onDone, foot }: { place: 'first-run' | 'connections'; onDone?: () => void; foot?: ReactNode }) {
   const t = useT();
   const headingId = useId();
   const list = useResource('venture.needs.list', {});
@@ -67,6 +67,7 @@ export function BusinessNeeds({ place, onDone }: { place: 'first-run' | 'connect
           })}
         </ul>
       )}
+      {first && foot}
       {first && (
         <div className={f.needsFoot}>
           <Button variant="primary" size="lg" onClick={() => { goTo('today'); onDone?.(); }}>{t('first-run.needs.done')}</Button>

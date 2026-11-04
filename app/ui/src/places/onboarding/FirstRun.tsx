@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -9,6 +9,7 @@ import { AboutYou, type KeptPlan } from './AboutYou';
 import { BusinessNeeds } from './BusinessNeeds';
 import { ConnectAi } from './ConnectAi';
 import { ProfessionPick } from './ProfessionPick';
+import { StartAtLogin } from './StartAtLogin';
 import { Start } from './Start';
 import f from './FirstRun.module.css';
 import s from './Onboarding.module.css';
@@ -41,6 +42,16 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const [begun, setBegun] = useState(false);
   const [sideWork, setSideWork] = useState<ComplianceAnswer | null>(null);
   const [inVault, setInVault] = useState(false);
+  /** A5: the start-at-login tick on the services step; null when it is not asked here. Saved as the owner leaves. */
+  const login = useRef<boolean | null>(null);
+  const chooseLogin = useCallback((value: boolean | null) => { login.current = value; }, []);
+
+  /** Leaving the services step: the tick is the owner's answer (ticked by default), and only now is it applied. */
+  function leave() {
+    const value = login.current;
+    if (value !== null && client.setBackground) void client.setBackground({ startAtLogin: value }).catch(() => { /* Settings shows the computer's own state. */ });
+    onStarted();
+  }
 
   /**
    * The plan is in the vault: remember the field it was kept with (for Connections), record the side-work answer (and
@@ -105,7 +116,7 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
             <Start variant="first-run" onStarted={onStarted} onBegin={setBegun} plan={{ idea: plan.read.idea, countryCode: plan.countryCode, name: plan.name, offers: plan.read.offers, by: plan.read.source === 'ai' ? 'model' : 'template', ...(plan.read.callId ? { callId: plan.read.callId } : {}) }} onKept={kept} />
           </div>
         )}
-        {step === 'needs' && <BusinessNeeds place="first-run" onDone={onStarted} />}
+        {step === 'needs' && <BusinessNeeds place="first-run" onDone={leave} foot={<StartAtLogin onChoice={chooseLogin} />} />}
         {away && onBack && <Button variant="quiet" className={f.back} onClick={onBack}>{t('onboarding.welcome.back')}</Button>}
         {away && onExisting && <Button variant="quiet" className={f.back} onClick={onExisting}>{t('onboarding.welcome.existing')}</Button>}
       </main>

@@ -1635,6 +1635,12 @@ export interface ToolLite {
   provider?: ProviderTroubleLite;
 }
 export interface ToolsLite { tools: ToolLite[]; line: string }
+/**
+ * One-shot A5: start at login and keep running on this computer (app/desktop/background.cjs state()). registered: the
+ * computer starts Chausar at sign-in now; systemOff: its login item is there but the computer's own startup settings
+ * switched it off. startAtLogin is the saved answer (unasked, the suggestion onboarding ticks).
+ */
+export interface BackgroundStateLite { supported: boolean; asked: boolean; startAtLogin: boolean; keepRunning: boolean; registered: boolean; systemOff: boolean }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
 /** A field tile; venture.about.families lists its professions too (one-shot A5), venture.about.read and .pick do not. */
 export interface FamilyLite { id: string; label: string; line: string }
@@ -2499,6 +2505,13 @@ export interface EngineClient {
    * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.
    */
   showExport?(name: string): Promise<void>;
+  /**
+   * Desktop only (one-shot A5): start at login and keep running, as the desktop's background.cjs answers: the saved
+   * answer, whether it was asked, and the login item read back from this computer. Absent on the web, the hosted app
+   * and the fake (tests spread fake-background.ts onto it). A preview answers supported false and refuses a change.
+   */
+  getBackground?(): Promise<BackgroundStateLite>;
+  setBackground?(update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<BackgroundStateLite>;
   /**
    * Desktop only (5A5): the desktop makes a draft's client report (venture.report.render, the PDF included) and saves
    * every file and manifest.json in a new folder where the owner picks, atomically. Null when cancelled; EXPORT_EXISTS

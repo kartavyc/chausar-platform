@@ -34,6 +34,22 @@ describe('desktop transport', () => {
     push!({ healthy: true, state: 'ready' });
     expect(seen).toEqual([{ state: 'starting' }, { state: 'offline' }, { state: 'ok' }]);
   });
+
+  // One-shot A5: start at login and keep running, from the desktop's own channels; only true counts as true.
+  it('reads and changes start at login through the bridge, with refusals as engine errors', async () => {
+    const bridge: ChausarBridge = {
+      request: vi.fn(),
+      getBackground: vi.fn(async () => ({ supported: true, asked: false, startAtLogin: true, keepRunning: 'yes', registered: 1, systemOff: false, extra: 'x' })),
+      setBackground: vi.fn(async () => { throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' }); }),
+    };
+    const client = createEngineClient({ bridge });
+    expect(await client.getBackground!()).toEqual({ supported: true, asked: false, startAtLogin: true, keepRunning: false, registered: false, systemOff: false });
+    const refusal = await client.setBackground!({ startAtLogin: true }).catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(EngineError);
+    expect((refusal as EngineError).code).toBe('BACKGROUND_UNAVAILABLE');
+    expect(bridge.setBackground).toHaveBeenCalledWith({ startAtLogin: true });
+    expect(createEngineClient({ bridge: { request: vi.fn() } }).getBackground).toBeUndefined();
+  });
 });
 
 describe('web transport', () => {

@@ -20,7 +20,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { useClock } from '../../shell/clock';
 import { useBrowserPush, type PushPermission } from '../../shell/push';
-import { EngineError, type NotifySettingsView, type ParamsOf } from '../../engine/types';
+import { EngineError, type BackgroundStateLite, type NotifySettingsView, type ParamsOf } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { PhoneReach } from './PhoneReach';
@@ -360,6 +360,7 @@ function KeepsRunning({ settings }: { settings: NotifySettingsView }) {
   const hosted = relay.error?.code === 'TIER_UNAVAILABLE';
   return (
     <TileSection title={t('business.notify.running')}>
+      <BackgroundSwitches />
       {settings.keepsRunning.length > 0 ? (
         <ul className={n.running}>
           {settings.keepsRunning.map((line) => <li key={line}>{line}</li>)}
@@ -368,5 +369,56 @@ function KeepsRunning({ settings }: { settings: NotifySettingsView }) {
         <p className={s.line}>{hosted ? t('business.notify.runningNoneHosted') : t('business.notify.runningNone')}</p>
       )}
     </TileSection>
+  );
+}
+
+/**
+ * One-shot A5 (founder answer 5; hands-on row 4): start at login and keep running in the tray, as switches, in the
+ * installed app only (the desktop says it is supported). Start at login shows the computer's own state, read back each
+ * time, never only the saved answer; one the computer's startup settings switched off reads off, with a note, and
+ * ticking it turns it back on. A change the computer did not take says so.
+ */
+function BackgroundSwitches() {
+  const t = useT();
+  const client = useEngine();
+  const [state, setState] = useState<BackgroundStateLite | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    client.getBackground?.().then((value) => { if (live) setState(value); }, (error: unknown) => { if (live) setProblem(t('business.notify.loginUnread', { message: messageOf(error) })); });
+    return () => { live = false; };
+  }, [client, t]);
+
+  async function change(update: { startAtLogin?: boolean; keepRunning?: boolean }) {
+    if (!client.setBackground) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const next = await client.setBackground(update);
+      setState(next);
+      if (update.startAtLogin !== undefined && next.registered !== update.startAtLogin) setProblem(t('business.notify.loginNotTaken'));
+    } catch (error) {
+      setProblem(t('business.notify.failed', { message: messageOf(error) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!state?.supported) return problem ? <p className={s.problem} role="alert">{problem}</p> : null;
+  return (
+    <div className={n.switches}>
+      <label className={s.agree}>
+        <input type="checkbox" checked={state.registered} disabled={busy} onChange={(event) => void change({ startAtLogin: event.currentTarget.checked })} />
+        {t('business.notify.login')}
+      </label>
+      {state.systemOff && !state.registered && <p className={s.note}>{t('business.notify.loginSystemOff')}</p>}
+      <label className={s.agree}>
+        <input type="checkbox" checked={state.keepRunning} disabled={busy} onChange={(event) => void change({ keepRunning: event.currentTarget.checked })} />
+        {t('business.notify.keepRunning')}
+      </label>
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+    </div>
   );
 }

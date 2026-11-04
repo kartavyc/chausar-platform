@@ -77,6 +77,7 @@ import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-d
 /** The business's own calendar day (as the engine's local-day.ts reads it from the country's time zone). */
 const localDayAt = (instant: string, country: { code: string }) => new Intl.DateTimeFormat('en-CA', { timeZone: COUNTRY_TIME_ZONES[country.code] ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 import { withPriceGuide } from './fake-price-ranges';
+import { createFakeBackground, type FakeBackgroundStart } from './fake-background';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
 import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
@@ -124,6 +125,11 @@ export interface FakeOptions {
    * 'ending' in its last day. It answers as the hosted server does. `?trial` or `?trial-ending` in the dev page's address.
    */
   trial?: 'temporary' | 'ending';
+  /**
+   * One-shot A5: answer as the installed desktop app's start at login and keep running (fake-background.ts), so the
+   * client has getBackground and setBackground. `?installed` in the dev page's address (a computer not asked yet).
+   */
+  background?: FakeBackgroundStart;
 }
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
@@ -215,6 +221,8 @@ export class FakeEngine {
   private readonly deviceKeys: boolean;
   private readonly hosted: boolean;
   private readonly trial: 'temporary' | 'ending' | null;
+  /** A5: the sample computer's start at login, when this fake answers as the installed app. */
+  readonly background: ReturnType<typeof createFakeBackground> | null;
   /** Your AI, plan and prices, website build: fake-business.ts. */
   private readonly desk: FakeBusinessDesk;
   /** Orders, delivery runs, invoices and client files: fake-work.ts. */
@@ -290,6 +298,7 @@ export class FakeEngine {
     for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN', done: 6 });
     this.deviceKeys = options.deviceKeys ?? !devAsks('no-keys');
     this.trial = options.trial ?? (devAsks('trial-ending') ? 'ending' : devAsks('trial') ? 'temporary' : null);
+    this.background = options.background ? createFakeBackground(options.background) : devAsks('installed') ? createFakeBackground() : null;
     this.hosted = (options.hosted ?? false) || this.trial !== null;
     this.desk = new FakeBusinessDesk({
       quote: quote => this.network.rememberQuote(quote),
@@ -1474,5 +1483,7 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
     onStatus: (listener) => status.subscribe(listener),
     // W4 4J21: as the hosted page's client reads `me` from the session (client.ts hostedMe).
     ...(engine.hostedMe() ? { hostedMe: async () => structuredClone(engine.hostedMe()) } : {}),
+    // A5: the installed app's start at login, as the desktop answers it.
+    ...(engine.background ? { getBackground: engine.background.getBackground, setBackground: engine.background.setBackground } : {}),
   };
 }

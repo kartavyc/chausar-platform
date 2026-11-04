@@ -93,3 +93,10 @@
   color: var(--fg2);
   overflow-wrap: anywhere;
 }
+
+/* One-shot A5: start at login and keep running, above what keeps running. */
+.switches {
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
