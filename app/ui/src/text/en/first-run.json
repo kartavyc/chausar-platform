@@ -81,6 +81,13 @@
 
   "first-run.keep.title": "Keeping your plan",
 
+  "first-run.who.title": "Which of these are you?",
+  "first-run.who.sub": "Chausar shows the rules for the one you pick.",
+  "first-run.who.picked": "From what you wrote",
+  "first-run.who.none": "None of these",
+  "first-run.who.continue": "Continue",
+  "first-run.who.pickFirst": "Pick one first.",
+  "first-run.who.failed": "Chausar could not list the professions: {message}",
   "first-run.needs.title": "Connect what your business needs",
   "first-run.needs.sub": "Each one is optional. Skip any of them; they stay in Connections for later.",
   "first-run.needs.setUp": "Set up",

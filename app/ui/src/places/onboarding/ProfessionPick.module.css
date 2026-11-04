@@ -1,0 +1,37 @@
+/* "Which of these are you?" (ProfessionPick.tsx, one-shot A5): one radio per profession, the AI's pick marked. Tokens only. */
+
+.choices {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.tag {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--mute);
+}

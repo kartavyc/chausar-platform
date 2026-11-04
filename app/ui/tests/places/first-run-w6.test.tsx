@@ -4,7 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
 import type { EngineClient, ModelStatusLite } from '../../src/engine/types';
-import { answerSideWork } from './first-run-steps';
+import { answerSideWork, confirmProfession } from './first-run-steps';
 
 /**
  * W6 first run: Connect your AI (6C1), About you as A that becomes B (6C2, DECISIONS D16a) and Connect what your
@@ -186,6 +186,8 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
     await skipAi();
     await press(/^Teaching and coaching/);
     await press('Keep this plan');
+    // A5: the field's professions come first; "None of these" keeps the field, which this test is about.
+    await confirmProfession();
     const check = await screen.findByRole('region', { name: 'Day job and rules' }, { timeout: 4000 });
     expect(screen.getByRole('heading', { level: 1, name: 'Day job and rules' })).toBeTruthy();
     expect(within(check).getByRole('group', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
