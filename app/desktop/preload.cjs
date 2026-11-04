@@ -61,6 +61,20 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
+  // One-shot A5: start at login and keep running, read back from this computer; a change sends only the two ticks.
+  getBackground: async () => {
+    const reply = await ipcRenderer.invoke('chausar:background:get');
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  setBackground: async update => {
+    const request = {};
+    if (typeof update?.startAtLogin === 'boolean') request.startAtLogin = update.startAtLogin;
+    if (typeof update?.keepRunning === 'boolean') request.keepRunning = update.keepRunning;
+    const reply = await ipcRenderer.invoke('chausar:background:set', request);
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not change this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

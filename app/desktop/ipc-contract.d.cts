@@ -9,6 +9,10 @@ export const PICK_FILE_CHANNEL: string;
 export const MONEY_EXPORT_CHANNEL: string;
 /** Ink v2 wave 5 (5A5): the desktop makes a client report and saves its files in a new folder where the owner picks. */
 export const REPORT_SAVE_CHANNEL: string;
+/** One-shot A5: the window reads and changes start at login and keep running (background.cjs). */
+export const BACKGROUND_GET_CHANNEL: string;
+export const BACKGROUND_SET_CHANNEL: string;
+export function validateBackgroundChange(input: unknown): { startAtLogin?: boolean; keepRunning?: boolean };
 export const TRUSTED_DOCUMENT: string;
 export const MAX_REQUEST_BYTES: number;
 export const OPEN_EXTERNAL_CHANNEL: string;

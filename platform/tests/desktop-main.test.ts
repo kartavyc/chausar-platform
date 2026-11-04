@@ -406,3 +406,54 @@ test('previews and development runs never register a login item and their tray m
   const hidden = await desktop(['--hidden']);
   assert.equal(hidden.windows.length, 1, 'only the beta starts hidden');
 });
+
+// One-shot A5 (founder answer 5; rows 4, 88, 114): onboarding and Settings read and change start at login and the tray
+// through two channels for the app's own window only. The answer is background.cjs's state, read back from the computer.
+test('A5: the window reads start at login and keep running, and a change registers it, moves the tray tick and answers the state', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const contract = require('./ipc-contract.cjs');
+  const get = d.handlers.get(contract.BACKGROUND_GET_CHANNEL), set = d.handlers.get(contract.BACKGROUND_SET_CHANNEL);
+  assert.equal(typeof get, 'function');
+  assert.equal(typeof set, 'function');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(await get(own, undefined)), { ok: true, result: { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: false, systemOff: false } });
+  const changed = await set(own, { startAtLogin: true });
+  assert.deepEqual(plain(changed), { ok: true, result: { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: true, systemOff: false } });
+  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  assert.equal(d.menus.at(-1).find((item: any) => item.label === 'Start at login').checked, true);
+  const kept = await set(own, { keepRunning: false });
+  assert.equal(kept.result.keepRunning, false);
+  await flush();
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
+  // Only the app's own window, and only the two ticks as true or false.
+  assert.deepEqual([(await get({ sender: {}, senderFrame: own.senderFrame }, undefined)).error.code, (await set({ sender: {}, senderFrame: own.senderFrame }, { startAtLogin: false })).error.code], ['UNTRUSTED_SENDER', 'UNTRUSTED_SENDER']);
+  for (const bad of [{}, { startAtLogin: 'yes' }, { startAtLogin: true, path: 'C:/x.exe' }, [true], null, 'on']) {
+    const reply = await set(own, bad);
+    assert.deepEqual([reply.ok, reply.error.code], [false, 'INVALID_REQUEST'], JSON.stringify(bad));
+  }
+  assert.equal(d.logins.length, 1, 'no refused change reached the computer');
+});
+
+test('A5: a preview or development run answers that start at login is not here, and refuses a change', async () => {
+  const d = await desktop([]);
+  const contract = require('./ipc-contract.cjs');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  assert.deepEqual(JSON.parse(JSON.stringify(await d.handlers.get(contract.BACKGROUND_GET_CHANNEL)(own, undefined))), { ok: true, result: { supported: false, asked: false, startAtLogin: false, keepRunning: false, registered: false, systemOff: false } });
+  const refused = await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
+  assert.deepEqual([refused.ok, refused.error.code], [false, 'BACKGROUND_UNAVAILABLE']);
+  assert.deepEqual(d.logins, []);
+});
+
+test('A5: the real preload forwards only the two ticks', async () => {
+  let bridge: any; const calls: any[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (channel: string, input: any) => { calls.push({ channel, input }); return { ok: true, result: { supported: true } }; } } }) });
+  assert.deepEqual(await bridge.getBackground(), { supported: true });
+  await bridge.setBackground({ startAtLogin: true, keepRunning: false, path: 'C:/x.exe' });
+  await bridge.setBackground({ keepRunning: 'yes' });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    { channel: 'chausar:background:get' },
+    { channel: 'chausar:background:set', input: { startAtLogin: true, keepRunning: false } },
+    { channel: 'chausar:background:set', input: {} },
+  ]);
+});

@@ -302,6 +302,17 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
+  // One-shot A5: start at login and keep running, asked in onboarding and changed in Settings. Previews and development
+  // runs answer that they are not here (no login item ever), and refuse a change.
+  const contract = require('./ipc-contract.cjs');
+  ipcMain.handle(contract.BACKGROUND_GET_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: background ? await background.state() : { ...backgroundValue, supported: false } }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(contract.BACKGROUND_SET_CHANNEL, async (event, input) => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: await setBackground(contract.validateBackgroundChange(input)) }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

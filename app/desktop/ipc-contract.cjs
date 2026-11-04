@@ -21,6 +21,10 @@ const MONEY_EXPORT_CHANNEL = 'chausar:money:saveExport';
 // Ink v2 wave 5 (5A5, P11): the desktop makes a client report and saves its files where the owner picks (report-save.cjs);
 // the window names only the draft. Chausar never sends the files.
 const REPORT_SAVE_CHANNEL = 'chausar:report:save';
+// One-shot A5 (founder answer 5): onboarding and Settings read start at login and keep running (background.cjs's state,
+// the login item read back from the computer) and change either; the window sends only the two ticks.
+const BACKGROUND_GET_CHANNEL = 'chausar:background:get';
+const BACKGROUND_SET_CHANNEL = 'chausar:background:set';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -286,6 +290,12 @@ function validateExternalUrl(input) {
   if (!EXTERNAL_ORIGINS.includes(url.origin)) throw failure('EXTERNAL_URL_NOT_ALLOWED', 'Chausar opens only its listed partner sites.');
   return url.href;
 }
+/** A5: one change of start at login or keep running, as true or false; anything else is refused. */
+function validateBackgroundChange(input) {
+  const keys = isRecord(input) ? Object.keys(input) : [];
+  if (keys.length === 0 || keys.some(key => !['startAtLogin', 'keepRunning'].includes(key) || typeof input[key] !== 'boolean')) throw failure('INVALID_REQUEST', 'Change start at login or keep running, as on or off.');
+  return { ...(keys.includes('startAtLogin') ? { startAtLogin: input.startAtLogin } : {}), ...(keys.includes('keepRunning') ? { keepRunning: input.keepRunning } : {}) };
+}
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
 }
@@ -303,4 +313,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
