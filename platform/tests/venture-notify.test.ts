@@ -244,7 +244,7 @@ test('an item that leaves Today and comes back is news again: a second draft pla
   await notifyRefresh(env.deps, owner);
   assert.equal(plans().length, 1);
   assert.notEqual(plans()[0].readAt, null);
-  assert.equal(plans()[0].title, 'Your plan', 'once it left Today the item keeps a kind word, not its words');
+  assert.equal(plans()[0].title, 'Your plan, no longer waiting on you', 'once it left Today the item keeps a kind word and that it ended, not its words (B1, row 22)');
   env.advance(3 * HOUR);
   env.published.length = 0;
   await seedBlueprint(env, { status: 'draft', version: 3, price2: '1700000' }); // a new plan to approve, same subject
@@ -288,7 +288,7 @@ test('a run that waits on the owner again is news again; once its row leaves Tod
   await notifyRefresh(env.deps, owner);
   assert.deepEqual(episodes().map(record => [record.alert, record.readAt === null]), [['sent', false], ['sent', true]]);
   assert.deepEqual(notifyNews(env).map(event => event.data), [{ count: (await queue(env)).rows.length }]);
-  assert.equal(episodes()[0].title, 'A question', 'the first wait is over: its words, and the client\'s name, are gone');
+  assert.equal(episodes()[0].title, 'A question, no longer waiting on you', 'the first wait is over: its words, and the client\'s name, are gone');
   // The run is accepted: its row leaves Today, and no item in the centre keeps the client's name.
   await ventureAction(env.deps, owner, 'prepare', 'seed.done', tx => { tx.replace({ ...tx.find('venture-delivery-run', run.id)!, status: 'accepted' }); });
   await notifyRefresh(env.deps, owner);

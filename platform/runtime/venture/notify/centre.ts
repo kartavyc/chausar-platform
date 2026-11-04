@@ -53,12 +53,18 @@ export const NOTIFY_PACING = Object.freeze({
 });
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
 
-/** What an ended item says instead of its row's title: the kind of thing it was, never whose. */
+/**
+ * What an ended item says instead of its row's title: the kind of thing it was, never whose, and (one-shot B1, row 22)
+ * that it no longer waits, so "A draft" alone never reads as a new thing to do.
+ */
 export const KIND_WORDS: Readonly<Record<QueueKind, string>> = Object.freeze({
   plan: 'Your plan', price: 'A price change', quote: 'A cost to approve', draft: 'A draft', invoice: 'An invoice', signoff: 'A sign-off',
   question: 'A question', setup: 'A setup step', locked: 'A locked business', connector: 'A connection', bank: 'A bank line',
   proposal: 'A proposal', followup: 'A follow-up', reply: 'A reply', notice: 'A notice',
 });
+export const ENDED_WORDS = ', no longer waiting on you';
+/** An ended item's title: "A draft, no longer waiting on you". */
+export const endedTitle = (kind: QueueKind): string => `${KIND_WORDS[kind] ?? 'An item'}${ENDED_WORDS}`;
 
 export type AlertInput = {
   now: IsoTime;
@@ -193,7 +199,7 @@ export function planRefresh(state: State, input: RefreshInput): RefreshPlan {
   for (const record of stored) latest.set(record.subject, record.id);
   const open = new Map<string, QueueRow>();
   for (const { subject, row } of input.rows) open.set(subject, row);
-  const end = (record: NotificationRecord) => { record.endedAt = input.now; record.readAt ??= input.now; record.title = KIND_WORDS[record.rowKind] ?? 'An item'; };
+  const end = (record: NotificationRecord) => { record.endedAt = input.now; record.readAt ??= input.now; record.title = endedTitle(record.rowKind); };
 
   const fresh: NotificationRecord[] = [];
   for (const [subject, row] of open) {

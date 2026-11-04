@@ -42,7 +42,7 @@ const CHAT_ID = /^-?\d{1,20}$/;
 const FAKE_WIFI = '192.168.1.20';
 const FAKE_PAIR_LINK = `http://${FAKE_WIFI}:43117/#pair=${'Fk'.repeat(21)}x`;
 
-/** centre.ts KIND_WORDS: what an ended item says instead of its row's title. */
+/** centre.ts KIND_WORDS and endedTitle: what an ended item says instead of its row's title, and that it ended. */
 const KIND_WORDS: Readonly<Record<string, string>> = {
   plan: 'Your plan', price: 'A price change', quote: 'A cost to approve', draft: 'A draft', invoice: 'An invoice', signoff: 'A sign-off',
   question: 'A question', setup: 'A setup step', locked: 'A locked business', connector: 'A connection', bank: 'A bank line',
@@ -163,7 +163,7 @@ export class FakeNotifyDesk {
       if (note.ended || rows.some((row) => row.id === note.rowId)) continue;
       note.ended = true;
       note.readAt ??= now;
-      note.title = KIND_WORDS[note.kind] ?? 'An item';
+      note.title = `${KIND_WORDS[note.kind] ?? 'An item'}, no longer waiting on you`;
     }
     for (const row of rows) {
       if (notes.some((note) => note.rowId === row.id && !note.ended)) continue;
