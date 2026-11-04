@@ -580,7 +580,9 @@ export class FakeBusinessDesk {
     if (held.opens === 'needs-passphrase' && !(typeof p.passphrase === 'string' && p.passphrase === held.passphrase)) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
     const madeAt = this.host.now();
     const text = JSON.stringify({ backupFormat: SAMPLE_MOVE_FORMAT, business: biz, name: this.host.businessName(biz), madeAt });
-    return { fileName: `chausar-move-${madeAt.slice(0, 10)}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
+    // A4 review (L3): named by this computer's own date, as the engine's moveFileName.
+    const at = new Date(madeAt), day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+    return { fileName: `chausar-move-${day}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
   }
 
   private custodyView(biz: string): CustodyViewLite {

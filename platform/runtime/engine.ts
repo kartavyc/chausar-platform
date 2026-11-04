@@ -70,7 +70,7 @@ import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
-import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
@@ -2857,7 +2857,7 @@ export class Engine {
     const text = await vault.transferText(transferCode, { recovery: (card ? card.recovery === 'made' : true) ? 'made' : 'not-made', madeAt });
     check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
     await vault.update(state => audit(state, 'custody.transfer-exported', {}));
-    return { fileName: `chausar-move-${madeAt.slice(0, 10)}.backup`, text, transferCode, bytes: Buffer.byteLength(text) };
+    return { fileName: moveFileName(new Date(madeAt)), text, transferCode, bytes: Buffer.byteLength(text) };
   }
   private async transferImport(payload: any) {
     check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');

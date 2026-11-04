@@ -30,6 +30,11 @@ export const BACKUP_AFTER_METHODS: readonly string[] = Object.freeze([
 ]);
 export const AUTO_BACKUP = Object.freeze({ everyMs: 21_600_000, minGapMs: 120_000, keepRecent: 10, keepDailyDays: 14, keepWeeklyWeeks: 8, keepSafety: 5 });
 export const TRANSFER = Object.freeze({ prefix: 'CHT-', length: 24, alphabet: '0123456789ABCDEFGHJKMNPQRSTVWXYZ', maxTextChars: 1_900_000 });
+/** A4 review (L3, hands-on row 113): a move file's name, by this computer's own date (never the UTC day). */
+export function moveFileName(at: Date): string {
+  const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+  return `chausar-move-${day}.backup`;
+}
 export const BUSINESS_LIST_MAX = 50;
 export const BACKUP_LIST_MAX = 200;
 
