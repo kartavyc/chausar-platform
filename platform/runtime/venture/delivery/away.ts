@@ -25,7 +25,7 @@ const DAY_MS = 86_400_000;
 
 /** The Keeper's jobs, in the owner's words. They are Chausar's own code: none of them starts work for an agent. */
 const KEEPER_WORDS: Readonly<Record<KeeperJobId, string>> = Object.freeze({
-  backups: 'Backups of this business', 'journal-sweep': 'The check of actions whose outcome is unknown', 'connection-checks': 'Connection checks',
+  backups: 'Backups of this business', 'journal-sweep': 'Checking anything that may not have gone through', 'connection-checks': 'Connection checks',
   'rule-freshness': 'Dates on the platform rules', 'rate-tables': 'Dates on the tax rate tables', 'posting-steps': 'Checks of the posting steps',
   'network-strength': 'Relationship strength updates', probes: 'Checks for what needs you', 'calendar-feed': 'Reading your calendar feed',
   monitors: 'Looking at the pages you watch', // 5A6

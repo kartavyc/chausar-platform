@@ -24,3 +24,10 @@ test("a run's scope line says the agent's setting, never that the order is a reh
     'approve-each': 'with each step waiting for your approval', 'auto-spot-check': 'on auto with spot checks',
   });
 });
+
+// SCREENS P1 (shot 18): the Keeper's job list on Away said "The check of actions whose outcome is unknown".
+test("Away names the Keeper's journal check in plain words", () => {
+  const source = readFileSync(new URL('../runtime/venture/delivery/away.ts', import.meta.url), 'utf8');
+  assert.match(source, /'journal-sweep': 'Checking anything that may not have gone through'/);
+  assert.doesNotMatch(source, /outcome is unknown/);
+});
