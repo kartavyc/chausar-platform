@@ -24,7 +24,8 @@ function parseSettings(text, defaults) {
   try {
     const value = JSON.parse(text);
     if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.startAtLogin !== 'boolean' || typeof value.keepRunning !== 'boolean') return defaults;
-    return { startAtLogin: value.startAtLogin, keepRunning: value.keepRunning, asked: true };
+    // A5 fix round 3: systemOff, kept only when true, remembers that the computer had switched the login item off.
+    return { startAtLogin: value.startAtLogin, keepRunning: value.keepRunning, asked: true, off: value.systemOff === true };
   } catch { return defaults; }
 }
 /**
@@ -50,12 +51,22 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
   const autostartFile = () => path.posix.join(env.XDG_CONFIG_HOME && path.posix.isAbsolute(env.XDG_CONFIG_HOME) ? env.XDG_CONFIG_HOME : path.posix.join(home, '.config'), 'autostart', AUTOSTART_FILE);
   let current = null;
 
-  async function settings() {
+  /** The saved settings with what the computer last showed of a switch-off (off), for this file only. */
+  async function saved() {
     if (current) return { ...current };
     let text = null;
     try { text = await fs.readFile(file, 'utf8'); } catch { text = null; }
-    current = text === null ? { ...defaults } : parseSettings(text, { ...defaults });
+    current = text === null ? { ...defaults, off: false } : parseSettings(text, { ...defaults, off: false });
     return { ...current };
+  }
+  async function settings() {
+    const { startAtLogin, keepRunning, asked } = await saved();
+    return { startAtLogin, keepRunning, asked };
+  }
+  async function write(next) {
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ startAtLogin: next.startAtLogin, keepRunning: next.keepRunning, ...(next.off ? { systemOff: true } : {}) }), { mode: 0o600 });
+    current = { startAtLogin: next.startAtLogin, keepRunning: next.keepRunning, asked: true, off: next.off === true };
   }
   /**
    * The computer's own login item for this program: 'on', 'off' (there, but switched off by the computer's startup
@@ -77,17 +88,18 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (text === null) return 'none';
     return /^X-GNOME-Autostart-enabled=false\s*$/m.test(text) || /^Hidden=true\s*$/m.test(text) ? 'off' : 'on';
   }
-  async function loginItem(enabled) {
+  /** off (A5 fix round 3): register it switched off, as the computer had it, so a move never switches it back on. */
+  async function loginItem(enabled, { off = false } = {}) {
     if (!supported) return;
     if (platform === 'win32') {
-      app.setLoginItemSettings({ openAtLogin: enabled, path: execPath, args: [...LOGIN_ARGS], name: LOGIN_NAME });
+      app.setLoginItemSettings({ openAtLogin: enabled, path: execPath, args: [...LOGIN_ARGS], name: LOGIN_NAME, ...(enabled && off ? { enabled: false } : {}) });
       return;
     }
     // macOS: Electron's own login item for the app; a start from it is read as a login start (main.cjs).
     if (platform === 'darwin') { app.setLoginItemSettings({ openAtLogin: enabled }); return; }
     const target = autostartFile();
     if (!enabled) { if (typeof fs.rm === 'function') await fs.rm(target, { force: true }); return; }
-    await writeAutostart(autostartEntry(true, false));
+    await writeAutostart(autostartEntry(!off, false));
   }
   /** Linux: this program's own autostart entry. switchedOn false (and hidden) keep a switch-off the desktop made. */
   function autostartEntry(switchedOn, hidden) {
@@ -122,18 +134,32 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
    */
   async function apply() {
     if (!supported) return;
-    const saved = await settings();
-    if (!saved.asked) return;
+    const kept = await saved();
+    if (!kept.asked) return;
     const found = await presence();
-    if (saved.startAtLogin && found === 'none') await loginItem(true);
-    else if (!saved.startAtLogin && found !== 'none') await loginItem(false);
-    else if (saved.startAtLogin && platform === 'linux') await refreshAutostart();
+    // A5 fix round 3: a yes with no login item for this program (it moved) is registered as the computer last had it.
+    if (kept.startAtLogin && found === 'none') await loginItem(true, { off: kept.off });
+    else if (!kept.startAtLogin && found !== 'none') await loginItem(false);
+    else if (kept.startAtLogin && platform === 'linux') await refreshAutostart();
+    if (found !== 'none') await remember(found === 'off');
+  }
+  /**
+   * A5 fix round 3: what the computer shows of a switch-off, kept with a saved answer (through the queue, so it never
+   * writes over a change), so a later move of the program registers the item as the computer had it.
+   */
+  function remember(off) {
+    const run = queue.then(async () => { const kept = await saved(); if (kept.asked && kept.off !== off) await write({ ...kept, off }); });
+    queue = run.then(() => undefined, () => undefined);
+    return queue;
   }
   /** What the window and the tray show: the saved settings with the computer's own state of the login item. */
-  async function state() {
-    const saved = await settings();
+  async function state() { return read(true); }
+  /** remembering false inside a change, which already holds the queue. */
+  async function read(remembering) {
+    const kept = await saved();
     const found = await presence();
-    return { supported, asked: saved.asked, startAtLogin: saved.startAtLogin, keepRunning: saved.keepRunning, registered: found === 'on', systemOff: found === 'off' };
+    if (remembering && kept.asked && found !== 'none' && kept.off !== (found === 'off')) await remember(found === 'off');
+    return { supported, asked: kept.asked, startAtLogin: kept.startAtLogin, keepRunning: kept.keepRunning, registered: found === 'on', systemOff: found === 'off' };
   }
   /**
    * Save a change from onboarding, Settings or the tray menu, apply it at once, and answer the new state. A change of
@@ -150,18 +176,22 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     return run;
   }
   async function changeNow(update) {
-    if (!supported) return state();
-    const before = await settings();
-    const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning };
-    // A5 fix round 2: a login item there but switched off by the computer counts as a yes it switched off, so the next
-    // start leaves it there and off (a saved no would remove it); "Not now" on Today sends Keep running alone for this.
-    if (!before.asked && typeof update?.startAtLogin !== 'boolean') next.startAtLogin = (await presence()) !== 'none';
+    if (!supported) return read(false);
+    const before = await saved();
+    const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning, off: before.off };
+    // A5 fix round 2: before start at login was answered, a change of Keep running alone saves what the computer has; a
+    // login item there but switched off by the computer counts as a yes it switched off (a saved no would remove it).
+    if (!before.asked && typeof update?.startAtLogin !== 'boolean') {
+      const found = await presence();
+      next.startAtLogin = found !== 'none';
+      next.off = found === 'off';
+    }
     for (const key of ['startAtLogin', 'keepRunning']) if (typeof update?.[key] === 'boolean') next[key] = update[key];
-    await fs.mkdir(directory, { recursive: true });
-    await fs.writeFile(file, JSON.stringify(next), { mode: 0o600 });
-    current = { ...next, asked: true };
+    // The owner's own tick is the owner's act: the item is on (or gone) as they said, never remembered as switched off.
+    if (typeof update?.startAtLogin === 'boolean') next.off = false;
+    await write(next);
     if (typeof update?.startAtLogin === 'boolean') await loginItem(next.startAtLogin);
-    return state();
+    return read(false);
   }
   /** The two ticks for the tray menu, beta only (value: a state()); onChange receives the one setting that changed. */
   function menuItems(value, onChange) {

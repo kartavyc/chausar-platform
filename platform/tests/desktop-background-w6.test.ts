@@ -333,3 +333,43 @@ test('A5 fix round 2: an answer that keeps the computer as it is leaves a switch
   assert.equal((await createBackground({ ...base(), app: on, fs: memoryFs() }).change({ keepRunning: true })).registered, true);
   assert.equal((await createBackground({ ...base(), app: fakeApp(), fs: memoryFs() }).change({ keepRunning: true })).registered, false);
 });
+
+// A5 fix round 3 (finding 2): a login item the computer switched off is never switched back on by Chausar moving to a
+// new path (a reinstall elsewhere, an update): the start registers this program's item switched off, as it was.
+test('A5 fix round 3: a saved yes the computer had switched off is registered again off when the program moves', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: false });
+  await createBackground({ ...base(), app, fs }).change({ keepRunning: true });
+  const moved = base({ execPath: 'D:/new/Chausar.exe' });
+  const background = createBackground({ ...moved, app, fs });
+  await background.apply();
+  assert.deepEqual(app.logins.at(-1), { openAtLogin: true, path: 'D:/new/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar', enabled: false });
+  assert.equal(app.run.get('Chausar')!.enabled, false);
+  assert.deepEqual([(await background.state()).registered, (await background.state()).systemOff], [false, true]);
+});
+
+test('A5 fix round 3: a switch-off seen after the answer is remembered for a move; the owner ticking it on clears it', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  const first = createBackground({ ...base(), app, fs });
+  await first.change({ startAtLogin: true });
+  app.run.get('Chausar')!.enabled = false;
+  assert.equal((await first.state()).systemOff, true);
+  const moved = createBackground({ ...base({ execPath: 'D:/new/Chausar.exe' }), app, fs });
+  await moved.apply();
+  assert.equal(app.run.get('Chausar')!.enabled, false, 'still off after the move');
+  assert.equal((await moved.change({ startAtLogin: true })).registered, true);
+  const again = createBackground({ ...base({ execPath: 'E:/third/Chausar.exe' }), app, fs });
+  await again.apply();
+  assert.equal(app.run.get('Chausar')!.enabled, true, 'on, as the owner last set it');
+});
+
+test('A5 fix round 3: on Linux a saved yes the desktop had switched off is written again off for a moved program', async () => {
+  const fs = memoryFs(), app = fakeApp('linux');
+  const at = (program: string) => createBackground({ ...LINUX({ env: { APPIMAGE: program } }), app, fs });
+  await at('/home/owner/Apps/Chausar-1.0.AppImage').change({ startAtLogin: true });
+  fs.files.set(AUTOSTART, fs.files.get(AUTOSTART)!.replace('X-GNOME-Autostart-enabled=true', 'X-GNOME-Autostart-enabled=false'));
+  assert.equal((await at('/home/owner/Apps/Chausar-1.0.AppImage').state()).systemOff, true);
+  fs.files.delete(AUTOSTART);
+  await at('/home/owner/Apps/Chausar-1.1.AppImage').apply();
+  assert.match(fs.files.get(AUTOSTART)!, /\nX-GNOME-Autostart-enabled=false\n/);
+});
