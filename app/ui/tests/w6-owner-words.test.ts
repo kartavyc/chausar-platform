@@ -70,3 +70,13 @@ describe('one-shot B1: no engine or developer words on a screen', () => {
   });
 });
 
+// One-shot B1 (A5 notes, line 67): one wording for start at login. The founder read "start at login" as a Chausar
+// login, so onboarding, Today's ask and Settings say whose sign-in it is: this computer's.
+describe('one-shot B1: start at login reads the same everywhere', () => {
+  it('onboarding, Today and Settings say "when you sign in to this computer"', () => {
+    expect(catalogue['first-run.login.label']).toBe('Start Chausar when you sign in to this computer');
+    expect(catalogue['business.notify.login']).toBe(catalogue['first-run.login.label']);
+    const loginWords = Object.entries(catalogue).filter(([, value]) => /(?:start|starts|open|opens) (?:chausar )?at (?:log ?in|login)/i.test(flat(value)));
+    expect(loginWords).toEqual([]);
+  });
+});

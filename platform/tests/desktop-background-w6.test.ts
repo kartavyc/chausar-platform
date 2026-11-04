@@ -205,7 +205,7 @@ test('the tray menu shows both owner settings as ticks with plain labels; Start 
   const fs = memoryFs(), app = fakeApp(), changes: any[] = [];
   const background = createBackground({ ...base(), app, fs });
   const items = background.menuItems(await background.state(), (change: any) => changes.push(change));
-  assert.deepEqual(items.map((item: any) => [item.label, item.type, item.checked]), [['Start at login', 'checkbox', false], ['Keep running in the tray', 'checkbox', true]]);
+  assert.deepEqual(items.map((item: any) => [item.label, item.type, item.checked]), [['Start when you sign in to this computer', 'checkbox', false], ['Keep running in the tray', 'checkbox', true]]);
   items[0].click({ checked: true }); items[1].click({ checked: false });
   assert.deepEqual(changes, [{ startAtLogin: true }, { keepRunning: false }]);
   const on = background.menuItems(await background.change({ startAtLogin: true }), () => {});

@@ -11,7 +11,7 @@ import { answerSideWork } from './first-run-steps';
  * default, and nothing is registered until the owner goes on. Business > Notifications shows it and Keep running as
  * switches, with the computer's own state. Only the installed app has them; elsewhere nothing shows.
  */
-const TICK = 'Start Chausar when I sign in to this computer';
+const TICK = 'Start Chausar when you sign in to this computer';
 const SWITCH = 'Start Chausar when you sign in to this computer';
 const TRAY = 'Keep running in the tray when you close the window';
 

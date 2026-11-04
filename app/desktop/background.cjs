@@ -211,7 +211,7 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
   function menuItems(value, onChange) {
     if (!supported) return [];
     return [
-      { label: 'Start at login', type: 'checkbox', checked: value.registered === true, click: item => onChange({ startAtLogin: item.checked === true }) },
+      { label: 'Start when you sign in to this computer', type: 'checkbox', checked: value.registered === true, click: item => onChange({ startAtLogin: item.checked === true }) },
       { label: 'Keep running in the tray', type: 'checkbox', checked: value.keepRunning, click: item => onChange({ keepRunning: item.checked === true }) },
     ];
   }
@@ -229,7 +229,7 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     return later;
   }
   async function askLater(day) {
-    if (!supported) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+    if (!supported) throw Object.assign(new Error('Only the installed Chausar app can start when you sign in to this computer.'), { code: 'BACKGROUND_UNAVAILABLE' });
     if (!realDay(day)) throw Object.assign(new Error('Send the day as YYYY-MM-DD.'), { code: 'INVALID_REQUEST' });
     await fs.mkdir(directory, { recursive: true });
     await fs.writeFile(path.join(directory, LATER_FILE), JSON.stringify({ day }), { mode: 0o600 });

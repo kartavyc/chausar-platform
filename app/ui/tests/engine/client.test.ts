@@ -40,7 +40,7 @@ describe('desktop transport', () => {
     const bridge: ChausarBridge = {
       request: vi.fn(),
       getBackground: vi.fn(async () => ({ supported: true, asked: false, startAtLogin: true, keepRunning: 'yes', registered: 1, systemOff: false, extra: 'x' })),
-      setBackground: vi.fn(async () => { throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' }); }),
+      setBackground: vi.fn(async () => { throw Object.assign(new Error('Only the installed Chausar app can start when you sign in to this computer.'), { code: 'BACKGROUND_UNAVAILABLE' }); }),
     };
     const client = createEngineClient({ bridge });
     expect(await client.getBackground!()).toEqual({ supported: true, asked: false, startAtLogin: true, keepRunning: false, registered: false, systemOff: false });

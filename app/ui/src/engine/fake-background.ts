@@ -26,12 +26,12 @@ export function createFakeBackground(start: FakeBackgroundStart = {}) {
     getBackground: async (): Promise<BackgroundStateLite> => state(),
     getAskLater: async (): Promise<string | null> => (supported ? laterOn : null),
     setAskLater: async (day: string): Promise<void> => {
-      if (!supported) throw new EngineError('BACKGROUND_UNAVAILABLE', 'Start at login is only in the installed Chausar app.');
+      if (!supported) throw new EngineError('BACKGROUND_UNAVAILABLE', 'Only the installed Chausar app can start when you sign in to this computer.');
       if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(day)) throw new EngineError('INVALID_REQUEST', 'Send the day as YYYY-MM-DD.');
       laterOn = day;
     },
     setBackground: async (update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<BackgroundStateLite> => {
-      if (!supported) throw new EngineError('BACKGROUND_UNAVAILABLE', 'Start at login is only in the installed Chausar app.');
+      if (!supported) throw new EngineError('BACKGROUND_UNAVAILABLE', 'Only the installed Chausar app can start when you sign in to this computer.');
       const keys = Object.keys(update);
       if (keys.length === 0 || keys.some((key) => !['startAtLogin', 'keepRunning'].includes(key) || typeof update[key as keyof typeof update] !== 'boolean')) throw new EngineError('INVALID_REQUEST', 'Change start at login or keep running, as on or off.');
       changes.push({ ...update });

@@ -151,7 +151,7 @@ async function startBackground() {
 }
 /** A5: one change from the tray or the window; the tray and the engine follow, and the new state is the answer. */
 async function setBackground(update) {
-  if (!background) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+  if (!background) throw Object.assign(new Error('Only the installed Chausar app can start when you sign in to this computer.'), { code: 'BACKGROUND_UNAVAILABLE' });
   const value = await background.change(update);
   backgroundValue = value; ownerKeepsRunning = value.keepRunning;
   tray?.setContextMenu(trayMenu()); lifecycleChanged();
@@ -357,7 +357,7 @@ if (singleInstance) app.whenReady().then(async () => {
     try {
       assertTrustedSender(event, window?.webContents);
       const day = contract.validateLaterDay(input);
-      if (!background) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+      if (!background) throw Object.assign(new Error('Only the installed Chausar app can start when you sign in to this computer.'), { code: 'BACKGROUND_UNAVAILABLE' });
       return { ok: true, result: { day: await background.askLater(day) } };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
