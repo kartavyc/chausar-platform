@@ -65,6 +65,9 @@ describe('desktop transport', () => {
     expect((odd as EngineError).code).toBe('REQUEST_FAILED');
     const gone = await client.showShared!('INV-0001.pdf').catch((e: unknown) => e);
     expect((gone as EngineError).code).toBe('SHARE_FILE_GONE');
+    // A6 round 1 (low 6): the name is a file name with a dot before its kind, nothing else.
+    (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001xpdf', to: true, note: null });
+    expect(((await client.shareInvoice!('inv-0001', 'email').catch((e: unknown) => e)) as EngineError).code).toBe('REQUEST_FAILED');
     expect(createEngineClient({ bridge: { request: vi.fn() } }).shareInvoice).toBeUndefined();
   });
 
