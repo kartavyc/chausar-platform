@@ -273,11 +273,16 @@ test('A5 fix 3: two changes at once both land, in order: the saved file and the 
   assert.deepEqual([first.registered, second.registered, second.keepRunning], [true, true, false]);
   const next = createBackground({ ...base(), app, fs: slow });
   assert.deepEqual(await next.settings(), { startAtLogin: true, keepRunning: false, asked: true });
-  // A change that fails does not stop the next one.
-  const broken = { ...slow, writeFile: async () => { throw Object.assign(new Error('disk full'), { code: 'ENOSPC' }); } };
+  // A change that fails does not stop the next one (A5 fix round 2: the next one is a change, through the same queue).
+  const disk = memoryFs();
+  let full = true;
+  const broken = { ...disk, writeFile: async (path: string, data: string, options: any) => { if (full) { full = false; throw Object.assign(new Error('disk full'), { code: 'ENOSPC' }); } await disk.writeFile(path, data, options); } };
   const failing = createBackground({ ...base(), app: fakeApp(), fs: broken });
-  await assert.rejects(failing.change({ startAtLogin: true }), { code: 'ENOSPC' });
-  assert.equal((await failing.state()).supported, true);
+  const [refused, next2] = await Promise.allSettled([failing.change({ startAtLogin: true }), failing.change({ keepRunning: false })]);
+  assert.equal(refused.status, 'rejected');
+  assert.equal((refused as PromiseRejectedResult).reason.code, 'ENOSPC');
+  assert.equal(next2.status, 'fulfilled');
+  assert.deepEqual(JSON.parse(disk.files.get(SAVED)!), { startAtLogin: false, keepRunning: false });
 });
 
 test('A5 fix 9: Exec quotes the program as the desktop entry spec asks: %% for %, backslash escapes inside the quotes, then doubled', async () => {
