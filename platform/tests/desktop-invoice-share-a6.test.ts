@@ -57,7 +57,7 @@ test('A6: the draft is a new email to the client with the PDF attached, built on
   assert.equal(Buffer.from(text.rest.replace(/\r\n/g, ''), 'base64').toString('utf8'), BODY.replace(/\n/g, '\r\n'));
   // Round 2: the name parameters fold onto their own lines.
   assert.deepEqual(file.head, ['Content-Type: application/pdf;', ' name="INV-0001.pdf"', 'Content-Transfer-Encoding: base64', 'Content-Disposition: attachment;', ' filename="INV-0001.pdf"']);
-  assert.ok(eml.split('\r\n').every(line => line.length <= 76), 'every line of a draft with a usual name is within 76');
+  assert.ok(eml.split('\r\n').every((line: string) => line.length <= 76), 'every line of a draft with a usual name is within 76');
   assert.ok(file.rest.split('\r\n').every(line => line.length <= 76), 'base64 lines of 76 at most');
   assert.deepEqual(Buffer.from(file.rest.replace(/\r\n/g, ''), 'base64'), PDF);
   assert.notEqual(/boundary="([^"]+)"/.exec(draft())![1], boundary, 'a new boundary each time');
@@ -89,7 +89,7 @@ test('A6: header injection and odd files are refused, never written into the dra
   assert.ok(html.includes('Content-Type: text/html;\r\n name="INV-0001.html"'));
   // The longest file name and address Chausar allows stay within the 998 characters a mail line may hold.
   const longest = draft({ to: `${'a'.repeat(64)}@${'b'.repeat(63)}.example`, attachment: { name: `${'A'.repeat(80)}.html`, mimeType: 'text/html', bytes: Buffer.from('x') } });
-  assert.ok(longest.split('\r\n').every(line => line.length <= 998));
+  assert.ok(longest.split('\r\n').every((line: string) => line.length <= 998));
 });
 
 // ---------------------------------------------------------------------------
