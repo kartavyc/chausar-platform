@@ -222,3 +222,74 @@ test('the bundled Codex goes last on the engine PATH, so an owner\'s own Codex s
   assert.equal(linux.CHAUSAR_CODEX_BUNDLE_DIR, '/opt/chausar/resources/codex');
   assert.equal('CHAUSAR_CODEX_BUNDLE_DIR' in bundledCodexEnvironment({ Path: 'C:/Windows' }, { resourcesPath: resources, platform: 'win32', exists: absent }), false);
 });
+
+// ---------------------------------------------------------------------------
+// One-shot A5, fix round 1.
+// ---------------------------------------------------------------------------
+const LINUX = (over: any = {}) => base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/tmp/.mount_x/chausar', ...over });
+const LINUX_SAVED = join('/home/owner/.config/Chausar', BACKGROUND_FILE);
+const AUTOSTART = '/home/owner/.config/autostart/chausar.desktop';
+const entryFor = (program: string, enabled = 'true') => `[Desktop Entry]\nType=Application\nName=Chausar\nExec="${program}" --background --hidden\nTryExec=${program}\nX-GNOME-Autostart-enabled=${enabled}\n`;
+
+test('A5 fix 1: a saved yes whose autostart file starts an older AppImage is rewritten for this one at the next start', async () => {
+  const fs = memoryFs({ [LINUX_SAVED]: '{"startAtLogin":true,"keepRunning":true}', [AUTOSTART]: entryFor('/home/owner/Apps/Chausar-1.0.AppImage') });
+  const background = createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs });
+  await background.apply();
+  const text = fs.files.get(AUTOSTART)!;
+  assert.match(text, /\nExec="\/home\/owner\/Apps\/Chausar-1\.1\.AppImage" --background --hidden\n/);
+  assert.match(text, /\nTryExec=\/home\/owner\/Apps\/Chausar-1\.1\.AppImage\n/);
+  assert.equal((await background.state()).registered, true);
+});
+
+test('A5 fix 1: a stale autostart file the desktop switched off is rewritten for this program and stays off', async () => {
+  const fs = memoryFs({ [LINUX_SAVED]: '{"startAtLogin":true,"keepRunning":true}', [AUTOSTART]: `${entryFor('/home/owner/Apps/Chausar-1.0.AppImage', 'false')}Hidden=true\n` });
+  const background = createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs });
+  await background.apply();
+  const text = fs.files.get(AUTOSTART)!;
+  assert.match(text, /\nTryExec=\/home\/owner\/Apps\/Chausar-1\.1\.AppImage\n/);
+  assert.match(text, /\nX-GNOME-Autostart-enabled=false\n/);
+  assert.match(text, /\nHidden=true\n/);
+  assert.deepEqual(await background.state(), { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
+  // An up to date file is left exactly as it is.
+  const current = memoryFs({ [LINUX_SAVED]: '{"startAtLogin":true,"keepRunning":true}' });
+  const same = createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs: current });
+  await same.change({ startAtLogin: true });
+  const written = current.files.get(AUTOSTART)!;
+  let writes = 0;
+  const counted = { ...current, writeFile: async (path: string, data: string, options: any) => { writes++; await current.writeFile(path, data, options); } };
+  await createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs: counted }).apply();
+  assert.equal(writes, 0);
+  assert.equal(current.files.get(AUTOSTART), written);
+});
+
+test('A5 fix 3: two changes at once both land, in order: the saved file and the computer agree', async () => {
+  const slow = memoryFs(), app = fakeApp();
+  const later = (ms: number) => new Promise(accept => setTimeout(accept, ms));
+  const fs = { ...slow, writeFile: async (path: string, data: string, options: any) => { await later(5); await slow.writeFile(path, data, options); }, mkdir: async (path: string) => { await later(5); await slow.mkdir(path); } };
+  const background = createBackground({ ...base(), app, fs });
+  const [first, second] = await Promise.all([background.change({ startAtLogin: true }), background.change({ keepRunning: false })]);
+  assert.deepEqual(JSON.parse(slow.files.get(SAVED)!), { startAtLogin: true, keepRunning: false });
+  assert.equal(app.run.has('Chausar'), true);
+  assert.deepEqual([first.registered, second.registered, second.keepRunning], [true, true, false]);
+  const next = createBackground({ ...base(), app, fs: slow });
+  assert.deepEqual(await next.settings(), { startAtLogin: true, keepRunning: false, asked: true });
+  // A change that fails does not stop the next one.
+  const broken = { ...slow, writeFile: async () => { throw Object.assign(new Error('disk full'), { code: 'ENOSPC' }); } };
+  const failing = createBackground({ ...base(), app: fakeApp(), fs: broken });
+  await assert.rejects(failing.change({ startAtLogin: true }), { code: 'ENOSPC' });
+  assert.equal((await failing.state()).supported, true);
+});
+
+test('A5 fix 9: Exec quotes the program as the desktop entry spec asks: %% for %, backslash escapes inside the quotes, then doubled', async () => {
+  const fs = memoryFs();
+  const bs = String.fromCharCode(92), tick = String.fromCharCode(96);
+  const program = `/home/owner/My Apps/100% "ok"${bs}x$${tick}y/Chausar.AppImage`;
+  await createBackground({ ...LINUX({ env: { APPIMAGE: program } }), app: fakeApp('linux'), fs }).change({ startAtLogin: true });
+  const text = fs.files.get(AUTOSTART)!;
+  const exec = /\nExec=(.*)\n/.exec(text)![1];
+  // Inside the quotes: a backslash before each of " ` $ and backslash; then each backslash doubled for the string
+  // value; and % (a field code) written %%.
+  const two = bs + bs;
+  assert.equal(exec, `"/home/owner/My Apps/100%% ${two}"ok${two}"${two}${two}x${two}$${two}${tick}y/Chausar.AppImage" --background --hidden`);
+  assert.equal(/\nTryExec=(.*)\n/.exec(text)![1], `/home/owner/My Apps/100% "ok"${two}x$${tick}y/Chausar.AppImage`);
+});

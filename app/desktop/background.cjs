@@ -27,8 +27,15 @@ function parseSettings(text, defaults) {
     return { startAtLogin: value.startAtLogin, keepRunning: value.keepRunning, asked: true };
   } catch { return defaults; }
 }
-/** A desktop entry field holds one line; a path is quoted for Exec and its quotes and backslashes escaped. */
-function execQuoted(file) { return `"${String(file).replace(/[\r\n]/g, '').replace(/(["`$\\])/g, '\\$1')}"`; }
+/**
+ * The program as one quoted Exec argument, by the desktop entry spec (one line): inside the double quotes a backslash
+ * goes before each double quote, backtick, dollar sign and backslash; then, Exec being a string value, every backslash
+ * is doubled again; and % (which starts a field code) is written %%. A5 fix round 1 added the second and third steps.
+ */
+function execQuoted(file) {
+  const quoted = `"${String(file).replace(/[\r\n]/g, '').replace(/(["`$\\])/g, '\\$1')}"`;
+  return quoted.replace(/\\/g, '\\\\').replace(/%/g, '%%');
+}
 /** TryExec takes the bare path, the same one line as Exec, with only its backslashes escaped. */
 function tryExecPath(file) { return String(file).replace(/[\r\n]/g, '').replace(/\\/g, '\\\\'); }
 
@@ -80,13 +87,33 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (platform === 'darwin') { app.setLoginItemSettings({ openAtLogin: enabled }); return; }
     const target = autostartFile();
     if (!enabled) { if (typeof fs.rm === 'function') await fs.rm(target, { force: true }); return; }
+    await writeAutostart(autostartEntry(true, false));
+  }
+  /** Linux: this program's own autostart entry. switchedOn false (and hidden) keep a switch-off the desktop made. */
+  function autostartEntry(switchedOn, hidden) {
     // An AppImage runs from a temporary mount; APPIMAGE names the file the owner keeps, so login starts that one.
     const program = typeof env.APPIMAGE === 'string' && path.posix.isAbsolute(env.APPIMAGE) ? env.APPIMAGE : execPath;
-    const entry = ['[Desktop Entry]', 'Type=Application', 'Name=Chausar', 'Comment=Keeps your Chausar work going while you are signed in', `Exec=${execQuoted(program)} ${LOGIN_ARGS.join(' ')}`,
+    return ['[Desktop Entry]', 'Type=Application', 'Name=Chausar', 'Comment=Keeps your Chausar work going while you are signed in', `Exec=${execQuoted(program)} ${LOGIN_ARGS.join(' ')}`,
       // TryExec: once the program is gone (a deleted AppImage, or a deb removed with apt) the desktop skips the entry.
-      `TryExec=${tryExecPath(program)}`, 'Terminal=false', 'X-GNOME-Autostart-enabled=true', ''].join('\n');
+      `TryExec=${tryExecPath(program)}`, 'Terminal=false', `X-GNOME-Autostart-enabled=${switchedOn ? 'true' : 'false'}`, ...(hidden ? ['Hidden=true'] : []), ''].join('\n');
+  }
+  async function writeAutostart(entry) {
+    const target = autostartFile();
     await fs.mkdir(path.posix.dirname(target), { recursive: true });
     await fs.writeFile(target, entry, { mode: 0o600 });
+  }
+  /**
+   * A5 fix round 1: Linux, a saved yes with an autostart file that starts another program (an older AppImage the owner
+   * replaced, say): written again for this program, keeping a switch-off the desktop made. An up to date file is left.
+   */
+  async function refreshAutostart() {
+    let text = null;
+    try { text = await fs.readFile(autostartFile(), 'utf8'); } catch { return; }
+    const line = (source, key) => (new RegExp(`^${key}=(.*)$`, 'm').exec(source) ?? [])[1] ?? null;
+    const off = /^X-GNOME-Autostart-enabled=false\s*$/m.test(text), hidden = /^Hidden=true\s*$/m.test(text);
+    const fresh = autostartEntry(!off, hidden);
+    if (line(text, 'Exec') === line(fresh, 'Exec') && line(text, 'TryExec') === line(fresh, 'TryExec')) return;
+    await writeAutostart(fresh);
   }
   /**
    * At each start, once the owner has answered: a yes with no login item at all registers one (the program moved, or
@@ -100,6 +127,7 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     const found = await presence();
     if (saved.startAtLogin && found === 'none') await loginItem(true);
     else if (!saved.startAtLogin && found !== 'none') await loginItem(false);
+    else if (saved.startAtLogin && platform === 'linux') await refreshAutostart();
   }
   /** What the window and the tray show: the saved settings with the computer's own state of the login item. */
   async function state() {
@@ -111,7 +139,17 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
    * Save a change from onboarding, Settings or the tray menu, apply it at once, and answer the new state. A change of
    * Keep running alone, before start at login was answered, saves what the computer does now, never the suggestion.
    */
-  async function change(update) {
+  /**
+   * A5 fix round 1: changes run one after another (onboarding's save and a tray click can come together), so each reads
+   * what the one before it saved; a failed change is reported to its caller and does not stop the next.
+   */
+  let queue = Promise.resolve();
+  function change(update) {
+    const run = queue.then(() => changeNow(update));
+    queue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+  async function changeNow(update) {
     if (!supported) return state();
     const before = await settings();
     const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning };
