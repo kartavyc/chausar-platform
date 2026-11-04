@@ -124,3 +124,43 @@ test('A4 review: a range to a surrogate pair or a ligature reads; /Encrypt<< wit
   const locked = pdf(['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [] /Count 0 >>'], '/Root 1 0 R /Encrypt<</Filter/Standard/V 1>>');
   assert.throws(() => pdfText(locked), (error: { code?: string }) => error.code === 'PDF_ENCRYPTED');
 });
+
+// A4 review round 2 (M1): the parsed content counts toward the budget each time a page names it, a page stops once it
+// holds maxChars, and a code finds its range by a search over the ranges, the first listed still winning.
+test('A4 review round 2: a page naming one big content stream hundreds of times is refused in well under a second', () => {
+  const content = flate(`BT /F1 12 Tf ${'(A) Tj '.repeat(100_000)}ET`);
+  for (const count of [300, 2000]) {
+    const refs = Array(count).fill('4 0 R').join(' ');
+    const file = pdf(['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', `<< /Type /Page /Parent 2 0 R /Contents [${refs}] >>`, content]);
+    const { ms, value } = timed(() => pdfText(file));
+    assert.ok(ms < 1000, `${count} refs: ${ms} ms`);
+    assert.ok(value instanceof Error && (value as Error & { code?: string }).code === 'PDF_TOO_COMPLEX', String(value));
+  }
+  const twice = pdf(['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /Contents [4 0 R 4 0 R] >>', flate('BT (Hello) Tj ET')]);
+  assert.equal(pdfText(twice), 'Hello\nHello');
+});
+
+test('A4 review round 2: a page stops reading once it holds maxChars', () => {
+  const file = pdf(['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>', flate(`BT ${'(A) Tj '.repeat(1_000_000)}ET`)]);
+  const { ms, value } = timed(() => pdfText(file));
+  assert.ok(ms < 1000, `${ms} ms`);
+  assert.equal(value, 'A'.repeat(20_000));
+});
+
+test('A4 review round 2: 40,000 ranges and 200,000 codes read in well under a second; the first range listed wins', () => {
+  let cmap = 'begincodespacerange <0000> <FFFF> endcodespacerange beginbfrange ';
+  for (let index = 0; index < 40_000; index += 1) cmap += '<FFFF> <FFFF> <0041> ';
+  const file = pdf([
+    '<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type0 /ToUnicode 6 0 R >>', flate(`BT /F1 12 Tf <${'0003'.repeat(200_000)}> Tj ET`), flate(`${cmap}endbfrange`),
+  ]);
+  const { ms, value } = timed(() => pdfText(file));
+  assert.ok(ms < 1000, `${ms} ms`);
+  assert.equal(value, '');
+  const base = 'begincodespacerange <0000> <FFFF> endcodespacerange beginbfrange ';
+  assert.equal(pdfText(cmapPdf(`${base}<0000> <FFFF> <0041> <0003> <0003> <0058> endbfrange`)), 'DE', 'the wide range listed first wins');
+  assert.equal(pdfText(cmapPdf(`${base}<0003> <0003> <0058> <0000> <FFFF> <0041> endbfrange`)), 'XE', 'the narrow range listed first wins');
+  assert.equal(pdfText(cmapPdf(`${base}<0002> <0004> [<0061> <0062> <0063>] <0004> <0009> <0070> endbfrange`)), 'bc', 'a list range, then the next');
+  assert.equal(pdfText(cmapPdf(`${base}<03> <04> <0041> <0000> <0003> <0070> endbfrange`)), 's', 'a range of another width never holds a code');
+});

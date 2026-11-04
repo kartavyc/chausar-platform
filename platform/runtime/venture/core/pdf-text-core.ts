@@ -11,6 +11,9 @@
 // map entries (50,000 codes and ranges; a range is looked up by its bounds, never walked code by code) and objects
 // (20,000) are counted; an object stream is opened only when an object in it is needed. A budget that runs out refuses
 // the file in plain words (PDF_TOO_COMPLEX).
+// A4 review round 2 (M1): the content parsed counts too (8 MB), each time a page names a stream, repeats included; a
+// page stops once it holds what is left of maxChars; and a code finds its range by a binary search over the ranges cut
+// into pieces that do not overlap, each piece kept by the first range listed that covers it, as before.
 // No imports but the refusal brand: the fake engine reads with this same code (pdf-text.ts gives the engine zlib).
 import { refusalError } from '../refusal-brand.ts';
 
@@ -22,17 +25,24 @@ export type PdfTextOptions = { maxPages?: number; maxChars?: number; inflate?: (
 type PdfObject = { dict: string; data: string | null };
 /** A ToUnicode range, kept by its bounds: each code to the target's UTF-16 units with the last one counted up, or a list. */
 type Range = { low: number; high: number; width: number; units: number[] | null; list: string[] | null };
-type Font = { map: Map<string, string> | null; ranges: Range[]; bytes: 1 | 2 };
+/** The ranges of one code width cut at their bounds: piece i runs from starts[i] up to starts[i + 1], held by owners[i]. */
+type RangeIndex = { starts: number[]; owners: (Range | null)[] };
+type Font = { map: Map<string, string> | null; ranges: Range[]; bytes: 1 | 2; index?: Map<number, RangeIndex> };
 
 const UNREADABLE = 'Chausar could not read that PDF. Paste a few lines about your work instead.';
 const ENCRYPTED = 'That PDF is locked with a password, so Chausar cannot read it. Save it again without a password, or paste a few lines about your work.';
 const TOO_COMPLEX = 'This PDF is too complex to read. Paste the text instead.';
 /** The work one read may do. */
-export const PDF_BUDGET = Object.freeze({ inflatedBytes: 8 * 1024 * 1024, mapEntries: 50_000, objects: 20_000 });
+export const PDF_BUDGET = Object.freeze({ inflatedBytes: 8 * 1024 * 1024, contentBytes: 8 * 1024 * 1024, mapEntries: 50_000, objects: 20_000 });
 
 const fail = (code: 'PDF_UNREADABLE' | 'PDF_ENCRYPTED' | 'PDF_TOO_COMPLEX', message: string): never => { throw refusalError(new Error(message), { code }); };
 const tooComplex = (): never => fail('PDF_TOO_COMPLEX', TOO_COMPLEX);
-const toLatin1 = (bytes: Uint8Array): string => { let out = ''; for (let at = 0; at < bytes.length; at += 8192) out += String.fromCharCode(...bytes.subarray(at, at + 8192)); return out; };
+/** One character per byte, in chunks joined once (a string grown chunk by chunk took six times as long on 7 MB). */
+const toLatin1 = (bytes: Uint8Array): string => {
+  const parts: string[] = [];
+  for (let at = 0; at < bytes.length; at += 4096) parts.push(String.fromCharCode.apply(null, bytes.subarray(at, at + 4096) as unknown as number[]));
+  return parts.join('');
+};
 const fromLatin1 = (text: string): Uint8Array => { const bytes = new Uint8Array(text.length); for (let at = 0; at < text.length; at += 1) bytes[at] = text.charCodeAt(at) & 0xff; return bytes; };
 /** Hex digits as UTF-16BE code units, so a surrogate pair or a ligature (two or more units) reads whole. */
 const unitsOf = (hex: string): number[] => { const units: number[] = []; for (let at = 0; at + 4 <= hex.length; at += 4) units.push(parseInt(hex.slice(at, at + 4), 16)); return units; };
@@ -66,6 +76,7 @@ class Reader {
   readonly #fonts = new Map<number, Font>();
   #inflated = 0;
   #entries = 0;
+  #content = 0;
   readonly src: string;
   readonly inflate: PdfTextOptions['inflate'];
   constructor(src: string, inflate: PdfTextOptions['inflate']) {
@@ -100,6 +111,8 @@ class Reader {
   #count() { if (this.objects.size >= PDF_BUDGET.objects) tooComplex(); }
   /** One map entry (a code or a range) more. */
   entry() { this.#entries += 1; if (this.#entries > PDF_BUDGET.mapEntries) tooComplex(); }
+  /** A page's content stream about to be parsed, counted each time a page names it. */
+  content(length: number) { this.#content += length; if (this.#content > PDF_BUDGET.contentBytes) tooComplex(); }
 
   /** An object by number: a plain one, else from the next object stream not yet opened, until found or none are left. */
   get(number: number | null): PdfObject | undefined {
@@ -159,7 +172,7 @@ class Reader {
     const stream = this.get(refNumber(valueOf(dict, 'ToUnicode')));
     const parsed = stream ? this.#toUnicode(this.decoded(stream) ?? '') : null;
     const found = parsed && ((parsed.map?.size ?? 0) || parsed.ranges.length) ? parsed : null;
-    const font: Font = found ? { ...found } : { map: null, ranges: [], bytes: /\/Subtype\s*\/Type0\b/.test(dict) ? 2 : 1 };
+    const font: Font = found ? { ...found, index: indexOf(found.ranges) } : { map: null, ranges: [], bytes: /\/Subtype\s*\/Type0\b/.test(dict) ? 2 : 1 };
     this.#fonts.set(number, font);
     return font;
   }
@@ -184,20 +197,53 @@ class Reader {
   }
 }
 
+/** The last index whose value is at most value, or -1. */
+function atOrBefore(values: readonly number[], value: number): number {
+  let low = 0, high = values.length - 1, found = -1;
+  while (low <= high) { const middle = (low + high) >> 1; if (values[middle]! <= value) { found = middle; low = middle + 1; } else high = middle - 1; }
+  return found;
+}
+
+/**
+ * The ranges per code width, cut at every bound into pieces that do not overlap. Each piece goes to the first range
+ * listed that covers it: ranges are taken in order, and each fills only the pieces still empty (a "next empty piece"
+ * link skips the filled ones), so the work is about the number of ranges, never the codes they span.
+ */
+function indexOf(ranges: readonly Range[]): Map<number, RangeIndex> {
+  const index = new Map<number, RangeIndex>();
+  for (const width of new Set(ranges.map(range => range.width))) {
+    const own = ranges.filter(range => range.width === width);
+    const starts = [...new Set(own.flatMap(range => [range.low, range.high + 1]))].sort((a, b) => a - b);
+    const owners: (Range | null)[] = new Array<Range | null>(starts.length).fill(null);
+    const next = [...starts.keys(), starts.length];
+    const empty = (from: number): number => {
+      let root = from;
+      while (next[root] !== root) root = next[root]!;
+      for (let at = from; next[at] !== root;) { const up = next[at]!; next[at] = root; at = up; }
+      return root;
+    };
+    for (const range of own) {
+      const end = atOrBefore(starts, range.high);
+      for (let at = empty(atOrBefore(starts, range.low)); at <= end; at = empty(at + 1)) { owners[at] = range; next[at] = at + 1; }
+    }
+    index.set(width, { starts, owners });
+  }
+  return index;
+}
+
 /** A code's text in a font: its own entry, else the first range that holds it (the target's last unit counted up). */
 function codeText(font: Font, key: string): string {
   const own = font.map?.get(key);
   if (own !== undefined) return own;
   const code = parseInt(key, 16);
-  for (const range of font.ranges) {
-    if (code < range.low || code > range.high || key.length !== range.width) continue;
-    if (range.list) return range.list[code - range.low] ?? '';
-    const units = [...range.units!];
-    if (!units.length) return '';
-    units[units.length - 1] = (units[units.length - 1]! + code - range.low) & 0xffff;
-    return textOf(units);
-  }
-  return '';
+  const pieces = font.index?.get(key.length);
+  const range = pieces ? pieces.owners[atOrBefore(pieces.starts, code)] ?? null : null;
+  if (!range) return '';
+  if (range.list) return range.list[code - range.low] ?? '';
+  const units = [...range.units!];
+  if (!units.length) return '';
+  units[units.length - 1] = (units[units.length - 1]! + code - range.low) & 0xffff;
+  return textOf(units);
 }
 
 /** The pages in page-tree order, at most max; else every page object in number order. */
@@ -246,8 +292,8 @@ function shown(bytes: string, font: Font | undefined): string {
   return out;
 }
 
-/** The text one page's content shows. */
-function pageText(content: string, fonts: Map<string, Font>): string {
+/** The text one page's content shows, read until it holds limit characters. */
+function pageText(content: string, fonts: Map<string, Font>, limit: number): string {
   let out = '';
   let font: Font | undefined;
   const operands: (string | number | { array: (string | number)[] })[] = [];
@@ -256,7 +302,7 @@ function pageText(content: string, fonts: Map<string, Font>): string {
   const space = () => { if (out && !/\s$/.test(out)) out += ' '; };
   const line = () => { out = out.replace(/ +$/, ''); if (out && !out.endsWith('\n')) out += '\n'; };
   const push = (value: string | number) => { if (array) array.push(value); else operands.push(value); };
-  for (let at = 0; at < content.length;) {
+  for (let at = 0; at < content.length && out.length < limit;) {
     const char = content[at]!;
     if (/\s/.test(char)) { at += 1; continue; }
     if (char === '%') { const end = content.indexOf('\n', at); at = end < 0 ? content.length : end; continue; }
@@ -332,12 +378,14 @@ export function pdfText(bytes: Uint8Array, options: PdfTextOptions = {}): string
   const reader = new Reader(src, options.inflate);
   if (!reader.objects.size) fail('PDF_UNREADABLE', UNREADABLE);
   const texts: string[] = [];
+  let held = 0;
   for (const page of pagesOf(reader, maxPages)) {
+    if (held >= maxChars) break;
     const contents = valueOf(page.dict, 'Contents');
     const numbers = contents === null ? [] : contents.startsWith('[') ? [...contents.matchAll(/(\d+)\s+\d+\s+R/g)].map(item => Number(item[1])) : [refNumber(contents)].filter((item): item is number => item !== null);
-    const content = numbers.map(number => { const object = reader.get(number); return object ? reader.decoded(object) ?? '' : ''; }).join('\n');
-    const text = pageText(content, fontsOf(reader, page));
-    if (text) texts.push(text);
+    const parts = numbers.map(number => { const object = reader.get(number); const text = object ? reader.decoded(object) ?? '' : ''; reader.content(text.length); return text; });
+    const text = pageText(parts.join('\n'), fontsOf(reader, page), maxChars - held);
+    if (text) { texts.push(text); held += text.length + 1; }
   }
   return texts.join('\n').slice(0, maxChars).trim();
 }
