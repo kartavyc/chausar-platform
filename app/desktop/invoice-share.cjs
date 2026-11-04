@@ -131,49 +131,62 @@ async function prune(fs, folder, now) {
   }
 }
 
-/** Runs a read-only system command with no window and a time limit: { code, stdout }. */
-function quietRun(command, args) {
+/** Runs a read-only system command with no window, within the time given: { code, stdout }. */
+function quietRun(command, args, { timeoutMs = 5000 } = {}) {
   return new Promise(done => {
-    execFile(command, args, { windowsHide: true, timeout: 5000, encoding: 'utf8', maxBuffer: 64 * 1024 }, (error, stdout) => {
+    execFile(command, args, { windowsHide: true, timeout: Math.max(1, timeoutMs), encoding: 'utf8', maxBuffer: 64 * 1024 }, (error, stdout) => {
       done({ code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout: typeof stdout === 'string' ? stdout : '' });
     });
   });
 }
 
 const PROG_ID = /^[A-Za-z0-9._-]{1,200}$/;
-/** The registry value a `reg query` printed, or null. */
-function regValue(stdout, name) {
+/** A registry value a `reg query` printed: the named one, or with no name the first text value (the default value's
+ * name is localised, "(Default)" or "(Standard)"); null when there is none. */
+function regValue(stdout, name = null) {
   for (const line of String(stdout).split(/\r?\n/)) {
     const match = /^\s+(\S.*?)\s+REG_(?:SZ|EXPAND_SZ)\s+(.*)$/.exec(line);
-    if (match && match[1].toLowerCase() === name.toLowerCase()) return match[2].trim() || null;
+    if (match && (name === null || match[1].toLowerCase() === name.toLowerCase())) return match[2].trim() || null;
   }
   return null;
 }
 
+const EML_KEYS = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.eml`;
 /**
- * A6 round 1: whether this computer names an app for email files, read quietly (no window, nothing changed). Windows:
- * the owner's own choice (Explorer's UserChoice), else the .eml class, and that program's shell verbs must be there.
- * Linux: xdg-mime's default for message/rfc822. macOS: Mail opens email files on every Mac. Any failure is no.
+ * A6 rounds 1 and 2: whether this computer names an app for email files, read quietly (no window, nothing changed),
+ * within one time limit for the whole check. Windows (reg.exe by its full path): the owner's own choice, first where
+ * Windows 11 24H2 keeps it (UserChoiceLatest), then UserChoice, else the .eml class; that program's shell verbs must be
+ * there. Linux: xdg-mime's default for message/rfc822. macOS: Mail opens email files on every Mac. Any failure is no.
  */
-async function emlHandler({ platform = process.platform, run = quietRun } = {}) {
-  try {
+async function emlHandler({ platform = process.platform, run = quietRun, limitMs = 5000, reg = join(process.env.SystemRoot || String.raw`C:\Windows`, 'System32', 'reg.exe') } = {}) {
+  const end = Date.now() + limitMs;
+  const ask = (command, args) => run(command, args, { timeoutMs: end - Date.now() });
+  const check = async () => {
     if (platform === 'darwin') return true;
     if (platform === 'linux') {
-      const reply = await run('xdg-mime', ['query', 'default', 'message/rfc822']);
+      const reply = await ask('xdg-mime', ['query', 'default', 'message/rfc822']);
       return reply.code === 0 && /^[A-Za-z0-9._-]+\.desktop$/.test(String(reply.stdout).trim());
     }
     if (platform !== 'win32') return false;
-    const user = await run('reg', ['query', String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.eml\UserChoice`, '/v', 'ProgId']);
-    let progId = user.code === 0 ? regValue(user.stdout, 'ProgId') : null;
+    let progId = null;
+    for (const key of [`${EML_KEYS}\\UserChoiceLatest\\ProgId`, `${EML_KEYS}\\UserChoice`]) {
+      const reply = await ask(reg, ['query', key, '/v', 'ProgId']);
+      progId = reply.code === 0 ? regValue(reply.stdout, 'ProgId') : null;
+      if (progId) break;
+    }
     if (!progId) {
-      const fallback = await run('reg', ['query', String.raw`HKCR\.eml`, '/ve']);
-      progId = fallback.code === 0 ? regValue(fallback.stdout, '(Default)') : null;
+      const fallback = await ask(reg, ['query', String.raw`HKCR\.eml`, '/ve']);
+      progId = fallback.code === 0 ? regValue(fallback.stdout) : null;
     }
     if (!progId || !PROG_ID.test(progId) || progId.includes('..')) return false;
-    return (await run('reg', ['query', `HKCR\\${progId}\\shell`])).code === 0;
+    return (await ask(reg, ['query', `HKCR\\${progId}\\shell`])).code === 0;
+  };
+  let timer;
+  try {
+    return await Promise.race([check(), new Promise(done => { timer = setTimeout(() => done(false), limitMs); })]);
   } catch {
     return false;
-  }
+  } finally { clearTimeout(timer); }
 }
 
 /** The invoice:share handler: { ok: true, result } or { ok: false, error } in plain words. */

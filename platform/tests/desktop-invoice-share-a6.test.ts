@@ -409,33 +409,50 @@ test('A6 round 1 (medium 3): with no app known for email files, the draft is not
   assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, broken.deps)).result.opened, 'link', 'a check that fails counts as no app');
 });
 
-test('A6 round 1 (medium 3): the app for email files is read quietly from the computer, per system', async () => {
+test('A6 rounds 1 and 2 (medium 3, lows 3 and 4): the app for email files is read quietly from the computer, per system, within one time limit', async () => {
   const runs: string[][] = [];
+  const REG = join(process.env.SystemRoot ?? String.raw`C:\Windows`, 'System32', 'reg.exe');
   const answers = (table: Record<string, { code: number; stdout: string }>) => async (command: string, args: string[]) => {
     runs.push([command, ...args]);
-    return table[[command, ...args].join(' ')] ?? { code: 1, stdout: '' };
+    return table[[command === REG ? 'reg' : command, ...args].join(' ')] ?? { code: 1, stdout: '' };
   };
-  const USER = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.eml\UserChoice`;
-  // Classic Outlook, as on this computer: no user choice, the class default, and its shell verbs.
+  const EXTS = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.eml`;
+  // Classic Outlook, as on this computer: no user choice, the class default, and its shell verbs; reg.exe by its full path.
   assert.equal(await share.emlHandler({ platform: 'win32', run: answers({
-    [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: 'HKEY_CLASSES_ROOT\.eml\r\n    (Default)    REG_SZ    Outlook.File.eml.15\r\n' },
+    [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: 'HKEY_CLASSES_ROOT\\.eml\r\n    (Default)    REG_SZ    Outlook.File.eml.15\r\n' },
     [String.raw`reg query HKCR\Outlook.File.eml.15\shell`]: { code: 0, stdout: 'x' },
   }) }), true);
-  assert.deepEqual(runs.map(run => run.slice(0, 3)), [['reg', 'query', USER], ['reg', 'query', String.raw`HKCR\.eml`], ['reg', 'query', String.raw`HKCR\Outlook.File.eml.15\shell`]]);
-  // The user's own choice comes first.
+  assert.deepEqual(runs.map(run => run.slice(0, 3)), [[REG, 'query', `${EXTS}\\UserChoiceLatest\\ProgId`], [REG, 'query', `${EXTS}\\UserChoice`], [REG, 'query', String.raw`HKCR\.eml`], [REG, 'query', String.raw`HKCR\Outlook.File.eml.15\shell`]]);
+  // Windows 11 24H2 keeps the owner's choice in UserChoiceLatest, which comes first; then UserChoice.
   assert.equal(await share.emlHandler({ platform: 'win32', run: answers({
-    [`reg query ${USER} /v ProgId`]: { code: 0, stdout: `${USER}\r\n    ProgId    REG_SZ    AppXabc123\r\n` },
+    [`reg query ${EXTS}\\UserChoiceLatest\\ProgId /v ProgId`]: { code: 0, stdout: '    ProgId    REG_SZ    AppXlatest1\r\n' },
+    [`reg query ${EXTS}\\UserChoice /v ProgId`]: { code: 0, stdout: '    ProgId    REG_SZ    Gone.Prog\r\n' },
+    [String.raw`reg query HKCR\AppXlatest1\shell`]: { code: 0, stdout: 'x' },
+  }) }), true);
+  assert.equal(await share.emlHandler({ platform: 'win32', run: answers({
+    [`reg query ${EXTS}\\UserChoice /v ProgId`]: { code: 0, stdout: `${EXTS}\\UserChoice\r\n    ProgId    REG_SZ    AppXabc123\r\n` },
     [String.raw`reg query HKCR\AppXabc123\shell`]: { code: 0, stdout: 'x' },
+  }) }), true);
+  // A German Windows names the default value "(Standard)": the first REG_SZ line is read, whatever its name.
+  assert.equal(await share.emlHandler({ platform: 'win32', run: answers({
+    [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: 'HKEY_CLASSES_ROOT\\.eml\r\n    (Standard)    REG_SZ    Outlook.File.eml.15\r\n' },
+    [String.raw`reg query HKCR\Outlook.File.eml.15\shell`]: { code: 0, stdout: 'x' },
   }) }), true);
   for (const table of [{}, { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    \r\n' } },
     { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    Gone.Prog\r\n' } },
-    { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    a\..\b\r\n' } }]) {
+    { [String.raw`reg query HKCR\.eml /ve`]: { code: 0, stdout: '    (Default)    REG_SZ    a\\..\\b\r\n' } }]) {
     assert.equal(await share.emlHandler({ platform: 'win32', run: answers(table) }), false, JSON.stringify(table));
   }
   assert.equal(await share.emlHandler({ platform: 'linux', run: answers({ 'xdg-mime query default message/rfc822': { code: 0, stdout: 'thunderbird.desktop\n' } }) }), true);
   assert.equal(await share.emlHandler({ platform: 'linux', run: answers({}) }), false);
   assert.equal(await share.emlHandler({ platform: 'darwin', run: answers({}) }), true, 'Mail opens email files on every Mac');
   assert.equal(await share.emlHandler({ platform: 'win32', run: async () => { throw new Error('no reg'); } }), false);
+  // One time limit for the whole check, however many queries it makes; each query gets only what is left of it.
+  const limits: number[] = [];
+  const started = Date.now();
+  assert.equal(await share.emlHandler({ platform: 'win32', limitMs: 300, run: (_command: string, _args: string[], options: { timeoutMs: number }) => { limits.push(options.timeoutMs); return new Promise(() => {}); } }), false);
+  assert.ok(Date.now() - started < 2000, 'a check that never answers ends at the limit');
+  assert.ok(limits.length === 1 && limits[0]! <= 300, JSON.stringify(limits));
 });
 
 test('A6 round 2 (medium 2): a business name pasted with a hidden mark still gets its email (Chai{ZWSP,SHY,LRM}Point)', async t => {
