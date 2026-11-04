@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -19,6 +19,10 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: settings.args, enabled: true }); else run.delete(settings.name); };
   app.loginRun = run;
   app.getLoginItemSettings = (options: any) => ({ openAtLogin: false, launchItems: [...run].filter(([, item]) => item.path === options?.path).map(([name, item]) => ({ name, path: item.path, args: item.args, scope: 'user', enabled: item.enabled })) });
+  // A6: the app this computer has for whatsapp:// links ('' when none), as Electron reads it.
+  app.getApplicationNameForProtocol = (protocol: string) => (protocol === 'whatsapp://' ? options.whatsapp ?? '' : '');
+  const opened: string[] = [], openedPaths: string[] = [], shownItems: string[] = [];
+  const shell = { openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); }, openPath: async (path: string) => { openedPaths.push(path); return ''; }, showItemInFolder: (path: string) => { shownItems.push(path); } };
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
@@ -55,7 +59,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -71,7 +75,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -500,4 +504,54 @@ test('A5 fix round 3: the real preload forwards only the day to put the question
   assert.equal(await bridge.getAskLater(), '2026-11-04');
   await bridge.setAskLater('2026-11-04', { startAtLogin: true });
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ channel: 'chausar:background:later:get' }, { channel: 'chausar:background:later:set', input: { day: '2026-11-04' } }]);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot A6 (the founder's answer 7): WhatsApp opens the desktop app first, else the web page. Every wa.me handoff
+// goes through the same gate; the app link is built from the checked wa.me link. The invoice share channels answer the
+// app's own window only.
+// ---------------------------------------------------------------------------
+
+test('A6: a wa.me handoff opens the WhatsApp desktop app when this computer has one, else the web page; other links open as before', async () => {
+  const text = ['Hello Asha,', 'The proof is ready.'].join('\n');
+  const wa = `https://wa.me/919876543210?text=${encodeURIComponent(text)}`;
+  const withApp = await desktop([], Promise.resolve(), false, { whatsapp: 'WhatsApp' });
+  const window = withApp.windows[0], trusted = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const open = withApp.handlers.get('chausar:open-external');
+  assert.deepEqual(JSON.parse(JSON.stringify(await open(trusted, wa))), { ok: true });
+  assert.deepEqual(withApp.opened, [`whatsapp://send?phone=919876543210&text=${encodeURIComponent(text)}`]);
+  assert.deepEqual(JSON.parse(JSON.stringify(await open(trusted, 'https://razorpay.com/'))), { ok: true });
+  assert.equal(withApp.opened[1], 'https://razorpay.com/', 'a partner link is not touched');
+  const refused = await open(trusted, 'whatsapp://send?text=x');
+  assert.deepEqual([refused.ok, refused.error.code], [false, 'INVALID_EXTERNAL_URL'], 'the window never opens a whatsapp:// link itself');
+  assert.equal(withApp.opened.length, 2);
+
+  const noApp = await desktop([], Promise.resolve(), false, { whatsapp: '' });
+  const w2 = noApp.windows[0];
+  assert.deepEqual(JSON.parse(JSON.stringify(await noApp.handlers.get('chausar:open-external')({ sender: w2.webContents, senderFrame: w2.webContents.mainFrame }, wa))), { ok: true });
+  assert.deepEqual(noApp.opened, [wa]);
+
+  const broken = await desktop([], Promise.resolve(), false, { whatsapp: 'WhatsApp', openFails: url => url.startsWith('whatsapp:') });
+  const w3 = broken.windows[0];
+  assert.deepEqual(JSON.parse(JSON.stringify(await broken.handlers.get('chausar:open-external')({ sender: w3.webContents, senderFrame: w3.webContents.mainFrame }, wa))), { ok: true });
+  assert.deepEqual(broken.opened, [wa], 'an app that does not open falls back to the web page');
+});
+
+test('A6: main answers the invoice share and show channels for the window of the app only, and the window names no path', async () => {
+  const d = await desktop([]);
+  const window = d.windows[0], trusted = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const shareHandler = d.handlers.get('chausar:invoice:share'), show = d.handlers.get('chausar:share:show');
+  assert.equal(typeof shareHandler, 'function');
+  assert.equal(typeof show, 'function');
+  const untrusted = await shareHandler({ sender: {}, senderFrame: window.webContents.mainFrame }, { invoiceId: 'inv-0001', how: 'email' });
+  assert.deepEqual([untrusted.ok, untrusted.error.code], [false, 'UNTRUSTED_SENDER']);
+  const path = await shareHandler(trusted, { invoiceId: 'inv-0001', how: 'email', path: 'C:/x.eml' });
+  assert.deepEqual([path.ok, path.error.code], [false, 'INVALID_REQUEST']);
+  // The test engine answers no file, so the share stops before anything is written or opened.
+  const asked = await shareHandler(trusted, { invoiceId: 'inv-0001', how: 'whatsapp' });
+  assert.deepEqual([asked.ok, asked.error.code], [false, 'REQUEST_FAILED']);
+  assert.deepEqual([d.opened, d.openedPaths], [[], []]);
+  const showRefused = await show(trusted, { name: '../secret.pdf' });
+  assert.deepEqual([showRefused.ok, showRefused.error.code], [false, 'INVALID_REQUEST']);
+  assert.deepEqual(d.shownItems, []);
 });

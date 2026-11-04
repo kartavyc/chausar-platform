@@ -5,6 +5,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { runInNewContext } from 'node:vm';
 const require = createRequire(import.meta.url);
 const contract = require('../../app/desktop/ipc-contract.cjs');
 
@@ -80,4 +84,148 @@ test('A6: header injection and odd files are refused, never written into the dra
   refused({ body: 7 });
   const html = split(draft({ attachment: { name: 'INV-0001.html', mimeType: 'text/html', bytes: Buffer.from('<p>x</p>') } })).rest;
   assert.ok(html.includes('Content-Type: text/html; name="INV-0001.html"'));
+});
+
+// ---------------------------------------------------------------------------
+// Sharing an invoice from the desktop: the window names only the invoice and how. Main asks the engine for the file,
+// keeps it in Chausar's own share folder and opens the owner's mail app or WhatsApp. Stubs only: nothing opens here.
+// ---------------------------------------------------------------------------
+const share = require('../../app/desktop/invoice-share.cjs');
+
+const WA_TEXT = 'Hello Test Client One,\n\nHere is invoice INV-0001 for INR 23,305.00. The PDF is attached.';
+function engineFile(over: Record<string, any> = {}) {
+  return {
+    fileName: 'INV-0001.pdf', format: 'pdf', mimeType: 'application/pdf', contentBase64: PDF.toString('base64'), note: null,
+    share: { text: WA_TEXT, subject: SUBJECT, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(WA_TEXT)}`, mailtoUrl: mailto('client@example.com') },
+    ...over,
+  };
+}
+async function shareDeps(t: any, options: { file?: any; openPath?: string; app?: boolean; openFails?: (url: string) => boolean } = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'chausar-share-a6-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const folder = join(root, 'share');
+  const asked: any[] = [], opened: string[] = [], paths: string[] = [], shown: string[] = [];
+  const deps = {
+    window: { webContents: {} }, folder, assertTrustedSender: (event: any) => { if (event?.untrusted) throw Object.assign(new Error('Request sender is not trusted.'), { code: 'UNTRUSTED_SENDER' }); },
+    publicError: (error: any) => ({ code: error.code, message: error.message }),
+    engine: { request: async (method: string, payload: unknown) => { asked.push([method, payload]); return options.file === undefined ? engineFile() : options.file; } },
+    shell: {
+      openPath: async (path: string) => { paths.push(path); return options.openPath ?? ''; },
+      openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); },
+      showItemInFolder: (path: string) => { shown.push(path); },
+    },
+    whatsappApp: () => options.app ?? false,
+  };
+  return { deps, folder, asked, opened, paths, shown, root };
+}
+
+test('A6: Email it writes the PDF and an .eml draft in the share folder and opens the draft; the window names only the invoice', async t => {
+  const s = await shareDeps(t);
+  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+  assert.deepEqual(reply, { ok: true, result: { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: true, note: null } });
+  assert.deepEqual(s.asked, [['venture.invoice.pdf', { invoiceId: 'inv-0001' }]], 'main asks the engine itself');
+  assert.deepEqual(s.paths, [join(s.folder, 'INV-0001.eml')]);
+  assert.deepEqual(s.opened, [], 'no link is opened when the draft opens');
+  assert.deepEqual(await readFile(join(s.folder, 'INV-0001.pdf')), PDF);
+  const eml = await readFile(join(s.folder, 'INV-0001.eml'), 'utf8');
+  assert.match(eml, /^To: client@example\.com\r\nSubject: Invoice INV-0001 from Ledger Cafe Books\r\nX-Unsent: 1\r\n/);
+  assert.ok(eml.includes('Content-Disposition: attachment; filename="INV-0001.pdf"'));
+  assert.deepEqual((await readdir(s.folder)).sort(), ['INV-0001.eml', 'INV-0001.pdf'], 'no temporary file is left');
+
+  for (const bad of [{ invoiceId: 'inv-0001' }, { invoiceId: 'inv-0001', how: 'gmail' }, { invoiceId: '../x', how: 'email' }, { invoiceId: 'inv-0001', how: 'email', path: 'C:/x.eml' },
+    { invoiceId: 'inv-0001', how: 'whatsapp', text: 'other words' }, { invoiceId: 'inv-0001', how: 'whatsapp', url: 'whatsapp://send?text=x' }, null, 'inv-0001']) {
+    const refused = await share.shareInvoice({}, bad, s.deps);
+    assert.deepEqual([refused.ok, refused.error.code], [false, 'INVALID_REQUEST'], JSON.stringify(bad));
+  }
+  const untrusted = await share.shareInvoice({ untrusted: true }, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+  assert.deepEqual([untrusted.ok, untrusted.error.code], [false, 'UNTRUSTED_SENDER']);
+  assert.equal(s.asked.length, 1, 'a refused request never reaches the engine');
+});
+
+test('A6: a client with no email gets a draft with no To line; with no mail app for email files the mail link opens, else it says none opened', async t => {
+  const none = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('') } }) });
+  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, none.deps);
+  assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: false, note: null });
+  assert.ok(!(await readFile(join(none.folder, 'INV-0001.eml'), 'utf8')).includes('To:'));
+
+  const link = await shareDeps(t, { openPath: 'There is no application associated with the given file name extension.' });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, link.deps)).result, { how: 'email', opened: 'link', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual(link.opened, [mailto('client@example.com')], 'the checked mail link, as the gate rebuilds it');
+
+  const nothing = await shareDeps(t, { openPath: 'No app.', openFails: () => true });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, nothing.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual(await readFile(join(nothing.folder, 'INV-0001.pdf')), PDF, 'the PDF stays for the owner to attach');
+});
+
+test('A6: header injection in the client data never reaches a header, and an odd engine file is refused before anything is written', async t => {
+  const injected = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: `mailto:client@example.com?subject=${encodeURIComponent('Invoice\r\nBcc: other@example.com')}&body=x` } }) });
+  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, injected.deps);
+  assert.deepEqual([reply.ok, reply.error.code], [false, 'REQUEST_FAILED']);
+  assert.deepEqual([injected.paths, injected.opened], [[], []]);
+  assert.deepEqual(await readdir(injected.folder).catch(() => []), [], 'nothing was written');
+  for (const file of [engineFile({ fileName: '../INV-0001.pdf' }), engineFile({ fileName: 'INV-0001.exe' }), engineFile({ mimeType: 'text/html' }), engineFile({ contentBase64: '' }),
+    engineFile({ contentBase64: 'not base64!' }), engineFile({ share: null }), engineFile({ share: { ...engineFile().share, whatsappUrl: 'https://evil.example/?text=x' } }), null]) {
+    const s = await shareDeps(t, { file });
+    const refused = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+    assert.deepEqual([refused.ok, refused.error.code], [false, 'REQUEST_FAILED'], JSON.stringify(file)?.slice(0, 60));
+    assert.deepEqual(await readdir(s.folder).catch(() => []), []);
+    assert.deepEqual(s.opened, []);
+  }
+});
+
+test('A6: WhatsApp opens the desktop app first when this computer has one, else the web page, with the words filled in; the PDF waits in the share folder', async t => {
+  const app = await shareDeps(t, { app: true });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, app.deps)).result, { how: 'whatsapp', opened: 'app', file: 'INV-0001.pdf', note: null });
+  assert.deepEqual(app.opened, [`whatsapp://send?text=${encodeURIComponent(WA_TEXT)}`]);
+  assert.deepEqual(await readFile(join(app.folder, 'INV-0001.pdf')), PDF);
+  assert.deepEqual(app.paths, [], 'no file is opened');
+
+  const web = await shareDeps(t, { app: false });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, web.deps)).result, { how: 'whatsapp', opened: 'web', file: 'INV-0001.pdf', note: null });
+  assert.deepEqual(web.opened, [`https://wa.me/?text=${encodeURIComponent(WA_TEXT)}`]);
+
+  // The app is listed but does not open: the web page instead.
+  const broken = await shareDeps(t, { app: true, openFails: url => url.startsWith('whatsapp:') });
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, broken.deps)).result.opened, 'web');
+  assert.deepEqual(broken.opened, [`https://wa.me/?text=${encodeURIComponent(WA_TEXT)}`]);
+});
+
+test('A6: the WhatsApp app link is built only from a checked wa.me link', () => {
+  assert.equal(share.whatsappAppUrl(`https://wa.me/?text=${encodeURIComponent('Hi & bye')}`), `whatsapp://send?text=${encodeURIComponent('Hi & bye')}`);
+  assert.equal(share.whatsappAppUrl('https://wa.me/919876543210?text=Hello'), 'whatsapp://send?phone=919876543210&text=Hello');
+  for (const bad of ['https://wa.me/abc?text=x', 'https://wa.me/?text=x&phone=1', 'https://wa.me/?x=1', 'https://evil.example/?text=x', 'http://wa.me/?text=x', 'https://user@wa.me/?text=x',
+    'https://wa.me/919876543210/x?text=x', 'https://wa.me/?text=%E0%A4', 'whatsapp://send?text=x', 'https://wa.me/?text=a&text=b', 'https://wa.me/?text=x#y', 42]) assert.equal(share.whatsappAppUrl(bad), null, String(bad));
+});
+
+test('A6: files older than a day are taken out of the share folder; Show the PDF in its folder shows only a file there', async t => {
+  const s = await shareDeps(t);
+  await mkdir(s.folder, { recursive: true });
+  const old = new Date(Date.now() - 2 * 24 * 60 * 60_000);
+  for (const name of ['INV-0007.pdf', 'INV-0007.eml', '.INV-0008.pdf.0a1b2c3d4e5f.tmp']) { await writeFile(join(s.folder, name), 'old'); await utimes(join(s.folder, name), old, old); }
+  await writeFile(join(s.folder, 'INV-0009.pdf'), 'fresh');
+  await writeFile(join(s.folder, 'notes.txt'), 'not ours'); await utimes(join(s.folder, 'notes.txt'), old, old);
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+  assert.deepEqual((await readdir(s.folder)).sort(), ['INV-0001.pdf', 'INV-0009.pdf', 'notes.txt']);
+
+  assert.deepEqual(await share.showShared({}, { name: 'INV-0001.pdf' }, s.deps), { ok: true });
+  assert.deepEqual(s.shown, [join(s.folder, 'INV-0001.pdf')]);
+  for (const bad of ['../INV-0001.pdf', 'notes.txt', 'INV-0001.eml', String.raw`C:\Windows\notepad.exe`, '', 42, null]) {
+    const reply = await share.showShared({}, { name: bad }, s.deps);
+    assert.deepEqual([reply.ok, reply.error.code], [false, 'INVALID_REQUEST'], String(bad));
+  }
+  assert.equal((await share.showShared({}, { name: 'INV-0404.pdf' }, s.deps)).error.code, 'SHARE_FILE_GONE');
+  assert.equal((await share.showShared({ untrusted: true }, { name: 'INV-0001.pdf' }, s.deps)).error.code, 'UNTRUSTED_SENDER');
+  assert.equal(s.shown.length, 1);
+  assert.ok((await stat(join(s.folder, 'INV-0001.pdf'))).isFile());
+});
+
+test('A6: the real preload forwards only the invoice and how, and only the file name to show', async () => {
+  let bridge: any; const calls: any[] = [];
+  runInNewContext(await readFile('app/desktop/preload.cjs', 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (channel: string, input: any) => { calls.push({ channel, input }); return { ok: true, result: { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: true, note: null } }; } } }) });
+  assert.deepEqual(await bridge.shareInvoice('inv-0001', 'email', { path: 'C:/x' }), { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: true, note: null });
+  await bridge.showShared('INV-0001.pdf');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    { channel: 'chausar:invoice:share', input: { invoiceId: 'inv-0001', how: 'email' } },
+    { channel: 'chausar:share:show', input: { name: 'INV-0001.pdf' } },
+  ]);
 });

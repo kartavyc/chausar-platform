@@ -61,6 +61,18 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
+  // One-shot A6: Email it or Share on WhatsApp on an issued invoice; only the invoice and how go to main, which makes the file.
+  shareInvoice: async (invoiceId, how) => {
+    const reply = await ipcRenderer.invoke('chausar:invoice:share', { invoiceId: String(invoiceId), how: String(how) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The invoice could not be shared.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  // A6: show the invoice file Chausar kept for sharing in the file manager, by its file name only.
+  showShared: async name => {
+    const reply = await ipcRenderer.invoke('chausar:share:show', { name: String(name) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   // One-shot A5: start at login and keep running, read back from this computer; a change sends only the two ticks.
   getBackground: async () => {
     const reply = await ipcRenderer.invoke('chausar:background:get');

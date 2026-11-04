@@ -1,0 +1,157 @@
+'use strict';
+// Chausar desktop (one-shot A6, the founder's answers 6 and 7): Email it and Share on WhatsApp on an issued invoice.
+// The window names only the invoice and how ({ invoiceId, how: 'email' | 'whatsapp' }); main asks the engine for the
+// file and its share words itself (venture.invoice.pdf) and keeps the file in Chausar's own share folder (main passes
+// <userData>/share, never a vault folder), written whole through a temporary file. Files of ours older than a day are
+// taken out of that folder each time. Chausar sends nothing: the owner presses send in their own app.
+// - email: an .eml draft with the file attached (mail-draft.cjs) beside it, opened with the computer's mail app. With
+//   no app for email files, the checked mail link opens instead (no file then), and the answer says which.
+// - whatsapp: the WhatsApp desktop app when this computer has one for whatsapp:// links, else the wa.me web page, with
+//   the words filled in. A WhatsApp link cannot carry a file, so the file waits in the share folder for the owner to drag
+//   in ("Show the PDF in its folder", showShared). Every link opened is built here from a checked engine link.
+const fsp = require('node:fs/promises');
+const { randomBytes } = require('node:crypto');
+const { basename, dirname, join, relative } = require('node:path');
+const { mailtoParts, validateExternalUrl } = require('./ipc-contract.cjs');
+const { buildEml, FILE_NAME, TYPES } = require('./mail-draft.cjs');
+
+const DAY_MS = 24 * 60 * 60_000;
+const MAX_LINK = 30_000;
+const INVOICE_ID = /^[A-Za-z0-9_.:-]{1,200}$/;
+const OURS = /^[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml)$/;
+const STAGED = /^\.[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml)\.[0-9a-f]{12}\.tmp$/;
+const failure = (code, message) => Object.assign(new Error(message), { code });
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+const notMade = () => failure('REQUEST_FAILED', 'The invoice file could not be made. Try again.');
+
+/** { invoiceId, how } and nothing else: never a path, a link or words from the window. */
+function shareRequest(input) {
+  if (!isRecord(input) || Object.keys(input).some(key => key !== 'invoiceId' && key !== 'how') || typeof input.invoiceId !== 'string' || !INVOICE_ID.test(input.invoiceId)
+    || (input.how !== 'email' && input.how !== 'whatsapp')) throw failure('INVALID_REQUEST', 'Choose an invoice, and Email it or Share on WhatsApp.');
+  return { invoiceId: input.invoiceId, how: input.how };
+}
+
+/** The engine's file, checked: a name Chausar made, the type that goes with it, and real base64 bytes. */
+function engineFile(file) {
+  if (!isRecord(file) || typeof file.fileName !== 'string' || typeof file.contentBase64 !== 'string' || !isRecord(file.share)) throw notMade();
+  const match = FILE_NAME.exec(file.fileName);
+  if (!match || file.mimeType !== TYPES[match[1]]) throw notMade();
+  const text = file.contentBase64;
+  if (text.length === 0 || text.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) throw notMade();
+  const bytes = Buffer.from(text, 'base64');
+  if (bytes.toString('base64') !== text) throw notMade();
+  const note = typeof file.note === 'string' ? file.note.slice(0, 300) : null;
+  return { name: file.fileName, mimeType: file.mimeType, bytes, note, share: file.share };
+}
+
+/**
+ * The WhatsApp desktop app's link for a checked wa.me link (https://wa.me/ or https://wa.me/<6 to 15 digits>, with one
+ * text and nothing else), or null.
+ */
+function whatsappAppUrl(input) {
+  if (typeof input !== 'string' || input.length > MAX_LINK || input.includes('#')) return null;
+  let url;
+  try { url = new URL(input); } catch { return null; }
+  if (url.protocol !== 'https:' || url.host !== 'wa.me' || url.username !== '' || url.password !== '') return null;
+  const path = /^\/(\d{6,15})?$/.exec(url.pathname);
+  const query = url.search.startsWith('?') ? url.search.slice(1) : '';
+  if (!path || query === '' || query.includes('&')) return null;
+  const equals = query.indexOf('=');
+  if (equals < 0 || query.slice(0, equals) !== 'text') return null;
+  let text;
+  try { text = decodeURIComponent(query.slice(equals + 1).replace(/\+/g, ' ')); } catch { return null; }
+  const link = `whatsapp://send?${path[1] ? `phone=${path[1]}&` : ''}text=${encodeURIComponent(text)}`;
+  return link.length <= MAX_LINK ? link : null;
+}
+
+/** A file system failure in plain words, never with a path on this computer. */
+function plain(error) {
+  if (error?.code === 'ENOSPC' || error?.code === 'EDQUOT') return failure('SHARE_NOT_SAVED', 'There is not enough space on this computer to keep the file. Free some space and try again.');
+  return failure('SHARE_NOT_SAVED', 'Chausar could not keep the file on this computer. Try again.');
+}
+
+/** Writes bytes whole: a temporary file beside it, flushed, then renamed over the name. A failure leaves nothing. */
+async function writeWhole(fs, target, bytes) {
+  const temp = join(dirname(target), `.${basename(target)}.${randomBytes(6).toString('hex')}.tmp`);
+  try {
+    const handle = await fs.open(temp, 'wx', 0o600);
+    try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    await fs.rename(temp, target);
+  } catch (error) {
+    await fs.rm(temp, { force: true }).catch(() => {});
+    throw plain(error);
+  }
+}
+
+/** Takes our files older than a day out of the share folder. Anything else there is left alone. */
+async function prune(fs, folder, now) {
+  const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isFile() || !(OURS.test(entry.name) || STAGED.test(entry.name))) continue;
+    const path = join(folder, entry.name);
+    const found = await fs.stat(path).catch(() => null);
+    if (found && now - found.mtimeMs > DAY_MS) await fs.rm(path, { force: true }).catch(() => {});
+  }
+}
+
+/** The invoice:share handler: { ok: true, result } or { ok: false, error } in plain words. */
+async function shareInvoice(event, input, deps) {
+  try {
+    deps.assertTrustedSender(event, deps.window?.webContents);
+    const { invoiceId, how } = shareRequest(input);
+    const file = engineFile(await deps.engine.request('venture.invoice.pdf', { invoiceId }));
+    const fs = deps.fs ?? fsp;
+    // Everything is checked before anything is written or opened.
+    let eml = null, mail = null, appLink = null, webLink = null;
+    if (how === 'email') {
+      const parts = mailtoParts(file.share.mailtoUrl);
+      if (!parts) throw notMade();
+      try { eml = buildEml({ to: parts.address, subject: parts.subject, body: parts.body, attachment: { name: file.name, mimeType: file.mimeType, bytes: file.bytes } }); } catch { throw notMade(); }
+      mail = { link: validateExternalUrl(file.share.mailtoUrl), to: parts.address !== '' };
+    } else {
+      appLink = whatsappAppUrl(file.share.whatsappUrl);
+      if (!appLink) throw notMade();
+      webLink = validateExternalUrl(file.share.whatsappUrl);
+    }
+    try { await fs.mkdir(deps.folder, { recursive: true }); } catch (error) { throw plain(error); }
+    await prune(fs, deps.folder, (deps.now ?? Date.now)());
+    await writeWhole(fs, join(deps.folder, file.name), file.bytes);
+    if (how === 'email') {
+      const draftPath = join(deps.folder, file.name.replace(/\.(?:pdf|html)$/, '.eml'));
+      await writeWhole(fs, draftPath, Buffer.from(eml, 'utf8'));
+      let opened = 'draft';
+      const problem = await Promise.resolve(deps.shell.openPath(draftPath)).catch(error => String(error?.message ?? error) || 'failed');
+      if (problem !== '') {
+        try { await deps.shell.openExternal(mail.link); opened = 'link'; } catch { opened = 'none'; }
+      }
+      return { ok: true, result: { how, opened, file: file.name, to: mail.to, note: file.note } };
+    }
+    let opened = 'web';
+    if (deps.whatsappApp()) {
+      try { await deps.shell.openExternal(appLink); opened = 'app'; } catch { opened = 'web'; }
+    }
+    if (opened === 'web') await deps.shell.openExternal(webLink);
+    return { ok: true, result: { how, opened, file: file.name, note: file.note } };
+  } catch (error) {
+    return { ok: false, error: deps.publicError(error) };
+  }
+}
+
+/** The share:show handler: shows one invoice file of the share folder in the file manager, by its name only. */
+async function showShared(event, input, deps) {
+  try {
+    deps.assertTrustedSender(event, deps.window?.webContents);
+    const name = isRecord(input) && Object.keys(input).length === 1 ? input.name : undefined;
+    if (typeof name !== 'string' || !FILE_NAME.test(name)) throw failure('INVALID_REQUEST', 'Choose the invoice file Chausar kept.');
+    const path = join(deps.folder, name);
+    if (relative(deps.folder, path) !== name) throw failure('INVALID_REQUEST', 'Choose the invoice file Chausar kept.');
+    const found = await (deps.fs ?? fsp).stat(path).catch(() => null);
+    if (!found || !found.isFile()) throw failure('SHARE_FILE_GONE', 'That file is not there any more. Press the button again to make it.');
+    deps.shell.showItemInFolder(path);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: deps.publicError(error) };
+  }
+}
+
+module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl });

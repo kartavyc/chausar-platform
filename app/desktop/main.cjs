@@ -297,10 +297,25 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // One-shot A6 (answer 7): a wa.me handoff opens the WhatsApp desktop app first when this computer has one for
+  // whatsapp:// links, else the web page; the app link is built from the checked wa.me link (invoice-share.cjs).
+  const invoiceShare = require('./invoice-share.cjs');
+  const whatsappApp = () => { try { return typeof app.getApplicationNameForProtocol === 'function' && app.getApplicationNameForProtocol('whatsapp://') !== ''; } catch { return false; } };
   ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (event, input) => {
-    try { assertTrustedSender(event, window?.webContents); await shell.openExternal(validateExternalUrl(input)); return { ok: true }; }
+    try {
+      assertTrustedSender(event, window?.webContents);
+      const href = validateExternalUrl(input);
+      const appLink = href.startsWith('https://wa.me/') && whatsappApp() ? invoiceShare.whatsappAppUrl(href) : null;
+      if (appLink) { try { await shell.openExternal(appLink); return { ok: true }; } catch { /* the app did not open; the web page instead */ } }
+      await shell.openExternal(href); return { ok: true };
+    }
     catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // A6 (answer 6, and the file for answer 7): Email it and Share on WhatsApp on an invoice. Main makes the file and keeps
+  // it in Chausar's own share folder, beside the vaults, never in them; the window names only the invoice and how.
+  const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine, folder: join(app.getPath('userData'), 'share'), whatsappApp });
+  ipcMain.handle('chausar:invoice:share', (event, input) => invoiceShare.shareInvoice(event, input, shareDeps()));
+  ipcMain.handle('chausar:share:show', (event, input) => invoiceShare.showShared(event, input, shareDeps()));
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
