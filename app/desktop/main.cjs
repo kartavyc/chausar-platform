@@ -16,12 +16,14 @@ function stopFormsBrowser() { void formsBrowser.close(); engine?.closeForms?.();
 const flowBrowser = require('./flow-browser.cjs').createFlowBrowser({ BrowserWindow, session });
 // Wave 6 (6H1, D39): the mini app sandbox proxy's own policy, and where frames inside the window may go.
 const { policyFor, subframeAllowed } = require('./mini-frame.cjs');
-const backgroundRequested = process.argv.includes('--background');
+let backgroundRequested = process.argv.includes('--background');
 // Wave 6 (6J1, D3, D36): the installed beta (release channel "beta") starts at login hidden in the tray (--hidden) and
 // keeps running in the tray when the window closes; both are owner settings in the tray menu (background.cjs). The
 // bundled Codex goes last on the engine's PATH. Previews and development runs keep the behaviour they had.
-let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { startAtLogin: false, keepRunning: false };
-const hiddenStart = process.argv.includes('--hidden');
+// One-shot A5: start at login is the owner's answer in onboarding, changeable in Settings and the tray; backgroundValue
+// is background.cjs's state, with the computer's own login item read back, so the tray tick is never a guess.
+let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { supported: false, asked: false, startAtLogin: false, keepRunning: false, registered: false, systemOff: false };
+let hiddenStart = process.argv.includes('--hidden');
 const runsInBackground = () => backgroundRequested || ownerKeepsRunning;
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
@@ -135,19 +137,27 @@ function trayMenu() {
     { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
   ]);
 }
-/** 6J1: the beta's owner settings; the first run registers the default login item. A failure never stops the start. */
+/**
+ * 6J1, A5: the beta's owner settings. Unasked, nothing is registered (onboarding asks); a saved answer is brought in
+ * line at each start. A failure never stops the start.
+ */
 async function startBackground() {
   background = require('./background.cjs').createBackground({ app, fs: require('node:fs/promises'), platform: process.platform, directory: app.getPath('userData'), home: app.getPath('home'), env: process.env, execPath: process.execPath, beta: true });
-  backgroundValue = await background.settings(); ownerKeepsRunning = backgroundValue.keepRunning;
-  try { await background.apply(); } catch (error) { console.error(publicError(error).message); }
+  // A5: on macOS a login start comes from Electron's own login item, which passes no arguments.
+  if (process.platform === 'darwin' && app.getLoginItemSettings?.()?.wasOpenedAtLogin === true) { backgroundRequested = true; hiddenStart = true; }
+  ownerKeepsRunning = (await background.settings()).keepRunning;
+  try { await background.apply(); backgroundValue = await background.state(); }
+  catch (error) { console.error(publicError(error).message); backgroundValue = { ...backgroundValue, supported: true, keepRunning: ownerKeepsRunning }; }
 }
-function changeBackground(update) {
-  if (!background) return;
-  void background.change(update).then(value => {
-    backgroundValue = value; ownerKeepsRunning = value.keepRunning;
-    tray?.setContextMenu(trayMenu()); lifecycleChanged();
-  }, error => console.error(publicError(error).message));
+/** A5: one change from the tray or the window; the tray and the engine follow, and the new state is the answer. */
+async function setBackground(update) {
+  if (!background) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+  const value = await background.change(update);
+  backgroundValue = value; ownerKeepsRunning = value.keepRunning;
+  tray?.setContextMenu(trayMenu()); lifecycleChanged();
+  return value;
 }
+function changeBackground(update) { void setBackground(update).catch(error => console.error(publicError(error).message)); }
 function setTrayCount(count) {
   if (count === trayCount) return;
   trayCount = count;

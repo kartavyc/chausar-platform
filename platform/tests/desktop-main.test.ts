@@ -14,7 +14,10 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
-  app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); };
+  // A5: the computer's login items as Electron reads them back (Windows launch items, this program's only).
+  const run = new Map<string, any>();
+  app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: settings.args, enabled: true }); else run.delete(settings.name); };
+  app.getLoginItemSettings = (options: any) => ({ openAtLogin: false, launchItems: [...run].filter(([, item]) => item.path === options?.path).map(([name, item]) => ({ name, path: item.path, args: item.args, scope: 'user', enabled: item.enabled })) });
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
@@ -359,13 +362,13 @@ test('Export for your CA: main answers the save channel for the app\'s own windo
 // tray when its window closes; both are owner settings in the tray menu. Previews never register a login item.
 // ---------------------------------------------------------------------------
 
-test('the installed beta registers start at login once, starts real data, and keeps running in the tray (6J1)', async () => {
+test('the installed beta registers no login item on its first start, starts real data, and keeps running in the tray (6J1, A5 S12)', async () => {
   const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
   assert.equal(d.errors.length, 0);
   assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
-  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  assert.deepEqual(d.logins, [], "start at login waits for the owner's answer in onboarding");
   const menu = d.menus.at(-1);
-  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start at login', true], ['Keep running in the tray', true]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start at login', false], ['Keep running in the tray', true]]);
   d.windows[0].emit('closed'); await flush();
   assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0, 'closing the window keeps Chausar in the tray');
@@ -381,9 +384,12 @@ test('a login start opens no window: Chausar waits in the tray until the owner o
   assert.equal(d.windows.length, 1);
 });
 
-test('the owner can turn start at login and the tray off; off means the window closing quits Chausar (6J1)', async () => {
+test('the owner can turn start at login on and off and the tray off; the tick shows the computer; off means the window closing quits Chausar (6J1, A5)', async () => {
   const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
   const ticks = () => d.menus.at(-1).filter((item: any) => item.type === 'checkbox');
+  ticks()[0].click({ checked: true }); await flush(); await flush();
+  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  assert.equal(ticks()[0].checked, true);
   ticks()[0].click({ checked: false }); await flush(); await flush();
   assert.deepEqual(d.logins.at(-1), { openAtLogin: false, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' });
   ticks()[1].click({ checked: false }); await flush(); await flush();

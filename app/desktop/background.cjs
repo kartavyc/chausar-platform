@@ -1,11 +1,16 @@
 'use strict';
-// Wave 6, package 6J1 (D3, D36): work runs while the app runs, so the installed beta starts at login (hidden, in the
-// tray) and keeps running in the tray when its window closes. Both are owner settings with those defaults, shown as
-// ticks in the tray menu and kept in the app's own folder. Only the installed beta (release channel "beta") ever
-// registers a login item: previews and development runs never do, and Mac is out of scope for the beta.
-// Windows uses Electron's login item (one registry value named "Chausar", removed again by the uninstaller); Linux
-// has no Electron login items, so an XDG autostart file is the login item. The bundled Codex (resources/codex) goes
-// last on the engine's PATH, so an owner's own Codex install is still the one found first.
+// Wave 6, package 6J1 (D3, D36): work runs while the app runs, so the installed beta can start at login (hidden, in the
+// tray) and keeps running in the tray when its window closes. Both are owner settings, shown as ticks in the tray menu
+// and kept in the app's own folder. Only the installed beta (release channel "beta") ever registers a login item:
+// previews and development runs never do.
+// One-shot A5 (founder answer 5; hands-on rows 4, 88, 114, S12, bug 8): start at login is asked in onboarding, ticked
+// by default, and changeable in Settings and the tray. Nothing is registered until the owner answers (the first start
+// used to register it silently). What the window and the tray show is the computer's own state, read back each time:
+// Windows and macOS through Electron's login items (on Windows the user's Run value "Chausar" and its Task Manager
+// switch, removed again by the uninstaller), Linux through the XDG autostart file (Electron has no Linux login items).
+// A login item the computer's own startup settings switched off stays off at each start; only the owner turning it on
+// in Chausar turns it back on. The bundled Codex (resources/codex) goes last on the engine's PATH, so an owner's own
+// Codex install is still the one found first.
 const path = require('node:path');
 
 const BACKGROUND_FILE = 'background.json';
@@ -13,12 +18,13 @@ const LOGIN_ARGS = Object.freeze(['--background', '--hidden']);
 const LOGIN_NAME = 'Chausar';
 const AUTOSTART_FILE = 'chausar.desktop';
 
-function defaultsFor(beta) { return { startAtLogin: beta, keepRunning: beta }; }
+/** startAtLogin here is the suggestion onboarding ticks; it is never applied until the owner answers (asked). */
+function defaultsFor(beta) { return { startAtLogin: beta, keepRunning: beta, asked: false }; }
 function parseSettings(text, defaults) {
   try {
     const value = JSON.parse(text);
     if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.startAtLogin !== 'boolean' || typeof value.keepRunning !== 'boolean') return defaults;
-    return { startAtLogin: value.startAtLogin, keepRunning: value.keepRunning };
+    return { startAtLogin: value.startAtLogin, keepRunning: value.keepRunning, asked: true };
   } catch { return defaults; }
 }
 /** A desktop entry field holds one line; a path is quoted for Exec and its quotes and backslashes escaped. */
@@ -33,7 +39,7 @@ function tryExecPath(file) { return String(file).replace(/[\r\n]/g, '').replace(
 function createBackground({ app, fs, platform, directory, home, env = {}, execPath, beta = false }) {
   const defaults = defaultsFor(beta === true);
   const file = path.join(directory, BACKGROUND_FILE);
-  const supported = beta === true && (platform === 'win32' || platform === 'linux');
+  const supported = beta === true && (platform === 'win32' || platform === 'linux' || platform === 'darwin');
   const autostartFile = () => path.posix.join(env.XDG_CONFIG_HOME && path.posix.isAbsolute(env.XDG_CONFIG_HOME) ? env.XDG_CONFIG_HOME : path.posix.join(home, '.config'), 'autostart', AUTOSTART_FILE);
   let current = null;
 
@@ -41,8 +47,28 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     if (current) return { ...current };
     let text = null;
     try { text = await fs.readFile(file, 'utf8'); } catch { text = null; }
-    current = text === null ? defaults : parseSettings(text, defaults);
+    current = text === null ? { ...defaults } : parseSettings(text, { ...defaults });
     return { ...current };
+  }
+  /**
+   * The computer's own login item for this program: 'on', 'off' (there, but switched off by the computer's startup
+   * settings: Task Manager, the desktop's startup apps, or macOS waiting for approval) or 'none'.
+   */
+  async function presence() {
+    if (!supported) return 'none';
+    if (platform === 'win32') {
+      const found = app.getLoginItemSettings({ path: execPath, args: [...LOGIN_ARGS] });
+      const item = (Array.isArray(found?.launchItems) ? found.launchItems : []).find(entry => entry?.name === LOGIN_NAME && entry.scope === 'user');
+      return !item ? 'none' : item.enabled === true ? 'on' : 'off';
+    }
+    if (platform === 'darwin') {
+      const found = app.getLoginItemSettings();
+      return found?.openAtLogin === true ? 'on' : found?.status === 'requires-approval' ? 'off' : 'none';
+    }
+    let text = null;
+    try { text = await fs.readFile(autostartFile(), 'utf8'); } catch { text = null; }
+    if (text === null) return 'none';
+    return /^X-GNOME-Autostart-enabled=false\s*$/m.test(text) || /^Hidden=true\s*$/m.test(text) ? 'off' : 'on';
   }
   async function loginItem(enabled) {
     if (!supported) return;
@@ -50,6 +76,8 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
       app.setLoginItemSettings({ openAtLogin: enabled, path: execPath, args: [...LOGIN_ARGS], name: LOGIN_NAME });
       return;
     }
+    // macOS: Electron's own login item for the app; a start from it is read as a login start (main.cjs).
+    if (platform === 'darwin') { app.setLoginItemSettings({ openAtLogin: enabled }); return; }
     const target = autostartFile();
     if (!enabled) { if (typeof fs.rm === 'function') await fs.rm(target, { force: true }); return; }
     // An AppImage runs from a temporary mount; APPIMAGE names the file the owner keeps, so login starts that one.
@@ -60,27 +88,50 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     await fs.mkdir(path.posix.dirname(target), { recursive: true });
     await fs.writeFile(target, entry, { mode: 0o600 });
   }
-  /** Bring the login item in line with the saved setting (the first beta run registers the default). */
-  async function apply() { if (supported) await loginItem((await settings()).startAtLogin); }
-  /** Save a change from the tray menu and apply it at once. */
+  /**
+   * At each start, once the owner has answered: a yes with no login item at all registers one (the program moved, or
+   * an update replaced it), and a no removes any that is there. A login item the computer switched off stays off.
+   * Unasked, nothing is touched.
+   */
+  async function apply() {
+    if (!supported) return;
+    const saved = await settings();
+    if (!saved.asked) return;
+    const found = await presence();
+    if (saved.startAtLogin && found === 'none') await loginItem(true);
+    else if (!saved.startAtLogin && found !== 'none') await loginItem(false);
+  }
+  /** What the window and the tray show: the saved settings with the computer's own state of the login item. */
+  async function state() {
+    const saved = await settings();
+    const found = await presence();
+    return { supported, asked: saved.asked, startAtLogin: saved.startAtLogin, keepRunning: saved.keepRunning, registered: found === 'on', systemOff: found === 'off' };
+  }
+  /**
+   * Save a change from onboarding, Settings or the tray menu, apply it at once, and answer the new state. A change of
+   * Keep running alone, before start at login was answered, saves what the computer does now, never the suggestion.
+   */
   async function change(update) {
-    const next = { ...(await settings()) };
+    if (!supported) return state();
+    const before = await settings();
+    const next = { startAtLogin: before.startAtLogin, keepRunning: before.keepRunning };
+    if (!before.asked && typeof update?.startAtLogin !== 'boolean') next.startAtLogin = (await presence()) === 'on';
     for (const key of ['startAtLogin', 'keepRunning']) if (typeof update?.[key] === 'boolean') next[key] = update[key];
-    current = next;
     await fs.mkdir(directory, { recursive: true });
     await fs.writeFile(file, JSON.stringify(next), { mode: 0o600 });
+    current = { ...next, asked: true };
     if (typeof update?.startAtLogin === 'boolean') await loginItem(next.startAtLogin);
-    return { ...next };
+    return state();
   }
-  /** The two ticks for the tray menu, beta only; onChange receives the one setting that changed. */
+  /** The two ticks for the tray menu, beta only (value: a state()); onChange receives the one setting that changed. */
   function menuItems(value, onChange) {
     if (!supported) return [];
     return [
-      { label: 'Start at login', type: 'checkbox', checked: value.startAtLogin, click: item => onChange({ startAtLogin: item.checked === true }) },
+      { label: 'Start at login', type: 'checkbox', checked: value.registered === true, click: item => onChange({ startAtLogin: item.checked === true }) },
       { label: 'Keep running in the tray', type: 'checkbox', checked: value.keepRunning, click: item => onChange({ keepRunning: item.checked === true }) },
     ];
   }
-  return { settings, apply, change, menuItems, supported };
+  return { settings, state, apply, change, menuItems, supported };
 }
 
 /** The engine's environment with the bundled Codex folder last on PATH, when the bundle is there. */
