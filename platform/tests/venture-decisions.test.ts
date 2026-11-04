@@ -441,3 +441,15 @@ test('decision lines follow who reads them', async () => {
     ['The owner decided: Plan version 2 accepted.', false, 'owner'],
   ]);
 });
+
+// A4 review round 2: a gate line follows the reader too: "wait for you" is said only to the one who set it.
+test('a gate set to wait reads "for you" to the one who set it, and "for an approval" to anyone else', async () => {
+  const env = await setup();
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  await seedBlueprint(env, {});
+  await call(env, 'venture.team.gate', { agentId: 'delivery', stepId: 'work', gate: 'hold' });
+  const gateLine = async (ctx: Context) => (await decisions(env, ctx)).find(item => item.action === 'gate-hold')?.line;
+  assert.equal(await gateLine(owner), "You set 'work' to wait for you.");
+  assert.equal(await gateLine(cofounder), "The owner set 'work' to wait for an approval.");
+});

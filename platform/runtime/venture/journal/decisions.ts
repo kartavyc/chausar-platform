@@ -71,7 +71,8 @@ export const DECISION_WORDS = Object.freeze({
   timeout: (reason: string) => `No answer in time: ${reason}`,
   approved: (what: string, who = 'You') => `${who} approved it: ${what}`,
   refused: (what: string, who = 'You') => `${who} said no: ${what}`,
-  gate: (step: string, gate: 'auto' | 'hold', who = 'You') => (gate === 'auto' ? `${who} set '${step}' to run on its own.` : `${who} set '${step}' to wait for you.`),
+  // A4 review round 2: "wait for you" only to the one who set it; anyone else reads that it waits for an approval.
+  gate: (step: string, gate: 'auto' | 'hold', who = 'You') => (gate === 'auto' ? `${who} set '${step}' to run on its own.` : `${who} set '${step}' to wait for ${who === 'You' ? 'you' : 'an approval'}.`),
   autoRule: (step: string) => `Your Auto setting on '${step}'`,
   sessionRule: (step: string) => `Your allow for this session on '${step}'`,
   someRule: 'A saved rule',
