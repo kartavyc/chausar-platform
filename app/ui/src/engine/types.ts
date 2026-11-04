@@ -891,6 +891,15 @@ export type BillingPatch = Partial<Omit<BillingSettingsLite, 'razorpay' | 'bank'
   razorpayKeys?: { keyId: string; keySecret: string } | null;
 };
 /** Wave 6 (6D2): an issued invoice's file and the links that open the owner's own WhatsApp or mail app. */
+/**
+ * One-shot A6: what the desktop opened for Email it or Share on WhatsApp (app/desktop/invoice-share.cjs). email: 'draft'
+ * is an .eml with the file attached in the mail app, 'link' the mail link without the file, 'none' nothing opened;
+ * to says whether the client's email is filled in. whatsapp: the desktop app or the web page, never with the file.
+ */
+export type InvoiceShareResult =
+  | { how: 'email'; opened: 'draft' | 'link' | 'none'; file: string; to: boolean; note: string | null }
+  | { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null };
+
 export interface InvoicePdfView {
   fileName: string; format: 'pdf' | 'html'; mimeType: 'application/pdf' | 'text/html'; contentBase64: string; note: Display | null;
   share: { text: string; subject: string; whatsappUrl: string; mailtoUrl: string };
@@ -2505,6 +2514,14 @@ export interface EngineClient {
    * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.
    */
   showExport?(name: string): Promise<void>;
+  /**
+   * Desktop only (one-shot A6): Email it or Share on WhatsApp on an issued invoice. The desktop asks the engine for the
+   * file (venture.invoice.pdf), keeps it in Chausar's share folder and opens the owner's own app; it answers what opened.
+   * Nothing is sent. Absent on the web, the hosted app and the fake, where the sheet opens the engine's share links.
+   */
+  shareInvoice?(invoiceId: string, how: 'email' | 'whatsapp'): Promise<InvoiceShareResult>;
+  /** Desktop only (A6): shows the invoice file the desktop kept for sharing in the file manager. SHARE_FILE_GONE when it is gone. */
+  showShared?(name: string): Promise<void>;
   /**
    * Desktop only (one-shot A5): start at login and keep running, as the desktop's background.cjs answers: the saved
    * answer, whether it was asked, and the login item read back from this computer. Absent on the web, the hosted app

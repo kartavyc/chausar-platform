@@ -51,6 +51,23 @@ describe('desktop transport', () => {
     expect(createEngineClient({ bridge: { request: vi.fn() } }).getBackground).toBeUndefined();
   });
 
+  // One-shot A6: an invoice shared through the desktop; only a known answer reads as opened, anything else is a refusal.
+  it('shares an invoice and shows its file through the bridge, reading the answer field by field', async () => {
+    const bridge: ChausarBridge = {
+      request: vi.fn(),
+      shareInvoice: vi.fn(async (_id: string, how: string) => (how === 'email' ? { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: 'yes', note: null, extra: 'x' } : { how: 'whatsapp', opened: 'sent', file: 'INV-0001.pdf' })),
+      showShared: vi.fn(async () => { throw Object.assign(new Error('That file is not there any more. Press the button again to make it.'), { code: 'SHARE_FILE_GONE' }); }),
+    };
+    const client = createEngineClient({ bridge });
+    expect(await client.shareInvoice!('inv-0001', 'email')).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: false, note: null });
+    const odd = await client.shareInvoice!('inv-0001', 'whatsapp').catch((e: unknown) => e);
+    expect(odd).toBeInstanceOf(EngineError);
+    expect((odd as EngineError).code).toBe('REQUEST_FAILED');
+    const gone = await client.showShared!('INV-0001.pdf').catch((e: unknown) => e);
+    expect((gone as EngineError).code).toBe('SHARE_FILE_GONE');
+    expect(createEngineClient({ bridge: { request: vi.fn() } }).shareInvoice).toBeUndefined();
+  });
+
   // A5 fix round 3: the day the owner put the start-at-login question aside; anything but a day reads as never.
   it('reads and keeps the day the start-at-login question was put aside', async () => {
     const days: unknown[] = ['2026-11-04', 'tomorrow', null];
