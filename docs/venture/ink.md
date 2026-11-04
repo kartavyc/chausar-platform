@@ -73,7 +73,7 @@ Wave 3 gave every place the direction D look the founder chose on 23 October (B'
 - **Engine words stay English in Hindi.** Today's summary, row lines, action labels and the spend line are written by the engine; the fake engine writes English, so a Hindi page mixes them. Every Hindi string in the UI is machine-drafted and listed for a native reviewer in `app/ui/src/text/hi-review.json`.
 - **Amounts in sentences.** `[data-engine-line]` lets an engine sentence carry an amount without its own receipt (Today's row lines, some Money lines) until W4 4J1 gives those amounts receipted row meta and removes the marker. Receipt sheets carry `[data-receipt-sheet]` for good: the sheet is the proof.
 - **Choices the founder may change** (plan, "Choices made here"): type never below 12 px, nothing loops (no slow pulse, no cycling examples), measured word baselines, only real data on screen, the dark goal card lifted to #1f2124 with a border.
-- **Phone install.** The local server and Electron do not serve the web manifest yet (a harmless 404); the hosted app serves `/app/manifest.webmanifest`. The desktop tray icon is still the old "C" mark, since wave 3 does not touch `app/desktop/`.
+- **Phone install.** The local server and Electron do not serve the web manifest yet (a harmless 404); the hosted app serves `/app/manifest.webmanifest`. The desktop tray icon is still the old "C" mark, since wave 3 does not touch `app/desktop/`. (Since one-shot A7 the tray, the window, the installer and the favicon carry the founder's logo.)
 
 ### What waits for wave 4
 

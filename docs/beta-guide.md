@@ -40,9 +40,9 @@ You need:
 3. Windows may show a blue box: "Windows protected your PC". This is because the beta is not signed yet. It does not mean the file is harmful.
 4. Click **More info**, then click **Run anyway**.
 5. The installer installs Chausar for you only, so it does not ask for an admin password. It shows the folder it will use; you can change it. Click **Install**.
-6. It adds Chausar to the Start menu and the desktop, and opens Chausar at the end.
+6. It adds Chausar to the Start menu and the desktop, and opens Chausar at the end. In this beta the Start menu and desktop shortcuts may still show the Electron icon (a blue atom), because the beta is not signed yet; the window and the tray show the Chausar logo, a dark square with a grey and a green square inside.
 
-Chausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.
+Chausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right; look for the Chausar logo). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.
 
 To remove Chausar: open Windows **Settings**, then **Apps**, find **Chausar** and click **Uninstall**. Your businesses stay on your laptop, in case you install it again.
 
