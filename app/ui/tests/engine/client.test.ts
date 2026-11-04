@@ -68,6 +68,14 @@ describe('desktop transport', () => {
     // A6 round 1 (low 6): the name is a file name with a dot before its kind, nothing else.
     (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001xpdf', to: true, note: null });
     expect(((await client.shareInvoice!('inv-0001', 'email').catch((e: unknown) => e)) as EngineError).code).toBe('REQUEST_FAILED');
+    // A7 (A6 leftover): an attached name that is not a file name (a path, a link, no kind, not text) is never shown;
+    // the sheet names the file kept instead.
+    for (const attached of ['../INV-0001.pdf', 'C:\\x\\INV-0001.pdf', 'https://example.com/INV-0001.pdf', 'INV-0001xpdf', 'INV-0001.exe', '', 42, null, { name: 'INV-0001.pdf' }]) {
+      (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached, to: true, note: null });
+      expect(await client.shareInvoice!('inv-0001', 'email'), JSON.stringify(attached)).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001-2.pdf', to: true, note: null });
+    }
+    (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001.pdf', to: true, note: null });
+    expect((await client.shareInvoice!('inv-0001', 'email')).attached).toBe('INV-0001.pdf');
     expect(createEngineClient({ bridge: { request: vi.fn() } }).shareInvoice).toBeUndefined();
   });
 
