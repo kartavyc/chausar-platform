@@ -10,6 +10,7 @@ import { YourAi, TEMPLATES } from '../connections/YourAi';
 import { openExternal } from '../connections/external';
 import s from './FirstRun.module.css';
 import { ProviderTrouble } from '../../parts/ProviderTrouble';
+import { ConsentWords } from '../../parts/ConsentWords';
 
 /** How often the screen looks again while a tool's own sign-in waits for the owner. */
 export const LOGIN_POLL_MS = 1500;
@@ -151,7 +152,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
               <p className={s.hint}>{setup.line}</p>
               {setup.path && <p className={s.hint} data-content="">{setup.path}</p>}
             </>
-          ) : <p className={s.hint}>{signedIn && preset ? t('first-run.ai.sends', { text: preset.consentText }) : tool.found ? hint : tool.login.line}</p>}
+          ) : signedIn && preset ? <ConsentWords className={s.hint} text={preset.consentText} /> : <p className={s.hint}>{tool.found ? hint : tool.login.line}</p>}
           {tool.login.state === 'failed' && tool.login.line && <p className={s.problem} role="alert">{tool.login.line}</p>}
           {tool.tested === 'failed' && tool.problem && <p className={s.problem} role="alert">{tool.problem}</p>}
           {tool.provider && <ProviderTrouble trouble={tool.provider} className={s.hint} />}

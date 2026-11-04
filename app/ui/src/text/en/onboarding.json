@@ -20,7 +20,7 @@
   "onboarding.tooLong": "Keep it shorter: at most 2000 characters.",
   "onboarding.step.read": "Reading what you wrote.",
   "onboarding.step.vault": "Setting up your business's locked storage.",
-  "onboarding.step.plan": "Writing your plan from the built-in templates.",
+  "onboarding.step.plan": "Setting up your business from a ready-made plan.",
   "onboarding.passphrase.choose": "{reason} Choose one of at least 12 characters. Nobody can reset it.",
   "onboarding.passphrase.label": "Passphrase",
   "onboarding.passphrase.again": "Type it again",

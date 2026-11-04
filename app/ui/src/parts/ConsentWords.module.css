@@ -1,0 +1,27 @@
+/* One line, then the exact consent behind a closed fold (ConsentWords.tsx, one-shot B1). Tokens only. */
+.consent {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.line {
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+}
+
+.summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--fg2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}

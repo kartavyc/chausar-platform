@@ -61,7 +61,7 @@ describe('first run, step 1: Connect your AI', () => {
     expect(await screen.findByText('Signed in', {}, { timeout: 8000 })).toBeTruthy();
     await press('Use Codex');
     expect(calls.some(([method, params]) => method === 'venture.ai.connect' && params.presetId === 'codex-cli' && typeof params.consentDigest === 'string')).toBe(true);
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByText('Connected: ChatGPT plan')).toBeTruthy();
   }, 15000);
 
@@ -120,7 +120,7 @@ describe('first run, step 2: About you, A that becomes B', () => {
     timeZone('Asia/Kolkata');
     start();
     await skipAi();
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Tell Chausar about your work' })).toBeTruthy();
     expect(await screen.findByText('India, from your time zone')).toBeTruthy();
     expect(await screen.findByRole('button', { name: /^Money and tax/ })).toBeTruthy();
@@ -150,7 +150,7 @@ describe('first run, step 2: About you, A that becomes B', () => {
     expect(within(preview).getByText('Monthly books')).toBeTruthy();
     expect(preview.textContent).not.toMatch(/₹|\d/);
     await press('Back to fields');
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect((screen.getByRole('textbox', { name: 'Tell Chausar about your work' }) as HTMLTextAreaElement).value).toBe(CA);
   });
 
@@ -175,7 +175,7 @@ describe('first run, step 2: About you, A that becomes B', () => {
     await act(async () => { fireEvent.change(within(preview).getByRole('combobox', { name: 'Field' }), { target: { value: 'creative' } }); });
     expect(await within(preview).findByText('Video edits')).toBeTruthy();
     await press('Back to fields');
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
   });
 });
 

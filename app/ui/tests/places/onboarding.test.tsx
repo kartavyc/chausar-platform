@@ -66,7 +66,7 @@ describe('onboarding: first run', () => {
     await skipAi();
     expect(await screen.findByText('India, from your time zone')).toBeTruthy();
     expect(screen.getByText('INR')).toBeTruthy();
-    expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What do you do today?');
+    expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What work do you do?');
   });
 
   it('lets the owner change the country, and uses "another country" for an unsupported time zone', async () => {
