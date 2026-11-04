@@ -247,33 +247,51 @@ export function checkParts(raw: readonly RawPart[], figures: readonly ToolFigure
 export const ACTION_OFFER = "I can't do that myself. I can propose it, and you approve it on Today.";
 /** A4 review (M2): the offer when the answer carries a proposal card. */
 export const PROPOSED_OFFER = "It's proposed below for you to approve.";
+/**
+ * A4 review round 2 (H1): a claim is the chief's own outward action in this turn, never a fact the books hold ("INV-0001
+ * has been paid", "the shoot has been booked since 2 Feb"), reported speech ("Priya said the files are on their way"),
+ * a reference to the conversation ("as I told you", "as I wrote above") or a summary ("Done: 3 orders this week").
+ */
 const ACTED = [
   'passed', 'sent', 'handed', 'forwarded', 'emailed', 'mailed', 'messaged', 'texted', 'posted', 'published', 'shared', 'scheduled', 'booked',
-  'assigned', 'delegated', 'briefed', 'created', 'wrote', 'written', 'started', 'launched', 'ordered', 'paid', 'invoiced', 'charged', 'refunded',
-  'cancelled', 'canceled', 'deleted', 'removed', 'updated', 'changed', 'saved', 'noted', 'recorded', 'logged', 'added', 'filed', 'submitted',
-  'uploaded', 'notified', 'reminded', 'contacted', 'called', 'queued', 'approved', 'accepted', 'rejected', 'marked', 'issued', 'replied', 'asked',
-  'instructed', 'arranged', 'set up', 'reached out', 'told', 'confirmed', 'followed up', String.raw`let\s+[\p{L}'’]+(?:\s+[\p{L}'’]+)?\s+know`,
+  'assigned', 'delegated', 'briefed', 'created', String.raw`wrote(?!\s+(?:above|earlier|before|that))`, 'written', 'started', 'launched', 'ordered',
+  String.raw`paid(?!\s+attention)`, 'invoiced', 'charged', 'refunded', 'cancelled', 'canceled', 'deleted', 'removed', 'updated', 'changed', 'saved',
+  'recorded', 'logged', 'added', 'filed', 'submitted', 'uploaded', 'notified', 'reminded', 'contacted', 'called', 'queued', 'approved', 'accepted',
+  'rejected', 'marked', 'issued', 'replied', String.raw`asked(?!\s+myself)`, 'instructed', 'arranged', 'set up', 'reached out', 'followed up',
 ].join('|');
+/** A person as the object: a name, or the client. Never "you", "me" or "myself". */
+const PERSON = String.raw`(?:\p{Lu}[\p{L}'’-]*|the\s+client|your\s+client|them|him|her)`;
+/** Telling and confirming are claims only with a person right there: "I told Priya", "I confirmed with Priya", "I let Priya know". */
+const TOLD = [String.raw`told\s+${PERSON}`, String.raw`confirmed\b[^.!?]{0,40}?\bwith\s+${PERSON}`, String.raw`let\s+${PERSON}\s+know`].join('|');
 /** Claims a proposal card makes true: the card is the draft. */
 const PROPOSED = 'proposed|suggested|raised|drafted|prepared|put together';
 const ADVERBS = String.raw`(?:\s+(?:just|already|also|now|then|quickly|gone\s+ahead\s+and|went\s+ahead\s+and))*`;
 const FIRST_PERSON = (verbs: string) => new RegExp(String.raw`(?<![\p{L}'’])I(?:'ve|’ve|\s+have|\s+had)?${ADVERBS}\s+(?:${verbs})\b`, 'gu');
-const SUBJECTLESS = /^\W*(?:(?:all\s+)?done\b\s*[,.!:]|(?:sent|booked|emailed|mailed|paid|posted|filed|submitted|scheduled|forwarded|invoiced|messaged|texted)\s+(?:it|that|them|this|to)\b)/iu;
-const PASSIVE = /\b(?:(?:has|have|had)\s+(?:now\s+|already\s+|just\s+)*been\s+(?:sent|emailed|mailed|booked|paid|posted|filed|submitted|forwarded|scheduled|invoiced|published|shared|messaged|texted)|(?:is|are)\s+(?:now\s+)?sent|(?:is|are)\s+on\s+(?:its|their)\s+way)\b/iu;
-/** Words before "I" that make it a condition or a question, not a claim. */
-const NOT_A_CLAIM = /\b(?:if|once|when|whenever|after|before|until|unless|should|shall|could|would|have|has|did)\s*$/iu;
+/** "I've noted that." alone (Chats keeps no notes); "I noted three late payments" is a reading, and stays. */
+const NOTED_ALONE = /^\W*I(?:'ve|’ve|\s+have)?\s+noted\s+(?:that|it|this)\s*[.!]?\s*$/u;
+/** A lead with no subject: "Done," or "Done." before an action; never "Done:" before a summary. */
+const SUBJECTLESS = /^\W*(?:(?:all\s+)?done\b\s*[,.!](?!\S)|(?:sent|booked|emailed|mailed|paid|posted|filed|submitted|scheduled|forwarded|invoiced|messaged|texted)\s+(?:it|that|them|this|to)\b)/iu;
+const OUTWARD = 'sent|emailed|mailed|posted|filed|submitted|forwarded|messaged|texted|published|shared';
+/** Passive, as an action of this turn: "has just been sent", "has now been filed", or sent to a person and nothing more said. */
+const PASSIVE_NOW = new RegExp(String.raw`\b(?:has|have)\s+(?:just|now)\s+(?:(?:just|now)\s+)?been\s+(?:${OUTWARD})\b`, 'iu');
+const PASSIVE_TO = new RegExp(String.raw`\b(?:has|have)\s+been\s+(?:${OUTWARD})\s+to\s+${PERSON}(?:\s+(?:just\s+now|now|today))?\s*[.!]?\s*$`, 'u');
+const ON_ITS_WAY = new RegExp(String.raw`\b(?:is|are)\s+on\s+(?:its|their)\s+way\s+to\s+${PERSON}`, 'u');
+/** Reported speech: someone else said it. */
+const REPORTED = /\b(?:said|says|wrote|writes|told\s+me|mentioned|replied)\b/iu;
+/** Words before "I" that make it a condition, a question or a reference to the conversation, not a claim. */
+const NOT_A_CLAIM = /\b(?:if|once|when|whenever|after|before|until|unless|should|shall|could|would|have|has|did|as)\s*$/iu;
 /** Quoted words are someone else's: "...", “...” and «...». */
 const QUOTED = /"[^"]*"|“[^”]*”|«[^»]*»/gu;
 
 function claimsAction(sentence: string, proposals: number): boolean {
   const own = sentence.replace(QUOTED, ' ');
-  if (SUBJECTLESS.test(own) || PASSIVE.test(own)) return true;
-  for (const pattern of [FIRST_PERSON(ACTED), ...(proposals ? [] : [FIRST_PERSON(PROPOSED)])]) {
+  if (SUBJECTLESS.test(own) || NOTED_ALONE.test(own) || PASSIVE_NOW.test(own) || PASSIVE_TO.test(own)) return true;
+  if (ON_ITS_WAY.test(own) && !REPORTED.test(own)) return true;
+  for (const pattern of [FIRST_PERSON(ACTED), FIRST_PERSON(TOLD), ...(proposals ? [] : [FIRST_PERSON(PROPOSED)])]) {
     for (const match of own.matchAll(pattern)) if (!NOT_A_CLAIM.test(own.slice(0, match.index))) return true;
   }
   return false;
 }
-
 /** One piece of a sentence: a slice of a word part, or a figure part, with the index of the part it came from. */
 type Piece = { from: number; part: ChatPart; text: string };
 
