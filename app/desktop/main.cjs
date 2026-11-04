@@ -289,7 +289,8 @@ if (singleInstance) app.whenReady().then(async () => {
     return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': policyFor(url.pathname, "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"), 'X-Content-Type-Options': 'nosniff' } });
   });
   // A2 second review: the owner's choice of Codex is asked in main's own dialog, never forwarded from the window.
-  const codexChoice = require('./codex-choice.cjs').createCodexChoice({ engine, dialog, window: () => window });
+  // A fix: the engine is set later, by startEngine() below, so the choice reads it at each use.
+  const codexChoice = require('./codex-choice.cjs').createCodexChoice({ engine: () => engine, dialog, window: () => window });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);

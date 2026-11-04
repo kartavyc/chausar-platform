@@ -24,7 +24,7 @@ function rig(response: number) {
   };
   const appWindow = { id: 'app-window' };
   const dialog = { async showMessageBox(window: unknown, options: unknown) { shown.push({ window, options }); return { response }; } };
-  return { calls, shown, appWindow, choose: createCodexChoice({ engine, dialog, window: () => appWindow }) };
+  return { calls, shown, appWindow, choose: createCodexChoice({ engine: () => engine, dialog, window: () => appWindow }) };
 }
 
 test('Use this Codex: main shows its own dialog from the held review, then confirms; the window\'s own words are never shown', async () => {
@@ -57,7 +57,7 @@ test('once trusted, a second call shows no dialog, and neither does the bundled 
     const shown: unknown[] = [], confirmed: unknown[] = [];
     const inUse = { state: 'trusted', origin, path: 'C:/Tools/codex/codex.exe', version: '0.166.0', sha256: SHA, line: 'In use.' };
     const choose = createCodexChoice({
-      engine: { async codexChoice() { return { inUse }; }, async confirmCodex(payload: unknown) { confirmed.push(payload); return { setup: inUse }; } },
+      engine: () => ({ async codexChoice() { return { inUse }; }, async confirmCodex(payload: unknown) { confirmed.push(payload); return { setup: inUse }; } }),
       dialog: { async showMessageBox(...args: unknown[]) { shown.push(args); return { response: 0 }; } }, window: () => null,
     });
     assert.deepEqual(await choose({ cli: 'codex', sha256: SHA }), { setup: inUse }, origin);
@@ -68,11 +68,55 @@ test('once trusted, a second call shows no dialog, and neither does the bundled 
 test('a review the engine does not hold shows no dialog at all', async () => {
   const shown: unknown[] = [];
   const choose = createCodexChoice({
-    engine: { async codexChoice() { throw Object.assign(new Error('That Codex changed since you looked at it. Check it again.'), { code: 'CODEX_SETUP_CHANGED' }); }, async confirmCodex() { throw new Error('never'); } },
+    engine: () => ({ async codexChoice() { throw Object.assign(new Error('That Codex changed since you looked at it. Check it again.'), { code: 'CODEX_SETUP_CHANGED' }); }, async confirmCodex() { throw new Error('never'); } }),
     dialog: { async showMessageBox(...args: unknown[]) { shown.push(args); return { response: 0 }; } }, window: () => null,
   });
   await assert.rejects(choose({ cli: 'codex', sha256: SHA }), { code: 'CODEX_SETUP_CHANGED' });
   assert.deepEqual(shown, []);
+});
+
+// A fix: main.cjs makes the choice inside app.whenReady, before startEngine() sets the engine, and a restart replaces
+// the engine. The choice reads the engine at each use, so the owner's click reaches the engine running now.
+function engineNamed(name: string, calls: string[]) {
+  return {
+    async codexChoice() { calls.push(`${name}:choice`); return { ...HELD }; },
+    async confirmCodex() { calls.push(`${name}:confirm`); return { setup: { state: 'trusted', origin: 'owner', engine: name } }; },
+  };
+}
+
+test('the choice made before the engine exists reaches the engine set later', async () => {
+  const calls: string[] = [];
+  let current: unknown;
+  const choose = createCodexChoice({ engine: () => current, dialog: { async showMessageBox() { return { response: 0 }; } }, window: () => null });
+  current = engineNamed('first', calls);
+  assert.deepEqual(await choose({ cli: 'codex', sha256: SHA }), { setup: { state: 'trusted', origin: 'owner', engine: 'first' } });
+  assert.deepEqual(calls, ['first:choice', 'first:confirm']);
+});
+
+test('after a restart swaps the engine, the choice reaches the new one', async () => {
+  const calls: string[] = [];
+  let current: unknown = engineNamed('old', calls);
+  const choose = createCodexChoice({ engine: () => current, dialog: { async showMessageBox() { return { response: 0 }; } }, window: () => null });
+  await choose({ cli: 'codex', sha256: SHA });
+  current = engineNamed('new', calls);
+  assert.deepEqual(await choose({ cli: 'codex', sha256: SHA }), { setup: { state: 'trusted', origin: 'owner', engine: 'new' } });
+  assert.deepEqual(calls, ['old:choice', 'old:confirm', 'new:choice', 'new:confirm']);
+});
+
+test('with no engine yet, the choice refuses as the engine does when it is not ready, shows no dialog, and can ask again later', async () => {
+  const shown: unknown[] = [], calls: string[] = [];
+  let current: unknown;
+  const choose = createCodexChoice({ engine: () => current, dialog: { async showMessageBox(...args: unknown[]) { shown.push(args); return { response: 0 }; } }, window: () => null });
+  await assert.rejects(choose({ cli: 'codex', sha256: SHA }), { code: 'ENGINE_UNAVAILABLE', message: 'The engine is unavailable. Restart Chausar.' });
+  assert.deepEqual(shown, []);
+  current = engineNamed('later', calls);
+  await choose({ cli: 'codex', sha256: SHA });
+  assert.deepEqual(calls, ['later:choice', 'later:confirm'], 'the refusal left nothing held');
+});
+
+test('an engine handed over by value is refused when the choice is made, so the early capture cannot come back', () => {
+  assert.throws(() => createCodexChoice({ engine: engineNamed('value', []), dialog: {}, window: () => null }), TypeError);
+  assert.throws(() => createCodexChoice({ engine: undefined, dialog: {}, window: () => null }), TypeError);
 });
 
 test('the harness sends the held-review read and the confirmation as host messages only main can write', async () => {
@@ -93,7 +137,8 @@ test('main answers the window\'s venture.ai.setup.trust only through its own dia
   const handler = main.slice(main.indexOf('ipcMain.handle(REQUEST_CHANNEL'));
   const route = handler.indexOf("request.method === 'venture.ai.setup.trust'"), forward = handler.indexOf('engine.request(request.method');
   assert.ok(route > 0 && route < forward, 'the dialog route comes before the plain forward');
-  assert.match(main, /createCodexChoice\(\{ engine, dialog, window: \(\) => window \}\)/);
+  // A fix: main makes the choice before startEngine() sets the engine, so the engine is read at each use, never captured.
+  assert.match(main, /createCodexChoice\(\{ engine: \(\) => engine, dialog, window: \(\) => window \}\)/);
   const worker = await readFile(new URL('../runtime/worker.ts', import.meta.url), 'utf8');
   assert.match(worker, /host-codex-confirm/);
 });
