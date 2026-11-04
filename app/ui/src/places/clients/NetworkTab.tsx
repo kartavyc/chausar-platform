@@ -19,6 +19,7 @@ import { useT } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
+import { ConsentWords } from '../../parts/ConsentWords';
 import { Button } from '../../parts/Button';
 import { Inner } from '../../parts/Card';
 import { Chip } from '../../parts/Chip';
@@ -180,7 +181,7 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
       {search.kind === 'consent' && (
         <Inner card={false} className={s.consent}>
           <p className={s.consentTitle}>{t('clients.network.consent.title')}</p>
-          <p className={s.consentText}>{search.text}</p>
+          <ConsentWords line={t('consent.searchLine')} text={search.text} />
           <div className={s.actions}><Button size="sm" onClick={() => void agree(search)}>{t('clients.network.consent.agree')}</Button></div>
           {search.problem && <p className={s.problem} role="alert">{search.problem}</p>}
         </Inner>

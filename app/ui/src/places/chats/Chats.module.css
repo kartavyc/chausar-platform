@@ -623,7 +623,6 @@
   color: var(--fg);
 }
 
-.consentText,
 .consentWaits {
   margin: 0;
   font-size: var(--text-read);

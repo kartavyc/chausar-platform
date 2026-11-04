@@ -30,6 +30,7 @@ import { navigate } from '../../shell/navigation';
 import { useClock } from '../../shell/clock';
 import { ChausarAvatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
+import { ConsentWords } from '../../parts/ConsentWords';
 import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
 import { Composer } from '../../parts/Composer';
 import { cx } from '../../parts/cx';
@@ -294,7 +295,7 @@ function Consent({ stale, text, words, problem, busy, onAgree, onNotNow }: { sta
   return (
     <section className={s.consent} aria-labelledby={titleId}>
       <h3 id={titleId} className={s.consentTitle}>{t(stale ? 'chats.consent.titleStale' : 'chats.consent.title')}</h3>
-      <p className={s.consentText}>{text}</p>
+      <ConsentWords line={t('consent.chatLine')} text={text} />
       <p className={s.consentWaits}>{t('chats.consent.waits')} <span data-content="">{words}</span></p>
       <div className={s.actions}>
         <Button disabled={busy} onClick={onNotNow}>{t('chats.consent.notNow')}</Button>

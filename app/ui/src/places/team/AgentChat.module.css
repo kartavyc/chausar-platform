@@ -156,13 +156,6 @@
   color: var(--wait-strong);
 }
 
-.consentText {
-  font-size: var(--text-read);
-  line-height: 1.5;
-  color: var(--fg2);
-  overflow-wrap: anywhere;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
