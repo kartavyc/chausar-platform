@@ -294,3 +294,12 @@ test('A5: about.families lists each field\'s professions in the catalogue\'s ord
   }
   assert.deepEqual(families.flatMap((family: any) => family.professions.map((item: any) => item.id)).sort(), PROFESSIONS.map(item => item.id).sort());
 });
+
+// A5 fix round 1: an older id the catalogue still knows as an alias (home-chef for home-chef-tiffin) is not a pick
+// from the supplied list, so it is no pick: the owner chooses, and the alias never turns into a profession silently.
+test('A5: an alias in place of a listed profession id is no pick', () => {
+  const task = aboutTask({ text: 'I run a home tiffin service in Indore.', file: null });
+  const answer = { familyId: 'local-services', professionId: 'home-chef', offers: [{ name: 'Tiffin plans', line: 'Lunch for office workers' }], countryCode: null, evidence: null };
+  assert.equal(task.validate(answer).professionId, null);
+  assert.equal(task.validate({ ...answer, professionId: 'home-chef-tiffin' }).professionId, 'home-chef-tiffin');
+});
