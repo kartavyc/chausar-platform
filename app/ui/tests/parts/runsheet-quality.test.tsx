@@ -63,11 +63,11 @@ describe('run sheet: coverage, outcomes, the report, expiry and interruptions (4
     assertInkRules(container);
   });
 
-  it('an unobserved count is never 0: it says code did not count it', () => {
+  it('an unobserved count is never 0: it says it was not counted', () => {
     const detail = run('27');
     detail.steps[0]!.coverage = coverage({ done: null, total: 1210, complete: false });
     const { container } = show(detail);
-    expect(container.querySelector('[data-coverage]')!.textContent).toBe('Lines matched: not counted by code · Partial');
+    expect(container.querySelector('[data-coverage]')!.textContent).toBe('Lines matched: not counted · Partial');
     expect(container.querySelector('[data-coverage]')!.textContent).not.toMatch(/\b0\b/);
   });
 
