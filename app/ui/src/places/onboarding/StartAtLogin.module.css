@@ -18,3 +18,16 @@
   font-size: var(--text-label);
   color: var(--mute);
 }
+
+/* A5 fix round 1: Today's ask has its own Save. */
+.buttons {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

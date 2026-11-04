@@ -1,39 +1,73 @@
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
+import type { BackgroundStateLite } from '../../engine/types';
+import { Button } from '../../parts/Button';
 import s from './StartAtLogin.module.css';
 
 /**
- * Start at login in the first run (one-shot A5, founder answer 5: asked in onboarding, ticked by default). Shown on
- * the services step only in the installed app (the desktop says it is supported) and only while this computer has no
- * answer yet; a preview, the web and the hosted app have no start at login, and a computer that answered keeps its
- * answer (it is changed in Business > Notifications). The tick starts as the desktop's suggestion. Nothing is
- * registered here: onChoice hands the tick to the first run, which saves it when the owner leaves the step.
+ * Whether start at login is still to be asked on this computer: the installed app (the desktop says it is supported),
+ * no answer saved, and no login item there already. The last two tests keep an install that registered one silently
+ * before one-shot A5 as it was: that is the founder's open call. To ask those installs too (on Today, with the default
+ * tick), delete `&& !state.registered && !state.systemOff` from this one line.
  */
-export function StartAtLogin({ onChoice }: { onChoice: (startAtLogin: boolean | null) => void }) {
+export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.supported && !state.asked && !state.registered && !state.systemOff;
+
+/**
+ * Start at login, asked once (one-shot A5, founder answer 5: asked in onboarding, ticked by default).
+ *   first-run: on the services step, above the services, so it is seen before any Set up. Nothing is registered
+ *     here: onChoice hands the tick to the first run, which saves it when the owner leaves the step.
+ *   today (A5 fix round 1): when the first run ended without an answer (the app closed on the services step, or Go to
+ *     Today before the computer answered), Today asks with the same words and the same tick, and Save answers.
+ * Shown only while asksStartAtLogin holds; a preview, the web and the hosted app have no start at login, and a
+ * computer that answered keeps its answer (it is changed in Business > Notifications).
+ */
+export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'; onChoice?: (startAtLogin: boolean | null) => void }) {
   const t = useT();
   const client = useEngine();
   const hintId = useId();
   const [ticked, setTicked] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     client.getBackground?.().then((state) => {
-      if (!live || !state.supported || state.asked) return;
+      if (!live || !asksStartAtLogin(state)) return;
       setTicked(state.startAtLogin);
-      onChoice(state.startAtLogin);
+      onChoice?.(state.startAtLogin);
     }, () => { /* Not readable: nothing is asked, and nothing is registered. */ });
     return () => { live = false; };
   }, [client, onChoice]);
 
+  async function save() {
+    if (ticked === null || !client.setBackground) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      await client.setBackground({ startAtLogin: ticked });
+      setTicked(null);
+    } catch (error) {
+      setProblem(t('business.notify.failed', { message: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (ticked === null) return null;
   return (
-    <div className={s.ask}>
+    <div className={s.ask} data-start-at-login={place}>
       <label className={s.choice}>
-        <input type="checkbox" checked={ticked} aria-describedby={hintId} onChange={(event) => { const next = event.currentTarget.checked; setTicked(next); onChoice(next); }} />
+        <input type="checkbox" checked={ticked} disabled={busy} aria-describedby={hintId} onChange={(event) => { const next = event.currentTarget.checked; setTicked(next); onChoice?.(next); }} />
         {t('first-run.login.label')}
       </label>
       <p id={hintId} className={s.hint}>{t('first-run.login.hint')}</p>
+      {place === 'today' && (
+        <span className={s.buttons}>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={() => void save()}>{t('first-run.login.save')}</Button>
+        </span>
+      )}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
     </div>
   );
 }

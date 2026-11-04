@@ -90,6 +90,7 @@
   "first-run.who.failed": "Chausar could not list the professions: {message}",
   "first-run.login.label": "Start Chausar when I sign in to this computer",
   "first-run.login.hint": "It opens quietly in the tray, so scheduled work keeps going. Change it any time in Business, Notifications.",
+  "first-run.login.save": "Save",
   "first-run.needs.title": "Connect what your business needs",
   "first-run.needs.sub": "Each one is optional. Skip any of them; they stay in Connections for later.",
   "first-run.needs.setUp": "Set up",

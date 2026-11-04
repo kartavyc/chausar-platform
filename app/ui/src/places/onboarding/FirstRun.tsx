@@ -46,10 +46,13 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const login = useRef<boolean | null>(null);
   const chooseLogin = useCallback((value: boolean | null) => { login.current = value; }, []);
 
-  /** Leaving the services step: the tick is the owner's answer (ticked by default), and only now is it applied. */
-  function leave() {
+  /**
+   * Leaving the services step: the tick is the owner's answer (ticked by default), and only now is it applied, before
+   * Today opens, so Today never asks again. With no answer (the computer had not answered yet), Today asks once.
+   */
+  async function leave() {
     const value = login.current;
-    if (value !== null && client.setBackground) void client.setBackground({ startAtLogin: value }).catch(() => { /* Settings shows the computer's own state. */ });
+    if (value !== null && client.setBackground) await client.setBackground({ startAtLogin: value }).catch(() => { /* Today asks again; Settings shows the computer. */ });
     onStarted();
   }
 
@@ -116,7 +119,7 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
             <Start variant="first-run" onStarted={onStarted} onBegin={setBegun} plan={{ idea: plan.read.idea, countryCode: plan.countryCode, name: plan.name, offers: plan.read.offers, by: plan.read.source === 'ai' ? 'model' : 'template', ...(plan.read.callId ? { callId: plan.read.callId } : {}) }} onKept={kept} />
           </div>
         )}
-        {step === 'needs' && <BusinessNeeds place="first-run" onDone={leave} foot={<StartAtLogin onChoice={chooseLogin} />} />}
+        {step === 'needs' && <BusinessNeeds place="first-run" onDone={() => void leave()} ask={<StartAtLogin place="first-run" onChoice={chooseLogin} />} />}
         {away && onBack && <Button variant="quiet" className={f.back} onClick={onBack}>{t('onboarding.welcome.back')}</Button>}
         {away && onExisting && <Button variant="quiet" className={f.back} onClick={onExisting}>{t('onboarding.welcome.existing')}</Button>}
       </main>

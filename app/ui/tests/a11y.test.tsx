@@ -90,6 +90,7 @@ const PLACES: Case[] = [
   // W4 4G4: the bell's settings, on this computer and on the hosted app; the approval page.
   { name: 'Business, notifications', hash: '#/business/notifications' },
   { name: 'Business, notifications on the hosted app', hash: '#/business/notifications', options: { hosted: true } },
+  { name: 'Today, start at login asked once in the installed app', hash: '#/today', options: { background: {} } },
   { name: 'Business, notifications in the installed app, a login item the computer switched off', hash: '#/business/notifications', options: { background: { asked: true, startAtLogin: true, systemOff: true } } },
   { name: 'Approval page, the oldest waiting', hash: '#/approve/next' },
   { name: 'Approval page, a row already decided', hash: '#/approve/q-gone' },

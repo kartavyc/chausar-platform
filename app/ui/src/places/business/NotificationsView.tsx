@@ -385,10 +385,14 @@ function BackgroundSwitches() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
+  // A5 fix round 1: read again whenever the window comes back to the front, so a change made in the tray menu or the
+  // computer's own startup settings shows here too.
   useEffect(() => {
     let live = true;
-    client.getBackground?.().then((value) => { if (live) setState(value); }, (error: unknown) => { if (live) setProblem(t('business.notify.loginUnread', { message: messageOf(error) })); });
-    return () => { live = false; };
+    const read = () => { client.getBackground?.().then((value) => { if (live) setState(value); }, (error: unknown) => { if (live) setProblem(t('business.notify.loginUnread', { message: messageOf(error) })); }); };
+    read();
+    window.addEventListener('focus', read);
+    return () => { live = false; window.removeEventListener('focus', read); };
   }, [client, t]);
 
   async function change(update: { startAtLogin?: boolean; keepRunning?: boolean }) {

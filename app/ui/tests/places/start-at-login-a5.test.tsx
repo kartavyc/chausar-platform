@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { createFakeBackground } from '../../src/engine/fake-background';
@@ -120,5 +120,78 @@ describe('Business > Notifications: start at login and keep running (A5, row 4)'
     const tile = await panel();
     expect(tile.queryByRole('checkbox', { name: SWITCH })).toBeNull();
     expect(tile.queryByRole('checkbox', { name: TRAY })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A5 fix round 1 (finding 2): the question sits above the services, so it is seen before any Set up; and when the
+// first run ends without an answer (the app closed on that step, or Go to Today before the computer answered), Today
+// asks once, with the same words and the same tick. An install that already has a login item from before A5 is not
+// asked (the founder's open call; asksStartAtLogin in StartAtLogin.tsx is the one place to change it).
+// ---------------------------------------------------------------------------
+describe('start at login is always asked once (A5 fix round 1)', () => {
+  it('asks above the service list, and once answered Today does not ask again', async () => {
+    const { computer } = start();
+    await toServices();
+    const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+    const list = screen.getByRole('list', { name: 'Services for Teaching and coaching' });
+    expect(tick.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await press('Go to Today');
+    await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
+    await screen.findByRole('navigation', {}, { timeout: 4000 });
+    expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
+  }, 20000);
+
+  it('Go to Today before the computer answered saves nothing, and Today asks once', async () => {
+    const computer = createFakeBackground();
+    // The first run's reads never answer before the owner goes on; reads made after that (Today's) answer at once.
+    let gone = false;
+    const never = new Promise<never>(() => {});
+    const slow = { ...computer, getBackground: () => (gone ? computer.getBackground() : never) };
+    start({ computer: slow as typeof computer });
+    await toServices();
+    gone = true;
+    await press('Go to Today');
+    expect(computer.changes).toEqual([]);
+    const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
+    expect(tick.checked).toBe(true);
+    await press('Save');
+    await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: true }]), { timeout: 4000 });
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
+  }, 20000);
+
+  it('Today asks a business that never answered (the app closed on the services step), and a no is saved too', async () => {
+    const { computer } = start({ fresh: false });
+    const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
+    expect(tick.checked).toBe(true);
+    expect(screen.getByText('It opens quietly in the tray, so scheduled work keeps going. Change it any time in Business, Notifications.')).toBeTruthy();
+    await act(async () => { fireEvent.click(tick); });
+    await press('Save');
+    await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
+  }, 20000);
+
+  it('Today does not ask a computer that answered, a preview, or an install with a login item from before A5', async () => {
+    for (const computer of [createFakeBackground({ asked: true }), createFakeBackground({ supported: false }), createFakeBackground({ registered: true }), createFakeBackground({ systemOff: true }), null]) {
+      start({ fresh: false, computer });
+      await screen.findByRole('navigation', {}, { timeout: 4000 });
+      await act(async () => { await new Promise((accept) => setTimeout(accept, 20)); });
+      expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
+      cleanup();
+    }
+  }, 20000);
+});
+
+describe('Business > Notifications reads the computer again (A5 fix round 1, finding 5)', () => {
+  it('when the window comes back to the front, after a change in the tray or the computer\'s own settings', async () => {
+    const computer = createFakeBackground({ asked: true, startAtLogin: true, registered: true });
+    start({ fresh: false, hash: '#/business/notifications', computer });
+    const tile = within(await screen.findByRole('region', { name: 'Keeps running while Chausar is closed' }, { timeout: 4000 }));
+    expect((await tile.findByRole('checkbox', { name: SWITCH }, { timeout: 4000 }) as HTMLInputElement).checked).toBe(true);
+    computer.computer.registered = false;
+    computer.computer.systemOff = true;
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => expect((tile.getByRole('checkbox', { name: SWITCH }) as HTMLInputElement).checked).toBe(false), { timeout: 4000 });
+    expect(tile.getByText("Your computer's startup settings turned this off. Tick it to turn it back on.")).toBeTruthy();
   });
 });
