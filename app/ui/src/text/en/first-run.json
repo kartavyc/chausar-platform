@@ -96,7 +96,7 @@
   "first-run.needs.setUp": "Set up",
   "first-run.needs.skip": "Skip",
   "first-run.needs.skipped": "Skipped. It stays in Connections.",
-  "first-run.needs.waits": "{waits} Meanwhile: {meanwhile}",
+  "first-run.needs.waits": "{waits} {meanwhile}",
   "first-run.needs.done": "Go to Today",
   "first-run.needs.list": "Services for {family}",
   "first-run.needs.listPlain": "Services for your business",
