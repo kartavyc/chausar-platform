@@ -540,3 +540,25 @@ test('A7 (A6 leftover): with no app for email files, the mail link carries the s
   assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps)).result?.opened, 'link');
   assert.deepEqual(s.opened, [mailto('', joined)]);
 });
+
+test('A7 fix round 1 (low 4): no query starts with less than about 50 ms of the time left', async () => {
+  const calls: number[] = [];
+  let clock = 0;
+  const realNow = Date.now;
+  // The first query takes the whole limit but 30 ms; with 30 ms left, the next one would only be cut short.
+  Date.now = () => clock;
+  try {
+    const answer = await share.emlHandler({ platform: 'win32', limitMs: 300, run: async (_command: string, _args: string[], { timeoutMs }: { timeoutMs: number }) => { calls.push(timeoutMs); clock += timeoutMs - 30; return { code: 1, stdout: '' }; } });
+    assert.equal(answer, false);
+  } finally { Date.now = realNow; }
+  assert.deepEqual(calls, [300], 'one query; the second had 30 ms left and never started');
+});
+
+test('A7 fix round 1 (low 3): a subject that cleans to nothing, with no address, opens the checked link as the engine gave it', async t => {
+  const subject = '​­‎';
+  const s = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('', subject) } }) });
+  (s.deps as any).emlApp = async () => false;
+  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+  assert.equal(reply.result?.opened, 'link');
+  assert.deepEqual(s.opened, [contract.validateExternalUrl(mailto('', subject))]);
+});

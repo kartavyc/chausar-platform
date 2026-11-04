@@ -176,13 +176,15 @@ const EML_KEYS = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explo
  * Windows 11 24H2 keeps it (UserChoiceLatest), then UserChoice, else the .eml class; that program's shell verbs must be
  * there. Linux: xdg-mime's default for message/rfc822. macOS: Mail opens email files on every Mac. Any failure is no.
  */
+const MIN_QUERY_MS = 50;
 async function emlHandler({ platform = process.platform, run = quietRun, limitMs = 5000, reg = join(process.env.SystemRoot || String.raw`C:\Windows`, 'System32', 'reg.exe') } = {}) {
   const end = Date.now() + limitMs;
-  // A7 (A6 leftover): once the time is spent, the answer is no and nothing more starts (a check still racing the
-  // limit would otherwise go on running reg.exe after the share had moved on).
+  // A7 (A6 leftover, and fix round 1 low 4): with less than MIN_QUERY_MS of the time left, the answer is no and nothing
+  // more starts (a check still racing the limit would otherwise go on running reg.exe after the share had moved on, or
+  // start one it would kill at once).
   const ask = (command, args) => {
     const left = end - Date.now();
-    return left <= 0 ? Promise.resolve({ code: 1, stdout: '' }) : run(command, args, { timeoutMs: left });
+    return left < MIN_QUERY_MS ? Promise.resolve({ code: 1, stdout: '' }) : run(command, args, { timeoutMs: left });
   };
   const check = async () => {
     if (platform === 'darwin') return true;
@@ -237,7 +239,9 @@ async function shareInvoice(event, input, deps) {
       // A7 (A6 leftover): the fallback link carries the subject as the draft does, hidden marks out (but the joiners).
       const subject = cleanSubject(parts.subject);
       const query = [...(subject ? [`subject=${encodeURIComponent(subject)}`] : []), ...(parts.body ? [`body=${encodeURIComponent(parts.body)}`] : [])].join('&');
-      mail = { to: parts.address !== '', link: `mailto:${encodeURIComponent(parts.address).replace(/%40/g, '@')}${query ? `?${query}` : ''}` };
+      // Fix round 1 (low 3): a subject that cleans to nothing with no address would make a link the gate refuses (an
+      // empty email); the checked link as the engine gave it opens instead.
+      mail = { to: parts.address !== '', link: subject || parts.address ? `mailto:${encodeURIComponent(parts.address).replace(/%40/g, '@')}${query ? `?${query}` : ''}` : link };
     } else {
       appLink = whatsappAppUrl(file.share.whatsappUrl);
       if (!appLink) throw notMade();
