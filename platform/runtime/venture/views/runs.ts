@@ -379,8 +379,13 @@ function posterTile(posters: PosterIndex, record: DeliveryRunRecord): Pick<RunSu
 // Ink v2 wave 4 (4F1): the run controls on the run sheet
 // ---------------------------------------------------------------------------
 
-const POSTURE_WORDS: Readonly<Record<Posture, string>> = Object.freeze({
-  rehearsal: 'in rehearsal', shadow: 'in practice on real orders', 'approve-each': 'at approve each', 'auto-spot-check': 'at auto with spot checks',
+/**
+ * The agent's setting (How much it asks you) as the scope line ends. One-shot B1 (bug 19): "in rehearsal" read as if
+ * a real order were a rehearsal, so each says it is the agent's.
+ */
+export const RUN_SCOPE_POSTURE: Readonly<Record<Posture, string>> = Object.freeze({
+  rehearsal: 'with the agent still rehearsing', shadow: 'with the agent practising on real orders',
+  'approve-each': 'with each step waiting for your approval', 'auto-spot-check': 'on auto with spot checks',
 });
 const ACTION_WORDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
   'outbox.propose': 'Propose an outside action, which waits for your approval',
@@ -422,7 +427,7 @@ function controlDetail(state: State, venture: VentureRecord, record: DeliveryRun
       // cap in rupees at the owner's own rate when one is set.
       capReceiptId: `fig:scope:${record.id}`,
       ...scopeRupees(state, venture, scope.capMicros),
-      line: `Set when it started: ${plural(tools.length, 'tool', 'tools')}, ${plural(actions.length, 'outside action', 'outside actions')} it may propose for your approval, a spend cap of ${cap}, ${POSTURE_WORDS[scope.posture]}.`,
+      line: `Set when it started: ${plural(tools.length, 'tool', 'tools')}, ${plural(actions.length, 'outside action', 'outside actions')} it may propose for your approval, a spend cap of ${cap}, ${RUN_SCOPE_POSTURE[scope.posture]}.`,
     };
   }
   if (harness?.steer?.length) {

@@ -14,3 +14,13 @@ test('the launch checklist says what to do, not which tool to open', () => {
   assert.match(source, /label: 'Build your website'/);
   assert.doesNotMatch(source, /Open it in Lovable or Replit/);
 });
+
+// Hands-on bug 19: the run sheet said "in rehearsal" for a normal order. That is the agent's setting (How much it asks
+// you), not the order, so the scope line now says it as the agent's.
+test("a run's scope line says the agent's setting, never that the order is a rehearsal", async () => {
+  const { RUN_SCOPE_POSTURE } = await import('../runtime/venture/views/runs.ts');
+  assert.deepEqual(RUN_SCOPE_POSTURE, {
+    rehearsal: 'with the agent still rehearsing', shadow: 'with the agent practising on real orders',
+    'approve-each': 'with each step waiting for your approval', 'auto-spot-check': 'on auto with spot checks',
+  });
+});

@@ -55,7 +55,7 @@ const SAMPLE_CONTROLS: Record<string, Partial<RunDetail>> = {
     scope: {
       tools: ['Read the files you gave it', 'Cut video with ffmpeg', 'Checked the frames'], actions: ['Post to YouTube, for your approval'],
       cap: '$0.40', posture: 'approve-each', capReceiptId: 'fig:scope:31',
-      line: 'Set when it started: 3 tools, 1 outside action it may propose for your approval, a spend cap of $0.40, approve each step.',
+      line: 'Set when it started: 3 tools, 1 outside action it may propose for your approval, a spend cap of $0.40, with each step waiting for your approval.',
     },
   },
 };
