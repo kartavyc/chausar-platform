@@ -120,7 +120,7 @@
   "money.spend.none": "No paid calls yet.",
   "money.spend.refusedNote": "Calls without prices are refused, never free. Set prices under Limits and rates.",
   "money.journal.title": "{action} · {target}",
-  "money.journal.none": "Nothing sent or changed yet.",
+  "money.journal.none": "Nothing has gone out of Chausar yet. Plans, prices and drafts you approved are under Business, Decisions.",
   "money.journal.state.described": "Described",
   "money.journal.state.approved": "Approved",
   "money.journal.state.applied": "Applied",

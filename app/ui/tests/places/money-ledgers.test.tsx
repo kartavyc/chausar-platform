@@ -285,9 +285,9 @@ describe('Money: journal', () => {
     expect(calls).toContainEqual(['venture.journal.list', { limit: 50 }]);
   });
 
-  it('says so when nothing was sent or changed', async () => {
+  it('says so when nothing was sent or changed, and where the approvals inside Chausar are (B1, row 72)', async () => {
     start('#/money/journal', { 'venture.journal.list': () => ({ entries: [] }) });
-    expect(await screen.findByText('Nothing sent or changed yet.')).toBeTruthy();
+    expect(await screen.findByText('Nothing has gone out of Chausar yet. Plans, prices and drafts you approved are under Business, Decisions.')).toBeTruthy();
   });
 
   it('says plainly when the engine cannot give the journal', async () => {
