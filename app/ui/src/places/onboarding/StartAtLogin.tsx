@@ -6,12 +6,11 @@ import { Button } from '../../parts/Button';
 import s from './StartAtLogin.module.css';
 
 /**
- * Whether start at login is still to be asked on this computer: the installed app (the desktop says it is supported),
- * no answer saved, and no login item there already. The last two tests keep an install that registered one silently
- * before one-shot A5 as it was: that is the founder's open call. To ask those installs too (on Today, with the default
- * tick), delete `&& !state.registered && !state.systemOff` from this one line.
+ * Whether start at login is still to be asked on this computer: the installed app (the desktop says it is supported)
+ * with no answer saved. The founder (A5 fix round 1): that includes an install that registered a login item silently
+ * before one-shot A5; it is asked once on Today, ticked, and its login item stays as it is until the owner answers.
  */
-export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.supported && !state.asked && !state.registered && !state.systemOff;
+export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.supported && !state.asked;
 
 /**
  * Start at login, asked once (one-shot A5, founder answer 5: asked in onboarding, ticked by default).

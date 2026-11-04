@@ -126,8 +126,8 @@ describe('Business > Notifications: start at login and keep running (A5, row 4)'
 // ---------------------------------------------------------------------------
 // A5 fix round 1 (finding 2): the question sits above the services, so it is seen before any Set up; and when the
 // first run ends without an answer (the app closed on that step, or Go to Today before the computer answered), Today
-// asks once, with the same words and the same tick. An install that already has a login item from before A5 is not
-// asked (the founder's open call; asksStartAtLogin in StartAtLogin.tsx is the one place to change it).
+// asks once, with the same words and the same tick. An install that already has a login item from before A5 is asked
+// too (the founder's answer, below).
 // ---------------------------------------------------------------------------
 describe('start at login is always asked once (A5 fix round 1)', () => {
   it('asks above the service list, and once answered Today does not ask again', async () => {
@@ -171,8 +171,8 @@ describe('start at login is always asked once (A5 fix round 1)', () => {
     await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
   }, 20000);
 
-  it('Today does not ask a computer that answered, a preview, or an install with a login item from before A5', async () => {
-    for (const computer of [createFakeBackground({ asked: true }), createFakeBackground({ supported: false }), createFakeBackground({ registered: true }), createFakeBackground({ systemOff: true }), null]) {
+  it('Today does not ask a computer that answered, a preview, or the web', async () => {
+    for (const computer of [createFakeBackground({ asked: true }), createFakeBackground({ asked: true, registered: true }), createFakeBackground({ supported: false }), null]) {
       start({ fresh: false, computer });
       await screen.findByRole('navigation', {}, { timeout: 4000 });
       await act(async () => { await new Promise((accept) => setTimeout(accept, 20)); });
@@ -180,6 +180,34 @@ describe('start at login is always asked once (A5 fix round 1)', () => {
       cleanup();
     }
   }, 20000);
+});
+
+// The founder (A5 fix round 1): an install that registered start at login silently before A5 (no answer saved) is asked
+// once on Today like everyone else, ticked; its login item stays as it is until then, and the answer sticks.
+describe('an older install with a silent login item is asked once on Today (founder, A5 fix round 1)', () => {
+  for (const [answer, registered] of [[true, true], [false, false]] as const) {
+    it(`ticked, it shows once; ${answer ? 'yes keeps the login item' : 'no removes it'}, and it never shows again`, async () => {
+      const computer = createFakeBackground({ registered: true });
+      start({ fresh: false, computer });
+      const tick = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 }) as HTMLInputElement;
+      expect(tick.checked).toBe(true);
+      expect(computer.computer.registered).toBe(true);
+      if (!answer) await act(async () => { fireEvent.click(tick); });
+      await press('Save');
+      await waitFor(() => expect(computer.changes).toEqual([{ startAtLogin: answer }]), { timeout: 4000 });
+      expect(computer.computer.registered).toBe(registered);
+      await waitFor(() => expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull(), { timeout: 4000 });
+      cleanup();
+      start({ fresh: false, computer });
+      await screen.findByRole('navigation', {}, { timeout: 4000 });
+      await act(async () => { await new Promise((accept) => setTimeout(accept, 20)); });
+      expect(screen.queryByRole('checkbox', { name: TICK })).toBeNull();
+    }, 20000);
+  }
+  it('one the computer switched off is asked too', async () => {
+    start({ fresh: false, computer: createFakeBackground({ systemOff: true }) });
+    expect(await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 })).toBeTruthy();
+  });
 });
 
 describe('Business > Notifications reads the computer again (A5 fix round 1, finding 5)', () => {
