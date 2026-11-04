@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -71,7 +71,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
     return require(name);
-  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
+  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: options.platform ?? 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
@@ -308,42 +308,14 @@ test('the desktop serves the Ink build app icons and manifest as image/png and a
   assert.equal((await handler({ url: 'chausar://app/index.html' })).headers.get('content-type'), 'text/html; charset=utf-8');
 });
 
-/** A PNG as RGB rows: only what make_icons.py writes (8-bit RGB, no alpha, filter 0), so anything else fails. */
-async function readPng(name: string) {
-  const { inflateSync } = await import('node:zlib');
-  const data = await readFile(new URL(`../../app/desktop/${name}`, import.meta.url));
-  assert.deepEqual([...data.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], `${name} is a PNG`);
-  let at = 8, width = 0, height = 0, colour = -1;
-  const chunks: Buffer[] = [];
-  while (at < data.length) {
-    const length = data.readUInt32BE(at), kind = data.subarray(at + 4, at + 8).toString('latin1'), body = data.subarray(at + 8, at + 8 + length);
-    if (kind === 'IHDR') { width = body.readUInt32BE(0); height = body.readUInt32BE(4); colour = body[9]; assert.equal(body[8], 8); }
-    if (kind === 'IDAT') chunks.push(body);
-    at += 12 + length;
-  }
-  assert.equal(colour, 2, `${name} is opaque RGB with no alpha channel`);
-  const raw = inflateSync(Buffer.concat(chunks));
-  const pixel = (x: number, y: number) => {
-    const row = y * (width * 3 + 1);
-    assert.equal(raw[row], 0);
-    return [...raw.subarray(row + 1 + x * 3, row + 4 + x * 3)];
-  };
-  return { width, height, pixel };
-}
-
-test('the tray icon is the two-square mark: opaque, padded, ink and green on the light ground, at 1x, 1.5x and 2x', async () => {
-  const GROUND = [0xfb, 0xfb, 0xfa], INK = [0x16, 0x18, 0x1b], ACCENT = [0x2f, 0xb6, 0x7c];
-  for (const [name, size] of [['icon.png', 16], ['icon@1.5x.png', 24], ['icon@2x.png', 32]] as const) {
-    const png = await readPng(name);
-    assert.deepEqual([png.width, png.height], [size, size], name);
-    for (let i = 0; i < size; i++) {
-      for (const [x, y] of [[i, 0], [0, i], [i, size - 1], [size - 1, i]]) assert.deepEqual(png.pixel(x, y), GROUND, `${name}: the edge (${x}, ${y}) is padding`);
-    }
-    const near = Math.floor(size * 0.28), far = Math.floor(size * 0.72);
-    assert.deepEqual(png.pixel(near, near), INK, `${name}: the top left square is ink`);
-    assert.deepEqual(png.pixel(far, far), ACCENT, `${name}: the bottom right square is green`);
-    assert.deepEqual(png.pixel(far, near), GROUND, `${name}: the other corners are empty`);
-    assert.deepEqual(png.pixel(near, far), GROUND, `${name}: the other corners are empty`);
+// One-shot A7: the tray PNGs themselves (the founder's logo at 16, 24 and 32) are checked in desktop-icons-a7.test.ts.
+test('the window shows the logo: the ico on Windows, the 256 PNG on Linux, the app bundle\'s own icon on macOS (A7)', async () => {
+  const { join } = require('node:path');
+  for (const [platform, icon] of [['win32', 'icons/icon.ico'], ['linux', 'icons/png/256x256.png'], ['darwin', null]] as const) {
+    const d = await desktop([], Promise.resolve(), undefined, { platform });
+    assert.equal(d.errors.length, 0, platform);
+    assert.equal(d.windows[0].options.icon, icon === null ? undefined : join('/owned/app/app/desktop', icon), platform);
+    if (icon !== null) assert.ok((await readFile(new URL(`../../app/desktop/${icon}`, import.meta.url))).length > 0, `${icon} is in the app`);
   }
 });
 

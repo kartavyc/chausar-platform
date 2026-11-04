@@ -233,8 +233,12 @@ function createTray() {
   tray.on('double-click', () => openWindow());
   tray.on('mouse-enter', refreshBackground);
 }
+// One-shot A7: the window shows the founder's logo on Windows (the ico, every size) and Linux (a tar.gz has no desktop
+// entry to take it from); macOS takes the bundle's icns. The unsigned beta leaves Chausar.exe's own icon unedited.
+const WINDOW_ICON = { win32: 'icons/icon.ico', linux: 'icons/png/256x256.png' }[process.platform];
 function createWindow(hash = '') {
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa', title: appName(), show: false,
+    ...(WINDOW_ICON ? { icon: join(__dirname, WINDOW_ICON) } : {}),
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
   // A4 review (L7): the hidden menu's keys work; its bar never shows, not even with Alt.

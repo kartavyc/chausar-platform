@@ -63,9 +63,11 @@ function decodePng(data: Buffer, name = 'png') {
  * tile between them, and the rounded corners clear. The squares sit at 112 to 256 and 264 to 408 of 520. */
 function assertLogo(png: ReturnType<typeof decodePng>, name: string) {
   const at = (unit: number) => Math.min(png.width - 1, Math.floor((unit / 520) * png.width));
-  const rgb = (x: number, y: number) => png.pixel(x, y).slice(0, 3), alpha = (x: number, y: number) => png.pixel(x, y)[3];
-  assert.deepEqual(rgb(at(184), at(184)), GREY, `${name}: the top left square is grey`);
-  assert.deepEqual(rgb(at(336), at(336)), GREEN, `${name}: the bottom right square is green`);
+  const alpha = (x: number, y: number) => png.pixel(x, y)[3];
+  // At 16 px a square is 4.4 pixels wide, so even its middle pixel is a little blended with the tile.
+  const near = (x: number, y: number, colour: number[]) => png.pixel(x, y).slice(0, 3).every((value, i) => Math.abs(value - colour[i]!) <= 16) && alpha(x, y) === 255;
+  assert.ok(near(at(184), at(184), GREY), `${name}: the top left square is grey`);
+  assert.ok(near(at(336), at(336), GREEN), `${name}: the bottom right square is green`);
   for (const [x, y] of [[at(336), at(184)], [at(184), at(336)], [at(260), at(40)], [at(40), at(260)]]) assert.deepEqual(png.pixel(x!, y!), [...TILE, 255], `${name}: (${x}, ${y}) is the tile`);
   assert.equal(alpha(at(260), 0), 255, `${name}: the tile reaches the edge`);
   assert.ok(alpha(0, 0) < 255, `${name}: the corners are rounded and clear`);
@@ -131,4 +133,22 @@ test('the Linux icon folder holds one PNG per size, each named by its size, for 
     assert.deepEqual([png.width, png.height, png.colour], [size, size, 6]);
     if (size >= 48) assertLogo(png, `${size}x${size}`);
   }
+});
+
+test('the tray icon is the founder\'s tray PNGs as given: the logo at 16, 24 and 32 (1x, 1.5x and 2x), names kept', async () => {
+  // nativeImage finds icon@1.5x.png and icon@2x.png beside icon.png by these names, for screens scaled above 100%.
+  const TRAY: [string, number, string][] = [
+    ['icon.png', 16, '9c830d0b4793b64e16993d3b1d52e8782bc99d9f31b78685414666b56d7211d0'],
+    ['icon@1.5x.png', 24, 'f384d8fe025abe8406fb6b9bc594c89104a05c634df12049224d010fe5c32e89'],
+    ['icon@2x.png', 32, 'd1b2811e55f5660cfe404fe8afe9ea4da1e6f67670af0b5b4ca1445882375c12'],
+  ];
+  for (const [name, size, hash] of TRAY) {
+    const bytes = await read(`app/desktop/${name}`);
+    assert.equal(sha(bytes), hash, `${name} is the founder's file`);
+    const png = decodePng(bytes, name);
+    assert.deepEqual([png.width, png.height, png.colour], [size, size, 6], name);
+    assertLogo(png, name);
+  }
+  const main = (await read('app/desktop/main.cjs')).toString('utf8');
+  assert.match(main, /nativeImage\.createFromPath\(join\(__dirname, 'icon\.png'\)\)/, 'the tray reads icon.png');
 });
