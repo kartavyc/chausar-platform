@@ -506,3 +506,37 @@ test('A6 round 2 (low 6): only a file in use counts as open in another app; a pl
   (busy.deps as any).fs = refusing('EBUSY');
   assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, busy.deps)).error.code, 'SHARE_FILE_IN_USE');
 });
+
+test('A7 (A6 leftover): once the time for the email-app check is spent, no further query starts after the answer', async () => {
+  // As the reviewer's probe6.cjs: each query takes as long as it is given and then answers "no", as a hung reg.exe
+  // killed at its timeout does; so the first query spends the whole limit.
+  const calls: { at: number; timeoutMs: number }[] = [];
+  const started = Date.now();
+  const run = (_command: string, _args: string[], { timeoutMs }: { timeoutMs: number }) => {
+    calls.push({ at: Date.now() - started, timeoutMs });
+    return new Promise<{ code: number; stdout: string }>(done => setTimeout(() => done({ code: 1, stdout: '' }), Math.max(1, timeoutMs)));
+  };
+  const answer = await share.emlHandler({ platform: 'win32', limitMs: 300, run });
+  const answeredAt = Date.now() - started;
+  await new Promise(done => setTimeout(done, 500));
+  assert.equal(answer, false);
+  assert.ok(calls.length >= 1, 'the first query runs');
+  assert.deepEqual(calls.filter(call => call.at >= answeredAt - 5 || call.timeoutMs <= 0), [], `no query starts once the time is spent: ${JSON.stringify(calls)}`);
+});
+
+test('A7 (A6 leftover): with no app for email files, the mail link carries the same cleaned subject as the draft', async t => {
+  for (const code of [0x200B, 0x00AD, 0x200E, 0x202E, 0xFEFF]) {
+    const subject = `Invoice INV-0001 from Chai${String.fromCodePoint(code)}Point`;
+    const s = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('client@example.com', subject) } }) });
+    (s.deps as any).emlApp = async () => false;
+    const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+    assert.equal(reply.result?.opened, 'link', code.toString(16));
+    assert.deepEqual(s.opened, [mailto('client@example.com', 'Invoice INV-0001 from ChaiPoint')], code.toString(16));
+  }
+  // The joiners Indian scripts need stay in the link as in the draft.
+  const joined = `Invoice INV-0001 from क्‌ष Studio`;
+  const s = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('', joined) } }) });
+  (s.deps as any).emlApp = async () => false;
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps)).result?.opened, 'link');
+  assert.deepEqual(s.opened, [mailto('', joined)]);
+});

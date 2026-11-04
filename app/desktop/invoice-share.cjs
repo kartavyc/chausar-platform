@@ -15,7 +15,7 @@ const { execFile } = require('node:child_process');
 const { basename, dirname, join, relative } = require('node:path');
 const { constants: fsConstants } = require('node:fs');
 const { mailtoParts, validateExternalUrl } = require('./ipc-contract.cjs');
-const { buildEml, FILE_NAME, TYPES } = require('./mail-draft.cjs');
+const { buildEml, cleanSubject, FILE_NAME, TYPES } = require('./mail-draft.cjs');
 
 const DAY_MS = 24 * 60 * 60_000;
 const MAX_LINK = 30_000;
@@ -178,7 +178,12 @@ const EML_KEYS = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explo
  */
 async function emlHandler({ platform = process.platform, run = quietRun, limitMs = 5000, reg = join(process.env.SystemRoot || String.raw`C:\Windows`, 'System32', 'reg.exe') } = {}) {
   const end = Date.now() + limitMs;
-  const ask = (command, args) => run(command, args, { timeoutMs: end - Date.now() });
+  // A7 (A6 leftover): once the time is spent, the answer is no and nothing more starts (a check still racing the
+  // limit would otherwise go on running reg.exe after the share had moved on).
+  const ask = (command, args) => {
+    const left = end - Date.now();
+    return left <= 0 ? Promise.resolve({ code: 1, stdout: '' }) : run(command, args, { timeoutMs: left });
+  };
   const check = async () => {
     if (platform === 'darwin') return true;
     if (platform === 'linux') {
@@ -229,7 +234,10 @@ async function shareInvoice(event, input, deps) {
       }
       if (!parts) throw notMade();
       try { eml = buildEml({ to: parts.address, subject: parts.subject, body: parts.body, attachment: { name: file.name, mimeType: file.mimeType, bytes: file.bytes } }); } catch { throw notMade(); }
-      mail = { to: parts.address !== '', link };
+      // A7 (A6 leftover): the fallback link carries the subject as the draft does, hidden marks out (but the joiners).
+      const subject = cleanSubject(parts.subject);
+      const query = [...(subject ? [`subject=${encodeURIComponent(subject)}`] : []), ...(parts.body ? [`body=${encodeURIComponent(parts.body)}`] : [])].join('&');
+      mail = { to: parts.address !== '', link: `mailto:${encodeURIComponent(parts.address).replace(/%40/g, '@')}${query ? `?${query}` : ''}` };
     } else {
       appLink = whatsappAppUrl(file.share.whatsappUrl);
       if (!appLink) throw notMade();

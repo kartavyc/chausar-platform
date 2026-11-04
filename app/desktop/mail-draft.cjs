@@ -90,4 +90,4 @@ function buildEml(input) {
   ].join('\r\n');
 }
 
-module.exports = Object.freeze({ buildEml, FILE_NAME, TYPES });
+module.exports = Object.freeze({ buildEml, cleanSubject, FILE_NAME, TYPES });
