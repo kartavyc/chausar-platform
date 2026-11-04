@@ -283,7 +283,7 @@ const OPENED: Case[] = [
   { name: 'Welcome back, the recovery code', hash: '#/today', options: { closed: true }, openFolds: true, press: ['Use a recovery code'] },
   { name: 'Welcome back, restore a backup', hash: '#/today', options: { closed: true }, openFolds: true, press: ['Restore a backup'] },
   { name: 'Welcome back, move a business here', hash: '#/today', options: { closed: true }, press: ['Move from another computer'] },
-  { name: 'Welcome back, open by folder name on a new computer', hash: '#/today', options: { fresh: true }, openFolds: true, press: ['Open a business you already have', 'Open by folder name'] },
+  { name: 'Welcome back, open by folder name on a new computer', hash: '#/today', options: { fresh: true }, openFolds: true, press: ['Open a business you already have', 'Find it on this computer'] },
   // w3 3G1: Connections with every AI choice and a channel's posting limits open, an AI being connected, and the
   // simple-first folds of Business open for a GST-registered business (tax details, a price's working).
   { name: 'Connections, every AI choice and the posting limits open', hash: '#/connections', openFolds: true, press: [/^Posting limits for X$/] },

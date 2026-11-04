@@ -5,7 +5,7 @@ import { exactPayload } from '../records.ts';
 import type { CapabilityState, CapabilityStatus, ModelPreset, ModelStatusView, ModelTier, VentureDeps, VentureHostKind, VentureStorage } from '../contracts.ts';
 import { cachedContainerAvailability, HOSTED_NO_AGENT_CODE, HOSTED_NO_CONTAINERS, WASM_LITE_REASON, type TierAvailability } from './harness/sandbox.ts';
 
-export const EXPERIMENTAL_STORAGE_NOTICE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
+export const EXPERIMENTAL_STORAGE_NOTICE = "Test version: practise here, don't send real invoices yet.";
 export const TEMPLATES_REASON = 'No AI connected; built-in templates write outlines.';
 
 /** Without a preset list, the availability each preset has once it serves a tier (P2's table). */

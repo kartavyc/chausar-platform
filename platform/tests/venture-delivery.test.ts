@@ -884,7 +884,7 @@ test('capabilities: honest states per platform, storage and model tier', async (
   assert.equal(row(windows, 'improvement-loop').state, 'available');
   assert.equal(row(windows, 'outside-writes').state, 'planned');
   assert.equal(row(windows, 'durable-storage').state, 'planned');
-  assert.equal(row(windows, 'durable-storage').reason, "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.");
+  assert.equal(row(windows, 'durable-storage').reason, "Test version: practise here, don't send real invoices yet.");
   assert.equal(row(capabilityList('linux', undefined, 'postgres'), 'durable-storage').state, 'available');
   for (const id of ['model-fast', 'model-main']) {
     assert.equal(row(windows, id).state, 'needs-setup');

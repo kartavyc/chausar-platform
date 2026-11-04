@@ -60,7 +60,7 @@
   "money.order.title": "{client} · {request}",
   "money.order.delivered": "Delivered {date}",
   "money.order.notDelivered": "Not delivered yet",
-  "money.order.priced": "Priced on receipt",
+  "money.order.priced": "How it's priced",
   "money.status.draft": {
     "one": "Draft. Due {count} day after it is issued.",
     "other": "Draft. Due {count} days after it is issued."
@@ -72,7 +72,7 @@
   "money.status.void": "Cancelled",
   "money.invoice.label": "Invoice",
   "money.invoice.draft": "Draft invoice",
-  "money.invoice.priced": "Priced on receipt",
+  "money.invoice.priced": "How it's priced",
   "money.invoice.books": "In the books on receipt",
   "money.invoice.payments": "Payments",
   "money.invoice.payment": "{date} · {method}",

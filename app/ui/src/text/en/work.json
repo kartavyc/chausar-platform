@@ -227,7 +227,7 @@
   "work.client.owes": "Owes you",
   "work.order.ordered": "Ordered {date}",
   "work.order.price": "Price",
-  "work.order.priced": "Priced on receipt",
+  "work.order.priced": "How it's priced",
   "work.order.due": "due {date}",
   "work.order.onToday": "Open on Today",
   "work.stop.button": "Stop",

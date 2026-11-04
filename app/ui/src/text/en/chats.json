@@ -71,7 +71,7 @@
   "chats.consent.failed": "Couldn't agree. {message}",
   "chats.consent.titleStale": "Your AI changed: agree again",
   "chats.consent.unread": "Chausar couldn't read what chats send. Try again in a moment.",
-  "chats.counted.title": "Counted by code; the summary didn't work.",
+  "chats.counted.title": "Counts from your records. The summary didn't work this time.",
   "chats.counted.kind.clients": {"one": "{count} client", "other": "{count} clients"},
   "chats.counted.kind.orders": {"one": "{count} order", "other": "{count} orders"},
   "chats.counted.kind.invoices": {"one": "{count} invoice", "other": "{count} invoices"},

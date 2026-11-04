@@ -199,7 +199,7 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
     const order = (await screen.findByRole('heading', { name: 'Two mentions in episode 14' })).closest('li')!;
     await settle();
-    const meta = within(order).getByText('Priced on receipt').closest('p')!;
+    const meta = within(order).getByText("How it's priced").closest('p')!;
     expect(within(meta).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     // W4 4J3: the order's stage steps name a "Price" stage; that is a step's name, not a price line.
     expect(within(order).queryAllByText(/^Price$/).filter((el) => !el.closest('[data-order-steps]'))).toEqual([]);

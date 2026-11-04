@@ -72,7 +72,7 @@
   "team.runsNone": "No runs yet.",
   "team.addAgent": "Add an agent",
   "team.stats.done": "Done this week",
-  "team.keeper.code": "Runs as code, not AI",
+  "team.keeper.code": "Works by fixed rules, no AI",
   "team.keeper.jobs": "{name}'s jobs",
   "team.keeper.see": "See its jobs",
   "team.keeper.attention": {

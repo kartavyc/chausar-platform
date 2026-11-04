@@ -90,7 +90,7 @@ describe('shell', () => {
 
 // Catalogue U14: the experimental storage notice is back beyond Keep. Today, Work and Money say it under the header.
 describe('the experimental storage notice', () => {
-  const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
+  const EXPERIMENTAL = "Test version: practise here, don't send real invoices yet.";
   const STORAGE_PLACES = [['Today', '#/today', TODAY], ['Work', '#/work', 'Work'], ['Money', '#/money', 'Money']] as const;
 
   /**

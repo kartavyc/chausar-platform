@@ -93,7 +93,7 @@ export function presetSpec(id: ModelPresetId): PresetSpec {
 
 export const AVAILABILITY_REASONS = Object.freeze({
   anthropic: 'Uses your Anthropic key. Not yet checked with a live key.',
-  luna: 'Not yet tried on a real account, and a past probe failed. Type the model id your account shows. Costs are estimates.',
+  luna: 'Not yet tried on a real account, and a past check failed. Type the model id your account shows. Costs are estimates.',
   claudeMissing: 'Install Claude Code and sign in. Chausar checks for it when you connect.',
   claudeFound: 'Found on this computer. Not yet tried on a real task.',
   codexMissing: "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now.",

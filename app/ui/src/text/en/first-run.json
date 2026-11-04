@@ -14,7 +14,7 @@
   "first-run.ai.claude.name": "Claude plan",
   "first-run.ai.claude.line": "Uses Claude Code on this computer.",
   "first-run.ai.key.name": "AI key",
-  "first-run.ai.key.line": "OpenAI, Anthropic, or an AI gateway you top up.",
+  "first-run.ai.key.line": "A key from OpenAI, Anthropic or OpenRouter.",
   "first-run.ai.key.chip": "Saved in this computer's keychain",
   "first-run.ai.key.add": "Add a key",
   "first-run.ai.key.hint": "You pay the AI company directly.",

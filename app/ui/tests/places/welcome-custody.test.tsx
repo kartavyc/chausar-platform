@@ -259,14 +259,14 @@ describe('Welcome back: open by folder name', () => {
     start({ closed: true });
     await welcome();
     fireEvent.click(screen.getByText('More options', { selector: 'summary' }));
-    expect(screen.queryByRole('button', { name: 'Open by folder name' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Find it on this computer' })).toBeNull();
   });
 
   it('with an incomplete list, sends the folder alone, and the passphrase only when one is typed, then clears it', async () => {
     const { calls } = start({}, { engine: incomplete() });
     await welcome();
-    await moreOption('Open by folder name');
-    expect(screen.getByRole('heading', { level: 1, name: 'Open by folder name' })).toBeTruthy();
+    await moreOption('Find it on this computer');
+    expect(screen.getByRole('heading', { level: 1, name: 'Find it on this computer' })).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Folder'), { target: { value: 'sitara' } });
     await press(screen.getByRole('button', { name: 'Open' }));
     expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.PASSPHRASE_REQUIRED);
@@ -281,7 +281,7 @@ describe('Welcome back: open by folder name', () => {
   it('on a computer with no business, the typed folder is offered and a folder with nothing in it is said plainly', async () => {
     const { calls } = start({ fresh: true });
     await press(await screen.findByRole('button', { name: 'Open a business you already have' }));
-    await moreOption('Open by folder name');
+    await moreOption('Find it on this computer');
     expect((screen.getByLabelText('Folder') as HTMLInputElement).value).toBe('main');
     await press(screen.getByRole('button', { name: 'Open' }));
     expect(sent(calls, 'workspace.open')).toEqual([{ folder: 'main' }]);

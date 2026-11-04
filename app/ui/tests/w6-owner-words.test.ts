@@ -22,3 +22,51 @@ describe('wave 6 owner-facing words', () => {
     expect(found, folder).toEqual([]);
   });
 });
+
+/**
+ * One-shot B1 (SCREENS P1, PLAN batch 12): engine and developer words never reach the owner. A few keys keep a word
+ * because it is the outside tool's own (search and answer engines in the SEO pack; the Cloudflare upload guide's
+ * manifest; a third-party app's credentials in a connector or playbook guide).
+ */
+const BANNED: readonly [string, RegExp][] = [
+  ['fixture', /\bfixtures?\b|fixture-tested/i],
+  ['vault', /\bvaults?\b/i],
+  ['engine', /\bengines?\b/i],
+  ['gateway', /\bgateways?\b/i],
+  ['probe', /\bprobes?\b/i],
+  ['manifest', /\bmanifests?\b/i],
+  ['credential', /\bcredentials?\b/i],
+  ['outcome is unknown', /outcome is unknown/i],
+  ['npm', /\bnpm run\b|build:ui/i],
+  ['printed by', /printed by/i],
+  ['counted by code', /counted by code/i],
+  ['priced on receipt', /priced on receipt/i],
+  ['runs as code', /runs as code/i],
+  ['open by folder name', /by folder name/i],
+  ['experimental storage', /experimental storage/i],
+];
+const OUTSIDE_TOOLS: readonly [string, RegExp][] = [
+  ['engine', /^(?:pb-seo-visibility\.|kit-intake-words\.)/],
+  ['manifest', /^pb-connector-guides\.website-cloudflare\./],
+  ['credential', /^(?:pb-|kit-intake-words\.)/],
+];
+const flat = (value: unknown): string => (typeof value === 'string' ? value : value && typeof value === 'object' ? Object.values(value).map(flat).join(' ') : '');
+
+describe('one-shot B1: no engine or developer words on a screen', () => {
+  it('no catalogue line uses an engine or developer word', () => {
+    const found = Object.entries(catalogue).flatMap(([key, value]) => {
+      const text = flat(value).replace(/\{[^}]+\}/g, '');
+      return BANNED.filter(([name, pattern]) => pattern.test(text) && !OUTSIDE_TOOLS.some(([allowed, keys]) => allowed === name && keys.test(key))).map(([name]) => `${key} (${name}): ${text}`);
+    });
+    expect(found).toEqual([]);
+  });
+
+  it('says the plain words the copy pass chose', () => {
+    expect(catalogue['status.offline']).toBe("Chausar isn't answering. Nothing here is live until it's back.");
+    expect(catalogue['money-pay.fixture']).toBe('Not tried live yet');
+    expect(catalogue['team.keeper.code']).toBe('Works by fixed rules, no AI');
+    expect(catalogue['chats.counted.title']).toBe("Counts from your records. The summary didn't work this time.");
+    expect(catalogue['business.experimental']).toBe("Test version: practise here, don't send real invoices yet.");
+  });
+});
+

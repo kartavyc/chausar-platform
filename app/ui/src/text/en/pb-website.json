@@ -71,7 +71,7 @@
   "pb-website.project": "Cloudflare project name",
   "pb-website.branch": "Production branch",
   "pb-website.token": "Owner API token",
-  "pb-website.assets": "Uploaded asset manifest",
+  "pb-website.assets": "List of uploaded files",
   "pb-website.markerPath": "Release marker file",
   "pb-website.markerText": "Expected marker text",
   "pb-website.prepareRelease": "Prepare release review",

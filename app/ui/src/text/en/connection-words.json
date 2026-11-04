@@ -31,7 +31,7 @@
   "connection-words.line.cli-can-look": "Chausar can only run the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.",
   "connection-words.line.transcription-none": "No whisper.cpp is set up on this computer.",
   "connection-words.line.nothing-sent": "Nothing is sent anywhere.",
-  "connection-words.line.openai-unverified": "Not yet tried on a real account, and a past probe failed. Type the model id your account shows. Costs are estimates.",
+  "connection-words.line.openai-unverified": "Not yet tried on a real account, and a past check failed. Type the model id your account shows. Costs are estimates.",
   "connection-words.line.books-write": "Issues invoices and records payments inside Chausar, each number with a receipt.",
   "connection-words.line.crm-write": "Adds clients and orders inside Chausar.",
   "connection-words.line.x-post": "Posts approved text through your signed-in X browser. Not yet checked against the live site.",

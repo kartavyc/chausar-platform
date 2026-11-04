@@ -233,7 +233,7 @@
   "business.passphraseOffTitle": "Stop asking for a passphrase",
   "business.stopAsking": "Stop asking",
   "business.actionFailed": "Couldn't do that: {message}",
-  "business.experimental": "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.",
+  "business.experimental": "Test version: practise here, don't send real invoices yet.",
   "business.ca": "Your CA",
   "business.practice": "Practice and improve",
   "business.launch": "Stage",

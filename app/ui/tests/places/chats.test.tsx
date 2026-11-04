@@ -311,7 +311,7 @@ describe('#/chats: a thread', () => {
   it('counts by code arrive structured and are worded here, kind by kind and month by month, with no estimate label', async () => {
     stubWidth(false);
     await start('#/chats?thread=chiefthread-billed', { override: counted });
-    const box = await within(await screen.findByRole('log')).findByRole('group', { name: "Counted by code; the summary didn't work." });
+    const box = await within(await screen.findByRole('log')).findByRole('group', { name: "Counts from your records. The summary didn't work this time." });
     expect(within(box).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '4 clients', '1 order', '2 invoices', '6 runs', '0 people in your network', '3 leads', 'August 2026: 2 new', 'September 2026: 5 new', 'October 2026: 9 new',
     ]);
