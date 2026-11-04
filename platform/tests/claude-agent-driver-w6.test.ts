@@ -295,3 +295,23 @@ test('Claude Code starts through the process tree, so its kill leaves nothing it
     finish(f.output); await pending;
   } finally { await session.close(); await f.cleanup(); }
 });
+
+// A4 review (L8): what Claude Code printed on stderr is kept as a bounded tail in memory only, so a run that stops with
+// no result message gets the owner words for the failure it named; the raw text is never in the result or an event.
+test('Claude Code stderr names the failure in owner words, and its raw text goes nowhere', { timeout: 30_000 }, async () => {
+  const { aiFailureWords } = await import('../runtime/venture/models/ai-failure.ts');
+  const f = await fixture(); const session = await f.driver.open(f.input);
+  try {
+    const pending = session.run('Read the sample.'); await f.prompts.next();
+    const said = 'claude: error 4711 sample-only: usage limit reached for this plan';
+    const child = f.options.spawnClaudeCodeProcess!({ command: process.execPath, args: ['-e', `process.stderr.write(${JSON.stringify(said)}); process.exit(1)`], cwd: f.root, env: { ...process.env }, signal: new AbortController().signal });
+    await new Promise(done => child.once('exit', () => done(undefined)));
+    await new Promise(done => setTimeout(done, 50));
+    f.output.end();
+    const result = await pending;
+    assert.equal(result.status, 'failed');
+    assert.equal(result.error, aiFailureWords('usage-limit', 'Claude Code'));
+    assert.equal(result.failure, 'usage-limit');
+    assert.equal(JSON.stringify([result, f.events]).includes('4711'), false, 'the raw stderr is never passed on');
+  } finally { await session.close(); await f.cleanup(); }
+});

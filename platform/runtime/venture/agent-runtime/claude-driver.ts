@@ -7,7 +7,7 @@ import { spawnTree } from '../../process-tree.ts';
 import { AGENT_MCP_TOOL_NAMES, type AgentDriver, type AgentDriverInput, type AgentDriverSession, type AgentTurnResult, type AgentUsage } from './driver-types.ts';
 import { CONNECTOR_WORDS, claudeGmailServer, claudeGmailTool } from './connector-policy.ts';
 import { checkFetchPolicy } from '../build/fetch-policy.ts';
-import { aiFailureWords, classifyClaudeResult } from '../models/ai-failure.ts';
+import { aiFailureWords, classifyAiText, classifyClaudeResult } from '../models/ai-failure.ts';
 import { profileHost } from '../network/protected.ts';
 
 type ClaudeQuery = AsyncIterable<SDKMessage> & { interrupt(): Promise<unknown>; close(): void; setMcpPermissionModeOverride?: (serverName: string, mode: 'default' | 'auto' | null) => Promise<unknown> };
@@ -119,13 +119,19 @@ function totalUsage(messages: Map<string, AgentUsage>): AgentUsage {
   return result;
 }
 
+/** A4 review (L8): how much of what Claude Code printed on stderr is kept, in memory only, to name a failure. */
+export const STDERR_TAIL = 4096;
+
 /**
  * One-shot A4: the SDK's own spawn hook. The program and arguments are the SDK's (the verified executable); no shell.
  * The SDK's signal is its forwarded one: it aborts only after stdin closed and its grace ran, then the whole tree goes.
- * Standard error is not read here (Claude Code reports failures in its result messages), so it is not piped.
+ * A4 review (L8): stderr is read into a bounded tail (onStderr), never stored or passed on raw; the driver maps it to
+ * owner words (models/ai-failure.ts) when a run stops with no result message.
  */
-export function claudeProcess(spawnOptions: SpawnOptions): SpawnedProcess {
-  const child = spawnTree(spawnOptions.command, spawnOptions.args, { ...(spawnOptions.cwd ? { cwd: spawnOptions.cwd } : {}), env: spawnOptions.env, stdio: ['pipe', 'pipe', 'ignore'] }, { sweepAfterMs: 2_000 });
+export function claudeProcess(spawnOptions: SpawnOptions, onStderr?: (text: string) => void): SpawnedProcess {
+  const child = spawnTree(spawnOptions.command, spawnOptions.args, { ...(spawnOptions.cwd ? { cwd: spawnOptions.cwd } : {}), env: spawnOptions.env, stdio: ['pipe', 'pipe', 'pipe'] }, { sweepAfterMs: 2_000 });
+  child.stderr?.setEncoding('utf8');
+  child.stderr?.on('data', (chunk: string) => onStderr?.(chunk));
   const signal = spawnOptions.signal;
   if (signal) {
     const stop = () => { child.kill(); };
@@ -147,6 +153,11 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
     // Project settings must be app-owned. Client documents cannot become auto-loaded instructions or hooks.
     for (const name of ['CLAUDE.md', 'CLAUDE.local.md', '.claude', '.mcp.json']) if (await exists(join(root, name))) throw new Error('The job folder must not contain Claude project instructions or hooks.');
     let sdk: ClaudeQuery | undefined, reader: Promise<void> | undefined, closed = false, model = input.settings.model, sessionId: string = randomUUID();
+    // A4 review (L8): the last of what Claude Code printed on stderr, in memory for this session only.
+    let stderrTail = '';
+    const heard = (text: string) => { stderrTail = (stderrTail + text).slice(-STDERR_TAIL); };
+    /** A run that stopped with no result message: the failure its stderr named, in owner words, else the plain line. */
+    const stoppedWords = (): { error: string; failure?: ReturnType<typeof classifyAiText> } => { const kind = classifyAiText(stderrTail); return kind ? { error: aiFailureWords(kind, 'Claude Code'), failure: kind } : { error: FAILED }; };
     const queue = new InputQueue(input.guard);
     type Turn = { id: string; text: string; interrupted: boolean; finish: (result: AgentTurnResult) => void; blocks: Map<string, string>; completedBlocks: Map<string, number>; messageUuids: Set<string>; messageId: string; block: number; usage: Map<string, AgentUsage> };
     let active: Turn | undefined;
@@ -155,7 +166,7 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
     const pinned = new Set<string>();
     const emit = (event: Parameters<AgentDriverInput['onEvent']>[0]) => input.onEvent({ threadId: sessionId, ...(active ? { turnId: active.id } : {}), ...event });
     const settle = (result: AgentTurnResult) => { if (!active) return; const turn = active; emit({ type: 'terminal', status: result.status, ...(result.error ? { error: result.error } : {}) }); active = undefined; tools.clear(); turn.finish({ ...result, threadId: sessionId, turnId: turn.id }); };
-    const stop = (status: 'interrupted' | 'failed', error?: string) => { if (closed) return; closed = true; queue.end(); try { sdk?.close(); } finally { settle({ status, text: active?.text ?? '', model, ...(error ? { error } : {}) }); input.signal?.removeEventListener('abort', abort); } };
+    const stop = (status: 'interrupted' | 'failed', error?: string, failure?: ReturnType<typeof classifyAiText>) => { if (closed) return; closed = true; queue.end(); try { sdk?.close(); } finally { settle({ status, text: active?.text ?? '', model, ...(error ? { error } : {}), ...(failure ? { failure } : {}) }); input.signal?.removeEventListener('abort', abort); } };
     const abort = () => stop('interrupted');
     const append = (messageId: string, text: string) => { if (!active || !text) return; active.text += text; emit({ type: 'text-delta', messageId, text }); };
     const account = (id: string, raw: unknown, reportedModel: string) => {
@@ -190,7 +201,7 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
       pathToClaudeCodeExecutable: dependencies.executable, cwd: root, settingSources: ['project'], persistSession: false,
       // One-shot A4 (A2 leftover): Claude Code starts through Chausar's process tree, so a stop ends it with everything it
       // started (its MCP server, its helpers), and its own exit leaves none of them behind, as with Codex.
-      spawnClaudeCodeProcess: claudeProcess,
+      spawnClaudeCodeProcess: spawnOptions => claudeProcess(spawnOptions, heard),
       sessionId, model, effort: input.settings.effort, ...(input.settings.fallbackModel ? { fallbackModel: input.settings.fallbackModel } : {}),
       permissionMode: input.settings.autoReview ? 'auto' : 'default', includePartialMessages: true,
       tools: [...FILE_TOOLS, ...(input.settings.webSearch ? ['WebSearch', 'WebFetch'] : [])],
@@ -298,8 +309,8 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
             settle({ status, text, model, ...(usage ? { usage } : {}), ...(status === 'failed' ? { error: failure ? aiFailureWords(failure, 'Claude Code') : FAILED } : {}), ...(failure ? { failure } : {}) });
           }
         }
-        if (!closed) stop('failed', FAILED);
-      } catch { stop('failed', FAILED); }
+        if (!closed) { const words = stoppedWords(); stop('failed', words.error, words.failure); }
+      } catch { const words = stoppedWords(); stop('failed', words.error, words.failure); }
     }
     input.signal?.addEventListener('abort', abort, { once: true });
     if (input.signal?.aborted) abort();
