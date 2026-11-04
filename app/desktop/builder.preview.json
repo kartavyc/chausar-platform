@@ -72,5 +72,6 @@
     "icon": "app/desktop/icons/png"
   },
   "publish": null,
-  "electronDist": "node_modules/electron/dist"
+  "electronDist": "node_modules/electron/dist",
+  "afterPack": "scripts/desktop-after-pack.cjs"
 }

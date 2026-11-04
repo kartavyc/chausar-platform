@@ -4,6 +4,7 @@ import { cp, lstat, mkdir, open, readFile, readdir, rm, writeFile } from 'node:f
 import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
@@ -214,11 +215,22 @@ export function validateIconConfig(config) {
   if (!config.files?.includes(`!${ICON.mac}`)) throw new Error('the icns is for the builder only; the package leaves it out');
 }
 
+// A7 fix round 1: the unsigned builds keep electron-builder's exe editing off (it needs the winCodeSign download), so
+// one pinned afterPack hook sets Chausar.exe's icon and names with the rcedit.exe in node_modules, checked by its
+// sha256 (desktop-after-pack.cjs). It is the only hook allowed, spelled exactly so; every other hook is refused.
+export const AFTER_PACK_HOOK = 'scripts/desktop-after-pack.cjs';
+const RCEDIT_PATH = 'node_modules/electron-winstaller/vendor/rcedit.exe';
+const RCEDIT_CHECK = 'Windows exe icon tool (rcedit.exe)';
+const onlyPinnedHook = config => {
+  const hooks = Object.keys(config).filter(name => /^(before|after|artifactBuild|onNodeModule)/.test(name));
+  return hooks.length === 1 && hooks[0] === 'afterPack' && config.afterPack === AFTER_PACK_HOOK;
+};
+
 function validatePreviewConfig(config) {
   if (config.appId !== 'in.chausar.desktop.preview' || config.productName !== 'Chausar Unsigned Preview' || config.extraMetadata?.name !== 'chausar-preview' || config.extraMetadata?.chausarPreview !== true || config.extraMetadata?.chausarReleaseChannel !== 'unsigned-preview') throw new Error('preview requires a separate identity and explicit unsigned demo metadata');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
   if (config.publish !== null || config.npmRebuild !== false || config.extraResources?.length !== 0 || config.directories?.output !== previewOutput) throw new Error('preview must disable publishing, dependency rebuilds and native runtime resources and use release/preview');
-  if (config.extends !== undefined || Object.keys(config).some(name => /^(before|after|artifactBuild|onNodeModule)/.test(name))) throw new Error('preview cannot inherit final configuration or execute custom build hooks');
+  if (config.extends !== undefined || !onlyPinnedHook(config)) throw new Error(`preview cannot inherit final configuration or execute custom build hooks; the one hook is afterPack ${AFTER_PACK_HOOK}`);
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('preview must use the verified local Electron distribution instead of another download');
   const expected = { win: ['zip'], mac: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
   for (const [key, targets] of Object.entries(expected)) {
@@ -246,9 +258,9 @@ export function expectedArtifactNames({ mode, platform, architecture, version })
  * staged Codex bundle and the notices as extra resources, the local Electron, no signing, hooks or publishing. */
 export function validateBetaConfig(config) {
   if (config.appId !== 'in.chausar.desktop' || config.productName !== 'Chausar' || config.extraMetadata?.name !== 'chausar' || config.extraMetadata?.productName !== 'Chausar' || config.extraMetadata?.chausarReleaseChannel !== 'beta' || Object.hasOwn(config.extraMetadata ?? {}, 'chausarPreview')) throw new Error('the beta needs the Chausar identity, the beta release channel and no preview flag');
-  if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false) throw new Error('the beta is unsigned; signing and executable editing stay off');
+  if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false) throw new Error('the beta is unsigned: signing and electron-builder\'s own exe editing (its winCodeSign download) stay off; the pinned afterPack hook sets the exe\'s icon and names');
   if (config.publish !== null || config.npmRebuild !== false || config.directories?.output !== betaOutput) throw new Error('the beta disables publishing and dependency rebuilds and uses release/beta');
-  if (config.extends !== undefined || Object.keys(config).some(name => /^(before|after|artifactBuild|onNodeModule)/.test(name))) throw new Error('the beta cannot inherit another configuration or run custom build hooks');
+  if (config.extends !== undefined || !onlyPinnedHook(config)) throw new Error(`the beta cannot inherit another configuration or run custom build hooks; the one hook is afterPack ${AFTER_PACK_HOOK}`);
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('the beta must use the verified local Electron distribution instead of another download');
   if (config.mac !== undefined) throw new Error('Mac is out of scope for the beta');
   validateIconConfig(config);
@@ -338,7 +350,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
   };
   await check('Node runtime', () => { if (!nodeVersionSupported(process.versions.node)) throw new Error('Node 24.13.1 or later is required'); });
   await check('desktop source entrypoints', async () => {
-    for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', ...ICON_FILES, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));
+    for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, AFTER_PACK_HOOK, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));
   });
   await check('locked local packaging dependencies and Electron distribution', async () => { ({ cliPath, viteCli, version } = await dependencyPrerequisites(root, plan.platform)); });
   await check('packaging configuration', async () => {
@@ -349,6 +361,14 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
     else if (plan.mode === 'beta') validateBetaConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');
   });
+  // A7 fix round 1: an unsigned Windows build edits Chausar.exe with the pinned rcedit.exe; it must be there and be that
+  // file before electron-builder starts. Nothing is downloaded for it.
+  if (plan.platform === 'win32' && plan.mode !== 'final') {
+    await check(RCEDIT_CHECK, async () => {
+      const { checkRcedit } = createRequire(import.meta.url)('./desktop-after-pack.cjs');
+      await checkRcedit({ path: join(root, ...RCEDIT_PATH.split('/')) });
+    });
+  }
   if (plan.mode === 'beta') {
     await check(CODEX_CHECK, async () => {
       const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');

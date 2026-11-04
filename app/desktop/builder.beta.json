@@ -127,5 +127,6 @@
     "maintainer": "Kartavy Chauhan <info@chausar.co.in>"
   },
   "publish": null,
-  "electronDist": "node_modules/electron/dist"
+  "electronDist": "node_modules/electron/dist",
+  "afterPack": "scripts/desktop-after-pack.cjs"
 }

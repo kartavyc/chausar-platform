@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
+import { fileURLToPath as fileURLPath } from 'node:url';
 
 // One-shot A7: the founder's logo (a #070809 tile, a #e8ebee square top left, a #46f09b square bottom right) is the
 // app icon, the tray icon, the window icon and the favicon. Its green is the logo's own, not the app's Jade.
@@ -182,4 +183,65 @@ test('the maskable icon keeps both squares inside the safe circle (80% of the ic
     }
   }
   assert.ok(outside > 0);
+});
+
+// A7 fix round 1: Chausar.exe's own icon. The unsigned builds keep signAndEditExecutable off (it needs electron-builder's
+// winCodeSign download), so one pinned afterPack hook sets the icon and the names with the rcedit.exe already in
+// node_modules (electron-winstaller's vendor folder), checked by its sha256 first. Nothing is downloaded.
+const HOOK = 'scripts/desktop-after-pack.cjs';
+const RCEDIT_SHA256 = 'e2df7b664db830f159d0dc6b3da8a95442cca175b9577f2d19952646d37ac32f';
+const { createRequire } = await import('node:module');
+const hook = createRequire(import.meta.url)('../../scripts/desktop-after-pack.cjs');
+const { join: joinPath } = await import('node:path');
+const context = (platform: string, sign: boolean | undefined, productFilename = 'Chausar') => ({
+  appOutDir: 'D:/out/win-unpacked', electronPlatformName: platform,
+  packager: { appInfo: { productFilename }, platformSpecificBuildOptions: sign === undefined ? {} : { signAndEditExecutable: sign } },
+});
+
+test('the exe hook runs rcedit with the icon, FileDescription and ProductName on Windows, hidden, after checking its sha256', async () => {
+  const runs: unknown[][] = [], reads: string[] = [];
+  const result = await hook.afterPack(context('win32', false), {
+    platform: 'win32', readFile: async (path: string) => { reads.push(path); return Buffer.from('rcedit'); }, sha256: () => RCEDIT_SHA256,
+    run: async (...args: unknown[]) => { runs.push(args); },
+  });
+  assert.deepEqual(result, { edited: true });
+  assert.deepEqual(reads, [hook.RCEDIT]);
+  assert.equal(hook.RCEDIT, joinPath(fileURLPath(repo), 'node_modules', 'electron-winstaller', 'vendor', 'rcedit.exe'));
+  assert.equal(hook.RCEDIT_SHA256, RCEDIT_SHA256);
+  assert.deepEqual(runs, [[hook.RCEDIT, [joinPath('D:/out/win-unpacked', 'Chausar.exe'), '--set-icon', joinPath(fileURLPath(repo), ICO), '--set-version-string', 'FileDescription', 'Chausar', '--set-version-string', 'ProductName', 'Chausar']]]);
+  const preview: unknown[][] = [];
+  await hook.afterPack(context('win32', false, 'Chausar Unsigned Preview'), { platform: 'win32', readFile: async () => Buffer.from(''), sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { preview.push(args); } });
+  assert.equal((preview[0]![1] as string[])[0], joinPath('D:/out/win-unpacked', 'Chausar Unsigned Preview.exe'), 'the exe is named after the product');
+});
+
+test('the exe hook does nothing off Windows, for another target, or when electron-builder edits the exe itself', async () => {
+  const runs: unknown[] = [];
+  const deps = (platform: string) => ({ platform, readFile: async () => { throw new Error('never read'); }, sha256: () => RCEDIT_SHA256, run: async (...args: unknown[]) => { runs.push(args); } });
+  for (const [host, target, sign] of [['linux', 'linux', false], ['darwin', 'darwin', false], ['linux', 'win32', false], ['win32', 'linux', false], ['win32', 'win32', true], ['win32', 'win32', undefined]] as const) {
+    assert.deepEqual(await hook.afterPack(context(target, sign), deps(host)), { edited: false }, `${host} ${target} ${sign}`);
+  }
+  assert.deepEqual(runs, []);
+});
+
+test('the exe hook refuses a missing or different rcedit.exe in plain words, and never runs it', async () => {
+  const runs: unknown[] = [];
+  const run = async (...args: unknown[]) => { runs.push(args); };
+  await assert.rejects(hook.afterPack(context('win32', false), { platform: 'win32', readFile: async () => Buffer.from('x'), sha256: () => '0'.repeat(64), run }), /rcedit\.exe .*not the pinned one.*e2df7b66/);
+  await assert.rejects(hook.afterPack(context('win32', false), { platform: 'win32', readFile: async () => { throw Object.assign(new Error('gone'), { code: 'ENOENT' }); }, run }), /rcedit\.exe is missing.*npm ci.*nothing is downloaded/i);
+  assert.deepEqual(runs, []);
+  // The real file in this checkout is the pinned one.
+  assert.equal(await hook.checkRcedit(), hook.RCEDIT);
+});
+
+test('the unsigned configs name exactly the pinned hook, and the package checks refuse any other hook', async () => {
+  for (const file of ['builder.beta.json', 'builder.preview.json']) {
+    const config = await json(`app/desktop/${file}`);
+    assert.equal(config.afterPack, HOOK, file);
+    assert.deepEqual(Object.keys(config).filter(name => /^(before|after|artifactBuild|onNodeModule)/.test(name)), ['afterPack'], file);
+  }
+  const beta = await json('app/desktop/builder.beta.json');
+  validateBetaConfig(beta);
+  for (const variant of [{ afterPack: 'unexpected-hook.cjs' }, { afterPack: `./${HOOK}` }, { afterPack: undefined }, { afterSign: HOOK }, { beforePack: HOOK }, { afterAllArtifactBuild: HOOK }]) {
+    assert.throws(() => validateBetaConfig({ ...beta, ...variant }), /hook/, JSON.stringify(variant));
+  }
 });

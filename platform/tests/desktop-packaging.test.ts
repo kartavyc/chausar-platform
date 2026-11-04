@@ -18,8 +18,8 @@ const beta = JSON.parse(await readFile(new URL('../../app/desktop/builder.beta.j
 async function fixture(t: any, config = preview, betaConfig = beta) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-package-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const path of ['app/desktop/icons/png', 'app/ui/src', 'platform/runtime']) await mkdir(join(root, path), { recursive: true });
-  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', ...ICON_FILES, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
+  for (const path of ['app/desktop/icons/png', 'app/ui/src', 'platform/runtime', 'scripts']) await mkdir(join(root, path), { recursive: true });
+  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, 'scripts/desktop-after-pack.cjs', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
   await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
   await writeFile(join(root, 'app/desktop/builder.preview.json'), JSON.stringify(config));
   await writeFile(join(root, 'app/desktop/builder.json'), JSON.stringify(final));
@@ -111,6 +111,48 @@ test('a missing logo file stops packaging at the source check, and a config with
   const result = await desktopPackagePrerequisites({ root, environment: {} });
   assert.ok(result.failures.some((failure: any) => failure.check === 'desktop source entrypoints'));
   assert.ok(result.failures.some((failure: any) => failure.check === 'packaging configuration' && /icon/.test(failure.reason)));
+});
+
+test('the tray\'s 1.5x and 2x PNGs are checked source files too (A7 fix round 1)', async t => {
+  for (const name of ['icon@1.5x.png', 'icon@2x.png']) {
+    const root = await fixture(t);
+    await rm(join(root, 'app/desktop', name));
+    const result = await desktopPackagePrerequisites({ root, environment: {} });
+    assert.ok(result.failures.some((failure: any) => failure.check === 'desktop source entrypoints'), name);
+  }
+});
+
+const RCEDIT_CHECK = 'Windows exe icon tool (rcedit.exe)';
+// Plans are only made for the native host, so the Windows half runs on Windows and the other half elsewhere.
+test('a Windows build checks the pinned rcedit.exe before anything runs: missing or different is refused, the pinned one passes (A7 fix round 1)', { skip: process.platform !== 'win32' }, async t => {
+  const RCEDIT = 'node_modules/electron-winstaller/vendor/rcedit.exe', CHECK = RCEDIT_CHECK;
+  const windows = (mode: string) => createDesktopPackagePlan({ mode, platform: 'win32', architecture: process.arch });
+  const missing = await fixture(t);
+  const none = await desktopPackagePrerequisites({ root: missing, plan: windows('beta'), environment: {} });
+  assert.match(none.failures.find((failure: any) => failure.check === CHECK)?.reason ?? '', /missing.*nothing is downloaded/);
+  const other = await fixture(t);
+  await mkdir(join(other, 'node_modules/electron-winstaller/vendor'), { recursive: true });
+  await writeFile(join(other, RCEDIT), 'not the tool');
+  for (const mode of ['beta', 'preview']) {
+    const result = await desktopPackagePrerequisites({ root: other, plan: windows(mode), environment: {} });
+    assert.match(result.failures.find((failure: any) => failure.check === CHECK)?.reason ?? '', /not the pinned one/, mode);
+  }
+  const pinned = await fixture(t);
+  await mkdir(join(pinned, 'node_modules/electron-winstaller/vendor'), { recursive: true });
+  await writeFile(join(pinned, RCEDIT), await readFile(new URL(`../../${RCEDIT}`, import.meta.url)));
+  assert.ok((await desktopPackagePrerequisites({ root: pinned, plan: windows('beta'), environment: {} })).checks.includes(CHECK));
+  // A final build has electron-builder edit the exe itself.
+  const final = await desktopPackagePrerequisites({ root: missing, plan: windows('final'), environment: {} });
+  assert.ok(![...final.checks, ...final.failures.map((failure: any) => failure.check)].includes(CHECK));
+});
+
+test('a Linux or macOS build never asks for rcedit.exe (A7 fix round 1)', { skip: process.platform === 'win32' }, async t => {
+  const root = await fixture(t);
+  for (const mode of ['beta', 'preview']) {
+    if (mode === 'beta' && process.platform === 'darwin') continue;
+    const result = await desktopPackagePrerequisites({ root, plan: createDesktopPackagePlan({ mode }), environment: {} });
+    assert.ok(![...result.checks, ...result.failures.map((failure: any) => failure.check)].includes(RCEDIT_CHECK), mode);
+  }
 });
 
 test('preview preflight is read-only and identifies missing local dependencies without requiring signing keys', async t => {
