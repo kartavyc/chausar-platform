@@ -107,11 +107,11 @@ async function shareInvoice(event, input, deps) {
       const parts = mailtoParts(file.share.mailtoUrl);
       if (!parts) throw notMade();
       try { eml = buildEml({ to: parts.address, subject: parts.subject, body: parts.body, attachment: { name: file.name, mimeType: file.mimeType, bytes: file.bytes } }); } catch { throw notMade(); }
-      mail = { link: validateExternalUrl(file.share.mailtoUrl), to: parts.address !== '' };
+      mail = { to: parts.address !== '' };
     } else {
       appLink = whatsappAppUrl(file.share.whatsappUrl);
       if (!appLink) throw notMade();
-      webLink = validateExternalUrl(file.share.whatsappUrl);
+      try { webLink = validateExternalUrl(file.share.whatsappUrl); } catch { throw notMade(); }
     }
     try { await fs.mkdir(deps.folder, { recursive: true }); } catch (error) { throw plain(error); }
     await prune(fs, deps.folder, (deps.now ?? Date.now)());
@@ -122,7 +122,8 @@ async function shareInvoice(event, input, deps) {
       let opened = 'draft';
       const problem = await Promise.resolve(deps.shell.openPath(draftPath)).catch(error => String(error?.message ?? error) || 'failed');
       if (problem !== '') {
-        try { await deps.shell.openExternal(mail.link); opened = 'link'; } catch { opened = 'none'; }
+        // The mail link only when the gate opens it (a long message is too long for one link): then nothing opened.
+        try { await deps.shell.openExternal(validateExternalUrl(file.share.mailtoUrl)); opened = 'link'; } catch { opened = 'none'; }
       }
       return { ok: true, result: { how, opened, file: file.name, to: mail.to, note: file.note } };
     }

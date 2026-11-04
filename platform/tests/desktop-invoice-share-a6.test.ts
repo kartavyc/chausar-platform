@@ -229,3 +229,13 @@ test('A6: the real preload forwards only the invoice and how, and only the file 
     { channel: 'chausar:share:show', input: { name: 'INV-0001.pdf' } },
   ]);
 });
+
+test('A6: a message too long for one mail link still goes as a draft; with no mail app for it, the sheet hears that nothing opened', async t => {
+  const long = 'Line of the invoice note. '.repeat(1500);
+  const file = engineFile({ share: { ...engineFile().share, mailtoUrl: mailto('client@example.com', SUBJECT, long) } });
+  const drafted = await shareDeps(t, { file });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, drafted.deps)).result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: true, note: null });
+  const noApp = await shareDeps(t, { file, openPath: 'No app.' });
+  assert.deepEqual((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, noApp.deps)).result, { how: 'email', opened: 'none', file: 'INV-0001.pdf', to: true, note: null });
+  assert.deepEqual(noApp.opened, [], 'a link the gate refuses is never opened');
+});
