@@ -103,7 +103,8 @@ function engineFile(over: Record<string, any> = {}) {
 }
 async function shareDeps(t: any, options: { file?: any; openPath?: string; app?: boolean; openFails?: (url: string) => boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-share-a6-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  // A6 round 2: a file still held by another process (EBUSY) never fails the cleanup, so later hooks still run.
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => undefined));
   const folder = join(root, 'share');
   const asked: any[] = [], opened: string[] = [], paths: string[] = [], shown: string[] = [];
   const deps = {
@@ -327,19 +328,42 @@ test('A6 round 1 (medium 1): a file another app holds keeps its name; the share 
   assert.ok((await readdir(s.folder)).every(name => !name.endsWith('.tmp')));
 });
 
-test('A6 round 1 (medium 1): on Windows, a PDF held open without delete sharing still lets the share go through', { skip: process.platform !== 'win32' }, async t => {
+/**
+ * A6 round 2: holds a file open the way a PDF viewer does (read sharing only, no delete sharing) in a hidden PowerShell,
+ * and answers the release. Waiting for it to start is time-limited, and the release always ends the process.
+ */
+async function holdOpen(path: string): Promise<() => Promise<void>> {
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$f=[System.IO.File]::Open('${path}', 'Open', 'Read', 'Read'); Write-Output held; [Console]::In.ReadLine() | Out-Null; $f.Close()`], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  const exited = new Promise<void>(done => { if (holder.exitCode !== null) done(); else holder.once('exit', () => done()); });
+  const release = async () => {
+    holder.stdin.end();
+    const late = setTimeout(() => holder.kill(), 3000);
+    await Promise.race([exited, new Promise(done => setTimeout(done, 6000))]);
+    clearTimeout(late);
+    if (holder.exitCode === null && holder.signalCode === null) { holder.kill(); await Promise.race([exited, new Promise(done => setTimeout(done, 2000))]); }
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      new Promise(done => holder.stdout.once('data', done)),
+      new Promise((_, fail) => { timer = setTimeout(() => fail(new Error('The file holder did not start.')), 10_000); }),
+    ]);
+  } catch (error) { await release(); throw error; } finally { clearTimeout(timer); }
+  return release;
+}
+
+test('A6 round 1 (medium 1): on Windows, a PDF held open without delete sharing still lets the share go through', { skip: process.platform !== 'win32', timeout: 30_000 }, async t => {
   const s = await shareDeps(t, { app: true });
   await mkdir(s.folder, { recursive: true });
   const path = join(s.folder, 'INV-0001.pdf');
   await writeFile(path, 'an older copy');
-  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$f=[System.IO.File]::Open('${path}', 'Open', 'Read', 'Read'); Write-Output held; [Console]::In.ReadLine() | Out-Null; $f.Close()`], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
-  t.after(() => { holder.stdin.end(); holder.kill(); });
-  await new Promise(done => holder.stdout.once('data', done));
-  const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
-  assert.deepEqual([reply.ok, reply.result?.file], [true, 'INV-0001-2.pdf']);
-  assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
-  holder.stdin.end();
-  await new Promise(done => holder.once('exit', done));
+  const release = await holdOpen(path);
+  // A6 round 2: released in the test itself, before the folder is cleaned up, even when an assertion fails.
+  try {
+    const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
+    assert.deepEqual([reply.ok, reply.result?.file], [true, 'INV-0001-2.pdf']);
+    assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
+  } finally { await release(); }
 });
 
 test('A6 round 1 (low 8): an old folder, junction or link named like a share file is never taken out, nor what it points to', async t => {
