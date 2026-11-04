@@ -260,8 +260,8 @@ const OPENED: Case[] = [
   // 4Z2: Lumen's episode 12 is delivered; Ledgerline's September books are done and not delivered yet.
   { name: 'Work, an order asked once more before it is marked delivered', hash: '#/work', before: (engine) => engine.request('workspace.open', { folder: 'ledgerline' }), press: ['Mark delivered'] },
   // W4 4F3: the Stop dialog and its Force stop ask, on a tile and in Working now; Away with its days set.
-  { name: 'Work, the Stop dialog asking Force stop', hash: '#/work', press: ['Stop run 31', 'Force stop'] },
-  { name: 'Today, the Stop dialog in Working now', hash: '#/today', press: ['Stop run 30'] },
+  { name: 'Work, the Stop dialog asking Force stop', hash: '#/work', press: ['Stop: Cutting shorts from episode 13', 'Force stop'] },
+  { name: 'Today, the Stop dialog in Working now', hash: '#/today', press: ['Stop: Checking titles against the last 30 videos'] },
   { name: 'Business, away with its days set', hash: '#/business/away', press: [{ fill: 'First day away', with: '2026-12-01' }, { fill: 'Last day away', with: '2026-12-05' }, 'Set the days'] },
   { name: 'Clients, blocking a lead', hash: '#/clients/leads?sheet=lead:lead-pocket', press: ['Block'] },
   // W4 4E4: a block is a flag on its card, not a stage; the folded stage is Not now.

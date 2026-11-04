@@ -74,14 +74,14 @@ export function useStopRun(run: RunSummary, detail: RunDetail | undefined, onCha
   const stopping = run.stop?.state === 'stopping' && out;
   const button = phase === 'busy' ? null : stoppable(run) ? (
     <Button
-      ref={stopRef} size="sm" aria-label={t('work.stop.label', { id: run.runId })} aria-expanded={open} aria-controls={open ? dialogId : undefined}
+      ref={stopRef} size="sm" aria-label={t('work.stop.label', { purpose: run.purpose })} aria-expanded={open} aria-controls={open ? dialogId : undefined}
       onClick={() => setPhase(open ? 'closed' : 'ask')}
     >
       {t('work.stop.button')}
     </Button>
   ) : stopping ? (
     <Button
-      ref={stopRef} size="sm" aria-label={t('work.stop.forceLabel', { id: run.runId })} aria-expanded={open} aria-controls={open ? dialogId : undefined}
+      ref={stopRef} size="sm" aria-label={t('work.stop.forceLabel', { purpose: run.purpose })} aria-expanded={open} aria-controls={open ? dialogId : undefined}
       onClick={() => setPhase(open ? 'closed' : 'force')}
     >
       {t('work.stop.force')}
@@ -93,7 +93,7 @@ export function useStopRun(run: RunSummary, detail: RunDetail | undefined, onCha
       id={dialogId} role="dialog" aria-labelledby={titleId} className={s.stopDialog}
       onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}
     >
-      <p id={titleId} className={s.stopDialogTitle}>{t('work.stop.title', { id: run.runId })}</p>
+      <p id={titleId} className={s.stopDialogTitle}>{t('work.stop.title')}</p>
       <p className={s.stopDialogLine}>
         {phase === 'force' ? t('work.stop.forceAsk', { step: step ?? run.purpose }) : t('work.stop.line')}
       </p>

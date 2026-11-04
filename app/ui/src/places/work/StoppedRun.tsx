@@ -77,7 +77,7 @@ function StoppedRun({ run, detail, business, row, noRetry, onChanged }: StoppedR
   const interrupted = stopped && !!detail?.interrupted;
   // Where it stopped or failed is that step's place in the engine's own list, counted; nothing is worked out beyond it.
   const at = steps.findIndex((step) => step.state === (stopped ? 'waiting' : 'failed'));
-  const meta = [run.agent, business, t('work.failedRun.run', { id: run.runId }), run.elapsed].filter(Boolean).join(' · ');
+  const meta = [run.agent, business, run.elapsed].filter(Boolean).join(' · ');
   const red = !stopped || !!trigger;
   const chip = !stopped
     ? (at >= 0 ? t('work.failedRun.at', { step: at + 1, total: steps.length }) : t('work.failedRun.chip'))

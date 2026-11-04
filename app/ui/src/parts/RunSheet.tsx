@@ -85,7 +85,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
   return (
     <Sheet
       label={t('sheet.run')}
-      eyebrow={t('run.header', { agent: run.agent, id: run.runId })}
+      eyebrow={t('run.header', { agent: run.agent })}
       title={run.purpose}
       avatar={<Avatar name={run.agent} state={RING[run.state] ?? 'idle'} size={40} />}
       name={run.agent}

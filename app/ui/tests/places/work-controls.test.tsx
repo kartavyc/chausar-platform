@@ -66,15 +66,15 @@ const stoppedRow = (run: RunDetail): QueueRow => ({
 const withRows = (...rows: QueueRow[]): Intercept => async (_p, real) => { const sent = (await real()) as QueueList; return { ...sent, rows: [...sent.rows, ...rows] }; };
 
 describe('Work: Stop on each running tile (O1)', () => {
-  it('each running tile has "Stop run 31"; Stop keeps finished steps and the tile reads Stopping until the engine says stopped', async () => {
+  it('each running tile has "Stop: Cutting shorts from episode 13"; Stop keeps finished steps and the tile reads Stopping until the engine says stopped', async () => {
     const { calls } = await start();
     await settle();
-    for (const id of ['31', '30', '29']) expect(screen.getByRole('button', { name: `Stop run ${id}` })).toBeTruthy();
+    for (const purpose of ['Cutting shorts from episode 13', 'Checking titles against the last 30 videos', 'Pricing the sponsor slot']) expect(screen.getByRole('button', { name: `Stop: ${purpose}` })).toBeTruthy();
     const tile = await tileOf('Cutting shorts from episode 13');
-    const stop = within(tile).getByRole('button', { name: 'Stop run 31' });
+    const stop = within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' });
     await click(stop);
     expect(stop.getAttribute('aria-expanded')).toBe('true');
-    const dialog = within(tile).getByRole('dialog', { name: 'Stop run 31?' });
+    const dialog = within(tile).getByRole('dialog', { name: 'Stop this run?' });
     expect(within(dialog).getByText('Stop lets the step in progress finish, then stops. Finished steps are kept.')).toBeTruthy();
     expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Not now' }));
     assertOnePrimary();
@@ -82,7 +82,7 @@ describe('Work: Stop on each running tile (O1)', () => {
     expect(of(calls, 'venture.runs.stop')).toEqual([{ runId: '31' }]);
     expect(await within(tile).findByText('Stop received. The step in progress finishes, then the run stops.')).toBeTruthy();
     expect(await within(tile).findByText('Stopping')).toBeTruthy();
-    expect(within(tile).queryByRole('button', { name: 'Stop run 31' })).toBeNull();
+    expect(within(tile).queryByRole('button', { name: 'Stop: Cutting shorts from episode 13' })).toBeNull();
     // Once the step in progress came back, the engine says stopped: the run sits with the stopped runs, with Resume.
     const stopped = await waitFor(async () => {
       const region = screen.getByRole('region', { name: 'Stopped' });
@@ -103,11 +103,11 @@ describe('Work: Stop on each running tile (O1)', () => {
   it('Force stop names what is lost and asks once more; Not now leaves the run alone', async () => {
     const { calls } = await start();
     const tile = await tileOf('Cutting shorts from episode 13');
-    await click(within(tile).getByRole('button', { name: 'Stop run 31' }));
+    await click(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
     await click(within(tile).getByRole('button', { name: 'Not now' }));
     expect(within(tile).queryByRole('dialog')).toBeNull();
-    expect(document.activeElement).toBe(within(tile).getByRole('button', { name: 'Stop run 31' }));
-    await click(within(tile).getByRole('button', { name: 'Stop run 31' }));
+    expect(document.activeElement).toBe(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
+    await click(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
     await click(within(tile).getByRole('button', { name: 'Force stop' }));
     expect(of(calls, 'venture.runs.stop')).toEqual([]);
     expect(within(tile).getByText('Force stop throws away the step in progress: Rendering 3 of 6. Anything already sent stays sent. Force stop?')).toBeTruthy();
@@ -121,7 +121,7 @@ describe('Work: Stop on each running tile (O1)', () => {
   it('says what the engine refused, in its words', async () => {
     await start('#/work', { intercept: { 'venture.runs.stop': () => { throw Object.assign(new Error('This run is not running, so there is nothing to stop or steer.'), { code: 'RUN_NOT_RUNNING' }); } } });
     const tile = await tileOf('Checking titles against the last 30 videos');
-    await click(within(tile).getByRole('button', { name: 'Stop run 30' }));
+    await click(within(tile).getByRole('button', { name: 'Stop: Checking titles against the last 30 videos' }));
     await click(within(within(tile).getByRole('dialog')).getByRole('button', { name: 'Stop' }));
     expect(await within(tile).findByText(/This run is not running, so there is nothing to stop or steer\./)).toBeTruthy();
   });
@@ -166,15 +166,15 @@ describe('Today: Stop in Working now', () => {
     const { calls } = await start('#/today');
     const working = await screen.findByRole('region', { name: 'Working now' });
     await settle();
-    const stop = within(working).getByRole('button', { name: 'Stop run 31' });
+    const stop = within(working).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' });
     await click(stop);
-    const dialog = within(working).getByRole('dialog', { name: 'Stop run 31?' });
+    const dialog = within(working).getByRole('dialog', { name: 'Stop this run?' });
     await click(within(dialog).getByRole('button', { name: 'Force stop' }));
     await click(within(within(working).getByRole('dialog')).getByRole('button', { name: 'Force stop' }));
     expect(of(calls, 'venture.runs.stop')).toEqual([{ runId: '31', force: true }]);
     expect(await within(working).findByText(/The step in progress is thrown away: Rendering 3 of 6\./)).toBeTruthy();
     await waitFor(() => expect(within(working).getByText('Editor · Stopped by you. The step in progress was thrown away.')).toBeTruthy());
-    expect(within(working).queryByRole('button', { name: 'Stop run 31' })).toBeNull();
+    expect(within(working).queryByRole('button', { name: 'Stop: Cutting shorts from episode 13' })).toBeNull();
     expect(within(working).getAllByText('Stopped').length).toBeGreaterThan(0);
   });
 });
@@ -204,16 +204,16 @@ describe('4F3 review', () => {
   it('offers Force stop only on a run whose step is out, and keeps it while the run is Stopping', async () => {
     await start();
     const waiting = await tileOf('Pricing the sponsor slot');
-    await click(within(waiting).getByRole('button', { name: 'Stop run 29' }));
+    await click(within(waiting).getByRole('button', { name: 'Stop: Pricing the sponsor slot' }));
     expect(within(waiting).queryByRole('button', { name: 'Force stop' })).toBeNull();
     await click(within(waiting).getByRole('button', { name: 'Not now' }));
     const tile = await tileOf('Cutting shorts from episode 13');
-    await click(within(tile).getByRole('button', { name: 'Stop run 31' }));
+    await click(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
     await click(within(within(tile).getByRole('dialog')).getByRole('button', { name: 'Stop' }));
     expect(await within(tile).findByText('Stopping')).toBeTruthy();
     // The status line takes the focus, so a screen reader hears what the engine did.
     expect(document.activeElement).toBe(within(tile).getByText('Stop received. The step in progress finishes, then the run stops.'));
-    expect(within(tile).getByRole('button', { name: 'Force stop run 31' })).toBeTruthy();
+    expect(within(tile).getByRole('button', { name: 'Force stop: Cutting shorts from episode 13' })).toBeTruthy();
   });
 
   it("while paused, Work's head says so and a stopped run's primary is Unpause first", async () => {

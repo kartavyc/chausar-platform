@@ -118,7 +118,7 @@
     "one": "{count} tool call",
     "other": "{count} tool calls"
   },
-  "run.header": "{agent} · run {id}",
+  "run.header": "Run by {agent}",
   "run.started": "Started {elapsed} ago",
   "run.workedFor": "Worked for {elapsed}",
   "run.evidence": "Evidence",

@@ -83,7 +83,7 @@ describe('RunSheet', () => {
     const onEvidence = vi.fn();
     const onAnswer = vi.fn(async () => {});
     render(<RunSheetView run={run('29')} onClose={() => {}} onEvidence={onEvidence} onAnswer={onAnswer} />);
-    expect(screen.getByText('Producer · run 29')).toBeTruthy();
+    expect(screen.getByText('Run by Producer')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Pricing the sponsor slot' })).toBeTruthy();
     expect(screen.getByText('Started 6m ago')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'sponsor brief' }));

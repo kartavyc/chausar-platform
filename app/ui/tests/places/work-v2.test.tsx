@@ -150,7 +150,7 @@ describe('Work v2: running now', () => {
     expect(within(editor).getByText('Editor')).toBeTruthy();
     expect(within(editor).getByText('Lumen Studio')).toBeTruthy();
     expect(await within(editor).findByText('Rendering 3 of 6')).toBeTruthy();
-    expect(within(editor).getByText('Run 31 · 4m').className).toMatch(/mono/);
+    expect(within(editor).getByText('Started 4m ago').className).toMatch(/mono/);
     const researcher = await tileOf('Checking titles against the last 30 videos', running);
     expect(within(researcher).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     expect(await within(researcher).findByText('Comparing the two new titles')).toBeTruthy();
@@ -206,7 +206,7 @@ describe('Work v2: running now', () => {
     await start();
     const running = await screen.findByRole('region', { name: 'Running now' });
     await settle();
-    expect(within(running).getAllByRole('button', { name: /^Stop run \d+$/ }).length).toBe(3);
+    expect(within(running).getAllByRole('button', { name: /^Stop: / }).length).toBe(3);
     // Force stop sits behind Stop, and Resume only on a stopped run: nothing is stopped at rest.
     for (const name of [/^Force stop/, /^Resume/]) expect(screen.queryByRole('button', { name })).toBeNull();
   });
@@ -219,7 +219,7 @@ describe('Work v2: the failed run', () => {
     expect(screen.getByRole('region', { name: 'Failed' }).contains(stopped)).toBe(true);
     expect(within(stopped).getByRole('heading', { level: 3, name: 'Rendering the thumbnail set' })).toBeTruthy();
     expect(await within(stopped).findByText('Failed at step 2 of 3')).toBeTruthy();
-    expect(within(stopped).getByText('Editor · Lumen Studio · run 28 · 40s')).toBeTruthy();
+    expect(within(stopped).getByText('Editor · Lumen Studio · 40s')).toBeTruthy();
     expect(within(stopped).getByText('What went wrong')).toBeTruthy();
     expect(within(stopped).getByText('The renderer stopped: ffmpeg was not found on this computer.')).toBeTruthy();
     const steps = within(stopped).getByRole('list', { name: 'Steps' });
