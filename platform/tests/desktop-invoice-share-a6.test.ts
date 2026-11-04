@@ -55,7 +55,9 @@ test('A6: the draft is a new email to the client with the PDF attached, built on
   const [text, file] = [split(parts[1]!.slice(2)), split(parts[2]!.slice(2))];
   assert.deepEqual(text.head, ['Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64']);
   assert.equal(Buffer.from(text.rest.replace(/\r\n/g, ''), 'base64').toString('utf8'), BODY.replace(/\n/g, '\r\n'));
-  assert.deepEqual(file.head, ['Content-Type: application/pdf; name="INV-0001.pdf"', 'Content-Transfer-Encoding: base64', 'Content-Disposition: attachment; filename="INV-0001.pdf"']);
+  // Round 2: the name parameters fold onto their own lines.
+  assert.deepEqual(file.head, ['Content-Type: application/pdf;', ' name="INV-0001.pdf"', 'Content-Transfer-Encoding: base64', 'Content-Disposition: attachment;', ' filename="INV-0001.pdf"']);
+  assert.ok(eml.split('\r\n').every(line => line.length <= 76), 'every line of a draft with a usual name is within 76');
   assert.ok(file.rest.split('\r\n').every(line => line.length <= 76), 'base64 lines of 76 at most');
   assert.deepEqual(Buffer.from(file.rest.replace(/\r\n/g, ''), 'base64'), PDF);
   assert.notEqual(/boundary="([^"]+)"/.exec(draft())![1], boundary, 'a new boundary each time');
@@ -84,7 +86,10 @@ test('A6: header injection and odd files are refused, never written into the dra
   refused({ attachment: { name: 'INV-0001.pdf', mimeType: 'application/pdf', bytes: 'not bytes' } });
   refused({ body: 7 });
   const html = split(draft({ attachment: { name: 'INV-0001.html', mimeType: 'text/html', bytes: Buffer.from('<p>x</p>') } })).rest;
-  assert.ok(html.includes('Content-Type: text/html; name="INV-0001.html"'));
+  assert.ok(html.includes('Content-Type: text/html;\r\n name="INV-0001.html"'));
+  // The longest file name and address Chausar allows stay within the 998 characters a mail line may hold.
+  const longest = draft({ to: `${'a'.repeat(64)}@${'b'.repeat(63)}.example`, attachment: { name: `${'A'.repeat(80)}.html`, mimeType: 'text/html', bytes: Buffer.from('x') } });
+  assert.ok(longest.split('\r\n').every(line => line.length <= 998));
 });
 
 // ---------------------------------------------------------------------------
@@ -131,7 +136,7 @@ test('A6: Email it writes the PDF and an .eml draft in the share folder and open
   assert.deepEqual(await readFile(join(s.folder, 'INV-0001.pdf')), PDF);
   const eml = await readFile(join(s.folder, 'INV-0001.eml'), 'utf8');
   assert.match(eml, /^To: client@example\.com\r\nSubject: Invoice INV-0001 from Ledger Cafe Books\r\nX-Unsent: 1\r\n/);
-  assert.ok(eml.includes('Content-Disposition: attachment; filename="INV-0001.pdf"'));
+  assert.ok(eml.includes(['Content-Disposition: attachment;', ' filename="INV-0001.pdf"'].join('\r\n')));
   assert.deepEqual((await readdir(s.folder)).sort(), ['INV-0001.eml', 'INV-0001.pdf'], 'no temporary file is left');
 
   for (const bad of [{ invoiceId: 'inv-0001' }, { invoiceId: 'inv-0001', how: 'gmail' }, { invoiceId: '../x', how: 'email' }, { invoiceId: 'inv-0001', how: 'email', path: 'C:/x.eml' },

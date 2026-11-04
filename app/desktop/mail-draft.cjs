@@ -76,9 +76,13 @@ function buildEml(input) {
     '',
     base64Lines(Buffer.from(text, 'utf8')),
     `--${boundary}`,
-    `Content-Type: ${attachment.mimeType}; name="${name}"`,
+    // A6 round 2: the name parameters fold onto their own lines, so a usual name keeps every line within 76; the longest
+    // name Chausar makes (80 characters) stays well within the 998 a mail line may hold.
+    `Content-Type: ${attachment.mimeType};`,
+    ` name="${name}"`,
     'Content-Transfer-Encoding: base64',
-    `Content-Disposition: attachment; filename="${name}"`,
+    'Content-Disposition: attachment;',
+    ` filename="${name}"`,
     '',
     base64Lines(attachment.bytes),
     `--${boundary}--`,
