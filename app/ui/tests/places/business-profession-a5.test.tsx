@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { ComplianceLite, EngineClient, MethodName } from '../../src/engine/types';
+import { EngineError, type ComplianceLite, type EngineClient, type MethodName } from '../../src/engine/types';
 
 const settle = async () => { for (let i = 0; i < 6; i++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
 
-async function open(recorded: string | null) {
+async function open(recorded: string | null, fail: string | null = null) {
   const engine = new FakeEngine();
   if (recorded) {
     const view = await engine.request('venture.compliance.get', { profession: recorded }) as ComplianceLite;
@@ -17,7 +17,7 @@ async function open(recorded: string | null) {
   }
   const fake = createFakeClient(engine);
   const calls: [string, unknown][] = [];
-  const client: EngineClient = { ...fake, request: (async (method: MethodName, params?: unknown) => { calls.push([method, params]); return fake.request(method as never, params as never); }) as EngineClient['request'] };
+  const client: EngineClient = { ...fake, request: (async (method: MethodName, params?: unknown) => { calls.push([method, params]); if (method === fail && (method !== 'venture.owner.set' || calls.filter(([name]) => name === method).length === 1)) throw new EngineError('VAULT_BUSY', 'Chausar is busy. Try again.'); return fake.request(method as never, params as never); }) as EngineClient['request'] };
   window.location.hash = '#/business/owner';
   render(<App client={client} language="en" />);
   await settle();
@@ -73,4 +73,34 @@ describe('Business > About you: your profession (A5)', () => {
     expect(within(tile).getByText('Not picked yet.')).toBeTruthy();
     expect(within(tile).getByRole('button', { name: 'Pick your profession' })).toBeTruthy();
   });
+});
+
+describe('Business > About you: a profession change is all or nothing (A5 fix round 1)', () => {
+  async function change(fail: string) {
+    const opened = await open('home-chef-tiffin', fail);
+    await act(async () => { fireEvent.click(within(opened.tile).getByRole('button', { name: 'Change' })); });
+    await act(async () => { fireEvent.change(within(opened.tile).getByRole('combobox', { name: 'Profession' }), { target: { value: 'advocate' } }); });
+    const check = await within(opened.tile).findByRole('region', { name: 'Day job and rules' });
+    await act(async () => { fireEvent.click(within(check).getByRole('radio', { name: 'I am not sure' })); });
+    await act(async () => { fireEvent.click(within(check).getByRole('button', { name: 'Continue' })); });
+    return opened;
+  }
+
+  it('sets the field first, so a field that fails records no profession', async () => {
+    const { engine, calls, tile } = await change('venture.owner.set');
+    expect(await within(tile).findByRole('alert')).toHaveProperty('textContent', 'Chausar is busy. Try again.');
+    expect(calls.some(([method]) => method === 'venture.compliance.set')).toBe(false);
+    expect(((await engine.request('venture.compliance.get', {})) as ComplianceLite).recorded?.professionId).toBe('home-chef-tiffin');
+    // The change stays open, so the owner can try again.
+    expect(within(tile).getByRole('combobox', { name: 'Profession' })).toBeTruthy();
+  }, 20000);
+
+  it('puts the field back when the profession then fails to record', async () => {
+    const { calls, tile } = await change('venture.compliance.set');
+    expect(await within(tile).findByRole('alert')).toHaveProperty('textContent', 'Chausar is busy. Try again.');
+    const fields = calls.filter(([method]) => method === 'venture.owner.set').map(([, params]) => params);
+    expect(fields).toEqual([{ familyId: 'licensed' }, { familyId: 'local-services' }]);
+    const order = calls.map(([method]) => method).filter((method) => method === 'venture.owner.set' || method === 'venture.compliance.set');
+    expect(order).toEqual(['venture.owner.set', 'venture.compliance.set', 'venture.owner.set']);
+  }, 20000);
 });

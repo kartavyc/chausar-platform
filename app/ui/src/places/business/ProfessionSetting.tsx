@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import { ComplianceCheck } from '../../parts/ComplianceCheck';
+import { ComplianceCheck, type ComplianceAnswer } from '../../parts/ComplianceCheck';
 import { TileSection, messageOf } from './shared';
 import b from './Business.module.css';
 import s from './ProfessionSetting.module.css';
@@ -12,9 +12,10 @@ import s from './ProfessionSetting.module.css';
  * are you?", changeable here). It names the profession the business's rules follow (venture.compliance.get), or says
  * none is picked yet (a business that kept only its field, or none). Change lists every profession by field, in the
  * engine's order (venture.about.families), then the same rules check onboarding shows, for the one picked: its own
- * rules, switch-offs, hard stops and, when a rule counts it, the size. That check's Continue records the profession
- * and the side-work answer (venture.compliance.set); when the field changed too, venture.owner.set { familyId } keeps
- * Connections' list in step. onChanged lets the page read the size again. Every rule word is the engine's.
+ * rules, switch-offs, hard stops and, when a rule counts it, the size. That check hands its answer back, and this
+ * records it all or nothing (record): the field first when it changed (venture.owner.set { familyId }, which keeps
+ * Connections' list in step), then the profession and side-work answer (venture.compliance.set). onChanged lets the
+ * page read the size again. Every rule word is the engine's.
  */
 export function ProfessionSetting({ onChanged }: { onChanged?: () => void }) {
   const t = useT();
@@ -40,14 +41,29 @@ export function ProfessionSetting({ onChanged }: { onChanged?: () => void }) {
     setProblem(null);
   }
 
-  async function recorded(profession: string) {
-    const family = familyOf(profession);
+  /**
+   * A5 fix round 1: all or nothing. The field goes first; if it fails nothing is recorded. Then the profession and the
+   * side-work answer; if that fails, the field is put back, so the two never disagree.
+   */
+  async function record(answer: ComplianceAnswer) {
+    const family = familyOf(answer.profession);
+    const before = data?.profession.family ?? null;
+    const moves = family !== null && family !== before;
+    setProblem(null);
     try {
-      if (family && family !== data?.profession.family) await client.request('venture.owner.set', { familyId: family });
-      setSaid(true);
+      if (moves) await client.request('venture.owner.set', { familyId: family });
     } catch (error) {
       setProblem(messageOf(error));
+      return;
     }
+    try {
+      await client.request('venture.compliance.set', { profession: answer.profession, sideWork: answer.sideWork, digest: answer.digest, ...(answer.size ? { size: answer.size } : {}) });
+    } catch (error) {
+      if (moves && before) await client.request('venture.owner.set', { familyId: before }).catch(() => undefined);
+      setProblem(messageOf(error));
+      return;
+    }
+    setSaid(true);
     setOpen(false);
     view.reload();
     onChanged?.();
@@ -82,7 +98,7 @@ export function ProfessionSetting({ onChanged }: { onChanged?: () => void }) {
             <p className={b.note}>{t('business.profession.hint')}</p>
           </div>
           {families.error && <p className={b.problem} role="alert">{messageOf(families.error)}</p>}
-          {picked && picked !== current && <ComplianceCheck key={picked} profession={picked} onDone={(answer) => void recorded(answer.profession)} />}
+          {picked && picked !== current && <ComplianceCheck key={picked} profession={picked} record={false} onDone={(answer) => void record(answer)} />}
           <span className={b.buttons}>
             <Button variant="quiet" onClick={() => setOpen(false)}>{t('business.profession.cancel')}</Button>
           </span>
