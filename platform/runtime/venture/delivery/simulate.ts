@@ -31,7 +31,6 @@ import { REQUIRED_SECTIONS } from '../contracts.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
 import { refuseNewWork } from './run-guards.ts';
 import { PRESETS } from '../models/presets.ts';
-import { OWN_PLAN_WORDS } from '../models/cost.ts';
 import { scanTrace } from './trace-scan.ts';
 
 export const CLIENT_SIM_INSTRUCTIONS = 'You play a made-up client of a small service business, for a practice run. '
@@ -437,6 +436,8 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
 const ON_OWN_PLAN: ReadonlySet<string> = new Set(PRESETS.filter(preset => preset.kind === 'claude-cli' || preset.kind === 'codex-cli').map(preset => preset.id));
 /** Some calls ran on a key, some on the owner's own plan. */
 export const OWN_PLAN_PART = ' (plus calls on your own plan)';
+/** A4 review (L4): what a rehearsal or loop costs when it all ran on the owner's own plan. */
+export const RAN_ON_OWN_PLAN = 'Ran on your own plan.';
 
 /** Cost words and the model mode for a list of spends. */
 export function spendSummary(spend: readonly Spend[]): { costMicros: string; costDisplay: string; modelMode: SimulationRunRecord['modelMode'] } {
@@ -446,8 +447,11 @@ export function spendSummary(spend: readonly Spend[]): { costMicros: string; cos
   // One-shot A4 (hands-on row 103): Claude Code and Codex run on the owner's own plan; their calls cost Chausar nothing to
   // count, so the words say where they ran instead of a bare USD 0.0000.
   const ownPlan = spend.filter(item => item.by === 'model' && ON_OWN_PLAN.has(item.presetId ?? ''));
-  const plan = !ownPlan.length ? '' : ownPlan.length === spend.filter(item => item.by === 'model').length ? OWN_PLAN_WORDS : OWN_PLAN_PART;
-  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}${plan}`, modelMode: byModel && byTemplate ? 'mixed' : byModel ? 'model' : 'template' };
+  const modelMode = byModel && byTemplate ? 'mixed' : byModel ? 'model' : 'template';
+  // A4 review (L4): every AI call ran on the owner's own plan and nothing was charged to a key: no amount at all.
+  if (ownPlan.length && ownPlan.length === spend.filter(item => item.by === 'model').length && BigInt(costMicros) === 0n) return { costMicros, costDisplay: RAN_ON_OWN_PLAN, modelMode };
+  const plan = ownPlan.length ? OWN_PLAN_PART : '';
+  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}${plan}`, modelMode };
 }
 
 /** venture.simulation.run: practise on made-up clients with the current playbook. */
