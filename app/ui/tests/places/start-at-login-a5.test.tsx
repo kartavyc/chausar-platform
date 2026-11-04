@@ -57,7 +57,8 @@ describe('first run: start at login (A5)', () => {
   it('unticked, it saves the no and registers nothing', async () => {
     const { computer } = start();
     await toServices();
-    await act(async () => { fireEvent.click(await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 })); });
+    const box = await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 });
+    await act(async () => { fireEvent.click(box); });
     await press('Go to Today');
     await waitFor(() => expect(computer!.changes).toEqual([{ startAtLogin: false }]), { timeout: 4000 });
     expect(computer!.computer.registered).toBe(false);
@@ -110,7 +111,8 @@ describe('Business > Notifications: start at login and keep running (A5, row 4)'
     const computer = createFakeBackground({ asked: true, startAtLogin: false, registered: false, refuses: true });
     start({ fresh: false, hash: '#/business/notifications', computer });
     const tile = await panel();
-    await act(async () => { fireEvent.click(await tile.findByRole('checkbox', { name: SWITCH }, { timeout: 4000 })); });
+    const login = await tile.findByRole('checkbox', { name: SWITCH }, { timeout: 4000 });
+    await act(async () => { fireEvent.click(login); });
     expect(await tile.findByRole('alert', {}, { timeout: 4000 })).toHaveProperty('textContent', "Your computer didn't take this change. Check its startup settings.");
     expect((tile.getByRole('checkbox', { name: SWITCH }) as HTMLInputElement).checked).toBe(false);
   });
