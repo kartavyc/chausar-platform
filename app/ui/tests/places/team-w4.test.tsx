@@ -226,7 +226,7 @@ describe('Team w4: Keeper', () => {
   it('is code, not AI: a chip says so, no Chat button, no posture, and one row per job with its last run or the engine\'s note', async () => {
     start();
     const keeper = await cardOf('Keeper');
-    expect(within(keeper).getByText('Works by fixed rules, no AI')).toBeTruthy();
+    expect(within(keeper).getByText('Fixed rules, no AI')).toBeTruthy();
     expect(within(keeper).queryByRole('button', { name: /chat/i })).toBeNull();
     expect(keeper.querySelector('[data-posture]')).toBeNull();
     const jobs = await within(keeper).findByRole('list', { name: "Keeper's jobs" });
@@ -256,7 +256,7 @@ describe('Team w4: Keeper', () => {
     start();
     await click(await within(main()).findByRole('button', { name: 'Keeper' }));
     const sheet = await screen.findByRole('complementary', { name: 'Keeper' });
-    expect(within(sheet).getByText('Works by fixed rules, no AI')).toBeTruthy();
+    expect(within(sheet).getByText('Fixed rules, no AI')).toBeTruthy();
     expect(await within(sheet).findByRole('list', { name: "Keeper's jobs" })).toBeTruthy();
     expect(within(sheet).queryByRole('radiogroup')).toBeNull();
     expect(within(sheet).queryByRole('group', { name: 'How much it asks you' })).toBeNull();

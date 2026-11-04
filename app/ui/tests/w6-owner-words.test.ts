@@ -64,7 +64,7 @@ describe('one-shot B1: no engine or developer words on a screen', () => {
   it('says the plain words the copy pass chose', () => {
     expect(catalogue['status.offline']).toBe("Chausar isn't answering. Nothing here is live until it's back.");
     expect(catalogue['money-pay.fixture']).toBe('Not tried live yet');
-    expect(catalogue['team.keeper.code']).toBe('Works by fixed rules, no AI');
+    expect(catalogue['team.keeper.code']).toBe('Fixed rules, no AI');
     expect(catalogue['chats.counted.title']).toBe("Counts from your records. The summary didn't work this time.");
     expect(catalogue['business.experimental']).toBe("Test version: practise here, don't send real invoices yet.");
   });
