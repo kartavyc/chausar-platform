@@ -105,3 +105,18 @@ test('A4 review: ids, counts, dates, phones and PIN codes beside a receipted amo
     assert.equal(editAmountsCheck(text, { ...input, agentWords: '' }).detail, OWN_WORDS_AMOUNT, text);
   }
 });
+
+// A4 review round 2: a number joined before the amount ("3 x", "between 4,000 and", "from 3,000 to"), or after it by
+// "or" or "and" with an amount-sized number, is money too. Kept unchanged from the agent, each fails; written by the
+// editor, each is their own money words. Ids, counts, dates and phones beside an amount still pass.
+test('A4 review round 2: joins before the amount, and "or" or "and" after it, are the editor\'s own money words', () => {
+  const input = { receipted: ['INR 5,000.00'], agentWords: '', clientWords: '', currency: 'INR' };
+  for (const text of ['It is 3 x INR 5,000.00 in total.', 'Between 4,000 and INR 5,000.00.', 'From 3,000 to INR 5,000.00.', 'It is INR 5,000.00 or 9,000.', 'It is INR 5,000.00 and 4,000 more.']) {
+    assert.deepEqual([editAmountsCheck(text, input).passed, editAmountsCheck(text, input).detail], [true, OWN_WORDS_AMOUNT], text);
+    assert.equal(editAmountsCheck(text, { ...input, agentWords: text }).passed, false, `${text} kept from the agent`);
+  }
+  const agent = 'Invoice INV-0001 - INR 5,000.00 is due on 3 Nov. It is INR 5,000.00 and 2 hours of shooting. Order 12 and INR 5,000.00 are paid. Call 98200 12345 or INR 5,000.00 by 2 Nov.';
+  for (const text of agent.split(/(?<=\.)\s+/)) {
+    assert.deepEqual([editAmountsCheck(text, { ...input, agentWords: agent }).passed, editAmountsCheck(text, { ...input, agentWords: agent }).detail], [true, EVERY], text);
+  }
+});

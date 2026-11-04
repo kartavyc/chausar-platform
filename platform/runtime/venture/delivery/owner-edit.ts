@@ -95,6 +95,17 @@ function currencyOf(written: string, business: string | undefined): string {
  * phone number, a PIN code) is words, so a sentence the agent wrote, kept unchanged, never fails over it.
  */
 const JOINED = /^\s*(?:[-–]|to\b|plus\b|\+|x\b|×|\*|times\b)\s*\p{Nd}/iu;
+/**
+ * A4 review round 2: an amount-sized number (grouped, three digits or more, or with a decimal), as "or" and "and" join
+ * one to an amount ("INR 5,000.00 or 9,000", "4,000 and INR 5,000.00"); "and 2 hours" is a count, so it stays words.
+ */
+const SIZED = String.raw`(?:\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d{3,}(?:\.\d{1,2})?|\d+\.\d{1,2})(?![\d,.]*\d)`;
+const JOINED_OR = new RegExp(String.raw`^\s*(?:or|and)\s+${SIZED}`, 'iu');
+/**
+ * The same joins written before the amount ("3 x INR 5,000.00", "from 3,000 to", "between 4,000 and"), never part of an
+ * id ("INV-0001 -") or of a phone number written in groups ("98200 12345 or").
+ */
+const JOINED_BEFORE = new RegExp(String.raw`(?<![\p{L}\d.,-])(?<!\d\s)(?:\d[\d,.]*\s*(?:[-–]|to|plus|\+|x|×|\*|times)|${SIZED}\s+(?:and|or))\s*$`, 'iu');
 
 /**
  * The money in some words: each exact amount by its value, and each clause with money that is not, by its words.
@@ -109,7 +120,8 @@ const JOINED = /^\s*(?:[-–]|to\b|plus\b|\+|x\b|×|\*|times\b)\s*\p{Nd}/iu;
     for (const match of clause.matchAll(EXACT)) {
       keys.push({ key: `${currencyOf((match[1] ?? match[4])!, currency)}:${minorOf((match[2] ?? match[3])!)}`, text: match[0].trim() });
       rest = rest.replace(match[0], ' ');
-      if (JOINED.test(clause.slice(match.index! + match[0].length))) joined = true;
+      const after = clause.slice(match.index! + match[0].length), before = clause.slice(0, match.index!);
+      if (JOINED.test(after) || JOINED_OR.test(after) || JOINED_BEFORE.test(before)) joined = true;
     }
     if (statesMoney(rest, '') || joined) keys.push({ key: `words:${foldedWords(clause).toLowerCase()}`, text: foldedWords(clause) });
   }
