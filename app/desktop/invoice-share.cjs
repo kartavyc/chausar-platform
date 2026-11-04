@@ -104,10 +104,19 @@ async function shareInvoice(event, input, deps) {
     // Everything is checked before anything is written or opened.
     let eml = null, mail = null, appLink = null, webLink = null;
     if (how === 'email') {
-      const parts = mailtoParts(file.share.mailtoUrl);
+      // A6 round 1: an address the engine keeps but a mail link cannot carry (o'brien@, a&b@, a name with accents) is
+      // left out: the draft and the link go with no To line, and the owner adds the address. The subject and body are
+      // checked the same either way.
+      let link = typeof file.share.mailtoUrl === 'string' ? file.share.mailtoUrl : '';
+      let parts = mailtoParts(link);
+      if (!parts) {
+        const bare = link.replace(/^mailto:[^?#]*/i, 'mailto:');
+        parts = bare !== link ? mailtoParts(bare) : null;
+        link = bare;
+      }
       if (!parts) throw notMade();
       try { eml = buildEml({ to: parts.address, subject: parts.subject, body: parts.body, attachment: { name: file.name, mimeType: file.mimeType, bytes: file.bytes } }); } catch { throw notMade(); }
-      mail = { to: parts.address !== '' };
+      mail = { to: parts.address !== '', link };
     } else {
       appLink = whatsappAppUrl(file.share.whatsappUrl);
       if (!appLink) throw notMade();
@@ -123,7 +132,7 @@ async function shareInvoice(event, input, deps) {
       const problem = await Promise.resolve(deps.shell.openPath(draftPath)).catch(error => String(error?.message ?? error) || 'failed');
       if (problem !== '') {
         // The mail link only when the gate opens it (a long message is too long for one link): then nothing opened.
-        try { await deps.shell.openExternal(validateExternalUrl(file.share.mailtoUrl)); opened = 'link'; } catch { opened = 'none'; }
+        try { await deps.shell.openExternal(validateExternalUrl(mail.link)); opened = 'link'; } catch { opened = 'none'; }
       }
       return { ok: true, result: { how, opened, file: file.name, to: mail.to, note: file.note } };
     }

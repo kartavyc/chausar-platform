@@ -273,3 +273,21 @@ test('A6 round 1 (lows 4 and 5): every header line of the draft stays within 76;
   const joined = 'Invoice from क्‌ष Studio';
   assert.equal(decodeSubject(headLines(joined)), joined, 'the joiners Indian scripts need are kept');
 });
+
+test('A6 round 1 (medium 2): a client email the engine keeps but a mail link cannot carry leaves the To line for the owner', async t => {
+  for (const address of ["o'brien@example.com", 'a&b@example.com', 'anu@exämple.in']) {
+    const file = engineFile({ share: { ...engineFile().share, mailtoUrl: mailto(address) } });
+    const s = await shareDeps(t, { file });
+    const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, s.deps);
+    assert.deepEqual(reply.result, { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: false, note: null }, address);
+    const eml = await readFile(join(s.folder, 'INV-0001.eml'), 'utf8');
+    assert.ok(!eml.includes('To:') && eml.includes(`Subject: ${SUBJECT}`), address);
+    const link = await shareDeps(t, { file, openPath: 'No app.' });
+    assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, link.deps)).result.opened, 'link');
+    assert.deepEqual(link.opened, [`mailto:?subject=${encodeURIComponent(SUBJECT)}&body=${encodeURIComponent(BODY)}`], 'the link carries no address either');
+  }
+  // A broken subject is still refused, address or not.
+  const bad = await shareDeps(t, { file: engineFile({ share: { ...engineFile().share, mailtoUrl: `mailto:${encodeURIComponent("o'brien@example.com")}?subject=${encodeURIComponent('Hi\r\nBcc: x@example.com')}&body=x` } }) });
+  assert.equal((await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'email' }, bad.deps)).error.code, 'REQUEST_FAILED');
+  assert.throws(() => contract.validateExternalUrl(mailto("o'brien@example.com")), (error: any) => error.code === 'INVALID_EXTERNAL_URL', 'links stay strict');
+});
