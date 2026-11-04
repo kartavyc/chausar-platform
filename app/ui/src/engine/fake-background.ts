@@ -2,7 +2,7 @@
  * One-shot A5: a sample computer's start at login and keep running, answering as the desktop's background.cjs does
  * through the window's getBackground and setBackground (main.cjs channels): the saved answer, whether it was asked, and
  * the login item read back from the computer (registered, or there but switched off by the computer's own startup
- * settings). A change of Keep running alone before start at login was answered saves what the computer does now.
+ * settings). A change of Keep running alone is saved on its own and answers nothing (A5 fix round 4).
  * Tests and the dev page spread it onto a fake client; nothing here touches a real computer. refuses: the computer
  * keeps its login item as it was (a change that did not take), so the window's own check can be seen. A5 fix round 3:
  * getAskLater and setAskLater keep the day Today's question was put aside, apart from the answer, as the desktop does.
@@ -35,14 +35,14 @@ export function createFakeBackground(start: FakeBackgroundStart = {}) {
       const keys = Object.keys(update);
       if (keys.length === 0 || keys.some((key) => !['startAtLogin', 'keepRunning'].includes(key) || typeof update[key as keyof typeof update] !== 'boolean')) throw new EngineError('INVALID_REQUEST', 'Change start at login or keep running, as on or off.');
       changes.push({ ...update });
-      // As background.cjs: what the computer has now; a login item it switched off counts as a yes it switched off.
-      if (!saved.asked && typeof update.startAtLogin !== 'boolean') saved.startAtLogin = computer.registered || computer.systemOff;
+      // As background.cjs (A5 fix round 4): only the start-at-login answer answers. Keep running alone is saved on its
+      // own, and the login item is left as it is.
       if (typeof update.startAtLogin === 'boolean') {
         saved.startAtLogin = update.startAtLogin;
+        saved.asked = true;
         if (!start.refuses) { computer.registered = update.startAtLogin; computer.systemOff = false; }
       }
       if (typeof update.keepRunning === 'boolean') saved.keepRunning = update.keepRunning;
-      saved.asked = true;
       return state();
     },
   };

@@ -288,3 +288,24 @@ describe('Business > Notifications reads the computer again (A5 fix round 1, fin
     expect(tile.getByText("Your computer's startup settings turned this off. Tick it to turn it back on.")).toBeTruthy();
   });
 });
+
+// A5 fix round 4 (finding 1): only the start-at-login answer answers. Keep running switched in Business > Notifications
+// before that answer leaves start at login unanswered and the login item as it is, so Today still asks.
+describe('Keep running before the answer is no answer (A5 fix round 4)', () => {
+  for (const [name, first] of [['an older silent install', { registered: true }], ['a fresh install', {}]] as const) {
+    it(`${name}: Today still asks after Keep running is switched`, async () => {
+      const computer = createFakeBackground(first);
+      const was = { ...computer.computer };
+      start({ fresh: false, hash: '#/business/notifications', computer });
+      const tile = within(await screen.findByRole('region', { name: 'Keeps running while Chausar is closed' }, { timeout: 4000 }));
+      const tray = await tile.findByRole('checkbox', { name: TRAY }, { timeout: 4000 });
+      await act(async () => { fireEvent.click(tray); });
+      await waitFor(() => expect(computer.changes).toEqual([{ keepRunning: false }]), { timeout: 4000 });
+      expect(computer.computer).toEqual(was);
+      expect((await computer.getBackground()).asked).toBe(false);
+      cleanup();
+      start({ fresh: false, computer });
+      expect(await screen.findByRole('checkbox', { name: TICK }, { timeout: 4000 })).toBeTruthy();
+    }, 20000);
+  }
+});
