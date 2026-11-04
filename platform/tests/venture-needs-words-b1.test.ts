@@ -33,3 +33,9 @@ test("a built service that waits on the owner's own key says so, and where to ad
   assert.equal(probe.waitsOn, 'Needs your own Probe42 key, added in Connections, More ways to connect. Not tried on a live account yet.');
   assert.equal(probe.meanwhile, 'Check a company on the MCA website yourself.');
 });
+
+test('the phone access row says what it is for, and names Tailscale in its line (SCREENS shot 5)', () => {
+  const phone = businessNeeds('teaching', 'IN').find(need => need.id === 'tailscale')!;
+  assert.equal(phone.name, 'Phone approvals');
+  assert.match(phone.why, /Tailscale/);
+});

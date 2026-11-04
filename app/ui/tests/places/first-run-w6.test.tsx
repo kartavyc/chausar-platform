@@ -221,7 +221,7 @@ describe('first run, step 3: Connect what your business needs', () => {
     expect(calls.find(([method]) => method === 'venture.owner.set')?.[1]).toEqual({ familyId: 'teaching' });
     const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' });
     const rows = within(list).getAllByRole('listitem');
-    expect(rows.map((row) => row.querySelector('[class*="needName"]')?.textContent)).toEqual(['Google Calendar', 'WhatsApp', 'Razorpay', 'Tally forms', 'Telegram alerts', 'Tailscale']);
+    expect(rows.map((row) => row.querySelector('[class*="needName"]')?.textContent)).toEqual(['Google Calendar', 'WhatsApp', 'Razorpay', 'Tally forms', 'Telegram alerts', 'Phone approvals']);
     expect(within(rows[0]!).getByText('Reads')).toBeTruthy();
     expect(within(rows[0]!).getByRole('button', { name: 'Set up' })).toBeTruthy();
     // A planned service says what it waits on and offers nothing to connect.

@@ -37,7 +37,7 @@ const SERVICES: Readonly<Record<string, Service>> = Object.freeze({
   },
   tailscale: {
     // 6F7: built; the phone access guide is docs/venture/phone-access.md.
-    id: 'tailscale', name: 'Tailscale', connect: 'guide', why: 'Approve work from your phone when you are away from home.',
+    id: 'tailscale', name: 'Phone approvals', connect: 'guide', why: 'Approve work from your phone when you are away from home, through Tailscale.',
   },
   happenstance: {
     id: 'happenstance', name: 'Happenstance', connect: 'key', why: 'Find people in your own network who could become clients.',

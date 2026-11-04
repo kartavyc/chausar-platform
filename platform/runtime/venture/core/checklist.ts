@@ -14,7 +14,7 @@ const ITEMS: readonly { id: ChecklistItemId; label: string; place: LaunchPlace; 
   { id: 'plan', label: 'Accept your plan', place: 'business', link: '#/business/plan' },
   { id: 'prices', label: 'Set your prices', place: 'business', link: '#/business/prices' },
   { id: 'brief', label: 'Write the build brief', place: 'build', link: '#/business/build' },
-  { id: 'builder', label: 'Open it in Lovable or Replit', place: 'build', link: '#/business/build' },
+  { id: 'builder', label: 'Build your website', place: 'build', link: '#/business/build' },
   { id: 'repo', label: 'Follow the build on GitHub', place: 'build', link: '#/business/build' },
   { id: 'rehearsal', label: 'Rehearse with practice clients', place: 'agents', link: '#/business/practice' },
   { id: 'first-client', label: 'Add your first client', place: 'clients', link: '#/clients' },

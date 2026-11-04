@@ -17,7 +17,7 @@
   "chats.list.wakes": "comes back",
   "chats.list.settled": {"one": "{count} settled chat", "other": "{count} settled chats"},
   "chats.thread.new": "New chat",
-  "chats.thread.role": "Chief of staff · reads your books, team and receipts",
+  "chats.thread.role": "Reads your books, team and receipts",
   "chats.thread.pin": "Pin",
   "chats.thread.actions": "Chat actions",
   "chats.thread.snooze": "Snooze",

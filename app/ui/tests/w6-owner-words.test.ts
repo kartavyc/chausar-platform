@@ -67,6 +67,7 @@ describe('one-shot B1: no engine or developer words on a screen', () => {
     expect(catalogue['team.keeper.code']).toBe('Fixed rules, no AI');
     expect(catalogue['chats.counted.title']).toBe("Counts from your records. The summary didn't work this time.");
     expect(catalogue['business.experimental']).toBe("Test version: practise here, don't send real invoices yet.");
+    expect(catalogue['chats.thread.role']).toBe('Reads your books, team and receipts');
   });
 });
 

@@ -28,7 +28,7 @@ import { decideImport } from './export.ts';
 /** The label on a change drafted from the owner's own words rather than by the owner's AI. */
 export const FROM_YOUR_WORDS = 'Drafted by Chausar from your words';
 /** The agent's reply when it drafts a change. */
-export const STANDING_REPLY = "You said 'from now on', so here is the change to my instructions.";
+export const STANDING_REPLY = "Got it. I've proposed it as a new rule for you to approve.";
 
 /** The typed patch the agent drafts: one guidance change on one of its own steps. */
 export type DraftedPatch = { stepId: string; op: 'guidance.add' | 'guidance.remove'; value: string };

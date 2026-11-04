@@ -150,7 +150,7 @@ test('standing request: the agent drafts a typed patch on its own step, code che
   assert.equal(sent.added[1].proposal.id, stored.id);
   assert.equal(sent.added[1].proposal.status, 'drafted');
   assert.equal(sent.added[1].proposal.title, "Proposed change to Story editor's instructions");
-  assert.deepEqual(sent.added[2].message.parts, [{ kind: 'text', text: "You said 'from now on', so here is the change to my instructions." }]);
+  assert.deepEqual(sent.added[2].message.parts, [{ kind: 'text', text: "Got it. I've proposed it as a new rule for you to approve." }]);
   assert.equal(sent.added[2].message.from, 'agent');
   assert.equal(playbookIdOf(env), playbook.id, 'nothing changes until the owner accepts');
   assert.equal(agentEvents(env).length, 2, 'one agent.message per stored message');

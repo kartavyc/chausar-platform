@@ -102,7 +102,7 @@ describe('Business > Plan: the setup steps by name', () => {
     const left = await within(setup).findByRole('list', { name: 'Next steps' });
     const links = within(left).getAllByRole('link');
     expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Open it in Lovable or Replit', '#/business/build'],
+      ['Build your website', '#/business/build'],
       ['Follow the build on GitHub', '#/business/build'],
       ['Rehearse with practice clients', '#/business/practice'],
     ]);
