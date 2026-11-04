@@ -90,32 +90,28 @@ function currencyOf(written: string, business: string | undefined): string {
   return CURRENCY[word] ?? business ?? 'XXX';
 }
 /**
- * One-shot A4 (A3 leftover): numbers beside an amount that are not money: a date (3 Nov, November 3rd, 2026-11-03,
- * 03/11/2026), a time (10:30), a share (20%) and a year.
+ * A4 review (M1): a number joined to an exact amount as a range or a sum is money too ("Rs 5,000-9,000", "5,000 to
+ * 9,000", "5,000 plus 4,000", "INR 5,000.00 x 3"). Any other number beside it (an invoice number, a count, a date, a
+ * phone number, a PIN code) is words, so a sentence the agent wrote, kept unchanged, never fails over it.
  */
-const MONTH = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?`;
-const NOT_MONEY_NUMBERS = new RegExp([
-  String.raw`\b\d{4}-\d{2}-\d{2}\b`, String.raw`\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b`, String.raw`\b\d{1,2}:\d{2}\b`, String.raw`\b\d+(?:\.\d+)?\s?%`,
-  String.raw`\b\d{1,2}(?:st|nd|rd|th)?\s+${MONTH}`, String.raw`\b${MONTH}\s+\d{1,2}(?:st|nd|rd|th)?\b`, String.raw`\b(?:19|20)\d{2}\b`,
-].join('|'), 'giu');
+const JOINED = /^\s*(?:[-–]|to\b|plus\b|\+|x\b|×|\*|times\b)\s*\p{Nd}/iu;
 
 /**
  * The money in some words: each exact amount by its value, and each clause with money that is not, by its words.
- * currency: the business's own, for "$". One-shot A4: in a clause that holds an exact amount, any other number (not a
- * date, a time or a share) is money words too ("Rs 5,000-9,000", "INR 5,000.00 x 3"), so it is never passed over.
- */
-function moneyIn(words: string, currency?: string): { key: string; text: string }[] {
+ * currency: the business's own, for "$". A clause where a number is joined to an exact amount (JOINED) is kept by
+ * its words too, so the joined number is never passed over.
+ */function moneyIn(words: string, currency?: string): { key: string; text: string }[] {
   const keys: { key: string; text: string }[] = [];
   for (const clause of words.split(/(?<=(?<!\brs)[.!?;])\s+|\n+/iu)) {
     if (!clause.trim() || !statesMoney(clause, '')) continue;
     let rest = clause;
-    let exact = false;
+    let joined = false;
     for (const match of clause.matchAll(EXACT)) {
       keys.push({ key: `${currencyOf((match[1] ?? match[4])!, currency)}:${minorOf((match[2] ?? match[3])!)}`, text: match[0].trim() });
       rest = rest.replace(match[0], ' ');
-      exact = true;
+      if (JOINED.test(clause.slice(match.index! + match[0].length))) joined = true;
     }
-    if (statesMoney(rest, '') || (exact && /\p{Nd}/u.test(rest.replace(NOT_MONEY_NUMBERS, ' ')))) keys.push({ key: `words:${foldedWords(clause).toLowerCase()}`, text: foldedWords(clause) });
+    if (statesMoney(rest, '') || joined) keys.push({ key: `words:${foldedWords(clause).toLowerCase()}`, text: foldedWords(clause) });
   }
   return keys;
 }

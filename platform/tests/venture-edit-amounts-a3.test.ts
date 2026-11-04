@@ -90,3 +90,18 @@ test('A4: "$" reads as the business\'s own dollar currency, else USD', () => {
   assert.equal(editAmountsCheck('The fee is $5,000.', { ...none, receipted: ['USD 5,000.00'] }).detail, EVERY);
   assert.equal(editAmountsCheck('The fee is Rs 5,000.', { ...none, receipted: ['INR 5,000.00'], currency: 'SGD' }).detail, EVERY);
 });
+
+// A4 review (M1): a bare number is money only when it is joined to the amount as a range or a sum. Ids, counts, dates,
+// phone numbers and PIN codes beside an amount stay words, so a sentence the agent wrote with a receipted amount, kept
+// unchanged by an edit elsewhere, never fails.
+test('A4 review: ids, counts, dates, phones and PIN codes beside a receipted amount are not money', () => {
+  const agent = 'Hi Priya. Invoice INV-0001 for INR 5,000.00 is due on 3 Nov. The fee of INR 5,000.00 covers 2 hours of shooting. Call me on 98200 12345. Send it to Pune 411001 with INR 5,000.00.';
+  const input = { receipted: ['INR 5,000.00'], agentWords: agent, clientWords: '', currency: 'INR' };
+  for (const text of [agent.replace('Hi Priya.', 'Hi Priya!'), 'Hi Priya! Invoice INV-0001 for INR 5,000.00 is due on 3 Nov.', 'Hi Priya! The fee of INR 5,000.00 covers 2 hours of shooting.', 'INR 5,000.00 for 4 photos, order 1234.']) {
+    assert.deepEqual([editAmountsCheck(text, input).passed, editAmountsCheck(text, input).detail], [true, EVERY], text);
+  }
+  // Joined to the amount, a number is money: a range, "to", "plus", "x".
+  for (const text of ['The fee is Rs 5,000-9,000.', 'The fee is Rs 5,000 to 9,000.', 'It is Rs 5,000 plus 4,000 more.', 'That is INR 5,000.00 x 3.']) {
+    assert.equal(editAmountsCheck(text, { ...input, agentWords: '' }).detail, OWN_WORDS_AMOUNT, text);
+  }
+});
