@@ -26,6 +26,7 @@
     "!app/ui/tsconfig.json",
     "!app/ui/vite.config.ts",
     "!app/ui/vitest.config.ts",
+    "!app/desktop/icons/icon.icns",
     "platform/runtime/**/*",
     "platform/semantic-qualification/src/**/*",
     "platform/semantic-qualification/package.json",
@@ -49,7 +50,8 @@
     "target": [
       "zip"
     ],
-    "signAndEditExecutable": false
+    "signAndEditExecutable": false,
+    "icon": "app/desktop/icons/icon.ico"
   },
   "mac": {
     "target": [
@@ -58,14 +60,16 @@
     ],
     "identity": null,
     "hardenedRuntime": false,
-    "notarize": false
+    "notarize": false,
+    "icon": "app/desktop/icons/icon.icns"
   },
   "linux": {
     "target": [
       "AppImage",
       "tar.gz"
     ],
-    "category": "Office"
+    "category": "Office",
+    "icon": "app/desktop/icons/png"
   },
   "publish": null,
   "electronDist": "node_modules/electron/dist"

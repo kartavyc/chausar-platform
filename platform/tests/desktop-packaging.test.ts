@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 // A variable import allows Node's native TypeScript test runner to exercise the JS CLI without a TS emit step.
 const modulePath = '../../scripts/desktop-package.mjs';
 const desktopPackage = await import(modulePath);
-const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput, validateInkPackagingConfig, desktopPackageCommands, INK_SOURCE_EXCLUSIONS } = desktopPackage;
+const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput, validateInkPackagingConfig, desktopPackageCommands, INK_SOURCE_EXCLUSIONS, ICON_FILES } = desktopPackage;
 const preview = JSON.parse(await readFile(new URL('../../app/desktop/builder.preview.json', import.meta.url), 'utf8'));
 const final = JSON.parse(await readFile(new URL('../../app/desktop/builder.json', import.meta.url), 'utf8'));
 const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
@@ -18,8 +18,8 @@ const beta = JSON.parse(await readFile(new URL('../../app/desktop/builder.beta.j
 async function fixture(t: any, config = preview, betaConfig = beta) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-package-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const path of ['app/desktop', 'app/ui/src', 'platform/runtime']) await mkdir(join(root, path), { recursive: true });
-  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
+  for (const path of ['app/desktop/icons/png', 'app/ui/src', 'platform/runtime']) await mkdir(join(root, path), { recursive: true });
+  for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', ...ICON_FILES, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
   await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
   await writeFile(join(root, 'app/desktop/builder.preview.json'), JSON.stringify(config));
   await writeFile(join(root, 'app/desktop/builder.json'), JSON.stringify(final));
@@ -102,6 +102,15 @@ test('preview metadata, resources and native signing settings are distinct from 
   assert.equal(preview.electronDist, 'node_modules/electron/dist');
   assert.equal(preview.nsis, undefined);
   assert.deepEqual(final.win.target, ['nsis']);
+});
+
+test('a missing logo file stops packaging at the source check, and a config without the logo at the configuration check (A7)', async t => {
+  const root = await fixture(t);
+  await rm(join(root, 'app/desktop/icons/png/256x256.png'));
+  await writeFile(join(root, 'app/desktop/builder.preview.json'), JSON.stringify({ ...preview, linux: { ...preview.linux, icon: undefined } }));
+  const result = await desktopPackagePrerequisites({ root, environment: {} });
+  assert.ok(result.failures.some((failure: any) => failure.check === 'desktop source entrypoints'));
+  assert.ok(result.failures.some((failure: any) => failure.check === 'packaging configuration' && /icon/.test(failure.reason)));
 });
 
 test('preview preflight is read-only and identifies missing local dependencies without requiring signing keys', async t => {
@@ -290,7 +299,7 @@ test('the beta configuration: product Chausar, real data, unsigned NSIS per user
   assert.equal(beta.forceCodeSigning, false);
   assert.equal(beta.win.signAndEditExecutable, false);
   assert.deepEqual(beta.win.target, ['nsis']);
-  assert.deepEqual(beta.nsis, { oneClick: false, perMachine: false, allowElevation: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, createStartMenuShortcut: true, shortcutName: 'Chausar', deleteAppDataOnUninstall: false, runAfterFinish: true, include: 'app/desktop/installer.nsh' });
+  assert.deepEqual(beta.nsis, { oneClick: false, perMachine: false, allowElevation: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, createStartMenuShortcut: true, shortcutName: 'Chausar', deleteAppDataOnUninstall: false, runAfterFinish: true, include: 'app/desktop/installer.nsh', installerIcon: 'app/desktop/icons/icon.ico', uninstallerIcon: 'app/desktop/icons/icon.ico' });
   assert.deepEqual(beta.linux.target, ['deb', 'AppImage', 'tar.gz']);
   assert.deepEqual(beta.deb, { maintainer: 'Kartavy Chauhan <info@chausar.co.in>' });
   assert.equal(beta.linux.executableName, 'chausar');

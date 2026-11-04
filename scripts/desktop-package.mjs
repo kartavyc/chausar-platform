@@ -200,6 +200,20 @@ export function validateInkPackagingConfig(config) {
   if ((config.asarUnpack ?? []).some(glob => glob.startsWith('app/ui'))) throw new Error('the Ink build is read from the archive; it is never unpacked');
 }
 
+// One-shot A7: the founder's logo is the app icon in every build. The builder reads the Windows icon (the installer, the
+// uninstaller and Apps and Features too), the macOS icns and the Linux folder of sized PNGs (the deb and the AppImage);
+// the icns is only the builder's, so it stays out of the app archive. The running app reads the tray PNGs, the ico and
+// the 256 PNG (main.cjs).
+const ICON = Object.freeze({ win: 'app/desktop/icons/icon.ico', mac: 'app/desktop/icons/icon.icns', linux: 'app/desktop/icons/png' });
+const LINUX_ICON_SIZES = Object.freeze([16, 24, 32, 48, 64, 128, 256, 512]);
+export const ICON_FILES = Object.freeze([ICON.win, ICON.mac, ...LINUX_ICON_SIZES.map(size => `${ICON.linux}/${size}x${size}.png`)]);
+/** Every configuration names the logo for each system it builds, the installer and uninstaller included. */
+export function validateIconConfig(config) {
+  if (config.win?.icon !== ICON.win || config.linux?.icon !== ICON.linux || (config.mac !== undefined && config.mac.icon !== ICON.mac)) throw new Error(`the app icon is the logo: ${ICON.win} for Windows, ${ICON.linux} for Linux, ${ICON.mac} for macOS`);
+  if (config.nsis !== undefined && (config.nsis.installerIcon !== ICON.win || config.nsis.uninstallerIcon !== ICON.win)) throw new Error(`the installer and uninstaller icon is ${ICON.win}`);
+  if (!config.files?.includes(`!${ICON.mac}`)) throw new Error('the icns is for the builder only; the package leaves it out');
+}
+
 function validatePreviewConfig(config) {
   if (config.appId !== 'in.chausar.desktop.preview' || config.productName !== 'Chausar Unsigned Preview' || config.extraMetadata?.name !== 'chausar-preview' || config.extraMetadata?.chausarPreview !== true || config.extraMetadata?.chausarReleaseChannel !== 'unsigned-preview') throw new Error('preview requires a separate identity and explicit unsigned demo metadata');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
@@ -237,6 +251,7 @@ export function validateBetaConfig(config) {
   if (config.extends !== undefined || Object.keys(config).some(name => /^(before|after|artifactBuild|onNodeModule)/.test(name))) throw new Error('the beta cannot inherit another configuration or run custom build hooks');
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('the beta must use the verified local Electron distribution instead of another download');
   if (config.mac !== undefined) throw new Error('Mac is out of scope for the beta');
+  validateIconConfig(config);
   if (JSON.stringify(config.win?.target) !== JSON.stringify(['nsis']) || JSON.stringify(config.linux?.target) !== JSON.stringify(['deb', 'AppImage', 'tar.gz'])) throw new Error('beta targets are the Windows installer (NSIS) and Linux deb, AppImage and tar.gz');
   if (!/^[^<>]+ <[^@\s<>]+@[^@\s<>]+>$/.test(config.deb?.maintainer ?? '') || !/^https:\/\//.test(config.extraMetadata?.homepage ?? '')) throw new Error('the deb needs a maintainer with an email address and an https homepage');
   if ([config.linux, config.deb].some(options => Object.keys(options ?? {}).some(name => /^(after|before)/.test(name)))) throw new Error('the deb keeps the install scripts electron-builder ships, which set up the Chromium sandbox');
@@ -323,12 +338,13 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan = c
   };
   await check('Node runtime', () => { if (!nodeVersionSupported(process.versions.node)) throw new Error('Node 24.13.1 or later is required'); });
   await check('desktop source entrypoints', async () => {
-    for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));
+    for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', ...ICON_FILES, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));
   });
   await check('locked local packaging dependencies and Electron distribution', async () => { ({ cliPath, viteCli, version } = await dependencyPrerequisites(root, plan.platform)); });
   await check('packaging configuration', async () => {
     const config = JSON.parse(await readFile(join(root, plan.config), 'utf8'));
     validateInkPackagingConfig(config);
+    validateIconConfig(config);
     if (plan.mode === 'preview') validatePreviewConfig(config);
     else if (plan.mode === 'beta') validateBetaConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');

@@ -27,6 +27,7 @@
     "!app/ui/tsconfig.json",
     "!app/ui/vite.config.ts",
     "!app/ui/vitest.config.ts",
+    "!app/desktop/icons/icon.icns",
     {
       "from": "platform/runtime",
       "to": "platform/runtime",
@@ -95,7 +96,8 @@
     "target": [
       "nsis"
     ],
-    "signAndEditExecutable": false
+    "signAndEditExecutable": false,
+    "icon": "app/desktop/icons/icon.ico"
   },
   "nsis": {
     "oneClick": false,
@@ -107,7 +109,9 @@
     "shortcutName": "Chausar",
     "deleteAppDataOnUninstall": false,
     "runAfterFinish": true,
-    "include": "app/desktop/installer.nsh"
+    "include": "app/desktop/installer.nsh",
+    "installerIcon": "app/desktop/icons/icon.ico",
+    "uninstallerIcon": "app/desktop/icons/icon.ico"
   },
   "linux": {
     "target": [
@@ -116,7 +120,8 @@
       "tar.gz"
     ],
     "category": "Office",
-    "executableName": "chausar"
+    "executableName": "chausar",
+    "icon": "app/desktop/icons/png"
   },
   "deb": {
     "maintainer": "Kartavy Chauhan <info@chausar.co.in>"
