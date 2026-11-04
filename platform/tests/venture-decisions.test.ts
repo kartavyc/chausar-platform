@@ -410,3 +410,34 @@ test('health: the same tool and input refused 3 times reads "Asked 3 times for s
   env.advance(31 * 24 * 60 * 60_000);
   assert.equal((await team(env))[0].health?.status, 'healthy');
 });
+
+// A4 review (L5): the lines say who decided as the reader sees it: the reader's own decisions "You", the owner's "The
+// owner", a cofounder's "Your cofounder", an accountant's "Your accountant"; `mine` marks the reader's own.
+test('decision lines follow who reads them', async () => {
+  const env = await setup();
+  await env.store.update(state => {
+    state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] });
+    state.members.push({ id: 'accountant-1', name: 'Synthetic accountant', role: 'accountant', active: true, epoch: 1, branches: ['*'] });
+  });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  const accountant = { ...owner, memberId: 'accountant-1', role: 'accountant' as const };
+  const plan = await seedBlueprint(env, { price2: '1500000' });
+  await seedOrder(env, plan);
+  const draft = await seedBlueprint(env, { status: 'draft', version: 2, price1: '299900', price2: '1500000' });
+  await core['venture.blueprint.accept']!(env.deps, owner, { digest: draft.digest });
+  env.advance(1000);
+  await ventureAction(env.deps, cofounder, 'prepare', 'seed.cofounder', tx => { recordDecision(tx, { subject: 'run:delivery_c', action: 'accepted', ruleId: null, reason: 'Draft accepted.', rowId: null }); });
+  env.advance(1000);
+  await ventureAction(env.deps, accountant, 'prepare', 'seed.accountant', tx => { recordDecision(tx, { subject: 'invoice:invoice_a', action: 'approve', ruleId: null, reason: 'Books checked.', rowId: null }); });
+  const lines = async (ctx: Context) => (await decisions(env, ctx)).map(item => [item.line, item.mine, item.who]);
+  assert.deepEqual(await lines(owner), [
+    ['Your accountant decided: Books checked.', false, 'accountant'],
+    ['Your cofounder decided: Draft accepted.', false, 'cofounder'],
+    ['You decided: Plan version 2 accepted.', true, 'owner'],
+  ]);
+  assert.deepEqual(await lines(cofounder), [
+    ['Your accountant decided: Books checked.', false, 'accountant'],
+    ['You decided: Draft accepted.', true, 'cofounder'],
+    ['The owner decided: Plan version 2 accepted.', false, 'owner'],
+  ]);
+});

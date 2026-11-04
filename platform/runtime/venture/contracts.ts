@@ -4224,7 +4224,7 @@ export type GoalRecord = RecordBase<'venture-goal'> & { month: string; amountMin
 export type DecisionRecord = RecordBase<'venture-decision'> & {
   subject: string;
   action: string;
-  who: 'owner' | 'cofounder' | 'saved-rule' | 'timeout';
+  who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout';
   ruleId: string | null;
   reason: string;
   rowId: string | null;
@@ -5054,8 +5054,10 @@ export interface GoalSuggestion { amountMinor: MinorString; display: Display; es
  * record (a team gate, an allow for this session), with rule its words; both null when no rule decided.
  */
 export type DecisionView = {
-  id: string; at: IsoTime; subject: string; action: string; who: 'owner' | 'cofounder' | 'saved-rule' | 'timeout';
+  id: string; at: IsoTime; subject: string; action: string; who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout';
   rule: Display | null; ruleId: string | null; reason: Display; line: Display; by: string | null;
+  /** A4 review (L5): the reader's own decision. */
+  mine: boolean;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;
 };
