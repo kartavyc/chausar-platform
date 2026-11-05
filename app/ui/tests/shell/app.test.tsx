@@ -30,7 +30,7 @@ describe('shell', () => {
     expect(brand!.getAttribute('href')).toBe('#/today');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
-    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today13, 13 need you$/));
+    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today12, 12 need you$/));
     expect(screen.getByRole('status').textContent).toBe('Sample data. Nothing here is real.');
   });
 

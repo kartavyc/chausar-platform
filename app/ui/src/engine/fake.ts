@@ -885,11 +885,13 @@ export class FakeEngine {
     // A vault may be locked while its source files are read asynchronously.
     this.rows=this.rows.filter(row=>!row.id.startsWith('tender-gap:')||this.businesses.some(b=>b.id===row.businessId&&(b.opens==='with-this-computer'||this.open&&b.id===this.current)));
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
-    const businesses = new Set(rows.map((r) => r.businessId)).size;
-    const count = String(rows.length);
-    const summary = rows.length === 0 ? 'Nothing needs you.' : `${count} ${rows.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;
+    // B3, as views/queue.ts summaryOf: a locked business's row is only "open it", so it is not counted as needing you.
+    const open = rows.filter((r) => r.kind !== 'locked');
+    const businesses = new Set(open.map((r) => r.businessId)).size;
+    const count = String(open.length);
+    const summary = open.length === 0 ? 'Nothing needs you.' : `${count} ${open.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;
     // W6 6G2: a card naming a retired agent says "(retired)" after its name.
-    return { rows: clone(rows).map((row) => this.retire.rowName(row)), summary, needsYou: rows.length, businesses };
+    return { rows: clone(rows).map((row) => this.retire.rowName(row)), summary, needsYou: open.length, businesses };
   }
 
   private decide(p: ParamsOf<'venture.queue.decide'>): QueueDecision|Promise<QueueDecision> {

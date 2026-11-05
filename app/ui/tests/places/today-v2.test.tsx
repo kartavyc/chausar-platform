@@ -120,8 +120,8 @@ describe('Today v2: the greeting', () => {
     start();
     await loaded();
     const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
-    await waitFor(() => expect(header.textContent).toContain('13 need you, across 3 businesses. 2 agents are working.'));
-    expect(header.querySelector('b')?.textContent).toBe('13');
+    await waitFor(() => expect(header.textContent).toContain('12 need you, across 2 businesses. 2 agents are working.'));
+    expect(header.querySelector('b')?.textContent).toBe('12');
   });
 
   it('with nothing waiting, the line only says who is working', async () => {
@@ -348,13 +348,13 @@ describe('Today v2: needs you', () => {
     start();
     await loaded();
     const head = within(needsYou()).getByRole('heading', { level: 2, name: 'Needs you' });
-    expect(head.parentElement!.textContent).toContain('13');
+    expect(head.parentElement!.textContent).toContain('12');
     const show = within(needsYou()).getByRole('group', { name: 'Show' });
-    for (const name of ['All 13', 'To approve 7', 'From your agents 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked 1']) {
+    for (const name of ['All 12', 'To approve 7', 'From your agents 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked']) {
       expect(within(show).getByRole('button', { name }), name).toBeTruthy();
     }
     expect(within(show).getAllByRole('button')).toHaveLength(7);
-    expect(within(show).getByRole('button', { name: 'All 13' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(show).getByRole('button', { name: 'All 12' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('Questions shows only the questions and puts show=questions in the address', async () => {
@@ -364,7 +364,7 @@ describe('Today v2: needs you', () => {
     expect(window.location.hash).toBe('#/today?show=questions');
     await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs', 'contract:o-iyer-oct:contract-iyer-1']));
     expect(within(needsYou()).getByRole('button', { name: 'From your agents 4' }).getAttribute('aria-pressed')).toBe('true');
-    await click(within(needsYou()).getByRole('button', { name: 'All 13' }));
+    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
     expect(window.location.hash).toBe('#/today');
   });
 
@@ -465,7 +465,7 @@ describe('Today v2: needs you', () => {
     await click(within(card).getByRole('button', { name: 'Send answer' }));
     const decides = () => calls.filter(([method]) => method === 'venture.queue.decide');
     expect(decides()).toHaveLength(1);
-    await click(within(needsYou()).getByRole('button', { name: 'All 13' }));
+    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
     await waitFor(() => expect(rowIds()).toEqual(ORDER));
     expect(cardOf('q-question-title')).toBe(card);
     const answer = within(card).getByRole('button', { name: 'Answer' }) as HTMLButtonElement;

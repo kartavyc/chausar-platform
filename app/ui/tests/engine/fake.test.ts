@@ -19,8 +19,10 @@ describe('fake engine: the queue', () => {
       expect(row.actions.filter((a) => a.primary), row.id).toHaveLength(1);
     }
     expect(new Set(queue.rows.map((r) => r.businessName))).toEqual(new Set(['Lumen Studio', 'Ledgerline', 'Sitara Events']));
-    expect(queue.needsYou).toBe(queue.rows.length);
-    expect(queue.summary).toBe(`${queue.rows.length} need you, across 3 businesses`);
+    // B3, as the engine (views/queue.ts summaryOf): Sitara's locked row is only "open it", so it is not counted.
+    const open = queue.rows.filter((r) => r.kind !== 'locked');
+    expect(queue.needsYou).toBe(open.length);
+    expect(queue.summary).toBe(`${open.length} need you, across 2 businesses`);
     const current = await list(engine, 'current');
     expect(current.rows.every((r) => r.businessId === 'lumen')).toBe(true);
   });

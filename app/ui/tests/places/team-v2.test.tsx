@@ -10,6 +10,8 @@ import { DepartmentPanel } from '../../src/places/team/DepartmentPanel';
 import { OneDepartment } from '../../src/places/team/OneDepartment';
 import type { DepartmentData, Member } from '../../src/places/team/departments';
 import { assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
+import team from '../../src/text/en/team.json';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -108,7 +110,8 @@ describe('Team v2: the stats tiles', () => {
     expect(working.querySelectorAll('[data-dept][aria-hidden="true"]')).toHaveLength(2);
 
     const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
-    expect(waiting.querySelector('[data-count]')?.textContent).toBe('1');
+    // B3: the count is what Today counts for this business (7 rows wait in Lumen); the line names the agent who waits.
+    await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('7'));
     expect(waiting.getAttribute('data-tone')).toBe('wait');
     expect(waiting.textContent).toContain('Producer: Pricing the sponsor slot');
     expect(waiting.querySelector('[data-state="waiting"]')).not.toBeNull();
@@ -138,9 +141,25 @@ describe('Team v2: the stats tiles', () => {
     const working = within(glance).getByText('Working').closest('[data-card]') as HTMLElement;
     expect(working.textContent).toContain('Nobody is working right now.');
     const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
-    expect(waiting.textContent).toContain('Nothing waits on you.');
-    expect(waiting.hasAttribute('data-tone')).toBe(false);
+    // B3: no agent waits, but five of Ledgerline's rows do: the tile says Today's count, not "Nothing waits on you."
+    await waitFor(() => expect(waiting.textContent).toContain('5 need you'));
+    expect(waiting.textContent).not.toContain('Nothing waits on you.');
+    expect(waiting.getAttribute('data-tone')).toBe('wait');
     assertInkRules(document.body);
+  });
+
+  it('counts what Today counts: a plan, a price and a setup step wait with no agent waiting, and the tile says 3 (B3)', async () => {
+    const rows = [QUEUE.find((row) => row.kind === 'plan')!, QUEUE.find((row) => row.kind === 'price')!, SETUP_ROWS[0]!]
+      .map((row) => ({ ...row, businessId: 'ledgerline', businessName: 'Ledgerline' }));
+    const engine = new FakeEngine({ queue: rows });
+    await engine.request('workspace.open', { folder: 'ledgerline' });
+    window.location.hash = '#/team';
+    render(<App client={createFakeClient(engine)} language="en" />);
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    const waiting = (await within(glance).findByText('Waiting on you')).closest('[data-card]') as HTMLElement;
+    await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('3'));
+    expect(waiting.textContent).not.toContain(team['team.stats.waitingNone']);
+    expect(waiting.getAttribute('data-tone')).toBe('wait');
   });
 
   it('a spend line with no receipt draws no spend tile, never a bare amount', async () => {

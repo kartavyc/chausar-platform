@@ -70,7 +70,7 @@ describe('Today: the header and the list', () => {
   it('greets the owner and says the engine summary line', async () => {
     start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
-    await waitFor(() => expect(headerLine()).toBe('13 need you, across 3 businesses. 2 agents are working.'));
+    await waitFor(() => expect(headerLine()).toBe('12 need you, across 2 businesses. 2 agents are working.'));
   });
 
   it('lists every row in the engine order, across businesses, each tagged with its business and agent', async () => {
@@ -136,7 +136,7 @@ describe('Today: deciding', () => {
     await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect((needsYou().querySelector('[data-row-id="q-signoff-gst"]') as HTMLElement).textContent).toBe('GST working for September · Sent to your CA'));
-    await waitFor(() => expect(headerLine()).toBe('12 need you, across 3 businesses. 2 agents are working.'));
+    await waitFor(() => expect(headerLine()).toBe('11 need you, across 2 businesses. 2 agents are working.'));
   });
 
   it('a second ask confirms inside the row; the decided line carries the receipt', async () => {
@@ -348,6 +348,22 @@ describe('Today: deciding', () => {
     expect(card.contains(document.activeElement) || document.activeElement === card).toBe(true);
     await act(async () => { release(); });
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"][data-decided]')?.textContent).toBe('GST working for September · Sent to your CA'));
+  });
+
+  it('with a locked business, the heading, the All chip, the greeting and the rail say the engine\'s count (B3)', async () => {
+    const engine = new FakeEngine();
+    start({ engine });
+    const listed = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: QueueRow[]; needsYou: number };
+    expect(listed.rows.some((row) => row.kind === 'locked')).toBe(true);
+    const count = String(listed.needsYou);
+    expect(count).toBe(String(listed.rows.filter((row) => row.kind !== 'locked').length));
+    await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
+    const head = needsYou().querySelector('h2')!.parentElement!;
+    await waitFor(() => expect(head.querySelector('[aria-hidden="true"]')?.textContent).toBe(count));
+    expect(within(needsYou()).getByRole('button', { name: /^All/ }).textContent?.replace(/\s/g, '')).toBe(`All${count}`);
+    expect(screen.getByRole('heading', { level: 1 }).nextElementSibling?.querySelector('b')?.textContent).toBe(count);
+    const rail = screen.getByRole('navigation', { name: 'Places' });
+    expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')?.textContent).toBe(count);
   });
 
   it('a row decided somewhere else shrinks to "Resolved elsewhere"', async () => {

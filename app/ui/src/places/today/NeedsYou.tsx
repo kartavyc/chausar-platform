@@ -12,6 +12,7 @@ import type { DecidedLine } from './session';
 import { SetPicker, setCandidates } from './SetPicker';
 import { TriageBox } from './TriageBox';
 import { useOpenBusiness } from '../../shell/openBusiness';
+import { needsYouOf } from '../../shell/needsYou';
 import s from './NeedsYou.module.css';
 
 /** A row of the list: waiting on the owner, or decided here and shrunk to its receipt line. */
@@ -91,6 +92,9 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
   const t = useT();
   const headingId = useId();
   const waiting = items.filter((item) => !item.done).map((item) => item.row);
+  // B3: the heading and All count as the engine does (a locked business's row is only "open it"), so they say the same
+  // number as the greeting, the rail and the phone tabs.
+  const count = needsYouOf(waiting);
   // W4 4J19: "Since you left", once the owner is back from time away (the engine's own list of rows made meanwhile).
   const away = useResource('venture.away.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const sinceIds = away.data?.since ? new Set(away.data.since.rowIds) : undefined;
@@ -108,8 +112,8 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
       <SectionHead
         id={headingId}
         title={t('queue.title')}
-        count={waiting.length > 0 ? waiting.length : undefined}
-        countLabel={t('today.needs.count', { count: waiting.length })}
+        count={count > 0 ? count : undefined}
+        countLabel={t('today.needs.count', { count })}
       />
       {failed && !loaded && <p className={s.failed}>{t('today.failed', { message: failed })}</p>}
       {waiting.length > 0 && (
@@ -152,12 +156,13 @@ function options(t: ReturnType<typeof useT>, waiting: readonly QueueRow[], filte
     const own = waiting.filter((row) => row.businessId === id);
     return { id, name, count: own.length, locked: own.some((row) => row.kind === 'locked') };
   }).sort((a, b) => Number(a.locked) - Number(b.locked) || b.count - a.count);
+  // A locked business keeps its chip with its lock, and no count of its own (B3: it needs nothing but opening).
   const byBusiness: FilterOption[] = businesses.length < 2 ? [] : businesses.map(({ id, name, count, locked }, index) => (
-    { id: `${BUSINESS}${id}`, label: name, count, business: !locked, locked, separatorBefore: index === 0 }
+    { id: `${BUSINESS}${id}`, label: name, count: locked ? undefined : count, business: !locked, locked, separatorBefore: index === 0 }
   ));
   const sinceCount = since ? waiting.filter((row) => since.has(row.id)).length : 0;
   const sinceOption: FilterOption[] = since && (sinceCount > 0 || filter === SINCE) ? [{ id: SINCE, label: t('today.filter.since'), count: sinceCount }] : [];
-  return [{ id: 'all', label: t('today.filter.all'), count: waiting.length }, ...sinceOption, ...kinds, ...byBusiness];
+  return [{ id: 'all', label: t('today.filter.all'), count: needsYouOf(waiting) }, ...sinceOption, ...kinds, ...byBusiness];
 }
 
 /**

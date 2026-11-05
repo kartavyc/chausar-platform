@@ -71,17 +71,30 @@ describe('the rail', () => {
   it("carries Today's count in tabular digits, hidden from screen readers but said in words, amber when Today is not open", async () => {
     const rail = start('#/team');
     const today = within(rail).getByRole('link', { name: /^Today/ });
-    await waitFor(() => expect(today.textContent).toBe('Today13, 13 need you'));
+    await waitFor(() => expect(today.textContent).toBe('Today12, 12 need you'));
     const count = today.querySelector('[aria-hidden="true"][data-num]')!;
-    expect(count.textContent).toBe('13');
+    expect(count.textContent).toBe('12');
     expect(count.getAttribute('data-tone')).toBe('wait');
     expect(count.nextElementSibling!.className).toBe('sr-only');
-    expect(count.nextElementSibling!.textContent).toBe(', 13 need you');
+    expect(count.nextElementSibling!.textContent).toBe(', 12 need you');
     await go('#/today');
     await waitFor(() => expect(within(rail).getByRole('link', { name: /^Today/ }).getAttribute('aria-current')).toBe('page'));
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')!.hasAttribute('data-tone')).toBe(false);
   });
 
+});
+
+describe('one count (B3)', () => {
+  it('the rail and Today together make one request for what needs you at start', async () => {
+    window.location.hash = '#/today';
+    const fake = createFakeClient(new FakeEngine());
+    const asked: unknown[] = [];
+    const client = { ...fake, request: ((method: string, params?: unknown) => { if (method === 'venture.queue.list') asked.push(params); return fake.request(method as never, params as never); }) as typeof fake.request };
+    render(<App client={client} language="en" />);
+    await screen.findByRole('region', { name: 'Needs you' });
+    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(asked.filter((params) => JSON.stringify(params) === JSON.stringify({ scope: 'all' }))).toHaveLength(1);
+  });
 });
 
 describe('the app icon', () => {
