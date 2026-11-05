@@ -168,6 +168,16 @@ export function readBack(list: QueueList, row: QueueRow, t: T): QueueDecision {
 }
 
 /**
+ * B3: a plan or price row's decided line is the engine's outcome alone ("Plan accepted.", "New price for Monthly books
+ * accepted."), since its title is an ask or the outcome already names it; every other row says "title · line". A line
+ * that is not the engine's outcome (resolved elsewhere, after a wait) keeps the title, so it still says what it was.
+ */
+export function decidedWords(row: QueueRow, line: string, t: T): { title: string | null; line: string } {
+  const own = line !== t('approval.elsewhere') && line !== t('approval.afterWait');
+  return { title: row.viewRef?.kind === 'plan' && own ? null : row.title, line };
+}
+
+/**
  * A row's primary as its card shows it, for the version the owner has (or has not) opened: its words, whether it is
  * locked until the thing is looked at, the note that says so, and whether it asks once more. The card and Today's next
  * best step (W4 4I2) both read it here, so the two never say different things.
@@ -376,10 +386,10 @@ export function ApprovalRow({
     const { line, receiptId, undo } = decided;
     // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
     const text = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
+    const words = decidedWords(current, text, t);
     const status = (
       <span role="status">
-        <span className={s.decidedTitle}>{current.title}</span>
-        {' · '}
+        {words.title !== null && <><span className={s.decidedTitle}>{words.title}</span>{' · '}</>}
         {text}
         {receiptId && <>{' '}<Receipt id={receiptId} onOpen={onReceipt} /></>}
         {/* W4 4J19: a send back or an edit can be taken back until its revision starts. */}

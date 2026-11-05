@@ -225,6 +225,27 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     assertInkRules(document.body);
   });
 
+  it('after Send back, Undo leaves the line once the revised draft is listed (B3)', async () => {
+    const { client } = start();
+    const card = await cardTitled('Episode 14 is cut');
+    await press(within(card).getByRole('button', { name: 'Send back' }));
+    const box = card.querySelector<HTMLElement>('[data-send-back]')!;
+    fireEvent.change(within(box).getByRole('textbox', { name: 'What to change' }), { target: { value: 'Revise this to cut the intro to 20 seconds' } });
+    await press(within(box).getByRole('button', { name: 'Send back' }));
+    const line = () => document.querySelector<HTMLElement>('[data-row-id="run:d-ep14:review-1"][data-decided]')!;
+    expect(within(line()).getByRole('button', { name: 'Undo' })).toBeTruthy();
+    // The revision lands: the queue lists the next version of the same draft.
+    const engine = client.engine as unknown as { rows: QueueRow[]; emit: (event: { type: 'queue.changed'; businessId: string; at: string }) => void };
+    const sent = QUEUE.find((row) => row.id === 'run:d-ep14:review-1')!;
+    await act(async () => {
+      engine.rows.push({ ...sent, id: 'run:d-ep14:review-2', createdAt: NOW, digest: 'revised-1' });
+      engine.emit({ type: 'queue.changed', businessId: 'lumen', at: NOW });
+    });
+    await settle();
+    await waitFor(() => expect(within(line()).queryByRole('button', { name: 'Undo' })).toBeNull());
+    expect(line().textContent).toContain('Sent back. The revised draft will wait for your review.');
+  });
+
   it('empty words are refused in the engine\'s words', async () => {
     start();
     const card = await cardTitled('Episode 14 is cut');

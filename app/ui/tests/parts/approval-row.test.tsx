@@ -49,6 +49,17 @@ describe('ApprovalRow', () => {
     expect(onDecide).toHaveBeenCalledWith(price, price.actions[1], { viewed: false });
   });
 
+  it('a decided plan row says the engine\'s outcome alone, since its title is an ask (B3)', async () => {
+    const plan: QueueRow = {
+      id: 'plan:v1:bp1', businessId: 'ledgerline', businessName: 'Ledgerline', kind: 'plan', createdAt: '2026-10-21T08:00:00Z', digest: 'd4',
+      title: 'Your plan is ready. Read it.', line: 'Monthly books for small shops.', viewRef: { kind: 'plan', id: 'bp1' },
+      actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }],
+    };
+    const { container } = list(<ApprovalRow row={plan} viewed onDecide={vi.fn(async () => done('Plan accepted.'))} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accept' })); });
+    expect(container.textContent).toBe('Plan accepted.');
+  });
+
   it('a decided row shrinks to its receipt line', async () => {
     const onDecide = vi.fn(async () => done('Sent to your CA'));
     const { container } = list(<ApprovalRow row={signoff} onDecide={onDecide} />);

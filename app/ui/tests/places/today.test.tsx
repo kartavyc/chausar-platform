@@ -366,6 +366,18 @@ describe('Today: deciding', () => {
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')?.textContent).toBe(count);
   });
 
+  it('accepting the plan leaves the engine\'s outcome alone, not the plan\'s ask (B3)', async () => {
+    start();
+    const row = await rowOf('Your plan is ready. Read it.');
+    await click(within(row).getByRole('button', { name: 'Read' }));
+    await settleHash();
+    await waitFor(() => expect(locked(within(row).getByRole('button', { name: 'Accept' }))).toBe(false));
+    const id = row.getAttribute('data-row-id')!;
+    await click(within(row).getByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(needsYou().querySelector(`[data-row-id="${id}"][data-decided]`)?.textContent).toBe('Plan accepted.'));
+    expect(needsYou().textContent).not.toContain('Your plan is ready');
+  });
+
   it('a row decided somewhere else shrinks to "Resolved elsewhere"', async () => {
     const { client } = start();
     await rowOf('GST working for September');

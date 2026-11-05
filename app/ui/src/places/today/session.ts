@@ -11,8 +11,25 @@ import { readBack, type DecideExtra } from '../../parts/ApprovalRow';
 import type { T } from '../../text';
 import type { EngineClient, QueueActionId, QueueDecision, QueueRow } from '../../engine/types';
 
-/** undo (W4 4J19): a send back or an edit made here can be taken back until its revision starts; it answers the line to show. */
-export interface DecidedLine { row: QueueRow; line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined }
+/**
+ * undo (W4 4J19): a send back or an edit made here can be taken back until its revision starts; it answers the line to
+ * show. untilRevision (B3): a send back's Undo leaves once the queue lists the revision (subjectOf).
+ */
+export interface DecidedLine { row: QueueRow; line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined; untilRevision?: true | undefined }
+
+/** A row id is its subject and its version (views/queue.ts base): the subject is all before the last colon. */
+export const subjectOf = (id: string) => (id.includes(':') ? id.slice(0, id.lastIndexOf(':')) : id);
+
+/**
+ * B3: a decided line's Undo, while it can still work. A send back's Undo leaves once the queue lists another row for the
+ * same subject, which is when its revision has started and the engine would refuse it.
+ */
+export function undoOf(line: DecidedLine, listed: readonly QueueRow[]): DecidedLine['undo'] {
+  if (!line.undo) return undefined;
+  if (!line.untilRevision) return line.undo;
+  const subject = subjectOf(line.row.id);
+  return listed.some((row) => row.id !== line.row.id && subjectOf(row.id) === subject) ? undefined : line.undo;
+}
 
 /** A row as the owner saw it: a new digest is a new version, which has to be seen again. */
 export const seenKey = (row: Pick<QueueRow, 'id' | 'digest'>) => `${row.id}@${row.digest}`;
@@ -42,9 +59,9 @@ export class TodaySession {
   private changed() { this.version += 1; for (const listener of [...this.listeners]) listener(); }
 
   /** Keep a decided row as one line. `replace: false` never overwrites a line already kept. */
-  keep(row: QueueRow, line: string, receiptId?: string, replace = true, undo?: () => Promise<string>) {
+  keep(row: QueueRow, line: string, receiptId?: string, replace = true, undo?: () => Promise<string>, untilRevision = false) {
     if (!replace && this.decided.has(row.id)) return;
-    this.decided.set(row.id, { row, line, receiptId, ...(undo ? { undo } : {}) });
+    this.decided.set(row.id, { row, line, receiptId, ...(undo ? { undo } : {}), ...(undo && untilRevision ? { untilRevision: true as const } : {}) });
     this.changed();
   }
   line(id: string): DecidedLine | undefined { return this.decided.get(id); }
