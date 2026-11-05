@@ -589,7 +589,8 @@ export class FakeEngine {
       case 'venture.evidence.apply': return this.applyEvidence(String(p.id ?? ''));
       case 'venture.evidence.dismiss': return this.dismissEvidence(String(p.id ?? ''));
       case 'venture.client.list': return clone(this.clients[this.current] ?? []);
-      case 'venture.client.add': return this.addClient(p);
+      // B3: as the engine's client-added, one queue.changed tells every screen.
+      case 'venture.client.add': { const client = this.addClient(p); this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }); return client; }
       case 'venture.events': return { events: [], lastSeq: this.seq, firstSeq: 0, frames: [] };
       case 'venture.get': return this.ventureView();
       case 'venture.playbooks.list': {

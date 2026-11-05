@@ -550,6 +550,8 @@ export class FakeBusinessDesk {
     this.receipts.push(receipt);
     this.host.quote?.({ receiptId: receipt.id, at: receipt.at, offer: offer.name.value, quantity: quantityText, value: showMinor(unit * quantity), currency: view.blueprint.backOffice.currency, beforeTaxMinor: String(unit * quantity), explanation: receipt.explanation });
     view.offerReceipts[offer.id] = receipt;
+    // B3: as the engine's price-quoted, one queue.changed tells every screen.
+    this.host.emit({ type: 'queue.changed', businessId: biz, at: receipt.at });
     return clone(receipt);
   }
   // ---------------------------------------------------------------------------------------------------------------

@@ -351,7 +351,8 @@ test('a quote prices the latest draft, stays current after acceptance and goes s
   assert.match(receipt.digest, /^[a-f0-9]{64}$/);
   assert.equal(receipt.stale, false);
   const events = listRecords(env.store.read(), 'venture-event');
-  assert.equal(events.at(-1)?.name, 'price-quoted');
+  // B3: a quote tells every screen, so queue.changed follows it.
+  assert.deepEqual(events.slice(-2).map(event => event.name), ['price-quoted', 'queue.changed']);
 
   // Accepting the same version keeps its digest, so the receipt stays current.
   await acceptBlueprint(env, draft.id);

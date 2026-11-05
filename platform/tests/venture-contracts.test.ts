@@ -140,8 +140,9 @@ test('ventureAction: create, read back, rollback, nesting, concurrency, event tr
   for (let index = 0; index < 505; index += 1) await ventureAction(deps, owner, 'prepare', 'tick', tx => tx.emit('client-added', { index }));
   const events = listRecords(store.read(), 'venture-event', created.id);
   assert.equal(events.length, MAX_EVENTS);
-  assert.equal(Math.max(...events.map(event => event.seq)), 505);
-  assert.equal(Math.min(...events.map(event => event.seq)), 6);
+  // B3: client-added now carries a queue.changed in the same commit, so 505 commits write 1010 events.
+  assert.equal(Math.max(...events.map(event => event.seq)), 1010);
+  assert.equal(Math.min(...events.map(event => event.seq)), 1010 - MAX_EVENTS + 1);
 
   assert.ok(store.read().activity.some(entry => entry.event === 'venture.create' && entry.details.ventureId === created.id));
   assert.ok(store.read().activity.some(entry => entry.event === 'venture.tick'));

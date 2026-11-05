@@ -274,13 +274,20 @@ export async function ventureAction<T>(
 }
 
 /**
- * Events that change what Today's queue shows. Build events are left out: their tests pin them as the newest event,
- * and the connector rows they affect are read again on the next queue read.
+ * Events that change what an owner's screens show (Today's queue, Money, Practice, the build page). The desktop push
+ * and /api/events carry only the run event types, so these reach other windows through the queue.changed added after
+ * them. B3: the owner's record events joined; each is written by an owner's write or a sweep that runs once per due
+ * day, never by a read. Left out on purpose: interview-updated, plan-composed, playbook-ready (a grant top-up writes
+ * it), signal-recorded, upload-added, posting-*, retention-changed, send-policy-changed and venture-created, which a
+ * run or a migration can write, so a queue.changed from a read would make the screens read in a loop.
  */
 const QUEUE_EVENTS: ReadonlySet<VentureEventName> = new Set<VentureEventName>([
   'blueprint-drafted', 'blueprint-accepted', 'model-connected', 'model-disconnected', 'invoice-prepared', 'invoice-issued',
   'launch-stage-changed', 'handoff-opened', 'delivery-waiting', 'delivery-ready', 'delivery-reviewed', 'delivery-needs-answer',
   'delivery-brief-waiting', 'delegate-finished', 'run.started', 'run.waiting', 'run.done', 'run.failed',
+  'price-quoted', 'client-added', 'order-created', 'order-delivered', 'payment-recorded', 'brief-ready', 'handoff-prepared',
+  'repo-linked', 'repo-synced', 'rule-attested', 'rule-attestation-withdrawn', 'compliance-recorded', 'simulation-finished',
+  'improvement-finished', 'playbook-adopted',
 ]);
 
 function appendEvents(state: State, ventureId: string, ctx: Context, at: IsoTime, events: { name: VentureEventName; data: Json }[]): VentureEventRecord[] {
