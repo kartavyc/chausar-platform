@@ -6,6 +6,7 @@ import { computeIncomeTax, type IncomeTaxInput } from '../runtime/venture/playbo
 import { computeInterest234 } from '../runtime/venture/playbooks/ca-firm/interest.ts';
 import { RENUMBERING_QUESTION } from '../runtime/venture/playbooks/ca-firm/rates.ts';
 import type { CaReceipt } from '../runtime/venture/playbooks/ca-firm/receipt.ts';
+import { formatMoney } from '../runtime/owner-format.ts';
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 const R = (rupees: number) => String(BigInt(rupees) * 100n);
@@ -32,8 +33,11 @@ test('new regime: salary of 15 lakh, standard deduction, slabs and cess', () => 
   assert.match(receipt.id, /^ca_[a-f0-9]{24}$/);
   // Same inputs, same receipt.
   assert.deepEqual(computeIncomeTax(base({ salaryMinor: R(15_00_000) })), receipt);
-  // Every figure displays from its minor units, and the sections it touched carry the renumbering question.
-  for (const item of receipt.figures) assert.match(item.display, /^INR -?[\d,]+\.\d{2}$/);
+  // Every figure displays from its minor units, and the sections it touched carry the renumbering question. The
+  // display is the owner form (B2): it reaches the receipt sheet and the CA's receipt view on the owner's screen; a
+  // deliverable to the client rebuilds the exact form from minor units (delivery/deliverable.ts exactDisplay).
+  for (const item of receipt.figures) assert.equal(item.display, formatMoney(item.minor, 'INR'));
+  assert.equal(receipt.figures.find(item => item.key === 'tax-liability')?.display, '₹97,500');
   assert.ok(receipt.sections.some(section => section.section === '115BAC' && section.needsCaConfirmation));
   assert.ok(receipt.openQuestions.includes(RENUMBERING_QUESTION));
 });
