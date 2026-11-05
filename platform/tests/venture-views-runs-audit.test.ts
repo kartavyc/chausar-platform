@@ -68,8 +68,8 @@ test('runs: each step shows how long its tool calls took; a run made before the 
   const run = await agentRun(env, false);
   const detail = await get(env, run.id);
   const step = (id: string) => detail.steps.find(item => item.id === id)!;
-  assert.equal(step('gather').elapsed, '5s');
-  assert.equal(step('work').elapsed, '1m');
+  assert.equal(step('gather').elapsed, '5 s');
+  assert.equal(step('work').elapsed, '1 min 30 s');
   assert.equal(step('clarify').elapsed, undefined, 'a call with no times shows no time');
   assert.equal(step('gather').audited, undefined, 'no ledger: not known, not false');
   assert.deepEqual(detail.progress, { done: 2, total: 8 });
@@ -110,7 +110,7 @@ test('runs: an improvement run is listed with one step per round, its time, and 
   const [listed] = await runs(env);
   assert.deepEqual(listed, {
     runId: improvement.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: 'Improve how the work is done from your feedback', state: 'done',
-    startedAt: '2026-10-15T09:57:00.000Z', elapsed: '3m', result: 'Kept your current work instructions: the change did not do better.',
+    startedAt: '2026-10-15T09:57:00.000Z', elapsed: '3 min', result: 'Kept your current work instructions: the change did not do better.',
   });
   const detail = await get(env, improvement.id);
   assert.deepEqual(detail.steps.map(step => [step.id, step.purpose, step.state]), [

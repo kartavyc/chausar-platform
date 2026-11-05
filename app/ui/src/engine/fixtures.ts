@@ -204,59 +204,59 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
 ];
 
 const editorSteps =(): RunDetail['steps'] => [
-  { id: 's1', purpose: 'Read the transcript', state: 'done', elapsed: '12s', audited: true, tools: [{ name: 'files.read', line: 'episode-13.transcript.txt, 9,412 words' }], evidence: [{ kind: 'file', id: 'f-transcript-13', label: 'transcript' }] },
-  { id: 's2', purpose: 'Picked 6 moments, each with a timestamp', state: 'done', elapsed: '48s', audited: true, tools: [{ name: 'model.main', line: 'Asked for moments under 60 s with a clear hook' }, { name: 'check.timestamps', line: '6 of 6 timestamps found in the transcript' }], evidence: [{ kind: 'check', id: 'c-moments-13', label: '6 moments' }] },
-  { id: 's3', purpose: 'Checked: no black, silent or frozen frames', state: 'done', elapsed: '20s', audited: true, tools: [{ name: 'ffmpeg.blackdetect', line: 'No black frames' }, { name: 'ffmpeg.silencedetect', line: 'No silence over 2 s' }], evidence: [{ kind: 'check', id: 'c-frames-13', label: 'frame check' }] },
+  { id: 's1', purpose: 'Read the transcript', state: 'done', elapsed: '12 s', audited: true, tools: [{ name: 'files.read', line: 'episode-13.transcript.txt, 9,412 words' }], evidence: [{ kind: 'file', id: 'f-transcript-13', label: 'transcript' }] },
+  { id: 's2', purpose: 'Picked 6 moments, each with a timestamp', state: 'done', elapsed: '48 s', audited: true, tools: [{ name: 'model.main', line: 'Asked for moments under 60 s with a clear hook' }, { name: 'check.timestamps', line: '6 of 6 timestamps found in the transcript' }], evidence: [{ kind: 'check', id: 'c-moments-13', label: '6 moments' }] },
+  { id: 's3', purpose: 'Checked: no black, silent or frozen frames', state: 'done', elapsed: '20 s', audited: true, tools: [{ name: 'ffmpeg.blackdetect', line: 'No black frames' }, { name: 'ffmpeg.silencedetect', line: 'No silence over 2 s' }], evidence: [{ kind: 'check', id: 'c-frames-13', label: 'frame check' }] },
   { id: 's4', purpose: 'Rendering 3 of 6', state: 'current', elapsed: 'now', tools: [{ name: 'ffmpeg.render', line: 'short-3.mp4, 1080 x 1920' }] },
   { id: 's5', purpose: 'Send drafts to you', state: 'pending' },
 ];
 
 export const RUNS: RunDetail[] = [
   {
-    runId: '31', businessId: 'lumen', agent: 'Editor', purpose: 'Cutting shorts from episode 13', state: 'active', startedAt: '2026-10-21T10:20:00.000Z', elapsed: '4m', poster: null,
+    runId: '31', businessId: 'lumen', agent: 'Editor', purpose: 'Cutting shorts from episode 13', state: 'active', startedAt: '2026-10-21T10:20:00.000Z', elapsed: '4 min', poster: null,
     progress: { done: 3, total: 5 }, steps: editorSteps(),
   },
   {
-    runId: '30', businessId: 'lumen', agent: 'Researcher', purpose: 'Checking titles against the last 30 videos', state: 'active', startedAt: '2026-10-21T10:23:00.000Z', elapsed: '1m', poster: null,
+    runId: '30', businessId: 'lumen', agent: 'Researcher', purpose: 'Checking titles against the last 30 videos', state: 'active', startedAt: '2026-10-21T10:23:00.000Z', elapsed: '1 min', poster: null,
     progress: 'indeterminate',
     steps: [
-      { id: 's1', purpose: 'Read the last 30 titles and their views', state: 'done', elapsed: '18s', tools: [{ name: 'youtube.read', line: '30 videos, from the channel export you uploaded' }], evidence: [{ kind: 'file', id: 'f-export-oct', label: 'channel export' }] },
+      { id: 's1', purpose: 'Read the last 30 titles and their views', state: 'done', elapsed: '18 s', tools: [{ name: 'youtube.read', line: '30 videos, from the channel export you uploaded' }], evidence: [{ kind: 'file', id: 'f-export-oct', label: 'channel export' }] },
       { id: 's2', purpose: 'Comparing the two new titles', state: 'current', elapsed: 'now' },
     ],
   },
   {
-    runId: '29', businessId: 'lumen', agent: 'Producer', purpose: 'Pricing the sponsor slot', state: 'waiting', startedAt: '2026-10-21T10:01:00.000Z', elapsed: '6m', poster: null,
+    runId: '29', businessId: 'lumen', agent: 'Producer', purpose: 'Pricing the sponsor slot', state: 'waiting', startedAt: '2026-10-21T10:01:00.000Z', elapsed: '6 min', poster: null,
     progress: { done: 2, total: 3 },
     question: { id: 'q-29', text: 'The sponsor wants to see the video before it goes up. Share a private preview link with them?', choices: ['Yes, share a private link', 'No, they see it when it is public'] },
     steps: [
-      { id: 's1', purpose: 'Read the sponsor brief', state: 'done', elapsed: '9s', evidence: [{ kind: 'file', id: 'f-brief-sponsor', label: 'sponsor brief' }] },
-      { id: 's2', purpose: 'Priced two mentions with the calculator', state: 'done', elapsed: '3s', evidence: [{ kind: 'receipt', id: 'R-0415', label: 'R-0415' }] },
+      { id: 's1', purpose: 'Read the sponsor brief', state: 'done', elapsed: '9 s', evidence: [{ kind: 'file', id: 'f-brief-sponsor', label: 'sponsor brief' }] },
+      { id: 's2', purpose: 'Priced two mentions with the calculator', state: 'done', elapsed: '3 s', evidence: [{ kind: 'receipt', id: 'R-0415', label: 'R-0415' }] },
       { id: 's3', purpose: 'Asking you about a preview for the sponsor', state: 'waiting' },
     ],
   },
   {
-    runId: '28', businessId: 'lumen', agent: 'Editor', purpose: 'Rendering the thumbnail set', state: 'failed', startedAt: '2026-10-21T09:58:00.000Z', elapsed: '40s', poster: null,
+    runId: '28', businessId: 'lumen', agent: 'Editor', purpose: 'Rendering the thumbnail set', state: 'failed', startedAt: '2026-10-21T09:58:00.000Z', elapsed: '40 s', poster: null,
     // 4Z2: a failed delivery run carries no result line (views/runs.ts resultOf); its error says what went wrong.
     progress: { done: 1, total: 3 },
     // W4 4F3: the error alone; the fix and its code as the engine's fixOf sends them (delivery/failure-words.ts).
     error: 'The renderer stopped: ffmpeg was not found on this computer.',
     fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg',
     steps: [
-      { id: 's1', purpose: 'Picked 3 frames for thumbnails', state: 'done', elapsed: '22s' },
-      { id: 's2', purpose: 'Render the thumbnails', state: 'failed', elapsed: '18s', error: 'ffmpeg was not found on this computer.' },
+      { id: 's1', purpose: 'Picked 3 frames for thumbnails', state: 'done', elapsed: '22 s' },
+      { id: 's2', purpose: 'Render the thumbnails', state: 'failed', elapsed: '18 s', error: 'ffmpeg was not found on this computer.' },
       { id: 's3', purpose: 'Send drafts to you', state: 'pending' },
     ],
   },
   {
-    runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', elapsed: '4m',
+    runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', elapsed: '4 min',
     progress: { done: 3, total: 3 }, result: 'Matched 212 of 214 lines. 2 need your data.', receiptId: 'R-0412',
     // 4H2 (U17): Ledgerline's main tier is its own Sonnet key (fixtures-business.ts), and the call named it.
     writtenBy: 'Written by Claude Sonnet 5.5',
     steps: [
-      { id: 's1', purpose: 'Read the bank statement you uploaded', state: 'done', elapsed: '31s', audited: true, evidence: [{ kind: 'file', id: 'f-bank-sep', label: 'bank statement' }] },
-      { id: 's2', purpose: 'Matched lines to invoices', state: 'done', elapsed: '3m', audited: true, tools: [{ name: 'books.match', line: '212 matched, 2 left' }] },
+      { id: 's1', purpose: 'Read the bank statement you uploaded', state: 'done', elapsed: '31 s', audited: true, evidence: [{ kind: 'file', id: 'f-bank-sep', label: 'bank statement' }] },
+      { id: 's2', purpose: 'Matched lines to invoices', state: 'done', elapsed: '3 min', audited: true, tools: [{ name: 'books.match', line: '212 matched, 2 left' }] },
       {
-        id: 's3', purpose: 'Wrote the reconciliation', state: 'done', elapsed: '20s', audited: true,
+        id: 's3', purpose: 'Wrote the reconciliation', state: 'done', elapsed: '20 s', audited: true,
         evidence: [
           { kind: 'receipt', id: 'R-0412', label: 'R-0412' },
           // The engine's words for a rules judge that settled nothing (views/runs.ts, delivery/checks.ts rulesJudge).
@@ -273,11 +273,11 @@ export const RUNS: RunDetail[] = [
     },
   },
   {
-    runId: '26', businessId: 'lumen', agent: 'Researcher', purpose: 'Estimated reach for episode 14', state: 'done', startedAt: '2026-10-21T07:10:00.000Z', elapsed: '2m', poster: null,
+    runId: '26', businessId: 'lumen', agent: 'Researcher', purpose: 'Estimated reach for episode 14', state: 'done', startedAt: '2026-10-21T07:10:00.000Z', elapsed: '2 min', poster: null,
     progress: { done: 2, total: 2 }, result: 'About 18,000 views in 30 days', estimate: true,
     steps: [
-      { id: 's1', purpose: 'Read views for the last 30 videos', state: 'done', elapsed: '40s' },
-      { id: 's2', purpose: 'Wrote an estimate', state: 'done', elapsed: '1m' },
+      { id: 's1', purpose: 'Read views for the last 30 videos', state: 'done', elapsed: '40 s' },
+      { id: 's2', purpose: 'Wrote an estimate', state: 'done', elapsed: '1 min' },
     ],
   },
 ];

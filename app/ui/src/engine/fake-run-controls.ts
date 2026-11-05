@@ -177,7 +177,7 @@ export class FakeRunControls {
       const again = `${runId}-${this.runs().filter((r) => r.runId === runId || r.runId.startsWith(`${runId}-`)).length + 1}`;
       const { stop: _s, result: _r, question: _q, steer: _n, gate: _g, live: _l, ...rest } = run;
       this.runs().push({
-        ...structuredClone(rest), runId: again, state: 'active', startedAt: this.host.now(), elapsed: '0s',
+        ...structuredClone(rest), runId: again, state: 'active', startedAt: this.host.now(), elapsed: '',
         ...(run.progress && run.progress !== 'indeterminate' ? { progress: { done: 0, total: run.progress.total } } : {}),
         steps: run.steps.map((s, i) => ({ id: s.id, purpose: s.purpose, state: i === 0 ? 'current' : 'pending' })),
       });

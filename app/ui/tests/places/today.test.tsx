@@ -367,11 +367,11 @@ describe('Today: working now', () => {
     start();
     await within(await screen.findByRole('region', { name: 'Working now' })).findByRole('button', { name: 'Cutting shorts from episode 13' });
     expect([...working().querySelectorAll('li')].map((li) => li.getAttribute('data-row-id'))).toEqual(['run-31', 'run-30', 'run-29', 'run-28']);
-    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 5Stop4m'));
+    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 5Stop4 min'));
     const waiting = line('Pricing the sponsor slot');
     expect(waiting.textContent).toContain('Producer');
     expect(waiting.textContent).toContain('Waiting on you');
-    expect(waiting.textContent).not.toContain('6m');
+    expect(waiting.textContent).not.toContain('6 min');
     expect(line('Rendering the thumbnail set').textContent).toContain('Failed');
   });
 

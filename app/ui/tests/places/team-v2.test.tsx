@@ -94,7 +94,7 @@ const agent = (id: string, name: string, extra: Partial<AgentView> = {}): AgentV
   id, name, role: `${name} role`, now: 'Idle', posture: 'approve-each', spend: '', steps: [], ...extra,
 });
 const run = (runId: string, agentName: string, extra: Partial<RunSummary>): RunSummary => ({
-  runId, businessId: 'lumen', agent: agentName, purpose: `${agentName} purpose`, state: 'active', startedAt: '2026-10-21T10:00:00.000Z', elapsed: '2m', ...extra,
+  runId, businessId: 'lumen', agent: agentName, purpose: `${agentName} purpose`, state: 'active', startedAt: '2026-10-21T10:00:00.000Z', elapsed: '2 min', ...extra,
 });
 
 describe('Team v2: the stats tiles', () => {
@@ -201,7 +201,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     await waitFor(() => expect(avatarIn(editor).getAttribute('data-state')).toBe('working'));
     expect(editor.textContent).toContain('Cuts episodes and shorts');
     expect(within(editor).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
-    expect(editor.textContent).toContain('4m');
+    expect(editor.textContent).toContain('4 min');
     expect(within(editor).getByText('Asks each time')).toBeTruthy();
     // At work, the card says what it does now, not its last result (4A2 review).
     expect(editor.textContent).not.toContain('Episode 14 cut, 11 min 42 s');
@@ -229,7 +229,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     expect(within(producer).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     // 4Z2: no "paused" beside "Waiting on you": one state, said once.
     expect(producer.textContent).not.toContain('paused');
-    expect(producer.textContent).not.toContain('6m');
+    expect(producer.textContent).not.toContain('6 min');
   });
 
   it('unmeasured work has a still bar with no count; an idle agent has no ring and no bar', async () => {
@@ -275,7 +275,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
 
 describe('Team v2: a department panel', () => {
   const members: Member[] = [
-    { agent: agent('editor', 'Editor', { now: 'Cutting shorts', posture: 'approve-each' }), run: run('31', 'Editor', { progress: { done: 3, total: 5 }, elapsed: '4m' }), state: 'working' },
+    { agent: agent('editor', 'Editor', { now: 'Cutting shorts', posture: 'approve-each' }), run: run('31', 'Editor', { progress: { done: 3, total: 5 }, elapsed: '4 min' }), state: 'working' },
   ];
   const data: DepartmentData = {
     dept: 'prod', counts: { working: 1, waiting: 0, stopped: 1, idle: 0 }, jobs: 6, spend: { value: '₹42.10', receiptId: 'R-0419' }, members,

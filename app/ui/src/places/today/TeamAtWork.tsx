@@ -114,7 +114,7 @@ function LiveTile({ run, detail, role, dept, rowId, goToRow }: LiveTileProps) {
         ) : (
           <span className={s.stepLine}>{step}</span>
         )}
-        {!waiting && <span className="mono">{run.elapsed}</span>}
+        {!waiting && run.elapsed && <span className="mono">{run.elapsed}</span>}
       </p>
     </Inner>
   );

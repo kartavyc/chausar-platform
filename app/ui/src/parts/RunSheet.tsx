@@ -91,11 +91,14 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       name={run.agent}
       line={finished ? undefined : (
         <>
-          <span>{t('run.started', { elapsed: run.elapsed })}</span>
-          {run.stop ? <> · <span className={s.waiting}>{t(run.stop.state === 'stopping' ? 'work.stop.stopping' : run.interrupted ? 'work.stop.interrupted' : 'work.stop.chip')}</span></>
-            : run.state === 'waiting' && <> · <span className={s.waiting}>{t('run.waiting')}</span></>}
-          {/* 4F3 (U6): how long runs of these steps usually take, only once the engine has measured three. */}
-          {run.usually && <> · <span>{run.usually}</span></>}
+          {[
+            // B2: under a second there is no elapsed, so no "Started 0s ago"; the pieces join with a dot between.
+            run.elapsed ? <span key="started">{t('run.started', { elapsed: run.elapsed })}</span> : null,
+            run.stop ? <span key="stop" className={s.waiting}>{t(run.stop.state === 'stopping' ? 'work.stop.stopping' : run.interrupted ? 'work.stop.interrupted' : 'work.stop.chip')}</span>
+              : run.state === 'waiting' ? <span key="wait" className={s.waiting}>{t('run.waiting')}</span> : null,
+            // 4F3 (U6): how long runs of these steps usually take, only once the engine has measured three.
+            run.usually ? <span key="usually">{run.usually}</span> : null,
+          ].filter(Boolean).flatMap((piece, index) => (index ? [' · ', piece] : [piece]))}
         </>
       )}
       onClose={onClose}
@@ -107,7 +110,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       {finished ? (
         <div>
           <details className={s.fold} data-fold="worked">
-            <summary>{t('run.workedFor', { elapsed: run.elapsed })}</summary>
+            <summary>{run.elapsed ? t('run.workedFor', { elapsed: run.elapsed }) : t('steps.list')}</summary>
             <Steps steps={run.steps} showTools />
           </details>
           {result}

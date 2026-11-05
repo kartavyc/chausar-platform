@@ -60,7 +60,7 @@ const withAgain = (change: Partial<QueueRow['actions'][number]>): Intercept => a
   return { ...sent, rows };
 };
 const doneRun = (runId: string, purpose: string): RunSummary => ({
-  runId, businessId: 'lumen', agent: 'Editor', purpose, state: 'done', startedAt: '2026-10-20T07:00:00.000Z', elapsed: '3m', result: 'Done.', receiptId: 'R-0412',
+  runId, businessId: 'lumen', agent: 'Editor', purpose, state: 'done', startedAt: '2026-10-20T07:00:00.000Z', elapsed: '3 min', result: 'Done.', receiptId: 'R-0412',
 });
 
 /**
@@ -150,7 +150,7 @@ describe('Work v2: running now', () => {
     expect(within(editor).getByText('Editor')).toBeTruthy();
     expect(within(editor).getByText('Lumen Studio')).toBeTruthy();
     expect(await within(editor).findByText('Rendering 3 of 6')).toBeTruthy();
-    expect(within(editor).getByText('Started 4m ago').className).toMatch(/mono/);
+    expect(within(editor).getByText('Started 4 min ago').className).toMatch(/mono/);
     const researcher = await tileOf('Checking titles against the last 30 videos', running);
     expect(within(researcher).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     expect(await within(researcher).findByText('Comparing the two new titles')).toBeTruthy();
@@ -219,7 +219,7 @@ describe('Work v2: the failed run', () => {
     expect(screen.getByRole('region', { name: 'Failed' }).contains(stopped)).toBe(true);
     expect(within(stopped).getByRole('heading', { level: 3, name: 'Rendering the thumbnail set' })).toBeTruthy();
     expect(await within(stopped).findByText('Failed at step 2 of 3')).toBeTruthy();
-    expect(within(stopped).getByText('Editor · Lumen Studio · 40s')).toBeTruthy();
+    expect(within(stopped).getByText('Editor · Lumen Studio · 40 s')).toBeTruthy();
     expect(within(stopped).getByText('What went wrong')).toBeTruthy();
     expect(within(stopped).getByText('The renderer stopped: ffmpeg was not found on this computer.')).toBeTruthy();
     const steps = within(stopped).getByRole('list', { name: 'Steps' });
@@ -276,7 +276,7 @@ describe('Work v2: the failed run', () => {
   });
 
   it('a failed run a newer run of its order replaced is left out of All, and the Failed chip still shows it', async () => {
-    const old: RunSummary = { runId: '25', businessId: 'lumen', agent: 'Writer', purpose: 'First go at the episode 12 script', state: 'failed', startedAt: '2026-10-02T10:00:00.000Z', elapsed: '1m', result: 'The model did not answer.' };
+    const old: RunSummary = { runId: '25', businessId: 'lumen', agent: 'Writer', purpose: 'First go at the episode 12 script', state: 'failed', startedAt: '2026-10-02T10:00:00.000Z', elapsed: '1 min', result: 'The model did not answer.' };
     const replaced: DeliveryLite = { id: '25', at: '2026-10-02T10:00:00.000Z', orderId: 'o-boat-12', status: 'failed', practice: false, deliverable: null, verdict: null };
     await start('#/work', {
       intercept: {
@@ -302,7 +302,7 @@ describe('Work v2: finished', () => {
     const books = await tileOf('Matched September bank lines to invoices', finished);
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4m')).toBeTruthy();
+    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
     const reach = await tileOf('Estimated reach for episode 14', finished);
     // The model's words sit inside the estimate itself, so they read as labelled wherever they stand.
     const estimate = within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]') as HTMLElement | null;

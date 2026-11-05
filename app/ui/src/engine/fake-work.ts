@@ -450,7 +450,7 @@ export class FakeWorkDesk {
       if(resume && (!this.nativeCanResume(resume)||this.nativeSources.get(biz+':'+resume.runId)?.digest!==this.nativeSource(biz,order)))throw new EngineError('RUN_RESTART_REQUIRED','The saved work no longer matches this order. Start a new job.');
       const at=this.host.now();
       this.nativeSources.set(biz+':'+runId,{digest:this.nativeSource(biz,order),fileIds:this.orderFiles(biz,order.id).map(file=>file.id)});
-      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'0s',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
+      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
       // No installed AI runs in this fake. It starts honestly with no fabricated tool results or answer.
       const stage=(this.host.ask?.('venture.get',{}) as {venture?:{launchStage?:string}}|null|undefined)?.venture?.launchStage;
       // W6 6C4: in Practice an AI draft for a real order is a practice draft, as the engine marks it.
@@ -459,11 +459,11 @@ export class FakeWorkDesk {
     }
     if(this.host.plan()?.playbook?.id==='social-agency')throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
     const social=this.r5Delivery.start(order,runId,p)??this.phoneDelivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p);
-    if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
+    if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();
     runs.unshift({
-      runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '0s',
+      runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '',
       progress: { done: 1, total: 2 },
       steps: [
         { id: 'write', purpose: 'Prepare the template outline', state: 'done' },

@@ -329,7 +329,7 @@ describe('Today v2: the team at work', () => {
     expect(within(producer!).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     await waitFor(() => expect(editor!.textContent).toContain('Rendering 3 of 6'));
     expect(editor!.textContent).toContain('Cutting shorts from episode 13');
-    expect(editor!.textContent).toContain('4m');
+    expect(editor!.textContent).toContain('4 min');
     expect(producer!.textContent).toContain('Waiting on you.');
     expect(producer!.querySelector('[data-state]')?.getAttribute('data-state')).toBe('waiting');
     assertOnePrimary(team());
@@ -667,12 +667,12 @@ describe('Today v2: working now and earlier', () => {
     const editor = rowOf('run-31');
     expect(editor.textContent).toContain('Editor');
     expect(editor.textContent).toContain('3 of 5');
-    expect(editor.textContent).toContain('4m');
+    expect(editor.textContent).toContain('4 min');
     expect(editor.querySelector('[data-state]')?.getAttribute('data-state')).toBe('working');
     await waitFor(() => expect(rowOf('run-30').textContent).toContain('Step 2'));
     const waiting = rowOf('run-29');
     expect(waiting.textContent).toContain('Waiting on you');
-    expect(waiting.textContent).not.toContain('6m');
+    expect(waiting.textContent).not.toContain('6 min');
     // 4Z2: a known failure in plain words; the tool's own line is on the run's sheet.
     await waitFor(() => expect(rowOf('run-28').textContent).toContain("The video tool isn't installed on this computer yet."));
     const stopped = rowOf('run-28');

@@ -64,12 +64,12 @@ describe('Work: runs', () => {
     expect(books.textContent).toContain('Bookkeeper');
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4m')).toBeTruthy();
+    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
     const reach = await rowOf('Estimated reach for episode 14', previous);
     expect(reach.textContent).toContain('Researcher');
     expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
     expect(within(reach).getByText('model estimate')).toBeTruthy();
-    expect(within(reach).getByText('Worked for 2m')).toBeTruthy();
+    expect(within(reach).getByText('Worked for 2 min')).toBeTruthy();
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
   });
 
@@ -248,7 +248,8 @@ describe('Work: one order from the address', () => {
     await act(async () => { await engine.request('venture.delivery.run', { orderId: 'o-iyer-oct' }); });
     const runs = screen.getByRole('region', { name: 'Jobs' });
     const run = await rowOf('Draft a reply for Iyer & Co', runs);
-    expect(run.textContent).toContain('Started 0s ago');
+    // B2: a run that started under a second ago has no elapsed, so no "Started 0s ago".
+    expect(run.textContent).not.toMatch(/Started|0s|0 s/);
     await go('#/work?order=nope');
     expect(await screen.findByText("This order isn't in this business.")).toBeTruthy();
   });

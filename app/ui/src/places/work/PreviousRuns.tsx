@@ -75,17 +75,18 @@ function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
   } else if (run.state === 'waiting') {
     line = <>{run.agent}{SEP}<span className={s.wait}>{t('run.waiting')}</span></>;
   } else if (run.state === 'active') {
-    line = <>{run.agent}{SEP}{t('run.started', { elapsed: run.elapsed })}</>;
+    // B2: under a second there is no elapsed, so the line is the agent alone, never "Started 0s ago".
+    line = run.elapsed ? <>{run.agent}{SEP}{t('run.started', { elapsed: run.elapsed })}</> : <>{run.agent}</>;
   } else {
     // How long it worked sits in the line, in words, so a narrow Finished tile keeps its titles wide.
-    const took = <span>{t('work.finished.took', { elapsed: run.elapsed })}</span>;
+    const took = run.elapsed ? <>{SEP}<span>{t('work.finished.took', { elapsed: run.elapsed })}</span></> : null;
     if (run.result === undefined) {
-      line = <>{run.agent}{SEP}{took}</>;
+      line = <>{run.agent}{took}</>;
     } else if (run.estimate) {
       // A model-written result is the estimate itself, labelled where it stands, and never carries a receipt.
-      line = <>{run.agent}{SEP}{took}{SEP}<ModelEstimate value={run.result} /></>;
+      line = <>{run.agent}{took}{SEP}<ModelEstimate value={run.result} /></>;
     } else {
-      line = <>{run.agent}{SEP}{took}{SEP}{run.result}</>;
+      line = <>{run.agent}{took}{SEP}{run.result}</>;
       if (run.receiptId) aside = <Receipt id={run.receiptId} />;
     }
   }
