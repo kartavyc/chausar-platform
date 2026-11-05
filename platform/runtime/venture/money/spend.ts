@@ -146,13 +146,20 @@ export function listRateOfTable(item: string, table: ModelPriceTable | null): Sp
   return {
     item, unit: 'per-million-tokens', inputMicrosPerMillion: table.inputMicrosPerMillion, outputMicrosPerMillion: table.outputMicrosPerMillion,
     microsPerCall: null, source: table.source, checkedOn: table.checkedOn, confirmed: table.confirmed, by: 'list',
+    // D2: the table's prompt-cache prices, when it has them, are lines of their own on the card.
+    ...(table.cacheReadMicrosPerMillion ? { cacheReadMicrosPerMillion: table.cacheReadMicrosPerMillion } : {}),
+    ...(table.cacheWriteMicrosPerMillion ? { cacheWriteMicrosPerMillion: table.cacheWriteMicrosPerMillion } : {}),
   };
 }
 
 /** A per-token rate as the price table the model cost code reads. */
 export function modelTableOf(rate: SpendRate, subject?: SpendSubject): ModelPriceTable {
   if (rate.unit === 'per-million-tokens' && micro(rate.inputMicrosPerMillion) && micro(rate.outputMicrosPerMillion)) {
-    return { currency: 'USD', inputMicrosPerMillion: rate.inputMicrosPerMillion, outputMicrosPerMillion: rate.outputMicrosPerMillion, source: rate.source, checkedOn: rate.checkedOn, confirmed: rate.confirmed };
+    // D2: the card's prompt-cache prices travel with the table, so a key call's cache reads and writes are priced at them.
+    return { currency: 'USD', inputMicrosPerMillion: rate.inputMicrosPerMillion, outputMicrosPerMillion: rate.outputMicrosPerMillion,
+      ...(micro(rate.cacheReadMicrosPerMillion) ? { cacheReadMicrosPerMillion: rate.cacheReadMicrosPerMillion } : {}),
+      ...(micro(rate.cacheWriteMicrosPerMillion) ? { cacheWriteMicrosPerMillion: rate.cacheWriteMicrosPerMillion } : {}),
+      source: rate.source, checkedOn: rate.checkedOn, confirmed: rate.confirmed };
   }
   throw new SpendRefusal('SPEND_UNPRICED', `The rate card prices ${subject?.label ?? rate.item} per call, but a model call is priced by tokens. Add its price per million tokens.`,
     subject ? subjectOf(subject) : null, null);

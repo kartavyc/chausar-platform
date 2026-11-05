@@ -7,12 +7,33 @@ import { validTokenCount, type Usage } from './types.ts';
 
 const MICROS_PER_MILLION_TOKENS = 1_000_000n;
 
-/** Cost of one call, rounded up to a whole micro: (in x inRate + out x outRate + 999999) / 1000000. '0' without a table. */
+/**
+ * Cost of one call, rounded up once to a whole micro: each reported token kind (uncached input, output, cache reads,
+ * cache writes) times its own saved rate, added, then (total + 999999) / 1000000. '0' without a table (the owner's own
+ * plan). D2: a cache kind the provider reported with no saved rate leaves the cost held (SPEND_UNPRICED), as
+ * priceAgentUsage does; it is never priced as plain input.
+ */
 export function callCostMicros(usage: Usage, table: ModelPriceTable | null): MicroString {
   if (!table) return '0';
-  check(validTokenCount(usage.inputTokens) && validTokenCount(usage.outputTokens), 'MODEL_FAILED', 'The provider reported token counts Chausar cannot read.');
-  const total = BigInt(usage.inputTokens) * BigInt(table.inputMicrosPerMillion) + BigInt(usage.outputTokens) * BigInt(table.outputMicrosPerMillion);
+  const read = usage.cachedInputTokens ?? 0, write = usage.cacheWriteTokens ?? 0;
+  check([usage.inputTokens, usage.outputTokens, read, write].every(validTokenCount), 'MODEL_FAILED', 'The provider reported token counts Chausar cannot read.');
+  const entries = [[usage.inputTokens, table.inputMicrosPerMillion], [usage.outputTokens, table.outputMicrosPerMillion],
+    [read, table.cacheReadMicrosPerMillion], [write, table.cacheWriteMicrosPerMillion]] as const;
+  let total = 0n;
+  for (const [tokens, rate] of entries) {
+    if (!tokens) continue;
+    check(typeof rate === 'string' && /^(0|[1-9][0-9]{0,14})$/.test(rate), 'SPEND_UNPRICED', 'A reported token category has no saved price. Its cost stays held.');
+    total += BigInt(tokens) * BigInt(rate);
+  }
   return String((total + MICROS_PER_MILLION_TOKENS - 1n) / MICROS_PER_MILLION_TOKENS);
+}
+
+/** D2: the cost of one call, or null while it is held (a reported cache kind has no saved rate). */
+export function callCostOrHeld(usage: Usage, table: ModelPriceTable | null): MicroString | null {
+  try { return callCostMicros(usage, table); } catch (error) {
+    if ((error as { code?: unknown })?.code === 'SPEND_UNPRICED') return null;
+    throw error;
+  }
 }
 
 /**

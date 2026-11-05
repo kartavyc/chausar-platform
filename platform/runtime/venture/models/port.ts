@@ -32,7 +32,7 @@ import {
   SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, cliRouteFlags, codexHost, codexPlan, parseClaudeCli, parseCodexCli, unknownRouteFlags,
   type CliPlan, type CodexHost,
 } from './cli.ts';
-import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
+import { callCostOrHeld, costDisplay, estimateMaxCostMicros } from './cost.ts';
 import { formatCost } from '../../owner-format.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
@@ -521,7 +521,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     }
     const unpricedNativeModel=!!call.agentJobId && metered && !call.replay && (!parsed.answeredBy || parsed.answeredBy!==call.model);
     if(unpricedNativeModel)failure={code:'SPEND_UNPRICED',message:'The quality check did not report the exact model priced for this job. Its cost remains held.'};
-    const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
+    // D2: a cost held because a reported cache kind has no saved rate is null; the reservation stays on the spend row.
+    const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostOrHeld(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
     // A2: a task may keep a small plain part of its checked answer on the record (About you keeps its offers).
     let kept: unknown;

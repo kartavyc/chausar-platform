@@ -10,7 +10,13 @@ export type ConnectionRecord = ModelConnectionRecord;
 export type ConnectionView = ModelConnectionView;
 export type CallRecord = ModelCallRecord;
 
-export type Usage = { inputTokens: number; outputTokens: number };
+/**
+ * D2: inputTokens is always the uncached input. cachedInputTokens (prompt cache reads) and cacheWriteTokens (prompt cache
+ * writes) appear only when the provider reported more than zero of them, so a call without caching keeps its old shape.
+ */
+export type Usage = { inputTokens: number; outputTokens: number; cachedInputTokens?: number; cacheWriteTokens?: number };
+/** Whose usage report it is: the field names and what input_tokens includes differ. */
+export type UsageProvider = 'anthropic' | 'openai' | 'claude-cli' | 'codex-cli';
 
 /**
  * What a route parser makes of one provider answer. Usage is kept even on failure, so spend is counted. answeredBy
@@ -43,12 +49,27 @@ export function validTokenCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
-/** Usage from a provider's { input_tokens, output_tokens } object, or null when it is missing or malformed. */
-export function readUsage(value: unknown): Usage | null {
+/**
+ * Usage from a provider's report, or null when it is missing or malformed. Anthropic and the Claude command line report
+ * cache_read_input_tokens and cache_creation_input_tokens beside input_tokens (the uncached part). OpenAI reports
+ * input_tokens_details.cached_tokens and Codex cached_input_tokens inside input_tokens, so those are taken out of it:
+ * input means the uncached part on every route.
+ */
+export function readUsage(value: unknown, provider: UsageProvider): Usage | null {
   if (!value || typeof value !== 'object') return null;
   const usage = value as Record<string, unknown>;
   if (!validTokenCount(usage.input_tokens) || !validTokenCount(usage.output_tokens)) return null;
-  return { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens };
+  const optional = (tokens: unknown) => (tokens === undefined || tokens === null ? 0 : validTokenCount(tokens) ? tokens : -1);
+  let input = usage.input_tokens, read = 0, write = 0;
+  if (provider === 'anthropic' || provider === 'claude-cli') {
+    read = optional(usage.cache_read_input_tokens); write = optional(usage.cache_creation_input_tokens);
+  } else {
+    const details = usage.input_tokens_details;
+    read = optional(provider === 'openai' ? (details && typeof details === 'object' ? (details as Record<string, unknown>).cached_tokens : undefined) : usage.cached_input_tokens);
+    input -= Math.max(read, 0);
+  }
+  if (read < 0 || write < 0 || input < 0) return null;
+  return { inputTokens: input, outputTokens: usage.output_tokens, ...(read > 0 ? { cachedInputTokens: read } : {}), ...(write > 0 ? { cacheWriteTokens: write } : {}) };
 }
 
 export function isPlainRecord(value: unknown): value is Record<string, unknown> {

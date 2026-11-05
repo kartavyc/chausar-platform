@@ -9,7 +9,7 @@ import {guardedFetch,pinnedSend} from '../core/net-guard.ts';
 import {presetSpec} from '../models/presets.ts';
 import {anthropicBody,anthropicHeaders,parseAnthropic,ANTHROPIC_URL} from '../models/anthropic.ts';
 import {openaiBody,openaiHeaders,parseOpenAI,OPENAI_URL} from '../models/openai.ts';
-import {callCostMicros,estimateMaxCostMicros} from '../models/cost.ts';
+import {callCostOrHeld,estimateMaxCostMicros} from '../models/cost.ts';
 import {modelBudgetUsed} from '../models/budget.ts';
 import {listRateOfTable,modelTableOf,resolveRate,spendRatesOf,reserveSpend,settleSpendAction,type SpendOutcome} from '../money/spend.ts';
 import {storefrontAnswer,STOREFRONT_ANSWER_SCHEMA,type StorefrontCatalogue} from './storefront-assistant-core.ts';
@@ -36,7 +36,7 @@ export async function sendStorefrontModel(deps:VentureDeps,ctx:Context,prepared:
  let sent=false,outcome:SpendOutcome={kind:'released'};
  try{
   const response=await guardedFetch({url:prepared.url,method:'POST',headers:prepared.quote.route==='openai-responses'?openaiHeaders(deps.secrets.get(`model:${prepared.presetId}`)??''):anthropicHeaders(deps.secrets.get(`model:${prepared.presetId}`)??''),body:prepared.body,maxBytes:1000000,maxRedirects:0,timeoutMs:30000},{resolve:deps.net?.resolve,send:target=>{fresh();const guard:unknown=approval.beforeDispatch();if(guard&&typeof(guard as {then?:unknown}).then==='function')void Promise.resolve(guard).catch(()=>undefined);check(guard===undefined,'INVALID_VENTURE_REQUEST','The session approval guard must finish synchronously.');sent=true;return(deps.net?.send??pinnedSend)(target);}});
-  const parsed=(prepared.quote.route==='openai-responses'?parseOpenAI:parseAnthropic)({status:response.status,body:response.body.toString('utf8')});outcome=parsed.usage?{kind:'billed',micros:callCostMicros(parsed.usage,prepared.table),by:'usage'}:parsed.ok?{kind:'reservation'}:{kind:'unknown'};
+  const parsed=(prepared.quote.route==='openai-responses'?parseOpenAI:parseAnthropic)({status:response.status,body:response.body.toString('utf8')});const micros=parsed.usage?callCostOrHeld(parsed.usage,prepared.table):null;outcome=micros!==null?{kind:'billed',micros,by:'usage'}:parsed.ok?{kind:'reservation'}:{kind:'unknown'};
   check(parsed.ok,'STOREFRONT_AI_FAILED','The AI could not answer. Nothing was retried. Open the shop or ask its owner.');fresh();approval.beforeDispatch();return storefrontAnswer(parsed.value,prepared.input.catalogue,prepared.input.domain);
  }catch(error){if(sent&&outcome.kind==='released')outcome={kind:'unknown'};if(!sent)throw error;if(error instanceof ChausarError)throw error;throw new ChausarError('STOREFRONT_AI_FAILED','The AI did not return a verified answer. It will not be retried.');}
  finally{await settleSpendAction(deps,ctx,spendKey,outcome).catch(()=>undefined);}
