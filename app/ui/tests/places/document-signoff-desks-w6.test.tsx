@@ -39,7 +39,7 @@ describe('6E4 document desk', () => {
     await desk(engine, 'document-desk', 'document', order.id, 'figures', { currency: 'INR', lines: [{ label: 'Printing', quantity: '2.5', unit: '333.33' }] }, view.digest);
     view = await desk(engine, 'document-desk', 'document', order.id);
     expect(view.item.figures.totalMinor).toBe('83333');
-    expect(view.item.figureWords[0]).toBe('Printing: 2.5 at INR 333.33 is INR 833.33');
+    expect(view.item.figureWords[0]).toBe('Printing: 2.5 at ₹333.33 is ₹833.33');
     await expect(desk(engine, 'document-desk', 'document', order.id, 'section', { sectionId: 'section-1', text: 'It costs INR 900.' }, view.digest)).rejects.toMatchObject({ code: 'DOCUMENT_FIGURE_UNRECEIPTED' });
     await expect(desk(engine, 'document-desk', 'document', order.id, 'approve', {}, view.digest)).rejects.toMatchObject({ code: 'DOCUMENT_BRIEF_REQUIRED' });
     await expect(desk(engine, 'document-desk', 'document', order.id, 'outline', { sections: [] }, 'stale')).rejects.toMatchObject({ code: 'APPROVAL_CHANGED' });
