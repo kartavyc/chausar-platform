@@ -38,6 +38,7 @@ test('one lint job on Ubuntu installs from the lock, then checks for tracked dat
     'npm ci --ignore-scripts --no-audit --no-fund',
     'node scripts/check-clean-tree.mjs --tracked',
     'node scripts/check.mjs',
+    'node scripts/check-boundaries.mjs --report',
     'npm run typecheck',
     'npm run typecheck:ui',
     'node scripts/third-party-notices.mjs --check',

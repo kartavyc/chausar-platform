@@ -4,6 +4,7 @@
   "platform/tests/alert-brief-independent-public-acceptance.test.ts": 17,
   "platform/tests/benchmark-sharding.test.ts": 27.9,
   "platform/tests/bilingual-benchmark.test.ts": 24.3,
+  "platform/tests/boundaries-d11.test.ts": 3,
   "platform/tests/conversation-acceptance.test.ts": 18.5,
   "platform/tests/conversation-continuation-engine.test.ts": 14.1,
   "platform/tests/conversation-synthesis-public-acceptance.test.ts": 13.3,

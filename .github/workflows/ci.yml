@@ -36,6 +36,9 @@ jobs:
         run: node scripts/check-clean-tree.mjs --tracked
       - name: Check source and JSON syntax
         run: node scripts/check.mjs
+      # D11: report only until D11a task 2 moves the helpers the UI value-imports into platform/shared.
+      - name: Report imports that cross the platform boundaries
+        run: node scripts/check-boundaries.mjs --report
       - name: Typecheck runtime and tests
         run: npm run typecheck
       - name: Typecheck the Ink frontend
