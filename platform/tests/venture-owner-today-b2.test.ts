@@ -114,16 +114,10 @@ const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: stri
   'money/dates.ts': [1, 'calendar arithmetic on a day string'],
   'playbooks/social/risk-gate.ts': [1, "a platform rule's checked-on age, not a business day"],
   // LEFT in this round (B2 fix round 1 notes): each still takes the transaction's UTC day.
-  'delivery/deliverable.ts': [1, "LEFT: the order's day on a draft's date line"],
   'playbooks/monitored-data/extract.ts': [4, 'LEFT: a watched page read day'],
   'playbooks/monitored-data/check.ts': [1, 'LEFT: a watched page read day'],
   'playbooks/monitored-data/state.ts': [2, 'LEFT: a watched page read day'],
-  'playbooks/narration-studio/runtime.ts': [1, 'LEFT: the narration source rights day'],
-  'playbooks/app-testing/demo-source.ts': [1, 'LEFT: the demo narration rights day'],
-  'playbooks/online-seller/shopify-state.ts': [2, 'LEFT: the Shopify change day'],
   'playbooks/online-seller/model.ts': [1, 'LEFT: a pure seller calculator called with no day (the desk and the harness now pass the owner day)'],
-  'playbooks/trading-journal/desk.ts': [1, 'LEFT: the trading journal as-of day'],
-  'delivery/harness/tools-translation-studio.ts': [1, 'LEFT: the translation rights day in the harness'],
 };
 
 test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {

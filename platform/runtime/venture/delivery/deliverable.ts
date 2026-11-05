@@ -101,9 +101,9 @@ export function rehearsalRefs(state: State, ventureId: string, blueprint: Bluepr
 
 /**
  * Real order refs: the order's own price receipt, today and the date the order came in. Both dates are days on the
- * owner's calendar; orderDay defaults to the UTC day of the order's time only for callers that have no venture.
+ * owner's calendar (localDayAt with the business's country); every caller has the business.
  */
-export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receipt: PriceReceiptRecord, today: IsoDate, orderDay: IsoDate = order.at.slice(0, 10)): DraftRefs {
+export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receipt: PriceReceiptRecord, today: IsoDate, orderDay: IsoDate): DraftRefs {
   const offer = blueprint.offers.find(item => item.id === order.offerId);
   const unit = offer ? UNIT_WORD[offer.pricing.quantityUnit] ?? 'unit' : 'unit';
   return {

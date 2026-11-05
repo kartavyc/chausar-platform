@@ -4,15 +4,16 @@ import {decimalMinor} from '../../../currency.ts';
 import {shopifyChange,shopifyDomain,type ShopifyProduct} from '../../build/shopify-admin-core.ts';
 import {checkSellerApply,type SellerCaps,type SellerChange} from './staging.ts';
 export type ShopifyRead={id:string;orderId:string;clientId:string;domain:string;storeId:string;connectionDigest:string;sessionId:string;memberId:string;epoch:number;at:string;product:ShopifyProduct};
-export type ShopifyWriteContext={read:ShopifyRead;caps:SellerCaps;breakEvenMinor:string|null;now:string;ownerSku?:string};
+/** now is the instant; today is the owner's day at that instant (the business's zone), which a change's end day is checked against. */
+export type ShopifyWriteContext={read:ShopifyRead;caps:SellerCaps;breakEvenMinor:string|null;now:string;today:string;ownerSku?:string};
 export type ShopifyWrite={id:string;read:ShopifyRead;request:ReturnType<typeof shopifyChange>;createdAt:string;expiresAt:string;phase:'staged'|'sending'|'applied'|'rejected'|'unknown';claimedAt:string|null;finishedAt:string|null;liveVerified:string|null};
 const time=(value:string)=>{const n=Date.parse(value);check(Number.isFinite(n),'SELLER_INPUT_INVALID','Use a valid operation time.');return n;};
 const identity=(read:ShopifyRead)=>{const {product:_product,...scope}=read;return digest(scope);};
 /** Complete exact dry preview, scoped to a fresh owner session and the read product/location. */
 export function stageShopifyWrite(context:ShopifyWriteContext,change:SellerChange,id:string):ShopifyWrite{
- const {read,now}=context;shopifyDomain(read.domain);check(/^[A-Za-z0-9_.:-]{1,200}$/.test(id)&&read.sessionId.length>0&&read.connectionDigest.length>0&&/^gid:\/\/shopify\/Shop\/[1-9][0-9]*$/.test(read.storeId),'SELLER_PROVENANCE_REQUIRED','Read the exact store and product in this session.');
+ const {read,now,today}=context;shopifyDomain(read.domain);check(/^[A-Za-z0-9_.:-]{1,200}$/.test(id)&&read.sessionId.length>0&&read.connectionDigest.length>0&&/^gid:\/\/shopify\/Shop\/[1-9][0-9]*$/.test(read.storeId),'SELLER_PROVENANCE_REQUIRED','Read the exact store and product in this session.');
  check(time(now)>=time(read.at)&&time(now)-time(read.at)<1800000,'SELLER_PROVENANCE_REQUIRED','Read the product again before staging it.');
- const request=shopifyChange({product:read.product,breakEvenMinor:context.breakEvenMinor,caps:context.caps,today:now.slice(0,10),operationId:id,ownerSku:context.ownerSku},change);
+ const request=shopifyChange({product:read.product,breakEvenMinor:context.breakEvenMinor,caps:context.caps,today,operationId:id,ownerSku:context.ownerSku},change);
  return {id,read:structuredClone(read),request,createdAt:now,expiresAt:new Date(time(now)+1800000).toISOString(),phase:'staged',claimedAt:null,finishedAt:null,liveVerified:null};
 }
 /** Claim must be persisted before any effect. Reopening, a timeout or a failed read-back cannot re-arm it. */
@@ -21,7 +22,7 @@ export function claimShopifyWrite(stage:ShopifyWrite,approved:string,current:Sho
  check(approved===digest(stage)&&time(current.now)<time(stage.expiresAt)&&time(current.now)>=time(stage.createdAt),'APPROVAL_STALE','Approve the exact current change before it expires.');
  check(identity(stage.read)===identity(current.read),'SELLER_PROVENANCE_REQUIRED','The store, client, connection or session changed. Read and stage again.');
  const p=current.read.product;check(p.variantId===stage.read.product.variantId&&p.productId===stage.read.product.productId&&p.inventoryItemId===stage.read.product.inventoryItemId&&p.locationId===stage.read.product.locationId,'SELLER_PROVENANCE_REQUIRED','Read this exact variant and location again.');
- checkSellerApply(stage.request.proposal,{sku:p.sku??stage.request.proposal.product.sku,channel:'shopify',priceMinor:p.priceMinor,breakEvenMinor:current.breakEvenMinor,stock:p.stock,title:p.title,currency:p.currency},current.caps,current.now.slice(0,10));
+ checkSellerApply(stage.request.proposal,{sku:p.sku??stage.request.proposal.product.sku,channel:'shopify',priceMinor:p.priceMinor,breakEvenMinor:current.breakEvenMinor,stock:p.stock,title:p.title,currency:p.currency},current.caps,current.today);
  return {...structuredClone(stage),phase:'sending',claimedAt:current.now};
 }
 /** Actual success needs both a non-error mutation answer and an exact identity/value read-back. */

@@ -175,7 +175,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
         client: { id: client.id, ventureId: venture.id, name: client.name, email: client.email ?? '', ...(calculationGrant(deps.store.read(), run).some(name => name.startsWith('tax.')) ? { taxId: client.taxId ?? null } : {}) },
         order: { id: order.id, ventureId: venture.id, clientId: client.id, request: order.request, status: order.status, intake: order.intake ?? null, chainStage: order.chainStage ?? null },
         files: files.map(file => ({ id: file.id, ventureId: venture.id, orderId: order.id, name: file.name, mediaType: file.format, bytes: file.bytes, digest: file.digest })),
-        sections: [...options.sections], dates: [...orderRefs(blueprint, order, receipt, localDayAt(deps.clock(), country)).dates,
+        sections: [...options.sections], dates: [...orderRefs(blueprint, order, receipt, localDayAt(deps.clock(), country), localDayAt(order.at, country)).dates,
           ...(background.approvedBrief ? [{ref:'room.deadline',label:'The deadline in the approved client brief',iso:background.approvedBrief.deadline}] : [])] };
     },
     readFile: async (_scope, file, page) => {

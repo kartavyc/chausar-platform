@@ -4,10 +4,11 @@ import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import {createHash} from 'node:crypto';
 import {check,type Context} from '../../../contracts.ts';import type {VentureDeps} from '../../contracts.ts';
 import {digest,exactPayload,ventureAction} from '../../records.ts';
+import {localDayAt} from '../../local-day.ts';
 import {liveDemo,demoGuard} from './demo-runtime.ts';import {requireAppTestingClientRule} from './rules.ts';
 import {renderDemoVideo} from './demo-render.ts';import type {DemoRendered} from './demo-records.ts';
 const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
-function source(deps:VentureDeps,ctx:Context,orderId:string){const live=liveDemo(deps,ctx,orderId,'approve');return{...live,...demoMediaSource(live.state,live.venture.id,live.order,live.row,deps.clock().toISOString())};}
+function source(deps:VentureDeps,ctx:Context,orderId:string){const live=liveDemo(deps,ctx,orderId,'approve');return{...live,...demoMediaSource(live.state,live.venture.id,live.order,live.row,localDayAt(deps.clock(),live.venture.country))};}
 export async function finishDemo(deps:VentureDeps,ctx:Context,orderId:string,action:string,expected:unknown,payload:unknown){
  const live=source(deps,ctx,orderId),row=live.row;check(expected===digest(row),'APPROVAL_STALE','Review the current demo before changing it.');
  if(action==='render'){

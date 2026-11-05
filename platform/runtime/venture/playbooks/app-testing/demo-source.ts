@@ -6,8 +6,9 @@ import {digest,listRecords} from '../../records.ts';
 import {requireDemoPlan} from './demo-runtime.ts';
 import {narrationRights} from '../narration-studio/source-core.ts';
 const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
-export function demoMediaSource(state:State,ventureId:string,order:OrderRecord,row:DemoProjectRecord,now:string){
- const orderId=order.id;requireDemoPlan(row.plan,row.approvedPlan);if(row.plan.aiVoice)narrationRights(order,now.slice(0,10));
+/** today is the owner's day (the business's zone), which the narration licence's end day is checked against. */
+export function demoMediaSource(state:State,ventureId:string,order:OrderRecord,row:DemoProjectRecord,today:string){
+ const orderId=order.id;requireDemoPlan(row.plan,row.approvedPlan);if(row.plan.aiVoice)narrationRights(order,today);
  check(row.video,'DEMO_RECORDING_REQUIRED','Finish the actual private desktop recording first.');
  const bytes=Buffer.from(row.video.contentBase64,'base64');check(bytes.length===row.video.bytes&&sha(bytes)===row.video.digest,'APPROVAL_STALE','The recorded desktop bytes changed.');
  const files=listRecords(state,'venture-upload',ventureId);

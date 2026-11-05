@@ -6,6 +6,7 @@ import type { Json, TradeJournalRecord, VentureRecord } from '../../contracts.ts
 import type { State } from '../../../contracts.ts';
 import { digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../../records.ts';
 import type { DeskHandlers } from '../desk-types.ts';
+import { localDayAt } from '../../local-day.ts';
 import { JOURNAL_LINES, sourcesOf, importEntry, importPayload, journalItem, journalOf, listRows, openingLot, packFor, type JournalEntryRow, type JournalItem, type JournalListRow } from './desk-core.ts';
 import { journalReceipt, taxPackReceipt } from './receipt.ts';
 
@@ -21,7 +22,8 @@ const PLAYBOOK = 'trading-journal' as const;
 const rowsOf = (state: State, venture: VentureRecord): JournalEntryRow[] => listRecords(state, 'venture-trade-journal', venture.id).map(row => ({ id: row.id, at: row.at, entry: row.entry }));
 const top = (raw: unknown, op: 'list' | 'get' | 'act') => exactPayload(raw, op === 'list' ? ['playbook', 'kind', 'filter'] : op === 'get' ? ['playbook', 'kind', 'id'] : ['playbook', 'kind', 'id', 'action', 'payload', 'digest'],
   op === 'list' ? ['playbook', 'kind'] : op === 'get' ? ['playbook', 'kind', 'id'] : ['playbook', 'kind', 'id', 'action', 'payload']);
-const today = (now: string) => now.slice(0, 10);
+/** The journal's as-of day: today where the business is (one-shot B2, the owner-day rule). */
+const today = (now: Date | string, venture: VentureRecord) => localDayAt(now, venture.country);
 function saveReceipt(tx: VentureTx, body: ReturnType<typeof journalReceipt> | ReturnType<typeof taxPackReceipt>): string {
   const proof = { ...tx.base('venture-work-receipt'), ...body };
   proof.digest = digest({ ...proof, digest: '' });
@@ -37,14 +39,14 @@ export const TRADING_JOURNAL_DESK: DeskHandlers = { journal: {
   },
   async get(deps, ctx, p) {
     top(p, 'get'); check(p.id === 'journal', 'INVALID_VENTURE_REQUEST', 'Open your trading journal.');
-    const { state, venture } = readVenture(deps, ctx), item = journalItem(rowsOf(state, venture), today(deps.clock().toISOString()), id => listRecords(state, 'venture-work-receipt', venture.id).find(row => row.id === id)?.figures ?? null);
+    const { state, venture } = readVenture(deps, ctx), item = journalItem(rowsOf(state, venture), today(deps.clock(), venture), id => listRecords(state, 'venture-work-receipt', venture.id).find(row => row.id === id)?.figures ?? null);
     return { playbook: PLAYBOOK, kind: 'journal', item, digest: digest(item) };
   },
   async act(deps, ctx, p) {
     requireAppChannel(ctx, 'venture.desk.act'); top(p, 'act');
     check(p.id === 'new' && p.digest === undefined, 'INVALID_VENTURE_REQUEST', 'Start a new import, opening holding or tax pack.');
     return ventureAction(deps, ctx, 'approve', `trading.journal.${p.action}`, tx => {
-      const venture = tx.venture!, rows = rowsOf(tx.state, venture), asOf = today(tx.now);
+      const venture = tx.venture!, rows = rowsOf(tx.state, venture), asOf = today(tx.now, venture);
       const save = (base: ReturnType<typeof tx.base<'venture-trade-journal'>>, entry: TradeJournalRecord['entry']) => {
         const record: TradeJournalRecord = { ...base, entry };
         tx.put(record); tx.emit('desk.changed', { playbook: PLAYBOOK, kind: 'journal', id: record.id }); return record;
