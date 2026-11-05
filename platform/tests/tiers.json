@@ -1,0 +1,19 @@
+{
+  "heavy": [
+    "platform/tests/alert-brief-additional-independent-public-acceptance.test.ts",
+    "platform/tests/benchmark-sharding.test.ts",
+    "platform/tests/bilingual-benchmark.test.ts",
+    "platform/tests/investigation-job-http.test.ts",
+    "platform/tests/phone-host-http.test.ts",
+    "platform/tests/private-trial-public-flow.test.ts",
+    "platform/tests/venture-ca-tools.test.ts",
+    "platform/tests/venture-network-search.test.ts",
+    "platform/tests/venture-social-run.test.ts",
+    "platform/tests/workspace-activation-independent-public-acceptance.test.ts",
+    "platform/tests/workspace-activation-local.test.ts",
+    "platform/tests/workspace-activation-public.test.ts",
+    "platform/tests/workspace-backup-activation.test.ts",
+    "platform/tests/workspace-backup-local.test.ts",
+    "platform/tests/workspace-interchange-public-acceptance.test.ts"
+  ]
+}

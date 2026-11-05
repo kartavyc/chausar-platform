@@ -18,6 +18,7 @@ interface BenchmarkReport {
   workers: number;
   fileTimings: Record<string, number>;
   tempFreeBytes: number;
+  tier: 'fast' | 'heavy' | 'all';
   exitCode: number | null;
   productionQualified: boolean;
   timeout: boolean;
@@ -76,6 +77,9 @@ async function fixture(t: TestContext, failing = false, incomplete = false, ordi
     },
     async report(output = 'results/factory-bench.json'): Promise<BenchmarkReport> {
       return JSON.parse(await readFile(join(directory, output), 'utf8'));
+    },
+    async tiers(tiers: { heavy?: string[]; isolated?: string[] }) {
+      await writeFile(join(directory, 'platform', 'tests', 'tiers.json'), JSON.stringify({ heavy: [], isolated: [], ...tiers }));
     },
     async weights(weights: Record<string, number>) {
       await writeFile(join(directory, 'platform', 'tests', 'test-weights.json'), JSON.stringify(weights));
@@ -269,6 +273,41 @@ test('D2: --write-weights turns the receipts file times into the weights file, s
   for (const args of [['--write-weights=../outside.json'], ['--write-weights=results/a.json', '--shard=1/2'], ['--write-weights=results/missing.json']]) {
     assert.notEqual(f.invoke(args).status, 0, JSON.stringify(args));
   }
+});
+
+// D2 task 5: platform/tests/tiers.json names the heavy files; --tier=fast runs every other file, --tier=heavy only those.
+test('D2: --tier=fast skips the heavy files, --tier=heavy runs only them, and both shard over their own files', async t => {
+  const f = await fixture(t, false, false, 6);
+  await f.tiers({ heavy: ['platform/tests/fixture-2.test.ts', 'platform/tests/fixture-5.test.ts'] });
+  assert.equal(f.invoke(['--tier=fast', '--output=results/fast.json']).status, 0);
+  const fast = await f.report('results/fast.json');
+  assertCompleteRun(fast, 4);
+  assert.equal(fast.tier, 'fast');
+  assert.equal(fast.testFiles.selection, 'tier');
+  assert.deepEqual(fast.testFiles.selectedFiles, ['platform/tests/fixture-1.test.ts', 'platform/tests/fixture-3.test.ts', 'platform/tests/fixture-4.test.ts', 'platform/tests/fixture-6.test.ts']);
+  assert.deepEqual(await f.executed(), [1, 3, 4, 6]);
+  await writeFile(join(f.directory, 'executed.jsonl'), '');
+  assert.equal(f.invoke(['--tier', 'heavy', '--output=results/heavy.json']).status, 0);
+  assert.equal((await f.report('results/heavy.json')).tier, 'heavy');
+  assert.deepEqual(await f.executed(), [2, 5]);
+  await writeFile(join(f.directory, 'executed.jsonl'), '');
+  assert.equal(f.invoke(['--tier=fast', '--shard=2/2', '--output=results/fast-2.json']).status, 0);
+  const shardTwo = await f.report('results/fast-2.json');
+  assert.deepEqual(shardTwo.testFiles.plan!.groups.flatMap(group => group.files).sort(), fast.testFiles.selectedFiles);
+  assert.deepEqual(await f.executed(), shardTwo.testFiles.selectedFiles!.map(file => Number(/fixture-(\d)/.exec(file)![1])));
+  assert.equal(f.invoke(['--output=results/all.json']).status, 0);
+  assert.equal((await f.report('results/all.json')).tier, 'all');
+  assert.equal((await f.report('results/all.json')).testFiles.selection, 'all-discovered-files');
+  assert.notEqual(f.invoke(['--tier=slow']).status, 0);
+});
+
+test('D2: a heavy entry naming a missing file fails the run with its name before any test', async t => {
+  const f = await fixture(t);
+  await f.tiers({ heavy: ['platform/tests/fixture-1.test.ts', 'platform/tests/renamed-away.test.ts'] });
+  const result = f.invoke(['--tier=fast']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /platform\/tests\/tiers\.json names a test file that does not exist: platform\/tests\/renamed-away\.test\.ts/);
+  await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
 });
 
 test('invalid, duplicated and unknown shard options refuse before spawning fixture tests', async t => {

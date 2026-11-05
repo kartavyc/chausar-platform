@@ -6,15 +6,15 @@ import { dirname, isAbsolute, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null; let weightSources = null;
-const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
+const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all';
+const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--tier=fast|heavy|all] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
 const seen = new Set(); let list = false;
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
   // --list prints the files this run would pick (and the shard plan) and runs nothing.
   if (argument === '--list') { if (list) throw new Error(usage); list = true; continue; }
   const option = argument.split('=', 1)[0];
-  if (!['--output', '--shard', '--workers', '--write-weights'].includes(option) || seen.has(option)) throw new Error(usage);
+  if (!['--output', '--shard', '--workers', '--write-weights', '--tier'].includes(option) || seen.has(option)) throw new Error(usage);
   seen.add(option);
   const value = argument.includes('=') ? argument.slice(option.length + 1) : args[++index];
   if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
@@ -23,7 +23,10 @@ for (let index = 0; index < args.length; index++) {
     if (!/^[1-9]\d?$/.test(value) || Number(value) > 64) throw new Error('Workers must be a whole number from 1 to 64.');
     requestedWorkers = Number(value);
   } else if (option === '--write-weights') weightSources = value.split(',');
-  else {
+  else if (option === '--tier') {
+    if (!['fast', 'heavy', 'all'].includes(value)) throw new Error('The tier must be fast, heavy or all.');
+    tier = value;
+  } else {
     if (!/^[1-8]\/[1-8]$/.test(value) || Number(value[0]) > Number(value[2])) throw new Error('Benchmark shard must be I/N with N from 1 to 8 and I from 1 to N, such as 2/3.');
     const [shardIndex, shardTotal] = value.split('/').map(Number);
     shard = { index: shardIndex, total: shardTotal };
@@ -58,6 +61,15 @@ const discoveryPattern = 'platform/tests/*.test.ts';
 const discoveredFiles = [];
 for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
 discoveredFiles.sort();
+// D2: platform/tests/tiers.json names the heavy files (over 20 s). --tier=fast runs every other file, --tier=heavy only
+// those, --tier=all (the default) every file. A name there that no longer exists fails the run, so the list stays true.
+let tiers = { heavy: [] };
+try { tiers = JSON.parse(await readFile(resolve(root, 'platform/tests/tiers.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+for (const file of tiers.heavy ?? []) {
+  if (!discoveredFiles.includes(file)) throw new Error(`platform/tests/tiers.json names a test file that does not exist: ${file}`);
+}
+const tierFiles = tier === 'all' ? discoveredFiles : discoveredFiles.filter(file => (tier === 'heavy') === (tiers.heavy ?? []).includes(file));
+if (tierFiles.length === 0) throw new Error(`The ${tier} tier has no test files.`);
 // D2: one time-balanced plan for any shard count from 1 to 8. Each file weighs its seconds in
 // platform/tests/test-weights.json (`--write-weights` refreshes it; a file missing there counts 1 s). Files are placed
 // heaviest first, ties by name, each on the lightest shard so far (ties: the lower shard), so the plan is the same on
@@ -68,28 +80,28 @@ const weightOf = file => (typeof weights[file] === 'number' && weights[file] >= 
 let selectedFiles = null; let plan = null;
 if (shard) {
   const groups = Array.from({ length: shard.total }, (_, index) => ({ index: index + 1, files: [], estimatedSeconds: 0 }));
-  const ordered = discoveredFiles.slice().sort((left, right) => weightOf(right) - weightOf(left) || (left < right ? -1 : left > right ? 1 : 0));
+  const ordered = tierFiles.slice().sort((left, right) => weightOf(right) - weightOf(left) || (left < right ? -1 : left > right ? 1 : 0));
   for (const file of ordered) {
     const lightest = groups.reduce((best, group) => (group.estimatedSeconds < best.estimatedSeconds ? group : best));
     lightest.files.push(file); lightest.estimatedSeconds += weightOf(file);
   }
   for (const group of groups) { group.files.sort(); group.estimatedSeconds = Math.round(group.estimatedSeconds * 10) / 10; }
   const covered = groups.flatMap(group => group.files);
-  if (new Set(covered).size !== discoveredFiles.length || JSON.stringify(covered.slice().sort()) !== JSON.stringify(discoveredFiles)) {
+  if (new Set(covered).size !== tierFiles.length || JSON.stringify(covered.slice().sort()) !== JSON.stringify(tierFiles)) {
     throw new Error('The shard plan must cover every discovered test file exactly once.');
   }
   // An empty shard would hand Node no files, and Node would then run its own discovery: refuse instead.
   if (groups[shard.index - 1].files.length === 0) throw new Error(`Shard ${shard.index}/${shard.total} has no test files: there are fewer test files than shards.`);
   selectedFiles = groups[shard.index - 1].files;
   plan = { name: 'time-balanced-v1', weights: 'platform/tests/test-weights.json', defaultSeconds: 1, groups };
-}
+} else if (tier !== 'all') selectedFiles = tierFiles;
 // Every receipt retains the complete discovery universe; a shard receipt also records its exact files and every group.
 const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
   inventorySha256: createHash('sha256').update(JSON.stringify(discoveredFiles)).digest('hex'),
-  selection: plan ? 'time-balanced-plan' : 'all-discovered-files',
-  ...(plan ? { selectedFiles, plan } : {}) };
+  selection: plan ? 'time-balanced-plan' : selectedFiles ? 'tier' : 'all-discovered-files',
+  ...(selectedFiles ? { selectedFiles } : {}), ...(plan ? { plan } : {}) };
 if (list) {
-  process.stdout.write(`${JSON.stringify({ shard, selection: testFiles.selection, files: selectedFiles ?? discoveredFiles, ...(plan ? { plan: plan.groups.map(group => ({ index: group.index, files: group.files.length, estimatedSeconds: group.estimatedSeconds })) } : {}) }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ tier, shard, selection: testFiles.selection, files: selectedFiles ?? discoveredFiles, ...(plan ? { plan: plan.groups.map(group => ({ index: group.index, files: group.files.length, estimatedSeconds: group.estimatedSeconds })) } : {}) }, null, 2)}\n`);
   process.exit(0);
 }
 // D2: the test files run side by side. More workers make more vault and job folders in the OS temp folder at once, so
@@ -121,7 +133,8 @@ await mkdir(dirname(destination), { recursive: true }); await rm(timingsPath, { 
 const command = ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
   '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${timingsInside}`, `--test-concurrency=${workers}`,
   ...(selectedFiles ?? [discoveryPattern])];
-const fullSuite = shard === null;
+const fullSuite = shard === null && tier === 'all';
+const scopeParts = [...(tier === 'all' ? [] : [`${tier} tier`]), ...(shard ? [`shard ${shard.index}/${shard.total}`] : [])];
 const outcome = await new Promise((fulfill) => {
   const child = spawn(process.execPath, command, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = ''; let truncated = false; let settled = false; let timeout = false;
@@ -144,8 +157,8 @@ await rm(timingsPath, { force: true });
 const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && counts.fail === 0 && counts.cancelled === 0 && counts.skipped === 0 && counts.todo === 0 && !outcome.timeout && !outcome.truncated;
 const report = {
   schema: 'chausar.factory-bench.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
-  command: ['node', ...command], scope: fullSuite ? 'Repository open tests' : `Repository open tests (shard ${shard.index}/${shard.total})`, counts, passed,
-  shard, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
+  command: ['node', ...command], scope: scopeParts.length ? `Repository open tests (${scopeParts.join(', ')})` : 'Repository open tests', counts, passed,
+  shard, tier, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
   exitCode: outcome.exitCode, signal: outcome.signal ?? null, timeout: outcome.timeout, outputTruncated: outcome.truncated,
   productionQualified: false,
   qualification: { openTests: passed ? 'passed' : 'failed', testRunComplete: hasSummary && counts.skipped === 0 && counts.todo === 0, specificationCoverageCertified: false, hiddenBusinessAcceptance: 'not-run', sealedBusinessAcceptance: 'not-run', releaseSigning: 'not-run', realConnectorQualification: 'not-run' },
