@@ -1,0 +1,193 @@
+name: Nightly verification
+
+# D2: every night at 02:00 IST (20:30 UTC) on main, and by hand on any branch. The whole engine suite on both
+# operating systems, a single-worker engine run on Sundays, the full UI suite, the screenshot walk, the desktop smoke
+# and packaging check, and the perf budgets. Read-only: no secrets, nothing published.
+on:
+  schedule:
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  engine:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run every engine test tier in this shard
+        run: node scripts/bench.mjs --tier=all --shard=${{ matrix.shard }}/3 --workers=3 --output results/factory-bench.json
+      - name: Upload the engine receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-engine-${{ matrix.os }}-shard-${{ matrix.shard }}-of-3
+          path: results/factory-bench.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # One file at a time, as before D2: an order bug that side-by-side workers hide shows here. Sundays only (IST).
+  engine-one-worker:
+    if: github.event_name == 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check whether today is Sunday in India
+        id: day
+        shell: bash
+        run: echo "sunday=$([ "$(TZ=Asia/Kolkata date +%u)" = 7 ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        if: steps.day.outputs.sunday == 'yes'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        if: steps.day.outputs.sunday == 'yes'
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        if: steps.day.outputs.sunday == 'yes'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run the engine tests one file at a time
+        if: steps.day.outputs.sunday == 'yes'
+        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --workers=1 --output results/factory-bench.json
+      - name: Upload the single-worker receipt
+        if: always() && steps.day.outputs.sunday == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-engine-one-worker-shard-${{ matrix.shard }}-of-6
+          path: results/factory-bench.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run the whole Ink frontend suite
+        run: node scripts/ui-bench.mjs --output results/ui-tests.json
+      - name: Upload the UI receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-ui-${{ matrix.os }}
+          path: results/ui-tests.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  walk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Walk every screen in the fake engine and check each one
+        run: node scripts/ui-shots/walk.mjs --workers=4
+      - name: Upload the walk report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-walk-report
+          path: |
+            app/ui/.shots/report.json
+            app/ui/.shots/report.md
+          if-no-files-found: warn
+          retention-days: 14
+
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Start and stop the engine worker headless
+        run: node scripts/desktop-smoke.mjs
+      - name: Install the Electron binary (npm ci skipped its install script)
+        run: node node_modules/electron/install.js
+      - name: Check the preview packaging inputs
+        run: node scripts/desktop-package.mjs --mode preview --platform linux --arch x64 --check
+
+  # The budgets in platform/tests/baselines/perf-budgets.json, measured on this runner; the slow-file check reads the
+  # Ubuntu engine receipts from tonight's engine job.
+  perf:
+    needs: engine
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build the Ink frontend for the entry chunk budget
+        run: npm run build:ui
+      - name: Fetch tonight's Ubuntu engine receipts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nightly-engine-ubuntu-latest-shard-*
+          path: results/engine
+      - name: Measure and compare the perf budgets
+        run: node scripts/perf-budgets.mjs --timings results/engine --output results/perf-budgets.json
+      - name: Upload the perf receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-perf-budgets
+          path: results/perf-budgets.json
+          if-no-files-found: warn
+          retention-days: 30
