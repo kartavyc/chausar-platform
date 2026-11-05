@@ -84,3 +84,28 @@ test('the event record names no address, and the hosted app has no relay', () =>
   assert.throws(() => assertRelayHost('hosted-web'), (error: any) => error.code === 'TIER_UNAVAILABLE');
   assert.doesNotThrow(() => assertRelayHost('desktop'));
 });
+
+// Fix round 1 (review MEDIUM-2 and LOW-3): the relay takes no default network, so a caller that forgets its net is
+// refused before any lookup; and a redirect is refused at once, even when the next address would answer.
+test('a missing or half net is refused before anything is looked up or sent', async () => {
+  const notGiven = (error: any) => error.code === 'NETWORK_NOT_GIVEN';
+  await assert.rejects(readRelay({} as any, TOPIC, { since: null }), notGiven);
+  let looked = 0;
+  await assert.rejects(readRelay({ resolve: async () => { looked++; return PUBLIC; } } as any, TOPIC, { since: null }), notGiven);
+  await assert.rejects(readRelay(undefined as any, TOPIC, { since: null }), notGiven);
+  assert.equal(looked, 0);
+});
+
+test('a redirect is refused on the first answer, even when the next address would answer', async () => {
+  const sent: string[] = [];
+  const net = {
+    resolve: async () => PUBLIC,
+    send: async (target: any) => {
+      sent.push(target.url.href);
+      if (sent.length === 1) return { status: 302, headers: { location: 'https://ntfy.sh/another-topic/json?poll=1' } as Record<string, string>, body: Buffer.alloc(0) };
+      return { status: 200, headers: {}, body: Buffer.from(`${JSON.stringify(message('m1', 1762400100, razorpay('pay_Q1w2e3r4t5y6u7')))}\n`) };
+    },
+  };
+  await assert.rejects(readRelay(net, TOPIC, { since: null }), (error: any) => error.code === 'EVENT_RELAY_REFUSED');
+  assert.equal(sent.length, 1);
+});

@@ -19,7 +19,8 @@ export type RelayEvent = { source: EventSource; kind: EventKind; ref: string; re
 export type EventState = 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed';
 /** The fields of the venture-event record (moved into contracts.ts when the main lane wires the method). */
 export type VentureEventFields = { source: EventSource; kind: EventKind; ref: string; receivedAt: IsoTime; state: EventState; line: string };
-export type RelayNet = { resolve?: NetResolver; send?: PinnedSender };
+/** The network guard's resolver and sender. Required: the relay has no default network (the wiring passes the real ones). */
+export type RelayNet = { resolve: NetResolver; send: PinnedSender };
 export type RelayPage = { host: string; events: RelayEvent[]; lastId: string | null; skipped: { notJson: number; tooBig: number; other: number; repeated: number } };
 
 export const RELAY_PAGE_BYTES = 256 * 1024;
@@ -85,6 +86,7 @@ function idsOf(body: string): Pick<RelayEvent, 'source' | 'kind' | 'ref'> | 'not
  * events already kept, so a message the relay sends again is counted as repeated, not kept twice.
  */
 export async function readRelay(net: RelayNet, address: string, options: { since: IsoTime | null; seen?: ReadonlySet<string> }): Promise<RelayPage> {
+  check(typeof net?.resolve === 'function' && typeof net?.send === 'function', 'NETWORK_NOT_GIVEN', 'The relay was asked with no network to use. Nothing was looked up or sent.');
   const url = relayPollUrl(address, options.since), host = new URL(url).host;
   let answer;
   try {
