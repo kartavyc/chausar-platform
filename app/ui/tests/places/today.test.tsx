@@ -9,8 +9,8 @@ import { receiptMark } from '../helpers/ink-rules';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
-/** Today's title is the greeting for the hour (Ink v2, 3C): these tests read the page at 10:00 on this computer's clock. */
-const MORNING = () => new Date(2026, 9, 23, 10, 0);
+/** Today's title is the greeting for the hour (Ink v2, 3C): these tests read the page at 10:00 in India, the fake business's zone (B2). */
+const MORNING = () => new Date('2026-10-23T04:30:00.000Z');
 
 function start({ engine = new FakeEngine(), client, hash = '#/today', language = 'en' }: { engine?: FakeEngine; client?: EngineClient; hash?: string; language?: 'en' } = {}) {
   window.location.hash = hash;
@@ -446,5 +446,22 @@ describe('Today: keys', () => {
     await act(async () => { press('a'); press('d'); });
     expect(row.textContent).not.toContain("can't be undone");
     expect(spy.mock.calls.some(([m]) => m === 'venture.queue.decide')).toBe(false);
+  });
+});
+
+describe('Today: the date and the greeting in the owner zone (one-shot B2)', () => {
+  const LATE = () => new Date('2026-11-02T19:11:00.000Z'); // 12:41 am on 3 Nov in India, 2:11 pm on 2 Nov in New York
+  const header = async () => (await screen.findByRole('heading', { level: 1 })).closest('header')!;
+  it('at 00:41 in India the eyebrow is that day and the greeting is the night one, on any computer', async () => {
+    window.location.hash = '#/today';
+    render(<ClockProvider now={LATE}><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
+    expect((await header()).textContent).toContain('Tuesday, 3 November');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Good evening');
+  });
+  it('a zone the clock pins reads its own day and hour', async () => {
+    window.location.hash = '#/today';
+    render(<ClockProvider now={LATE} zone="America/New_York"><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
+    expect((await header()).textContent).toContain('Monday, 2 November');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Good afternoon');
   });
 });

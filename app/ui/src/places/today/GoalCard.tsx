@@ -170,7 +170,6 @@ export function TodayGoal({ next, spans }: { next: NextStepHost; spans: boolean 
   const t = useT();
   const language = useLanguage();
   const phone = useNarrow();
-  const locale = 'en-IN';
   const goals = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
   const view = goals.data;
   const fallback = !view && Boolean(goals.error);
@@ -179,11 +178,11 @@ export function TodayGoal({ next, spans }: { next: NextStepHost; spans: boolean 
   const suggestion = useGoalSuggestion(view?.state === 'unset' ? view.month : null);
 
   if (!view) {
-    return fallback && books.data ? <GoalCard data={goalFromBooks(books.data, monthOf(books.data.period.from, locale))} /> : null;
+    return fallback && books.data ? <GoalCard data={goalFromBooks(books.data, monthOf(books.data.period.from))} /> : null;
   }
   const data = goalFromView(view, {
-    month: monthOf(`${view.month}-01`, locale),
-    lastMonth: monthOf(monthBefore(view.month), locale),
+    month: monthOf(`${view.month}-01`),
+    lastMonth: monthOf(monthBefore(view.month)),
     business: spans ? venture.data?.venture.workingName : undefined,
   }, t);
   const toGoals = () => goTo('business', 'goals');

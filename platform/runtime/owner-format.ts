@@ -173,12 +173,12 @@ export function formatWeekday(value: When, zone: string): string {
   return local ? `${WEEKDAYS[local.weekday]}, ${local.day} ${LONG_MONTHS[local.month - 1]}` : asGiven(value);
 }
 
-/** A month ('2026-11') as "November 2026" (long) or "Nov" (short, a chart's column); anything else comes back as it came. */
-export function formatMonth(month: string, size: 'long' | 'short' = 'long'): string {
+/** A month ('2026-11') as "November 2026" (long), "November" (name, a goal's month) or "Nov" (short, a chart's column); anything else comes back as it came. */
+export function formatMonth(month: string, size: 'long' | 'name' | 'short' = 'long'): string {
   const found = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
   if (!found) return month;
   const index = Number(found[2]) - 1;
-  return size === 'long' ? `${LONG_MONTHS[index]} ${found[1]}` : MONTHS[index]!;
+  return size === 'long' ? `${LONG_MONTHS[index]} ${found[1]}` : size === 'name' ? LONG_MONTHS[index]! : MONTHS[index]!;
 }
 
 /** The calendar day in the zone at an instant, as 'YYYY-MM-DD' (a key and a date field's value, never shown as is). */

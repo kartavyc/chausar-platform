@@ -18,10 +18,10 @@ import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } fr
  * filter chips, Working now and Earlier. Only what the engine sends is drawn.
  */
 
-/** A time on this computer's own clock, built from local parts so every time zone reads the same hour. */
-const at = (hour: number, minute = 0) => () => new Date(2026, 9, 23, hour, minute);
+/** A wall time in India, the fake business's zone, so the greeting reads the same hour on every computer (B2). */
+const at = (hour: number, minute = 0) => () => new Date(Date.UTC(2026, 9, 23, hour, minute) - 330 * 60_000);
 /** The fake engine's own clock, on the same October day, so the month it answers with does not follow the real date. */
-const ENGINE_NOW = () => new Date(2026, 9, 23, 19, 5).toISOString();
+const ENGINE_NOW = () => at(19, 5)().toISOString();
 
 interface Start { hash?: string; engine?: FakeEngine; client?: EngineClient; language?: 'en'; now?: () => Date }
 

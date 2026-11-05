@@ -87,7 +87,6 @@ interface MonthGoalProps {
 function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalProps) {
   const t = useT();
   const language = useLanguage();
-  const locale = 'en-IN';
   const client = useEngine();
   const plan = usePlan();
   const taxRegistered = plan.data?.blueprint.backOffice.taxRegistered.value === true;
@@ -106,7 +105,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
   // Asked only on a press of "Suggest a goal", and never for a month that has a goal.
   const { suggestion, ask } = useGoalSuggestion(shown?.state === 'unset' ? month : null);
   const pastBy = shown?.past ? goalAmount(shown.pastBy) : null;
-  const data = shown ? goalFromView(shown, { month: words(month), lastMonth: monthOf(monthBefore(month), locale) }, t) : null;
+  const data = shown ? goalFromView(shown, { month: words(month), lastMonth: monthOf(monthBefore(month)) }, t) : null;
 
   async function save(event: FormEvent) {
     event.preventDefault();

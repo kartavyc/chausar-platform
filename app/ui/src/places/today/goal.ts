@@ -11,6 +11,7 @@ import type { BooksSummaryLite, GoalFigure, GoalSuggestion, GoalView, MoneyFigur
 import type { T } from '../../text';
 import type { FigureProof } from '../../parts/Figure';
 import type { GoalBarData } from '../../parts/charts/types';
+import { formatMonth } from '../../../../../platform/runtime/owner-format';
 
 /** An amount the card shows: the engine's text and its receipt (or "model estimate"). stale: the books changed since
  *  that receipt was written, which the card says in Money's words. */
@@ -89,14 +90,13 @@ export function goalFromBooks(books: BooksSummaryLite, month: string): GoalCardD
 }
 
 /**
- * The month of an ISO date ("2026-10-01") in words, in the reader's language. The date is read from its parts so a
+ * The month of an ISO date ("2026-10-01") in words ("October"). The date is read from its parts so a
  * time zone never moves it into the month before.
  */
-export function monthOf(isoDate: string, locale: string): string {
+export function monthOf(isoDate: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
   if (!match) return '';
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(locale, { month: 'long' }).format(date);
+  return formatMonth(`${match[1]}-${match[2]}`, 'name');
 }
 
 /** An engine sum as a card amount: null for an empty sum, which the engine sends as zero with no receipt. */

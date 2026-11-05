@@ -1,5 +1,6 @@
 import { memo, useId } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useDay } from '../../parts/when';
 import { useResource } from '../../engine/context';
 import type { JournalEntry, VentureRunEvent } from '../../engine/types';
 import { EmptyState } from '../../parts/EmptyState';
@@ -25,12 +26,6 @@ const TONE: Readonly<Record<JournalEntry['state'], StatusTone>> = {
   outcome_unknown: 'question',
 };
 
-/** "21 Oct", the day a line was written, in the reader's language. */
-function dayOf(at: string, language: string): string {
-  const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(date);
-}
-
 /**
  * Earlier (D-Today's Earlier tile, catalogue O15): the latest lines of this business's journal, each with what was
  * done, the engine's own line and its receipt (an amount in the line is proved by it); a line without a receipt is the
@@ -41,7 +36,7 @@ function dayOf(at: string, language: string): string {
 /** W6 6H3: `title`, the name the owner (or their AI) gave this block; left out, its own. */
 export const Earlier = memo(function Earlier({ title }: { title?: string | undefined } = {}) {
   const t = useT();
-  const language = useLanguage();
+  const day = useDay('short');
   const headingId = useId();
   const journal = useResource('venture.journal.list', { limit: LATEST }, { refreshOn: JOURNAL_EVENTS });
   const entries = journal.data?.entries ?? [];
@@ -67,7 +62,7 @@ export const Earlier = memo(function Earlier({ title }: { title?: string | undef
                 ) : unknown ? (
                   <a className={s.check} href="#/money/journal">{t('today.earlier.check')}</a>
                 ) : (
-                  <span className={cx(s.eventEnd, 'mono')}>{dayOf(entry.at, language)}</span>
+                  <span className={cx(s.eventEnd, 'mono')}>{day(entry.at)}</span>
                 )}
               </li>
             );
