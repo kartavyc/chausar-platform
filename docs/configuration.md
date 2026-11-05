@@ -60,6 +60,7 @@ Read by: desktop (the Electron app), worker (its engine process), server (the lo
 | `CHAUSAR_PRIVATE_DIR` | Where the private repository is checked out, for the screenshot walk's --publish. | Unset: ../chausar-private beside this checkout. | scripts |
 | `CHAUSAR_PUBLIC_URL` | The hosted server's own public origin, used for client share links. | Unset: share links get no address. | hosted, engine |
 | `CHAUSAR_PYTHON` | The Python the analytics helper runs with. | Unset: the desktop sets its bundled Python; the local server finds none. | desktop, server, worker |
+| `CHAUSAR_RELEASE_KEY` (secret) | The Ed25519 private key that signs the update feed, an Actions secret the release workflow writes to a private runner temp file for scripts/release-feed.mjs. | Unset: the release workflow stops before the feed is signed. | ci |
 | `CHAUSAR_RELEASE_PRIVATE_KEY_FILE` (secret) | The file holding the release signing private key, read by the packaging preflight. | Unset: refused where a signed release is asked for. | scripts |
 | `CHAUSAR_RELEASE_PUBLIC_KEY_FILE` | The file holding the release signing public key, read by the packaging preflight. | Unset: refused where a signed release is asked for. | scripts |
 | `CHAUSAR_RUN_ROOT` | Where test receipts, perf budgets and the screenshot walk write. | Unset: &lt;temp&gt;/chausar-runs/&lt;date&gt;-&lt;name&gt;. | engine, scripts, ci |
