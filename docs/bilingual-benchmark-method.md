@@ -28,7 +28,7 @@ An answer must match exact integer minor units, the complete figure set, contrib
 With the repository's existing Node runtime (24.13.1 or newer), from this source copy run:
 
 ```sh
-node scripts/bilingual-benchmark.mjs --output results/bilingual-benchmark.json
+node scripts/bilingual-benchmark.mjs
 ```
 
 Choose an unused relative JSON destination: the runner refuses overwriting. The source copy and report destination may be on another drive. Disposable scratch workspaces use a unique directory under the existing canonical system temporary parent; on Windows this parent must resolve on C before any scratch directory is created. The CLI validates and removes its owned scratch directory after success or failure. The report hashes UTF-8 question/CSV/method text with CRLF normalized to LF, plus stable dictionary semantics. This preserves fingerprints across Git line-ending settings. Its semantic run digest excludes generated identities, absolute scratch paths and wall-clock creation/publication/as-of timestamps; raw execution timestamps remain disclosed.

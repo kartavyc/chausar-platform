@@ -15,7 +15,7 @@ That runs `node platform/runtime/hosted/server.ts --hosted --dev` and serves `ht
 In development:
 
 - Sign-in links are printed on the server console, not emailed. The page says so.
-- The custody key is made once and kept in `data/hosted/dev-custody.key`, so restarts keep working. Never use that key for real accounts.
+- The custody key is made once and kept in `dev-custody.key` in the data folder (the data home's `hosted` folder: `CHAUSAR_HOME/hosted`, else your user data folder, such as `%LOCALAPPDATA%\Chausar\dev\hosted` on Windows; never inside the code folder), so restarts keep working. The start line prints where. Never use that key for real accounts.
 - Passkeys work on `localhost`, because browsers treat it as a secure site.
 
 The synthetic recordings work here too, in development only:
@@ -53,7 +53,7 @@ hosted server                          platform/runtime/hosted/server.ts
   |-- request router                   app.ts
   '-- actor runtime                    runtime/local.ts (runtime/rivet.ts is the planned seam)
         '-- one actor per business: an Engine over its own encrypted vault
-              files:      data/hosted/tenants/<tenant id>/<business id>/
+              files:      <data folder>/tenants/<tenant id>/<business id>/
               PostgreSQL: one row per business, slot hosted.<tenant id>.<business id>
 ```
 
@@ -137,7 +137,7 @@ Each business is its own encrypted vault, the same format as the desktop's. On t
 
 - Every account gets a tenant id at sign-up. Every business gets a business id. Both are made by the server, and both are shaped so they can never be a path.
 - A request never names a tenant. The server takes it from the session, and a request can open only a business on its own user's list.
-- Each business has its own folder, vault key and actor, under `data/hosted/tenants/<tenant id>/`. On PostgreSQL it also has its own row, and the folder keeps only the vault's writer lock.
+- Each business has its own folder, vault key and actor, under `<data folder>/tenants/<tenant id>/`. On PostgreSQL it also has its own row, and the folder keeps only the vault's writer lock.
 
 The tests sign in two people and check that neither can open, select or read the other's business, and that one tenant's sealed key never opens under the other.
 
@@ -308,7 +308,7 @@ Each of these is outside this branch. The labels above change only after the dep
 | `--dev` | Development: `http://localhost`, the console outbox, a development custody key file, recordings allowed |
 | `CHAUSAR_HOSTED_ORIGIN` | The public origin, like `https://app.example.com`. Passkeys need a domain, not an IP address. |
 | `CHAUSAR_HOSTED_LISTEN`, `CHAUSAR_HOSTED_PORT` | Where the server listens (default `127.0.0.1`, the origin's port or 4320) |
-| `CHAUSAR_HOSTED_DATA` | Data folder (default `data/hosted`) |
+| `CHAUSAR_HOSTED_DATA` | Data folder (default: `CHAUSAR_HOME/hosted`, else the per-user data home, such as `%LOCALAPPDATA%\Chausar\dev\hosted`; a folder inside the code folder is refused) |
 | `CHAUSAR_HOSTED_CUSTODY_KEY` | 32 random bytes as base64url. Required outside development. |
 | `CHAUSAR_HOSTED_TLS_CERT`, `CHAUSAR_HOSTED_TLS_KEY`, `CHAUSAR_HOSTED_TLS_PROXY` | TLS, as above |
 | `CHAUSAR_HOSTED_TRUST_PROXY` | With a TLS proxy: `0` (default) trusts no `X-Forwarded-For`; `1` or `true` trusts one proxy and takes the last entry; `2` to `10` for a chain of proxies, taking the entry that many from the right |

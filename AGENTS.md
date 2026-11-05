@@ -45,7 +45,7 @@ What the app does and its known limits stays public, in this repository: `docs/v
 ## Traps already hit (read before you lose an hour)
 
 - Engine tests need the default temp folder on C:. Many assert C-drive scratch, so never point TMP at another drive for `node --test` or the bench.
-- `scripts/bench.mjs` writes its output only inside the repo (use `results/`, which git ignores).
+- Outputs (bench and UI receipts, the screenshot walk) go to the run root: `CHAUSAR_RUN_ROOT`, else the OS temp folder under `chausar-runs`. Servers keep data in the data home: `CHAUSAR_HOME`, else your user data folder. Neither is ever inside the code folder; `npm run guard:data` checks.
 - A shard that times out at the same test number every run is a hang, not slowness: run that file alone with a time limit.
 - `check.mjs` checks the whole tree in one process; a `.ts` file must still be erasable syntax (`erasableSyntaxOnly`), as the worker runs it by type stripping.
 - This machine converts line endings on commit. A fixture that must be byte for byte (CRLF shims, binary samples) needs a `-text` line in `.gitattributes`, or Linux CI reads a different file.

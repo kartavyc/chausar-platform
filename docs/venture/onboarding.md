@@ -251,13 +251,13 @@ The offline demo answers the composer for the demo idea ("Monthly bookkeeping fo
 In sh:
 
 ```sh
-CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data CHAUSAR_VENTURE_REPLAY=1 CHAUSAR_VENTURE_MODEL_REPLAY=platform/tests/fixtures/venture/demo/model-replay.json CHAUSAR_VENTURE_GITHUB_REPLAY=platform/tests/fixtures/venture/e2e/github-sync.json npm start
+CHAUSAR_PORT=4391 CHAUSAR_HOME="${TMPDIR:-/tmp}/chausar-demo" CHAUSAR_VENTURE_REPLAY=1 CHAUSAR_VENTURE_MODEL_REPLAY=platform/tests/fixtures/venture/demo/model-replay.json CHAUSAR_VENTURE_GITHUB_REPLAY=platform/tests/fixtures/venture/e2e/github-sync.json npm start
 ```
 
 In PowerShell:
 
 ```powershell
-$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
+$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_HOME="$env:TEMP\chausar-demo"; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
 ```
 
 Add `CHAUSAR_CLAUDE_CODE_TERMS=accepted` to try the Claude Code row; the demo has Claude Code answers for decide and compose only.

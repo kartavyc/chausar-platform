@@ -81,13 +81,13 @@ A deployed public web app (the hosted tier is written and tested on one computer
 
 ## Demo script
 
-Start the replay demo above and open the pairing link. While other agents share the onboarding worktree, give it its own port and folder, so it never meets a server on 4317 or the repo's `data/` folder. In PowerShell:
+Start the replay demo above and open the pairing link. While other agents share the onboarding worktree, give it its own port and data home, so it never meets a server on 4317 or your usual demo data (the server keeps its data in the data home, never in the code folder). In PowerShell:
 
 ```powershell
-$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
+$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_HOME="$env:TEMP\chausar-demo"; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
 ```
 
-In sh, put `CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data` in front of the replay command above. `.b2c-work/` is a local working folder outside the repository; the demo makes its vault there.
+In sh, put `CHAUSAR_PORT=4391 CHAUSAR_HOME="${TMPDIR:-/tmp}/chausar-demo"` in front of the replay command above. The demo makes its vault in that folder's `local-web-demo`, outside the code folder.
 
 Then:
 
