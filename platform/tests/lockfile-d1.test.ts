@@ -67,3 +67,23 @@ test('only the one pinned build-only Git source is accepted, as a dev package wi
   lock.packages[path].dev = false;
   assert.deepEqual(codes(lock, { pinnedGitSources: PINNED_BUILD_GIT_SOURCES }), ['resolved'], 'only as a build-time package');
 });
+// D1 task 3: the root lock is committed (founder override of the old AGENTS rule) and matches package.json.
+test('the root package-lock.json is tracked by git and passes the check against package.json', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const repo = fileURLToPath(new URL('../../', import.meta.url));
+  const tracked = spawnSync('git', ['ls-files', '--error-unmatch', 'package-lock.json'], { cwd: repo, encoding: 'utf8' });
+  assert.equal(tracked.status, 0, 'package-lock.json is committed');
+  const lock = JSON.parse(await readFile(new URL('../../package-lock.json', import.meta.url), 'utf8'));
+  assert.deepEqual(lockfileProblems(lock, pkg, { pinnedGitSources: PINNED_BUILD_GIT_SOURCES }), []);
+});
+
+test('AGENTS.md says the lock is committed and installs use npm ci (it no longer calls the lock a stray leftover)', async () => {
+  const agents = await readFile(new URL('../../AGENTS.md', import.meta.url), 'utf8');
+  assert.doesNotMatch(agents, /Never commit the root `package-lock\.json`/);
+  assert.match(agents, /The root `package-lock\.json` is committed\. Install with `npm ci`\./);
+});
+
+test('the dev packages later D batches need are pinned now, so this one lock covers them', () => {
+  for (const name of ['happy-dom', '@biomejs/biome', 'knip']) assert.match(pkg.devDependencies[name] ?? '', /^\d+\.\d+\.\d+$/, name);
+});

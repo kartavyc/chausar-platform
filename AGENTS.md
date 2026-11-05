@@ -36,7 +36,7 @@ What the app does and its known limits stays public, in this repository: `docs/v
 
 - Test first: write the failing test, see it fail for the right reason, then implement.
 - Engine tests: `node --test platform/tests/<file>.test.ts`. UI tests: `npx vitest run --config app/ui/vitest.config.ts <path>`.
-- Before a commit: `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the six engine shards (`node scripts/bench.mjs --shard=N/6 --output results/<name>.json`, one at a time) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`).
+- Before a commit: `npm ci` if a pull changed `package-lock.json`, then `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the six engine shards (`node scripts/bench.mjs --shard=N/6 --output results/<name>.json`, one at a time) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`).
 - Ink UI rules (held by tests): tokens only, no inline styles, type never below 12 px, motion once and at most 400 ms, one filled primary per card, quotes in `[data-content]`, contrast 4.5:1 in both themes, locked buttons `aria-disabled`, no sideways scroll at 390 px, word budgets per place in `app/ui/tests/baselines/words.json` (they only shrink; raises go to the founder in the PR).
 - The fake engine (`app/ui/src/engine/fake*.ts`) must answer exactly like the engine: same codes, shapes, order and field-exact checks.
 - Live checks: a package that talks to an installed tool or an outside service is not done until it has run once for real on harmless sample data (the founder's own Codex on this machine, test-mode accounts), with the result written in the notes. Fixture tests alone hid a Windows bug for weeks.
@@ -53,4 +53,4 @@ What the app does and its known limits stays public, in this repository: `docs/v
 - Test fixtures must never contain strings shaped like real provider keys or tokens (GitHub push protection blocks the push). Build them at runtime.
 - Port 5432 is Postgres on the founder's machine. Stop dev servers and headless Chrome you start; leftovers pile up.
 - `docs/venture/architecture.md` "copied as is" fails only on the founder's machine (it compares a local working file); CI skips it.
-- Never commit the root `package-lock.json` (a stray leftover).
+- The root `package-lock.json` is committed. Install with `npm ci`. Change a dependency only with an exact pin in `package.json` and `npm install --package-lock-only`, and commit both files together.
