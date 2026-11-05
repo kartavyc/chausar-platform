@@ -18,8 +18,8 @@ test('next best step: the waiting row with the most money at stake leads, with i
   const env = await goalBusiness();
   // Issued in October: 4 months, before tax 4 x 1975000 = 7900000.
   await invoice(env, '4', '2026-10-01');
-  // Two drafts dated in October: 1 month (total with GST 2330500, INR 23,305.00) and 3 months
-  // (before tax 3 x 1975000 = 5925000; total 3 x 2330500 = 6991500, INR 69,915.00).
+  // Two drafts dated in October: 1 month (total with GST 2330500, ₹23,305) and 3 months
+  // (before tax 3 x 1975000 = 5925000; total 3 x 2330500 = 6991500, ₹69,915).
   const small = await invoice(env, '1', '2026-10-23', true);
   const big = await invoice(env, '3', '2026-10-22', true);
   await env.money('venture.goals.set', { month: '2026-10', amountMinor: '15000000' });
@@ -29,7 +29,7 @@ test('next best step: the waiting row with the most money at stake leads, with i
   const rowOf = (made: typeof big) => rows.find(row => row.viewRef?.id === made.invoice.id)!;
   assert.deepEqual(view.next, {
     rowId: rowOf(big).id, title: `Invoice for ${CLIENT}`, agent: null, line: 'Open it, then choose Issue.',
-    figure: { display: 'INR 69,915.00', receiptId: big.invoice.priceReceiptId },
+    figure: { display: '₹69,915', receiptId: big.invoice.priceReceiptId },
     // 7900000 + 5925000 = 13825000; x 100 / 15000000 = 92.16, floored to 92.
     goalAfter: 'Goal after: 92%', goalAfterPercent: 92,
   });
@@ -44,11 +44,11 @@ test('next best step: the waiting row with the most money at stake leads, with i
 
 test('next best step: no goal or a draft dated in another month has no "Goal after"; no rows gives no step', async () => {
   const env = await goalBusiness();
-  // A September draft of 5 months (total 5 x 2330500 = 11652500, INR 116,525.00) outranks an October one of 1 month.
+  // A September draft of 5 months (total 5 x 2330500 = 11652500, ₹1,16,525) outranks an October one of 1 month.
   const september = await invoice(env, '5', '2026-09-29', true);
   await invoice(env, '1', '2026-10-23', true);
   const unset = await get(env);
-  assert.equal(unset.next?.figure?.display, 'INR 116,525.00');
+  assert.equal(unset.next?.figure?.display, '₹1,16,525');
   assert.equal(unset.next?.goalAfter, null, 'no goal, nothing to say after');
   assert.equal(unset.next?.goalAfterPercent, null);
   await env.money('venture.goals.set', { month: '2026-10', amountMinor: '15000000' });
@@ -62,9 +62,9 @@ test('next best step: no goal or a draft dated in another month has no "Goal aft
 
 test('ranking: money from receipts only (change, then price), most first; then the nearest deadline; then Today\'s order', async () => {
   const env = await goalBusiness();
-  // A draft of 1 month: total 2330500 (INR 23,305.00) on its price receipt.
+  // A draft of 1 month: total 2330500 (₹23,305) on its price receipt.
   const draft = await invoice(env, '1', '2026-10-23', true);
-  // An issued invoice of 2 months, unpaid: owed 2 x 2330500 = 4661000 (INR 46,610.00) on the overview's owed receipt;
+  // An issued invoice of 2 months, unpaid: owed 2 x 2330500 = 4661000 (₹46,610) on the overview's owed receipt;
   // AI spend is a sum receipt in micro-dollars, never money at stake here.
   await invoice(env, '2', '2026-10-20');
   const overview = await env.money<MoneyOverview>('venture.money.overview', {});
@@ -77,7 +77,7 @@ test('ranking: money from receipts only (change, then price), most first; then t
     actions: [{ id: 'later', label: 'Not now', primary: false }, { id: 'approve', label: 'Approve', primary: true }], ...extra,
   });
   const meta = (expiresAt: string) => ({ meta: { client: null, business: 'Ledgerline', at: '2026-10-23T09:00:00.000Z', expiresAt } });
-  const owed = { change: { label: 'Owed', after: 'INR 46,610.00', receiptId: owedReceipt } };
+  const owed = { change: { label: 'Owed', after: '₹46,610', receiptId: owedReceipt } };
   const rows: QueueRow[] = [
     // As much money as the owed row, and earlier in Today's order, but their primary is Read or Not now: never the step.
     row('read-first', { ...owed, actions: [{ id: 'later', label: 'Not now', primary: false }, { id: 'read', label: 'Read', primary: true }] }),
@@ -85,13 +85,13 @@ test('ranking: money from receipts only (change, then price), most first; then t
     row('plain'),
     row('later-deadline', meta('2026-10-23T12:00:00.000Z')),
     row('sooner-deadline', meta('2026-10-23T11:00:00.000Z')),
-    row('no-receipt', { change: { label: 'It may cost', after: 'USD 0.1500' } }),
-    row('estimate', { change: { label: 'Total', after: 'INR 23,305.00', receiptId: priceReceipt, estimate: true } }),
-    row('change', { change: { label: 'Total', after: 'INR 23,305.00', receiptId: priceReceipt } }),
-    row('price', { price: { display: 'INR 23,305.00', receiptId: priceReceipt, line: 'The price of this order.' }, ...meta('2026-10-24T09:00:00.000Z') }),
-    row('missing', { change: { label: 'Total', after: 'INR 1.00', receiptId: 'price_missing' } }),
+    row('no-receipt', { change: { label: 'It may cost', after: '$0.15' } }),
+    row('estimate', { change: { label: 'Total', after: '₹23,305', receiptId: priceReceipt, estimate: true } }),
+    row('change', { change: { label: 'Total', after: '₹23,305', receiptId: priceReceipt } }),
+    row('price', { price: { display: '₹23,305', receiptId: priceReceipt, line: 'The price of this order.' }, ...meta('2026-10-24T09:00:00.000Z') }),
+    row('missing', { change: { label: 'Total', after: '₹1', receiptId: 'price_missing' } }),
     row('owed', owed),
-    row('spend', { change: { label: 'AI and tools', after: 'USD 0.0000', receiptId: spentReceipt } }),
+    row('spend', { change: { label: 'AI and tools', after: '$0.00', receiptId: spentReceipt } }),
   ];
   const state = env.store.read();
   const venture = currentVenture(state)!;
@@ -102,7 +102,7 @@ test('ranking: money from receipts only (change, then price), most first; then t
   ]);
   const { next, briefing } = nextBestStep(state, venture, rows, null, IN_APP);
   assert.deepEqual(next, {
-    rowId: 'owed', title: 'Row owed', agent: null, line: 'Choose Approve.', figure: { display: 'INR 46,610.00', receiptId: owedReceipt }, goalAfter: null, goalAfterPercent: null,
+    rowId: 'owed', title: 'Row owed', agent: null, line: 'Choose Approve.', figure: { display: '₹46,610', receiptId: owedReceipt }, goalAfter: null, goalAfterPercent: null,
   });
   // The briefing lists the waiting rows as ranked: six named, and 6 more.
   assert.deepEqual(briefing, { rowIds: ['read-first', 'later-only', 'owed', 'price', 'change', 'sooner-deadline'], more: 6 });

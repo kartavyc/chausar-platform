@@ -71,13 +71,14 @@ test('the open business\'s summary: its totals as code added them, each with its
   assert.deepEqual([snapshot.name, snapshot.playbook, snapshot.asOf], ['Ledger Cafe Books', snapshot.playbook, '2026-10-23T10:00:00.000Z']);
   const money = snapshot.money!;
   assert.deepEqual([money.month, money.currency, money.late], ['2026-10', 'INR', 1]);
-  assert.deepEqual([money.invoiced.amount, money.invoiced.display], ['3950000', '₹39,500']);
-  assert.deepEqual([money.received.amount, money.received.display], ['100000', '₹1,000']);
-  assert.deepEqual([money.owed.amount, money.owed.display], ['4561000', '₹45,610']);
+  assert.deepEqual([money.invoiced.amount, money.invoiced.display], ['3950000', 'INR 39,500.00']);
+  assert.deepEqual([money.received.amount, money.received.display], ['100000', 'INR 1,000.00']);
+  assert.deepEqual([money.owed.amount, money.owed.display], ['4561000', 'INR 45,610.00']);
   assert.deepEqual([money.spend.amount, money.spend.unit, money.spend.currency], ['0', 'micros', 'USD']);
   for (const item of [money.invoiced, money.received, money.owed, money.spend]) {
     const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: item.receiptId });
-    assert.equal(receipt.figures[0].display, item.display, 'each figure is its receipt\'s');
+    // B2: the snapshot keeps the exact form at rest; the receipt shows the same amount in the owner form.
+    assert.equal(receipt.totalMinor, item.amount, 'each figure is its receipt\'s');
   }
   assert.deepEqual(snapshot.runs, { working: 0, waiting: 0, stopped: 0 });
   assert.equal(typeof snapshot.needsYou, 'number');

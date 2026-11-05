@@ -12,7 +12,7 @@ import { statesMoney } from '../runtime/venture/delivery/harness/patches.ts';
 import { episodeOrder } from './venture-agent-helpers.ts';
 import { answer, chatConsent, chiefBusiness, estimate, figure, figuresOf, priceOffer, scriptChief, text, tools, type ChiefEnv } from './venture-chief-helpers.ts';
 
-/** An issued invoice of INR 1,18,400 for Asha Rao, so the money tool's "Clients owe you" has a receipt. */
+/** An issued invoice of ₹1,18,400 for Asha Rao, so the money tool's "Clients owe you" has a receipt. */
 async function owedBusiness(): Promise<ChiefEnv> {
   const env = await chiefBusiness();
   await priceOffer(env, '118400');
@@ -42,14 +42,14 @@ test('receipts: a receipted figure stays, an unreceipted one is left out, money 
   const reply = sent.added[1];
   assert.equal(reply.from, 'chief');
   assert.deepEqual(reply.parts.map((part: any) => part.kind), ['text', 'figure', 'text', 'estimate']);
-  assert.deepEqual(reply.parts[1], { kind: 'figure', receiptId: owed!.receiptId, key: owed!.key, display: 'INR 118,400.00' });
+  assert.deepEqual(reply.parts[1], { kind: 'figure', receiptId: owed!.receiptId, key: owed!.key, display: '₹1,18,400' });
   assert.equal(reply.parts[2].text, `Last month Meera paid ${MONEY_LEFT_OUT}.`);
   assert.equal(reply.parts[3].text, 'The channel should reach about 18,000 views.');
   assert.deepEqual(reply.dropped, ['One figure was left out: it had no receipt.']);
-  assert.deepEqual(reply.worked, [{ label: 'Clients owe you', value: 'INR 118,400.00', receiptId: owed!.receiptId }]);
+  assert.deepEqual(reply.worked, [{ label: 'Clients owe you', value: '₹1,18,400', receiptId: owed!.receiptId }]);
   // The display is the receipt's own, from the vault.
   const receipt = listRecords(env.store.read(), 'venture-sum-receipt').find(item => item.id === owed!.receiptId)!;
-  assert.equal(receipt.figures[0].display, 'INR 118,400.00');
+  assert.equal(receipt.figures[0].display, '₹1,18,400');
   const stored = listRecords(env.store.read(), 'venture-chief-message').at(-1)!;
   assert.deepEqual(stored.receiptIds, [owed!.receiptId]);
   assert.deepEqual(stored.parts, reply.parts);
@@ -73,7 +73,7 @@ test('receipts: money in words is cut however it is written; counts and dates st
     ['You billed ₹1,18,400 so far.', `You billed ${MONEY_LEFT_OUT} so far.`],
     ['That is Rs. 31,600 left.', `That is ${MONEY_LEFT_OUT} left.`],
     ['Rs 500 per short.', `${MONEY_LEFT_OUT} per short.`],
-    ['About INR 31,600.00 came in.', `About ${MONEY_LEFT_OUT} came in.`],
+    ['About ₹31,600 came in.', `About ${MONEY_LEFT_OUT} came in.`],
     ['You need 1.5 lakh more.', `You need ${MONEY_LEFT_OUT} more.`],
     ['Two crore is far off.', `${MONEY_LEFT_OUT} is far off.`],
     ['31600 rupees came in.', `${MONEY_LEFT_OUT} came in.`],
@@ -90,7 +90,7 @@ test('receipts: money in words is cut however it is written; counts and dates st
 });
 
 test('receipts: the part check, figure by figure', () => {
-  const figures = [{ receiptId: 'sumrcpt_a', key: 'balance', label: 'Clients owe you', display: 'INR 1,000.00' }];
+  const figures = [{ receiptId: 'sumrcpt_a', key: 'balance', label: 'Clients owe you', display: '₹1,000' }];
   const { parts, dropped, worked } = checkParts([
     { kind: 'figure', text: '', receiptId: 'sumrcpt_a', key: 'balance' },
     { kind: 'figure', text: '', receiptId: 'sumrcpt_a', key: 'total' },
@@ -102,13 +102,13 @@ test('receipts: the part check, figure by figure', () => {
     { kind: 'text', text: '   ', receiptId: '', key: '' },
   ], figures, 'Who owes me?');
   assert.deepEqual(parts, [
-    { kind: 'figure', receiptId: 'sumrcpt_a', key: 'balance', display: 'INR 1,000.00' },
+    { kind: 'figure', receiptId: 'sumrcpt_a', key: 'balance', display: '₹1,000' },
     { kind: 'text', text: 'Asha owes the most.' },
     { kind: 'estimate', text: 'Maybe a week.' },
     { kind: 'estimate', text: 'You have 3 runs waiting.' },
   ]);
   assert.deepEqual(dropped, ['Three figures were left out: they had no receipt.']);
-  assert.deepEqual(worked, [{ label: 'Clients owe you', value: 'INR 1,000.00', receiptId: 'sumrcpt_a' }]);
+  assert.deepEqual(worked, [{ label: 'Clients owe you', value: '₹1,000', receiptId: 'sumrcpt_a' }]);
 });
 
 test('receipts: with templates only, the answer comes from the records, every figure with its receipt', async () => {
@@ -124,7 +124,7 @@ test('receipts: with templates only, the answer comes from the records, every fi
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.author, 'template');
   const figures = reply.parts.filter((part: any) => part.kind === 'figure');
   assert.ok(figures.length >= 1);
-  const owed = figures.find((part: any) => part.display === 'INR 118,400.00');
+  const owed = figures.find((part: any) => part.display === '₹1,18,400');
   assert.ok(owed, 'what clients owe, from its receipt');
   assert.ok(listRecords(env.store.read(), 'venture-sum-receipt').some(item => item.id === owed.receiptId));
   assert.match(reply.parts.at(-1).text, /Connect your AI in Connections/);

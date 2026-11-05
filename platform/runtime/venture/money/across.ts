@@ -9,7 +9,8 @@ import type { Context, State } from '../../contracts.ts';
 import type {
   AcrossFigureId, AcrossLeftOut, AcrossLineKey, AcrossMoneyView, BusinessSnapshot, BusinessSnapshotRead, Display, SnapshotFigure, VentureDeps, VentureRecord,
 } from '../contracts.ts';
-import { currentVenture, exactPayload, readVenture } from '../records.ts';
+import { currentVenture, exactPayload, formatMicros, readVenture } from '../records.ts';
+import { formatMinor } from '../../currency.ts';
 import { formatMoney, formatUsd } from '../../owner-format.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { blocklistOf } from '../network/pipeline.ts';
@@ -71,10 +72,12 @@ export function notCountedWords(items: readonly AcrossLeftOut[]): string {
 // The open business's summary
 // ---------------------------------------------------------------------------
 
+// B2: a saved summary keeps the exact form at rest (the custody snapshot checks it); screens read it through savedWords.
+const exactWords = (amount: string, plan: SumPlan) => (plan.unit === 'micros' ? formatMicros(amount) : formatMinor(amount, plan.currency));
 /** A figure as the summary keeps it: the plan's total with the receipt that holds it. */
 async function kept(deps: VentureDeps, ctx: Context, venture: VentureRecord, plan: SumPlan): Promise<SnapshotFigure> {
   const receipt = await sumReceipt(deps, ctx, venture.id, plan);
-  return { amount: String(planTotal(plan)), unit: plan.unit === 'micros' ? 'micros' : 'minor', currency: plan.currency, display: receipt.figures[0].display, receiptId: receipt.id };
+  return { amount: String(planTotal(plan)), unit: plan.unit === 'micros' ? 'micros' : 'minor', currency: plan.currency, display: exactWords(String(planTotal(plan)), plan), receiptId: receipt.id };
 }
 
 /** Runs now, as Work counts them: working, waiting on the owner, and stopped (by the owner or a breaker). */
@@ -187,8 +190,8 @@ export async function moneyAcross(deps: VentureDeps, ctx: Context, payload: unkn
   const month = money?.month ?? deps.clock().toISOString().slice(0, 7);
   const rows: MoneyRow[] = [{
     businessId, name: venture.workingName, open: true, locked: false, asOf: null, line: money ? OPEN_LINE : NO_COUNTRY_LINE, lineKey: money ? 'open' : 'no-country',
-    invoiced: money?.invoiced.display ?? null, received: money?.received.display ?? null, owed: money?.owed.display ?? null,
-    late: money?.late ?? null, spend: money?.spend.display ?? null, ...inRupees(money?.spend),
+    invoiced: savedWords(money?.invoiced), received: savedWords(money?.received), owed: savedWords(money?.owed),
+    late: money?.late ?? null, spend: savedWords(money?.spend), ...inRupees(money?.spend),
     ...(money ? { receipts: { invoiced: money.invoiced.receiptId, received: money.received.receiptId, owed: money.owed.receiptId, spend: money.spend.receiptId } } : {}),
   }];
   const counted: BusinessSnapshot[] = [];
