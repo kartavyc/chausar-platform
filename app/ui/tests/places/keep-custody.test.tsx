@@ -221,9 +221,10 @@ describe('Keep this business: delete this business', () => {
     fireEvent.change(name, { target: { value: 'Lumen Studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));
     expect(sent(calls, 'workspace.delete')).toEqual([{ confirmation: 'Lumen Studio' }]);
-    expect(await screen.findByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
-    await press(screen.getByRole('button', { name: 'Continue' }));
+    // B3: Delete goes straight to Welcome back, which says what was deleted; there is no Continue to press.
     expect(await screen.findByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
+    expect(screen.getByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
     expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledgerline']);
     expect(sent(calls, 'workspace.open')).toEqual([]);
     expect(((await engine.request('workspace.status', {})) as WorkspaceStatusLite).open).toBe(false);
@@ -242,6 +243,12 @@ describe('Keep this business: delete this business', () => {
     fireEvent.change(await within(box).findByLabelText('Type Lumen Studio to delete it'), { target: { value: 'Lumen Studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));
     expect(await screen.findByText('These copies you exported are still on this computer:')).toBeTruthy();
+    // B3: the deleted business leaves at once: no rail, no name, Welcome back with what was deleted and kept.
+    expect(screen.getByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Deleted' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Places' })).toBeNull();
+    expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledgerline']);
+    expect(screen.getByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
     const names = [sealed.path, readable.path].map((path) => path.split('/').pop()!);
     for (const name of names) expect(screen.getByText(name)).toBeTruthy();
     expect(screen.getAllByText("Readable, not encrypted. Delete it once you're done with it.")).toHaveLength(1);

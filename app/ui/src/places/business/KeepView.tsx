@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
@@ -9,7 +9,8 @@ import { Icon } from '../../parts/Icon';
 import { Tile } from '../../parts/Tile';
 import { momentOf, saveTextFile } from '../../parts/custody';
 import type { CustodyViewLite, Deleted, UnlockMode } from '../../engine/types';
-import { AllBackups, CloseBusiness, DeleteBusiness, DeletedNote, ExportCopy, MoveAway } from './KeepMore';
+import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway } from './KeepMore';
+import { LeftContext } from '../onboarding/started';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 
@@ -37,14 +38,14 @@ export function KeepView() {
   const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [deleted, setDeleted] = useState<Deleted | null>(null);
-
-  if (deleted) return <DeletedNote result={deleted} />;
+  // B3: a delete goes straight to Welcome back, which says what was deleted and kept; nothing of this business stays.
+  const left = useContext(LeftContext);
+  const onDeleted = (deleted: Deleted) => left({ autoOpen: false, deleted });
   const leave = (unlock: UnlockMode | null) => (
     <>
       {!hosted && <CloseBusiness unlock={unlock} />}
       {!hosted && <ExportCopy />}
-      <DeleteBusiness onDeleted={setDeleted} />
+      <DeleteBusiness onDeleted={onDeleted} />
     </>
   );
   if (custody.error) {

@@ -300,7 +300,6 @@ export function DeletedNote({ result }: { result: Deleted }) {
     const name = path.split(/[\\/]/).pop() ?? path;
     return { path, name, readable: name.endsWith('.json') };
   });
-  const left = useContext(LeftContext);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return (
@@ -322,7 +321,6 @@ export function DeletedNote({ result }: { result: Deleted }) {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
-      <div className={s.buttons}><Button variant="primary" onClick={() => left({ autoOpen: false })}>{t('business.continue')}</Button></div>
     </section>
   );
 }

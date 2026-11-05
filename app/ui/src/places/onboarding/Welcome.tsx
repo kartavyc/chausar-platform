@@ -6,6 +6,8 @@ import { Field } from '../../parts/Field';
 import { refusalWords } from '../../parts/custody';
 import type { Openable, WelcomeFound } from './boot';
 import type { Leaving } from './started';
+import type { Deleted } from '../../engine/types';
+import { DeletedNote } from '../business/KeepMore';
 import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
 import s from './Onboarding.module.css';
@@ -21,9 +23,11 @@ type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } |
  *
  * A passphrase or code lives in its field until it is sent, then the field is cleared; nothing is kept anywhere else.
  */
-export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNew }: {
+export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNew, deleted = null }: {
   status: ReactNode; found: WelcomeFound & { ask?: Leaving['ask'] }; problem: string | null; hosted: boolean;
   onOpen: (business: Openable) => Promise<void>; onOpened: () => void; onNew: () => void;
+  /** B3: the business just deleted: what was removed and the copies kept, above the list. */
+  deleted?: Deleted | null;
 }) {
   const t = useT();
   const { businesses, complete, ask } = found;
@@ -56,6 +60,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
   return (
     <Shell status={status}>
       <h1 className={s.question}>{t('onboarding.welcome.title')}</h1>
+      {deleted && <DeletedNote result={deleted} />}
       {empty && <p className={s.note}>{t('onboarding.welcome.none')}</p>}
       {!empty && (
         <ul className={s.businesses} aria-label={t('onboarding.welcome.list')}>

@@ -16,6 +16,7 @@ import { FirstRun } from './FirstRun';
 import { Welcome } from './Welcome';
 import { LeftContext, StartedContext, type Leaving } from './started';
 import { openByItself, readBoot, type Openable, type WelcomeFound } from './boot';
+import type { Deleted } from '../../engine/types';
 import s from './Onboarding.module.css';
 
 type WelcomeShown = WelcomeFound & { ask?: Leaving['ask'] };
@@ -31,6 +32,8 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
   const [generation, setGeneration] = useState(0);
   const [check, setCheck] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
+  /** B3: what a delete answered, shown on Welcome back above the list. */
+  const [deleted, setDeleted] = useState<Deleted | null>(null);
   /** The engine answered the check, or a business was started or opened here: nothing to check again. */
   const settled = useRef(false);
   /** Set while the open business was just closed, locked or deleted: what Welcome back does next. */
@@ -40,6 +43,7 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
     settled.current = true;
     leaving.current = null;
     setProblem(null);
+    setDeleted(null);
     setShown({ kind: 'app' });
     setGeneration((g) => g + 1);
   }, []);
@@ -75,6 +79,7 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
         const after = leaving.current;
         leaving.current = null;
         if (after?.problem) setProblem(after.problem);
+        setDeleted(after?.deleted ?? null);
         const only = after?.autoOpen === false || after?.problem ? null : openByItself(found);
         if (only) {
           try { await client.request('workspace.open', only.params); started(); return; }
@@ -119,7 +124,7 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
     const { ask: _ask, ...found } = shown;
     return (
       <Welcome
-        key={check} status={status} found={shown} problem={problem} hosted={hosted}
+        key={check} status={status} found={shown} problem={problem} hosted={hosted} deleted={deleted}
         onOpen={open} onOpened={started} onNew={() => { setProblem(null); setShown({ kind: 'first-run', back: found }); }}
       />
     );
