@@ -7,7 +7,8 @@ import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { createDecipheriv, createECDH, createPublicKey, hkdfSync, randomBytes, verify } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { HostedApp, type HostedAppOptions } from '../runtime/hosted/app.ts';
 import { LocalVentureRuntime } from '../runtime/hosted/runtime/local.ts';
 import { hostedConfig } from '../runtime/hosted/config.ts';
@@ -15,7 +16,7 @@ import { HostedCustody } from '../runtime/hosted/custody.ts';
 import { FileDirectory } from '../runtime/hosted/directory.ts';
 import { DEFAULT_LIMITS } from '../runtime/hosted/limits.ts';
 import { DevOutbox } from '../runtime/hosted/mailer.ts';
-import { createHostedServer } from '../runtime/hosted/server.ts';
+import { createHostedServer, startHosted } from '../runtime/hosted/server.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import { createFixtureGitHubTransport } from '../runtime/venture/build/index.ts';
 import { listInkFiles } from '../runtime/ui-ink.ts';
@@ -150,6 +151,19 @@ test('hosted mode is off unless asked for, and refuses what it cannot do safely'
   assert.deepEqual([live.tls.kind, live.trustProxy, live.mailer, live.replay], ['proxy', true, 'not-configured', null]);
   assert.equal(hostedConfig({ CHAUSAR_HOSTED: '1', CHAUSAR_HOSTED_ORIGIN: 'https://app.example.com', CHAUSAR_HOSTED_CUSTODY_KEY: key, CHAUSAR_HOSTED_TLS_PROXY: '1', CHAUSAR_VENTURE_REPLAY: '1', CHAUSAR_VENTURE_MODEL_REPLAY: 'x.json' }, []).replay, null, 'recordings never stand in outside --dev');
   assert.throws(() => hostedConfig({ CHAUSAR_HOSTED: '1', CHAUSAR_HOSTED_CUSTODY_KEY: 'short' }, ['--dev']), code('CUSTODY_KEY_INVALID'));
+});
+
+// D3: the hosted dev server keeps its data in the data home, never data/hosted under the working folder or the checkout.
+test('D3: the hosted data folder is the data home, and a folder inside the checkout is refused before anything opens', async t => {
+  const parent = await mkdtemp(join(tmpdir(), 'chausar-hosted-home-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  assert.equal(hostedConfig({ CHAUSAR_HOME: parent }, ['--hosted', '--dev']).dataDirectory, join(parent, 'hosted'));
+  assert.notEqual(hostedConfig({}, ['--hosted', '--dev']).dataDirectory, resolve('data/hosted'));
+  assert.equal(hostedConfig({ CHAUSAR_HOME: parent, CHAUSAR_HOSTED_DATA: join(parent, 'own') }, ['--hosted', '--dev']).dataDirectory, join(parent, 'own'));
+  const root = fileURLToPath(new URL('../..', import.meta.url));
+  assert.throws(() => hostedConfig({ CHAUSAR_HOSTED_DATA: join(root, 'data', 'hosted') }, ['--hosted', '--dev']), code('DATA_INSIDE_REPO'));
+  const inside = { ...hostedConfig({ CHAUSAR_HOME: parent }, ['--hosted', '--dev']), dataDirectory: join(root, 'data', 'hosted-d3-never') };
+  await assert.rejects(startHosted(inside, () => {}), code('DATA_INSIDE_REPO'));
 });
 
 test('pages and answers carry strict headers; the host, the origin and the content type are checked', async t => {
