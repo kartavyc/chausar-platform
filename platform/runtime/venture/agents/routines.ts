@@ -17,6 +17,7 @@ import { secretFindings } from '../core/secrets.ts';
 import { holdsIdNumber, ID_REFUSED, KEY_REFUSED } from './threads.ts';
 import { teamAgents } from '../chief/routing.ts';
 import { ventureTimeZone } from '../local-day.ts';
+import { formatClock } from '../../owner-format.ts';
 import { ERASED_NAMED } from './notes.ts';
 import { chatRoute } from './consent.ts';
 import { requireConnectorChecked } from '../build/connector-check.ts';
@@ -90,16 +91,16 @@ export function checkSchedule(raw: unknown, nowMs: number = Number.NEGATIVE_INFI
   throw new ChausarError('INVALID_VENTURE_REQUEST', CRON_WORDS);
 }
 
-/** A moment in a zone as the owner reads it: '27 Oct 2026, 09:00'. */
+/** A moment in a zone as the owner reads it, on the 12-hour clock (B2 fix round 1): '27 Oct 2026, 9:00 am'. */
 function momentIn(iso: IsoTime, timeZone: string, order: VentureRecord['country']['dateOrder']): string {
   const w = wall(Date.parse(iso), timeZone);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${formatVentureDate(`${w.y}-${pad(w.m)}-${pad(w.d)}`, order)}, ${pad(w.h)}:${pad(w.min)}`;
+  return `${formatVentureDate(`${w.y}-${pad(w.m)}-${pad(w.d)}`, order)}, ${formatClock(`${pad(w.h)}:${pad(w.min)}`)}`;
 }
 
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
-/** The schedule in words with its time zone: "Every Monday 09:00, Asia/Kolkata". once and interval read in the business's zone. */
+/** The schedule in words with its time zone: "Every Monday 9:00 am, Asia/Kolkata". once and interval read in the business's zone. */
 export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord, 'country'>): string {
   const order = venture.country?.dateOrder ?? 'year-month-day';
   const zone = ventureTimeZone(venture.country ?? { code: 'XX' });
@@ -109,7 +110,7 @@ export function whenWords(schedule: RoutineSchedule, venture: Pick<VentureRecord
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, zone, order)}, ${zone}`;
   }
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map(day => DAY_NAMES[day - 1]));
-  return `Every ${days} ${schedule.time}, ${schedule.timeZone}`;
+  return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
 }
 
 // ---------------------------------------------------------------------------

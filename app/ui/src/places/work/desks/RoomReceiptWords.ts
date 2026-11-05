@@ -2,6 +2,7 @@
 import en from '../../../text/en/room-receipt.json';
 import type {T} from '../../../text';
 import type {PriceFigureLite,ReceiptLite,RoutineSchedule} from '../../../engine/types';
+import {formatClock} from '../../../../../../platform/runtime/owner-format';
 const words=en as Record<string,string>;
 const keyFor=(text:string,keys:readonly string[])=>keys.find(key=>words['room-receipt.'+key]===text);
 const labels=['subtotal','subtotalBeforeTax','discount','taxable','tax','total','gstTotal','zeroExport'] as const;
@@ -38,5 +39,5 @@ export function roomReceiptCalculation(t:T,receipt:ReceiptLite):string|null {
 export function vaScheduleWords(t:T,schedule:RoutineSchedule,fallback:string):string {
  if(schedule.kind!=='calendar')return fallback;
  const days=schedule.weekdays.length===7?t('business.routines.everyDay'):schedule.weekdays.map(day=>t('business.routines.day.'+day)).join(', ');
- return t('business.routines.when',{days,time:schedule.time,zone:schedule.timeZone});
+ return t('business.routines.when',{days,time:formatClock(schedule.time),zone:schedule.timeZone});
 }

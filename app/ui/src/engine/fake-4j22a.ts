@@ -1,3 +1,4 @@
+import {formatClock} from '../../../../platform/runtime/owner-format';
 import {occurrencesBetween,nextOccurrence} from '../../../../platform/runtime/venture/agents/routine-time';
 import {VA_REPORT_PROMPTS} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/routines-core';
 import {RETIRED_LINE} from '../../../../platform/runtime/venture/agents/retired-words';
@@ -86,7 +87,8 @@ function wall(ms: number, timeZone: string): Wall {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso), zone); return `${pad(w.d)} ${MONTHS[w.m - 1]} ${w.y}, ${pad(w.h)}:${pad(w.min)}`; };
+// As the engine's routines.ts: the day without a leading zero and the 12-hour clock (B2 fix round 1).
+const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso), zone); return `${w.d} ${MONTHS[w.m - 1]} ${w.y}, ${formatClock(`${pad(w.h)}:${pad(w.min)}`)}`; };
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
 function whenWords(schedule: RoutineSchedule): string {
@@ -96,7 +98,7 @@ function whenWords(schedule: RoutineSchedule): string {
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, ZONE)}, ${ZONE}`;
   }
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map((day) => DAY_NAMES[day - 1]!));
-  return `Every ${days} ${schedule.time}, ${schedule.timeZone}`;
+  return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
 }
 
 function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {

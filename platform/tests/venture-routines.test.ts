@@ -48,7 +48,7 @@ test('a schedule is once, every so many minutes, or days at a time in a named zo
   assert.deepEqual(review.schedule, { kind: 'calendar', weekdays: [1], time: '09:00', timeZone: 'Asia/Kolkata' });
   await assert.rejects(set(env, review, phone), code('APP_APPROVAL_REQUIRED'));
   const { routine } = await set(env, review);
-  assert.equal(routine.when, 'Every Monday 09:00, Asia/Kolkata');
+  assert.equal(routine.when, 'Every Monday 9:00 am, Asia/Kolkata');
   // NOW is Wednesday 21 October, 15:30 in India: the next Monday 09:00 there is 03:30 UTC on the 26th.
   assert.equal(routine.next, '2026-10-26T03:30:00.000Z');
   assert.match(routine.line, /waits for your approval on Today/);
@@ -69,10 +69,10 @@ test('a schedule is once, every so many minutes, or days at a time in a named zo
   ]) {
     await assert.rejects(set(env, { ...review, schedule }), code('INVALID_VENTURE_REQUEST'), JSON.stringify(schedule));
   }
-  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '18:30', timeZone: 'Europe/London' }, venture), 'Every weekday 18:30, Europe/London');
-  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 4], time: '07:00', timeZone: 'Asia/Kolkata' }, venture), 'Every Monday and Thursday 07:00, Asia/Kolkata');
-  assert.equal(whenWords({ kind: 'interval', everyMinutes: 120, from: NOW }, venture), 'Every 2 hours, from 21 Oct 2026, 15:30, Asia/Kolkata');
-  assert.equal(whenWords({ kind: 'once', at: NOW }, venture), 'Once, 21 Oct 2026, 15:30, Asia/Kolkata');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '18:30', timeZone: 'Europe/London' }, venture), 'Every weekday 6:30 pm, Europe/London');
+  assert.equal(whenWords({ kind: 'calendar', weekdays: [1, 4], time: '07:00', timeZone: 'Asia/Kolkata' }, venture), 'Every Monday and Thursday 7:00 am, Asia/Kolkata');
+  assert.equal(whenWords({ kind: 'interval', everyMinutes: 120, from: NOW }, venture), 'Every 2 hours, from 21 Oct 2026, 3:30 pm, Asia/Kolkata');
+  assert.equal(whenWords({ kind: 'once', at: NOW }, venture), 'Once, 21 Oct 2026, 3:30 pm, Asia/Kolkata');
 });
 
 test('a routine is switched on only for an AI connection Check connections looked at: ROUTINE_NEEDS_CHECK; off needs none', async () => {
