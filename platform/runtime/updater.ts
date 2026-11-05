@@ -1,14 +1,15 @@
 import { createPublicKey, createHash, randomBytes, verify as verifySignature, type KeyObject } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, createReadStream } from 'node:fs';
 import { open, readFile, lstat, rename, unlink, link, mkdir } from 'node:fs/promises';
 import { join, isAbsolute, dirname, basename } from 'node:path';
 import { isIP } from 'node:net';
 import { check, newId } from './contracts.ts';
 import { safeDirectory } from './vault.ts';
 import { acquireProcessLock } from './process-lock.ts';
-import { boundedHttp, type BoundedHttp, type HttpRequest } from './connectors.ts';
+import type { BoundedHttp } from './connectors.ts';
 
-const MAX_ARTIFACT = 256 * 1024 * 1024;
+// C5 task 31: the cap is the signed size, under a 512 MiB ceiling (the beta installer is about 309 MB).
+const MAX_ARTIFACT = 512 * 1024 * 1024;
 const MAX_BACKUP = 64 * 1024 * 1024;
 export type ReleaseManifest = {
   schemaVersion:1; version:string; publishedAt:string; platform:'win32'|'linux'|'darwin'; architecture:'x64'|'arm64';
@@ -118,6 +119,34 @@ async function writeStaged(path:string,bytes:Uint8Array,replace=false) {
   catch(error){await file.close().catch(()=>{});await unlink(temporary).catch(()=>{});throw error;}
 }
 function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+async function fileDigest(path:string,hash=createHash('sha256')){for await(const chunk of createReadStream(path))hash.update(chunk as Buffer);return hash;}
+
+// C5 task 31, the stage half: a release is fetched as a stream. `ReleaseDownload` is the seam: tests pass a stand-in,
+// the app uses `fetchDownload` (fetch with redirects refused and an idle timer). A BoundedHttp passed as `http` still
+// works and is read as one chunk, so older callers keep their shape.
+export type DownloadRequest = { url:string; headers:Record<string,string>; idleTimeoutMs:number; redirect:'error' };
+export type DownloadResponse = { status:number; url?:string; headers?:Record<string,string>; body:AsyncIterable<Uint8Array> };
+export type ReleaseDownload = (request:DownloadRequest)=>Promise<DownloadResponse>;
+const IDLE_TIMEOUT_MS = 60000;
+/** The app's download: fetch, redirects refused, the stream aborted when no byte arrives for the idle time. */
+export const fetchDownload:ReleaseDownload=async request=>{
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+  const response=await fetch(request.url,{method:'GET',headers:request.headers,redirect:'error',signal:controller.signal}).catch(error=>{clearTimeout(timer);throw error;});
+  const headers:Record<string,string>={};response.headers.forEach((value,key)=>{headers[key]=value;});
+  const reader=response.body?.getReader();
+  async function*body(){
+    try{while(reader){const {done,value}=await reader.read();if(done)return;clearTimeout(timer);timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);yield value;}}
+    finally{clearTimeout(timer);await reader?.cancel().catch(()=>{});}
+  }
+  return {status:response.status,url:response.url,headers,body:body()};
+};
+function fromBoundedHttp(http:BoundedHttp,maxBytes:number):ReleaseDownload{
+  return async request=>{
+    const response=await http({url:request.url,method:'GET',headers:request.headers,maxBytes,timeoutMs:request.idleTimeoutMs,redirect:'error'});
+    const bytes=typeof response.body==='string'?Buffer.from(response.body):Buffer.from(response.body);
+    return {status:response.status,url:response.url,headers:response.headers,body:(async function*(){yield bytes;})()};
+  };
+}
 /** Read a bounded snapshot from a regular file, checking both handle and path identity. */
 async function rollbackFile(path:string,maximum:number,code:string) {
   check(typeof path==='string'&&isAbsolute(path),'UNSAFE_ROLLBACK_PATH','Rollback inputs need absolute regular-file paths.');
@@ -153,12 +182,13 @@ export class ReleaseUpdater {
   #key:KeyObject;
   #version:string;
   #directory:string;
-  #http:BoundedHttp;
-  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp}) {
+  #http:BoundedHttp|undefined;
+  #download:ReleaseDownload|undefined;
+  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp;download?:ReleaseDownload}) {
     this.#key=typeof options.publicKey==='string'?createPublicKey(options.publicKey):options.publicKey;
     check(this.#key.type==='public' && this.#key.asymmetricKeyType==='ed25519','INVALID_UPDATE_KEY','Pin an explicit Ed25519 release public key.');
     versionParts(options.version);check(isAbsolute(options.stageDirectory),'UNSAFE_STAGE','Choose an absolute private staging directory.');
-    this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http??boundedHttp;
+    this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http;this.#download=options.download;
   }
   verify(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
     const value=this.#authenticate(manifest,signature);
@@ -228,6 +258,43 @@ export class ReleaseUpdater {
     // A plan is a snapshot of checked bytes, not authority to execute files that may later change.
     return Object.freeze({prepared:true,installed:false,automatic:false,fromVersion:current.version,toVersion:previous.version,previousManifest:previous,previousSignature,artifactPath:artifact.path,artifactSha256:previous.sha256,artifactSize:previous.size,backup:Object.freeze({path:snapshot.path,sha256:backup.sha256,...expected}),restore:Object.freeze({...restored!}),installMode:'manual-native-installer-required',requiresNativeInstaller:true,requiresInputRevalidation:true,requiresExclusiveVaultLock:true,requiresEffectReconciliation:true,requiresUserApproval:true,unsignedFallbackAllowed:false});
   }
+  /**
+   * Streams the signed artifact into <artifact>.part with a running SHA-256, then links it into place. A cut stream keeps
+   * the part file and the next stage asks only for the rest (Range); a server that ignores the Range starts it again.
+   * A body longer or shorter than the signed size, or with another digest, deletes the part file.
+   */
+  async #fetchTo(verified:ReleaseManifest,artifactPath:string) {
+    const partPath=artifactPath+'.part';let offset=0,hash=createHash('sha256');
+    if(await regular(partPath)){
+      const size=(await lstat(partPath)).size;
+      if(size>0&&size<verified.size){hash=await fileDigest(partPath);offset=size;}else await unlink(partPath);
+    }
+    const download=this.#download??(this.#http?fromBoundedHttp(this.#http,verified.size):fetchDownload);
+    const headers:Record<string,string>={Accept:'application/octet-stream'};if(offset)headers.Range=`bytes=${offset}-`;
+    const response=await download({url:verified.url,headers,idleTimeoutMs:IDLE_TIMEOUT_MS,redirect:'error'});
+    check(!response.url||response.url===verified.url,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+    if(offset&&response.status===200){offset=0;hash=createHash('sha256');}
+    else if(offset){
+      const range=response.headers?.['content-range']??response.headers?.['Content-Range'];
+      check(response.status===206&&range===`bytes ${offset}-${verified.size-1}/${verified.size}`,'RELEASE_FETCH_REFUSED','The release server answered another part of the file.');
+    } else check(response.status===200,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+    const file=await open(partPath,offset?'a':'w',0o600);let written=offset,finished=false;
+    try {
+      try {
+        for await (const chunk of response.body) {
+          written+=chunk.byteLength;
+          if(written>verified.size)break;
+          hash.update(chunk);await file.write(chunk);
+        }
+        finished=true;
+      } catch {
+        await file.sync().catch(()=>{});
+        check(false,'RELEASE_DOWNLOAD_CUT','The download stopped part way. It continues from there next time.');
+      }
+    } finally {await file.close();if(finished&&(written!==verified.size||hash.copy().digest('hex')!==verified.sha256))await unlink(partPath).catch(()=>{});}
+    if(written!==verified.size||hash.digest('hex')!==verified.sha256){await unlink(partPath).catch(()=>{});check(false,'RELEASE_HASH_MISMATCH','The staged artifact length or SHA-256 does not match the signed manifest.');}
+    await link(partPath,artifactPath);await unlink(partPath);
+  }
   async stage(manifest:ReleaseManifest|string,signature:string) {
     const verified=this.verify(manifest,signature),directory=await safeDirectory(this.#directory,true),lockPath=join(directory,'stage.lock');
     const lock=await acquireProcessLock(lockPath,{busyCode:'UPDATE_BUSY',changedCode:'UPDATE_LOCK_CHANGED',unsafeCode:'UNSAFE_STAGE'});
@@ -239,14 +306,9 @@ export class ReleaseUpdater {
         check(compareVersions(verified.version,prior.version)>=0,'RELEASE_DOWNGRADE_REFUSED','A newer signed release has already been staged.');
         if(compareVersions(verified.version,prior.version)===0)check(canonicalReleaseManifest(verified)===canonicalReleaseManifest(prior),'RELEASE_VERSION_CONFLICT','The same version was signed with different release contents.');
       }
-      const request:HttpRequest={url:verified.url,method:'GET',headers:{Accept:'application/octet-stream'},maxBytes:verified.size,timeoutMs:60000,redirect:'error'};
-      const response=await this.#http(request);
-      check(response.status===200 && (!response.url||response.url===verified.url),'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
-      const bytes=typeof response.body==='string'?Buffer.from(response.body):Buffer.from(response.body);
-      check(bytes.length===verified.size && bytes.length<=MAX_ARTIFACT && digest(bytes)===verified.sha256,'RELEASE_HASH_MISMATCH','The staged artifact length or SHA-256 does not match the signed manifest.');
       const artifactPath=join(directory,`release-${verified.version}-${verified.sha256.slice(0,16)}.artifact`);
-      if(await regular(artifactPath)) {check((await lstat(artifactPath)).size===verified.size,'UNSAFE_STAGE','An existing staged artifact was modified.');const existing=await readFile(artifactPath);check(existing.length===verified.size&&digest(existing)===verified.sha256,'UNSAFE_STAGE','An existing staged artifact was modified.');}
-      else await writeStaged(artifactPath,bytes);
+      if(await regular(artifactPath)) {check((await lstat(artifactPath)).size===verified.size,'UNSAFE_STAGE','An existing staged artifact was modified.');check((await fileDigest(artifactPath)).digest('hex')===verified.sha256,'UNSAFE_STAGE','An existing staged artifact was modified.');}
+      else await this.#fetchTo(verified,artifactPath);
       const rollback={fromVersion:verified.version,toVersion:this.#version,automatic:false,requiresVaultBackup:true,requiresVerifiedPreviousPackage:true,requiresNativeInstaller:true,dataSchemaVersion:verified.dataSchemaVersion};
       const record={manifest:verified,signature,artifactPath,baseVersion:this.#version,rollback,verifiedAt:new Date().toISOString(),installed:false};
       await writeStaged(pendingPath,Buffer.from(JSON.stringify(record)),true);

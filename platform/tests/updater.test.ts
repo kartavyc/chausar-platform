@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign, createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm, readdir, mkdir, symlink, realpath } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, mkdir, symlink, realpath, stat } from 'node:fs/promises';
+import v8 from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -175,4 +177,65 @@ test('the install id is random, made once and kept in the updates folder',async 
   assert.match(first,/^[a-f0-9]{32}$/);assert.equal(await installIdIn(folder),first);assert.equal((await readFile(join(folder,'install-id'),'utf8')).trim(),first);
   const other=join(await directory(t),'updates');assert.notEqual(await installIdIn(other),first);
   await writeFile(join(other,'install-id'),'not an id');const replaced=await installIdIn(other);assert.match(replaced,/^[a-f0-9]{32}$/);assert.equal(await installIdIn(other),replaced);
+});
+
+// C5 task 31, the stage half: the download streams to a part file with a running SHA-256, so the body is never held in
+// memory; the cap is the signed size with a 512 MiB ceiling; a cut download resumes with a Range request; a hash
+// mismatch deletes the part file. Every download here is a stand-in that answers in this process.
+type Download=(request:{url:string;headers:Record<string,string>;idleTimeoutMs:number;redirect:'error'})=>Promise<{status:number;url?:string;headers?:Record<string,string>;body:AsyncIterable<Uint8Array>}>;
+function sized(size:number,version:string,sha256:string):ReleaseManifest{return{...manifest(version),size,sha256};}
+function patterned(size:number){const bytes=Buffer.alloc(size);for(let i=0;i<size;i++)bytes[i]=(i*31+7)&255;return bytes;}
+async function*chunks(bytes:Buffer,step=65536){for(let at=0;at<bytes.length;at+=step)yield bytes.subarray(at,at+step);}
+
+test('a 300 MB release streams to disk under the new ceiling without holding the body in memory',{timeout:120000},async t=>{
+  const size=300_000_000,step=1024*1024,zero=Buffer.alloc(step),hash=createHash('sha256');
+  for(let left=size;left>0;left-=step)hash.update(left>=step?zero:zero.subarray(0,left));
+  v8.setFlagsFromString('--expose_gc');const gc=runInNewContext('gc') as ()=>void;gc();
+  const base=process.memoryUsage().arrayBuffers;let peak=0,calls=0;
+  const download:Download=async request=>{calls++;assert.equal(request.redirect,'error');assert.equal(request.headers.Range,undefined);return{status:200,url:request.url,body:(async function*(){for(let left=size,index=0;left>0;left-=step,index++){if(index%32===0){gc();peak=Math.max(peak,process.memoryUsage().arrayBuffers-base);}yield Buffer.alloc(Math.min(step,left));}})()};};
+  const stageDirectory=await directory(t),release=sized(size,'1.1.0',hash.digest('hex'));
+  const staged=await new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download}).stage(release,signature(release));
+  assert.equal(calls,1);assert.equal((await stat(staged.artifactPath)).size,size);
+  assert.ok(peak<64*1024*1024,`the stager held ${Math.round(peak/1048576)} MiB of the body`);
+  assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.part')));
+  const tooBig={...release,size:512*1024*1024+1};assert.throws(()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory}).verify(tooBig,signature(tooBig)),code('INVALID_MANIFEST'));
+});
+
+test('a download cut at half resumes from where it stopped with a Range request',async t=>{
+  const bytes=patterned(1_000_003),half=500_000,release=sized(bytes.length,'1.1.0',createHash('sha256').update(bytes).digest('hex')),stageDirectory=await directory(t);
+  const requests:Record<string,string>[]=[];
+  const cut:Download=async request=>{requests.push(request.headers);return{status:200,url:request.url,body:(async function*(){yield bytes.subarray(0,half);throw Object.assign(new Error('socket hang up'),{code:'ECONNRESET'});})()};};
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:cut}).stage(release,signature(release)),code('RELEASE_DOWNLOAD_CUT'));
+  const names=await readdir(stageDirectory);assert.ok(!names.includes('pending-release.json'));
+  const part=names.find(name=>name.endsWith('.part'))!;assert.equal((await stat(join(stageDirectory,part))).size,half);
+  const resume:Download=async request=>{requests.push(request.headers);const from=Number(/^bytes=(\d+)-$/.exec(request.headers.Range)![1]);return{status:206,url:request.url,headers:{'content-range':`bytes ${from}-${bytes.length-1}/${bytes.length}`},body:chunks(bytes.subarray(from))};};
+  const staged=await new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:resume}).stage(release,signature(release));
+  assert.equal(requests[0].Range,undefined);assert.equal(requests[1].Range,`bytes=${half}-`);
+  assert.deepEqual(await readFile(staged.artifactPath),bytes);assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.part')));
+});
+
+test('a server that ignores the Range request starts the file again, and a wrong range is refused',async t=>{
+  const bytes=patterned(200_000),release=sized(bytes.length,'1.1.0',createHash('sha256').update(bytes).digest('hex')),stageDirectory=await directory(t);
+  const cut:Download=async request=>({status:200,url:request.url,body:(async function*(){yield bytes.subarray(0,1000);throw new Error('cut');})()});
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:cut}).stage(release,signature(release)),code('RELEASE_DOWNLOAD_CUT'));
+  const lying:Download=async request=>({status:206,url:request.url,headers:{'content-range':`bytes 0-${bytes.length-1}/${bytes.length}`},body:chunks(bytes)});
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:lying}).stage(release,signature(release)),code('RELEASE_FETCH_REFUSED'));
+  const whole:Download=async request=>({status:200,url:request.url,body:chunks(bytes)});
+  const staged=await new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:whole}).stage(release,signature(release));
+  assert.deepEqual(await readFile(staged.artifactPath),bytes);
+});
+
+test('a hash mismatch, a short body or an overlong body deletes the part file and publishes nothing',async t=>{
+  const bytes=patterned(300_000),release=sized(bytes.length,'1.1.0',createHash('sha256').update(bytes).digest('hex'));
+  const wrong=Buffer.from(bytes);wrong[1234]^=1;
+  for(const body of [wrong,bytes.subarray(0,1000),Buffer.concat([bytes,Buffer.from('extra')])]){
+    const stageDirectory=await directory(t),download:Download=async request=>({status:200,url:request.url,body:chunks(body)});
+    await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download}).stage(release,signature(release)),code('RELEASE_HASH_MISMATCH'));
+    assert.deepEqual(await readdir(stageDirectory),[]);
+  }
+  const stageDirectory=await directory(t),cut:Download=async request=>({status:200,url:request.url,body:(async function*(){yield wrong.subarray(0,2000);throw new Error('cut');})()});
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:cut}).stage(release,signature(release)),code('RELEASE_DOWNLOAD_CUT'));
+  const rest:Download=async request=>({status:206,url:request.url,headers:{'content-range':`bytes 2000-${bytes.length-1}/${bytes.length}`},body:chunks(bytes.subarray(2000))});
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:rest}).stage(release,signature(release)),code('RELEASE_HASH_MISMATCH'));
+  assert.deepEqual(await readdir(stageDirectory),[]);
 });
