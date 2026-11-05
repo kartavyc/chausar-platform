@@ -92,3 +92,11 @@ test('package.json runs the tracked layer as guard:data, first in verify', async
   assert.equal(scripts['guard:data'], 'node scripts/check-clean-tree.mjs --tracked');
   assert.match(scripts.verify, /^npm run guard:data && /);
 });
+
+// D3 task 10: belt and braces. The guard is the real check; these lines only stop an accident reaching git add.
+test('.gitignore names each folder and file kind a run or a dev server makes', async () => {
+  const lines = (await readFile(new URL('../../.gitignore', import.meta.url), 'utf8')).split(/\r?\n/);
+  for (const pattern of ['.b2c-work/', '.w3check/', 'app/ui/.vitest/', '.shots/', '*.tap', '*.key', 'tenants/', '*.encrypted.json', 'app/ui/results/', 'data/', 'results/']) {
+    assert.ok(lines.includes(pattern), pattern);
+  }
+});
