@@ -45,3 +45,20 @@ test('B1 fix round 2: bannedIn names each developer word a line uses, whole word
   assert.deepEqual(bannedIn('Plain words for the owner.'), []);
   for (const word of DEVELOPER_WORDS) assert.deepEqual(bannedIn(`a ${word} here`), [word], word);
 });
+
+// B1 fix round 2 (quality finding 5): a refusal that quotes another's words (a CSV that would not read, a pack's server
+// reference) quotes only words the owner may read; anything else is left out of the line.
+test('B1 fix round 2: quotable keeps owner words and plain sentences, and drops the rest', async () => {
+  const { quotable } = await import('../runtime/owner-flag.ts');
+  const { ChausarError, InternalError } = await import('../runtime/contracts.ts');
+  assert.equal(quotable(new ChausarError('INVALID_VENTURE_REQUEST', 'Use HTTPS, or local HTTP, without credentials or query parameters.')), 'Use HTTPS, or local HTTP, without credentials or query parameters.');
+  assert.equal(quotable(new Error('A quoted cell was cut short.')), 'A quoted cell was cut short.');
+  for (const inner of [new InternalError('UNSAFE_PATH', 'Choose an explicit non-root absolute directory.'), new ChausarError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'),
+    new Error('The engine stopped.'), Object.assign(new Error("ENOENT: no such file, open 'C:\\x\\y.csv'"), { code: 'ENOENT' }), new Error('Unexpected token < in JSON at position 0\n    at JSON.parse'), 'a string', null]) {
+    assert.equal(quotable(inner), null, String((inner as Error)?.message ?? inner));
+  }
+  const { readFile } = await import('node:fs/promises');
+  for (const file of ['venture/delivery/harness/files.ts', 'venture/packs/pack-format.ts']) {
+    assert.doesNotMatch(await readFile(new URL(`../runtime/${file}`, import.meta.url), 'utf8'), /\$\{\(error as Error\)\.message\}/, file);
+  }
+});

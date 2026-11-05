@@ -49,7 +49,20 @@ export function refusalTravel(code: unknown, message: unknown, owner?: unknown):
  */
 export const DEVELOPER_WORDS: readonly string[] = Object.freeze(['vault', 'credential', 'engine', 'fixture', 'digest', 'npm', 'snapshot', 'adapter', 'envelope', 'gateway', 'probe', 'manifest']);
 
-const DEVELOPER_PATTERN = new RegExp(`\\b(?:${DEVELOPER_WORDS.join('|')})s?\\b`, 'gi');
+/**
+ * B1 fix round 2 (quality finding 5): the words of an inner error that a refusal may quote ("x.csv is not a readable
+ * CSV: A quoted cell was cut short."): a Chausar refusal written for the owner (refusalTravel 'owner'), or a plain
+ * one-line sentence with no code, path or developer word in it. Anything else gives null, and the refusal leaves it out.
+ */
+export function quotable(error: unknown): string | null {
+  if (!(error instanceof Error) || typeof error.message !== 'string') return null;
+  const message = error.message.trim(), raw = error as Error & { code?: unknown; owner?: unknown };
+  if (raw.name === 'ChausarError' && typeof raw.code === 'string') return refusalTravel(raw.code, message, raw.owner) === 'owner' ? message : null;
+  if (raw.code !== undefined || !message || message.length > 200 || /[\r\n\\/]/.test(message)) return null;
+  return bannedIn(message).length === 0 ? message : null;
+}
+
+const DEVELOPER_PATTERN =new RegExp(`\\b(?:${DEVELOPER_WORDS.join('|')})s?\\b`, 'gi');
 
 /**
  * B1 fix round 2 (quality finding 1): the developer words a line uses, each once, in lower case and singular; [] when it

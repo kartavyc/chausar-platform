@@ -6,6 +6,7 @@
 // order's transcript can also be made on this computer from the cut named at intake (venture.files.transcribe).
 import {readDocx} from '../../playbooks/kit/ooxml/read.ts';
 import { audit, check, ChausarError, type Context } from '../../../contracts.ts';
+import { quotable } from '../../../owner-flag.ts';
 import { localPathProblem } from '../../../speech.ts';
 import { readWorkbook } from '../../../workbook.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, singleLine, ventureAction } from '../../records.ts';
@@ -202,7 +203,7 @@ export function tablesOfFile(file: FileLike): SourceTable[] {
   let tables: SourceTable[];
   if (file.format === 'csv') {
     let grid: string[][];
-    try { grid = csvRows(bytes.toString('utf8')); } catch (error) { throw new ChausarError('TOOL_FAILED', `${file.name} is not a readable CSV: ${(error as Error).message}`); }
+    try { grid = csvRows(bytes.toString('utf8')); } catch (error) { const why = quotable(error); throw new ChausarError('TOOL_FAILED', `${file.name} is not a readable CSV${why ? `: ${why}` : '.'}`); }
     tables = [tableFrom(file.id, file.name, grid, file.id)];
   } else {
     let workbook;
