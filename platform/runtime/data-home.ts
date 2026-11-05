@@ -63,3 +63,13 @@ export function dataHome(kind: DataKind, options: DataHomeOptions = {}): string 
 export function serverDataDirectory(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv): string {
   return dataHome(args.includes('--demo') ? 'local-web-demo' : 'local-web', { env: environment });
 }
+
+/**
+ * The desktop worker's data folder: CHAUSAR_VAULT_DIRECTORY, which the desktop app always sets (Electron's
+ * userData/vaults). Started by hand without it, the worker refuses rather than writing to a quiet default.
+ */
+export function workerDataDirectory(environment: NodeJS.ProcessEnv = process.env): string {
+  const folder = environment.CHAUSAR_VAULT_DIRECTORY;
+  if (!folder) throw new ChausarError('WORKER_NEEDS_DATA_FOLDER', 'The engine worker needs CHAUSAR_VAULT_DIRECTORY. The desktop app sets it; when you start the worker by hand, set it to a folder outside the code folder.');
+  return refuseInsideRepo(folder, { env: environment, variable: 'CHAUSAR_VAULT_DIRECTORY' });
+}

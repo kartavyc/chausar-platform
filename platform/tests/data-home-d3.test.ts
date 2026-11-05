@@ -113,3 +113,25 @@ test('the local web server: the demo kind under the data home, CHAUSAR_VAULT_DIR
   assert.equal(engine.options.directory, join(parent, 'home', 'local-web-demo'));
   await assert.rejects(createServerEngine({ CHAUSAR_VAULT_DIRECTORY: join(root, 'data') }, ['--demo']), code('DATA_INSIDE_REPO'));
 });
+
+// Task 3: the worker never falls back to ./data. The desktop always sets the folder; by hand it must be set too.
+test('the worker: CHAUSAR_VAULT_DIRECTORY is required, refused inside the checkout; the desktop\'s userData folder passes', async t => {
+  const { workerDataDirectory, createWorkerEngine } = await import('../runtime/worker.ts');
+  assert.throws(() => workerDataDirectory({}), (error: Error & { code?: string }) => {
+    assert.equal(error.code, 'WORKER_NEEDS_DATA_FOLDER');
+    assert.equal(error.message, 'The engine worker needs CHAUSAR_VAULT_DIRECTORY. The desktop app sets it; when you start the worker by hand, set it to a folder outside the code folder.');
+    return true;
+  });
+  assert.throws(() => workerDataDirectory({ CHAUSAR_VAULT_DIRECTORY: '' }), code('WORKER_NEEDS_DATA_FOLDER'));
+  assert.throws(() => workerDataDirectory({ CHAUSAR_HOME: tmpdir() }), code('WORKER_NEEDS_DATA_FOLDER'), 'no quiet default folder');
+  const root = fileURLToPath(new URL('../..', import.meta.url));
+  assert.throws(() => workerDataDirectory({ CHAUSAR_VAULT_DIRECTORY: join(root, 'data') }), code('DATA_INSIDE_REPO'));
+  const parent = await realpath(await mkdtemp(join(tmpdir(), 'chausar-data-home-')));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const userData = join(parent, 'Chausar', 'vaults'); // the shape of Electron's userData/vaults (main.cjs)
+  assert.equal(workerDataDirectory({ CHAUSAR_VAULT_DIRECTORY: userData }), userData);
+  await assert.rejects(createWorkerEngine({ CHAUSAR_DEMO: '1' }), code('WORKER_NEEDS_DATA_FOLDER'));
+  const engine = await createWorkerEngine({ CHAUSAR_VAULT_DIRECTORY: userData, CHAUSAR_DEMO: '1' });
+  t.after(() => engine.shutdown());
+  assert.equal(engine.options.directory, userData);
+});
