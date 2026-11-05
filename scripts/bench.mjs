@@ -6,13 +6,15 @@ import { dirname, isAbsolute, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null;
-const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--shard=1/2|--shard=2/2|--shard=1/4|--shard=2/4|--shard=3/4|--shard=4/4|--shard=1/5|--shard=2/5|--shard=3/5|--shard=4/5|--shard=5/5|--shard=1/6|--shard=2/6|--shard=3/6|--shard=4/6|--shard=5/6|--shard=6/6]';
-const seen = new Set();
+const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null; let weightSources = null;
+const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
+const seen = new Set(); let list = false;
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
+  // --list prints the files this run would pick (and the shard plan) and runs nothing.
+  if (argument === '--list') { if (list) throw new Error(usage); list = true; continue; }
   const option = argument.split('=', 1)[0];
-  if (!['--output', '--shard', '--workers'].includes(option) || seen.has(option)) throw new Error(usage);
+  if (!['--output', '--shard', '--workers', '--write-weights'].includes(option) || seen.has(option)) throw new Error(usage);
   seen.add(option);
   const value = argument.includes('=') ? argument.slice(option.length + 1) : args[++index];
   if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
@@ -20,14 +22,76 @@ for (let index = 0; index < args.length; index++) {
   else if (option === '--workers') {
     if (!/^[1-9]\d?$/.test(value) || Number(value) > 64) throw new Error('Workers must be a whole number from 1 to 64.');
     requestedWorkers = Number(value);
-  } else {
-    if (!/^(?:[12]\/2|[1-4]\/4|[1-5]\/5|[1-6]\/6)$/.test(value)) throw new Error('Benchmark shard must be exactly 1/2, 2/2, 1/4, 2/4, 3/4, 4/4, 1/5 to 5/5, or 1/6 to 6/6.');
+  } else if (option === '--write-weights') weightSources = value.split(',');
+  else {
+    if (!/^[1-8]\/[1-8]$/.test(value) || Number(value[0]) > Number(value[2])) throw new Error('Benchmark shard must be I/N with N from 1 to 8 and I from 1 to N, such as 2/3.');
     const [shardIndex, shardTotal] = value.split('/').map(Number);
     shard = { index: shardIndex, total: shardTotal };
   }
 }
-const destination = resolve(root, requestedOutput); const inside = relative(root, destination);
-if (!requestedOutput || isAbsolute(inside) || inside === '..' || inside.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !destination.endsWith('.json')) throw new Error('Benchmark output must be a JSON file within this repository.');
+if (weightSources && seen.size > 1) throw new Error(usage);
+const insideRepository = (path) => {
+  const target = resolve(root, path), inner = relative(root, target);
+  if (!path || isAbsolute(inner) || inner === '..' || inner.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !target.endsWith('.json')) return null;
+  return { target, inner };
+};
+const weightsPath = resolve(root, 'platform/tests/test-weights.json');
+if (weightSources) {
+  // D2: refresh the shard weights from one or more receipts' fileTimings (the shards of one full run, or a full run).
+  const weights = {};
+  for (const source of weightSources) {
+    const found = insideRepository(source);
+    if (!found) throw new Error('Weights come from benchmark receipts: JSON files within this repository.');
+    const receipt = JSON.parse(await readFile(found.target, 'utf8'));
+    if (receipt.schema !== 'chausar.factory-bench.v1' || !receipt.fileTimings || typeof receipt.fileTimings !== 'object') throw new Error(`${source} is not a benchmark receipt with fileTimings.`);
+    for (const [file, seconds] of Object.entries(receipt.fileTimings)) if (typeof seconds === 'number' && seconds >= 0) weights[file] = Math.max(0.1, Math.round(seconds * 10) / 10);
+  }
+  const sorted = Object.fromEntries(Object.keys(weights).sort().map(file => [file, weights[file]]));
+  await writeFile(weightsPath, `${JSON.stringify(sorted, null, 2)}\n`, 'utf8');
+  process.stdout.write(`${JSON.stringify({ weights: relative(root, weightsPath).replaceAll('\\', '/'), files: Object.keys(sorted).length })}\n`);
+  process.exit(0);
+}
+const output = insideRepository(requestedOutput);
+if (!output) throw new Error('Benchmark output must be a JSON file within this repository.');
+const { target: destination, inner: inside } = output;
+const discoveryPattern = 'platform/tests/*.test.ts';
+const discoveredFiles = [];
+for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
+discoveredFiles.sort();
+// D2: one time-balanced plan for any shard count from 1 to 8. Each file weighs its seconds in
+// platform/tests/test-weights.json (`--write-weights` refreshes it; a file missing there counts 1 s). Files are placed
+// heaviest first, ties by name, each on the lightest shard so far (ties: the lower shard), so the plan is the same on
+// every run and every computer.
+let weights = {};
+try { weights = JSON.parse(await readFile(weightsPath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+const weightOf = file => (typeof weights[file] === 'number' && weights[file] >= 0 ? weights[file] : 1);
+let selectedFiles = null; let plan = null;
+if (shard) {
+  const groups = Array.from({ length: shard.total }, (_, index) => ({ index: index + 1, files: [], estimatedSeconds: 0 }));
+  const ordered = discoveredFiles.slice().sort((left, right) => weightOf(right) - weightOf(left) || (left < right ? -1 : left > right ? 1 : 0));
+  for (const file of ordered) {
+    const lightest = groups.reduce((best, group) => (group.estimatedSeconds < best.estimatedSeconds ? group : best));
+    lightest.files.push(file); lightest.estimatedSeconds += weightOf(file);
+  }
+  for (const group of groups) { group.files.sort(); group.estimatedSeconds = Math.round(group.estimatedSeconds * 10) / 10; }
+  const covered = groups.flatMap(group => group.files);
+  if (new Set(covered).size !== discoveredFiles.length || JSON.stringify(covered.slice().sort()) !== JSON.stringify(discoveredFiles)) {
+    throw new Error('The shard plan must cover every discovered test file exactly once.');
+  }
+  // An empty shard would hand Node no files, and Node would then run its own discovery: refuse instead.
+  if (groups[shard.index - 1].files.length === 0) throw new Error(`Shard ${shard.index}/${shard.total} has no test files: there are fewer test files than shards.`);
+  selectedFiles = groups[shard.index - 1].files;
+  plan = { name: 'time-balanced-v1', weights: 'platform/tests/test-weights.json', defaultSeconds: 1, groups };
+}
+// Every receipt retains the complete discovery universe; a shard receipt also records its exact files and every group.
+const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
+  inventorySha256: createHash('sha256').update(JSON.stringify(discoveredFiles)).digest('hex'),
+  selection: plan ? 'time-balanced-plan' : 'all-discovered-files',
+  ...(plan ? { selectedFiles, plan } : {}) };
+if (list) {
+  process.stdout.write(`${JSON.stringify({ shard, selection: testFiles.selection, files: selectedFiles ?? discoveredFiles, ...(plan ? { plan: plan.groups.map(group => ({ index: group.index, files: group.files.length, estimatedSeconds: group.estimatedSeconds })) } : {}) }, null, 2)}\n`);
+  process.exit(0);
+}
 // D2: the test files run side by side. More workers make more vault and job folders in the OS temp folder at once, so
 // the free space there is checked first: under 2 GB nothing runs, under 6 GB at most two workers run.
 // CHAUSAR_BENCH_FREE_BYTES (read here only) lets the bench's own test fake the number.
@@ -46,39 +110,6 @@ if (tempFreeBytes < 6 * GIB && workers > 2) {
   workers = 2;
   process.stderr.write(`Free space on ${drive} is ${gigabytes} GB, so the engine tests run with 2 workers.\n`);
 }
-const discoveryPattern = 'platform/tests/*.test.ts';
-const discoveredFiles = [];
-for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
-discoveredFiles.sort();
-let selectedFiles = null; let plan = null;
-if (shard?.total === 5 || shard?.total === 6) {
-  // The planned shards keep the long independent activation suite on its own shard and spread every other file
-  // round-robin over the ordinary groups: four groups in the five-shard plan, five in the six-shard plan. The
-  // six-shard plan keeps five ordinary groups plus the long activation suite. Wave 5 more than doubled the
-  // inventory again. Wave 6 adds native agent checks, so the bounded runner allows twenty minutes with one worker and all cases.
-  const planned = shard.total === 5 ? 'Five' : 'Six';
-  const ordinaryTotal = shard.total - 1;
-  const dedicatedFile = 'platform/tests/workspace-activation-independent-public-acceptance.test.ts';
-  if (!discoveredFiles.includes(dedicatedFile)) throw new Error(`${planned}-shard plan requires the dedicated independent activation test file.`);
-  const ordinaryFiles = discoveredFiles.filter(file => file !== dedicatedFile);
-  const groups = Array.from({ length: ordinaryTotal }, (_, index) => ordinaryFiles.filter((_, position) => position % ordinaryTotal === index));
-  groups.push([dedicatedFile]);
-  const coveredFiles = groups.flat();
-  if (groups.some(files => files.length === 0) || new Set(coveredFiles).size !== discoveredFiles.length ||
-      JSON.stringify(coveredFiles.slice().sort()) !== JSON.stringify(discoveredFiles)) {
-    throw new Error(`${planned}-shard plan must provide nonempty, disjoint groups covering the complete discovered inventory.`);
-  }
-  selectedFiles = groups[shard.index - 1];
-  plan = { name: shard.total === 5 ? 'four-stable-groups-plus-independent-activation-v1' : 'five-stable-groups-plus-independent-activation-v1',
-    ordinaryShardTotal: ordinaryTotal, dedicatedFile, groups: groups.map((files, index) => ({ index: index + 1, files })) };
-}
-// Every receipt retains the complete discovery universe. The planned five-way and six-way splits also record their
-// exact selected files and every complementary group. Legacy Node sharding deliberately does not claim to identify
-// the files each shard ran.
-const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
-  inventorySha256: createHash('sha256').update(JSON.stringify(discoveredFiles)).digest('hex'),
-  selection: plan ? (shard.total === 5 ? 'explicit-stable-five-shard-plan' : 'explicit-stable-six-shard-plan') : shard ? 'node-test-shard' : 'all-discovered-files',
-  ...(plan ? { selectedFiles, plan } : {}) };
 const startedAt = new Date().toISOString();
 // Each shard has a twenty-minute deadline; the worker count above bounds the files running at once.
 // Run every test in each selected file; no case filters or skip patterns.
@@ -89,7 +120,7 @@ const timingsInside = relative(root, timingsPath).replaceAll('\\', '/');
 await mkdir(dirname(destination), { recursive: true }); await rm(timingsPath, { force: true });
 const command = ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
   '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${timingsInside}`, `--test-concurrency=${workers}`,
-  ...(selectedFiles ?? [...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), discoveryPattern])];
+  ...(selectedFiles ?? [discoveryPattern])];
 const fullSuite = shard === null;
 const outcome = await new Promise((fulfill) => {
   const child = spawn(process.execPath, command, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });

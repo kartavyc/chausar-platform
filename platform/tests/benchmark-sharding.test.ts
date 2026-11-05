@@ -13,7 +13,7 @@ interface BenchmarkReport {
   shard: { index: number; total: number } | null;
   fullSuite: boolean;
   testFiles: { pattern: string; discovered: string[]; inventorySha256: string; selection: string; selectedFiles?: string[];
-    plan?: { name: string; ordinaryShardTotal: number; dedicatedFile: string; groups: { index: number; files: string[] }[] } };
+    plan?: { name: string; weights: string; defaultSeconds: number; groups: { index: number; files: string[]; estimatedSeconds: number }[] } };
   passed: boolean;
   workers: number;
   fileTimings: Record<string, number>;
@@ -29,9 +29,8 @@ interface BenchmarkReport {
 // Copy the real CLI into a tiny synthetic repository. Every invocation runs actual
 // Node test discovery, sharding and receipt generation, without the full vault suite.
 const GIB = 1024 ** 3;
-const independentFixtureFile = 'platform/tests/workspace-activation-independent-public-acceptance.test.ts';
 
-async function fixture(t: TestContext, failing = false, incomplete = false, fiveShard = false, ordinaryFiles = 6, sleeps: number[] = []) {
+async function fixture(t: TestContext, failing = false, incomplete = false, ordinaryFiles = 6, sleeps: number[] = []) {
   const temporaryRoot = await realpath(resolve(tmpdir()));
   if (process.platform === 'win32') assert.match(temporaryRoot, /^C:\\/i);
   const directory = await mkdtemp(join(temporaryRoot, 'chausar-bench-sharding-'));
@@ -59,7 +58,6 @@ async function fixture(t: TestContext, failing = false, incomplete = false, five
     const options = incomplete && index === 1 ? ", { skip: 'Declared fixture skip' }" : incomplete && index === 2 ? ", { todo: 'Declared fixture todo' }" : '';
     await writeFixture(`platform/tests/fixture-${index}.test.ts`, index, options);
   }
-  if (fiveShard) await writeFixture(independentFixtureFile, ordinaryFiles + 1);
   return {
     directory,
     invoke(args: string[], extra: Record<string, string | undefined> = {}) {
@@ -78,6 +76,9 @@ async function fixture(t: TestContext, failing = false, incomplete = false, five
     },
     async report(output = 'results/factory-bench.json'): Promise<BenchmarkReport> {
       return JSON.parse(await readFile(join(directory, output), 'utf8'));
+    },
+    async weights(weights: Record<string, number>) {
+      await writeFile(join(directory, 'platform', 'tests', 'test-weights.json'), JSON.stringify(weights));
     },
     async executed(): Promise<number[]> {
       // D2: files run side by side, so the order they finish in varies; which files ran is what is compared.
@@ -156,7 +157,7 @@ test('D2: the bench checks the temp folder first: under 2 GB it refuses before a
 });
 
 test('D2: the receipt keeps each file time from a second reporter, beside the TAP text', async t => {
-  const f = await fixture(t, false, false, false, 3, [600, 50, 300]);
+  const f = await fixture(t, false, false, 3, [600, 50, 300]);
   assert.equal(f.invoke(['--workers=1']).status, 0);
   const report = await f.report();
   assertCompleteRun(report, 3, ['platform/tests/fixture-1.test.ts', 'platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts']);
@@ -170,174 +171,103 @@ test('D2: the receipt keeps each file time from a second reporter, beside the TA
   await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.timings.jsonl')), { code: 'ENOENT' }, 'the timings file is folded into the receipt');
 });
 
-test('actual Node shards are disjoint and their union covers every fixture test file', async t => {
-  const f = await fixture(t), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
-  for (const index of [1, 2]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/shard-${index}.json`;
-    const args = index === 1 ? ['--shard=1/2', '--output', output] : ['--output=' + output, '--shard', '2/2'];
-    const result = f.invoke(args);
-    assert.equal(result.status, 0, JSON.stringify(await f.report(output)));
+// D2 task 4: one time-balanced plan replaces the 2, 4, 5 and 6-shard plans. Every shard count from 1 to 8 places the
+// files heaviest first on the lightest shard, using platform/tests/test-weights.json (a missing file counts 1 s).
+const files = (count: number) => Array.from({ length: count }, (_, index) => `platform/tests/fixture-${index + 1}.test.ts`);
+const FIXTURE_WEIGHTS = { 'platform/tests/fixture-1.test.ts': 2, 'platform/tests/fixture-2.test.ts': 9, 'platform/tests/fixture-3.test.ts': 4,
+  'platform/tests/fixture-4.test.ts': 3, 'platform/tests/fixture-5.test.ts': 6, 'platform/tests/fixture-6.test.ts': 5, 'platform/tests/gone.test.ts': 40 };
+
+test('D2: every shard count from 1 to 8 covers each discovered file exactly once, and the plan repeats', async t => {
+  const f = await fixture(t, false, false, 7);
+  await f.weights(FIXTURE_WEIGHTS);
+  for (let total = 1; total <= 7; total++) {
+    const output = `results/plan-${total}.json`;
+    assert.equal(f.invoke([`--shard=1/${total}`, '--workers=1', '--output', output]).status, 0, String(total));
     const report = await f.report(output);
-    assertCompleteRun(report, 3);
+    assert.equal(report.testFiles.selection, 'time-balanced-plan');
+    const plan = report.testFiles.plan!;
+    assert.equal(plan.name, 'time-balanced-v1');
+    assert.equal(plan.groups.length, total);
+    assert.deepEqual(plan.groups.flatMap(group => group.files).sort(), files(7), String(total));
+    assert.deepEqual(report.testFiles.selectedFiles, plan.groups[0].files);
+    assert.deepEqual(withoutReporters(report.command), ['node', '--test', '--test-concurrency=1', ...plan.groups[0].files]);
+    assert.equal(f.invoke([`--shard=1/${total}`, '--workers=1', '--output', `results/again-${total}.json`]).status, 0);
+    assert.deepEqual((await f.report(`results/again-${total}.json`)).testFiles.plan, plan, 'the plan is the same every run');
+  }
+});
+
+test('D2: three shards run disjoint files whose union is the whole inventory, balanced by weight', async t => {
+  const f = await fixture(t, false, false, 7);
+  await f.weights(FIXTURE_WEIGHTS);
+  const covered: number[][] = [];
+  for (const index of [1, 2, 3]) {
+    await writeFile(join(f.directory, 'executed.jsonl'), '');
+    const output = `results/three-${index}.json`;
+    const result = f.invoke(index % 2 ? [`--shard=${index}/3`, '--output', output] : ['--output=' + output, '--shard', `${index}/3`]);
+    const report = await f.report(output);
+    assert.equal(result.status, 0, JSON.stringify(report));
+    assertCompleteRun(report, report.testFiles.selectedFiles!.length, files(7));
+    assert.deepEqual(report.shard, { index, total: 3 });
     assert.equal(report.fullSuite, false);
-    assert.deepEqual(report.shard, { index, total: 2 });
-    assert.equal(report.testFiles.selection, 'node-test-shard');
-    inventories.push(report.testFiles);
-    assert.equal(report.scope, `Repository open tests (shard ${index}/2)`);
-    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
-    const summary = JSON.parse(result.stdout.trim());
-    assert.equal(summary.fullSuite, false);
-    assert.deepEqual(summary.shard, report.shard);
+    assert.equal(report.scope, `Repository open tests (shard ${index}/3)`);
+    assert.deepEqual(JSON.parse(result.stdout.trim()).shard, report.shard);
     covered.push(await f.executed());
   }
-  assert.equal(covered[0].filter(value => covered[1].includes(value)).length, 0);
-  assert.deepEqual(inventories[0], inventories[1], 'Complementary receipts must record the same complete discovery universe.');
-  assert.deepEqual(covered.flat().sort(), [1, 2, 3, 4, 5, 6]);
-  await writeFile(join(f.directory, 'executed.jsonl'), '');
-  assert.equal(f.invoke(['--shard=1/2', '--output=results/repeat.json']).status, 0);
-  assert.deepEqual(await f.executed(), covered[0], 'Shard file assignment must be deterministic.');
-});
-
-test('actual four Node shards retain exact inventories and deterministic disjoint coverage of all fixture files', async t => {
-  const f = await fixture(t), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
-  for (const index of [1, 2, 3, 4]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/four-shard-${index}.json`;
-    const args = index % 2 ? [`--shard=${index}/4`, '--output', output] : ['--output=' + output, '--shard', `${index}/4`];
-    const result = f.invoke(args);
-    assert.equal(result.status, 0, JSON.stringify(await f.report(output)));
-    const executed = await f.executed(), report = await f.report(output);
-    assert.ok(executed.length > 0, 'Every complementary fixture shard must execute test files.');
-    assert.equal(new Set(executed).size, executed.length, 'A shard must execute each selected file once.');
-    assertCompleteRun(report, executed.length);
-    assert.equal(report.fullSuite, false);
-    assert.deepEqual(report.shard, { index, total: 4 });
-    assert.equal(report.testFiles.selection, 'node-test-shard');
-    assert.equal(report.scope, `Repository open tests (shard ${index}/4)`);
-    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
-    const summary = JSON.parse(result.stdout.trim());
-    assert.equal(summary.fullSuite, false);
-    assert.deepEqual(summary.shard, report.shard);
-    for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
-    covered.push(executed); inventories.push(report.testFiles);
-  }
-  assert.deepEqual(covered.flat().sort((left, right) => left - right), [1, 2, 3, 4, 5, 6]);
-  for (const inventory of inventories) assert.deepEqual(inventory, inventories[0], 'All four receipts must retain the exact same complete discovery universe.');
-  for (const index of [1, 2, 3, 4]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/four-repeat-${index}.json`;
-    assert.equal(f.invoke([`--shard=${index}/4`, '--output', output]).status, 0);
-    const report = await f.report(output);
-    assertCompleteRun(report, covered[index - 1].length);
-    assert.deepEqual(report.testFiles, inventories[index - 1]);
-    assert.deepEqual(report.shard, { index, total: 4 });
-    assert.equal(report.fullSuite, false);
-    assert.deepEqual(await f.executed(), covered[index - 1], 'Every four-shard file assignment must repeat deterministically.');
-  }
-});
-
-test('five planned shards preserve the four ordinary groups and execute the independent file once with deterministic complete coverage', async t => {
-  const f = await fixture(t, false, false, true), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
-  const ordinaryFiles = Array.from({ length: 6 }, (_, index) => `platform/tests/fixture-${index + 1}.test.ts`);
-  const discovered = [...ordinaryFiles, independentFixtureFile].sort();
-  const groups = [...Array.from({ length: 4 }, (_, index) => ordinaryFiles.filter((_, position) => position % 4 === index)), [independentFixtureFile]];
-  for (const index of [1, 2, 3, 4, 5]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/five-shard-${index}.json`;
-    const args = index % 2 ? [`--shard=${index}/5`, '--output', output] : ['--output=' + output, '--shard', `${index}/5`];
-    const result = f.invoke(args), report = await f.report(output), executed = await f.executed();
-    assert.equal(result.status, 0, JSON.stringify(report));
-    assertCompleteRun(report, groups[index - 1].length, discovered);
-    assert.equal(report.fullSuite, false);
-    assert.deepEqual(report.shard, { index, total: 5 });
-    assert.equal(report.scope, `Repository open tests (shard ${index}/5)`);
-    assert.equal(report.testFiles.selection, 'explicit-stable-five-shard-plan');
-    assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
-    assert.deepEqual(report.testFiles.plan, { name: 'four-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 4,
-      dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
-    assert.equal(report.command.some(argument => argument.startsWith('--test-shard=')), false);
-    assert.equal(new Set(executed).size, executed.length);
-    for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
-    assert.deepEqual(JSON.parse(result.stdout.trim()).shard, report.shard);
-    covered.push(executed); inventories.push(report.testFiles);
-  }
-  assert.deepEqual(covered, [[1, 5], [2, 6], [3], [4], [7]]);
+  for (const [index, list] of covered.entries()) for (const other of covered.slice(index + 1)) assert.equal(list.filter(value => other.includes(value)).length, 0);
   assert.deepEqual(covered.flat().sort((left, right) => left - right), [1, 2, 3, 4, 5, 6, 7]);
-  for (const inventory of inventories) {
-    assert.deepEqual(inventory.discovered, discovered);
-    assert.equal(inventory.inventorySha256, inventories[0].inventorySha256);
-    assert.deepEqual(inventory.plan, inventories[0].plan);
-  }
-  assert.deepEqual(inventories[0].plan!.groups.flatMap(group => group.files).sort(), discovered);
-  for (const index of [1, 2, 3, 4, 5]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/five-repeat-${index}.json`;
-    assert.equal(f.invoke([`--shard=${index}/5`, '--output', output]).status, 0);
-    const report = await f.report(output);
-    assertCompleteRun(report, groups[index - 1].length, discovered);
-    assert.deepEqual(report.testFiles, inventories[index - 1]);
-    assert.deepEqual(await f.executed(), covered[index - 1]);
-  }
+  // Weights 9, 6, 5, 4, 3, 2 and an unweighted 1: placed heaviest first, the shards hold 11, 10 and 9 seconds.
+  const plan = (await f.report('results/three-1.json')).testFiles.plan!;
+  assert.deepEqual(plan.groups.map(group => group.estimatedSeconds), [11, 10, 9]);
+  const mean = plan.groups.reduce((sum, group) => sum + group.estimatedSeconds, 0) / plan.groups.length;
+  const heaviest = plan.groups.reduce((best, group) => (group.estimatedSeconds > best.estimatedSeconds ? group : best));
+  assert.ok(heaviest.estimatedSeconds <= 1.2 * mean || heaviest.files.length === 1);
+  assert.ok(plan.groups.some(group => group.files.includes('platform/tests/fixture-7.test.ts')), 'a file with no weight still lands on a shard');
 });
 
-test('six planned shards spread the ordinary files over five groups and execute the independent file once with deterministic complete coverage', async t => {
-  const f = await fixture(t, false, false, true), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
-  const ordinaryFiles = Array.from({ length: 6 }, (_, index) => `platform/tests/fixture-${index + 1}.test.ts`);
-  const discovered = [...ordinaryFiles, independentFixtureFile].sort();
-  const groups = [...Array.from({ length: 5 }, (_, index) => ordinaryFiles.filter((_, position) => position % 5 === index)), [independentFixtureFile]];
-  for (const index of [1, 2, 3, 4, 5, 6]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/six-shard-${index}.json`;
-    const args = index % 2 ? [`--shard=${index}/6`, '--output', output] : ['--output=' + output, '--shard', `${index}/6`];
-    const result = f.invoke(args), report = await f.report(output), executed = await f.executed();
-    assert.equal(result.status, 0, JSON.stringify(report));
-    assertCompleteRun(report, groups[index - 1].length, discovered);
-    assert.equal(report.fullSuite, false);
-    assert.deepEqual(report.shard, { index, total: 6 });
-    assert.equal(report.scope, `Repository open tests (shard ${index}/6)`);
-    assert.equal(report.testFiles.selection, 'explicit-stable-six-shard-plan');
-    assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
-    assert.deepEqual(report.testFiles.plan, { name: 'five-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 5,
-      dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
-    assert.equal(new Set(executed).size, executed.length);
-    for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
-    covered.push(executed); inventories.push(report.testFiles);
-  }
-  assert.deepEqual(covered, [[1, 6], [2], [3], [4], [5], [7]]);
-  for (const inventory of inventories) assert.deepEqual(inventory.plan, inventories[0].plan);
-  assert.deepEqual(inventories[0].plan!.groups.flatMap(group => group.files).sort(), discovered);
-  for (const index of [1, 6]) {
-    await writeFile(join(f.directory, 'executed.jsonl'), '');
-    const output = `results/six-repeat-${index}.json`;
-    assert.equal(f.invoke([`--shard=${index}/6`, '--output', output]).status, 0);
-    assert.deepEqual((await f.report(output)).testFiles, inventories[index - 1]);
-    assert.deepEqual(await f.executed(), covered[index - 1]);
-  }
+test('D2: a heavy file sits alone and the rest stay within 1.2 times the mean', async t => {
+  const f = await fixture(t, false, false, 7);
+  await f.weights({ ...FIXTURE_WEIGHTS, 'platform/tests/fixture-2.test.ts': 100 });
+  assert.equal(f.invoke(['--shard=2/3', '--workers=1']).status, 0);
+  const plan = (await f.report()).testFiles.plan!;
+  assert.deepEqual(plan.groups[0].files, ['platform/tests/fixture-2.test.ts']);
+  const rest = plan.groups.slice(1).map(group => group.estimatedSeconds);
+  const mean = rest.reduce((sum, value) => sum + value, 0) / rest.length;
+  for (const seconds of rest) assert.ok(seconds <= 1.2 * mean, JSON.stringify(plan.groups));
 });
 
-test('a missing independent file or empty complementary group refuses the six-way plan before spawning tests', async t => {
-  for (const f of [await fixture(t), await fixture(t, false, false, true, 4)]) {
-    for (const index of [1, 6]) {
-      const result = f.invoke([`--shard=${index}/6`]);
-      assert.notEqual(result.status, 0);
-      assert.match(result.stderr, /Six-shard plan requires the dedicated independent activation test file|Six-shard plan must provide nonempty, disjoint groups/);
-    }
-    await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
-  }
+test('D2: --list prints the files and the plan and runs nothing, even with little free space', async t => {
+  const f = await fixture(t, false, false, 7);
+  await f.weights(FIXTURE_WEIGHTS);
+  const result = f.invoke(['--shard=2/3', '--list'], { CHAUSAR_BENCH_FREE_BYTES: '0' });
+  assert.equal(result.status, 0, result.stderr);
+  const listed = JSON.parse(result.stdout);
+  assert.deepEqual(listed.shard, { index: 2, total: 3 });
+  assert.deepEqual(listed.plan.map((group: { estimatedSeconds: number }) => group.estimatedSeconds), [11, 10, 9]);
+  assert.equal(listed.files.length, listed.plan[1].files);
+  await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
 });
 
-test('a missing independent file or empty complementary group refuses the five-way plan before spawning tests', async t => {
-  for (const f of [await fixture(t), await fixture(t, false, false, true, 3)]) {
-    for (const index of [1, 2, 3, 4, 5]) {
-      const result = f.invoke([`--shard=${index}/5`]);
-      assert.notEqual(result.status, 0);
-      assert.match(result.stderr, /Five-shard plan requires the dedicated independent activation test file|Five-shard plan must provide nonempty, disjoint groups/);
-    }
-    await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
-    await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
+test('D2: more shards than files refuses the empty shard before spawning tests', async t => {
+  const f = await fixture(t, false, false, 3);
+  const result = f.invoke(['--shard=5/5']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Shard 5\/5 has no test files: there are fewer test files than shards\./);
+  await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
+});
+
+test('D2: --write-weights turns the receipts file times into the weights file, sorted, in tenths of a second', async t => {
+  const f = await fixture(t, false, false, 3, [300, 50, 150]);
+  assert.equal(f.invoke(['--shard=1/2', '--workers=1', '--output', 'results/a.json']).status, 0);
+  assert.equal(f.invoke(['--shard=2/2', '--workers=1', '--output', 'results/b.json']).status, 0);
+  const written = f.invoke(['--write-weights=results/a.json,results/b.json']);
+  assert.equal(written.status, 0, written.stderr);
+  const weights = JSON.parse(await readFile(join(f.directory, 'platform', 'tests', 'test-weights.json'), 'utf8'));
+  assert.deepEqual(Object.keys(weights), files(3));
+  for (const seconds of Object.values(weights) as number[]) assert.ok(seconds >= 0.1 && Math.round(seconds * 10) === seconds * 10);
+  assert.ok(weights['platform/tests/fixture-1.test.ts'] > weights['platform/tests/fixture-2.test.ts']);
+  for (const args of [['--write-weights=../outside.json'], ['--write-weights=results/a.json', '--shard=1/2'], ['--write-weights=results/missing.json']]) {
+    assert.notEqual(f.invoke(args).status, 0, JSON.stringify(args));
   }
 });
 
@@ -345,19 +275,13 @@ test('invalid, duplicated and unknown shard options refuse before spawning fixtu
   const f = await fixture(t);
   for (const args of [
     ['--shard'], ['--shard='], ['--shard', '--output=x.json'],
-    ...['0/2', '3/2', '1/0', '1/1', '1/3', '01/2', '+1/2', '1.0/2', '1/02', '1/2/3', ' 1/2', '1/2 ',
-      '0/4', '5/4', '01/4', '+1/4', '1.0/4', '1/04', '1/4/4', ' 1/4', '1/4 ',
-      '0/5', '6/5', '1/7', '01/5', '+1/5', '1.0/5', '1/05', '1/5/5', ' 1/5', '1/5 ',
-      '0/6', '7/6', '01/6', '+1/6', '1.0/6', '1/06', '1/6/6', ' 1/6', '1/6 '].map(value => ['--shard=' + value]),
-    ['--shard=1/2', '--shard=2/2'], ['--shard', '1/2', '--shard', '1/2'],
-    ['--shard=1/4', '--shard=4/4'], ['--shard', '3/4', '--shard', '3/4'], ['--shard=1/2', '--shard=1/4'],
-    ['--shard=1/5', '--shard=5/5'], ['--shard', '3/5', '--shard', '3/5'], ['--shard=1/4', '--shard=1/5'],
-    ['--shard=1/6', '--shard=6/6'], ['--shard', '3/6', '--shard', '3/6'], ['--shard=1/5', '--shard=1/6'],
+    ...['0/2', '3/2', '1/0', '1/9', '9/9', '01/2', '+1/2', '1.0/2', '1/02', '1/2/3', ' 1/2', '1/2 ', '2/1', '10/10'].map(value => ['--shard=' + value]),
+    ['--shard=1/2', '--shard=2/2'], ['--shard', '1/2', '--shard', '1/2'], ['--shard=1/2', '--shard=1/4'],
     ['--output=a.json', '--output', 'b.json'], ['--unknown=1/2'], ['--shard=1/2', 'extra'],
   ]) {
     const result = f.invoke(args);
     assert.notEqual(result.status, 0, JSON.stringify(args));
-    assert.match(result.stderr, /Usage: node scripts\/bench\.mjs|Benchmark shard must be exactly/);
+    assert.match(result.stderr, /Usage: node scripts\/bench\.mjs|Benchmark shard must be I\/N/);
   }
   await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
   await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
@@ -407,33 +331,6 @@ test('shards containing skipped or todo tests fail complete-run admission even w
     incompleteCounts.push(report.counts.skipped, report.counts.todo);
   }
   assert.equal(incompleteCounts.reduce((sum, value) => sum + value, 0), 2);
-});
-
-test('five planned shards retain failure, skip and todo admission guards', async t => {
-  const failing = await fixture(t, true, false, true);
-  for (const index of [1, 5]) {
-    const output = `results/five-failing-${index}.json`;
-    assert.equal(failing.invoke([`--shard=${index}/5`, '--output', output]).status, 1);
-    const report = await failing.report(output);
-    assert.equal(report.passed, false);
-    assert.equal(report.counts.tests, index === 1 ? 2 : 1);
-    assert.equal(report.counts.fail, report.counts.tests);
-    assert.equal(report.fullSuite, false);
-    assert.equal(report.productionQualified, false);
-  }
-  const incomplete = await fixture(t, false, true, true);
-  for (const index of [1, 2]) {
-    const output = `results/five-incomplete-${index}.json`;
-    assert.equal(incomplete.invoke([`--shard=${index}/5`, '--output', output]).status, 1);
-    const report = await incomplete.report(output);
-    assert.equal(report.exitCode, 0);
-    assert.equal(report.passed, false);
-    assert.equal(report.counts.tests, 2);
-    assert.equal(report.counts.fail, 0);
-    assert.equal(report.counts.skipped + report.counts.todo, 1);
-    assert.equal(report.qualification.testRunComplete, false);
-    assert.equal(report.fullSuite, false);
-  }
 });
 
 // D1: the two ci.yml shape tests moved to ci-workflow-d1.test.ts, so later batches change one file.
