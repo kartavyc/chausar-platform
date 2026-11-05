@@ -101,10 +101,14 @@ function walk(root, startNames) {
   return [...found.values()].sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version, undefined, { numeric: true }));
 }
 
+// D5 (founder, 5 Nov): no installer carries the Agent SDK's platform packages (its Claude Code program file); the
+// builder files leave them out (desktop-package.mjs TRIM), so NOTICE does not list them.
+const NOT_SHIPPED = name => name.startsWith('@anthropic-ai/claude-agent-sdk-');
+
 /** Every package electron-builder copies into the app: the production dependencies and theirs. Dev tools are left out. */
 export function collectShippedPackages(root) {
   const manifest = readManifest(root) ?? {};
-  return walk(root, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies }));
+  return walk(root, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })).filter(item => !NOT_SHIPPED(item.name));
 }
 
 // Built into app/ui/dist by Vite (imported by app/ui/src), so they ship even though package.json lists them for development.
@@ -113,10 +117,8 @@ const SCREEN_LIBRARIES = ['react', 'react-dom', 'lucide-react', '@noble/hashes']
 // Plain-English detail for packages whose terms need the founder's decision before publishing or shipping.
 const FLAG_DETAIL = {
   '@anthropic-ai/claude-agent-sdk': 'Its LICENSE.md reads "Anthropic PBC. All rights reserved" and points to Anthropic\'s legal agreements. It is not open source, so it cannot become part of an AGPL program as is. Founder decision: an AGPL section 7 additional permission for it, or do not ship it and ask the owner to install it.',
-  '@anthropic-ai/claude-agent-sdk-win32-x64': "the Agent SDK's Claude Code program file for this system, under the same terms as the Agent SDK.",
 };
-// Each platform build of the Agent SDK carries the same terms as the SDK itself.
-const flagDetail = name => FLAG_DETAIL[name] ?? (name.startsWith('@anthropic-ai/claude-agent-sdk-') ? FLAG_DETAIL['@anthropic-ai/claude-agent-sdk-win32-x64'] : null);
+const flagDetail = name => FLAG_DETAIL[name] ?? null;
 
 // The founder's AGPL section 7 additional permission (2 November 2026) covers the Claude Agent SDK and its platform
 // builds, so they are listed with their own terms but are not flagged.
@@ -162,8 +164,7 @@ export function renderNotice(shipped, root) {
     'Chausar includes third-party software under its own licences, listed below as name, version and the licence the',
     'package declares. Each package\'s full licence text is in its folder inside the app (node_modules/<name>).',
     'This file is generated from package-lock.json by `node scripts/third-party-notices.mjs --write`. A package built',
-    'for one system (the DuckDB bindings, the Agent SDK program file) is listed for every system; each installer',
-    'carries only its own.',
+    'for one system (the DuckDB bindings) is listed for every system; each installer carries only its own.',
     'A line marked FLAG has a licence that is not known to fit the AGPL and needs a decision before shipping.',
     '',
     `Flagged packages: ${flaggedItems.length}`,
@@ -187,8 +188,9 @@ export function renderNotice(shipped, root) {
     'Codex CLI (OpenAI, Apache-2.0) and the parts inside it (Ratatui, ripgrep, PCRE2) are bundled by the beta',
     'installer. Their notices are in app/desktop/notices/THIRD-PARTY-NOTICES.md with each licence text beside it',
     '(resources/notices in an installed app); Codex also keeps its own LICENSE and NOTICE in resources/codex.',
-    'Chausar does not install Claude Code itself. The Agent SDK platform package (listed above, under the section 7',
-    "permission) contains a Claude Code program file under Anthropic's terms.",
+    "Chausar does not ship Claude Code. No installer carries the Agent SDK's platform packages (its Claude Code",
+    "program file). When the owner has no Claude Code, Chausar can download Anthropic's official installer, unmodified,",
+    "only after the owner says yes; Claude Code stays under Anthropic's terms and the owner signs in to it themselves.",
     'PostgreSQL (PostgreSQL License) and Python (Python Software Foundation License) ship only in a native release,',
     'under runtime-binaries/, with their licence files listed in runtime-binaries/manifest.json.',
     '',

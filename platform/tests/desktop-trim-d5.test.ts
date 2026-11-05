@@ -50,3 +50,26 @@ test('task 1: every builder file carries exactly en-US, en-GB and hi', async t =
     }
   }
 });
+test('task 2: no build carries a Claude Code program file; the Agent SDK itself stays', async t => {
+  assert.equal(TRIM.claudeBinary, 'none');
+  assert.equal(TRIM.claudeBinaryExclusion, '!node_modules/@anthropic-ai/claude-agent-sdk-*/**');
+  for (const [mode, config] of Object.entries(CONFIGS)) {
+    const files: unknown[] = config.files;
+    const all = files.indexOf('node_modules/**/*'), cut = files.indexOf(TRIM.claudeBinaryExclusion);
+    assert.ok(all >= 0 && cut > all, `${mode}: the exclusion comes after node_modules/**/*`);
+    assert.equal(files.some(entry => typeof entry === 'string' && /claude-agent-sdk-\$\{platform\}/.test(entry)), false, `${mode}: no platform package is put back`);
+    assert.equal(files.some(entry => typeof entry === 'string' && /^!.*@anthropic-ai\/claude-agent-sdk\/\*\*/.test(entry)), false, `${mode}: the SDK itself ships`);
+  }
+  for (const mode of ['beta', 'preview', 'final'] as const) {
+    const files: unknown[] = CONFIGS[mode].files;
+    const without = files.filter(entry => entry !== TRIM.claudeBinaryExclusion);
+    const before = [TRIM.claudeBinaryExclusion, ...without];
+    const reincluded = [...files, 'node_modules/@anthropic-ai/claude-agent-sdk-${platform}-${arch}/**'];
+    for (const variant of [without, before, reincluded]) {
+      assert.throws(() => validateTrim({ ...CONFIGS[mode], files: variant }), /Claude Code program/);
+      const failure = await configFailure(t, mode, { ...CONFIGS[mode], files: variant });
+      assert.ok(failure, mode);
+      assert.match(failure.reason, /Claude Code program/);
+    }
+  }
+});

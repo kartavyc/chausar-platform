@@ -236,9 +236,13 @@ export const TRIM = Object.freeze({
   claudeBinary: 'none',
   claudeBinaryExclusion: '!node_modules/@anthropic-ai/claude-agent-sdk-*/**',
 });
-/** Every mode: exactly the three languages. */
+/** Every mode: exactly the three languages, and the Agent SDK's platform packages left out after node_modules. */
 export function validateTrim(config) {
   if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
+  const files = Array.isArray(config.files) ? config.files : [];
+  const all = files.indexOf('node_modules/**/*'), cut = files.indexOf(TRIM.claudeBinaryExclusion);
+  const putBack = files.slice(cut + 1).some(entry => JSON.stringify(entry).includes('@anthropic-ai/claude-agent-sdk-'));
+  if (all < 0 || cut <= all || putBack) throw new Error(`the package carries no Claude Code program file: ${TRIM.claudeBinaryExclusion} after node_modules/**/*, and nothing puts one back`);
 }
 
 function validatePreviewConfig(config) {

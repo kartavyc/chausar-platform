@@ -39,7 +39,8 @@
     "scripts/postgres-runtime.mjs",
     "fixtures/**/*",
     "package.json",
-    "node_modules/**/*"
+    "node_modules/**/*",
+    "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   ],
   "asarUnpack": [
     "package.json",
