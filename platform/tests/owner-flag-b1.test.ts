@@ -12,6 +12,7 @@ import vm from 'node:vm';
 import { ChausarError } from '../runtime/contracts.ts';
 import { ownerError, UNEXPECTED_WORDS } from '../runtime/owner-error.ts';
 import { DEVELOPER_TEXT_CODES, bannedIn } from '../runtime/owner-flag.ts';
+import { NAMED_REFUSALS } from './fixtures/owner-named-refusals.ts';
 import { refusalError } from '../runtime/venture/refusal-brand.ts';
 import { asRefusal } from '../runtime/venture/refusals.ts';
 import { validateExternalServers } from '../runtime/venture/agent-runtime/external-config.ts';
@@ -30,24 +31,13 @@ function thrown(work: () => unknown): unknown {
   throw new Error('expected a refusal');
 }
 
-/** The refusals the review named, each as the engine throws it. */
-const NAMED: readonly [string, string][] = [
-  ['CONFIRMATION_REQUIRED', 'Confirm the exact reviewed archive and separate closed copy.'],
-  ['CONFIRMATION_REQUIRED', 'Confirm a new empty managed activation target.'],
-  ['CONFIRMATION_REQUIRED', 'Confirm the export in the app.'],
-  ['CONFIRMATION_REQUIRED', 'Type the business name to start a new never-contact list.'],
-  ['CONFIRMATION_REQUIRED', 'Confirm the restore in the app.'],
-  ['CONFIRMATION_REQUIRED', 'Type your email address to delete your account.'],
-  ['NOT_BUILT_YET', 'This part of Chausar is not built yet.'],
-  ['NOT_BUILT_YET', NOT_BUILT_TOOL],
-  ['NOT_BUILT_YET', 'The model recording could not be read, so model calls are off.'],
-  ['UNAUTHENTICATED', 'Your session ended. Sign in again.'],
-  ['UNAUTHENTICATED', TRIAL_ENDED_LINE],
-  ['VAULT_LOCKED', 'Choose one of your businesses first.'],
-  ['VAULT_LOCKED', 'The temporary business did not open.'],
-  ['INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.'],
-  ['PRICE_REQUIRED', 'Set your price for Digest Ltd first.'],
-];
+/** The refusals the reviews named, each as the engine throws it: one list with the app's test (B1 fix round 2, quality 8). */
+const NAMED = NAMED_REFUSALS;
+
+test('B1 fix round 2: the shared list holds the engine\'s own words for its constants', () => {
+  for (const line of [NOT_BUILT_TOOL, TRIAL_ENDED_LINE]) assert.ok(NAMED.some(([, message]) => message === line), line);
+  assert.ok(NAMED.length >= 17);
+});
 
 test('B1 fix 1: Chausar\'s own refusals are flagged for the owner and keep their words', () => {
   for (const [code, message] of NAMED) assert.deepEqual(ownerError(new ChausarError(code, message)), { code, message, owner: true }, message);

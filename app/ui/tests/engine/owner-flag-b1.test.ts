@@ -8,32 +8,15 @@ import { DEVELOPER_WORDS, ownerError } from '../../src/engine/owner-errors';
 import { EngineError } from '../../src/engine/types';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
+import { NAMED_REFUSALS } from '../../../../platform/tests/fixtures/owner-named-refusals';
 import { DEVELOPER_TEXT_CODES, INTERNAL_LINE_CODES, TABLE_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
 
 const words = CATALOGUES.en;
 const TOKEN = 'a'.repeat(64);
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-/** Each message the review named, with the code the engine sends it under. */
-const NAMED: readonly [string, string][] = [
-  ['CONFIRMATION_REQUIRED', 'Confirm the exact reviewed archive and separate closed copy.'],
-  ['CONFIRMATION_REQUIRED', 'Confirm a new empty managed activation target.'],
-  ['CONFIRMATION_REQUIRED', 'Confirm the export in the app.'],
-  ['CONFIRMATION_REQUIRED', 'Type the business name to start a new never-contact list.'],
-  ['CONFIRMATION_REQUIRED', 'Confirm the restore in the app.'],
-  ['CONFIRMATION_REQUIRED', 'Type your email address to delete your account.'],
-  ['NOT_BUILT_YET', 'This part of Chausar is not built yet.'],
-  ['NOT_BUILT_YET', 'This tool is not built yet.'],
-  ['NOT_BUILT_YET', 'The model recording could not be read, so model calls are off.'],
-  ['UNAUTHENTICATED', 'Your session ended. Sign in again.'],
-  ['UNAUTHENTICATED', 'This temporary business has ended. Start again.'],
-  ['VAULT_LOCKED', 'Choose one of your businesses first.'],
-  ['VAULT_LOCKED', 'The temporary business did not open.'],
-  ['INVALID_VENTURE_REQUEST', 'Use HTTPS, or local HTTP, without credentials or query parameters.'],
-  ['INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.'],
-  ['PRICE_REQUIRED', 'Set your price for Digest Ltd first.'],
-  ['INVALID_VENTURE_REQUEST', 'This report has nothing from Vault Studios in it yet.'],
-];
+/** Each message the reviews named, with the code the engine sends it under: one list with the engine's test (B1 fix round 2, quality 8). */
+const NAMED = NAMED_REFUSALS.map(([code, message]) => [code, message] as [string, string]);
 
 const refusedBy = (promise: Promise<unknown>) => promise.then(() => null, (error: unknown) => error as EngineError);
 
