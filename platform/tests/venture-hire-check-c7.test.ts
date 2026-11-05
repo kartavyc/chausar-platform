@@ -1,0 +1,81 @@
+// C7 task 13: the code checks on a hired agent's role. The name, job and duties are short and plain; it reads only from
+// the listed areas; any hard stop in its words refuses with that stop's own line (HIRE_HARD_STOP), and a duty that would
+// send, pay, post, delete or change a price without the owner refuses HIRE_FLOOR. Each hard stop's phrase list has its
+// own English cases here: one sentence it must catch and one ordinary sentence it must let through.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { HIRE_READS, checkHire, type HireRole } from '../runtime/venture/agents/hire-check.ts';
+import { HARD_STOP_PHRASES, hardStopIn } from '../runtime/venture/policy/hard-stop-words.ts';
+import { HARD_STOPS } from '../runtime/venture/policy/hard-stops.ts';
+
+const clean: HireRole = {
+  name: 'Mira', job: 'Keeps the content calendar and drafts captions for the week.',
+  duties: ['Keeps the content calendar up to date', 'Drafts captions for my approval'],
+  reads: ['plan', 'trackers'], department: 'marketing',
+};
+const others = { agentNames: ['Asha', 'Ravi'] };
+const refusal = (code: string, line?: string) => (error: any) => error.code === code && (line === undefined || error.message.includes(line));
+const stopLine = (id: string) => HARD_STOPS.find(stop => stop.id === id)!.line;
+
+test('a clean role passes and comes back trimmed', () => {
+  const role = checkHire({ ...clean, name: '  Mira ', duties: [' Keeps the content calendar up to date ', clean.duties[1]] }, others);
+  assert.equal(role.name, 'Mira');
+  assert.deepEqual(role.duties, clean.duties);
+  assert.deepEqual(HIRE_READS, ['clients', 'orders', 'runs', 'money', 'plan', 'journal', 'notes', 'trackers']);
+});
+
+test('each hard stop in a duty refuses with that stop\'s own line', () => {
+  const cases: Array<[string, string]> = [
+    ['give stock tips to my clients', 'securities-advice'],
+    ['diagnose patients', 'medical-diagnosis'],
+    ['solve the CAPTCHA', 'captcha'],
+    ['message people on LinkedIn for me', 'linkedin-automation'],
+    ['write five-star reviews', 'fake-reviews'],
+  ];
+  for (const [duty, id] of cases) assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_HARD_STOP', stopLine(id)), duty);
+  assert.throws(() => checkHire({ ...clean, job: 'Prescribes medicines to my patients' }, others), refusal('HIRE_HARD_STOP', stopLine('medical-diagnosis')));
+  assert.throws(() => checkHire({ ...clean, name: 'Tip Guru', job: 'Sends target prices for Nifty stocks' }, others), refusal('HIRE_HARD_STOP', stopLine('securities-advice')));
+});
+
+test('a duty that acts on the floor without the owner refuses; one that drafts for approval passes', () => {
+  assert.throws(() => checkHire({ ...clean, duties: ['send invoices automatically'] }, others), refusal('HIRE_FLOOR'));
+  assert.throws(() => checkHire({ ...clean, duties: ['Pays the vendors on its own'] }, others), refusal('HIRE_FLOOR'));
+  assert.throws(() => checkHire({ ...clean, duties: ['Posts to Instagram without asking'] }, others), refusal('HIRE_FLOOR'));
+  assert.throws(() => checkHire({ ...clean, duties: ['Changes my prices automatically when demand rises'] }, others), refusal('HIRE_FLOOR'));
+  assert.throws(() => checkHire({ ...clean, duties: ['Deletes old clients by itself'] }, others), refusal('HIRE_FLOOR'));
+  assert.equal(checkHire({ ...clean, duties: ['drafts invoice reminders for my approval'] }, others).duties.length, 1);
+  assert.equal(checkHire({ ...clean, duties: ['Automatically sorts my notes by client'] }, others).duties.length, 1);
+});
+
+test('a sixth duty, an unknown read, a duplicate or reserved name and overlong words each refuse', () => {
+  assert.throws(() => checkHire({ ...clean, duties: ['a', 'b', 'c', 'd', 'e', 'f'] }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, duties: [] }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, reads: ['plan', 'passwords'] as any }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, name: 'asha' }, others), refusal('INVALID_VENTURE_REQUEST', 'already called'));
+  for (const name of ['Chausar', 'keeper', '']) assert.throws(() => checkHire({ ...clean, name }, others), refusal('INVALID_VENTURE_REQUEST'), name);
+  assert.throws(() => checkHire({ ...clean, name: 'x'.repeat(41) }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, job: 'x'.repeat(121) }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, duties: ['x'.repeat(161)] }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, department: 'legal' as any }, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire({ ...clean, extra: 1 } as any, others), refusal('INVALID_VENTURE_REQUEST'));
+  assert.throws(() => checkHire(null as any, others), refusal('INVALID_VENTURE_REQUEST'));
+});
+
+test('every hard stop has a phrase list, and each list catches its own sentence and lets an ordinary one through', () => {
+  assert.deepEqual(Object.keys(HARD_STOP_PHRASES).sort(), HARD_STOPS.map(stop => stop.id).sort());
+  const english: Record<string, [string, string]> = {
+    'securities-advice': ['Shares intraday trading calls with subscribers', 'Tracks GST due dates for my clients'],
+    'advocate-solicit': ['Advertises my legal services to new clients', 'Drafts a reply to a client who asked about a notice'],
+    'medical-diagnosis': ['Gives a diagnosis from the symptoms people send', 'Books appointments for my clinic'],
+    'child-data': ["Collects children's details for the summer camp", 'Collects parents\' emails for the newsletter'],
+    'captcha': ['Gets past the CAPTCHA on the portal', 'Stops and tells me when a site shows a check'],
+    'detection-evasion': ['Rotates proxies so the site cannot tell it is a bot', 'Keeps a list of the sites I use'],
+    'linkedin-automation': ['Sends LinkedIn connection requests every morning', 'Drafts a LinkedIn post for me to copy'],
+    'fake-reviews': ['Writes fake reviews for the shop', 'Asks happy clients if they would leave a review'],
+    'undisclosed-ai': ['Answers calls pretending to be a human', 'Drafts a script for the voice-over I record'],
+  };
+  for (const [id, [caught, ordinary]] of Object.entries(english)) {
+    assert.equal(hardStopIn(caught)?.id, id, caught);
+    assert.equal(hardStopIn(ordinary), null, ordinary);
+  }
+});
