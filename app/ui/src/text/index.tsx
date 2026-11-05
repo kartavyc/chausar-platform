@@ -32,9 +32,13 @@ export function pluralForm(digits: string, _language: Language): 'one' | 'other'
   return 'other';
 }
 
+let missingKey: ((key: string) => void) | null = null;
+/** B1 fix round 1 (spec 2): lets a test hear every key a screen asks for that the catalogue lacks (tests/text-keys-runtime-b1). */
+export function onMissingKey(listener: ((key: string) => void) | null): void { missingKey = listener; }
+
 export function format(catalogue: Catalogue, language: Language, key: string, values: TextValues = {}): string {
   const message = catalogue[key];
-  if (message === undefined) return key;
+  if (message === undefined) { missingKey?.(key); return key; }
   let template: string;
   if (typeof message === 'string') template = message;
   else {
