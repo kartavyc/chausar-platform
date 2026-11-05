@@ -24,6 +24,8 @@ export function ReportsView() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  // B3: what the last button's answer said stays said, though the write's refresh reads the view again.
+  const [said, setSaid] = useState<string | null>(null);
   useEffect(() => { if (resource.data) setView(resource.data); }, [resource.data]);
   const data = view ?? resource.data ?? null;
   // The boxes follow what the engine has in force each time it changes; ticking them changes nothing until a button.
@@ -38,7 +40,8 @@ export function ReportsView() {
   async function run(call: () => Promise<FeedbackView>) {
     setBusy(true);
     setProblem(null);
-    try { setView(await call()); } catch (error) { setProblem(t('feedback.failed', { message: messageOf(error) })); } finally { setBusy(false); }
+    setSaid(null);
+    try { const next = await call(); setView(next); setSaid(next.line); } catch (error) { setProblem(t('feedback.failed', { message: messageOf(error) })); } finally { setBusy(false); }
   }
 
   if (!data) {
@@ -52,7 +55,7 @@ export function ReportsView() {
   const preview = data.preview;
   return (
     <div className={s.page}>
-      <p className={s.lead} role="status">{data.line}</p>
+      <p className={s.lead} role="status">{said ?? data.line}</p>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <TileSection title={t('feedback.notice')}>
         <p className={s.line}>{data.notice.text}</p>

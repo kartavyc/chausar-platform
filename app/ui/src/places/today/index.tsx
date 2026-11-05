@@ -269,7 +269,9 @@ export function Place() {
     return true;
   }
 
-  session.placeRows(live);
+  // B3: places are taken from a list that is not being read again: a shared list can still be the one from before a
+  // write (a new business), and its rows would otherwise keep places ahead of the rows the engine leads with.
+  if (!queue.loading) session.placeRows(live);
   const liveIds = new Set(live.map((row) => row.id));
   const items: NeedsItem[] = [
     ...live.map((row) => ({ row, done: session.line(row.id) })),

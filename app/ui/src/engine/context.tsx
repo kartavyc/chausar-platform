@@ -8,8 +8,12 @@ export function EngineProvider({ client, children }: { client: EngineClient; chi
   return <EngineContext.Provider value={client}>{children}</EngineContext.Provider>;
 }
 
+/**
+ * The engine client for a place. One-shot B3: its request is wrapped (reads.ts), so a write refreshes every place on
+ * screen whose reads accept a queue change.
+ */
 export function useEngine(): EngineClient {
-  return useRawEngine();
+  return readsFor(useRawEngine()).client;
 }
 
 /** The client as the provider was given it. */
@@ -40,7 +44,7 @@ export interface Resource<T> { data: T | undefined; error: EngineError | undefin
  * method and params share one request and one answer. Only read methods (READS) are accepted.
  */
 export function useResource<M extends ReadMethod>(method: M, params: ParamsOf<M>, options: { refreshOn?: (event: VentureRunEvent) => boolean; skip?: boolean } = {}): Resource<ResultOf<M>> {
-  const store = readsFor(useRawEngine());
+  const store = readsFor(useRawEngine()).store;
   const key = keyOf(method, params);
   const skip = options.skip ?? false;
   const refreshOn = useRef(options.refreshOn);

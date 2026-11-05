@@ -48,6 +48,29 @@ export const READS = [
 
 export type ReadMethod = (typeof READS)[number];
 
+const READ_SET: ReadonlySet<string> = new Set(READS);
+
+/**
+ * Calls that send nothing more when they answer: an autosave while the owner types (business/settingsDraft.tsx), and a
+ * mini app's own tools (apps/MiniAppFrame.tsx). Two more are quiet by their params: the connection checks' last-result
+ * look (`venture.connectors.check { last: true }`, connections/ChecksTile.tsx) and the payment link's polled check
+ * (`venture.invoice.payLink { action: 'check' }`, money/InvoicePay.tsx; a payment it records is announced by the engine).
+ */
+const QUIET: ReadonlySet<string> = new Set(['venture.settings.draft', 'venture.apps.call']);
+
+/**
+ * What a call is to the screens: a read sends nothing more, a quiet call sends nothing more, and every other method is
+ * a write, after which every place on screen whose refreshOn accepts a queue change reads again.
+ */
+export function kindOf(method: string, params: unknown): 'read' | 'quiet' | 'write' {
+  if (READ_SET.has(method)) return 'read';
+  if (QUIET.has(method)) return 'quiet';
+  const p = (params ?? {}) as Record<string, unknown>;
+  if (method === 'venture.connectors.check' && p.last === true) return 'quiet';
+  if (method === 'venture.invoice.payLink' && p.action === 'check') return 'quiet';
+  return 'write';
+}
+
 export interface ReadState<T> { data: T | undefined; error: EngineError | undefined; loading: boolean }
 
 type RefreshOn = { current: ((event: VentureRunEvent) => boolean) | undefined };
@@ -76,6 +99,8 @@ export class ReadStore {
   readonly #client: EngineClient;
   readonly #entries = new Map<string, Entry>();
   #off: (() => void) | null = null;
+  /** The business the engine's events last named: a write's own signal names it too. */
+  #business = '';
 
   constructor(client: EngineClient) {
     this.#client = client;
@@ -127,6 +152,14 @@ export class ReadStore {
     if (entry) this.#load(entry);
   }
 
+  /**
+   * A write answered (or timed out, so the engine may have done it): every entry whose readers accept a queue change for
+   * the open business reads again, once. The signal is the store's own; no engine event listener hears it.
+   */
+  written(): void {
+    this.refresh({ type: 'queue.changed', businessId: this.#business, at: new Date().toISOString() });
+  }
+
   /** Read again every entry one of whose readers accepts the event (no refreshOn accepts every event). */
   refresh(event: VentureRunEvent): void {
     for (const entry of [...this.#entries.values()]) {
@@ -136,7 +169,7 @@ export class ReadStore {
 
   #listen(): void {
     if (this.#off) return;
-    this.#off = this.#client.subscribe((event) => this.refresh(event));
+    this.#off = this.#client.subscribe((event) => { if (event.businessId) this.#business = event.businessId; this.refresh(event); });
   }
 
   #quiet(): void {
@@ -180,12 +213,33 @@ export class ReadStore {
   }
 }
 
-const stores = new WeakMap<EngineClient, ReadStore>();
+export interface Reads { store: ReadStore; client: EngineClient }
 
-/** The one read store for this engine client. */
-export function readsFor(client: EngineClient): ReadStore {
-  let store = stores.get(client);
-  if (!store) { store = new ReadStore(client); stores.set(client, store); }
-  return store;
+const made = new WeakMap<EngineClient, Reads>();
+
+const timedOut = (error: unknown) => (error as { code?: unknown } | null)?.code === 'REQUEST_TIMEOUT';
+
+/**
+ * The one read store for this engine client, and the client every place gets from useEngine: the same client, with its
+ * request wrapped so a write refreshes what it changes. subscribe, status, the desktop helpers and the fake's engine
+ * pass through. Made once per client, so places keep comparing and keying by it.
+ */
+export function readsFor(raw: EngineClient): Reads {
+  let reads = made.get(raw);
+  if (reads) return reads;
+  const store = new ReadStore(raw);
+  const request = ((method: MethodName, params?: unknown) => {
+    const sent = raw.request(method, params as ParamsOf<MethodName>) as Promise<unknown>;
+    if (kindOf(method, params) !== 'write') return sent;
+    return sent.then(
+      (answer) => { store.written(); return answer; },
+      (error: unknown) => { if (timedOut(error)) store.written(); throw error; },
+    );
+  }) as EngineClient['request'];
+  const client = new Proxy(raw, {
+    get: (target, property, receiver) => (property === 'request' ? request : Reflect.get(target, property, receiver)),
+  });
+  reads = { store, client };
+  made.set(raw, reads);
+  return reads;
 }
-
