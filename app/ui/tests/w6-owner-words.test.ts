@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEVELOPER_WORDS } from '../../../platform/runtime/owner-flag';
+import { bannedIn } from '../../../platform/runtime/owner-flag';
 import { FakeEngine, createFakeClient } from '../src/engine/fake';
 
 const folder = join(import.meta.dirname, '../src/text/en');
@@ -30,9 +30,8 @@ describe('wave 6 owner-facing words', () => {
  * because it is the outside tool's own (search and answer engines in the SEO pack; the Cloudflare upload guide's
  * manifest; a third-party app's credentials in a connector or playbook guide).
  */
+/** Phrases banned on top of DEVELOPER_WORDS, which bannedIn (platform/runtime/owner-flag.ts) finds for every check. */
 const BANNED: readonly [string, RegExp][] = [
-  // The one list the app's error edge uses too (platform/runtime/owner-flag.ts DEVELOPER_WORDS).
-  ...DEVELOPER_WORDS.map((word): [string, RegExp] => [word, new RegExp(`\\b${word}s?\\b`, 'i')]),
   ['fixture-tested', /fixture-tested/i],
   ['outcome is unknown', /outcome is unknown/i],
   ['npm run', /build:ui/i],
@@ -47,7 +46,8 @@ const BANNED: readonly [string, RegExp][] = [
 ];
 /** Keys where the word is the outside tool's own, each named. */
 const OUTSIDE_TOOLS: readonly [string, RegExp][] = [
-  ['engine', /^(?:pb-seo-visibility\.|kit-intake-words\.)/],
+  // B1 fix round 2 (quality finding 3): search and answer engines in the SEO visibility pack, key by key.
+  ['engine', /^(?:pb-seo-visibility\.(?:engines|design|engine|error\.PANEL_INVALID)|kit-intake-words\.(?:da513840|202e5597))$/],
   ['manifest', /^pb-connector-guides\.website-cloudflare\./],
   // B1 fix round 1 (spec 9): an outside app's own credentials, key by key (Shopify, WordPress, the open networks, a
   // client's staff login), never a whole pack.
@@ -71,7 +71,8 @@ describe('one-shot B1: no engine or developer words on a screen', () => {
   it('no catalogue line uses an engine or developer word', () => {
     const found = Object.entries(catalogue).flatMap(([key, value]) => {
       const text = flat(value).replace(/\{[^}]+\}/g, '');
-      return BANNED.filter(([name, pattern]) => pattern.test(text) && !OUTSIDE_TOOLS.some(([allowed, keys]) => allowed === name && keys.test(key))).map(([name]) => `${key} (${name}): ${text}`);
+      const names = [...bannedIn(text), ...BANNED.filter(([, pattern]) => pattern.test(text)).map(([name]) => name)];
+      return names.filter((name) => !OUTSIDE_TOOLS.some(([allowed, keys]) => allowed === name && keys.test(key))).map((name) => `${key} (${name}): ${text}`);
     });
     expect(found).toEqual([]);
   });
@@ -112,8 +113,10 @@ describe('B1 fix round 1: the fake engine\'s screen words carry no developer wor
       ...bell.items.flatMap((item) => [item.title, flat(item)]),
     ].filter((line): line is string => typeof line === 'string');
     expect(lines.length).toBeGreaterThan(5);
-    const found = lines.flatMap((line) => DEVELOPER_WORDS.filter((word) => new RegExp(`\b${word}s?\b`, 'i').test(line)).map((word) => `${word}: ${line}`));
+    // B1 fix round 2 (quality finding 1): the shared helper, so the scan can fail (a `\b` in a template literal was a backspace).
+    const found = lines.flatMap((line) => bannedIn(line).map((word) => `${word}: ${line}`));
     expect(found).toEqual([]);
+    expect(bannedIn(`${lines[0]} in the vault`)).toEqual(['vault']);
     expect(team.agents.find((agent) => agent.id === 'keeper')?.role).toBe('Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.');
   });
 });

@@ -21,3 +21,14 @@ export function ownerWords(code: unknown): boolean {
  * catalogue, and the words the engine and the fake engine put in their views).
  */
 export const DEVELOPER_WORDS: readonly string[] = Object.freeze(['vault', 'credential', 'engine', 'fixture', 'digest', 'npm', 'snapshot', 'adapter', 'envelope', 'gateway', 'probe', 'manifest']);
+
+const DEVELOPER_PATTERN = new RegExp(`\\b(?:${DEVELOPER_WORDS.join('|')})s?\\b`, 'gi');
+
+/**
+ * B1 fix round 2 (quality finding 1): the developer words a line uses, each once, in lower case and singular; [] when it
+ * has none. Whole words only ("engineer" and "Probe42" are not "engine" and "probe"). The one check for every place that
+ * looks: the app's error edge, the catalogue test, and the scans of the engine's and the fake engine's screen words.
+ */
+export function bannedIn(text: string): string[] {
+  return [...new Set([...String(text).matchAll(DEVELOPER_PATTERN)].map(match => match[0].toLowerCase().replace(/s$/, '')))];
+}

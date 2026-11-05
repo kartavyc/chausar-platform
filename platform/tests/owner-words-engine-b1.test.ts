@@ -4,7 +4,7 @@
 // catalogue test use too.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEVELOPER_WORDS } from '../runtime/owner-flag.ts';
+import { DEVELOPER_WORDS, bannedIn } from '../runtime/owner-flag.ts';
 import { KEEPER_ROLE, KEEPER_WORDS } from '../runtime/venture/views/keeper.ts';
 import { KIND_WORDS, endedTitle } from '../runtime/venture/notify/centre.ts';
 import { CARD_LABELS, RAIL_NAMES, businessNeeds } from '../runtime/venture/core/needs-data.ts';
@@ -12,7 +12,7 @@ import { applyChange, defaultLayout } from '../runtime/venture/views/layout-core
 
 const FAMILIES = ['money-tax', 'teaching', 'creative', 'writing', 'local-services', 'documents', 'research', 'people', 'shop-office', 'tech', 'licensed'] as const;
 const strings = (value: unknown): string[] => (typeof value === 'string' ? [value] : value && typeof value === 'object' ? Object.values(value).flatMap(strings) : []);
-const banned = (text: string) => DEVELOPER_WORDS.filter(word => new RegExp(`\\b${word}s?\\b`, 'i').test(text));
+const banned = bannedIn;
 
 test('B1 fix round 1: engine-made screen words carry no developer word', () => {
   const lines = [
@@ -31,4 +31,14 @@ test('B1 fix round 1: the Keeper says what it does in plain words, and an unknow
     assert.equal(error.message, 'Use Undo or Keep on the page for that.');
     return banned(error.message).length === 0;
   });
+});
+
+// B1 fix round 2 (quality finding 1): one helper finds the developer words, for the error edge and every scan.
+test('B1 fix round 2: bannedIn names each developer word a line uses, whole words only, plurals too', () => {
+  assert.deepEqual(bannedIn('Unable to unlock vault. Check your credential or restore a valid backup.'), ['vault', 'credential']);
+  assert.deepEqual(bannedIn('The Engines and the VAULTS, and the vault again.'), ['engine', 'vault']);
+  assert.deepEqual(bannedIn('Not tried live yet. A fixture-tested call.'), ['fixture']);
+  assert.deepEqual(bannedIn('Vaultkeeper digested the engineer\'s notes.'), []);
+  assert.deepEqual(bannedIn('Plain words for the owner.'), []);
+  for (const word of DEVELOPER_WORDS) assert.deepEqual(bannedIn(`a ${word} here`), [word], word);
 });

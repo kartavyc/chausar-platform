@@ -8,7 +8,7 @@ import { DEVELOPER_WORDS, ownerError } from '../../src/engine/owner-errors';
 import { EngineError } from '../../src/engine/types';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
-import { DEVELOPER_TEXT_CODES } from '../../../../platform/runtime/owner-flag';
+import { DEVELOPER_TEXT_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
 
 const words = CATALOGUES.en;
 const TOKEN = 'a'.repeat(64);
@@ -116,6 +116,6 @@ describe('B1 fix round 1: words the page makes itself are the owner\'s', () => {
 
   it('none of these lines carries a developer word', () => {
     const lines = Object.entries(words).filter(([key]) => key.startsWith('errors.'));
-    for (const [key, line] of lines) for (const word of DEVELOPER_WORDS) expect(String(line), key).not.toMatch(new RegExp(`\\b${word}s?\\b`, 'i'));
+    for (const [key, line] of lines) expect(bannedIn(String(line)), key).toEqual([]);
   });
 });
