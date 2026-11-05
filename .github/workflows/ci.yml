@@ -1,8 +1,13 @@
 name: Open verification
 
+# One run per change: a push to main, or a pull request (docs-only pull requests are skipped), or a manual start.
 on:
   push:
+    branches: [main]
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -13,14 +18,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4, 5, 6]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+  # The fast checks run once, here, before any test job starts: a type error fails in minutes, not after a shard.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:
@@ -28,13 +29,44 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24.13.1'
-          package-manager-cache: false
-      - name: Install pinned dependencies without lifecycle scripts
-        run: npm install --ignore-scripts --no-audit --no-fund
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check source and JSON syntax
         run: node scripts/check.mjs
       - name: Typecheck runtime and tests
         run: npm run typecheck
+      - name: Typecheck the Ink frontend
+        run: npm run typecheck:ui
+      - name: Check NOTICE against the installed packages
+        run: node scripts/third-party-notices.mjs --check
+
+  verify:
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3, 4, 5, 6]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      NODE_COMPILE_CACHE: ${{ runner.temp }}/node-cc
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Keep Node's compile cache between runs
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/node-cc
+          key: node-cc-${{ runner.os }}-24.13.1-${{ hashFiles('package-lock.json') }}
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run repository open tests and capture benchmark receipt
         run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --output results/factory-bench.json
       - name: Upload open-test report
@@ -47,12 +79,13 @@ jobs:
           retention-days: 14
 
   ui:
+    needs: lint
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    # The full wave-five UI suite measured fifteen minutes locally before install, types and build.
+    # The full wave-five UI suite measured fifteen minutes locally before install and build.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -61,11 +94,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24.13.1'
-          package-manager-cache: false
-      - name: Install pinned dependencies without lifecycle scripts
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Typecheck the Ink frontend
-        run: npm run typecheck:ui
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run the Ink frontend tests and capture their receipt
         run: node scripts/ui-bench.mjs --output results/ui-tests.json
       - name: Build the Ink frontend
@@ -79,8 +110,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The ui job runs the Ink frontend (app/ui) on both OSes: its strict typecheck, every vitest test (a failed, skipped
-  # or todo test fails it, as in the open suite) and the production build that Electron and the servers serve.
+  # The lint job runs once on Ubuntu: check.mjs, both strict typechecks (engine and Ink frontend) and the NOTICE check.
+  # The ui job runs the Ink frontend (app/ui) on both OSes: every vitest test (a failed, skipped or todo test fails it,
+  # as in the open suite) and the production build that Electron and the servers serve.
   # This workflow verifies the open repository only. It neither signs releases nor
   # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.
   # Each OS requires all six shards to pass: five ordinary round-robin groups and

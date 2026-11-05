@@ -1,7 +1,7 @@
 name: Desktop unsigned preview
 
-# Draft packaging workflow. Dispatch explicitly after a genuine lockfile is
-# committed and registry/Electron downloads are approved. No automatic trigger.
+# Draft packaging workflow. It installs from the committed package-lock.json.
+# Dispatch explicitly once registry and Electron downloads are approved. No automatic trigger.
 on:
   workflow_dispatch:
     inputs:
@@ -75,7 +75,7 @@ jobs:
       - name: Require genuine committed dependency lockfile
         working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
         run: |
-          node -e "const fs = require('node:fs'); if (!fs.existsSync('package-lock.json')) { console.error('Blocked: package-lock.json is absent. Generate and review a genuine lockfile through an approved npm install first.'); process.exit(1); }"
+          node -e "const fs = require('node:fs'); if (!fs.existsSync('package-lock.json')) { console.error('Blocked: package-lock.json is absent. It is committed at the repository root; check out a commit that has it.'); process.exit(1); }"
       - name: Install locked dependencies without lifecycle scripts
         working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
         run: npm ci --ignore-scripts --no-audit --no-fund

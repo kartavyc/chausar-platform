@@ -371,37 +371,4 @@ test('five planned shards retain failure, skip and todo admission guards', async
   }
 });
 
-test('CI requires all six planned shards on both operating systems with twelve unique report artifacts', async () => {
-  const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /fail-fast: false/);
-  assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /shard: \[1, 2, 3, 4, 5, 6\]/);
-  assert.match(workflow, /node-version: '24\.13\.1'/);
-  assert.match(workflow, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/6 --output results\/factory-bench\.json/);
-  assert.match(workflow, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-6/);
-  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3, 4, 5, 6].map(shard => `open-test-report-${os}-shard-${shard}-of-6`));
-  assert.equal(new Set(artifacts).size, 12);
-  const script = await readFile(new URL('../../scripts/bench.mjs', import.meta.url), 'utf8');
-  assert.match(script, /20 \* 60 \* 1000/);
-  assert.match(workflow.slice(0, workflow.search(/^  ui:$/m)), /timeout-minutes: 25/);
-  assert.match(script, /16 \* 1024 \* 1024/);
-  assert.doesNotMatch(workflow, /continue-on-error: true|--test-name-pattern|--test-skip-pattern/);
-});
-
-test('CI runs the Ink frontend on both operating systems: typecheck, every test with no skips, and the build', async () => {
-  const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  const start = workflow.search(/^  ui:$/m);
-  assert.ok(start > 0, 'the ui job exists');
-  const ui = workflow.slice(start);
-  assert.match(ui, /timeout-minutes: 25/, 'the complete wave-five UI run needs room for install, types and build');
-  assert.match(ui, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(ui, /node-version: '24\.13\.1'/);
-  assert.match(ui, /run: npm run typecheck:ui/);
-  assert.match(ui, /run: node scripts\/ui-bench\.mjs --output results\/ui-tests\.json/);
-  assert.match(ui, /run: npm run build:ui/);
-  assert.match(ui, /name: ui-test-report-\$\{\{ matrix\.os \}\}/);
-  assert.doesNotMatch(workflow, /continue-on-error: true/);
-  const script = await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url), 'utf8');
-  assert.match(script, /counts\.fail === 0 && counts\.skipped === 0 && counts\.todo === 0/);
-  assert.match(script, /counts\.tests > 0/);
-});
+// D1: the two ci.yml shape tests moved to ci-workflow-d1.test.ts, so later batches change one file.
