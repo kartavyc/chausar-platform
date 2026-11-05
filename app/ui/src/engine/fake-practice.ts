@@ -67,9 +67,9 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 const DIGEST = /^[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
 /** What one judge call or rehearsal may cost, as the model port writes it for an unconfirmed price. Sample text. */
-const JUDGE_COST = 'USD 0.0031 (estimate, price unconfirmed)';
-const MODEL_COST = 'USD 0.0184 (estimate, price unconfirmed)';
-const TEMPLATE_COST = 'USD 0.0000';
+const JUDGE_COST = 'under $0.01 (estimate)';
+const MODEL_COST = '$0.02 (estimate)';
+const TEMPLATE_COST = '$0.00';
 const CHANGE = 'Adds to "Draft the reply": Keep the plan price from Chausar and offer no free work.';
 
 const KINDS = ['clean', 'messy', 'pushback'] as const;

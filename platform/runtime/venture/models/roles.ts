@@ -5,9 +5,10 @@
 // every role's steps, so a role's AI is its tier's AI: choosing another connected AI for a tier uses today's tier
 // routing, a different AI per role is not offered, and the answer says so. A tier served by the built-in templates, or
 // by an AI that cannot run now, is not usable: agents that need the AI wait until the owner connects one.
+import { formatRate } from '../../owner-format.ts';
 import { authorize, type Context, type State } from '../../contracts.ts';
 import type { ModelPresetId, ModelStatusView, ModelTier, PlaybookStep, RoleModelView, RoleModelsView, VentureDeps, VentureRecord } from '../contracts.ts';
-import { currentVenture, exactPayload, formatMicros, formatVentureDate } from '../records.ts';
+import { currentVenture, exactPayload, formatVentureDate } from '../records.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
@@ -65,7 +66,7 @@ function priceLine(state: State, venture: VentureRecord, presetId: ModelPresetId
   if (!table) return 'No list price is recorded for this AI.';
   const checked = formatVentureDate(table.checkedOn, venture.country.dateOrder ?? 'day-month-year');
   const parts = [
-    `${formatMicros(table.inputMicrosPerMillion)} in, ${formatMicros(table.outputMicrosPerMillion)} out per million tokens.`,
+    `${formatRate(table.inputMicrosPerMillion)} in, ${formatRate(table.outputMicrosPerMillion)} out per million tokens.`,
     `${table.source}, checked ${checked}${table.confirmed ? '' : ', price unconfirmed'}.`,
   ];
   const rupees = rupeesOf(state, venture);

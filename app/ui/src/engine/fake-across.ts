@@ -7,7 +7,7 @@
  * only. On the hosted app only the open business shows. Times read in Kolkata, as the sample businesses are in India.
  */
 
-import { formatMoment, ownerZone } from '../../../../platform/runtime/owner-format';
+import { formatMoment, formatUsd, ownerZone } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AcrossLeftOut, type AcrossMoneyView, type AcrossRunsView, type AgingView, type GoalView, type MoneyOverview, type ReceiptLite, type SpendLead, type SpendPolicyView } from './types';
 import { inr } from './fake-money';
 import type { W4DeskHost } from './fake-w4';
@@ -37,7 +37,7 @@ function asOfWords(iso: string): string {
   return formatMoment(iso, ownerZone('IN', 'UTC'));
 }
 const monthWords = (month: string) => `${MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
-const usd = (micros: number) => `USD ${(Math.round(micros / 100) / 10000).toFixed(4)}`;
+const usd = (micros: number) => formatUsd(String(Math.round(micros)));
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 function notCountedWords(items: readonly AcrossLeftOut[]): string {
   const why = (item: AcrossLeftOut) => (item.why === 'locked' || item.why === 'key-missing' ? 'locked' : item.why === 'unreadable' ? 'could not be read'

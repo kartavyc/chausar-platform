@@ -56,14 +56,14 @@ export const TAX_WORKINGS: Record<string, TaxWorking> = {
  */
 export const SPEND_POLICIES: Record<string, SpendPolicyView> = {
   lumen: {
-    capMicros: '20000000', askFirstMicros: '2000000', capUsd: '20.00', askFirstUsd: '2.00', cap: 'USD 20.0000 a month', askFirst: 'Asks you first above USD 2.0000', setAt: '2026-10-15T10:00:00.000Z',
+    capMicros: '20000000', askFirstMicros: '2000000', capUsd: '20.00', askFirstUsd: '2.00', cap: '$20.00 a month', askFirst: 'Asks you first above $2.00', setAt: '2026-10-15T10:00:00.000Z',
     // USD 20 and USD 2 at 83.50: ₹1,670.00 and ₹167.00.
     inrPerUsd: '83.50', rupeeRate: '₹83.50 per $1 (your rate, set 15 Oct 2026)', capRupees: '₹1,670.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)', askFirstRupees: '₹167.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)',
     rates: [
       {
         item: 'model:anthropic-api', unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000', microsPerCall: null,
         inputUsdPerMillion: '3.00', outputUsdPerMillion: '15.00', usdPerCall: null,
-        source: 'Anthropic pricing page', checkedOn: '2026-10-14', confirmed: true, by: 'owner', price: 'USD 3.0000 in and USD 15.0000 out, per million tokens',
+        source: 'Anthropic pricing page', checkedOn: '2026-10-14', confirmed: true, by: 'owner', price: '$3.00 in and $15.00 out, per million tokens',
       },
     ],
   },

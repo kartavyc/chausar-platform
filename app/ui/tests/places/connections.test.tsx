@@ -202,7 +202,7 @@ describe('Connections: Your AI', () => {
     start();
     const section = await ai();
     await waitFor(() => expect(section.textContent).toContain('No AI connected; using built-in templates'));
-    expect(section.textContent).toContain('USD 0.0000');
+    expect(section.textContent).toContain('$0.00');
   });
 
   it('connects Claude with one key for both jobs; the key is sent once, cleared, and never shown', async () => {
@@ -284,7 +284,7 @@ describe('Connections: Your AI', () => {
     await engine.request('workspace.open', { folder: 'ledgerline' });
     start('#/connections', engine);
     const section = await ai();
-    await waitFor(() => expect(section.textContent).toContain('USD 0.0420 (estimate, price unconfirmed)'));
+    await waitFor(() => expect(section.textContent).toContain('$0.04 (estimate)'));
     const connected = within(section).getByRole('list', { name: 'Connected' });
     const haiku = within(connected).getByText('Claude Haiku 5.5').closest('li')!;
     await act(async () => { fireEvent.click(within(haiku).getByRole('button', { name: 'Disconnect' })); });

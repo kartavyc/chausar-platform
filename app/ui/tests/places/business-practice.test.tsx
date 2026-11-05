@@ -52,7 +52,7 @@ describe('Business: practice clients', () => {
     expect(calls.find((c) => c.method === 'venture.simulation.run')?.params).toEqual({});
     await waitFor(() => expect(within(practice).getByText('2 of 3 passed')).toBeTruthy());
     expect(within(practice).getByText('A pushy client: The draft uses a word on the avoid list: free.')).toBeTruthy();
-    expect(within(practice).getByText('Cost: USD 0.0000')).toBeTruthy();
+    expect(within(practice).getByText('Cost: $0.00')).toBeTruthy();
     expect(within(practice).getByText('From ready-made templates.')).toBeTruthy();
     expect(within(practice).getByText(OWN_AI)).toBeTruthy();
   });

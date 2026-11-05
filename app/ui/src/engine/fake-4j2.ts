@@ -4,7 +4,7 @@
  * new owner draft made from one that went out (platform/runtime/venture/delivery/copy.ts). Same codes, shapes and
  * words as the engine. Like the engine, the fake keeps a view mark for each row venture.queue.view opens with
  * opened: true (every fake call is the app's own; 4J19: a preview fetch leaves none), and venture.queue.set answers VIEW_FIRST for an item that must be read first and was not
- * opened in that exact version. Posts, draft reviews and spot checks cost nothing, so a set's total is always USD 0.0000.
+ * opened in that exact version. Posts, draft reviews and spot checks cost nothing, so a set's total is always $0.00.
  */
 
 import { EngineError, type DeliveryLite, type QueueDecision, type QueueRow, type QueueSetPreview } from './types';
@@ -24,7 +24,7 @@ const WORDS = {
   viewFirst: 'Open it and read it first.',
   secondAsk: 'One of these asks twice. Confirm the set again to approve it.',
 } as const;
-const ZERO = 'USD 0.0000';
+const ZERO = '$0.00';
 
 const subjectOf = (id: string) => id.slice(0, Math.max(0, id.lastIndexOf(':')));
 const versionOf = (id: string) => id.slice(id.lastIndexOf(':') + 1);

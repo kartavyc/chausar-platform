@@ -388,7 +388,7 @@ export const BOOKS: Record<string, BooksSummaryLite> = {
  */
 export const SPEND: SpendRow[] = [
   { id: 'sp1', agent: 'Editor', label: 'Model calls for episode 14', reserved: 'USD 0.5389', settled: 'USD 0.5041', kind: 'billed', receiptId: 'R-0412' },
-  { id: 'sp2', agent: 'Researcher', label: 'Title comparison, running', reserved: 'USD 0.2156', kind: 'estimate' },
+  { id: 'sp2', agent: 'Researcher', label: 'Title comparison, running', reserved: '$0.22', kind: 'estimate' },
   { id: 'sp3', connector: 'Instagram', label: 'Paid boost for the short', reserved: 'No price', kind: 'refused', reason: 'Instagram has no price on your rate card, so the call was refused.' },
 ];
 
@@ -498,7 +498,7 @@ export const DELIVERIES: Record<string, DeliveryLite[]> = {
       servedBy: 'model', practiceNow: false, canAccept: false, acceptBlocked: null,
       // 4J19 review: which engine wrote it, as DeliveryRunView carries it (Ledgerline's main tier is its own Sonnet key).
       writtenBy: 'Written by Claude Sonnet 5.5',
-      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft." },
+      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'under $0.01 (estimate)', line: "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft." },
     },
   ],
 };

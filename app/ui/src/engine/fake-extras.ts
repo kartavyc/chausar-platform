@@ -8,6 +8,7 @@
  * a statement import never counts a line twice, and a preview link needs a public address.
  */
 
+import { formatUsd } from '../../../../platform/runtime/owner-format';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
@@ -49,11 +50,9 @@ const EXTRA_METHODS = new Set([
   'venture.share.create', 'venture.share.list', 'venture.share.revoke',
 ]);
 
-/** USD with four decimals from whole micro-dollars, as the engine's formatMicros writes it. Sample text work only. */
+/** Dollars from whole micro-dollars in the owner form, as the engine writes a spent amount (B2). Sample text work only. */
 function usd(micros: string): string {
-  const padded = micros.padStart(7, '0');
-  const tenThousandths = padded.slice(0, -2);
-  return `USD ${tenThousandths.slice(0, -4).replace(/^0+(?=\d)/, '')}.${tenThousandths.slice(-4)}`;
+  return formatUsd(micros);
 }
 /** US dollars as typed ('20', '12.50', '0.000075') to whole micro-dollars, as the engine's usdToMicros. Null clears. */
 function dollars(value: unknown, field: string, decimals: 2 | 6): string | null {

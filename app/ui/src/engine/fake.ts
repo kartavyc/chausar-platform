@@ -657,7 +657,7 @@ export class FakeEngine {
   }
 
   /**
-   * The sample month's spend total as money/spend.ts listSpend sends it: the sample spend (USD 0.7198, the total Team
+   * The sample month's spend total as money/spend.ts listSpend sends it: the sample spend ($0.72, the total Team
    * and Money send) with its words, in rupees too at the owner's rate when one is set, and 4Z3: as the owner's currency
    * leads it.
    */
@@ -684,7 +684,7 @@ export class FakeEngine {
     const { rate, choice } = spendSettings(() => this.answerNow('venture.spend.policy.get', {}));
     const words = ' this month (includes estimates)';
     return {
-      total: `USD 0.7198${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
+      total: `$0.72${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
       totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
     };
   }

@@ -563,7 +563,7 @@ export const MODEL_PRESETS: ModelPresetLite[] = [
 export const TEMPLATES_TIER = { presetId: 'built-in-templates', model: null, usable: true, reason: 'No AI connected; using built-in templates', verificationNote: null };
 const NOTHING_CONNECTED: ModelStatusLite = {
   connections: [], tiers: { fast: { ...TEMPLATES_TIER }, main: { ...TEMPLATES_TIER } },
-  spentThisMonthDisplay: 'USD 0.0000', estimate: false, sendPolicy: 'shape', replay: { active: false, label: null },
+  spentThisMonthDisplay: '$0.00', estimate: false, sendPolicy: 'shape', replay: { active: false, label: null },
 };
 
 export const MODEL_STATUS: Record<string, ModelStatusLite> = {
@@ -577,7 +577,7 @@ export const MODEL_STATUS: Record<string, ModelStatusLite> = {
       fast: { presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
       main: { presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
     },
-    spentThisMonthDisplay: 'USD 0.0420 (estimate, price unconfirmed)', estimate: true, sendPolicy: 'shape', replay: { active: false, label: null },
+    spentThisMonthDisplay: '$0.04 (estimate)', estimate: true, sendPolicy: 'shape', replay: { active: false, label: null },
   },
 };
 /** The draft desk (venture.ai.*) before any business exists: nothing connected. */

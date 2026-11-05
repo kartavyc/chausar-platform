@@ -492,8 +492,8 @@ export class FakeAgentExtras {
     const reply = [persona.greeting ? `${persona.greeting}.` : 'Hello.', LENGTH_WORDS[persona.replyLength ?? 'medium'], persona.handOffLine ?? '', persona.signOff ?? ''].filter(Boolean).join(' ').replace(/\.\./g, '.');
     return {
       results: SCENARIO_TITLES.map((scenario) => ({ scenario, reply })),
-      // The templates cost nothing; the fake's own AI is priced as the fake's model calls are (USD 0.0014 a reply).
-      cost: templates ? 'USD 0.0000' : 'USD 0.0042',
+      // The templates cost nothing; the fake's own AI is priced as the fake's model calls are (under $0.01 a reply; templates are Free).
+      cost: templates ? 'Free' : 'under $0.01',
       line: `Tried on ${SCENARIO_TITLES.length} practice clients with ${templates ? 'built-in templates' : 'your AI'}. Nothing was saved.`,
     };
   }

@@ -4,6 +4,7 @@
  * than two decimals of dollars, and the other currency beneath it at the owner's rate. The UI computes none of this.
  */
 
+import { formatUsd } from '../../../../platform/runtime/owner-format';
 import { EngineError, type CurrencyLead, type SpendLead } from './types';
 
 /** The owner's choices, as the engine's CURRENCY_LEADS; anything else is refused in the engine's words. */
@@ -19,10 +20,7 @@ export function rupeesLead(choice: CurrencyLead, countryCode = 'IN'): boolean {
 
 /** Dollars for a lead figure: micro-dollars to cents, a half cent up; above zero but under a cent reads so. */
 export function dollarsLead(micros: number | string | bigint): string {
-  const value = BigInt(micros);
-  const cents = (value + 5_000n) / 10_000n;
-  if (value > 0n && cents === 0n) return 'under USD 0.01';
-  return `USD ${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+  return formatUsd(String(micros));
 }
 
 /** Micro-dollars as rupees at a rate in ten-thousandths, to the nearest paisa, a half paisa up ('₹60.10'). */

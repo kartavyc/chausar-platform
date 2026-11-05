@@ -43,9 +43,9 @@ const LOOK: readonly CliStatusView[] = [
 
 /** The list price lines of the key presets (presets.ts price tables, formatMicros, checked 15 Oct 2026). */
 const PRICES: Readonly<Record<string, string>> = {
-  'anthropic-haiku-5-5': 'USD 0.1000 in, USD 0.5000 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.',
-  'anthropic-sonnet-5-5': 'USD 2.0000 in, USD 10.0000 out per million tokens. Anthropic list price, checked 15 Oct 2026.',
-  'openai-gpt-6-luna': 'USD 0.1000 in, USD 0.5000 out per million tokens. Third-party tracker, not confirmed by OpenAI, checked 15 Oct 2026, price unconfirmed.',
+  'anthropic-haiku-5-5': '$0.10 in, $0.50 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.',
+  'anthropic-sonnet-5-5': '$2.00 in, $10.00 out per million tokens. Anthropic list price, checked 15 Oct 2026.',
+  'openai-gpt-6-luna': '$0.10 in, $0.50 out per million tokens. Third-party tracker, not confirmed by OpenAI, checked 15 Oct 2026, price unconfirmed.',
   'claude-code-cli': 'Runs on your own Claude Code plan. Chausar adds no charge.',
   'codex-cli': 'Runs on your own Codex plan. Chausar adds no charge.',
   'built-in-templates': TEMPLATES,

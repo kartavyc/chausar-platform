@@ -72,7 +72,7 @@ describe('Connections > Your AI: transcription on this computer', () => {
     start(new FakeEngine({ hosted: true }), { hosted: true });
     await screen.findByText('Your AI', { selector: 'h2' });
     const section = screen.getByRole('region', { name: 'Your AI' });
-    await waitFor(() => expect(section.textContent).toContain('USD 0.0000'));
+    await waitFor(() => expect(section.textContent).toContain('$0.00'));
     expect(screen.queryByRole('group', { name: TITLE })).toBeNull();
   });
 

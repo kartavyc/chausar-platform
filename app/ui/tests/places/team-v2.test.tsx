@@ -119,7 +119,7 @@ describe('Team v2: the stats tiles', () => {
     // 4Z3: a business in India with a rupee rate leads with rupees, its words after them, the dollars beneath (two decimals).
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
     expect(spend.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(', includes estimates');
-    expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
+    expect(spend.textContent).toContain('$0.72 at ₹83.50 per $1');
     expect(within(spend).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     expect(within(spend).queryByText('model estimate')).toBeNull();
     // No "Done this week" until the engine counts it (W4 4A).

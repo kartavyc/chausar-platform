@@ -124,11 +124,11 @@ describe('Money v2: the overview tiles', () => {
   it('AI spend in rupees sits beside the dollars, under the same receipt', async () => {
     const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
     start('#/money', {
-      override: { 'venture.money.overview': overview({ lines: [{ id: 'spent', label: 'AI and tools this month', value: 'USD 0.2500', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) },
+      override: { 'venture.money.overview': overview({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$0.25', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) },
     });
     const spend = await tile('AI spend this month');
     const rupees = await within(spend).findByText(`₹20.88 ${at}`);
-    expect(within(spend).getByText('USD 0.2500')).toBeTruthy();
+    expect(within(spend).getByText('$0.25')).toBeTruthy();
     expect(rupees.closest('[data-figure-group]')?.querySelector('[data-receipt="R-0412"]')).toBeTruthy();
     assertInkRules();
   });
@@ -196,7 +196,7 @@ describe('Money v2: the overview tiles', () => {
     const spend = await tile('AI spend this month');
     // 4Z3: a business in India with a rupee rate leads with rupees, the dollars beneath with two decimals and the rate.
     expect(await within(spend).findByText('₹60.10')).toBeTruthy();
-    expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
+    expect(spend.textContent).toContain('$0.72 at ₹83.50 per $1');
     // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
     expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     assertInkRules();
@@ -439,7 +439,7 @@ describe('Money v2: spend', () => {
     start('#/money/spend', { engine });
     const settings = await screen.findByRole('region', { name: 'Limits and rates' });
     // The owner's own limits, said back in the engine's sentences: engine words, in the body face.
-    for (const words of ['USD 20.00 a month', 'Asks you first above USD 2.00']) {
+    for (const words of ['$20.00 a month', 'Asks you first above $2.00']) {
       const line = await within(settings).findByText(words);
       expect(line.closest('[data-engine-line]'), words).toBeTruthy();
       expect(line.closest('.mono'), words).toBeNull();
@@ -516,11 +516,11 @@ describe('Money v2: the invoices table on a phone', () => {
 
 describe('Money v2: Amount', () => {
   it('sets an amount in DM Mono, a currency code in front included, and words the engine wrote in the body face', () => {
-    render(<p><Amount text="USD 0.2500" /> <Amount text="₹45.00" /> <Amount text="No price" /> <Amount text="USD 0.2500 this month (includes estimates)" /> <Amount text="कोई कीमत नहीं" /></p>);
-    expect(screen.getByText('USD 0.2500').className).toBe('mono');
+    render(<p><Amount text="$0.25" /> <Amount text="₹45.00" /> <Amount text="No price" /> <Amount text="$0.25 this month (includes estimates)" /> <Amount text="कोई कीमत नहीं" /></p>);
+    expect(screen.getByText('$0.25').className).toBe('mono');
     expect(screen.getByText('₹45.00').className).toBe('mono');
     expect(screen.getByText('No price').className).toBe('');
-    expect(screen.getByText('USD 0.2500 this month (includes estimates)').className).toBe('');
+    expect(screen.getByText('$0.25 this month (includes estimates)').className).toBe('');
     expect(screen.getByText('कोई कीमत नहीं').className).toBe('');
   });
 });
