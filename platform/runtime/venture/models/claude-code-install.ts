@@ -151,16 +151,25 @@ export async function installClaudeCode(
   }
 }
 
+/** What the real ports call on this computer: Node's own spawn and fetch unless a test swaps in recorders (D5 fix). */
+export type ClaudeInstallSystem = {
+  spawn?: (command: string, args: readonly string[], options: { cwd: string; env: Record<string, string>; shell: false; windowsHide: true; stdio: 'ignore' })
+    => { once(event: 'error' | 'exit', listener: (value?: any) => void): unknown; kill(): unknown };
+  fetch?: (url: string, init: { signal: AbortSignal; redirect: 'follow' }) => Promise<{ ok: boolean; status: number; url: string; headers: { get(name: string): string | null }; body: unknown }>;
+};
+
 /** The real ports: Node's fetch, a hidden process with no shell, the search path and the installer's own folder. */
-export function defaultClaudeInstallPorts(): ClaudeInstallPorts {
+export function defaultClaudeInstallPorts(system: ClaudeInstallSystem = {}): ClaudeInstallPorts {
+  const run = system.spawn ?? spawn;
+  const get = system.fetch ?? fetch;
   return {
     async fetch(url, { signal }) {
-      const response = await fetch(url, { signal, redirect: 'follow' });
+      const response = await get(url, { signal, redirect: 'follow' });
       return { ok: response.ok, status: response.status, url: response.url, headers: response.headers, body: response.body as unknown as AsyncIterable<Uint8Array> | null };
     },
     run(command, args, options) {
       return new Promise(resolve => {
-        const child = spawn(command, args, { cwd: options.cwd, env: options.env, shell: false, windowsHide: true, stdio: 'ignore' });
+        const child = run(command, args, { cwd: options.cwd, env: options.env, shell: false, windowsHide: true, stdio: 'ignore' });
         const timer = setTimeout(() => { try { child.kill(); } catch { /* already gone */ } }, options.timeoutMs);
         child.once('error', () => { clearTimeout(timer); resolve({ exitCode: -1 }); });
         child.once('exit', code => { clearTimeout(timer); resolve({ exitCode: code ?? -1 }); });

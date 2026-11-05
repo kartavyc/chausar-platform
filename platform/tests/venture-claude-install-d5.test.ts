@@ -141,3 +141,77 @@ test('D5 fix: no default ports; a call without them is refused before it looks, 
     await assert.rejects(installClaudeCode({ approval: undefined, platform: 'win32', host: 'desktop' }, ports as any), code('INVALID_VENTURE_REQUEST'));
   }
 });
+
+// D5 fix (review 1, MEDIUM 1): the real ports, with Node's spawn and fetch swapped for recorders, so nothing is
+// downloaded or started: the process gets an argument array, no shell, a hidden window and only the filtered variables;
+// the download follows redirects and reports the final address, which the host check reads.
+type Spawned = { command: string; args: readonly string[]; options: any };
+function recorder(exit: { code?: number | null; error?: boolean } = {}) {
+  const spawned: Spawned[] = [];
+  const spawn = (command: string, args: readonly string[], options: any) => {
+    spawned.push({ command, args: [...args], options });
+    const listeners = new Map<string, (value?: unknown) => void>();
+    queueMicrotask(() => (exit.error ? listeners.get('error')?.(new Error('synthetic spawn failure')) : listeners.get('exit')?.(exit.code === undefined ? 0 : exit.code)));
+    return { once(event: string, listener: (value?: unknown) => void) { listeners.set(event, listener); return this; }, kill() { return true; } };
+  };
+  return { spawned, spawn };
+}
+
+test('D5 fix: the real run port spawns with no shell, hidden, ignoring output, with the given folder and variables', async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  const rec = recorder();
+  const ports = defaultClaudeInstallPorts({ spawn: rec.spawn as any });
+  const env = { PATH: '/usr/bin' };
+  const result = await ports.run('/bin/bash', ['/tmp/a folder/install.sh'], { cwd: '/tmp/a folder', env, timeoutMs: 1000, windowsHide: true, shell: false });
+  assert.equal(result.exitCode, 0);
+  assert.equal(rec.spawned.length, 1);
+  const [one] = rec.spawned;
+  assert.equal(one.command, '/bin/bash');
+  assert.deepEqual(one.args, ['/tmp/a folder/install.sh'], 'one argument, never split or quoted by a shell');
+  assert.equal(one.options.shell, false);
+  assert.equal(one.options.windowsHide, true);
+  assert.equal(one.options.stdio, 'ignore');
+  assert.equal(one.options.cwd, '/tmp/a folder');
+  assert.deepEqual(one.options.env, env);
+  assert.equal((await defaultClaudeInstallPorts({ spawn: recorder({ code: null }).spawn as any }).run('x', [], { cwd: '.', env: {}, timeoutMs: 1000, windowsHide: true, shell: false })).exitCode, -1);
+  assert.equal((await defaultClaudeInstallPorts({ spawn: recorder({ code: 4 }).spawn as any }).run('x', [], { cwd: '.', env: {}, timeoutMs: 1000, windowsHide: true, shell: false })).exitCode, 4);
+  assert.equal((await defaultClaudeInstallPorts({ spawn: recorder({ error: true }).spawn as any }).run('x', [], { cwd: '.', env: {}, timeoutMs: 1000, windowsHide: true, shell: false })).exitCode, -1);
+});
+
+test('D5 fix: through the real run port, each system runs its installer as one argument from a folder with a space', async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  for (const platform of ['win32', 'linux'] as const) {
+    const fake = computer();
+    const rec = recorder();
+    const spaced = mkdtempSync(join(tmpdir(), 'chausar claude install test '));
+    const environment = { PATH: '/usr/bin', HOME: '/home/owner', CHAUSAR_HOME: '/secret', ANTHROPIC_API_KEY: 'synthetic' };
+    let installed = false;
+    const ports: ClaudeInstallPorts = { ...fake.ports, run: defaultClaudeInstallPorts({ spawn: (...args: any[]) => { installed = true; return (rec.spawn as any)(...args); } }).run,
+      locate: command => (command === 'claude' && installed ? '/home/owner/.local/bin/claude' : null), tempFolder: async () => spaced };
+    const result = await installClaudeCode({ approval: YES, platform, host: 'desktop', environment }, ports);
+    assert.equal(result.outcome, 'installed');
+    const installer = CLAUDE_CODE_INSTALLERS[platform];
+    assert.equal(rec.spawned.length, 1);
+    const [one] = rec.spawned;
+    assert.equal(one.command, installer.command);
+    assert.deepEqual(one.args, [...installer.lead, join(spaced, installer.file)], 'the script path with its space is one argument');
+    assert.equal(one.options.shell, false);
+    assert.equal(one.options.windowsHide, true);
+    assert.deepEqual(one.options.env, { PATH: '/usr/bin', HOME: '/home/owner' }, 'only the path-type variables reach it');
+    assert.equal(existsSync(spaced), false, 'the folder is removed after');
+  }
+});
+
+test('D5 fix: the real fetch port follows redirects and reports the final address, so a redirect away from Anthropic is never run', async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  const asked: { url: string; init: any }[] = [];
+  const fetch = async (url: string, init: any) => {
+    asked.push({ url, init });
+    return { ok: true, status: 200, url: 'https://example.invalid/install.ps1', headers: new Headers({ 'content-length': String(SCRIPT.length) }), body: (async function* () { yield SCRIPT; })() };
+  };
+  const real = defaultClaudeInstallPorts({ fetch: fetch as any });
+  const fake = computer();
+  await assert.rejects(installClaudeCode({ approval: YES, platform: 'win32', host: 'desktop' }, { ...fake.ports, fetch: real.fetch }), code('CLAUDE_INSTALL_DOWNLOAD_FAILED'));
+  assert.equal(fake.ran.length, 0, 'nothing run');
+  assert.deepEqual(asked.map(item => [item.url, item.init.redirect, item.init.signal instanceof AbortSignal]), [[CLAUDE_CODE_INSTALLERS.win32.url, 'follow', true]]);
+});
