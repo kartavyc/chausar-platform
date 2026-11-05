@@ -7,8 +7,9 @@
 // one go, bound by one digest over the picked rows in order and their total quote (a sum receipt), each item still
 // decided on its own (its own decision, journal entry and charge record); a changed item makes the whole set stale,
 // and there is no "approve all". Every click is recorded once per row id, so it reaches venture.decisions.list.
+import { formatUsd } from '../../owner-format.ts';
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { currentVenture, digest, exactPayload, findRecord, formatMicros, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
+import { currentVenture, digest, exactPayload, findRecord, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { viewedExactly } from './view-marks.ts';
 import type {
   DraftEditRecord, QueueDecision, QueueDecisionRecord, QueueRow, QueueSetPreview, QueueSetResult, QueueUndoResult, SumReceiptSubject, VentureDeps, VentureRecord,
@@ -360,8 +361,8 @@ export async function queueSetPreviewHandler(deps: VentureDeps, ctx: Context, pa
   const receipt = await sumReceipt(deps, ctx, venture.id, setPlan({ type: 'set', items: worked.items }));
   return {
     digest: worked.digest,
-    items: worked.picked.map((item, index) => ({ rowId: item.row.id, title: item.row.title, kind: item.row.kind, cost: formatMicros(worked.items[index].micros) })),
-    total: { display: formatMicros(worked.total), receiptId: receipt.id },
+    items: worked.picked.map((item, index) => ({ rowId: item.row.id, title: item.row.title, kind: item.row.kind, cost: formatUsd(worked.items[index].micros) })),
+    total: { display: formatUsd(worked.total), receiptId: receipt.id },
     secondAsk: worked.secondAsk, refusals: worked.refusals,
   };
 }

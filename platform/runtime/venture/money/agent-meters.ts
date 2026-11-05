@@ -1,7 +1,8 @@
 // W6 6G5 (D44): the meters per agent and per routine, and the refusal before a routine starts. Split from
 // spend-meter.ts because names come from the team (chief/routing.ts), which money/spend.ts must not load at start.
+import { formatRate, formatUsd } from '../../owner-format.ts';
 import type { Context, State } from '../../contracts.ts';
-import { formatMicros, listRecords } from '../records.ts';
+import { listRecords } from '../records.ts';
 import { microsAsUsd } from '../models/cost.ts';
 import { teamAgents } from '../chief/routing.ts';
 import { chatAgent } from '../agents/roles.ts';
@@ -39,10 +40,10 @@ export function routineStartRefusal(state: State, venture: VentureRecord, routin
   const records = listRecords(state, 'venture-spend', venture.id);
   const month = monthOf(nowIso);
   const own = (policy.routineCaps ?? []).find(item => item.routine === routine.id);
-  if (own && routineMonthTotal(records, routine.id, month) >= BigInt(own.capMicros)) return METER_WORDS.ownLimit(routine.name, formatMicros(own.capMicros));
+  if (own && routineMonthTotal(records, routine.id, month) >= BigInt(own.capMicros)) return METER_WORDS.ownLimit(routine.name, formatRate(own.capMicros));
   const agentCap = routine.agent ? (policy.agentCaps ?? []).find(item => item.agent === routine.agent) : undefined;
   if (routine.agent && agentCap && agentMonthTotal(state, records, routine.agent, month) >= BigInt(agentCap.capMicros)) {
-    return METER_WORDS.ownLimit(receiptAgentName(state, venture, routine.agent), formatMicros(agentCap.capMicros));
+    return METER_WORDS.ownLimit(receiptAgentName(state, venture, routine.agent), formatRate(agentCap.capMicros));
   }
   if (policy.capMicros !== null) {
     const spent = records.reduce((total, record) => (monthOf(record.at) === month ? total + counted(record) : total), 0n);
@@ -100,10 +101,10 @@ export async function spendMeters(deps: VentureDeps, ctx: Context, state: State,
     const paused = capped !== null && used >= capped;
     return {
       scope, id, name,
-      used: formatMicros(String(used)) + METER_WORDS.thisMonth, usedLead: spendLead(String(used), rupees, METER_WORDS.thisMonth), receiptId: receipt.id,
+      used: formatUsd(String(used)) + METER_WORDS.thisMonth, usedLead: spendLead(String(used), rupees, METER_WORDS.thisMonth), receiptId: receipt.id,
       plan: plan > 0 ? METER_WORDS.plan(plan) : null,
-      ...(media && media.micros > 0n ? { media: METER_WORDS.media(media.upTo, formatMicros(String(media.micros))) } : {}),
-      cap: cap === undefined ? null : formatMicros(cap) + METER_WORDS.perMonth, capUsd: cap === undefined ? null : microsAsUsd(cap),
+      ...(media && media.micros > 0n ? { media: METER_WORDS.media(media.upTo, formatUsd(String(media.micros))) } : {}),
+      cap: cap === undefined ? null : formatRate(cap) + METER_WORDS.perMonth, capUsd: cap === undefined ? null : microsAsUsd(cap),
       ...(rupees && cap !== undefined ? { capRupees: rupeesBeside(cap, rupees)! } : {}),
       usedPermille: permille === null ? null : parseInt((permille > 1000n ? 1000n : permille).toString(), 10), paused,
       line: capped === null ? METER_WORDS.noLimit : paused ? METER_WORDS.paused : METER_WORDS.used(percentOf(permille!)),

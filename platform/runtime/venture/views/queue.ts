@@ -23,6 +23,7 @@
 // Ink v2 wave 4 (package 4-0): five more row sources (proposals, follow-ups, replies, notices, run controls) whose
 // decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
 // (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
+import { formatUsd } from '../../owner-format.ts';
 import { authorize,ChausarError,check,type Context,type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { decideAgentApproval } from '../agent-runtime/approvals.ts';
@@ -56,7 +57,7 @@ import { sendRunToCa,waitsToGoToCa } from '../playbooks/ca-firm/delivery-signoff
 import { caFirmQueueItems } from '../playbooks/ca-firm/signoff.ts';
 import { pendingSpotChecks,reviewSpotCheck } from '../policy/spot-check.ts';
 import {
-currentVenture,digest,exactPayload,formatMicros,formatVentureDate,listRecords,plainText,requireAppChannel,ventureAction,
+currentVenture,digest,exactPayload,formatVentureDate,listRecords,plainText,requireAppChannel,ventureAction,
 } from '../records.ts';
 import { withPreviews } from './previews.ts';
 import { noticeRows } from './probes.ts';
@@ -361,7 +362,7 @@ async function allowRunWindow(deps: VentureDeps, ctx: Context, runId: string, ca
  * With the owner's rupee rate, the room is said in rupees too, beside the dollars, with that rate.
  */
 function roomWords(harness: HarnessState, window: MicroString, rupees: Rupees | null): Pick<QueueRow, 'line' | 'change'> {
-  const figure = formatMicros(window);
+  const figure = formatUsd(window);
   const said = rupees ? `${figure}, ${rupeesBeside(window, rupees)}` : figure;
   const after = rupees ? `${figure} · ${rupeeFigure(window, rupees)}` : figure;
   return BigInt(window) <= BigInt(harness.limits.maxCostMicros)

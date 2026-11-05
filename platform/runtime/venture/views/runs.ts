@@ -11,11 +11,12 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
+import { formatRate, formatUsd } from '../../owner-format.ts';
 import { playbookForRun } from '../delivery/workflow.ts';
 import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { VOICE_PLAYBOOK } from '../playbooks/voice-match.ts';
-import { currentVenture, exactPayload, findRecord, formatMicros, identifier, listRecords } from '../records.ts';
+import { currentVenture, exactPayload, findRecord, identifier, listRecords } from '../records.ts';
 import type {
   CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookCheckResult, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
   ToolCallRecord, VentureDeps, VentureRecord,
@@ -420,7 +421,7 @@ function controlDetail(state: State, venture: VentureRecord, record: DeliveryRun
   if (scope) {
     const tools = scope.tools.map(tool => TOOL_PURPOSE[tool] ?? 'Used a tool');
     const actions = scope.actions.map(tool => ACTION_WORDS[tool] ?? TOOL_PURPOSE[tool] ?? 'An outside action, for your approval');
-    const cap = formatMicros(scope.capMicros);
+    const cap = formatRate(scope.capMicros);
     view.scope = {
       tools, actions, cap, posture: scope.posture,
       // 4F3: the cap's receipt, worked out again from the run's frozen scope (views/row-receipts.ts scopeCap), and the

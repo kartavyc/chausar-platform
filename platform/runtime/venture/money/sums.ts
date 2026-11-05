@@ -6,7 +6,8 @@
 // own); currentPlan calls them, so no package edits this file. A plan may give its own words for the explanation.
 import { type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
-import { digest, formatMicros, formatVentureDate, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import { formatUsd } from '../../owner-format.ts';
+import { digest, formatVentureDate, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import type {
   InvoiceRecord, IsoDate, PriceFigure, PriceStep, RecordBase, SumReceiptRecord, SumReceiptSubject, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -104,7 +105,7 @@ export function receivedPlan(state: State, venture: VentureRecord, from: IsoDate
 export function spentPlan(state: State, venture: VentureRecord, month: string): SumPlan {
   const addends = spendOfMonth(listRecords(state, 'venture-spend', venture.id), month).map(item => ({
     recordId: item.record.id, label: item.record.label, amount: String(item.micros),
-    display: `${formatMicros(String(item.micros))}${item.estimate ? ' (estimate)' : ''}`, estimate: item.estimate,
+    display: `${formatUsd(String(item.micros))}${item.estimate ? ' (estimate)' : ''}`, estimate: item.estimate,
   }));
   return { subject: { type: 'spent', month }, currency: 'USD', unit: 'micros', addends };
 }
@@ -143,7 +144,7 @@ export function planTotal(plan: SumPlan): bigint {
 
 export function planDisplay(plan: SumPlan, total: bigint = planTotal(plan)): string {
   if (plan.unit === 'count') return String(total);
-  return plan.unit === 'micros' ? formatMicros(String(total), plan.currency) : formatMinor(total, plan.currency);
+  return plan.unit === 'micros' ? formatUsd(String(total)) : formatMinor(total, plan.currency);
 }
 
 export function planEstimate(plan: SumPlan): boolean {

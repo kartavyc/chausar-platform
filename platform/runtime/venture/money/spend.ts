@@ -13,13 +13,14 @@
 // Their float arithmetic is not taken: every amount here is whole micro units in BigInt.
 // Spend is counted and capped in US dollars. With the owner's own rupee rate set, every figure also shows in rupees
 // beside the dollars (paise worked out in BigInt, to the nearest paisa, a half paisa up), labelled with that rate.
+import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
 import { ESTIMATE_WORDS, microsAsUsd, usdToMicros } from '../models/cost.ts';
 import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
 import { localDayAt } from '../local-day.ts';
 import {
-  currentVenture, digest, exactPayload, formatMicros, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
+  currentVenture, digest, exactPayload, formatVentureDate, identifier, isAppChannel, isoDate, listRecords, plainText, readVenture, ventureAction, type VentureTx,
 } from '../records.ts';
 import { QUOTE_TTL_MS, checkQuoteBinding } from './quote.ts';
 import { newestFirst } from './shared.ts';
@@ -208,7 +209,7 @@ export function monthSpendNow(state: State, ventureId: string, nowIso: string): 
 
 /** Finds the owner's approved quote for this draft and spends it, or refuses with the quote code that applies. */
 function spendQuote(tx: VentureTx, request: SpendReservation, askAboveMicros: MicroString, spendId: string): string {
-  const ask = `This may cost ${formatMicros(request.estimateMicros)}, more than the ${formatMicros(askAboveMicros)} you asked to see first. It waits for your approval.`;
+  const ask = `This may cost ${formatUsd(request.estimateMicros)}, more than the ${formatUsd(askAboveMicros)} you asked to see first. It waits for your approval.`;
   const [quote] = newestFirst(tx.list('venture-spend-quote').filter(item => item.item === request.item && item.draftDigest === request.draftDigest && item.status === 'approved'));
   if (!quote) throw new SpendRefusal('QUOTE_WAITING', ask, subjectOf(request), request.estimateMicros);
   try {
@@ -238,7 +239,7 @@ export function reserveSpend(tx: VentureTx, request: SpendReservation): SpendRec
   if (policy && policy.capMicros !== null) {
     const after = monthTotal(records, monthOf(tx.now)) + estimate;
     if (after > BigInt(policy.capMicros)) {
-      throw new SpendRefusal('SPEND_CAP', `This could take this month's spend to ${formatMicros(String(after))}, past your limit of ${formatMicros(policy.capMicros)}. It was not run. Raise the limit or wait for next month.`,
+      throw new SpendRefusal('SPEND_CAP', `This could take this month's spend to ${formatUsd(String(after))}, past your limit of ${formatRate(policy.capMicros)}. It was not run. Raise the limit or wait for next month.`,
         subjectOf(request), request.estimateMicros);
     }
   }
@@ -290,7 +291,7 @@ function openQuote(tx: VentureTx, subject: SpendSubject, figureMicros: MicroStri
   if (waiting) return;
   tx.put({
     ...tx.base('venture-spend-quote'), key: subject.key, item: subject.item, label: subject.label, payer: subject.payer, draftDigest: subject.draftDigest,
-    figureMicros, figure: formatMicros(figureMicros), status: 'open', decidedAt: null, decidedBy: null, spentBy: null,
+    figureMicros, figure: formatUsd(figureMicros), status: 'open', decidedAt: null, decidedBy: null, spentBy: null,
   } satisfies SpendQuoteRecord);
 }
 
@@ -467,13 +468,10 @@ export function rupeesLead(choice: CurrencyLead, country: Pick<CountryProfile, '
 
 /**
  * 4Z3: dollars for a lead figure, never more than two decimals: micro-dollars to cents in BigInt, a half cent up
- * ('USD 0.72'). A spend above zero that rounds to no cents reads 'under USD 0.01', never as nothing.
+ * ('$0.72', B2's owner form). A spend above zero that rounds to no cents reads 'under $0.01', never as nothing.
  */
 export function dollarsLead(micros: MicroString): Display {
-  const value = BigInt(micros);
-  const cents = (value + 5_000n) / 10_000n;
-  if (value > 0n && cents === 0n) return 'under USD 0.01';
-  return `USD ${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+  return formatUsd(micros);
 }
 
 /**
@@ -519,18 +517,18 @@ function rateParts(perUsd: string): { whole: bigint; decimals: string } {
 /** '₹83.50 per $1 (your rate, set 23 Oct 2026)': the owner's rate in words, with the day it was set. */
 export function rupeeRateWords(rupees: Rupees): Display {
   const { whole, decimals } = rateParts(rupees.rate.perUsd);
-  return `₹${whole.toLocaleString('en-IN')}.${decimals} per $1 (your rate, set ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
+  return `₹${formatCount(whole, 'IN')}.${decimals} per $1 (your rate, set ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
 }
 
 /** 4Z3: '₹83.50 per $1', the owner's rate without the day it was set, for a line that says it beside a figure. */
 export function rupeeRateShort(rupees: Rupees): Display {
   const { whole, decimals } = rateParts(rupees.rate.perUsd);
-  return `₹${whole.toLocaleString('en-IN')}.${decimals} per $1`;
+  return `₹${formatCount(whole, 'IN')}.${decimals} per $1`;
 }
 
 /** '₹20.88', a dollar figure in rupees at the owner's rate. */
 export function rupeeFigure(micros: MicroString, rupees: Rupees): Display {
-  return money(microsToPaise(micros, rupees.rate.perUsd), 'INR');
+  return formatMoney(microsToPaise(micros, rupees.rate.perUsd), 'INR');
 }
 
 /** '₹20.88 at ₹83.50 per $1 (your rate, set 23 Oct 2026)', to show beside a dollar figure; null without a rate. */
@@ -557,9 +555,9 @@ const POLICY_WORDS = Object.freeze({
 /** One rate card line's price in words, worked out here so the screen never formats a figure. */
 export function ratePrice(rate: SpendRate): Display {
   if (rate.unit === 'per-million-tokens') {
-    return `${formatMicros(rate.inputMicrosPerMillion ?? '0')} in and ${formatMicros(rate.outputMicrosPerMillion ?? '0')} out, per million tokens`;
+    return `${formatRate(rate.inputMicrosPerMillion ?? '0')} in and ${formatRate(rate.outputMicrosPerMillion ?? '0')} out, per million tokens`;
   }
-  const figure = formatMicros(rate.microsPerCall ?? '0');
+  const figure = formatRate(rate.microsPerCall ?? '0');
   return rate.unit === 'per-call' ? `${figure} per call` : `Up to ${figure} a run`;
 }
 
@@ -577,8 +575,8 @@ function policyView(policy: SpendPolicyRecord | null, dateOrder: DateOrder, coun
     ...(rupees && cap !== null ? { capRupees: rupeesBeside(cap, rupees)! } : {}),
     ...(rupees && askFirst !== null ? { askFirstRupees: rupeesBeside(askFirst, rupees)! } : {}),
     capMicros: cap, askFirstMicros: askFirst, capUsd: usd(cap), askFirstUsd: usd(askFirst),
-    cap: cap === null ? POLICY_WORDS.noCap : formatMicros(cap) + POLICY_WORDS.perMonth,
-    askFirst: askFirst === null ? POLICY_WORDS.neverAsks : POLICY_WORDS.asksAbove + formatMicros(askFirst),
+    cap: cap === null ? POLICY_WORDS.noCap : formatRate(cap) + POLICY_WORDS.perMonth,
+    askFirst: askFirst === null ? POLICY_WORDS.neverAsks : POLICY_WORDS.asksAbove + formatRate(askFirst),
     rates: (policy?.rates ?? []).map(rate => ({
       ...structuredClone(rate), price: ratePrice(rate),
       inputUsdPerMillion: usd(rate.inputMicrosPerMillion), outputUsdPerMillion: usd(rate.outputMicrosPerMillion), usdPerCall: usd(rate.microsPerCall),
@@ -720,7 +718,7 @@ function rowKind(record: SpendRecord): SpendRow['kind'] {
 
 function settledDisplay(record: SpendRecord, unconfirmed: string): Display | undefined {
   const parts = settledParts(record, unconfirmed);
-  return parts ? formatMicros(parts.micros) + parts.words : undefined;
+  return parts ? formatUsd(parts.micros) + parts.words : undefined;
 }
 
 /** A settled figure's amount and the engine's words after it; undefined while the call has not settled. */
@@ -752,7 +750,7 @@ export function spendRow(record: SpendRecord, agent: string | null = record.agen
     ...(by ? { by } : {}),
     ...(record.connector ? { connector: record.connector } : {}),
     label: record.phase === 'unknown' ? record.label + SPEND_WORDS.unknown : record.label,
-    reserved: unpriced ? SPEND_WORDS.noPrice : formatMicros(record.reservedMicros) + unconfirmed,
+    reserved: unpriced ? SPEND_WORDS.noPrice : formatUsd(record.reservedMicros) + unconfirmed,
     ...(rupees && !unpriced ? { reservedRupees: rupeesBeside(record.reservedMicros, rupees)! } : {}),
     ...(settled !== undefined ? { settled } : {}),
     ...(rupees && settledMicros !== null ? { settledRupees: rupeesBeside(settledMicros, rupees)! } : {}),
@@ -797,7 +795,7 @@ export async function listSpend(deps: VentureDeps, ctx: Context, payload: unknow
   const calls = new Map(listRecords(state, 'venture-model-call', venture.id).map(call => [call.id, call]));
   return {
     rows: records.slice(0, MAX_ROWS).map(record => spendRow(record, spendAgentOf(state, record), rupees, spendAnsweredBy(calls, record), payerOf(state, venture.id, record.payer), venture.country.dateOrder)),
-    total: formatMicros(String(total)) + SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : ''),
+    total: formatUsd(String(total)) + SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : ''),
     ...(rupees ? { totalRupees: rupeesBeside(String(total), rupees)! } : {}),
     // 4Z3: the month's total as the owner's currency leads it.
     totalLead: spendLead(String(total), rupees, SPEND_WORDS.thisMonth + (estimated ? SPEND_WORDS.includesEstimates : '')),
@@ -909,14 +907,14 @@ function refuseOverLimits(tx: VentureTx, policy: SpendPolicyRecord, records: rea
   if (policy.dailyCapMicros !== undefined && policy.dailyCapMicros !== null) {
     const after = dayTotal(records, venture, localDayAt(tx.now, venture.country)) + estimate;
     if (after > BigInt(policy.dailyCapMicros)) {
-      throw new SpendRefusal('SPEND_CAP', `This could take today's spend to ${formatMicros(String(after))}, past your daily limit of ${formatMicros(policy.dailyCapMicros)}. It was not run. Raise the limit or wait until tomorrow.`,
+      throw new SpendRefusal('SPEND_CAP', `This could take today's spend to ${formatUsd(String(after))}, past your daily limit of ${formatRate(policy.dailyCapMicros)}. It was not run. Raise the limit or wait until tomorrow.`,
         subjectOf(request), request.estimateMicros);
     }
   }
   const agent = spendAgentOf(tx.state, request);
   const cap = agent ? (policy.agentCaps ?? []).find(item => item.agent === agent) : undefined;
   if (agent && cap && agentMonthTotal(tx.state, records, agent, monthOf(tx.now)) + estimate > BigInt(cap.capMicros)) {
-    throw new SpendRefusal('SPEND_CAP', `${agentNameOf(tx.state, venture, agent)} reached its own monthly limit of ${formatMicros(cap.capMicros)}, so it is paused until you raise it or the month ends. Other work goes on.`,
+    throw new SpendRefusal('SPEND_CAP', `${agentNameOf(tx.state, venture, agent)} reached its own monthly limit of ${formatRate(cap.capMicros)}, so it is paused until you raise it or the month ends. Other work goes on.`,
       subjectOf(request), request.estimateMicros);
   }
   // W6 6G5 (D44): a call made for a routine is held to that routine's own monthly limit too (it alone pauses).
@@ -984,7 +982,7 @@ function projection(state: State, venture: VentureRecord, policy: SpendPolicyRec
     line: `About ${more} more ${more === 1n ? 'draft' : 'drafts'} at today's cost`,
     label: `projection from your last ${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`,
     runIds: drafts.map(item => item.runId),
-    left: `${formatMicros(String(left))} left`, ...(rupees ? { leftRupees: rupeesBeside(String(left), rupees)! } : {}),
+    left: `${formatUsd(String(left))} left`, ...(rupees ? { leftRupees: rupeesBeside(String(left), rupees)! } : {}),
   };
 }
 
@@ -1015,7 +1013,7 @@ function agentCapViews(state: State, venture: VentureRecord, policy: SpendPolicy
     const used = agentMonthTotal(state, records, item.agent, monthOf(nowIso));
     return {
       agent: item.agent, name: agentNameOf(state, venture, item.agent), capMicros: item.capMicros, capUsd: microsAsUsd(item.capMicros),
-      cap: `${formatMicros(item.capMicros)}${POLICY_WORDS.perMonth}`, used: formatMicros(String(used)), paused: used >= BigInt(item.capMicros),
+      cap: `${formatRate(item.capMicros)}${POLICY_WORDS.perMonth}`, used: formatUsd(String(used)), paused: used >= BigInt(item.capMicros),
       ...(rupees ? { capRupees: rupeesBeside(item.capMicros, rupees)!, usedRupees: rupeesBeside(String(used), rupees)! } : {}),
     };
   });
@@ -1043,7 +1041,7 @@ function keyLimits(state: State, venture: VentureRecord, nowIso: string): LimitR
     if (used < BigInt(connection.monthlyCapMicros)) return [];
     return [{
       scope: 'key' as const, presetId: connection.presetId,
-      line: `${spec.label} reached its own monthly limit of ${formatMicros(connection.monthlyCapMicros)}. Nothing more goes to it until you raise that limit or the month ends.`,
+      line: `${spec.label} reached its own monthly limit of ${formatRate(connection.monthlyCapMicros)}. Nothing more goes to it until you raise that limit or the month ends.`,
       options: [{ id: 'raise' as const, label: 'Raise its limit' }, { id: 'connect' as const, label: 'Connect another key' }, { id: 'wait' as const, label: `Wait until ${reset}` }],
     }];
   });
@@ -1064,7 +1062,7 @@ async function limitsView(deps: VentureDeps, ctx: Context, state: State, venture
   } : undefined;
   const keys = keyLimits(state, venture, nowIso);
   return {
-    dailyCapMicros: daily, dailyCapUsd: daily === null ? null : microsAsUsd(daily), dailyCap: daily === null ? LIMIT_WORDS.noDaily : formatMicros(daily) + LIMIT_WORDS.perDay,
+    dailyCapMicros: daily, dailyCapUsd: daily === null ? null : microsAsUsd(daily), dailyCap: daily === null ? LIMIT_WORDS.noDaily : formatRate(daily) + LIMIT_WORDS.perDay,
     ...(rupees && daily !== null ? { dailyCapRupees: rupeesBeside(daily, rupees)! } : {}),
     alertPermille: alert, alert: `Today tells you at ${percentOf(BigInt(alert))} of this month's limit.`,
     meter, ...(limitReached ? { limitReached } : {}), ...(keys.length ? { keyLimits: keys } : {}),
@@ -1098,13 +1096,13 @@ export function spendRows(state: State, venture: VentureRecord, nowIso: string):
       const title = spent >= BigInt(policy.capMicros) ? "This month's AI limit is used up" : `${percentOf(permille - (permille % 10n))} of this month's AI limit is used`;
       // In US dollars, as providers bill, with rupees beside them at the owner's own rate.
       const inRupees = rupees ? `, ${rupeeFigure(String(spent), rupees)} of ${rupeeFigure(policy.capMicros, rupees)} at ${rupeeRateWords(rupees)}` : '';
-      rows.push(notice('spend:alert', month, title, `${formatMicros(String(spent))} of ${formatMicros(policy.capMicros)}${inRupees}. It starts again on ${reset}.`, nowIso));
+      rows.push(notice('spend:alert', month, title, `${formatUsd(String(spent))} of ${formatUsd(policy.capMicros)}${inRupees}. It starts again on ${reset}.`, nowIso));
     }
   }
   for (const view of agentCapViews(state, venture, policy, nowIso)) {
     if (!view.paused) continue;
     const line = view.capRupees ? `${LIMIT_WORDS.agentGoesOn} Its limit is ${view.capRupees}.` : LIMIT_WORDS.agentGoesOn;
-    rows.push(notice(`spend:agent:${view.agent}`, month, `${view.name} is paused: it reached its own monthly limit of ${formatMicros(view.capMicros)}`, line, nowIso));
+    rows.push(notice(`spend:agent:${view.agent}`, month, `${view.name} is paused: it reached its own monthly limit of ${formatRate(view.capMicros)}`, line, nowIso));
   }
   return rows;
 }
@@ -1189,8 +1187,8 @@ function rateCard(state: State, venture: VentureRecord, policy: SpendPolicyRecor
     const standing: RateCardLine['state'] = rate.by === 'owner' && rate.confirmed ? 'confirmed' : 'list';
     const base = { item: rate.item, state: standing, checked: checkedWords(rate, dateOrder), source: rate.source, ...(rate.confirmed ? {} : { unconfirmed: true }) };
     lines.push({ ...base, label, price: ratePrice(rate) });
-    if (rate.cacheReadMicrosPerMillion) lines.push({ ...base, label: `${label}, prompt-cache reads`, price: `${formatMicros(rate.cacheReadMicrosPerMillion)} per million tokens` });
-    if (rate.cacheWriteMicrosPerMillion) lines.push({ ...base, label: `${label}, prompt-cache writes`, price: `${formatMicros(rate.cacheWriteMicrosPerMillion)} per million tokens` });
+    if (rate.cacheReadMicrosPerMillion) lines.push({ ...base, label: `${label}, prompt-cache reads`, price: `${formatRate(rate.cacheReadMicrosPerMillion)} per million tokens` });
+    if (rate.cacheWriteMicrosPerMillion) lines.push({ ...base, label: `${label}, prompt-cache writes`, price: `${formatRate(rate.cacheWriteMicrosPerMillion)} per million tokens` });
   };
   for (const rate of owned) add(rate);
   const connected = listRecords(state, 'venture-model-connection', venture.id).filter(item => item.status === 'connected');

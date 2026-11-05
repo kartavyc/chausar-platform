@@ -201,7 +201,7 @@ test('spend settings: the monthly limit and the ask-first figure are set in US d
   const view = await set(env, { capUsd: '20', askFirstUsd: '2.50' });
   assert.deepEqual(
     [view.capMicros, view.askFirstMicros, view.capUsd, view.askFirstUsd, view.cap, view.askFirst],
-    ['20000000', '2500000', '20.00', '2.50', 'USD 20.0000 a month', 'Asks you first above USD 2.5000'],
+    ['20000000', '2500000', '20.00', '2.50', '$20.00 a month', 'Asks you first above $2.50'],
   );
   const cleared = await set(env, { askFirstUsd: null });
   assert.deepEqual([cleared.capUsd, cleared.askFirstUsd, cleared.askFirst], ['20.00', null, 'Never asks first']);
@@ -220,7 +220,7 @@ test('spend settings: rate card prices are typed in US dollars and given back th
     ['1250000', '10000000', null, '1.25', '10.00', null],
     [null, null, '75', null, null, '0.000075'],
   ]);
-  assert.equal(view.rates[0].price, 'USD 1.2500 in and USD 10.0000 out, per million tokens');
+  assert.equal(view.rates[0].price, '$1.25 in and $10.00 out, per million tokens');
   await assert.rejects(set(env, { rates: [{ item: 'connector:fal', unit: 'per-call', usdPerCall: '0.25', microsPerCall: '250000', source: 'x', checkedOn: '2026-10-15' }] }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(set(env, { rates: [{ item: 'connector:fal', unit: 'per-call', usdPerCall: '0.0000001', source: 'x', checkedOn: '2026-10-15' }] }), code('INVALID_AMOUNT'));
 });
@@ -240,7 +240,7 @@ test('rupees: micro-dollars become paise in BigInt at the owner\'s rate, to the 
   assert.equal(microsToPaise('100', '500000'), 1n, 'exactly half a paisa rounds up');
   assert.equal(microsToPaise('99', '500000'), 0n, 'under half a paisa rounds down');
   assert.equal(rupeesBeside('250000', RUPEES), `₹20.88 ${LABEL}`);
-  assert.equal(rupeesBeside('20000000000', { ...RUPEES, rate: { perUsd: '12345012', setOn: '2026-10-23' } }), '₹2,46,90,024.00 at ₹1,234.5012 per $1 (your rate, set 23 Oct 2026)', 'Indian grouping; the rate keeps its four places');
+  assert.equal(rupeesBeside('20000000000', { ...RUPEES, rate: { perUsd: '12345012', setOn: '2026-10-23' } }), '₹2,46,90,024 at ₹1,234.5012 per $1 (your rate, set 23 Oct 2026)', 'Indian grouping; the rate keeps its four places');
   assert.equal(rupeesBeside('250000', null), null, 'no rate: dollars only');
 });
 
@@ -252,7 +252,7 @@ test('rupees: spend settings take rupees per US dollar with the day it was set; 
   const label = 'at ₹83.50 per $1 (your rate, set 15 Oct 2026)';
   assert.deepEqual(
     [view.inrPerUsd, view.rupeeRate, view.cap, view.capRupees, view.askFirstRupees],
-    ['83.50', '₹83.50 per $1 (your rate, set 15 Oct 2026)', 'USD 20.0000 a month', `₹1,670.00 ${label}`, `₹208.75 ${label}`],
+    ['83.50', '₹83.50 per $1 (your rate, set 15 Oct 2026)', '$20.00 a month', `₹1,670 ${label}`, `₹208.75 ${label}`],
   );
   env.advance(2 * 86_400_000);
   assert.equal((await set(env, { inrPerUsd: '83.50', capUsd: '25' })).rupeeRate, '₹83.50 per $1 (your rate, set 15 Oct 2026)', 'the same rate keeps its day');
@@ -272,8 +272,8 @@ test('rupees: spend rows, the month total and the AI spend line show rupees besi
   await set(env, { inrPerUsd: '83.50' });
   const label = 'at ₹83.50 per $1 (your rate, set 15 Oct 2026)';
   const after = await money['venture.spend.list']!(env.deps, owner, {}) as { rows: SpendRow[]; total: string; totalRupees?: string };
-  assert.deepEqual([after.rows[0].reserved, after.rows[0].reservedRupees, after.rows[0].settled, after.rows[0].settledRupees], ['USD 1.0000', `₹83.50 ${label}`, 'USD 0.2500', `₹20.88 ${label}`]);
-  assert.deepEqual([after.total, after.totalRupees], ['USD 0.2500 this month', `₹20.88 ${label}`]);
+  assert.deepEqual([after.rows[0].reserved, after.rows[0].reservedRupees, after.rows[0].settled, after.rows[0].settledRupees], ['$1.00', `₹83.50 ${label}`, '$0.25', `₹20.88 ${label}`]);
+  assert.deepEqual([after.total, after.totalRupees], ['$0.25 this month', `₹20.88 ${label}`]);
   const overview = await money['venture.money.overview']!(env.deps, owner, {}) as MoneyOverview;
   assert.equal(overview.lines.find(line => line.id === 'spent')!.rupees, `₹20.88 ${label}`);
 });

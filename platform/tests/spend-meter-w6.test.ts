@@ -67,7 +67,7 @@ test('a model call made inside a routine run names that routine; past the routin
   await env.money('venture.spend.policy.set', { routineCaps: [{ routine: made.id, capUsd: '0.00' }] });
   await assert.rejects(withRoutineScope({ routineId: made.id, runId: 'rrun_two' }, async () => (await env.approveTask(wordsTask('interview'))).outcome), (error: any) => {
     assert.equal(error?.code, 'SPEND_CAP');
-    assert.match(error.message, /^Morning check reached its own monthly limit of USD 0\.0000/);
+    assert.match(error.message, /^Morning check reached its own monthly limit of \$0\.00\b/);
     assert.match(error.message, /Other work goes on\./);
     return true;
   });
@@ -87,19 +87,19 @@ test('the meter: each agent and each routine, this month\'s spend with its recei
   let view = await env.call('venture.spend.policy.get') as SpendPolicyView;
   const editor = view.meters!.agents.find(row => row.id === 'story-editor')!;
   assert.deepEqual([editor.name, editor.used, editor.cap, editor.paused, editor.plan, editor.line],
-    ['Story editor', 'USD 0.5000 this month', null, false, '1 job on your plan', 'No limit of its own']);
+    ['Story editor', '$0.50 this month', null, false, '1 job on your plan', 'No limit of its own']);
   assert.equal(editor.usedLead.currency, 'INR');
   assert.equal(JSON.stringify(editor.plan).includes('₹'), false, 'plan runs carry no rupee figure');
   const receipt = findRecord(env.store.read(), 'venture-sum-receipt', editor.receiptId) as SumReceiptRecord;
   assert.deepEqual([receipt.subject, receipt.totalMinor], [{ type: 'spent-by', scope: 'agent', id: 'story-editor', month: '2026-10' }, '500000']);
   const daily = view.meters!.routines.find(row => row.id === routineId)!;
-  assert.deepEqual([daily.name, daily.used, daily.plan], ['Editor check', 'USD 0.4000 this month', '1 job on your plan']);
+  assert.deepEqual([daily.name, daily.used, daily.plan], ['Editor check', '$0.40 this month', '1 job on your plan']);
 
   await assert.rejects(policy(env, { routineCaps: [{ routine: routineId, capUsd: '1.00' }] }, phone), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(policy(env, { routineCaps: [{ routine: 'routine_nope', capUsd: '1.00' }] }), code('INVALID_VENTURE_REQUEST'));
   view = await policy(env, { routineCaps: [{ routine: routineId, capUsd: '0.40' }], agentCaps: [{ agent: 'story-editor', capUsd: '1.00' }] });
   const capped = view.meters!.routines.find(row => row.id === routineId)!;
-  assert.deepEqual([capped.cap, capped.capUsd, capped.usedPermille, capped.paused], ['USD 0.4000 a month', '0.40', 1000, true]);
+  assert.deepEqual([capped.cap, capped.capUsd, capped.usedPermille, capped.paused], ['$0.40 a month', '0.40', 1000, true]);
   assert.match(capped.line, /^Paused: it reached its limit\. Other work goes on\./);
   assert.match(capped.capRupees!, /^₹33\.40/);
   const half = view.meters!.agents.find(row => row.id === 'story-editor')!;
@@ -131,7 +131,7 @@ test('a routine at its own limit is refused before it starts: the sweep skips it
   await routineTick(env.deps, owner);
   [run] = (await runsOf(env, routineId)).runs;
   assert.equal(run.state, 'skipped');
-  assert.match(run.line, /^Skipped: Editor check reached its own monthly limit of USD 0\.3000/);
+  assert.match(run.line, /^Skipped: Editor check reached its own monthly limit of \$0\.30\b/);
   assert.equal((await routineRows(env)).length, 0);
 });
 

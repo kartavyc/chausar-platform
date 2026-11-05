@@ -24,7 +24,7 @@ test('team: no agents before a plan is accepted; then one agent from the playboo
   const [agent] = await team(env);
   // Only the built-in templates serve, so the idle agent waits for the owner's AI (spec 8).
   assert.deepEqual({ id: agent.id, name: agent.name, posture: agent.posture, now: agent.now, spend: agent.spend, last: agent.last },
-    { id: 'delivery', name: 'Bookkeeping agent', posture: 'rehearsal', now: 'Connect your AI', spend: 'USD 0.0000', last: undefined });
+    { id: 'delivery', name: 'Bookkeeping agent', posture: 'rehearsal', now: 'Connect your AI', spend: '$0.00', last: undefined });
   assert.equal(agent.role, 'Reads each order, works on it with tools, and drafts the reply for you to check.');
   assert.deepEqual(agent.steps.map(step => [step.id, step.gate, step.floor]), [
     ['gather', 'hold', false], ['clarify', 'hold', false], ['work', 'hold', false], ['price', 'hold', false],
@@ -66,7 +66,7 @@ test('team: posture follows the launch ladder; now, spend and the last result co
     harness: harness({ phase: 'needs-answer', handoffs: [{ to: 'owner', question: 'Which account?', turn: 1, answer: null, answeredBy: null }] }),
   });
   // Spend: the agent's own calls only (a draft and an agent turn), not rehearsal or plan calls.
-  // 2000 + 1000 = 3000 micros = USD 0.0030; the plan call (500) is someone else's.
+  // 2000 + 1000 = 3000 micros = under $0.01; the plan call (500) is someone else's.
   await ventureAction(env.deps, owner, 'prepare', 'seed.calls', tx => {
     const call = (id: string, purpose: string, costMicros: string | null, priceConfirmed = true) =>
       tx.state.conversations.push({ id, kind: 'venture-model-call', ventureId: tx.venture!.id, purpose, costMicros, priceConfirmed, status: 'completed' });
@@ -75,12 +75,12 @@ test('team: posture follows the launch ladder; now, spend and the last result co
   const [agent] = await team(env);
   assert.equal(agent.posture, 'approve-each');
   assert.equal(agent.now, 'Waiting on you: Decide what is still unclear');
-  assert.equal(agent.spend, 'USD 0.0030');
+  assert.equal(agent.spend, 'under $0.01');
   assert.deepEqual(agent.last, { line: 'Draft for Cafe Aroma Demo accepted.' });
   await ventureAction(env.deps, owner, 'prepare', 'seed.unconfirmed', tx => {
     tx.state.conversations.push({ id: 'call_e', kind: 'venture-model-call', ventureId: tx.venture!.id, purpose: 'delivery', costMicros: '1000', priceConfirmed: false, status: 'completed' });
   });
-  assert.equal((await team(env))[0].spend, 'USD 0.0040 (estimate, price unconfirmed)');
+  assert.equal((await team(env))[0].spend, 'under $0.01 (estimate)');
   await setStage(env, 'shadow');
   assert.equal((await team(env))[0].posture, 'shadow');
 });
@@ -163,13 +163,13 @@ test('spend by department: each paid call lands with the role its turn worked fo
 
   const { departments, shared, totals } = await list(env);
   const by = Object.fromEntries(departments!.map(item => [item.id, item.spendThisMonth]));
-  assert.deepEqual({ display: by.production.display, rupees: by.production.rupees, held: by.production.held }, { display: 'USD 0.0030', rupees: undefined, held: undefined });
+  assert.deepEqual({ display: by.production.display, rupees: by.production.rupees, held: by.production.held }, { display: 'under $0.01', rupees: undefined, held: undefined });
   // A call still running counts at its estimate, as the spend limit and Money count it, and says so.
   // 4Z3: dollars lead the held words without a rate, never past two decimals; the exact figure is the held receipt's.
-  assert.deepEqual({ display: by.marketing.display, held: by.marketing.held }, { display: 'USD 0.2176 (includes estimates)', held: 'including USD 0.22 held for running work' });
-  assert.deepEqual(by.marketing.lead, { currency: 'USD', figure: 'USD 0.22 (includes estimates)' });
-  for (const id of ['sales', 'money', 'operations']) assert.equal(by[id].display, 'USD 0.0000', id);
-  assert.equal(shared!.display, 'USD 0.0015');
+  assert.deepEqual({ display: by.marketing.display, held: by.marketing.held }, { display: '$0.22 (includes estimates)', held: 'including $0.22 held for running work' });
+  assert.deepEqual(by.marketing.lead, { currency: 'USD', figure: '$0.22 (includes estimates)' });
+  for (const id of ['sales', 'money', 'operations']) assert.equal(by[id].display, '$0.00', id);
+  assert.equal(shared!.display, 'under $0.01');
 
   const production = receipt(env, by.production.receiptId);
   assert.deepEqual(production.subject, { type: 'spent-department', department: 'production', from: '2026-10-01', to: '2026-10-31' });
@@ -188,10 +188,10 @@ test('spend by department: each paid call lands with the role its turn worked fo
   const parts = [...departments!.map(item => item.spendThisMonth.receiptId), shared!.receiptId].reduce((sum, id) => sum + BigInt(receipt(env, id).totalMinor), 0n);
   assert.equal(parts, BigInt(total.totalMinor));
   assert.equal(total.totalMinor, '222100', '3000 + 1000 + 2000 + 215600 + 500; the 30 September call is September\'s');
-  assert.equal(totals!.spendThisMonth.display, 'USD 0.2221 (includes estimates)');
+  assert.equal(totals!.spendThisMonth.display, '$0.22 (includes estimates)');
   const money = await moneyHandlers['venture.money.overview']!(env.deps, owner, {}) as { lines: { id: string; receiptId?: string }[] };
   assert.equal(money.lines.find(line => line.id === 'spent')!.receiptId, totals!.spendThisMonth.receiptId, "the same receipt as Money's figure");
-  assert.deepEqual([receipt(env, totals!.held!.receiptId).subject, totals!.held!.display], [{ type: 'held', scope: 'all', month: '2026-10' }, 'USD 0.2156']);
+  assert.deepEqual([receipt(env, totals!.held!.receiptId).subject, totals!.held!.display], [{ type: 'held', scope: 'all', month: '2026-10' }, '$0.22']);
 
   // With the owner's rupee rate, rupees show beside the dollars, labelled with that rate.
   await seedRupeeRate(env);
@@ -203,13 +203,13 @@ test('spend by department: each paid call lands with the role its turn worked fo
   assert.equal(by.marketing.rate, undefined, 'no rate without the owner\'s rupee rate');
   // 4Z3: a business in India with a rate: rupees lead the figure and the held words, the dollars to two decimals.
   // 217600 micros at 83.50: 1816.96 paise, ₹18.17; 22 cents. 215600 held: ₹18.00, 22 cents.
-  assert.equal(again.marketing.held, 'including ₹18.00 held for running work: USD 0.22 at ₹83.50 per $1 (your rate, set 15 Oct 2026)');
-  assert.deepEqual(again.marketing.lead, { currency: 'INR', figure: '₹18.17 (includes estimates)', beside: 'USD 0.22 at ₹83.50 per $1', other: 'USD 0.22' });
+  assert.equal(again.marketing.held, 'including ₹18 held for running work: $0.22 at ₹83.50 per $1 (your rate, set 15 Oct 2026)');
+  assert.deepEqual(again.marketing.lead, { currency: 'INR', figure: '₹18.17 (includes estimates)', beside: '$0.22 at ₹83.50 per $1', other: '$0.22' });
   // Dollars first: the dollars lead the held words too, the rupees after them at the rate.
   await moneyHandlers['venture.spend.policy.set']!(env.deps, owner, { currencyLead: 'usd' });
   const usd = Object.fromEntries((await list(env)).departments!.map(item => [item.id, item.spendThisMonth]));
-  assert.equal(usd.marketing.held, 'including USD 0.22 held for running work: ₹18.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)');
-  assert.deepEqual(usd.marketing.lead, { currency: 'USD', figure: 'USD 0.22 (includes estimates)', beside: '₹18.17 at ₹83.50 per $1', other: '₹18.17' });
+  assert.equal(usd.marketing.held, 'including $0.22 held for running work: ₹18 at ₹83.50 per $1 (your rate, set 15 Oct 2026)');
+  assert.deepEqual(usd.marketing.lead, { currency: 'USD', figure: '$0.22 (includes estimates)', beside: '₹18.17 at ₹83.50 per $1', other: '₹18.17' });
   await moneyHandlers['venture.spend.policy.set']!(env.deps, owner, { currencyLead: 'auto' });
   assert.equal(again.marketing.receiptId, by.marketing.receiptId, 'the same sum keeps its receipt');
 });
@@ -244,8 +244,8 @@ test('the fixed steps: the one agent spends for its department; calls that are n
   await seedSpend(env, { ref: 'call_turn', micros: '4000' });
   await seedSpend(env, { ref: 'call_blueprint', micros: '700' });
   const { departments, shared } = await list(env);
-  assert.equal(departments!.find(item => item.id === 'money')!.spendThisMonth.display, 'USD 0.0040');
-  assert.equal(shared!.display, 'USD 0.0007');
+  assert.equal(departments!.find(item => item.id === 'money')!.spendThisMonth.display, 'under $0.01');
+  assert.equal(shared!.display, 'under $0.01');
 });
 
 test("done this week: runs that reached review and finished rehearsals in the owner's week, with a count receipt; Keeper's jobs stay on its card", async () => {
@@ -296,14 +296,14 @@ test('the six-week series: jobs and spend per local week, scaled in code to the 
   assert.deepEqual(marketing.map(point => [point.value, point.valuePermille]), [[null, null], [null, null], [null, null], ['1', 500], [null, null], ['2', 1000]]);
   assert.deepEqual(marketing.map(point => point.receiptId === null), [true, true, true, false, true, false]);
   const production = departments!.find(item => item.id === 'production')!.series.spend;
-  assert.deepEqual(production.map(point => [point.value, point.valuePermille]), [[null, null], [null, null], [null, null], ['USD 0.0060', 1000], [null, null], ['USD 0.0030', 500]]);
+  assert.deepEqual(production.map(point => [point.value, point.valuePermille]), [[null, null], [null, null], [null, null], ['$0.01', 1000], [null, null], ['under $0.01', 500]]);
   const week = receipt(env, production[3].receiptId!);
   assert.deepEqual(week.subject, { type: 'spent-department', department: 'production', from: '2026-09-28', to: '2026-10-04' });
   assert.deepEqual(departments!.find(item => item.id === 'money')!.series.spend.map(point => point.valuePermille), [null, null, null, null, null, null], 'never 0');
   assert.ok(production.every(point => point.rupees === undefined), 'no rupees without the owner\'s rate');
   // 4Z3: each point as the owner's currency leads it; without a rate, dollars to two decimals (6000 micros: 1 cent;
   // 3000 micros rounds to no cents, so it reads as under a cent, never as nothing).
-  assert.deepEqual(production.map(point => point.lead ?? null), [null, null, null, { currency: 'USD', figure: 'USD 0.01' }, null, { currency: 'USD', figure: 'under USD 0.01' }]);
+  assert.deepEqual(production.map(point => point.lead ?? null), [null, null, null, { currency: 'USD', figure: '$0.01' }, null, { currency: 'USD', figure: 'under $0.01' }]);
   // With the owner's rate, each spend point shows rupees beside the dollars, labelled with that rate.
   await seedRupeeRate(env);
   const withRate = (await list(env)).departments!.find(item => item.id === 'production')!.series.spend;
@@ -311,7 +311,7 @@ test('the six-week series: jobs and spend per local week, scaled in code to the 
     '₹0.50 at ₹83.50 per $1 (your rate, set 15 Oct 2026)', null, '₹0.25 at ₹83.50 per $1 (your rate, set 15 Oct 2026)']);
   // 4Z3: with the rate, rupees lead each point (6000 micros: 50.1 paise, ₹0.50; 3000: ₹0.25).
   assert.deepEqual(withRate.map(point => point.lead?.figure ?? null), [null, null, null, '₹0.50', null, '₹0.25']);
-  assert.equal(withRate[3]!.lead!.beside, 'USD 0.01 at ₹83.50 per $1');
+  assert.equal(withRate[3]!.lead!.beside, '$0.01 at ₹83.50 per $1');
 });
 
 test('team: an idle agent reads Connect your AI until a connected AI can run; a code role, work in hand and a pause keep their own words', async () => {

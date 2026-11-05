@@ -38,21 +38,21 @@ test('spend policy: nothing set reads as no limit and no ask-first; set keeps wh
 
   const view = await set(env, { cap: '5000000', askFirst: '1000000', rates: [FAL_LINE] });
   assert.deepEqual({ ...base(view), rates: undefined }, {
-    capMicros: '5000000', askFirstMicros: '1000000', capUsd: '5.00', askFirstUsd: '1.00', cap: 'USD 5.0000 a month', askFirst: 'Asks you first above USD 1.0000', rates: undefined, setAt: env.now(),
+    capMicros: '5000000', askFirstMicros: '1000000', capUsd: '5.00', askFirstUsd: '1.00', cap: '$5.00 a month', askFirst: 'Asks you first above $1.00', rates: undefined, setAt: env.now(),
     inrPerUsd: null, rupeeRate: null,
   });
   assert.deepEqual(view.rates, [{
     item: 'connector:fal', unit: 'per-call', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: '150000',
-    source: 'fal pricing page', checkedOn: '2026-10-15', confirmed: true, by: 'owner', price: 'USD 0.1500 per call',
+    source: 'fal pricing page', checkedOn: '2026-10-15', confirmed: true, by: 'owner', price: '$0.15 per call',
     inputUsdPerMillion: null, outputUsdPerMillion: null, usdPerCall: '0.15',
   }]);
   assert.deepEqual(await get(env), view);
 
   const cleared = await set(env, { askFirst: null });
-  assert.deepEqual([cleared.cap, cleared.askFirst, cleared.rates.length], ['USD 5.0000 a month', 'Never asks first', 1]);
+  assert.deepEqual([cleared.cap, cleared.askFirst, cleared.rates.length], ['$5.00 a month', 'Never asks first', 1]);
 
   const tokens = await set(env, { rates: [{ item: 'model:openai-gpt-6-luna', unit: 'per-million-tokens', inputMicrosPerMillion: '1250000', outputMicrosPerMillion: '10000000', source: 'my invoice', checkedOn: '2026-10-01' }] });
-  assert.equal(tokens.rates[0].price, 'USD 1.2500 in and USD 10.0000 out, per million tokens');
+  assert.equal(tokens.rates[0].price, '$1.25 in and $10.00 out, per million tokens');
 });
 
 test('spend policy: set is refused outside the app, for a rate marked unconfirmed, and for odd figures', async () => {

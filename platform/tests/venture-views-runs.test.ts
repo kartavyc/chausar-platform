@@ -130,7 +130,7 @@ test('runs: a failed run shows the engine error; rehearsals are listed; unknown 
     });
     return tx.put<SimulationRunRecord>({
       ...tx.base('venture-simulation-run'), playbookId: 'playbook_x', playbookHash: 'h', scenarioIds: scenarios.slice(0, 2).map(item => item.id),
-      episodes: [episode(0, true), episode(1, false)], passed: false, summary: { scenarios: 2, passed: 1, failed: 1 }, costMicros: '0', costDisplay: 'USD 0.0000',
+      episodes: [episode(0, true), episode(1, false)], passed: false, summary: { scenarios: 2, passed: 1, failed: 1 }, costMicros: '0', costDisplay: '$0.00',
       startedAt: '2026-10-15T10:01:00.000Z', finishedAt: '2026-10-15T10:02:30.000Z', modelMode: 'template',
     });
   });

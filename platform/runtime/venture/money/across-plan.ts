@@ -5,8 +5,9 @@
 // its summary saved, with when, and never changes. Nothing here is a model number.
 import type { State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
+import { formatUsd } from '../../owner-format.ts';
 import type { AcrossFigureId, CountryProfile, IsoTime, SumReceiptSubject, VentureRecord } from '../contracts.ts';
-import { formatMicros, formatVentureDate } from '../records.ts';
+import { formatVentureDate } from '../records.ts';
 import { localDayAt, ownerClock } from '../local-day.ts';
 import { calendarMonth } from './dates.ts';
 import { invoicedPlan } from './goal-plans.ts';
@@ -39,7 +40,7 @@ function openPlan(state: State, venture: VentureRecord, subject: AcrossSubject):
  */
 export function acrossPlan(state: State, venture: VentureRecord, subject: AcrossSubject): SumPlan {
   const unit = subject.what === 'spend' ? 'micros' as const : 'minor' as const;
-  const shown = (amount: string) => (unit === 'micros' ? formatMicros(amount, subject.currency) : formatMinor(amount, subject.currency));
+  const shown = (amount: string) => (unit === 'micros' ? formatUsd(amount) : formatMinor(amount, subject.currency));
   const own: Addend[] = subject.open
     ? openPlan(state, venture, subject).addends.map(item => ({ ...item, label: `${venture.workingName}: ${item.label}` }))
     : [];

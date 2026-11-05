@@ -13,11 +13,12 @@
 // finished rehearsals, each counted once, in the department of the role that drafts the reply. Keeper's job runs are
 // not department work; they show on Keeper's own card. A TeamLedger works each run's steps, drafting step and each
 // call's part out once per request, so a read of the team stays linear in the size of the business.
+import { formatUsd } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import type {
   DeliveryRunRecord, DepartmentId, IsoDate, PlaybookStep, SpendRecord, SumReceiptSubject, VentureRecord,
 } from '../contracts.ts';
-import { formatMicros, formatVentureDate, listRecords } from '../records.ts';
+import { formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
@@ -167,7 +168,7 @@ export function departmentSpendPlan(state: State, venture: VentureRecord, subjec
   const addends: Addend[] = countedIn(ledger, subject.department, subject.from, subject.to).map(record => {
     const amount = countedMicros(record);
     const estimate = spendRow(record).kind === 'estimate';
-    return { recordId: record.id, label: record.label, amount, display: `${formatMicros(amount)}${estimate ? ' (estimate)' : ''}`, estimate };
+    return { recordId: record.id, label: record.label, amount, display: `${formatUsd(amount)}${estimate ? ' (estimate)' : ''}`, estimate };
   });
   const name = partName(subject.department);
   return {
@@ -180,7 +181,7 @@ export function departmentSpendPlan(state: State, venture: VentureRecord, subjec
 export function heldPlan(state: State, venture: VentureRecord, subject: Extract<SumReceiptSubject, { type: 'held' }>, ledger: TeamLedger = teamLedger(state, venture)): SumPlan {
   const { from, to } = monthDays(subject.month);
   const addends: Addend[] = countedIn(ledger, subject.scope, from, to).filter(record => record.phase === 'reserved')
-    .map(record => ({ recordId: record.id, label: record.label, amount: record.reservedMicros, display: `${formatMicros(record.reservedMicros)} (held)`, estimate: true }));
+    .map(record => ({ recordId: record.id, label: record.label, amount: record.reservedMicros, display: `${formatUsd(record.reservedMicros)} (held)`, estimate: true }));
   const name = partName(subject.scope);
   return {
     subject, currency: 'USD', unit: 'micros', addends,

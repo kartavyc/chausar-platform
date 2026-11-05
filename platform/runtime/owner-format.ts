@@ -248,8 +248,9 @@ export function formatCost(micros: string, options: { ownPlan?: boolean; paidCal
   const value = BigInt(micros), tail = options.estimate ? ' (estimate)' : '';
   if (value === 0n && options.ownPlan) return 'On your own AI plan';
   if (value === 0n && !options.paidCalls) return `Free${tail}`;
-  if (value > 0n && value < 10_000n) return `under $0.01${tail}`;
+  // Half up to cents; a cost above zero that still rounds to no cents reads "under $0.01", never as nothing.
   const cents = (value + 5_000n) / 10_000n;
+  if (value > 0n && cents === 0n) return `under $0.01${tail}`;
   return `$${grouped(String(cents / 100n), false)}.${String(cents % 100n).padStart(2, '0')}${tail}`;
 }
 
@@ -259,4 +260,9 @@ export function formatRate(micros: string): string {
   const tenThousandths = (BigInt(micros) + 50n) / 100n;
   const fraction = String(tenThousandths % 10_000n).padStart(4, '0');
   return `$${grouped(String(tenThousandths / 10_000n), false)}.${fraction.slice(0, 2)}${fraction.slice(2).replace(/0+$/, '')}`;
+}
+
+/** A dollar amount in micro units (spent, a limit, what is left): "$12.50", "$0.00" for nothing, "under $0.01" below a cent. */
+export function formatUsd(micros: string): string {
+  return formatCost(micros, { paidCalls: true });
 }

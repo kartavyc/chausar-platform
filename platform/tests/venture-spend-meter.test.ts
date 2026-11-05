@@ -40,7 +40,7 @@ test('limits: a daily cap and an alert share (80% unless set), set in US dollars
   assert.equal(fresh.meter, null, 'no monthly limit, no meter');
   const set = await policySet(env, { capUsd: '10.00', dailyCapUsd: '2.50', alertPermille: 750, inrPerUsd: '83.50' });
   assert.deepEqual([set.dailyCapMicros, set.dailyCapUsd, set.dailyCap, set.alertPermille, set.alert],
-    ['2500000', '2.50', 'USD 2.5000 a day', 750, "Today tells you at 75% of this month's limit."]);
+    ['2500000', '2.50', '$2.50 a day', 750, "Today tells you at 75% of this month's limit."]);
   assert.match(set.dailyCapRupees!, /^₹208\.75 at ₹83\.50 per \$1/);
   for (const bad of [{ alertPermille: 0 }, { alertPermille: 1001 }, { alertPermille: 79.5 }, { dailyCapUsd: '-1' }, { dailyCap: '12', dailyCapUsd: '1.00' }]) {
     await assert.rejects(policySet(env, bad), (error: any) => typeof error?.code === 'string', JSON.stringify(bad));
@@ -80,14 +80,14 @@ test('limit reached: only a key at its own monthly limit offers connecting anoth
   const env = await realPortEnv();
   await env.connect('anthropic-haiku-5-5');
   assert.equal((await env.money('venture.spend.policy.get')).keyLimits, undefined);
-  // This key's own limit is USD 5.00 a month (the default when it was connected): this month's calls reach it.
+  // This key's own limit is $5.00 a month (the default when it was connected): this month's calls reach it.
   await ventureAction(env.deps, portOwner, 'prepare', 'seed.calls', tx => tx.put({
     ...tx.base('venture-model-call'), purpose: 'interview', tier: 'fast', presetId: 'anthropic-haiku-5-5', status: 'completed', costMicros: '5000000', estimatedMaxCostMicros: '1000',
   } as never));
   const view = await env.money('venture.spend.policy.get');
   assert.deepEqual(view.keyLimits, [{
     scope: 'key', presetId: 'anthropic-haiku-5-5',
-    line: 'Claude Haiku 5.5 reached its own monthly limit of USD 5.0000. Nothing more goes to it until you raise that limit or the month ends.',
+    line: 'Claude Haiku 5.5 reached its own monthly limit of $5.00. Nothing more goes to it until you raise that limit or the month ends.',
     options: [{ id: 'raise', label: 'Raise its limit' }, { id: 'connect', label: 'Connect another key' }, { id: 'wait', label: 'Wait until 1 Nov' }],
   }]);
   // The port refuses the next call the same way, BUDGET_REACHED, before anything is sent.
@@ -108,7 +108,7 @@ test('daily cap: through preview then approve, a call that would pass today\'s c
   const second = await env.approveTask(wordsTask('interview', { containsClientData: true }));
   await assert.rejects(second.outcome, (error: any) => {
     assert.equal(error.code, 'SPEND_CAP');
-    assert.match(error.message, /^This could take today's spend to USD \d+\.\d{4}, past your daily limit of USD \d+\.\d{4}\. It was not run\. Raise the limit or wait until tomorrow\.$/);
+    assert.match(error.message, /^This could take today's spend to (?:\$[\d,]+\.\d{2}|under \$0\.01), past your daily limit of \$[\d,]+\.\d{2,4}\. It was not run\. Raise the limit or wait until tomorrow\.$/);
     return true;
   });
   assert.equal(env.sent.length, 1, 'nothing more was sent');
@@ -127,7 +127,7 @@ test('alert: one Today notice a month at the alert share; once seen it does not 
   await spent(env, '1500000');
   const row = (await queue(env)).rows.find(row => row.id.startsWith('spend:alert'))!;
   assert.equal(row.title, "85% of this month's AI limit is used");
-  assert.equal(row.line, 'USD 8.5000 of USD 10.0000, ₹709.75 of ₹835.00 at ₹83.50 per $1 (your rate, set 16 Oct 2026). It starts again on 1 Nov.');
+  assert.equal(row.line, '$8.50 of $10.00, ₹709.75 of ₹835 at ₹83.50 per $1 (your rate, set 16 Oct 2026). It starts again on 1 Nov.');
   assert.deepEqual(row.actions.map(item => [item.id, item.primary]), [['later', true]]);
   assert.equal((await decide(env, row, 'later')).outcome, 'done');
   await spent(env, '500000');
@@ -142,7 +142,7 @@ test('agent limit: through preview then approve, past its own monthly limit only
   const turn = await env.approveTask(wordsTask('agent-turn', { containsClientData: true }));
   await assert.rejects(turn.outcome, (error: any) => {
     assert.equal(error.code, 'SPEND_CAP');
-    assert.equal(error.message, 'Bookkeeping agent reached its own monthly limit of USD 1.0000, so it is paused until you raise it or the month ends. Other work goes on.');
+    assert.equal(error.message, 'Bookkeeping agent reached its own monthly limit of $1.00, so it is paused until you raise it or the month ends. Other work goes on.');
     return true;
   });
   assert.equal(env.sent.length, 0, 'the agent\'s call was not sent');
@@ -151,12 +151,12 @@ test('agent limit: through preview then approve, past its own monthly limit only
   assert.equal(env.sent.length, 1, 'other work goes on');
   await spent(env, '10', 'delivery');
   const view = await policyGet(env);
-  assert.deepEqual(view.agentCaps!.map(item => [item.agent, item.name, item.cap, item.paused]), [['delivery', 'Bookkeeping agent', 'USD 1.0000 a month', true]]);
+  assert.deepEqual(view.agentCaps!.map(item => [item.agent, item.name, item.cap, item.paused]), [['delivery', 'Bookkeeping agent', '$1.00 a month', true]]);
   assert.match(view.agentCaps![0].capRupees!, /^₹83\.50 at ₹83\.50 per \$1/);
   assert.match(view.agentCaps![0].usedRupees!, /^₹83\.50 at /);
   const rows = await call<{ rows: { id: string; title: string; line?: string }[] }>(env as never, 'venture.queue.list', {});
   const row = rows.rows.find(item => item.id.startsWith('spend:agent:delivery'))!;
-  assert.equal(row.title, 'Bookkeeping agent is paused: it reached its own monthly limit of USD 1.0000');
+  assert.equal(row.title, 'Bookkeeping agent is paused: it reached its own monthly limit of $1.00');
   assert.match(row.line!, /^Other work goes on\. Raise its limit in Money to let it go on this month\. Its limit is ₹83\.50 at ₹83\.50 per \$1/);
   await assert.rejects(policySet(env, { agentCaps: [{ agent: 'delivery', capUsd: '1.00' }, { agent: 'delivery', capUsd: '2.00' }] }), code('INVALID_VENTURE_REQUEST'));
 });
@@ -199,7 +199,7 @@ test('projection: native paid jobs use settled usage while plan jobs and unknown
   assert.deepEqual(meter.projection && { line: meter.projection.line, label: meter.projection.label, count: meter.projection.runIds.length },
     { line: "About 13 more drafts at today's cost", label: 'projection from your last 2 drafts', count: 2 });
   assert.deepEqual([...meter.projection!.runIds].sort(),paidIds.sort());
-  assert.equal(meter.projection!.left, 'USD 0.0078 left');
+  assert.equal(meter.projection!.left, '$0.01 left');
   assert.match(meter.projection!.leftRupees!, /^₹0\.65 at ₹83\.50 per \$1/, 'the room left in rupees too, at the owner\'s rate');
 });
 

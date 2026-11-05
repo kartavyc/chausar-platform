@@ -8,11 +8,12 @@
 // failed journal-sweep run when that can be written. Connection checks (4J7), network strength (4D2), the needs-you
 // probes (4G2) and the calendar feed (4E3) write their own runs; until one does, the job says "Not run yet". Nothing
 // here claims a run that has no record. Keeper's runs are shown only on its card, never as department jobs.
+import { formatUsd } from '../../owner-format.ts';
 import { type Context, type State } from '../../contracts.ts';
 import type {
   AgentView, KeeperJobId, KeeperJobView, KeeperOutcome, KeeperRunRecord, KeeperView, Posture, VentureDeps, VentureRecord,
 } from '../contracts.ts';
-import { currentVenture, exactPayload, formatMicros, formatVentureDate, listRecords, readVenture, ventureAction, type VentureTx } from '../records.ts';
+import { currentVenture, exactPayload, formatVentureDate, listRecords, readVenture, ventureAction, type VentureTx } from '../records.ts';
 import { acceptedBlueprintOrNull, todayIso } from '../delivery/shared.ts';
 import { currentPlaybook, deliveryFlagship } from '../delivery/playbook.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
@@ -123,7 +124,7 @@ export async function teamKeeperHandler(deps: VentureDeps, ctx: Context, payload
 export function keeperAgent(state: State, venture: VentureRecord, posture: Posture): AgentView {
   const failed = listRecords(state, 'venture-keeper-run', venture.id).some(record => record.outcome === 'failed');
   return plain({
-    id: KEEPER_ID, name: KEEPER_NAME, role: KEEPER_ROLE, now: KEEPER_WORDS.idle, posture, spend: formatMicros('0'), steps: [],
+    id: KEEPER_ID, name: KEEPER_NAME, role: KEEPER_ROLE, now: KEEPER_WORDS.idle, posture, spend: formatUsd('0'), steps: [],
     department: 'operations' as const, kind: 'code' as const, state: failed ? 'failed' as const : 'idle' as const, chat: false,
   });
 }

@@ -78,6 +78,7 @@ test('AI cost in the owner form: own plan, free, under a cent, cents, and an unc
   assert.equal(formatCost('0'), 'Free');
   assert.equal(formatCost('0', { paidCalls: true }), '$0.00');
   assert.equal(formatCost('4200'), 'under $0.01');
+  assert.equal(formatCost('5000'), '$0.01'); // half a cent rounds up, as the lead figures always did
   assert.equal(formatCost('421300'), '$0.42');
   assert.equal(formatCost('425000'), '$0.43');
   assert.equal(formatCost('421300', { estimate: true }), '$0.42 (estimate)');

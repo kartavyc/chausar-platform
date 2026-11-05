@@ -59,7 +59,8 @@ export function monthlyCapMicros(value: unknown): MicroString {
   return usdToMicros(value, { field: 'Monthly limit', decimals: 2, min: '10000' });
 }
 
-export const ESTIMATE_WORDS = ' (estimate, price unconfirmed)';
+// B2: the owner form's words for an unconfirmed price, the same as formatCost's.
+export const ESTIMATE_WORDS = ' (estimate)';
 export const OWN_PLAN_WORDS = ' (runs on your own plan)';
 
 /**
