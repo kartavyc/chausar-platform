@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { receiptMark } from '../helpers/ink-rules';
+import common from '../../src/text/en/common.json';
 
 type Call = [string, unknown];
 type Override = (params: unknown, request: (method: string, params?: unknown) => Promise<unknown>) => unknown;
@@ -182,6 +183,25 @@ describe('Money: invoices', () => {
     const back = await screen.findByRole('complementary', { name: 'INV-0039' });
     await waitFor(() => expect(figuresOf(back)).toContainEqual(['Balance', '₹0']));
     expect(back.textContent).toContain('21 Oct 2026 · UPI');
+  });
+
+  it('after the whole amount is recorded, the invoice row in the list says Paid and has no Record payment (B3)', async () => {
+    start('#/money/invoices?sheet=payment:inv-0039');
+    const table = await screen.findByRole('table', { name: /invoices/i });
+    const row = () => within(table).getByRole('button', { name: 'Invoice INV-0039' }).closest('tr')!;
+    await waitFor(() => expect(row().textContent).toContain(common['state.invoice.issued']));
+    expect(within(row()).getByRole('button', { name: 'Record payment' })).toBeTruthy();
+    const sheet = await screen.findByRole('complementary', { name: 'Record a payment' });
+    await waitFor(() => expect(sheet.querySelector('[data-figure-group] [data-receipt^="R-"]')).not.toBeNull());
+    fireEvent.change(within(sheet).getByLabelText('Amount received'), { target: { value: '26,200' } });
+    fireEvent.change(within(sheet).getByLabelText('Received on'), { target: { value: '2026-10-21' } });
+    fireEvent.change(within(sheet).getByLabelText('How it was paid'), { target: { value: 'upi' } });
+    await click(within(sheet).getByRole('button', { name: 'Record payment' }));
+    await click(within(sheet).getByRole('button', { name: 'Record' }));
+    await waitFor(() => expect(sheet.textContent).toContain('Payment recorded.'));
+    await waitFor(() => expect(row().textContent).toContain(common['state.invoice.paid']));
+    expect(row().textContent).not.toContain(common['state.invoice.issued']);
+    expect(within(row()).queryByRole('button', { name: 'Record payment' })).toBeNull();
   });
 
   it('shows the engine refusal of a payment in its own words and keeps the form', async () => {
