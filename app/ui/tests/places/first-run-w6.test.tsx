@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
-import type { EngineClient, ModelStatusLite } from '../../src/engine/types';
+import { EngineError, type EngineClient, type ModelStatusLite } from '../../src/engine/types';
+import firstRun from '../../src/text/en/first-run.json';
 import { answerSideWork, confirmProfession } from './first-run-steps';
 
 /**
@@ -152,6 +153,28 @@ describe('first run, step 2: About you, A that becomes B', () => {
     await press('Back to fields');
     expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect((screen.getByRole('textbox', { name: 'Tell Chausar about your work' }) as HTMLTextAreaElement).value).toBe(CA);
+  });
+
+  it('a read that fails says so in the preview, not that it is updating or reading (B3)', async () => {
+    reducedMotion(false);
+    const engine = new FakeEngine({ fresh: true });
+    const fake = createFakeClient(engine);
+    const client: EngineClient = {
+      ...fake,
+      request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.about.read'
+        ? Promise.reject(new EngineError('MODEL_UNAVAILABLE', 'Your AI did not answer. Try again in a moment.', undefined, true))
+        : fake.request(method as never, params as never))) as EngineClient['request'],
+    };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await skipAi();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: CA } });
+    await press('Send');
+    const preview = await screen.findByRole('region', { name: 'Your business, live' });
+    await waitFor(() => expect(within(preview).getByRole('alert').textContent).toBe('Your AI did not answer. Try again in a moment.'));
+    expect(screen.queryByText(firstRun['first-run.about.updating'])).toBeNull();
+    expect(screen.queryByText(firstRun['first-run.about.reading'])).toBeNull();
+    expect(screen.getAllByText('Your AI did not answer. Try again in a moment.')).toHaveLength(1);
   });
 
   it('moves nothing with reduced motion', async () => {
