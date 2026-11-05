@@ -268,14 +268,15 @@ function withKnowledge(instructions: string, ctx: Pick<LoopContext, 'knowledge'>
 }
 
 /**
- * The model task's instructions, with the waiting calls said in Chausar's own trusted words and listed in the input.
- * Nothing changes while nothing waits, so the text the owner approves stays the same.
+ * The model task's instructions, with Chausar's own fixed line about waiting calls; the calls themselves are listed in
+ * the input (D2: never in the instructions, so the fixed prompt stays the same from one call to the next). Nothing
+ * changes while nothing waits, so the text the owner approves stays the same.
  */
 function withAwaiting(instructions: string, state: HarnessState, input: Record<string, Json>): string {
   const calls = awaitingApproval(state);
   if (!calls.length) return instructions;
   input.awaitingApproval = { note: AWAITING_APPROVAL, calls };
-  return `${instructions} ${AWAITING_APPROVAL} ${calls.map(item => `${item.call} (${item.tool})`).join(', ')}. Never say they were sent or done.`;
+  return `${instructions} ${AWAITING_APPROVAL} They are listed in awaitingApproval. Never say they were sent or done.`;
 }
 
 /**

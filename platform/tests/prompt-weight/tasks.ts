@@ -9,7 +9,7 @@ import { countrySuggestionTask } from '../../runtime/venture/core/country-sugges
 import { interviewTask } from '../../runtime/venture/core/interview.ts';
 import { composeTask, decideTask } from '../../runtime/venture/core/compose.ts';
 import { countryProfile } from '../../runtime/venture/core/countries.ts';
-import { suggestTask } from '../../runtime/venture/core/suggest.ts';
+import { suggestRepairTask, suggestTask } from '../../runtime/venture/core/suggest.ts';
 import { briefFillTask, briefTask } from '../../runtime/venture/build/brief.ts';
 import { deliveryTask } from '../../runtime/venture/delivery/deliverable.ts';
 import { actTask, DEFAULT_LIMITS, newHarnessState, writeTask } from '../../runtime/venture/delivery/harness/loop.ts';
@@ -88,6 +88,8 @@ export const REGISTRY: readonly Builder[] = [
   { name: 'compose', purpose: 'compose', site: 'core/compose.ts', build: fx => composeTask(decision(fx)) },
   { name: 'compose-repair', purpose: 'compose', site: 'core/compose.ts', build: fx => composeTask(decision(fx), fx.problem) },
   { name: 'plan-suggest', purpose: 'plan-suggest', site: 'core/suggest.ts', build: fx => suggestTask({ venture: venture(fx), blueprint: blueprint(fx), words: fx.ask, file: null }) },
+  { name: 'plan-suggest-repair', purpose: 'plan-suggest', site: 'core/suggest.ts',
+    build: fx => suggestRepairTask(suggestTask({ venture: venture(fx), blueprint: blueprint(fx), words: fx.ask, file: null }), fx.problem) },
   { name: 'brief', purpose: 'brief', site: 'build/brief.ts', build: fx => briefTask(venture(fx), blueprint(fx), template) },
   { name: 'brief-fill', purpose: 'brief', site: 'build/brief.ts', build: fx => {
     const base = briefTask(venture(fx), blueprint(fx), template);

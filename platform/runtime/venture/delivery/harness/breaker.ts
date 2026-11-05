@@ -13,7 +13,7 @@ import type { AlreadyTried, BreakerTrip, HarnessState, IsoTime, Json, PlaybookSt
 import { digest } from '../../records.ts';
 import { TOOL_PURPOSE } from './tool-purpose.ts';
 import { fixOf } from '../failure-words.ts';
-import { repairWords } from './repair.ts';
+import { repairReason, repairWords } from './repair.ts';
 import { runCapMicros } from './loop.ts';
 import { screenUntrusted } from '../../policy/untrusted.ts';
 
@@ -173,7 +173,10 @@ export function withRunWords(instructions: string, state: HarnessState, input: R
     words = `${words} ${TRIED_LINE}`;
   }
   const repair = repairWords(state);
-  if (repair) words = `${words} ${repair}`;
+  if (repair) {
+    input.repair = { reason: repairReason(state) };
+    words = `${words} ${repair}`;
+  }
   if (context.budget?.nearlyUsed || runNearCap(state)) {
     input.budget = { ...(input.budget as Record<string, Json> | undefined ?? {}), note: BUDGET_LINE };
     words = `${words} ${BUDGET_LINE}`;

@@ -53,3 +53,42 @@ test('part 1: the routes send the fixed instructions first, then the changing in
     assert.equal(cli.stdin, captured.input, builder.name);
   }
 });
+
+/** The string leaves of a value. */
+function leaves(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) for (const item of value) leaves(item, out);
+  else if (value && typeof value === 'object') for (const item of Object.values(value)) leaves(item, out);
+  return out;
+}
+
+test('part 2: no instructions in the engine change from call to call, except through a reviewed wrapper', () => {
+  assert.deepEqual(sites.filter(site => site.verdict === 'changing').map(site => `${site.file}:${site.line} ${site.why}`), [],
+    'move the changing part into the input and keep a fixed line in the instructions');
+});
+
+test('part 2: every builder sends the same instructions for two different businesses, clients, dates and amounts', () => {
+  const problems: string[] = [];
+  for (const builder of REGISTRY) {
+    const a = builder.build(FIXTURES.A), b = builder.build(FIXTURES.B);
+    const variants = builder.variants?.();
+    if (variants) {
+      if (!variants.includes(a.instructions) || !variants.includes(b.instructions)) problems.push(`${builder.name}: a text outside its variants`);
+    } else if (a.instructions !== b.instructions) problems.push(`${builder.name}: the instructions differ between the two contexts`);
+    // What changes between the contexts must not reach the instructions: no changing ISO date or time, no changing
+    // string of six characters or more, no changing number of three digits or more. (A fixed date, such as a protocol
+    // version written in the instructions, is the same in both and is not a changing part.)
+    const changingA = new Set(leaves(a.input)), leavesB = leaves(b.input), inB = new Set(leavesB);
+    for (const value of inB) changingA.delete(value);
+    const isoIn = (text: string) => (text.match(/\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}[:\d.]*Z?)?/g) ?? []).sort().join(' ');
+    if (isoIn(a.instructions) !== isoIn(b.instructions)) problems.push(`${builder.name}: an ISO date or time that changes is in the instructions`);
+    const numbersB = new Set(leavesB.flatMap(value => value.match(/\d{3,}/g) ?? []));
+    for (const value of changingA) {
+      if (value.length >= 6 && a.instructions.includes(value)) problems.push(`${builder.name}: the input value "${value.slice(0, 40)}" is in the instructions`);
+      for (const number of value.match(/\d{3,}/g) ?? []) {
+        if (!numbersB.has(number) && a.instructions.includes(number)) problems.push(`${builder.name}: the number ${number} from the input is in the instructions`);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(problems)], []);
+});

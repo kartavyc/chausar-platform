@@ -8,16 +8,20 @@
 // this is a rewrite, not a copy.
 import type { HarnessState } from '../../contracts.ts';
 
-/** The repair turn's words to the agent, in Chausar's own words, with what could not be read. */
-export const REPAIR_LINE = (reason: string): string => `Your last answer could not be read: ${reason} Answer again in the same shape.`;
+/** The repair turn's words to the agent, in Chausar's own fixed words; what could not be read is in the input (D2). */
+export const REPAIR_LINE = 'Your last answer could not be read; why is given as repair in the input. Answer again in the same shape.';
 /** Why a run fails when the repair turn came back in a bad shape too. */
 export const REPAIRED_TWICE = (reason: string): string => `Your AI answered twice in a shape Chausar could not read: ${reason}`;
 
 const sentence = (text: string) => { const words = text.replace(/\s+/g, ' ').trim().slice(0, 300); return /[.!?]$/.test(words) ? words : `${words}.`; };
 
-/** The repair words the act turn carries: only the turn being repaired, once. */
-export function repairWords(state: Pick<HarnessState, 'phase' | 'repairs' | 'used'>): string | null {
+/** What the repair turn says could not be read: only the turn being repaired, once (it rides in the input). */
+export function repairReason(state: Pick<HarnessState, 'phase' | 'repairs' | 'used'>): string | null {
   if (state.phase !== 'act') return null;
-  const open = (state.repairs ?? []).find(item => item.turn === state.used.turns + 1);
-  return open ? REPAIR_LINE(open.reason) : null;
+  return (state.repairs ?? []).find(item => item.turn === state.used.turns + 1)?.reason ?? null;
+}
+
+/** The repair words the act turn carries: the fixed line, only on the turn being repaired, once. */
+export function repairWords(state: Pick<HarnessState, 'phase' | 'repairs' | 'used'>): string | null {
+  return repairReason(state) === null ? null : REPAIR_LINE;
 }
