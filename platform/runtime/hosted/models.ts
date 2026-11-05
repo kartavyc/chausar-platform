@@ -5,6 +5,7 @@
 // business (4J23) has its own lower rate and ceiling, and a call of its leaves only on the owner's own key.
 import { ChausarError } from '../contracts.ts';
 import type { ModelHttpRequest, ModelHttpResponse, ModelTransport } from '../venture/contracts.ts';
+import { recordedCallMicros } from '../venture/models/cost.ts';
 import { AVAILABILITY_REASONS } from '../venture/models/presets.ts';
 import { formatMicros } from '../venture/records.ts';
 import { checkMonthlyCeiling, monthOf, type ConcurrencyGate, type RateLimiter, type UsageEntry } from './limits.ts';
@@ -49,10 +50,19 @@ export function hostedModelTransport(options: HostedTransportOptions): ModelTran
   });
 }
 
-/** New ledger entries from a business's recorded calls: finished calls with a cost, not already in the ledger. */
-export function usageFromCalls(businessId: string, calls: readonly { id: string; at: string; status: string; costMicros: string | null }[], known: readonly UsageEntry[]): UsageEntry[] {
+/** A recorded call as the ledger reads it (venture.models.calls answers the whole record). */
+export type RecordedCall = { id: string; at: string; status: string; costMicros: string | null; usage: unknown; estimatedMaxCostMicros: string };
+
+/**
+ * New ledger entries from a business's recorded calls: finished calls with a cost, not already in the ledger. D3 fix:
+ * a held call (its cost null beside reported usage) counts at its reservation, as its spend row does; a call that never
+ * got a price (no usage) counts nothing.
+ */
+export function usageFromCalls(businessId: string, calls: readonly RecordedCall[], known: readonly UsageEntry[]): UsageEntry[] {
   const seen = new Set(known.map(entry => entry.callId));
-  return calls
-    .filter(call => (call.status === 'completed' || call.status === 'failed') && typeof call.costMicros === 'string' && /^\d{1,18}$/.test(call.costMicros) && !seen.has(call.id))
-    .map(call => ({ callId: call.id, businessId, month: monthOf(call.at), costMicros: call.costMicros as string, at: call.at }));
+  return calls.flatMap(call => {
+    if ((call.status !== 'completed' && call.status !== 'failed') || seen.has(call.id)) return [];
+    const costMicros = recordedCallMicros(call);
+    return costMicros === null ? [] : [{ callId: call.id, businessId, month: monthOf(call.at), costMicros, at: call.at }];
+  });
 }
