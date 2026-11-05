@@ -83,6 +83,19 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
   if (TRIM.claudeBinary === 'none' && platformPackages.length) problems.push(`a Claude Code program file: ${platformPackages.join(', ')}`);
   if (!anthropic.includes('claude-agent-sdk') && !archived.includes('claude-agent-sdk')) problems.push('the Agent SDK is missing');
 
+  // D7: the engine bundle the packaged worker runs, unpacked, and none of its source maps.
+  const bundle = join(unpacked, 'app', 'engine', 'dist');
+  let bundleWorker = false;
+  try { bundleWorker = (await lstat(join(bundle, 'runtime', 'worker.js'))).isFile(); } catch { bundleWorker = false; }
+  if (!bundleWorker) problems.push("the engine bundle's worker (app/engine/dist/runtime/worker.js) is not unpacked");
+  const maps = [];
+  try {
+    for (const entry of await readdir(bundle, { withFileTypes: true, recursive: true })) {
+      if (entry.isFile() && entry.name.endsWith('.map')) maps.push(join(entry.parentPath ?? entry.path, entry.name).slice(unpacked.length + 1).replace(/\\/g, '/'));
+    }
+  } catch { /* no bundle: named above */ }
+  if (maps.length) problems.push(`a source map ships: ${maps.slice(0, 3).join(', ')}`);
+
   let codexVersion = null;
   try { codexVersion = JSON.parse(await readFile(join(resources, 'codex', 'BUNDLE.json'), 'utf8')).version ?? null; } catch { codexVersion = null; }
   if (mode !== 'preview') {
@@ -101,6 +114,8 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
     'app.asar.unpacked/platform': (await measure(join(unpacked, 'platform'))).bytes,
     'app.asar.unpacked/platform files': (await measure(join(unpacked, 'platform'))).files,
     'app.asar': (await measure(join(resources, 'app.asar'))).bytes,
+    'app/engine/dist': (await measure(bundle)).bytes,
+    'app/engine/dist files': (await measure(bundle)).files,
   };
   return { unpackedDir: resolve(unpackedDir), mode, locales, anthropic, codexVersion, archive: { files: archive.length }, sizes, totalBytes: total.bytes, fileCount: total.files, problems };
 }

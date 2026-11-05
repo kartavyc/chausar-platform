@@ -39,12 +39,14 @@ function asar(files: Record<string, string>): Buffer {
   return Buffer.concat([size, header, ...bodies]);
 }
 
-type Build = { locales?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null };
+type Build = { locales?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null; bundle?: string[] };
 const CLEAN: Required<Build> = {
   locales: ['en-GB.pak', 'en-US.pak', 'hi.pak'],
   archive: { 'app/ui/dist/index.html': '<!doctype html>', 'app/ui/dist/assets/index.js': 'x', 'app/desktop/main.cjs': 'x', 'package.json': '{}' },
   anthropic: ['claude-agent-sdk'],
   codex: '0.166.0',
+  // D7: the engine bundle, unpacked.
+  bundle: ['runtime/worker.js', 'runtime/engine-paths-x.js', 'engine-manifest.json'],
 };
 
 async function build(t: any, overrides: Build = {}) {
@@ -64,6 +66,11 @@ async function build(t: any, overrides: Build = {}) {
   await mkdir(join(root, 'resources', 'app.asar.unpacked', 'platform', 'runtime'), { recursive: true });
   await writeFile(join(root, 'resources', 'app.asar.unpacked', 'platform', 'runtime', 'worker.ts'), 'worker');
   await writeFile(join(root, 'resources', 'app.asar'), asar(spec.archive));
+  for (const file of spec.bundle) {
+    const path = join(root, 'resources', 'app.asar.unpacked', 'app', 'engine', 'dist', ...file.split('/'));
+    await mkdir(join(path, '..'), { recursive: true });
+    await writeFile(path, 'bundle');
+  }
   if (spec.codex !== null) {
     await mkdir(join(root, 'resources', 'codex'), { recursive: true });
     await writeFile(join(root, 'resources', 'codex', 'BUNDLE.json'), JSON.stringify({ version: spec.codex }));
@@ -85,10 +92,11 @@ test('a clean build has no problems and reports the size of each piece', async t
   assert.deepEqual(contents.anthropic, ['claude-agent-sdk']);
   assert.equal(contents.codexVersion, '0.166.0');
   assert.equal(contents.archive.files, 4);
-  for (const piece of ['codex', 'electron', '@anthropic-ai', '@duckdb', 'locales', 'app.asar.unpacked/platform', 'app.asar']) assert.equal(typeof contents.sizes[piece], 'number', piece);
+  for (const piece of ['codex', 'electron', '@anthropic-ai', '@duckdb', 'locales', 'app.asar.unpacked/platform', 'app.asar', 'app/engine/dist']) assert.equal(typeof contents.sizes[piece], 'number', piece);
   assert.equal(contents.sizes.locales, 9);
   assert.ok(contents.totalBytes > 2048);
-  assert.equal(contents.fileCount, 9);
+  assert.equal(contents.fileCount, 12);
+  assert.equal(contents.sizes['app/engine/dist'], 18);
 });
 
 test('each problem is named', async t => {
@@ -102,6 +110,8 @@ test('each problem is named', async t => {
     [{ archive: { ...CLEAN.archive, 'app/ui/src/main.tsx': 'x' } }, /Ink source in the archive: app\/ui\/src\/main\.tsx/],
     [{ codex: '0.154.0' }, /Codex 0\.154\.0, not 0\.166\.0/],
     [{ codex: null }, /the bundled Codex is missing/],
+    [{ bundle: ['engine-manifest.json'] }, /the engine bundle's worker \(app\/engine\/dist\/runtime\/worker\.js\) is not unpacked/],
+    [{ bundle: [...CLEAN.bundle, 'runtime/worker.js.map'] }, /a source map ships: app\/engine\/dist\/runtime\/worker\.js\.map/],
   ];
   for (const [overrides, expected] of cases) {
     const contents = await readPackageContents(await build(t, overrides), { mode: 'beta' });

@@ -231,6 +231,29 @@ const onlyPinnedHook = config => {
 
 // D5: the installer trim (package-trim.mjs): three Chromium languages and no Claude Code program file.
 export { TRIM };
+// D7 task 6 (additive half): every build carries the engine bundle (scripts/bundle-engine.mjs) as its own file set,
+// unpacked, so the packaged worker can run as plain files. Its maps never ship. The engine source still ships beside it
+// until desktop main runs the bundle (D7 task 5, main lane).
+export const ENGINE_BUNDLE = Object.freeze({
+  fileSet: Object.freeze({ from: 'app/engine/dist', to: 'app/engine/dist', filter: Object.freeze(['**/*']) }),
+  unpack: 'app/engine/dist/**/*',
+  worker: 'app/engine/dist/runtime/worker.js',
+  manifest: 'app/engine/dist/engine-manifest.json',
+});
+/** Every mode: the bundle as its own file set (never a glob in the main set), unpacked, and no maps. */
+export function validateEngineBundleConfig(config) {
+  const files = Array.isArray(config.files) ? config.files : [];
+  const own = files.some(entry => JSON.stringify(entry) === JSON.stringify(ENGINE_BUNDLE.fileSet));
+  const glob = files.some(entry => typeof entry === 'string' && entry.replace(/^!/, '').startsWith('app/engine/'));
+  if (!own || glob || !(config.asarUnpack ?? []).includes(ENGINE_BUNDLE.unpack)) throw new Error(`the package carries the engine bundle as its own file set (${ENGINE_BUNDLE.fileSet.from}) and unpacks it (${ENGINE_BUNDLE.unpack}); its maps never ship`);
+}
+/** The receipt's line for the engine bundle, from its engine-manifest.json. */
+export function engineReceipt(manifest) {
+  const ok = manifest && Array.isArray(manifest.entries) && manifest.entries.length > 0 && Number.isInteger(manifest.chunks) && Number.isInteger(manifest.bytes);
+  if (!ok) throw new Error('the engine bundle has no readable engine-manifest.json');
+  return { entries: [...manifest.entries], chunks: manifest.chunks, bytes: manifest.bytes, files: manifest.files, rolldown: manifest.rolldown, sourceCommit: manifest.sourceCommit ?? null };
+}
+
 /** Every mode: exactly the three languages, and the Agent SDK's platform packages left out after node_modules. */
 export function validateTrim(config) {
   if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
@@ -371,6 +394,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
     validateInkPackagingConfig(config);
     validateIconConfig(config);
     validateTrim(config);
+    validateEngineBundleConfig(config);
     if (plan.mode === 'preview') validatePreviewConfig(config);
     else if (plan.mode === 'beta') validateBetaConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');
@@ -459,12 +483,14 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
 }
 
 /**
- * The children packaging runs, in order: the Ink build (vite build, which empties and refills app/ui/dist), then
- * electron-builder. Each is a local CLI run by this Node, with no shell. Nothing else is spawned.
+ * The children packaging runs, in order: the Ink build (vite build, which empties and refills app/ui/dist), the engine
+ * bundle (D7, which empties and refills app/engine/dist), then electron-builder. Each is a local CLI run by this Node, with no shell. Nothing else is spawned.
  */
 export function desktopPackageCommands(plan, { cliPath, viteCli }) {
   return [
     { name: 'Ink build', args: [viteCli, 'build', '--config', inkConfig] },
+    // D7: the engine bundle the packaged worker runs (npm run build:engine).
+    { name: 'engine bundle', args: ['scripts/bundle-engine.mjs'] },
     { name: 'electron-builder', args: [cliPath, ...plan.builderArguments] },
   ];
 }
@@ -488,6 +514,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   const { receiptPath, expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: prerequisites.version });
   // 6J2: the report keys are staged before electron-builder copies the resources; the demo preview carries none.
   const feedback = plan.mode !== 'preview' ? await stageFeedbackKeys({ root, environment }) : undefined;
+  let engine;
   for (const command of desktopPackageCommands(plan, prerequisites)) {
     const status = await new Promise((accept, reject) => {
       const child = spawn(process.execPath, command.args, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
@@ -497,6 +524,8 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (status !== 0) throw new Error(`${command.name} failed with exit code ${status}`);
     // The window refuses to start without the build, so a package without it is refused here first.
     if (command.name === 'Ink build') await regular(join(root, 'app/ui/dist/index.html'));
+    // D7: the packaged worker is the bundle's, so a build without it is refused here.
+    if (command.name === 'engine bundle') { await regular(join(root, ENGINE_BUNDLE.worker)); engine = engineReceipt(JSON.parse(await readFile(join(root, ENGINE_BUNDLE.manifest), 'utf8'))); }
   }
   // D5 task 4: no receipt for a build that lacks its notices (or carries report keys nobody staged).
   let contents;
@@ -526,7 +555,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     bundled = bundledReceipt(codex, plan);
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}), ...(contents ? { contents } : {}) };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}), ...(contents ? { contents } : {}), ...(engine ? { engine } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }

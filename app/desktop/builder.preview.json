@@ -36,6 +36,13 @@
     "platform/semantic-qualification/src/**/*",
     "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
+    {
+      "from": "app/engine/dist",
+      "to": "app/engine/dist",
+      "filter": [
+        "**/*"
+      ]
+    },
     "scripts/postgres-runtime.mjs",
     "fixtures/**/*",
     "package.json",
@@ -49,7 +56,8 @@
     "platform/semantic-qualification/src/**/*",
     "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
-    "scripts/postgres-runtime.mjs"
+    "scripts/postgres-runtime.mjs",
+    "app/engine/dist/**/*"
   ],
   "extraResources": [],
   "win": {

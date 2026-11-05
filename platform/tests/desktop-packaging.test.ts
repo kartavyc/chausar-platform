@@ -208,10 +208,11 @@ test('both configurations ship the Ink build and none of its sources, tooling or
 test('packaging builds Ink with the local Vite CLI, as npm run build:ui does, before electron-builder runs', () => {
   const plan = createDesktopPackagePlan();
   const commands = desktopPackageCommands(plan, { cliPath: '/local/electron-builder/cli.js', viteCli: '/local/vite/bin/vite.js' });
-  assert.deepEqual(commands.map((command: any) => command.name), ['Ink build', 'electron-builder']);
+  // D7: the engine bundle runs between them (desktop-engine-bundle-d7.test.ts).
+  assert.deepEqual(commands.map((command: any) => command.name), ['Ink build', 'engine bundle', 'electron-builder']);
   assert.deepEqual(commands[0].args, ['/local/vite/bin/vite.js', 'build', '--config', 'app/ui/vite.config.ts']);
   assert.equal(pkg.scripts['build:ui'], `vite ${commands[0].args.slice(1).join(' ')}`, 'the package build and npm run build:ui are the same build');
-  assert.deepEqual(commands[1].args, ['/local/electron-builder/cli.js', ...plan.builderArguments]);
+  assert.deepEqual(commands[2].args, ['/local/electron-builder/cli.js', ...plan.builderArguments]);
   assert.ok(pkg.devDependencies.vite, 'vite is a pinned dependency the prerequisites check');
 });
 
