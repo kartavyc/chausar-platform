@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { check, ChausarError, hash } from './contracts.ts';
+// B1 fix round 2: sync refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
+import { asInternal, internalCheck as check, InternalError, hash } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import type { SyncHead, SyncLease, SyncSnapshot, SyncTransport } from './sync.ts';
 
@@ -111,7 +112,7 @@ export class FileSyncTransport implements SyncTransport {
     } finally { await file.close(); }
   }
   #parse(raw: string): any {
-    let value; try { value = JSON.parse(raw); } catch { throw new ChausarError('SYNC_STORE_CORRUPT', 'The sync store contains an invalid record.'); }
+    let value; try { value = JSON.parse(raw); } catch { throw new InternalError('SYNC_STORE_CORRUPT', 'The sync store contains an invalid record.'); }
     check(JSON.stringify(value) === raw, 'SYNC_STORE_CORRUPT', 'The sync store record is not canonical JSON.');
     return value;
   }
@@ -138,7 +139,7 @@ export class FileSyncTransport implements SyncTransport {
     const lock = await acquireProcessLock(join(this.directory, '.writer.lock'), {
       busyCode: 'SYNC_STORE_BUSY', changedCode: 'SYNC_LOCK_CHANGED', unsafeCode: 'SYNC_UNSAFE_PATH',
       busyMessage: 'Another local process holds or may hold the sync transaction lock.',
-    });
+    }).catch((error: unknown) => { throw asInternal(error); });
     try { await this.#fault?.('after-lock'); return await action(); }
     finally { await lock.release(); }
   }
@@ -174,7 +175,7 @@ export class FileSyncTransport implements SyncTransport {
     return state;
   }
   #time(state: Authority): number {
-    let ms: number; try { ms = this.#clock().getTime(); } catch { throw new ChausarError('SYNC_CLOCK_INVALID', 'The trusted sync clock is unavailable.'); }
+    let ms: number; try { ms = this.#clock().getTime(); } catch { throw new InternalError('SYNC_CLOCK_INVALID', 'The trusted sync clock is unavailable.'); }
     check(integer(ms) && Number.isFinite(new Date(ms).getTime()), 'SYNC_CLOCK_INVALID', 'The trusted sync clock must return a valid current Date.');
     check(ms >= state.clockFloorMs, 'SYNC_CLOCK_REGRESSED', 'The trusted sync clock regressed behind persistent writer authority.');
     return ms;
@@ -221,7 +222,7 @@ export class FileSyncTransport implements SyncTransport {
     check(base64(record.ciphertextBase64, 'base64') && hash(record.ciphertextBase64) === record.ciphertextDigest, 'SYNC_CORRUPT', 'The encrypted payload digest is invalid.');
     const bytes = Buffer.from(record.ciphertextBase64, 'base64');
     check(bytes.length <= MAX_BACKUP, 'SYNC_TOO_LARGE', 'The encrypted backup exceeds 64 MiB.');
-    let backup: any; try { backup = JSON.parse(bytes.toString('utf8')); } catch { throw new ChausarError('SYNC_CORRUPT', 'The encrypted backup envelope is invalid.'); }
+    let backup: any; try { backup = JSON.parse(bytes.toString('utf8')); } catch { throw new InternalError('SYNC_CORRUPT', 'The encrypted backup envelope is invalid.'); }
     const envelope = backup?.envelope;
     check(keys(backup, 'backupFormat,envelope') && backup.backupFormat === 'chausar.backup.v1' && keys(envelope, 'format,id,passphrase,recovery,revision,snapshot') && envelope.format === 'chausar.vault.v1' && envelope.id === record.vaultId && envelope.revision === record.revision, 'SYNC_CORRUPT', 'Sync only stores encrypted Vault.backup envelopes.');
     const cipher = (value: any, wrapper = false) => keys(value, 'data,nonce,tag') && base64(value.nonce, 'base64url', 12) && base64(value.tag, 'base64url', 16) && base64(value.data, 'base64url', wrapper ? 32 : undefined);

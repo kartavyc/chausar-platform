@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {ChausarError,check,hash} from './portable.ts';
 import { formatMoney } from './owner-format.ts';
-export {ChausarError,check,hash} from './portable.ts';
+export {ChausarError,InternalError,asInternal,check,hash,internalCheck} from './portable.ts';
 
 export const newId = (prefix = 'item') => `${prefix}_${randomUUID()}`;
 export const now = () => new Date().toISOString();

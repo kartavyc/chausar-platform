@@ -137,3 +137,21 @@ test('B1 fix round 2: every CREDENTIAL_UNAVAILABLE line is the owner\'s and keep
     assert.deepEqual(ownerError(new ChausarError('CREDENTIAL_UNAVAILABLE', line)), { code: 'CREDENTIAL_UNAVAILABLE', message: line, owner: true });
   }
 });
+
+/**
+ * B1 fix round 2 (quality finding 4): the hosted server's branches. A fault that is not Chausar's says the server's
+ * sentence; a developer-code refusal goes unflagged; an internal refusal with no app line says the server's sentence,
+ * flagged; a plain error with a code that is not the engine's goes unflagged, so the app reads its words.
+ */
+test('B1 fix round 2: the hosted server flags by the same rule', async () => {
+  const { hostedRefusal, HOSTED_FAULT_WORDS } = await import('../runtime/hosted/server.ts');
+  const { InternalError } = await import('../runtime/contracts.ts');
+  assert.deepEqual(hostedRefusal(new TypeError('x is not a function')), { known: false, body: { code: 'SERVER_ERROR', message: HOSTED_FAULT_WORDS, owner: true } });
+  assert.deepEqual(hostedRefusal(Object.assign(new Error('ENOENT: C:\\x'), { code: 'ENOENT', syscall: 'open', errno: -2 })).body, { code: 'SERVER_ERROR', message: HOSTED_FAULT_WORDS, owner: true });
+  assert.deepEqual(hostedRefusal(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.')).body, { code: 'REENTRANT_TRANSACTION', message: 'Nested vault operations are not supported.' });
+  assert.deepEqual(hostedRefusal(new ChausarError('UNAUTHENTICATED', TRIAL_ENDED_LINE)).body, { code: 'UNAUTHENTICATED', message: TRIAL_ENDED_LINE, owner: true });
+  assert.deepEqual(hostedRefusal(new InternalError('BOOTSTRAP_LIMIT', 'Fresh bootstrap exceeds its explicit State byte budget.')).body, { code: 'BOOTSTRAP_LIMIT', message: HOSTED_FAULT_WORDS, owner: true });
+  assert.deepEqual(hostedRefusal(new InternalError('VAULT_BUSY', 'This vault is already open, or its writer cannot be verified.')).body, { code: 'VAULT_BUSY', message: 'This vault is already open, or its writer cannot be verified.' });
+  assert.deepEqual(hostedRefusal(Object.assign(new Error('The upstream said no.'), { code: 'UPSTREAM_NO', owner: true })), { known: true, body: { code: 'UPSTREAM_NO', message: 'The upstream said no.' } });
+  assert.deepEqual(bannedIn(HOSTED_FAULT_WORDS), []);
+});

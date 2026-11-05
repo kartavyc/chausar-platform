@@ -8,7 +8,7 @@ import { ChausarError } from './contracts.ts';
 import { VENTURE_ERRORS } from './venture/contracts.ts';
 import { CUSTODY_ERRORS } from './workspace-custody-contracts.ts';
 import type { PhoneErrorCode } from './phone/contracts.ts';
-import { ownerWords } from './owner-flag.ts';
+import { refusalTravel } from './owner-flag.ts';
 
 export const UNEXPECTED_CODE = 'REQUEST_FAILED';
 export const UNEXPECTED_WORDS = 'Something went wrong in Chausar, so this did not finish. Nothing was sent. Try again, and if it keeps happening, send feedback from Settings.';
@@ -35,6 +35,9 @@ export function knownError(error: unknown): boolean {
 /** The code, words and (when it is a short plain tag) reason a reply may carry. */
 export function ownerError(error: unknown): OwnerError {
   if (!knownError(error)) return { code: UNEXPECTED_CODE, message: UNEXPECTED_WORDS, owner: true };
-  const e = error as { code: string; message: string; reason?: unknown };
-  return { code: e.code, message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}), ...(ownerWords(e.code) && e.message !== e.code ? { owner: true as const } : {}) };
+  const e = error as { code: string; message: string; reason?: unknown; owner?: unknown };
+  // B1 fix round 2: an internal refusal (InternalError, owner: false) the app has no line for keeps its code, never its words.
+  const travel = refusalTravel(e.code, e.message, e.owner);
+  if (travel === 'internal') return { code: e.code, message: UNEXPECTED_WORDS, owner: true };
+  return { code: e.code, message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}), ...(travel === 'owner' ? { owner: true as const } : {}) };
 }

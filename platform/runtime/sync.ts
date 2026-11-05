@@ -2,7 +2,8 @@ import { generateKeyPairSync, createPrivateKey, createPublicKey, sign, verify, K
 import { mkdtemp, readFile, writeFile, readdir, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
+// B1 fix round 2: sync refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
+import { authorize, audit, internalCheck as check, ChausarError, InternalError, hash, newId, now } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { assertSourceAccess, trustFingerprint } from './trust.ts';
 import { Vault, safeDirectory } from './vault.ts';
@@ -31,7 +32,7 @@ function stateFingerprint(state: State): string {
 }
 function opaqueBackup(value: string): { vaultId: string; revision: number } {
   check(Buffer.byteLength(value) <= 67108864, 'SYNC_TOO_LARGE', 'The encrypted backup exceeds the sync limit.');
-  let backup: any; try { backup = JSON.parse(value); } catch { throw new ChausarError('INVALID_BACKUP', 'Sync requires a valid encrypted Vault.backup envelope.'); }
+  let backup: any; try { backup = JSON.parse(value); } catch { throw new InternalError('INVALID_BACKUP', 'Sync requires a valid encrypted Vault.backup envelope.'); }
   check(backup?.backupFormat === 'chausar.backup.v1' && Object.keys(backup).every(k => ['backupFormat', 'envelope'].includes(k)), 'INVALID_BACKUP', 'Plaintext exports cannot be synchronized.');
   const envelope = backup.envelope;
   check(envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && Number.isSafeInteger(envelope.revision) && envelope.revision >= 0 && Object.keys(envelope).every(k => ['format', 'id', 'revision', 'passphrase', 'recovery', 'snapshot'].includes(k)), 'INVALID_BACKUP', 'Sync requires a bounded encrypted snapshot.');
@@ -81,7 +82,7 @@ export class SyncService {
   trustDevice(context: Context, identity: { signerId: string; publicKey: string; memberId: string; epoch: number }) {
     authorize(this.store, context, 'admin'); const member = this.store.read().members.find(m => m.id === identity.memberId);
     check(member?.active && member.epoch === identity.epoch && ['owner', 'cofounder'].includes(member.role), 'ACCESS_REVOKED', 'A device signer must belong to a current workspace administrator.');
-    let key: KeyObject; try { key = createPublicKey(identity.publicKey); } catch { throw new ChausarError('INVALID_DEVICE_KEY', 'The device public signing key is invalid.'); }
+    let key: KeyObject; try { key = createPublicKey(identity.publicKey); } catch { throw new InternalError('INVALID_DEVICE_KEY', 'The device public signing key is invalid.'); }
     check(key.asymmetricKeyType === 'ed25519' && typeof identity.signerId === 'string' && identity.signerId.length <= 200, 'INVALID_DEVICE_KEY', 'Use a named Ed25519 device identity.'); this.#trusted.set(identity.signerId, { publicKey: key, memberId: identity.memberId, epoch: identity.epoch }); return { signerId: identity.signerId, trusted: true };
   }
   async preview(context: Context) {
@@ -142,7 +143,7 @@ export class SyncService {
       });
       this.#approvalCurrent(context, preview, input.approvalId); check(head.recordHash === recordHash && head.revision === preview.revision && head.sequence === preview.sequence && head.fence === lease.fence, 'SYNC_HEAD_MISMATCH', 'The transport did not commit the expected fenced head.');
       return this.store.update(state => { this.#approvalCurrent(context, preview, input.approvalId); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt, 'SYNC_REVOKED', 'The sync request is no longer available.'); receipt.status = 'completed'; receipt.completedAt = now(); receipt.head = head; delete receipt.payloadBase64; audit(state, 'sync.push.completed', { recordHash, revision: head.revision, fence: head.fence }); return { head, receipt: structuredClone(receipt), experimental: true }; });
-    } catch (error) { await this.store.update(state => { const receipt = state.modelReceipts.find(r => r.id === preview.id); if (receipt) { receipt.status = 'failed'; receipt.errorCode = error instanceof ChausarError ? error.code : 'SYNC_FAILED'; receipt.remoteOutcome = 'unknown-until-head-reconciliation'; delete receipt.payloadBase64; } }); if (error instanceof ChausarError) throw error; throw new ChausarError('SYNC_FAILED', 'Encrypted publication failed without a retry.'); }
+    } catch (error) { await this.store.update(state => { const receipt = state.modelReceipts.find(r => r.id === preview.id); if (receipt) { receipt.status = 'failed'; receipt.errorCode = error instanceof ChausarError ? error.code : 'SYNC_FAILED'; receipt.remoteOutcome = 'unknown-until-head-reconciliation'; delete receipt.payloadBase64; } }); if (error instanceof ChausarError) throw error; throw new InternalError('SYNC_FAILED', 'Encrypted publication failed without a retry.'); }
   }
   async reconcile(context: Context, previewId: string) {
     const transport = this.#transport(context), state = this.store.read();

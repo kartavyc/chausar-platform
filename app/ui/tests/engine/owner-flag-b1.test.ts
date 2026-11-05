@@ -8,7 +8,7 @@ import { DEVELOPER_WORDS, ownerError } from '../../src/engine/owner-errors';
 import { EngineError } from '../../src/engine/types';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
-import { DEVELOPER_TEXT_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
+import { DEVELOPER_TEXT_CODES, INTERNAL_LINE_CODES, TABLE_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
 
 const words = CATALOGUES.en;
 const TOKEN = 'a'.repeat(64);
@@ -103,6 +103,29 @@ describe('B1 fix round 1: the table speaks only for unflagged developer text', (
     const client = createFakeClient(new FakeEngine({ closed: true }));
     const refused = await refusedBy(client.request('workspace.open', { folder: 'sitara', passphrase: 'not the passphrase' }));
     expect(refused).toMatchObject({ code: 'UNLOCK_FAILED', message: words['errors.UNLOCK_FAILED'] });
+  });
+
+  // B1 fix round 2 (quality finding 2, spec finding 4): the engine's vault, sync and storage refusals travel unflagged
+  // (InternalError), so each code an owner can meet says the table's line; every line is plain.
+  it('B1 fix round 2: every internal code with a line says it, and every line is plain', () => {
+    expect([...TABLE_CODES]).toEqual([...DEVELOPER_TEXT_CODES, ...INTERNAL_LINE_CODES]);
+    for (const code of INTERNAL_LINE_CODES) {
+      const shown = ownerError(new EngineError(code, 'Choose an explicit non-root absolute directory.'));
+      expect([shown.code, shown.message, shown.owner], code).toEqual([code, words[`errors.${code}`], true]);
+      expect(bannedIn(shown.message), code).toEqual([]);
+    }
+  });
+
+  // B1 fix round 2 (quality findings 2 and 6): the fake follows the engine's rule. Its stand-ins for vault refusals go
+  // unflagged like the engine's, and a refusal of its own in developer words is never flagged.
+  it('B1 fix round 2: the fake\'s short passphrase says the table\'s line, and its developer words say the general line', async () => {
+    const client = createFakeClient(new FakeEngine({ closed: true }));
+    const weak = await refusedBy(client.request('workspace.create', { name: 'Sitara Studio', passphrase: 'short' } as never));
+    expect(weak).toMatchObject({ code: 'WEAK_PASSPHRASE', message: words['errors.WEAK_PASSPHRASE'] });
+    const unknown = await refusedBy(createFakeClient(new FakeEngine()).request('venture.nothing.here' as never, {} as never));
+    expect(unknown).toMatchObject({ code: 'METHOD_NOT_ALLOWED', message: words['errors.general'], owner: true });
+    const plain = await refusedBy(createFakeClient(new FakeEngine()).request('workspace.delete', { confirmation: 'not the name' } as never));
+    expect(plain).toMatchObject({ code: 'CONFIRMATION_REQUIRED', message: 'Type the business name to delete it.', owner: true });
   });
 });
 

@@ -16,6 +16,33 @@ export function ownerWords(code: unknown): boolean {
 }
 
 /**
+ * B1 fix round 2 (quality finding 2, spec finding 4): the vault, sync and storage internals throw InternalError
+ * (owner: false, platform/runtime/portable.ts), never words for the owner. These are their codes an owner can meet in the
+ * app (a wrong folder, a file already there, a business open in another window, a backup that is not one); the app says
+ * each in its own words (text/en/errors.json). Any other internal refusal goes out as the general sentence.
+ */
+export const INTERNAL_LINE_CODES: readonly string[] = Object.freeze([
+  'WEAK_PASSPHRASE', 'INVALID_NAME', 'UNSAFE_PATH', 'OUTPUT_EXISTS', 'REVISION_CONFLICT', 'VAULT_TOO_LARGE', 'VAULT_BUSY',
+  'ARTIFACT_AUTHENTICATION_FAILED', 'ARTIFACT_NOT_FOUND', 'BACKUP_OTHER_BUSINESS', 'TRANSFER_CODE_WRONG', 'INVALID_BACKUP', 'SYNC_CORRUPT', 'SYNC_FAILED',
+]);
+
+/** Every code the app has its own line for (text/en/errors.json), said only for a refusal sent without the flag. */
+export const TABLE_CODES: readonly string[] = Object.freeze([...DEVELOPER_TEXT_CODES, ...INTERNAL_LINE_CODES]);
+
+/**
+ * How a refusal travels, the one rule for every transport: 'owner' (flagged, its words shown as sent), 'unflagged' (sent
+ * without the flag; the app says the code's line, or its general line), or 'internal' (its words are never sent: the
+ * transport sends its general sentence, flagged). Only owner: false (InternalError) marks a refusal internal; any other
+ * value of `owner` on the error is ignored, so a stray owner: true flags nothing.
+ */
+export function refusalTravel(code: unknown, message: unknown, owner?: unknown): 'owner' | 'unflagged' | 'internal' {
+  if (typeof code !== 'string') return 'internal';
+  if (DEVELOPER_TEXT_CODES.includes(code)) return 'unflagged';
+  if (owner === false) return INTERNAL_LINE_CODES.includes(code) ? 'unflagged' : 'internal';
+  return message === code || typeof message !== 'string' ? 'unflagged' : 'owner';
+}
+
+/**
  * Words an owner never needs to read. The app puts an unflagged error that carries one in its general line
  * (app/ui/src/engine/owner-errors.ts), and the owner-words tests ban them from every line a screen shows (the text
  * catalogue, and the words the engine and the fake engine put in their views).

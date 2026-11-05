@@ -1,6 +1,6 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
 import { ownerError } from './owner-errors';
-import { ownerWords } from '../../../../platform/runtime/owner-flag';
+import { INTERNAL_LINE_CODES, bannedIn, refusalTravel } from '../../../../platform/runtime/owner-flag';
 import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
@@ -1479,6 +1479,18 @@ export class FakeEngine {
   }
 }
 
+/**
+ * B1 fix round 2 (quality findings 2 and 6): the fake flags a refusal by the engine's rule (owner-flag.ts refusalTravel).
+ * It has no vault of its own, so a code the engine throws only from its vault, sync and storage internals
+ * (INTERNAL_LINE_CODES: a short passphrase, a missing name) travels as the engine's does, without the flag, and the app
+ * says its line. Its own refusals are read too: one in developer words ("The fake engine does not answer ...", "Send the
+ * digest of the invoice you checked.") is never flagged, so the app says its general line.
+ */
+function fakeFlags(error: EngineError): boolean {
+  const internal = INTERNAL_LINE_CODES.includes(error.code) ? false : undefined;
+  return refusalTravel(error.code, error.message, internal) === 'owner' && bannedIn(error.message).length === 0;
+}
+
 /** An EngineClient over the fake engine. Its status line says the data is a sample. */
 export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineClient & { engine: FakeEngine } {
   const status = createStatusStore({ state: 'ok' });
@@ -1487,7 +1499,7 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
     transport: 'fake',
     // One-shot B1: refusals in the owner's words at the same edge as the real client (owner-errors.ts). B1 fix round 1:
     // the fake's refusals carry the owner flag as the engine's transports send it (platform/runtime/owner-flag.ts).
-    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return (engine.request(method, params) as Promise<ResultOf<M>>).catch((error: unknown) => { throw ownerError(error instanceof EngineError && ownerWords(error.code) ? { code: error.code, message: error.message, reason: error.reason, owner: true } : error); }); },
+    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return (engine.request(method, params) as Promise<ResultOf<M>>).catch((error: unknown) => { throw ownerError(error instanceof EngineError && fakeFlags(error) ? { code: error.code, message: error.message, reason: error.reason, owner: true } : error); }); },
     subscribe: (listener) => engine.subscribe(listener),
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),

@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { ChausarError, hash, initialState, type State, type StateStore } from './contracts.ts';
+import { ChausarError, InternalError, asInternal, hash, initialState, type State, type StateStore } from './contracts.ts';
 import { acquireProcessLock, type ProcessLock } from './process-lock.ts';
 
 const FORMAT = 'chausar.vault.v1';
@@ -54,7 +54,8 @@ export type OpenVaultOptions = Common & { passphrase: string };
 export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
 export type RestoreVaultOptions = Common & { backupFile: string } & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
 
-function fail(code: string, message: string): never { throw new ChausarError(code, message); }
+// B1 fix round 2: the vault's refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
+function fail(code: string, message: string): never { throw new InternalError(code, message); }
 function passphrase(value: string) {
   if (typeof value !== 'string' || value.length < 12 || value.length > 1024) fail('WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
 }
@@ -303,7 +304,7 @@ export class ExperimentalFileSnapshotAdapter implements EncryptedSnapshotAdapter
 }
 type Lock = ProcessLock;
 async function takeLock(directory: string): Promise<Lock> {
-  return acquireProcessLock(join(directory,'writer.lock'),{busyCode:'VAULT_BUSY',busyMessage:'This vault is already open, or its writer cannot be verified.',changedCode:'LOCK_CHANGED',changedMessage:'The writer lock changed.'});
+  return acquireProcessLock(join(directory,'writer.lock'),{busyCode:'VAULT_BUSY',busyMessage:'This vault is already open, or its writer cannot be verified.',changedCode:'LOCK_CHANGED',changedMessage:'The writer lock changed.'}).catch((error: unknown) => { throw asInternal(error); });
 }
 function adapterFor(directory: string, storage: Storage): EncryptedSnapshotAdapter {
   if (storage === 'experimental-file') return new ExperimentalFileSnapshotAdapter(directory);
@@ -500,7 +501,7 @@ export class Vault implements StateStore {
    * the HMAC key on the journal's pinned head and first signing time (4J10), so a forged pin shows.
    */
   derivedKey(purpose: 'network-forget' | 'receipt-signing' | 'journal-head'): Buffer {
-    if (purpose !== 'network-forget' && purpose !== 'receipt-signing' && purpose !== 'journal-head') throw new ChausarError('INVALID_REQUEST', 'Unknown key purpose.');
+    if (purpose !== 'network-forget' && purpose !== 'receipt-signing' && purpose !== 'journal-head') throw new InternalError('INVALID_REQUEST', 'Unknown key purpose.');
     return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.derived-key.v1:${purpose}`), 32));
   }
   async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
@@ -541,7 +542,7 @@ export class Vault implements StateStore {
   }
   /** Root-only writer admission held through inert filesystem custody publication. */
   withCustodyWriterAdmission<T>(work: (assertCurrent: () => void) => Promise<T>): Promise<T> {
-    if (!this.#snapshotScope.getStore()) return Promise.reject(new ChausarError('CUSTODY_SNAPSHOT_REQUIRED', 'Hold the trusted Vault snapshot fence for custody writer admission.'));
+    if (!this.#snapshotScope.getStore()) return Promise.reject(new InternalError('CUSTODY_SNAPSHOT_REQUIRED', 'Hold the trusted Vault snapshot fence for custody writer admission.'));
     this.#ready();
     return this.guarded(async assertCurrent => {
       assertCurrent(); const result = await work(assertCurrent); assertCurrent();
@@ -752,12 +753,12 @@ export class Vault implements StateStore {
     }
   }
   #enqueue<T>(work: () => Promise<T>): Promise<T> {
-    if (this.#transaction.getStore()) return Promise.reject(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
+    if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
     const pending = this.#chain.then(work); this.#chain = pending.catch(() => {}); return pending;
   }
   update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
-    if (this.#transaction.getStore()) return Promise.reject(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
+    if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
     return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
       const draft = structuredClone(this.#state), result = await change(draft);
       if (draft.workspace.id !== this.#state.workspace.id) fail('INVALID_STATE', 'A transaction cannot change workspace identity.');
@@ -819,7 +820,7 @@ export class Vault implements StateStore {
   }
   /** A chausar.backup.v1 text whose passphrase wrapper opens with the move code; the recovery wrapper is kept. */
   transferText(code: string, meta: { recovery: 'made' | 'not-made'; madeAt: string }): Promise<string> {
-    if (typeof code !== 'string' || code.length < 12 || code.length > 64) return Promise.reject(new ChausarError('TRANSFER_CODE_WRONG', 'Use a move code.'));
+    if (typeof code !== 'string' || code.length < 12 || code.length > 64) return Promise.reject(new InternalError('TRANSFER_CODE_WRONG', 'Use a move code.'));
     return this.#enqueue(async () => {
       await this.#assertSnapshotOnlyBackup();
       const wrapper = await wrap(code, this.#key, this.#envelope.id, 'passphrase');
@@ -857,7 +858,7 @@ export class Vault implements StateStore {
   }
   /** Commit a managed backup's state of this same vault and workspace as the next revision. */
   replaceFromBackup(path: string): Promise<{ revision: number }> {
-    if (this.#transaction.getStore()) return Promise.reject(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
+    if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
     return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
       let restored: State;
       try {
