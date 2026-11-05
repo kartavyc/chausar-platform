@@ -28,10 +28,23 @@ function text(value: unknown, limit: number, what: string): string {
   if (trimmed.length > limit) throw invalid(`Keep the agent's ${what} to ${limit} characters.`);
   return trimmed;
 }
+/** Verbs that act on the floor when they lead a duty or follow "and", "then", "to", "also" or "will" (review round 1). */
+const FLOOR_VERBS = new Set(['send', 'sends', 'sending', 'post', 'posts', 'posting', 'publish', 'publishes', 'email', 'emails', 'message', 'messages', 'reply', 'replies', 'forward', 'forwards', 'share', 'shares', 'pay', 'pays', 'paying', 'refund', 'refunds', 'transfer', 'transfers', 'charge', 'charges', 'buy', 'buys', 'purchase', 'purchases', 'delete', 'deletes', 'remove', 'removes', 'erase', 'erases', 'purge', 'purges', 'cancel', 'cancels', 'reprice', 'reprices', 'discount', 'discounts']);
+const PRICE_VERBS = new Set(['cut', 'cuts', 'lower', 'lowers', 'raise', 'raises', 'change', 'changes', 'set', 'sets', 'update', 'updates', 'drop', 'drops']);
+const PRICE_WORDS = new Set(['price', 'prices', 'pricing', 'rate', 'rates', 'fee', 'fees']);
+const VERB_PLACE = new Set(['and', 'then', 'to', 'also', 'will', 'can']);
+/** Words that keep the owner in the act: the agent drafts, suggests or asks, or the act goes to the owner only. */
+const OWNER_FIRST = /\b(?:draft\w*|approv\w*|ask(?:s|ing)?|suggest\w*|propos\w*|prepar\w*|review\w*|for\s+me\s+to|(?:send|sends|email|emails|message|messages|tell|tells|share|shares|forward|forwards)\s+(?:it\s+|them\s+)?(?:to\s+)?me|with\s+me)\b/;
 /** True when the words have the agent send, pay, post, delete or change a price without the owner. */
 function actsWithoutOwner(words: string): boolean {
-  const flat = words.toLowerCase();
-  return UNATTENDED.test(flat) && flat.split(/[^a-z]+/).some(word => FLOOR_ACTS.has(word));
+  const flat = words.toLowerCase(), tokens = flat.split(/[^a-z0-9]+/).filter(Boolean);
+  if (UNATTENDED.test(flat) && tokens.some(word => FLOOR_ACTS.has(word))) return true;
+  if (OWNER_FIRST.test(flat)) return false;
+  return tokens.some((word, index) => {
+    if (index > 0 && !VERB_PLACE.has(tokens[index - 1])) return false;
+    if (FLOOR_VERBS.has(word)) return true;
+    return PRICE_VERBS.has(word) && tokens.slice(index + 1, index + 4).some(next => PRICE_WORDS.has(next));
+  });
 }
 
 /** The role, trimmed, when every check passes; otherwise a ChausarError with plain words. */

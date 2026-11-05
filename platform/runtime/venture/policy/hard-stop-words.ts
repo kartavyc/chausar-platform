@@ -9,13 +9,14 @@ export const HARD_STOP_PHRASES: Readonly<Record<string, readonly RegExp[]>> = Ob
   'securities-advice': Object.freeze([
     /\btarget\s+prices?\b/, /\b(?:promised|guaranteed|assured|sure)\s+returns?\b/, /\bstock\s+(?:tips?|picks?|recommendations?)\b/,
     /\b(?:buy|sell|hold)\s+(?:or|and)\s+(?:buy|sell|hold)\b.*\b(?:stocks?|shares?)\b/, /\b(?:which|what)\s+(?:stocks?|shares?)\s+to\s+buy\b/,
+    /\brecommend\w*\s+(?:\w+\s+){0,2}(?:stocks?|shares?|mutual\s+funds?|crypto\w*|equities)\b/, /\b\d+(?:\.\d+)?\s*x\s+returns?\b/, /\b(?:double|triple|multiply)\s+(?:your|their|my)\s+money\b/,
   ]),
   'advocate-solicit': Object.freeze([
     /\badverti[sz]\w*\s+(?:my\s+|our\s+)?(?:legal|law|advocate|lawyer)\b/, /\b(?:solicit|canvass)\w*\s+(?:\w+\s+){0,2}(?:clients?|cases?|work)\b/,
     /\b(?:find|get|bring)\s+(?:me\s+)?(?:new\s+)?(?:legal|law)\s+(?:clients?|cases?)\b/, /\bpromot\w*\s+(?:my\s+)?(?:legal|law)\s+(?:practice|services?|firm)\b/,
   ]),
   'medical-diagnosis': Object.freeze([
-    /\bdiagnos(?:e|es|ed|ing|is|ises)\b/, /\bprescri(?:be|bes|bed|bing|ption|ptions)\b/, /\b(?:which|what)\s+(?:medicine|medicines|drugs?|dosage)\s+to\s+take\b/,
+    /\bdiagnos(?:e|es|ed|ing|is|ises)\b/, /\bprescri(?:be|bes|bed|bing|ption|ptions)\b/, /\bdosages?\b/, /\bmedical\s+advice\b/, /\btreatment\s+(?:advice|plans?)\s+for\s+patients\b/, /\b(?:which|what)\s+(?:medicine|medicines|drugs?|dosage)\s+to\s+take\b/,
   ]),
   'child-data': Object.freeze([
     /\b(?:children|child|kids?|minors?|students?\s+under\s+(?:18|eighteen))(?:'s|s'|’s)?\s+(?:data|details|photos?|pictures?|records?|information|phone\s+numbers?|addresses)\b/,
@@ -26,7 +27,7 @@ export const HARD_STOP_PHRASES: Readonly<Record<string, readonly RegExp[]>> = Ob
   ]),
   'detection-evasion': Object.freeze([
     /\b(?:avoid|evade|evading|dodge|beat|bypass)\w*\s+(?:\w+\s+){0,2}(?:detection|bot\s+checks?|anti-?bot)\b/, /\b(?:rotat\w*\s+(?:\w+\s+)?prox(?:y|ies)|proxy\s+rotation)\b/,
-    /\bundetect(?:able|ed)\b/, /\bcannot\s+tell\s+it\s+is\s+a\s+bot\b/, /\b(?:look|act|appear)s?\s+(?:like\s+a\s+)?human\s+to\s+(?:the\s+)?(?:site|website|platform)\b/,
+    /\bundetect(?:able|ed)\b/, /\b(?:residential|rotating|mobile)\s+prox(?:y|ies)\b/, /\bthinks?\s+(?:it\s+is|it's|they\s+are)\s+(?:a\s+)?(?:person|human|real\s+person)\b/, /\bcannot\s+tell\s+it\s+is\s+a\s+bot\b/, /\b(?:look|act|appear)s?\s+(?:like\s+a\s+)?human\s+to\s+(?:the\s+)?(?:site|website|platform)\b/,
   ]),
   'linkedin-automation': Object.freeze([
     /\b(?:message|messages|messaging|dm|dms|invite|invites|connect\s+with|scrape|scrapes|scraping|automat\w*)\b.*\blinkedin\b/,
@@ -34,11 +35,13 @@ export const HARD_STOP_PHRASES: Readonly<Record<string, readonly RegExp[]>> = Ob
   ]),
   'fake-reviews': Object.freeze([
     /\b(?:fake|false|made-up|paid|five-?\s?star|5-?\s?star)\s+(?:reviews?|ratings?|testimonials?)\b/, /\bwrite\w*\s+(?:\w+\s+){0,2}reviews?\s+(?:for|of|about|on)\b/,
-    /\breviews?\s+(?:from|under)\s+(?:fake|other)\s+(?:names?|accounts?)\b/,
+    /\breviews?\s+(?:from|under)\s+(?:fake|other)\s+(?:names?|accounts?)\b/, /\breviews?\b.{0,40}\bpretend\w*\b/,
+    /\bpretend\w*\s+to\s+be\s+(?:a\s+)?(?:\w+\s+)?(?:customers?|clients?|buyers?|guests?|patients?)\b/,
   ]),
   'undisclosed-ai': Object.freeze([
     /\b(?:pretend\w*|pos(?:e|es|ing))\s+(?:to\s+be\s+|as\s+)(?:a\s+)?(?:human|real\s+person|person|me)\b/,
-    /\bwithout\s+(?:disclos\w*|saying|mentioning|telling)\b.{0,30}\b(?:ai|bot|automated)\b/, /\b(?:hide|hides|hiding)\s+(?:\w+\s+){0,2}(?:ai|bot)\b/, /\bundisclosed\s+ai\b/,
+    /\bwithout\s+(?:disclos\w*|saying|mentioning|telling)\b.{0,30}\b(?:ai|bot|automated)\b/, /\b(?:hide|hides|hiding|conceal\w*)\b.{0,40}\b(?:ai|bot|automated)\b/, /\bundisclosed\s+ai\b/,
+    /\bnever\s+(?:says|tells|mentions|discloses|admits)\b.{0,40}\b(?:ai|bot|automated)\b/,
   ]),
 });
 

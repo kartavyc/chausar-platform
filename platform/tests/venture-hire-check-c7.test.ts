@@ -79,3 +79,29 @@ test('every hard stop has a phrase list, and each list catches its own sentence 
     assert.equal(hardStopIn(ordinary), null, ordinary);
   }
 });
+
+// Fix round 1 (review LOW-4): plainer wordings the first lists let through. A hard stop said in everyday words refuses
+// with its own line; a duty whose verb sends, pays, posts, deletes or changes a price refuses unless it drafts, suggests
+// or asks first, even with no "automatically" in it.
+test('plain wordings of a hard stop refuse with that stop\'s own line', () => {
+  const cases: Array<[string, string]> = [
+    ['Hides that replies are written by AI', 'undisclosed-ai'],
+    ['Never tells customers the replies come from a bot', 'undisclosed-ai'],
+    ['Posts glowing reviews pretending to be customers', 'fake-reviews'],
+    ['Writes reviews pretending to be happy clients', 'fake-reviews'],
+    ['Recommends stocks for 2x returns', 'securities-advice'],
+    ['Recommends good mutual funds to my followers', 'securities-advice'],
+    ['Gives dosage advice for patients', 'medical-diagnosis'],
+    ['Uses residential proxies so the site thinks it is a person', 'detection-evasion'],
+  ];
+  for (const [duty, id] of cases) assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_HARD_STOP', stopLine(id)), duty);
+});
+
+test('a duty whose verb acts on the floor refuses even without "automatically"; one that drafts, suggests or asks passes', () => {
+  for (const duty of ['Pays vendor bills at month end', 'Cuts prices by 10 percent when stock is high', 'Sends payment reminders to clients', 'Replies to client emails', 'Deletes duplicate contacts', 'Posts the weekly offer on Instagram', 'Reads the inbox and then sends the answers']) {
+    assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), duty);
+  }
+  for (const duty of ['Drafts payment reminders for me to send', 'Prepares vendor bills for my approval', 'Suggests price changes when stock is high', 'Sends me a summary every evening', 'Asks me before posting the weekly offer', 'Tracks payments that are due', 'Keeps track of refunds clients asked for', 'Tracks GST due dates for my clients']) {
+    assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
+  }
+});
