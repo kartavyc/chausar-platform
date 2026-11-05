@@ -18,6 +18,7 @@ The engine is TypeScript run by Node's type stripping (no build step in developm
 - `connector-framework/`: the older connector framework: read dispatch, import bridge and source profiles.
 - `gateway/`: the model gateway's parts (D11 split): types, the plan, request checks, one module per provider route, and the review checks. `gateway.ts` beside it keeps the `ModelGateway` class.
 - `hosted/`: the hosted server: accounts, sign-in, config read from the environment, its app routes.
+- `migrations/`: the data ladder (D12): `CURRENT_SCHEMA`, one numbered step per data version in `migrations/steps/`, and `migrate()`, which every business is opened through.
 - `phone/`: the phone companion's host side: pairing, sessions, channels, approvals.
 - `providers/`: the reviewed Codex command-line interface (`providers/codex-cli.ts`).
 - `venture/`: the venture launcher, the product the Ink app shows (below).
