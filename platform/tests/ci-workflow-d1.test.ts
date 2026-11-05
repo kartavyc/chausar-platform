@@ -29,19 +29,24 @@ test('CI runs on every push (a branch push gets the fast lane), on pull requests
   assert.match(workflow, /^concurrency:\n {2}group: open-verification-\$\{\{ github\.ref \}\}\n {2}cancel-in-progress: true$/m, 'an older run on the same ref is cancelled');
 });
 
-test('one lint job on Ubuntu installs from the lock, then checks syntax, both typechecks and the notices, in that order', () => {
+test('one lint job on Ubuntu installs from the lock, then checks for tracked data, syntax, both typechecks and the notices, in that order', () => {
   const lint = job('lint');
   assert.match(lint, /runs-on: ubuntu-latest/);
   assert.match(lint, /node-version: '24\.13\.1'/);
   assert.doesNotMatch(lint, /^ {4}if:/m, 'lint runs on every event');
   assert.deepEqual(runs(lint), [
     'npm ci --ignore-scripts --no-audit --no-fund',
+    'node scripts/check-clean-tree.mjs --tracked',
     'node scripts/check.mjs',
     'npm run typecheck',
     'npm run typecheck:ui',
     'node scripts/third-party-notices.mjs --check',
   ]);
 });
+
+// D3: each test job points the run root at the runner's temp folder before its tests and checks the checkout last.
+const RUN_ROOT = 'echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"';
+const AFTER_RUN = 'node scripts/check-clean-tree.mjs --after-run';
 
 const HEAVY_IF = "    if: github.event_name != 'push' || github.ref == 'refs/heads/main'";
 
@@ -64,8 +69,10 @@ test('D2: a branch push runs only the fast lane: Ubuntu, the fast engine tier in
   assert.match(fast, /fetch-depth: 0/, 'vitest --changed compares with origin/main, so the history is fetched');
   assert.deepEqual(runs(fast), [
     'npm ci --ignore-scripts --no-audit --no-fund',
-    'node scripts/bench.mjs --tier=fast --shard=${{ matrix.shard }}/3 --workers=3 --output results/factory-bench.json',
+    RUN_ROOT,
+    'node scripts/bench.mjs --tier=fast --shard=${{ matrix.shard }}/3 --workers=3',
     'node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts --changed origin/main --passWithNoTests',
+    AFTER_RUN,
   ]);
   assert.match(fast, /if: matrix\.shard == 1\n {8}run: node node_modules\/vitest/, 'the changed UI tests run once');
 });
@@ -95,7 +102,7 @@ test('D2: CI runs three time-balanced engine shards with 3 workers on both opera
   assert.match(verify, /os: \[ubuntu-latest, windows-latest\]/, 'Windows stays: it is where owners are');
   assert.match(verify, /shard: \[1, 2, 3\]$/m);
   assert.match(verify, /node-version: '24\.13\.1'/);
-  assert.match(verify, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/3 --workers=3 --output results\/factory-bench\.json$/m);
+  assert.match(verify, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/3 --workers=3$/m);
   assert.match(verify, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-3$/m);
   const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3].map(shard => `open-test-report-${os}-shard-${shard}-of-3`));
   assert.equal(new Set(artifacts).size, 6);
@@ -112,7 +119,7 @@ test('D2: CI runs the Ink frontend in three shards on both operating systems, ev
   assert.match(ui, /os: \[ubuntu-latest, windows-latest\]/);
   assert.match(ui, /shard: \[1, 2, 3\]$/m);
   assert.match(ui, /node-version: '24\.13\.1'/);
-  assert.match(ui, /run: node scripts\/ui-bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/3 --output results\/ui-tests\.json$/m);
+  assert.match(ui, /run: node scripts\/ui-bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/3$/m);
   assert.doesNotMatch(ui, /build:ui/);
   assert.match(ui, /name: ui-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-3$/m);
   const build = job('build');
@@ -155,4 +162,21 @@ test('no workflow uses runner, steps or job where GitHub evaluates it before a r
   assert.equal(contextsBeforeARunner('jobs:\n  a:\n    env:\n      X: ${{ runner.temp }}/x\n').length, 1);
   assert.equal(contextsBeforeARunner('env:\n  X: ${{ runner.temp }}\njobs:\n').length, 1);
   assert.deepEqual(contextsBeforeARunner('jobs:\n  a:\n    steps:\n      - run: x\n        env:\n          X: ${{ runner.temp }}/x\n'), []);
+});
+
+// D3: run outputs live in the runner's temp folder, never results/ in the checkout. Each test job sets CHAUSAR_RUN_ROOT
+// (a step, since runner.temp is not allowed in a job's env), uploads from there, and ends with the after-run guard,
+// which runs even when a test failed.
+test('D3: no workflow writes or uploads results/; each ci.yml test job sets the run root first and checks the checkout last', async () => {
+  const folder = new URL('../../.github/workflows/', import.meta.url);
+  for (const name of await readdir(folder)) assert.doesNotMatch(await readFile(new URL(name, folder), 'utf8'), /results\//, name);
+  for (const name of ['verify', 'ui', 'fast']) {
+    const text = job(name), lines = runs(text);
+    assert.ok(lines.indexOf(RUN_ROOT) > 0 && lines.indexOf(RUN_ROOT) < lines.findIndex(line => line.startsWith('node ')), `${name} sets the run root before its tests`);
+    assert.match(text, /- name: Point the run root at the runner's temp folder, outside the checkout\n {8}shell: bash\n/, name);
+    assert.equal(lines.at(-1), AFTER_RUN, name);
+    assert.match(text, /- name: Check that the run left nothing in the checkout\n {8}if: always\(\)\n {8}run: node scripts\/check-clean-tree\.mjs --after-run\s*$/, name);
+  }
+  assert.match(job('verify'), /path: \$\{\{ runner\.temp \}\}\/chausar\/engine-tests\/factory-bench\.json$/m);
+  assert.match(job('ui'), /path: \$\{\{ runner\.temp \}\}\/chausar\/ui-tests\/ui-tests\.json$/m);
 });

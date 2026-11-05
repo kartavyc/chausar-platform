@@ -32,6 +32,8 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check that no data is tracked in the repo
+        run: node scripts/check-clean-tree.mjs --tracked
       - name: Check source and JSON syntax
         run: node scripts/check.mjs
       - name: Typecheck runtime and tests
@@ -67,19 +69,25 @@ jobs:
           key: node-cc-${{ runner.os }}-24.13.1-${{ hashFiles('package-lock.json') }}
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run repository open tests and capture benchmark receipt
         # The runner context exists only from the steps on, so the compile cache folder is set here, not on the job.
         env:
           NODE_COMPILE_CACHE: ${{ runner.temp }}/node-cc
-        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/3 --workers=3 --output results/factory-bench.json
+        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/3 --workers=3
       - name: Upload open-test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-3
-          path: results/factory-bench.json
+          path: ${{ runner.temp }}/chausar/engine-tests/factory-bench.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   ui:
     needs: lint
@@ -101,16 +109,22 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run one shard of the Ink frontend tests and capture its receipt
-        run: node scripts/ui-bench.mjs --shard=${{ matrix.shard }}/3 --output results/ui-tests.json
+        run: node scripts/ui-bench.mjs --shard=${{ matrix.shard }}/3
       - name: Upload UI test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-3
-          path: results/ui-tests.json
+          path: ${{ runner.temp }}/chausar/ui-tests/ui-tests.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   build:
     needs: lint
@@ -157,11 +171,17 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run the fast tier of the engine tests
-        run: node scripts/bench.mjs --tier=fast --shard=${{ matrix.shard }}/3 --workers=3 --output results/factory-bench.json
+        run: node scripts/bench.mjs --tier=fast --shard=${{ matrix.shard }}/3 --workers=3
       - name: Run the UI tests that the branch's changes reach
         if: matrix.shard == 1
         run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts --changed origin/main --passWithNoTests
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   # The lint job runs once on Ubuntu: check.mjs, both strict typechecks (engine and Ink frontend) and the NOTICE check.
   # The ui job runs the Ink frontend (app/ui) in three shards on both OSes: every vitest test (a failed, skipped or

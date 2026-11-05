@@ -34,16 +34,22 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run every engine test tier in this shard
-        run: node scripts/bench.mjs --tier=all --shard=${{ matrix.shard }}/3 --workers=3 --output results/factory-bench.json
+        run: node scripts/bench.mjs --tier=all --shard=${{ matrix.shard }}/3 --workers=3
       - name: Upload the engine receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nightly-engine-${{ matrix.os }}-shard-${{ matrix.shard }}-of-3
-          path: results/factory-bench.json
+          path: ${{ runner.temp }}/chausar/engine-tests/factory-bench.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   # One file at a time, as before D2: an order bug that side-by-side workers hide shows here. Sundays only (IST).
   engine-one-worker:
@@ -71,17 +77,24 @@ jobs:
       - name: Install the locked dependencies without lifecycle scripts
         if: steps.day.outputs.sunday == 'yes'
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        if: steps.day.outputs.sunday == 'yes'
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run the engine tests one file at a time
         if: steps.day.outputs.sunday == 'yes'
-        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --workers=1 --output results/factory-bench.json
+        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --workers=1
       - name: Upload the single-worker receipt
         if: always() && steps.day.outputs.sunday == 'yes'
         uses: actions/upload-artifact@v4
         with:
           name: nightly-engine-one-worker-shard-${{ matrix.shard }}-of-6
-          path: results/factory-bench.json
+          path: ${{ runner.temp }}/chausar/engine-tests/factory-bench.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always() && steps.day.outputs.sunday == 'yes'
+        run: node scripts/check-clean-tree.mjs --after-run
 
   ui:
     strategy:
@@ -100,16 +113,22 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run the whole Ink frontend suite
-        run: node scripts/ui-bench.mjs --output results/ui-tests.json
+        run: node scripts/ui-bench.mjs
       - name: Upload the UI receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nightly-ui-${{ matrix.os }}
-          path: results/ui-tests.json
+          path: ${{ runner.temp }}/chausar/ui-tests/ui-tests.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   walk:
     runs-on: ubuntu-latest
@@ -124,6 +143,9 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Walk every screen in the fake engine and check each one
         run: node scripts/ui-shots/walk.mjs --workers=4
       - name: Upload the walk report
@@ -132,10 +154,13 @@ jobs:
         with:
           name: nightly-walk-report
           path: |
-            app/ui/.shots/report.json
-            app/ui/.shots/report.md
+            ${{ runner.temp }}/chausar/ui-shots/report.json
+            ${{ runner.temp }}/chausar/ui-shots/report.md
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   desktop:
     runs-on: ubuntu-latest
@@ -150,12 +175,18 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Start and stop the engine worker headless
         run: node scripts/desktop-smoke.mjs
       - name: Install the Electron binary (npm ci skipped its install script)
         run: node node_modules/electron/install.js
       - name: Check the preview packaging inputs
         run: node scripts/desktop-package.mjs --mode preview --platform linux --arch x64 --check
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   # The budgets in platform/tests/baselines/perf-budgets.json, measured on this runner; the slow-file check reads the
   # Ubuntu engine receipts from tonight's engine job.
@@ -174,20 +205,26 @@ jobs:
           cache: npm
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Build the Ink frontend for the entry chunk budget
         run: npm run build:ui
       - name: Fetch tonight's Ubuntu engine receipts
         uses: actions/download-artifact@v4
         with:
           pattern: nightly-engine-ubuntu-latest-shard-*
-          path: results/engine
+          path: ${{ runner.temp }}/chausar/engine
       - name: Measure and compare the perf budgets
-        run: node scripts/perf-budgets.mjs --timings results/engine --output results/perf-budgets.json
+        run: node scripts/perf-budgets.mjs --timings ${{ runner.temp }}/chausar/engine
       - name: Upload the perf receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nightly-perf-budgets
-          path: results/perf-budgets.json
+          path: ${{ runner.temp }}/chausar/perf-budgets/perf-budgets.json
           if-no-files-found: warn
           retention-days: 30
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
