@@ -227,6 +227,20 @@ const onlyPinnedHook = config => {
   return hooks.length === 1 && hooks[0] === 'afterPack' && config.afterPack === AFTER_PACK_HOOK;
 };
 
+// D5: the installer trim, one rule all three builder files meet. Chromium's languages: English (US and UK) and Hindi,
+// which C5 brings back as a pack (the app never picks money or dates from them). No Claude Code program file: Chausar
+// always runs the owner's own Claude Code (agent-runtime/route.ts) and never the Agent SDK's bundled one, so the
+// founder dropped it from every installer (5 Nov); the SDK itself still ships.
+export const TRIM = Object.freeze({
+  electronLanguages: Object.freeze(['en-US', 'en-GB', 'hi']),
+  claudeBinary: 'none',
+  claudeBinaryExclusion: '!node_modules/@anthropic-ai/claude-agent-sdk-*/**',
+});
+/** Every mode: exactly the three languages. */
+export function validateTrim(config) {
+  if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
+}
+
 function validatePreviewConfig(config) {
   if (config.appId !== 'in.chausar.desktop.preview' || config.productName !== 'Chausar Unsigned Preview' || config.extraMetadata?.name !== 'chausar-preview' || config.extraMetadata?.chausarPreview !== true || config.extraMetadata?.chausarReleaseChannel !== 'unsigned-preview') throw new Error('preview requires a separate identity and explicit unsigned demo metadata');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
@@ -357,6 +371,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
     const config = JSON.parse(await readFile(join(root, plan.config), 'utf8'));
     validateInkPackagingConfig(config);
     validateIconConfig(config);
+    validateTrim(config);
     if (plan.mode === 'preview') validatePreviewConfig(config);
     else if (plan.mode === 'beta') validateBetaConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');

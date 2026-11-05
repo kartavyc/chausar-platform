@@ -8,6 +8,7 @@
   "platform/tests/conversation-continuation-engine.test.ts": 14.1,
   "platform/tests/conversation-synthesis-public-acceptance.test.ts": 13.3,
   "platform/tests/conversation-synthesis-public-negative.test.ts": 18.4,
+  "platform/tests/desktop-trim-d5.test.ts": 2.5,
   "platform/tests/investigation-job-http.test.ts": 28.6,
   "platform/tests/phone-host-http.test.ts": 33.9,
   "platform/tests/private-trial-public-flow.test.ts": 22,
