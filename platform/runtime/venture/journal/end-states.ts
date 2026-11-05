@@ -12,6 +12,7 @@ import { check, type Context } from '../../contracts.ts';
 import type { IsoDate, JournalEndState, JournalEndStep, JournalRecord, JournalState, JournalTargetOutcome, VentureDeps } from '../contracts.ts';
 import { digest, isoDate, ventureAction, type VentureTx } from '../records.ts';
 import { redactSecrets } from '../core/secrets.ts';
+import { localDayAt } from '../local-day.ts';
 import type { Journalled, ProposeInput } from './journal.ts';
 
 /** The order an action moves on in after applied. Each step goes further than the one before it. */
@@ -44,7 +45,8 @@ export function reportEndIn(tx: VentureTx, input: EndInput): Journalled {
     check(input.check && typeof input.check === 'object', 'JOURNAL_CHECK_UNDATED', 'Verified needs the check that accepted it and the day it ran.');
     check(typeof input.check.id === 'string' && ID.test(input.check.id), 'INVALID_VENTURE_REQUEST', 'Name the check that accepted it.');
     const checkedOn = isoDate(input.check.checkedOn, 'The day of the check');
-    check(checkedOn <= tx.now.slice(0, 10), 'JOURNAL_CHECK_UNDATED', 'A check dated after today has not run yet.');
+    // "Today" is the owner's day (one-shot B2): a check run at 00:30 in India is dated that day, though UTC is a day behind.
+    check(checkedOn <= localDayAt(tx.now, tx.venture?.country), 'JOURNAL_CHECK_UNDATED', 'A check dated after today has not run yet.');
     dated = { id: input.check.id, checkedOn };
   }
   const record = tx.find('venture-journal-entry', input.entryId) ?? tx.find('venture-connector-post', input.entryId);

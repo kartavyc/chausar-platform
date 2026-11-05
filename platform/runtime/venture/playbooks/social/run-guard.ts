@@ -7,6 +7,7 @@ import { repurposeSource } from './repurpose.ts';
 import { socialFormats } from './formats.ts';
 import type { SocialChannel } from './channels.ts';
 import { boundSocialSource } from './bound-source.ts';
+import { localDayAt } from '../../local-day.ts';
 import { socialD2Preflight } from './d2-preflight.ts';
 import { digest,listRecords } from '../../records.ts';
 import { requireOrderPeopleConsent } from '../kit/voice-consent.ts';
@@ -14,7 +15,7 @@ import { isPracticeStage } from '../../core/launch-stage.ts';
 import { findRecord } from '../../records.ts';
 import { socialLegalBlock } from './legal-confirmation.ts';
 export { boundSocialSource } from './bound-source.ts';
-export function refuseSocialDraft(state: State, venture: VentureRecord, order: OrderRecord, today = new Date().toISOString().slice(0,10)): void {
+export function refuseSocialDraft(state: State, venture: VentureRecord, order: OrderRecord, today = localDayAt(new Date(), venture.country)): void {
     const key = acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer;
     const fields = order.intake?.fields ?? {};
     try {

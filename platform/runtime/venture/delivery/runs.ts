@@ -300,7 +300,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, order);
   (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(state, venture, order, deps.clock().toISOString());
   refuseYoutubeDraft(state,venture,order,deps.clock().toISOString());
-  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, deps.clock().toISOString().slice(0,10));
+  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, todayOf(venture, deps.clock()));
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
   // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
@@ -336,7 +336,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if (playbook.flagship === 'seo-visibility' && ['content-retainer','local-seo'].includes(context.offerKey ?? '')) (await import('../playbooks/seo-visibility/article-budget.ts')).articleLimitMicros(context.order.intake?.fields?.articleLimitUsd);
   const { refs } = draftContext(context, todayIso(deps, context.venture));
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
-  if(playbook.flagship==='online-seller') (await import('../playbooks/online-seller/report-source.ts')).sellerReportSource(context.order,context.offerKey,uploads,deps.clock().toISOString().slice(0,10));
+  if(playbook.flagship==='online-seller') (await import('../playbooks/online-seller/report-source.ts')).sellerReportSource(context.order,context.offerKey,uploads,todayIso(deps, context.venture));
   if (!template) {
     const denied=writeCapDenial(fresh.state,fresh.venture,'drafts',deps.clock().toISOString());
     check(!denied,denied?.code??'WRITE_CAP_REACHED',denied?.reason??'The daily draft limit was reached.');

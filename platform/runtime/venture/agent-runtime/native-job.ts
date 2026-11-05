@@ -4,6 +4,7 @@ import type { DeliveryRunRecord, VentureDeps, UploadRecord } from '../contracts.
 import { digest, findRecord, listRecords, requireVenture, stateView, ventureAction } from '../records.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { blueprintCountry } from '../core/country-history.ts';
+import { localDayAt } from '../local-day.ts';
 import { orderRefs, type AnyReceipt } from '../delivery/deliverable.ts';
 import { pdfPages, tablesOfFile } from '../delivery/harness/files.ts';
 import { readDocx } from '../playbooks/kit/ooxml/read.ts';
@@ -174,7 +175,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
         client: { id: client.id, ventureId: venture.id, name: client.name, email: client.email ?? '', ...(calculationGrant(deps.store.read(), run).some(name => name.startsWith('tax.')) ? { taxId: client.taxId ?? null } : {}) },
         order: { id: order.id, ventureId: venture.id, clientId: client.id, request: order.request, status: order.status, intake: order.intake ?? null, chainStage: order.chainStage ?? null },
         files: files.map(file => ({ id: file.id, ventureId: venture.id, orderId: order.id, name: file.name, mediaType: file.format, bytes: file.bytes, digest: file.digest })),
-        sections: [...options.sections], dates: [...orderRefs(blueprint, order, receipt, deps.clock().toISOString().slice(0, 10)).dates,
+        sections: [...options.sections], dates: [...orderRefs(blueprint, order, receipt, localDayAt(deps.clock(), country)).dates,
           ...(background.approvedBrief ? [{ref:'room.deadline',label:'The deadline in the approved client brief',iso:background.approvedBrief.deadline}] : [])] };
     },
     readFile: async (_scope, file, page) => {

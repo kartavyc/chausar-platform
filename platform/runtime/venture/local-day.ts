@@ -22,13 +22,13 @@ function calendarRules(): CalendarRules {
   return rules;
 }
 
-/** The venture's time zone from its country code; UTC for a code outside the table. */
-export function ventureTimeZone(country: Pick<CountryProfile, 'code'>): string {
-  return COUNTRY_TIME_ZONES[country.code] ?? 'UTC';
+/** The venture's time zone from its country code; UTC for a code outside the table, or no country yet (still in its interview). */
+export function ventureTimeZone(country: Pick<CountryProfile, 'code'> | null | undefined): string {
+  return (country ? COUNTRY_TIME_ZONES[country.code] : undefined) ?? 'UTC';
 }
 
 /** The owner's calendar day at an instant (a Date or an ISO time with 'Z'), as 'YYYY-MM-DD'. */
-export function localDayAt(instant: Date | string, country: Pick<CountryProfile, 'code'>): IsoDate {
+export function localDayAt(instant: Date | string, country: Pick<CountryProfile, 'code'> | null | undefined): IsoDate {
   const ms = typeof instant === 'string' ? Date.parse(instant) : instant.getTime();
   return calendarRules().localAt(ms, ventureTimeZone(country)).slice(0, 10);
 }
@@ -47,6 +47,6 @@ export function localTimeAt(instant: Date | string, country: Pick<CountryProfile
 }
 
 /** Today on the owner's calendar, from the injected clock. */
-export function ownerToday(clock: () => Date, country: Pick<CountryProfile, 'code'>): IsoDate {
+export function ownerToday(clock: () => Date, country: Pick<CountryProfile, 'code'> | null | undefined): IsoDate {
   return localDayAt(clock(), country);
 }

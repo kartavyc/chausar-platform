@@ -16,7 +16,8 @@ import { readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/pro
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { GitHubTransport, IsoTime, RepoRef, SiteEditRecord, SiteEditState, VentureDeps } from '../contracts.ts';
-import { MAX_STORED_PAYLOAD, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
+import { MAX_STORED_PAYLOAD, currentVenture, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
+import { ownerToday } from '../local-day.ts';
 import { digestOf, journalled } from '../journal/journal.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
 import { turnDownEditIn } from '../journal/action-extras.ts';
@@ -197,7 +198,7 @@ async function writeReviewed(deps: VentureDeps, ctx: Context, target: SiteTarget
   if (!done.replayed && done.value?.state === stepInfo.done) {
     await reportEndState(deps, ctx, {
       entryId: done.entry.id, state: 'verified', by: 'engine', line: 'Read back after writing: the file matches what you reviewed.',
-      check: { id: 'site-readback', checkedOn: deps.clock().toISOString().slice(0, 10) },
+      check: { id: 'site-readback', checkedOn: ownerToday(deps.clock, currentVenture(deps.store.read())?.country) },
     }).catch(() => {});
   }
   return done.value ?? reviewedAfter(deps, editId);
