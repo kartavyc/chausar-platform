@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { ReleaseUpdater, canonicalReleaseManifest, compareVersions, type ReleaseManifest } from '../runtime/updater.ts';
+import { ReleaseUpdater, canonicalReleaseManifest, canonicalReleaseFeed, compareVersions, installIdIn, rolloutBucket, type ReleaseManifest } from '../runtime/updater.ts';
 import { acquireProcessLock } from '../runtime/process-lock.ts';
 
 const keys=generateKeyPairSync('ed25519'),artifact=Buffer.from('A test artifact; this file must never be executed.');
@@ -120,4 +120,59 @@ test('a crashed recovery claim advances safely and concurrent release is idempot
   const root=await directory(t),path=join(root,'stage.lock'),pid=deadPid(),raw=JSON.stringify({pid,token:randomUUID()}),claim=join(root,`stage.lock.recovery-${createHash('sha256').update(raw).digest('hex')}.lock`);
   await writeFile(path,raw);await writeFile(claim,JSON.stringify({pid,token:randomUUID(),startedAt:new Date().toISOString()}));
   const lock=await acquireProcessLock(path,{busyCode:'UPDATE_BUSY'});assert.equal(JSON.parse(await readFile(path,'utf8')).token,lock.token);await Promise.all([lock.release(),lock.release()]);assert.deepEqual(await readdir(root),[]);
+});
+
+// C5 task 30: the signed feed. One file lists the releases, signed whole with the same pinned key; the app picks this
+// platform's newest release and offers it only to installs whose bucket is below the rollout percent.
+type FeedRelease={manifest:ReleaseManifest;signature:string};
+function feedOf(releases:ReleaseManifest[],extra:Partial<{channel:'beta'|'stable';rolloutPercent:number}>={}){return{schemaVersion:1 as const,channel:extra.channel??'beta',rolloutPercent:extra.rolloutPercent??100,releases:releases.map(manifest=>({manifest,signature:signature(manifest)})) as FeedRelease[]};}
+function feedSignature(feed:any,key=keys.privateKey){return sign(null,Buffer.from(canonicalReleaseFeed(feed)),key).toString('base64url');}
+const otherPlatform=(process.platform==='win32'?'linux':'win32') as ReleaseManifest['platform'];
+
+test('a signed feed offers this platform\'s newest release',async t=>{
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t)});
+  const feed=feedOf([manifest('1.1.0'),manifest('1.2.0'),{...manifest('1.3.0'),platform:otherPlatform}]);
+  const choice=updater.verifyFeed(canonicalReleaseFeed(feed),feedSignature(feed),{channel:'beta',installId:'a'.repeat(32)});
+  assert.equal(choice.reason,'offered');assert.equal(choice.offer?.manifest.version,'1.2.0');
+  assert.equal(updater.verify(choice.offer!.manifest,choice.offer!.signature).version,'1.2.0');
+});
+
+test('a changed byte, another key, a channel mismatch or a bad release signature refuses the whole feed',async t=>{
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t)}),options={channel:'beta' as const,installId:'b'.repeat(32)};
+  const feed=feedOf([manifest('1.1.0')]),signed=feedSignature(feed),text=canonicalReleaseFeed(feed);
+  assert.throws(()=>updater.verifyFeed(text.replace('"rolloutPercent":100','"rolloutPercent":99'),signed,options),code('INVALID_FEED_SIGNATURE'));
+  assert.throws(()=>updater.verifyFeed(JSON.stringify(feed,null,2),signed,options),code('NONCANONICAL_FEED'));
+  const other=generateKeyPairSync('ed25519');assert.throws(()=>updater.verifyFeed(text,feedSignature(feed,other.privateKey),options),code('INVALID_FEED_SIGNATURE'));
+  assert.throws(()=>updater.verifyFeed(text,signed,{...options,channel:'stable'}),code('FEED_CHANNEL_MISMATCH'));
+  const forged={...feed,releases:[{manifest:{...manifest('1.1.0'),size:artifact.length+1},signature:signature(manifest('1.1.0'))}]};
+  assert.throws(()=>updater.verifyFeed(forged,feedSignature(forged),options),code('INVALID_RELEASE_SIGNATURE'));
+  for(const bad of [{...feed,extra:1},{...feed,schemaVersion:2},{...feed,rolloutPercent:101},{...feed,rolloutPercent:1.5},{...feed,channel:'nightly'},{...feed,releases:[]}])
+    assert.throws(()=>updater.verifyFeed(bad as any,feedSignature(bad),options),code('INVALID_FEED'));
+});
+
+test('a downgrade or another platform\'s release is never offered',async t=>{
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.2.0',stageDirectory:await directory(t)}),options={channel:'beta' as const,installId:'c'.repeat(32)};
+  for(const feed of [feedOf([manifest('1.1.0')]),feedOf([manifest('1.2.0')])]){const choice=updater.verifyFeed(feed,feedSignature(feed),options);assert.equal(choice.offer,null);assert.equal(choice.reason,'up-to-date');}
+  const elsewhere=feedOf([{...manifest('1.3.0'),platform:otherPlatform}]),choice=updater.verifyFeed(elsewhere,feedSignature(elsewhere),options);
+  assert.equal(choice.offer,null);assert.equal(choice.reason,'no-release');
+  const needsNewer=feedOf([{...manifest('1.3.0'),minEngineVersion:'1.2.5'}]),blocked=updater.verifyFeed(needsNewer,feedSignature(needsNewer),options);
+  assert.equal(blocked.offer,null);assert.equal(blocked.reason,'no-release');
+});
+
+test('rollout 0 offers nothing, 100 offers it, and 50 gives one install the same answer every time',async t=>{
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t)});
+  const at=(percent:number,installId:string)=>{const feed=feedOf([manifest('1.1.0')],{rolloutPercent:percent});return updater.verifyFeed(feed,feedSignature(feed),{channel:'beta',installId});};
+  assert.equal(at(0,'d'.repeat(32)).reason,'not-in-rollout');assert.equal(at(100,'d'.repeat(32)).reason,'offered');
+  const ids=Array.from({length:400},(_,index)=>createHash('sha256').update(String(index)).digest('hex').slice(0,32));
+  const first=ids.map(id=>at(50,id).reason),again=ids.map(id=>at(50,id).reason);assert.deepEqual(again,first);
+  const offered=first.filter(reason=>reason==='offered').length;assert.ok(offered>140&&offered<260,`${offered} of 400 in a 50 percent rollout`);
+  for(const id of ids.slice(0,50))assert.equal(rolloutBucket(id,'1.1.0'),rolloutBucket(id,'1.1.0'));
+  assert.ok(ids.every(id=>{const bucket=rolloutBucket(id,'1.1.0');return Number.isInteger(bucket)&&bucket>=0&&bucket<100;}));
+});
+
+test('the install id is random, made once and kept in the updates folder',async t=>{
+  const folder=join(await directory(t),'updates'),first=await installIdIn(folder);
+  assert.match(first,/^[a-f0-9]{32}$/);assert.equal(await installIdIn(folder),first);assert.equal((await readFile(join(folder,'install-id'),'utf8')).trim(),first);
+  const other=join(await directory(t),'updates');assert.notEqual(await installIdIn(other),first);
+  await writeFile(join(other,'install-id'),'not an id');const replaced=await installIdIn(other);assert.match(replaced,/^[a-f0-9]{32}$/);assert.equal(await installIdIn(other),replaced);
 });

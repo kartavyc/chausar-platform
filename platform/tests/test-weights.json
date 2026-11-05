@@ -27,6 +27,7 @@
   "platform/tests/private-trials-public-acceptance.test.ts": 15.2,
   "platform/tests/private-trials.test.ts": 14.7,
   "platform/tests/receipt-d11.test.ts": 1,
+  "platform/tests/release-feed-c5.test.ts": 1,
   "platform/tests/release-notes-d11.test.ts": 1,
   "platform/tests/release-smoke-d11.test.ts": 22,
   "platform/tests/release-workflow-d11.test.ts": 1,
