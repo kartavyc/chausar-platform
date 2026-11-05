@@ -45,7 +45,7 @@ function owned(state: State, ventureId: string, id: string): YoutubeEditRecord {
 function orderRights(state: State, ventureId: string, orderId: string, now: string) {
   const order = findRecord(state, 'venture-order', orderId);
   check(order && order.ventureId === ventureId && order.status !== 'cancelled', 'ORDER_NOT_FOUND', 'Choose an open order in this business.');
-  requireRights({ id: 'assemble', clipping: true }, order.intake ?? null, localDayAt(now, { code: 'IN' }));
+  requireRights({ id: 'assemble', clipping: true }, order.intake ?? null, localDayAt(now, findRecord(state, 'venture-record', ventureId)?.country));
   return order;
 }
 function checkedRequest(value: unknown): string {
