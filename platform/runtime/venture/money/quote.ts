@@ -1,9 +1,9 @@
 // Price receipts: the proof behind every price Chausar shows. Built inside a venture transaction from the
 // owner's own price and tax settings by pure arithmetic; the explanation is an engine template, never model text.
-import { formatMoney } from '../../owner-format.ts';
+import { formatMoney, plainMoney } from '../../owner-format.ts';
 import { check, type Context } from '../../contracts.ts';
 import { numberGuard } from '../../calculator.ts';
-import { currencyMinorDigits, formatMinor } from '../../currency.ts';
+import { currencyMinorDigits } from '../../currency.ts';
 import { digest, exactPayload, listRecords, readVenture, ventureAction, type VentureTx } from '../records.ts';
 import { computePrice, type PriceAmounts } from './price.ts';
 import { halfRatePercent, ratePercent, taxDecision, type TaxDecision } from './tax.ts';
@@ -100,7 +100,7 @@ export function priceAllowedNumbers(figures: PriceFigure[], quantity: string, de
   for (const f of figures) {
     numbers.push(f.minor);
     // The plain decimal from the exact form (B2: the display is the owner form, "₹1,00,000", which this never parses).
-    numbers.push(formatMinor(f.minor, f.currency).slice(f.currency.length + 1).replace(/,/g, ''));
+    numbers.push(plainMoney(f.minor, f.currency));
   }
   numbers.push(quantity, ratePercent(decision.rateBps));
   if (decision.treatment === 'cgst-sgst') numbers.push(halfRatePercent(decision.rateBps));

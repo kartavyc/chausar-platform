@@ -5,8 +5,7 @@
 // limit; GO otherwise, and every GO card says "GO spends nothing: each spend still asks you." Each card is stored
 // (venture-go-no-go) and listed on Business; its loss opens a receipt (venture.receipt.get with the card's id) worked
 // out again from the stored card. Learned from sealeap-ecommerce-skills' assets/decision-template.md, ideas only.
-import { formatMinor } from '../../../currency.ts';
-import { formatMoney } from '../../../owner-format.ts';
+import { formatMoney, plainMoney } from '../../../owner-format.ts';
 import { check, type Context, type State } from '../../../contracts.ts';
 import { numberGuard, sumMoney } from '../../../calculator.ts';
 import { digest, exactPayload, listRecords, readVenture, singleLine, ventureAction } from '../../records.ts';
@@ -70,7 +69,7 @@ function working(inputs: Readonly<Record<GoNoGoInputName, string | null>>, curre
     const show = (minor: string) => formatMoney(minor, currency);
     explanation = `${show(upfrontMinor)} to start, plus ${show(monthlyMinor)} a month for ${months} months (${show(running)}) = ${show(maxLossMinor)} at most.`
       + (limitMinor === null ? '' : ` Your limit is ${show(limitMinor)}.`);
-    const plain = (minor: string) => formatMinor(minor, currency).slice(currency.length + 1).replace(/,/g, ''); // the exact form's plain decimal (B2)
+    const plain = (minor: string) => plainMoney(minor, currency);
     const amounts = [upfrontMinor, monthlyMinor, running, maxLossMinor, ...(limitMinor === null ? [] : [limitMinor])];
     allowedNumbers = [...new Set([...amounts, ...amounts.map(plain), months])];
     numberGuard(explanation, { allowedNumbers });

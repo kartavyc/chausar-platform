@@ -954,7 +954,7 @@ export type PriceFigure = {
   key: 'unit' | 'subtotal' | 'discount' | 'taxable' | 'tax' | 'cgst' | 'sgst' | 'igst' | 'total' | 'paid' | 'balance' | 'credited';
   label: string; // 'Total', 'CGST at 9%' ...
   minor: MinorString;
-  display: string; // formatMinor(minor, currency)
+  display: string; // the owner form (owner-format.ts formatMoney) or, where it leaves the app, the exact form
   currency: string;
 };
 export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {

@@ -7,9 +7,9 @@
 // venture.goals.set keeps a goal inside the app, for the owner; a newer goal for the same month is the one in use and
 // the older stays as history. venture.goals.suggest asks the owner's own AI for a figure from the plan's offers and
 // prices only (no client data), labelled a model estimate; it never becomes a goal unless the owner sets it.
-import { formatMoney } from '../../owner-format.ts';
+import { formatMoney, plainMoney } from '../../owner-format.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
-import { currencyMinorDigits, decimalMinor, formatMinor } from '../../currency.ts';
+import { currencyMinorDigits, decimalMinor } from '../../currency.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { PURPOSE_TIER } from '../contracts.ts';
 import type {
@@ -213,7 +213,7 @@ function pricedOffers(state: State, venture: VentureRecord): PricedOffer[] {
   const currency = venture.country.currency;
   return plan.offers.filter(offer => offer.pricing.unitPriceMinor !== null).map(offer => ({
     name: offer.name.value, per: offer.pricing.quantityUnit,
-    price: formatMinor(offer.pricing.unitPriceMinor as string, currency).slice(currency.length + 1).replace(/,/g, ''),
+    price: plainMoney(offer.pricing.unitPriceMinor as string, currency),
   }));
 }
 
@@ -274,6 +274,6 @@ export async function suggestGoal(deps: VentureDeps, ctx: Context, payload: unkn
     throw error;
   }
   // typed: the amount without the currency code or grouping, as the goal field takes it back ("150000.00"), from the exact form.
-  const typed = formatMinor(amountMinor, currency).slice(currency.length + 1).replace(/,/g, '');
+  const typed = plainMoney(amountMinor, currency);
   return { amountMinor, display: formatMoney(amountMinor, currency), estimate: true, line: SUGGEST_LINE, typed };
 }

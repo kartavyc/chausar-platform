@@ -205,11 +205,13 @@ export function statementText(statement: ClientStatement, venture: VentureRecord
 
 /** One month's invoices issued and payments received, for the owner's accountant, from the two sum plans. */
 export function booksText(plans: { invoiced: SumPlan; received: SumPlan }, display: string, currency: string): string {
-  const total = (plan: SumPlan) => formatMinor(plan.addends.reduce((sum, addend) => sum + BigInt(addend.amount), 0n), currency);
+  // B2 fix round 1: the accountant reads this outside the app, so every amount is the exact form, as in the CSV.
+  const exact = (minor: bigint | string) => formatMinor(minor, currency);
+  const total = (plan: SumPlan) => exact(plan.addends.reduce((sum, addend) => sum + BigInt(addend.amount), 0n));
   const lines = [`Invoices issued in ${display}, before tax: ${total(plans.invoiced)}.`];
-  for (const addend of plans.invoiced.addends) lines.push(`${addend.label}: ${addend.display}.`);
+  for (const addend of plans.invoiced.addends) lines.push(`${addend.label}: ${exact(addend.amount)}.`);
   lines.push('', `Payments received in ${display}: ${total(plans.received)}.`);
-  for (const addend of plans.received.addends) lines.push(`${addend.label}: ${addend.display}.`);
+  for (const addend of plans.received.addends) lines.push(`${addend.label}: ${exact(addend.amount)}.`);
   lines.push('', 'Every figure comes from the back office, added up by code. Read only.');
   return lines.join('\n');
 }

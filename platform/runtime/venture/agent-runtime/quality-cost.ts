@@ -2,6 +2,7 @@ import type { Context } from '../../contracts.ts';
 import type { State } from '../../contracts.ts';
 import type { SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
 import { formatMicros, listRecords, ventureAction } from '../records.ts';
+import { formatUsd } from '../../owner-format.ts';
 import { sumReceiptIn, type SumPlan } from '../money/sums.ts';
 import { nativeJobSpends } from './job-spend.ts';
 import { agentCostPlan } from './cost-proof.ts';
@@ -33,7 +34,7 @@ export async function projectNativeQualityCost(deps:VentureDeps,ctx:Context,runI
     const unknown=charges.some(row=>row.phase!=='released'&&(row.phase!=='settled'||row.settledBy!=='usage'||!plan.addends.some(item=>item.recordId===row.id)));
     const spendId=charges[0].id;
     const receipt=unknown?undefined:sumReceiptIn(tx,plan);
-    const cost=unknown?{spendId,state:'unknown' as const,display:'Some AI costs are not known. The allowance stays held.'}:{spendId,state:'priced' as const,receiptId:receipt!.id,display:`${formatMicros(receipt!.totalMinor)}${plan.addends.some(row=>row.estimate)?' (estimate, price unconfirmed)':''}`};
+    const cost=unknown?{spendId,state:'unknown' as const,display:'Some AI costs are not known. The allowance stays held.'}:{spendId,state:'priced' as const,receiptId:receipt!.id,display:`${formatUsd(receipt!.totalMinor)}${plan.addends.some(row=>row.estimate)?' (estimate, price unconfirmed)':''}`};
     tx.replace({...run,agentJob:{...run.agentJob,cost}});tx.emit('run.step',{runId});
   });
 }

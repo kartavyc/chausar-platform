@@ -276,7 +276,7 @@ test('work calculator: sums and group totals are BigInt over cells code read, wi
   const bills = table(practice('clean')[1]);
   const all = sumRows(env, bills, 'Amount', null);
   // 4500 + 12000 + 6320 + 25000 + 4500 = 52320.00
-  assert.deepEqual(all.figures.map(figure => [figure.key, figure.minor, figure.display]), [['total', '5232000', 'INR 52,320.00'], ['rows', '5', '5']]);
+  assert.deepEqual(all.figures.map(figure => [figure.key, figure.minor, figure.display]), [['total', '5232000', '₹52,320'], ['rows', '5', '5']]);
   assert.equal(all.steps[0].result, '5232000');
   assert.doesNotThrow(() => numberGuard(all.explanation, all));
   const dairy = sumRows(env, bills, 'Amount', { column: 'Supplier', equals: 'Fresh Farms Dairy' });
@@ -325,9 +325,9 @@ test('reconciliation: the messy month is read newest row last, and the gaps are 
   assert.equal(rec.balanced, true);
   assert.deepEqual(rec.matched.map(item => item.rule).sort(), ['amount-and-name', 'amount-and-name', 'bill-number']);
   assert.deepEqual(rec.unmatchedBank.map(item => [item.rowId, item.text, item.display, item.date]), [
-    ['r4', 'UPI/Quick Print Shop/flyers', 'INR 2,750.00', '2026-09-12'], ['r2', 'ATM cash withdrawal', 'INR 5,000.00', '2026-09-22'],
+    ['r4', 'UPI/Quick Print Shop/flyers', '₹2,750', '2026-09-12'], ['r2', 'ATM cash withdrawal', '₹5,000', '2026-09-22'],
   ]);
-  assert.deepEqual(rec.unmatchedBills.map(item => [item.text, item.display]), [['Kiran Electricals KE-118', 'INR 3,400.00']]);
+  assert.deepEqual(rec.unmatchedBills.map(item => [item.text, item.display]), [['Kiran Electricals KE-118', '₹3,400']]);
   assert.equal(receipt.figures.find(item => item.key === 'unmatched-bank')!.minor, '775000');
 });
 
@@ -416,7 +416,7 @@ test('tools: reading, the calculator, a row program and a reconciliation each le
   assert.deepEqual(sample.proofs.map(proof => proof.kind), ['file-read']);
   const summed = await call(env, ALL, 'calc.sum', { table: 'f2', amountColumn: 'Amount' });
   assert.ok(summed.record.envelope.ok);
-  assert.deepEqual((summed.record.envelope.result as any).figures[0], { ref: 'w1.total', label: 'Total of Amount', value: 'INR 52,320.00' });
+  assert.deepEqual((summed.record.envelope.result as any).figures[0], { ref: 'w1.total', label: 'Total of Amount', value: '₹52,320' });
   assert.equal(summed.receipts.length, 1);
   assert.equal(summed.record.receiptIds[0], summed.receipts[0].id);
   const program = 'let d = lower(col("Supplier"))\nout kind = if contains(d, "dairy") or contains(d, "coffee") then "Supplies" else "Overheads"';

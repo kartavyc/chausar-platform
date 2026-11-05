@@ -1,5 +1,6 @@
 // Shared exact report arithmetic for the engine and the browser demo. Hashing is supplied by the host.
 import {csvRows} from '../../../csv.ts';
+import {formatCount} from '../../../owner-format.ts';
 type IsoDate=string;
 export type ExportPlatform = 'instagram' | 'linkedin';
 export type MetricKey = 'views' | 'reach' | 'impressions' | 'likes' | 'comments' | 'shares' | 'saves' | 'clicks' | 'follows';
@@ -105,16 +106,7 @@ const METRIC_WORD: Record<MetricKey, string> = {
 
 /** A whole number with grouping: 21,735 or, in the Indian style, 1,21,735. Digits only, no floating point. */
 function groupDigits(value: bigint, style: 'international' | 'indian' = 'international'): string {
-  const negative = value < 0n;
-  const digits = (negative ? -value : value).toString();
-  let grouped: string;
-  if (style === 'indian' && digits.length > 3) {
-    const head = digits.slice(0, -3);
-    grouped = `${head.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${digits.slice(-3)}`;
-  } else {
-    grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-  return negative ? `-${grouped}` : grouped;
+  return formatCount(value, style === 'indian' ? 'IN' : 'XX');
 }
 
 function realDate(year: number, month: number, day: number): IsoDate | null {

@@ -7,8 +7,7 @@
 // charged, and a tax-included price says so on its line (tax-kinds.ts splits it); recurring schedules draft through
 // draftInvoiceIn; the view adds the invoice's next step, its timeline (invoice-states.ts), its credit notes, the TDS
 // the client deducted and, on a draft whose rate is no longer the plan's, the rate change, which only the owner acts on.
-import { formatMinor } from '../../currency.ts';
-import { formatMoney } from '../../owner-format.ts';
+import { formatMoney, plainMoney } from '../../owner-format.ts';
 import { check, type Context, type State } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
 import {
@@ -262,7 +261,7 @@ function partReceipt(tx: VentureTx, invoiceId: string, basis: PriceReceiptRecord
     : share !== null
       ? `${PART_WORDS[kind]}: ${share}% of the order's ${money(receiptTaxable(basis))} before tax is ${money(cut.taxable)}${partTaxWords(figures, decision, taxLabel, cut.tax)} = ${money(cut.total)}.`
       : `${PART_WORDS[kind]} of ${money(cut.taxable)} before tax${partTaxWords(figures, decision, taxLabel, cut.tax)} = ${money(cut.total)}.`;
-  const plain = (minor: bigint | string) => formatMinor(minor, currency).slice(currency.length + 1).replace(/,/g, ''); // from the exact form (B2)
+  const plain = (minor: bigint | string) => plainMoney(minor, currency);
   const record: PriceReceiptRecord = {
     ...tx.base('venture-price-receipt'),
     subject: { type: 'invoice', invoiceId },

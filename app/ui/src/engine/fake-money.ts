@@ -375,13 +375,15 @@ export class FakeMoney {
 
   private figures(invoice: HeldInvoice): PriceFigureLite[] {
     const total = totalOf(invoice.price);
+    // As the engine's invoiceFigures: each figure carries its minor units and currency beside the display (B2 fix round 1).
+    const fig = (key: string, label: string, minor: number) => ({ key, label, minor: String(Math.trunc(minor)), display: this.show(invoice, minor), currency: invoice.currency });
     return [
-      { key: 'subtotal', label: 'Subtotal', display: this.show(invoice, invoice.price.subtotal) },
-      ...invoice.price.taxes.map((line) => ({ key: line.key, label: line.label, display: this.show(invoice, line.minor) })),
-      { key: 'total', label: 'Total', display: this.show(invoice, total) },
-      { key: 'paid', label: 'Paid', display: this.show(invoice, invoice.paid) },
-      ...((invoice.credited ?? 0) > 0 ? [{ key: 'credited', label: 'Credited', display: this.show(invoice, invoice.credited ?? 0) }] : []),
-      { key: 'balance', label: 'Balance', display: this.show(invoice, this.balance(invoice)) },
+      fig('subtotal', 'Subtotal', invoice.price.subtotal),
+      ...invoice.price.taxes.map((line) => fig(line.key, line.label, line.minor)),
+      fig('total', 'Total', total),
+      fig('paid', 'Paid', invoice.paid),
+      ...((invoice.credited ?? 0) > 0 ? [fig('credited', 'Credited', invoice.credited ?? 0)] : []),
+      fig('balance', 'Balance', this.balance(invoice)),
     ];
   }
 

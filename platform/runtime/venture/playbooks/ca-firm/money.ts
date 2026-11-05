@@ -2,7 +2,7 @@
 // division names its rounding. Nothing here uses a float. Idea taken, code written here: Invaro/opentax-engine
 // (AGPL-3.0, ideas only), whose money module keeps cents as bigint and makes each division say how it rounds.
 import { ChausarError } from '../../../portable.ts';
-import { formatMinor } from '../../../currency.ts';
+import { formatMoney } from '../../../owner-format.ts';
 
 export type Rounding = 'half-up' | 'half-even' | 'floor' | 'ceil';
 export type IsoDate = string;
@@ -71,8 +71,9 @@ export const minBig = (a: bigint, b: bigint) => (a < b ? a : b);
 export const maxBig = (a: bigint, b: bigint) => (a > b ? a : b);
 export const sumBig = (values: readonly bigint[]) => values.reduce((total, value) => total + value, 0n);
 
+/** Rupees as the CA's screens show them ("₹1,50,000"); the plain decimal for allowed numbers is plainMoney (B2 fix round 1). */
 export function inr(minor: bigint | string): string {
-  return formatMinor(minor, 'INR');
+  return formatMoney(minor, 'INR');
 }
 
 /** A real calendar date written YYYY-MM-DD. */

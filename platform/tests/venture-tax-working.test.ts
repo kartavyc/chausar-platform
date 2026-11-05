@@ -118,11 +118,11 @@ test('CA firm, a month: the GST engine works the issued invoices; what it cannot
   assert.equal(gst.title, 'GST for October 2025');
   // Three invoices of INR 2,499.00: CGST and SGST 224.91 each on two, IGST 449.82 on one; 449.82 x 3 = 1,349.46.
   assert.deepEqual(gst.lines.map(line => [line.label, line.value, line.receiptId]), [
-    ['Taxable value of sales counted', 'INR 7,497.00', undefined],
-    ['Output CGST', 'INR 449.82', undefined],
-    ['Output SGST', 'INR 449.82', undefined],
-    ['Output IGST', 'INR 449.82', undefined],
-    ['GST to pay in cash', 'INR 1,349.46', undefined],
+    ['Taxable value of sales counted', '₹7,497', undefined],
+    ['Output CGST', '₹449.82', undefined],
+    ['Output SGST', '₹449.82', undefined],
+    ['Output IGST', '₹449.82', undefined],
+    ['GST to pay in cash', '₹1,349.46', undefined],
   ]);
   assert.match(gst.note!, /^Worked by the GST engine from 3 issued invoices, working receipt ca_[a-f0-9]{24}\./);
   assert.ok(gst.note!.includes(NO_PURCHASES));
@@ -160,7 +160,7 @@ test('CA firm: no GST registration means no GST working; a year shows each month
   const year = await working(env, { period: 'FY 2025-26' });
   assert.equal(year.period, 'Financial year 2025-26 (assessment year 2026-27)');
   assert.equal(year.needsCaConfirmation, true);
-  assert.deepEqual(section(year, 'gst').lines, [{ label: 'October 2025', value: 'INR 449.82' }, { label: 'November 2025', value: 'INR 449.82' }]);
+  assert.deepEqual(section(year, 'gst').lines, [{ label: 'October 2025', value: '₹449.82' }, { label: 'November 2025', value: '₹449.82' }]);
   const income = section(year, 'income-tax');
   assert.deepEqual(income.lines, [{ label: 'Billed in the year, without tax', value: '₹4,998' }]);
   assert.match(income.note!, /^The computation needs your whole income for the year/);

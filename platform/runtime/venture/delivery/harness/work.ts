@@ -3,8 +3,8 @@
 // by name; it never states a number. Each answer is a work receipt: inputs, steps, figures and the numbers a
 // sentence may cite, so the draft quotes money only through a figure part bound to the receipt.
 import { ChausarError, check } from '../../../contracts.ts';
-import { numberGuard } from '../../../calculator.ts';
-import { formatMinor } from '../../../currency.ts';
+import { figureNumbers, numberGuard } from '../../../calculator.ts';
+import { formatMoney } from '../../../owner-format.ts';
 import { digest } from '../../records.ts';
 import type {
   DateOrder, IsoDate, Reconciliation, ReconciliationLine, WorkFigure, WorkReceiptRecord, WorkRunRef, WorkStep, WorkTableRow,
@@ -48,19 +48,15 @@ function amountOf(env: WorkEnv, table: SourceTable, row: WorkTableRow, column: s
 }
 
 const moneyFigure = (env: WorkEnv, key: string, label: string, value: bigint): WorkFigure =>
-  ({ key, label, minor: String(value), display: formatMinor(value, env.currency), currency: env.currency, unit: 'money' });
+  ({ key, label, minor: String(value), display: formatMoney(value, env.currency), currency: env.currency, unit: 'money' });
 const countFigure = (env: WorkEnv, key: string, label: string, value: number): WorkFigure =>
   ({ key, label, minor: String(value), display: String(value), currency: env.currency, unit: 'count' });
 const line = (env: WorkEnv, rowId: string, date: IsoDate | null, text: string, amount: bigint): ReconciliationLine =>
-  ({ rowId, date, text: text.slice(0, 120), amountMinor: String(amount), display: formatMinor(amount, env.currency) });
+  ({ rowId, date, text: text.slice(0, 120), amountMinor: String(amount), display: formatMoney(amount, env.currency) });
 
+/** Each figure's minor units, the numbers its display shows, and an amount's signed plain decimal (calculator.ts). */
 function allowedNumbers(figures: readonly WorkFigure[]): string[] {
-  const numbers = new Set<string>();
-  for (const figure of figures) {
-    numbers.add(figure.minor);
-    numbers.add(figure.unit === 'money' && figure.currency ? formatMinor(figure.minor, figure.currency).slice(figure.currency.length + 1).replace(/,/g, '') : figure.display); // the exact form's plain decimal (B2)
-  }
-  return [...numbers];
+  return figureNumbers(figures);
 }
 
 function finish(env: WorkEnv, body: Omit<WorkReceiptDraft, 'runRef' | 'currency' | 'allowedNumbers' | 'explanation' | 'digest'>): WorkReceiptDraft {
@@ -305,7 +301,7 @@ export function reconcileMonth(env: WorkEnv, input: ReconcileInput): WorkReceipt
   const matched: Reconciliation['matched'] = [];
   const pair = (bankLine: BankLine, bill: BillLine, rule: Reconciliation['matched'][number]['rule']) => {
     usedBank.add(bankLine.row.id); usedBill.add(bill.ref);
-    matched.push({ bankRowId: bankLine.row.id, billRowId: bill.ref, amountMinor: String(bill.amount), display: formatMinor(bill.amount, env.currency), bankText: bankLine.text.slice(0, 120), billText: `${bill.vendor}${bill.number ? ` ${bill.number}` : ''}`.slice(0, 120), rule });
+    matched.push({ bankRowId: bankLine.row.id, billRowId: bill.ref, amountMinor: String(bill.amount), display: formatMoney(bill.amount, env.currency), bankText: bankLine.text.slice(0, 120), billText: `${bill.vendor}${bill.number ? ` ${bill.number}` : ''}`.slice(0, 120), rule });
   };
   const open = () => ({ bank: outflows.filter(item => !usedBank.has(item.row.id)), bill: bills.filter(item => !usedBill.has(item.ref)) });
   if (input.bankKeys || input.billKeys) {

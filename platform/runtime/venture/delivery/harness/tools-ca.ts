@@ -1,4 +1,4 @@
-import { formatMinor } from '../../../currency.ts';
+import { figureNumbers } from '../../../calculator.ts';
 import {HEALTH_CHECK} from './tools-ca-health.ts';
 // Chausar delivery harness: the AI-native CA firm's tax engines as agent tools (Ink v2 wave 2, package 2A1): income
 // tax, interest on late tax, the GST working and the TDS working. The agent picks the rule, the table columns and the
@@ -167,7 +167,8 @@ const FINANCIAL_YEARS = yearsOf('tds-sections', 'financialYear');
  */
 export function caWorkReceipt(env: ToolEnv, receipt: CaReceipt, inputs: unknown, log: ReadLog): { record: WorkReceiptRecord; alias: string; figures: Json } {
   const figures: WorkFigure[] = receipt.figures.map(item => ({ key: item.key, label: item.label, minor: item.minor, display: item.display, currency: 'INR', unit: 'money' }));
-  const allowed = [...new Set(figures.flatMap(item => [item.minor, formatMinor(item.minor, 'INR').slice('INR '.length).replace(/,/g, '')]))];
+  // Each figure's minor units, its display's numbers and its signed plain decimal ("-₹500" grounds "-500" and "500").
+  const allowed = figureNumbers(figures);
   const draft: WorkReceiptDraft = {
     operation: 'ca.engine', runRef: env.runRef, currency: 'INR',
     inputs: { tables: log.sources, columns: log.columns, rowIds: log.rowIds }, steps: log.steps, figures, reconciliation: null, allowedNumbers: allowed,

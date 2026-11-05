@@ -30,7 +30,7 @@ import { rupeesOf } from '../money/spend.ts';
 import {
   budgetReached, budgetWords, EXPERIMENT_BUDGET_MICROS, EXPERIMENT_CANDIDATES, experimentOf, recentlyTried, RETRY_SPACING_DAYS, reviewQueue, signalWindow, spacingReason,
 } from './experiments.ts';
-import { formatMicros } from '../records.ts';
+import { formatUsd } from '../../owner-format.ts';
 import { scanTrace } from './trace-scan.ts';
 
 export const MAX_ROUNDS = 4;
@@ -322,7 +322,7 @@ async function tiePreferences(
  */
 function budgetOf(value: unknown): string {
   check(typeof value === 'string' && /^\d{1,13}$/.test(value) && BigInt(value) > 0n && BigInt(value) <= BigInt(EXPERIMENT_BUDGET_MICROS), 'INVALID_VENTURE_REQUEST',
-    `A budget is a whole number of micro-dollars, above zero and at most ${formatMicros(EXPERIMENT_BUDGET_MICROS)}.`);
+    `A budget is a whole number of micro-dollars, above zero and at most ${formatUsd(EXPERIMENT_BUDGET_MICROS)}.`);
   return String(BigInt(value as string));
 }
 

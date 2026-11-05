@@ -18,7 +18,7 @@ it('records movements once and gives source-backed research without hiding a rej
 it('parses owner rupees and supplies the same price preview receipt',async()=>{
  const env=await setup();const read=await act(env,'read',{orderId:env.order.id,name:'products.csv',contentBase64:btoa(csv),caps:{priceChangePercent:'25',promotionPercent:'20'}});
  const stage=await act(env,'stage',{readId:read.result.readId,sku:'A',channel:'shopify',change:{field:'price',rupees:'90.25'}});
- expect(stage.result.proposal.change.value).toBe('9025');expect(stage.result.figures.find((f:any)=>f.key==='afterMinor').display).toBe('INR 90.25');
+ expect(stage.result.proposal.change.value).toBe('9025');expect(stage.result.figures.find((f:any)=>f.key==='afterMinor').display).toBe('₹90.25');
 });
 
 it('matches unknown actions and malformed confirmation before looking up an old stage',async()=>{const env=await setup();await expect(act(env,'invented',{},'missing')).rejects.toMatchObject({code:'SELLER_ACTION_INVALID'});await expect(act(env,'confirm',{extra:true},'missing')).rejects.toMatchObject({code:'INVALID_VENTURE_REQUEST'});});

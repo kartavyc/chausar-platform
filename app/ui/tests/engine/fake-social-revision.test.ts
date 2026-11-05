@@ -3,7 +3,7 @@ import {priceAndAcceptPlan} from '../helpers/accepted-plan';
 import { it, expect } from 'vitest';
 import { fakeSocialRevision } from '../../src/engine/fake-social-revision';
 import type { W4DeskHost } from '../../src/engine/fake-w4';
-it.each([['INR','25000','INR 250.00'],['JPY','25000','JPY 25,000'],['BHD','25000','BHD 25.000'],['INR','123456789','INR 1,234,567.89']])('fake per-post revisions quote %s with exact receipt and currency precision', (currency,amount,formatted) => {
+it.each([['INR','25000','₹250'],['JPY','25000','JPY 25,000'],['BHD','25000','BHD 25'],['INR','123456789','₹12,34,567.89']])('fake per-post revisions quote %s in the owner form, from the exact receipt and currency precision', (currency,amount,formatted) => {
     let currentCurrency = currency;
     let run: any = { id: 'run_a', orderId: 'order_a', status: 'ready-for-review', renderedText: '## Alt text\nLinkedIn: Keep companion text.\n## Drafts\nLinkedIn: First post.\nLinkedIn: Second post.\n## Hashtags\nLinkedIn: #KeepThese', editedText: null };
     const order: any = { id: 'order_a', offerId: 'offer_a', intake: { fields: { postCount: '8', extraRoundPrice: amount } } };

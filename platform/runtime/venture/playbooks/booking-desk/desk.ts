@@ -4,7 +4,6 @@
 // 6D1), issues it through the existing exact-approval issue (venture.invoice.issue), reads its How to pay UPI link (6D2)
 // and hands an approved reminder to the owner through the action journal (owner.handoff). Chausar sends nothing and
 // takes no money itself. Written for Chausar; nothing here is learned from an outside source.
-import { formatMinor } from '../../../currency.ts';
 import { formatMoney } from '../../../owner-format.ts';
 import { check, type Context, type State } from '../../../contracts.ts';
 import type { DeskHandlers, DeskKindTypes } from '../desk-types.ts';
@@ -41,8 +40,8 @@ export function bookingWorld(state: State, venture: VentureRecord, deps: Pick<Ve
       const upi = invoiceView(state, venture, invoice, deps).howToPay?.upi ?? null;
       return {
         invoiceId: invoice.id, number: invoice.number, status: invoice.status, total: formatMoney(invoice.totalMinor, invoice.currency),
-        // B2: the balance stays exact, as the deposit message to the client quotes it.
-        balance: formatMinor(invoice.balanceMinor, invoice.currency), receiptId: invoice.priceReceiptId, digest: invoice.digest,
+        // B2 fix round 1: the screen shows the owner form; the deposit message to the client writes the exact form from these minor units.
+        balance: formatMoney(invoice.balanceMinor, invoice.currency), balanceMinor: invoice.balanceMinor, currency: invoice.currency, receiptId: invoice.priceReceiptId, digest: invoice.digest,
         upi: upi ? { link: upi.link, amount: upi.amount } : null,
       };
     },

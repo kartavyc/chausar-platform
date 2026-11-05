@@ -1,4 +1,5 @@
 import {actualSocialPosts,actualSocialPostLocations} from '../../../../platform/runtime/venture/playbooks/social/post-label';
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 // Fake per-post revisions mirror the engine quote, count and exact-word approval boundaries.
 import { EngineError, type DeliveryLite, type OrderLite, type ReceiptLite } from './types';
 import type { W4DeskHost } from './fake-w4';
@@ -13,7 +14,8 @@ const fields = (value: unknown, allowed: string[], required: string[]) => { if (
 const posts=(run:DeliveryLite)=>actualSocialPosts(run.editedText??run.renderedText??'');
 export function fakeSocialRevision(host: W4DeskHost): FakeDeskKind & {receipt(id:string):ReceiptLite|undefined;forgetPeople(people:readonly FakeForgottenPerson[],erase:boolean):void} {
     const currencyOf=(order: OrderLite)=>{const kept=host.roomPrice?.(order.id);if(kept)return kept.currency;const view=host.ask('venture.get',{}) as {venture?:{country?:{currency?:string};originalCountry?:{currency?:string}}};return view?.venture?.originalCountry?.currency??view?.venture?.country?.currency??'INR';};
-    const display=(amount:string,currency:string)=>{const digits=new Intl.NumberFormat('en',{style:'currency',currency}).resolvedOptions().maximumFractionDigits??2;const scale=10n**BigInt(digits),value=BigInt(amount);return currency+' '+String(value/scale).replace(/\B(?=(\d{3})+(?!\d))/g,',')+(digits?'.'+String(value%scale).padStart(digits,'0'):'');};
+    // As the engine's revision desk and receipt: the owner form (B2 fix round 1).
+    const display=(amount:string,currency:string)=>formatMoney(amount,currency);
     const states = new Map<string, GhostwritingState>();
     const stateKey = (orderId: string) => host.current() + ':' + orderId;
     const getContext = (runId: unknown, postId: unknown) => {

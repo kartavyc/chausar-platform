@@ -11,7 +11,7 @@
  * instead of the owner's AI: it is a sample, never a model. Nothing here sends anything: a handoff is a link.
  */
 
-import { dayKeyIn, formatClock, formatTime, ownerZone, timeKeyIn } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatClock, formatMoney, formatTime, ownerZone, timeKeyIn } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type CalendarFeedView, type FollowupView, type InboundTriage, type InboundView, type LawfulBasis, type LeadView, type LostReason,
   type MailboxView, type OutreachChannel, type OutreachHandoff, type OutreachKind, type OutreachSentChannel, type OutreachView, type PipelineCardView, type PipelineQuoteView,
@@ -22,7 +22,6 @@ import type { PipelineSettingsView, OutreachLane } from './types';
 import { effectiveLaneLimits, LANE_WORDS, limitsObject, pipelineCapsInput } from '../../../../platform/runtime/venture/network/limit-settings';
 import { DEFAULT_PIPELINE_SETTINGS, nextAllowedDay, weekStart } from '../../../../platform/runtime/venture/network/followups';
 import { checkScoreRules } from '../../../../platform/runtime/venture/network/score';
-import { formatMinor } from '../../../../platform/runtime/currency';
 
 export type HeldPipelineQuote = PipelineQuoteView & { explanation: string; currency: string; beforeTaxMinor: string };
 
@@ -626,7 +625,7 @@ export class FakePipelineDesk {
       if (!values.length) forecast = { line: `No open card has a quote in ${currency}. Other currencies are excluded.` };
       else {
         const total = values.reduce((sum, item) => sum + item.amount, 0n);
-        const value = formatMinor(total, currency);
+        const value = formatMoney(total, currency);
         const receiptId = 'R-pipe-forecast-' + this.host.digest({ business: this.host.current(), currency, from, today, values: values.map(item => ({ ...item, amount: String(item.amount) })) });
         this.forecasts.set(receiptId, { businessId: this.host.current(), receipt: { id: receiptId, at: this.host.now(), stale: false, totalMinor: String(total), figures: [{ key: 'total', label: `Forecast in ${currency} only, from your last 90 days`, display: value }], explanation: `Each amount is a forecast in ${currency}, not money anyone owes. Other currencies are excluded. ` + values.map(item => `${item.quote}: before-tax amount times ${item.share} in 1,000, rounded to ${item.amount} minor units.`).join(' ') } });
         forecast = { value, label: `forecast in ${currency} only, from your last 90 days`, receiptId };

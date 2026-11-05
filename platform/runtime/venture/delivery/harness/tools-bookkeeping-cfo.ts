@@ -7,7 +7,8 @@ import { ChausarError,check } from '../../../contracts.ts';
 import { digest, findRecord, listRecords, isoDate } from '../../records.ts';
 import { clientLedgerPack, type ClientLedgerRow } from '../../playbooks/bookkeeping-cfo/client-ledger.ts';
 import { invoiceCountry } from '../../core/country-history.ts';
-import { formatMinor } from '../../../currency.ts';
+import { formatMoney } from '../../../owner-format.ts';
+import { figureNumbers } from '../../../calculator.ts';
 
 import { cfoRatios, cfoScenarios, type CfoCell } from '../../money/cfo-sums.ts';
 import { collectionStage, DEFAULT_LADDER, validateLadder } from '../../playbooks/bookkeeping-cfo/collections.ts';
@@ -49,14 +50,14 @@ function quantities(env: ToolEnv, table: SourceTable): Record<string, string> {
 }
 function need(values: Record<string, string>, key: string): string { if (!Object.hasOwn(values, key)) fail(`The source needs its ${key} row.`); return values[key]; }
 function figure(env: ToolEnv, key: string, value: string, money: boolean): WorkFigure {
-  return { key, label: key.replace(/-/g, ' '), minor: value, display: money ? formatMinor(BigInt(value), env.currency) : value, currency: env.currency, unit: money ? 'money' : 'count' };
+  return { key, label: key.replace(/-/g, ' '), minor: value, display: money ? formatMoney(value, env.currency) : value, currency: env.currency, unit: money ? 'money' : 'count' };
 }
 function answer(env: ToolEnv, table: SourceTable, figures: WorkFigure[], steps: { inputs: string[]; result: string; rule: string; op?:'add'|'subtract'|'compare' }[], result: unknown, extraSources: SourceTable[] = []) {
   const draft = {
     operation: 'work.totals' as const, runRef: env.runRef, currency: env.currency,
     inputs: { tables: [table, ...extraSources].map(source => ({ id: source.id, name: source.name, digest: source.digest })), columns: Object.fromEntries(table.columns.map(column => [column, column])), rowIds: [table, ...extraSources].flatMap(source => source.rows.map(row => source.id + ':' + row.id)) },
     steps: steps.map(step => ({ ...step, op: step.op??'compare' as const })), figures, reconciliation: null,
-    allowedNumbers: [...new Set(figures.flatMap(row => [row.minor, row.display]))], explanation: figures.map(row => `${row.label}: ${row.display}.`).join(' '), digest: '',
+    allowedNumbers: figureNumbers(figures), explanation: figures.map(row => `${row.label}: ${row.display}.`).join(' '), digest: '',
   };
   draft.digest = digest(draft);
   const out = (load('./tools.ts') as typeof import('./tools.ts')).receiptOut(env, draft);

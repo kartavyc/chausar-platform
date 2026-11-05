@@ -458,7 +458,7 @@ test('venture.ca.explainDiff: the CA of record explains each difference; the pap
 
   const view: CaReceiptView = await env.call('venture.ca.receipt', { id: diff.id }, phone);
   assert.deepEqual(view.explanations.map(item => [item.key, item.note]), [['net-payable', note]]);
-  assert.deepEqual(view.portalDifferences!.map(item => [item.key, item.state, item.ours, item.portal, item.explanation]), [['net-payable', 'differs', 'INR 2,825.00', 'INR 2,900.00', note]]);
+  assert.deepEqual(view.portalDifferences!.map(item => [item.key, item.state, item.ours, item.portal, item.explanation]), [['net-payable', 'differs', '₹2,825', '₹2,900', note]]);
 });
 
 /** The run of portalRun, with the explanation recorded while the run waits for its next turn. */
@@ -533,7 +533,7 @@ test('venture.ca.receipt: a stored CA receipt worked again on its stamped tables
   const edited = await after(receipt => ({ ...receipt, figures: receipt.figures.map(item => (item.key === 'output-igst' ? { ...item, minor: R(950) } : item)) }));
   assert.equal(edited.rederived, 'differs');
   assert.equal(edited.differs!.key, 'output-igst');
-  assert.match(edited.differs!.line, /INR 950\.00.*INR 900\.00/);
+  assert.match(edited.differs!.line, /₹950.*₹900/);
 
   // Only a label changed: the amounts agree, and the line says the labels differ.
   const relabelled = await after(receipt => ({ ...receipt, figures: receipt.figures.map(item => (item.key === 'output-igst' ? { ...item, label: 'IGST collected' } : item)) }));

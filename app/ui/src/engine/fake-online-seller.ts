@@ -1,4 +1,5 @@
 import {fakeSellerOperations} from './fake-online-seller-operations';
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import {fakeSellerConnectors} from './fake-seller-connectors';
 /**
  * Fake seller engine. Uses the exact browser-safe core and source contracts of the real engine.
@@ -19,8 +20,8 @@ function requestObject(value: unknown, allowed: string[], required = allowed): R
   return value as Record<string, unknown>;
 }
 const fail = (code: string, words: string): never => { throw new EngineError(code, words); };
-const formatMinor = (value: string) => { const n = BigInt(value), a = n < 0n ? -n : n; return `INR ${n < 0n ? '-' : ''}${String(a / 100n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${String(a % 100n).padStart(2, '0')}`; };
-const display = (key: string, value: string) => key.includes('Minor') ? formatMinor(value) : key.endsWith('Bps') ? sellerPercent(value) : value;
+// As the engine's seller receipt (online-seller/receipt.ts): amounts in the owner form (B2 fix round 1).
+const display = (key: string, value: string) => key.includes('Minor') ? formatMoney(value, 'INR') : key.endsWith('Bps') ? sellerPercent(value) : value;
 /** Keeps report records by business, with the same refusals and source-file boundary as the engine. */
 export function fakeOnlineSellerDesk(host: W4DeskHost): FakePlaybookDesk {
   const operations=fakeSellerOperations(host);

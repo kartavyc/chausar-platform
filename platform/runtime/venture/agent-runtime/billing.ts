@@ -1,6 +1,7 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import type { ModelConnectionRecord, SpendRecord, VentureDeps, VentureRecord } from '../contracts.ts';
-import { digest, formatMicros, listRecords, readVenture, ventureAction, type VentureTx } from '../records.ts';
+import { digest, listRecords, readVenture, ventureAction, type VentureTx } from '../records.ts';
+import { formatUsd } from '../../owner-format.ts';
 import { localDayAt } from '../local-day.ts';
 import { countedMicros, reserveSpend, settleSpend, spendAgentOf, spendRefused, type SpendSubject } from '../money/spend.ts';
 import { sumReceiptIn } from '../money/sums.ts';
@@ -67,7 +68,7 @@ export async function startAgentBilling(deps: VentureDeps, ctx: Context, input: 
       const held = tx.find('venture-spend', reserved.id); check(held, 'MODEL_FAILED', 'This job’s spending record is missing.');
       tx.replace({ ...held, agentUsage: { provider, model: binding.model, usage: { ...usage } } });
       const receipt = sumReceiptIn(tx, agentCostPlan(tx.state, tx.venture!, { type: 'agent-cost', spendId: reserved.id }));
-      project(tx, { display: `${formatMicros(cost)}${reserved.rate?.confirmed ? '' : ' (estimate, price unconfirmed)'}`, receiptId: receipt.id, state: 'priced' });
+      project(tx, { display: `${formatUsd(cost)}${reserved.rate?.confirmed ? '' : ' (estimate, price unconfirmed)'}`, receiptId: receipt.id, state: 'priced' });
       tx.emit('run.step', { runId: input.runId });
       const connection = tx.find('venture-model-connection', binding.connectionId);
       return connection?.status === 'connected' ? allowance(tx.state, tx.venture!, connection, input.agentId, tx.now, reserved.id) : null;

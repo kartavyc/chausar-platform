@@ -2,7 +2,7 @@ import {screenUntrusted} from '../../policy/untrusted.ts';
 // Original X8 exact-element extraction, informed by Selector Forge (MIT), with no copied XPath implementation.
 import {parse,type DefaultTreeAdapterTypes as Tree} from 'parse5';
 import {check,digest,hash} from '../../../portable.ts';
-import {decimalMinor,formatMinor} from '../../../currency.ts';
+import {decimalMinor} from '../../../currency.ts';import {formatMoney} from '../../../owner-format.ts';
 import {fetchPolicySite} from '../../build/fetch-policy-core.ts';
 export type WatchTerms={url:string;allowed:true;checkedOn:string};
 /** Same dated candidate vocabulary as 2B2. No unchecked fallback is selected automatically. */
@@ -31,7 +31,7 @@ export function extractMonitored(input:{url:unknown;terms:unknown;fields:unknown
  const approved=monitoredTerms(input.url,input.terms,input.at),fields=watchFields(input.fields,input.at.slice(0,10));check(typeof input.html==='string'&&new TextEncoder().encode(input.html).length<=1_048_576,'WATCH_INPUT_INVALID','Keep the observed page within one megabyte.');const sourceDigest=hash(input.html),elements:Tree.Element[]=[];
  const visit=(n:Tree.Node)=>{if(excluded(n))return;if('tagName'in n)elements.push(n);if('childNodes'in n)for(const child of n.childNodes)visit(child);};visit(parse(input.html));
  const values=fields.map(f=>{const matches=elements.filter(n=>selected(n,f.selector));check(matches.length===1,'WATCH_SELECTOR_DRIFT','This selector no longer matches exactly one source element. Choose it again; no value was guessed.');const text=textOf(matches[0]!).replace(/\s+/g,' ').trim();check(text.length>0&&text.length<=4000,'WATCH_SELECTOR_DRIFT','This selected element has no bounded readable value. Choose it again.');let minor:string|null=null,display:string|null=null;
-  if(f.kind==='price'){const match=/^(?:₹|INR|Rs\.?)?\s*((?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d{1,2})?)$/i.exec(text);check(match,'WATCH_PRICE_AMBIGUOUS','The selected text must contain one exact rupee price, without a range or extra figures.');minor=decimalMinor(match[1]!.replace(/,/g,''),'INR');check(BigInt(minor)<=1_000_000_000_000n,'WATCH_PRICE_AMBIGUOUS','The selected price is larger than this service accepts.');display=formatMinor(minor,'INR');}
+  if(f.kind==='price'){const match=/^(?:₹|INR|Rs\.?)?\s*((?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d{1,2})?)$/i.exec(text);check(match,'WATCH_PRICE_AMBIGUOUS','The selected text must contain one exact rupee price, without a range or extra figures.');minor=decimalMinor(match[1]!.replace(/,/g,''),'INR');check(BigInt(minor)<=1_000_000_000_000n,'WATCH_PRICE_AMBIGUOUS','The selected price is larger than this service accepts.');display=formatMoney(minor,'INR');}
   const proof={sourceUrl:approved.url,sourceDigest,fieldId:f.id,selector:f.selector,text,minor,observedAt:input.at,rule:f.kind==='price'?'Exact decimal rupees multiplied into paise.':'Exact selected static source text.',provenance:'computed' as const};return {id:f.id,label:f.label,text,minor,display,checkedOn:input.at.slice(0,10),receipt:{...proof,id:'watch:'+digest(proof)}};});
  const body={...approved,sourceDigest,observedAt:input.at,fields,values,rendering:'static-html' as const};return {...body,digest:digest(body)};
 }

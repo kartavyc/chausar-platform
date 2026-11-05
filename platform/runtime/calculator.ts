@@ -25,7 +25,7 @@ const moneyFigure = (key: string, label: string, value: bigint, currency: string
  * The numbers a receipt's figures ground: each figure's minor units, the numbers in its display, and for an amount its
  * signed plain decimal from the minor units (B2 fix round 1), since "-₹500" keeps the sign apart from the digits.
  */
-export function figureNumbers(figures: readonly Figure[]): string[] {
+export function figureNumbers(figures: readonly (Pick<Figure, 'minor' | 'display' | 'currency'> & { unit?: string })[]): string[] {
   return [...new Set(figures.flatMap(f => [f.minor, ...numericTokens(f.display), ...(f.unit === 'money' && f.currency && /^-?\d+$/.test(f.minor) ? [plainMoney(f.minor, f.currency)] : [])]))];
 }
 function bps(numerator: bigint, denominator: bigint): bigint | null { return denominator === 0n ? null : numerator * 10000n / denominator; }

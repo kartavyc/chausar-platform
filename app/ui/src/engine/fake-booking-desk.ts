@@ -32,7 +32,7 @@ export function fakeBookingWorld(host: W4DeskHost): BookingWorld {
       try { view = host.ask('venture.invoice.get', { invoiceId: id }) as InvoiceViewLite; } catch { return null; }
       const figure = (key: string) => view.figures.find(item => item.key === key)?.display ?? '';
       const upi = view.howToPay?.upi ?? null;
-      return { invoiceId: view.invoice.id, number: view.invoice.number, status: view.invoice.status, total: figure('total'), balance: figure('balance'), receiptId: view.invoice.priceReceiptId, digest: view.invoice.digest, upi: upi ? { link: upi.link, amount: upi.amount } : null };
+      return { invoiceId: view.invoice.id, number: view.invoice.number, status: view.invoice.status, total: figure('total'), balance: figure('balance'), balanceMinor: (view.figures.find(item => item.key === 'balance') as { minor?: string } | undefined)?.minor ?? '0', currency: view.invoice.currency, receiptId: view.invoice.priceReceiptId, digest: view.invoice.digest, upi: upi ? { link: upi.link, amount: upi.amount } : null };
     },
   };
 }

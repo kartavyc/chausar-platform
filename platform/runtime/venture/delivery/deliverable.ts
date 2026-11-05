@@ -368,8 +368,10 @@ export function reconciliationBlock(receipt: AnyReceipt | undefined, country: Pi
     : rec.balanced ? 'The statement balances.' : 'The statement does not balance. The difference above needs your answer.');
   const day = (iso: string | null) => (iso ? `${formatVentureDate(iso, country.dateOrder)} ` : '');
   const count = (key: string) => (receipt.figures as readonly { key: string; display: string }[]).find(figure => figure.key === key)?.display ?? '';
-  blocks.push([`Payments matched to bills: ${count('matched-count')}`, ...rec.matched.map(item => `- ${item.bankText}, ${item.display}, bill: ${item.billText}`)].join('\n'));
-  if (rec.unmatchedBank.length) blocks.push([`Payments with no bill: ${count('unmatched-bank-count')}`, ...rec.unmatchedBank.map(item => `- ${day(item.date)}${item.text}, ${item.display}`)].join('\n'));
-  if (rec.unmatchedBills.length) blocks.push([`Bills not paid in this statement: ${count('unmatched-bills-count')}`, ...rec.unmatchedBills.map(item => `- ${day(item.date)}${item.text}, ${item.display}`)].join('\n'));
+  // The client's copy quotes each line's amount in the exact form, from its minor units (the screens show the owner form).
+  const amount = (item: { amountMinor: string; display: string }) => exactDisplay({ key: '', label: '', display: item.display, minor: item.amountMinor, currency: receipt.currency, unit: 'money' });
+  blocks.push([`Payments matched to bills: ${count('matched-count')}`, ...rec.matched.map(item => `- ${item.bankText}, ${amount(item)}, bill: ${item.billText}`)].join('\n'));
+  if (rec.unmatchedBank.length) blocks.push([`Payments with no bill: ${count('unmatched-bank-count')}`, ...rec.unmatchedBank.map(item => `- ${day(item.date)}${item.text}, ${amount(item)}`)].join('\n'));
+  if (rec.unmatchedBills.length) blocks.push([`Bills not paid in this statement: ${count('unmatched-bills-count')}`, ...rec.unmatchedBills.map(item => `- ${day(item.date)}${item.text}, ${amount(item)}`)].join('\n'));
   return blocks.join('\n\n');
 }

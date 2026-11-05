@@ -14,6 +14,7 @@
 // thread posts by breaks, paragraphs, sentences, words and grapheme-safe slices; motiful/product-shots (MIT) protects
 // the client's own words before filtering; twitter-text (Apache-2.0) publishes X's character weights, used as data.
 import { check } from '../../../contracts.ts';
+import { formatCount } from '../../../owner-format.ts';
 import type { PostingModeName } from '../../contracts.ts';
 import { houseStyleFindings } from '../../records.ts';
 import { checkClaims, type ClaimCheck, type SourceText } from '../../delivery/judge/claim-check.ts';
@@ -124,7 +125,8 @@ export function hashtagsOf(text: string): string[] {
   return [...blank(text, linksOf(text)).matchAll(HASHTAG)].map(match => match[0]);
 }
 
-const grouped = (value: number) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+// A channel's character count or limit; every limit is under 1,00,000, where both groupings write the same digits.
+const grouped = (value: number) => formatCount(value, 'XX');
 const partsOf = (draft: PostDraft) => (draft.thread?.length ? draft.thread : [draft.text]);
 const finding = (check: SocialCheckId, line: string, ruleId: string | null, severity: Finding['severity'] = 'block'): Finding => ({ check, severity, line, ruleId });
 

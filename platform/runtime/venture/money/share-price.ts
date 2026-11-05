@@ -6,8 +6,7 @@
 // price or a share, never both; setting or changing either is a price change that waits on Today and asks twice
 // (views/queue.ts). Simple first: the price editor shows a fixed price, and a share is one step away. Written for
 // Chausar; nothing here is learned from an outside source.
-import { formatMinor } from '../../currency.ts';
-import { formatMoney } from '../../owner-format.ts';
+import { formatMoney, plainMoney } from '../../owner-format.ts';
 import { check, type State } from '../../contracts.ts';
 import { numberGuard } from '../../calculator.ts';
 import { bpsPercent, digest, findRecord } from '../records.ts';
@@ -79,7 +78,7 @@ export function shareQuote(state: State, venture: VentureRecord, price: SharePri
     { key: 'base', label: 'The amount your client confirmed', minor: price.baseMinor, display: base },
     { key: 'share', label: `Your share at ${percent}%`, minor: shareMinor, display: share },
   ];
-  const plain = (minor: string) => formatMinor(minor, currency).slice(currency.length + 1).replace(/,/g, ''); // from the exact form (B2)
+  const plain = (minor: string) => plainMoney(minor, currency);
   const quote: ShareQuote = {
     kind: 'share', bps: price.bps, baseMinor: price.baseMinor, baseEvidenceFileId: file.id, shareMinor, currency, figures,
     steps: [{ op: 'multiply', inputs: [price.baseMinor, price.bps], resultMinor: shareMinor, rule: 'the amount times the share in basis points, over 10000, rounded half up to the minor unit' }],
