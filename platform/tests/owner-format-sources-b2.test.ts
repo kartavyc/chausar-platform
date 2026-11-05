@@ -29,6 +29,7 @@ const EXACT: Readonly<Record<string, string>> = {
   'money/invoices.ts': "the plain decimal of each part for the price receipt's allowed numbers",
   'money/quote.ts': "the plain decimal of each figure for the price receipt's allowed numbers",
   'money/share-price.ts': "the plain decimal of the share for its receipt's allowed numbers",
+  'money/across.ts': 'a saved business summary keeps the exact form at rest, which the custody snapshot checks',
 };
 
 test('under views/ and money/, the exact money form appears only where a file leaves the app, code reads it back, or a receipt keeps it', () => {
