@@ -44,6 +44,15 @@ export function formatMoney(minor: string | bigint, currency: string): string {
   return written(negative, whole, /[1-9]/.test(fraction) ? fraction : '', currency);
 }
 
+/**
+ * The signed plain decimal of an amount, ungrouped and with every minor digit ("-500.00", "100000.00", "5000" for yen):
+ * the number an explanation may state for a figure, worked out from its minor units, never read off its display.
+ */
+export function plainMoney(minor: string | bigint, currency: string): string {
+  const { negative, whole, fraction } = parts(minor, currency);
+  return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`;
+}
+
 /** A range: "₹3,000 to ₹12,000"; both ends show their minor units when either end has some. */
 export function formatMoneyRange(low: string | bigint, high: string | bigint, currency: string): string {
   const [a, b] = [parts(low, currency), parts(high, currency)];

@@ -2,7 +2,7 @@ import { authorize, audit, check, hash, newId, now, type Context, type Fact, typ
 import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type FactFilter, type Period } from './memory.ts';
 import { OntologyService, type Definition } from './ontology.ts';
 import { currencyMinorDigits } from './currency.ts';
-import { formatMoney } from './owner-format.ts';
+import { formatMoney, plainMoney } from './owner-format.ts';
 import { assertCompiledSingleSum, compileSingleSum, type CompiledCalculationBinding, type CompiledSingleSum } from './compiled-calculation.ts';
 import { assertSourceAccess } from './trust.ts';
 
@@ -21,6 +21,13 @@ export type ReceiptRestatement = { version: 1; interpretation: 'restated-private
   candidateStateDigest: string; publicationId: string; originalAnswerId: string; originalReceiptId: string };
 export function sumMoney(values: string[]) { return String(values.reduce((sum, value) => { check(/^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Calculator amounts must be whole minor-unit strings.'); return sum + BigInt(value); }, 0n)); }
 const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMoney(value, currency), unit: 'money', currency });
+/**
+ * The numbers a receipt's figures ground: each figure's minor units, the numbers in its display, and for an amount its
+ * signed plain decimal from the minor units (B2 fix round 1), since "-₹500" keeps the sign apart from the digits.
+ */
+export function figureNumbers(figures: readonly Figure[]): string[] {
+  return [...new Set(figures.flatMap(f => [f.minor, ...numericTokens(f.display), ...(f.unit === 'money' && f.currency && /^-?\d+$/.test(f.minor) ? [plainMoney(f.minor, f.currency)] : [])]))];
+}
 function bps(numerator: bigint, denominator: bigint): bigint | null { return denominator === 0n ? null : numerator * 10000n / denominator; }
 function numericTokens(text: string) { return [...text.matchAll(/(?<![\p{L}\d])[+-]?\d[\d,]*(?:\.\d+)?(?![\p{L}\d])/gu)].map(m => m[0].replaceAll(',', '').replace(/^\+/, '')); }
 function normalizedNumber(value: string) { const negative = value.startsWith('-'); const [whole, decimals] = value.replace(/^-/, '').split('.'); return `${negative ? '-' : ''}${BigInt(whole)}${decimals ? '.' + decimals.replace(/0+$/, '') : ''}`.replace(/\.$/, ''); }
@@ -204,7 +211,7 @@ export class CalculatorService {
     };
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; if (fact.fields._fx && (!row.measureField || row.measureField === 'amountMinor')) row.normalization = { sourceCurrency: String(fact.fields._sourceCurrency), targetCurrency: currency, rate: structuredClone(fact.fields._fx) }; }
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; row.validFrom = fact.validFrom; for (const field of ['dueDate', 'invoiceId', 'customerId', 'orderId', 'status'] as const) if (typeof fact.fields[field] === 'string') row[field] = fact.fields[field]; }
-    receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
+    receipt.allowedNumbers = [...new Set([...figureNumbers(figures), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
     if (this.restatement) receipt.restatement = structuredClone(this.restatement);
     if (this.verifier) receipt.databaseProof = await this.verifier(structuredClone(receipt));
