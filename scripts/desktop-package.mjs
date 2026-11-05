@@ -339,9 +339,14 @@ async function dependencyPrerequisites(root, platform) {
   return { cliPath, viteCli, version: pkg.version };
 }
 
-/** Read-only: never installs dependencies, vendors runtimes, creates keys or starts Electron. */
-export async function desktopPackagePrerequisites({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env } = {}) {
-  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked });
+/**
+ * Read-only: never installs dependencies, vendors runtimes, creates keys or starts Electron. The host is this computer;
+ * tests name another (hostPlatform) to check a Windows plan on Linux and a Linux plan on Windows, and the plan must
+ * still match that host exactly.
+ */
+export async function desktopPackagePrerequisites({ root = projectRoot, plan, environment = process.env, hostPlatform = process.platform, hostArchitecture = process.arch } = {}) {
+  plan ??= createDesktopPackagePlan({ platform: hostPlatform, architecture: hostArchitecture, hostPlatform, hostArchitecture });
+  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, hostPlatform, hostArchitecture });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
   const failures = [], checks = [];
   let cliPath, viteCli, version;

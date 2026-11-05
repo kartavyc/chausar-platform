@@ -123,36 +123,54 @@ test('the tray\'s 1.5x and 2x PNGs are checked source files too (A7 fix round 1)
 });
 
 const RCEDIT_CHECK = 'Windows exe icon tool (rcedit.exe)';
-// Plans are only made for the native host, so the Windows half runs on Windows and the other half elsewhere.
-test('a Windows build checks the pinned rcedit.exe before anything runs: missing or different is refused, the pinned one passes (A7 fix round 1)', { skip: process.platform !== 'win32' }, async t => {
+// Plans are only made for the native host, so each case pretends to be that host (hostPlatform) and runs on every
+// computer: the benchmark fails a shard with a skipped test (A fix).
+const asHost = (platform: string, mode: string) => ({ hostPlatform: platform, plan: createDesktopPackagePlan({ mode, platform, architecture: process.arch, hostPlatform: platform }) });
+test('a Windows build checks the pinned rcedit.exe before anything runs: missing or different is refused, the pinned one passes (A7 fix round 1, any host)', async t => {
   const RCEDIT = 'node_modules/electron-winstaller/vendor/rcedit.exe', CHECK = RCEDIT_CHECK;
-  const windows = (mode: string) => createDesktopPackagePlan({ mode, platform: 'win32', architecture: process.arch });
+  const windows = (mode: string) => asHost('win32', mode);
   const missing = await fixture(t);
-  const none = await desktopPackagePrerequisites({ root: missing, plan: windows('beta'), environment: {} });
+  const none = await desktopPackagePrerequisites({ root: missing, ...windows('beta'), environment: {} });
   assert.match(none.failures.find((failure: any) => failure.check === CHECK)?.reason ?? '', /missing.*nothing is downloaded/);
   const other = await fixture(t);
   await mkdir(join(other, 'node_modules/electron-winstaller/vendor'), { recursive: true });
   await writeFile(join(other, RCEDIT), 'not the tool');
   for (const mode of ['beta', 'preview']) {
-    const result = await desktopPackagePrerequisites({ root: other, plan: windows(mode), environment: {} });
+    const result = await desktopPackagePrerequisites({ root: other, ...windows(mode), environment: {} });
     assert.match(result.failures.find((failure: any) => failure.check === CHECK)?.reason ?? '', /not the pinned one/, mode);
   }
   const pinned = await fixture(t);
   await mkdir(join(pinned, 'node_modules/electron-winstaller/vendor'), { recursive: true });
   await writeFile(join(pinned, RCEDIT), await readFile(new URL(`../../${RCEDIT}`, import.meta.url)));
-  assert.ok((await desktopPackagePrerequisites({ root: pinned, plan: windows('beta'), environment: {} })).checks.includes(CHECK));
+  assert.ok((await desktopPackagePrerequisites({ root: pinned, ...windows('beta'), environment: {} })).checks.includes(CHECK));
   // A final build has electron-builder edit the exe itself.
-  const final = await desktopPackagePrerequisites({ root: missing, plan: windows('final'), environment: {} });
+  const final = await desktopPackagePrerequisites({ root: missing, ...windows('final'), environment: {} });
   assert.ok(![...final.checks, ...final.failures.map((failure: any) => failure.check)].includes(CHECK));
 });
 
-test('a Linux or macOS build never asks for rcedit.exe (A7 fix round 1)', { skip: process.platform === 'win32' }, async t => {
+test('a Linux or macOS build never asks for rcedit.exe (A7 fix round 1, any host)', async t => {
   const root = await fixture(t);
-  for (const mode of ['beta', 'preview']) {
-    if (mode === 'beta' && process.platform === 'darwin') continue;
-    const result = await desktopPackagePrerequisites({ root, plan: createDesktopPackagePlan({ mode }), environment: {} });
-    assert.ok(![...result.checks, ...result.failures.map((failure: any) => failure.check)].includes(RCEDIT_CHECK), mode);
+  for (const [platform, mode] of [['linux', 'beta'], ['linux', 'preview'], ['darwin', 'preview']]) {
+    const result = await desktopPackagePrerequisites({ root, ...asHost(platform, mode), environment: {} });
+    assert.ok(![...result.checks, ...result.failures.map((failure: any) => failure.check)].includes(RCEDIT_CHECK), `${platform} ${mode}`);
   }
+});
+
+test('the package checks and the exe hook use this computer\'s own platform unless a test names another (A fix)', async t => {
+  const root = await fixture(t);
+  // A plan for another platform is refused against the real host, so a pretend host never leaks into a real build.
+  const foreign = process.platform === 'win32' ? 'linux' : 'win32';
+  const { plan } = asHost(foreign, 'preview');
+  await assert.rejects(desktopPackagePrerequisites({ root, plan, environment: {} }), new RegExp(`matching native host; this host is ${process.platform}-`));
+  // The native plan needs no host named.
+  assert.ok((await desktopPackagePrerequisites({ root, environment: {} })).checks.includes('packaging configuration'));
+  // electron-builder calls the hook with the context alone, so it reads the real platform: it edits only on Windows.
+  const hook = createRequire(import.meta.url)('../../scripts/desktop-after-pack.cjs');
+  const runs: unknown[] = [];
+  const context = { appOutDir: join(root, 'win-unpacked'), electronPlatformName: 'win32', packager: { appInfo: { productName: 'Chausar', productFilename: 'Chausar', version: '0.1.0' }, platformSpecificBuildOptions: { signAndEditExecutable: false } } };
+  const result = await hook.afterPack(context, { readFile: async () => Buffer.from(''), sha256: () => hook.RCEDIT_SHA256, run: async (...args: unknown[]) => { runs.push(args); } });
+  assert.deepEqual(result, { edited: process.platform === 'win32' });
+  assert.equal(runs.length, process.platform === 'win32' ? 1 : 0);
 });
 
 test('preview preflight is read-only and identifies missing local dependencies without requiring signing keys', async t => {
