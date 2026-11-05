@@ -4,10 +4,11 @@
 // <userData>/diagnostics/startup.jsonl, quits it, checks that no process it started is left, uninstalls, and removes
 // its own temp folders. One line per step; a failure exits 1 and names its step.
 //   Windows: the NSIS installer (.exe) with /S /D=<dir>; refuses on a computer that already has Chausar installed,
-//            since a second per-user install shares the uninstall entry. Run it on CI or a clean VM.
+//            since a second per-user install shares the uninstall entry. Run it on CI or a clean VM: it installs only
+//            with CI=true or --allow-install, and a reg answer it cannot read counts as an install (it refuses).
 //   Linux:   the AppImage with --appimage-extract-and-run (under xvfb-run when there is no display), or the .deb with
 //            dpkg -i and dpkg -r where sudo works without a password (skipped otherwise).
-// Usage: node scripts/release-smoke.mjs --installer <file> [--keep] [--timeout-ms N] [--quit-ms N]
+// Usage: node scripts/release-smoke.mjs --installer <file> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N]
 //        node scripts/release-smoke.mjs --app <program> [...]   (an already installed program, or a test's stand-in;
 //                                                               a .mjs or .js program runs with this Node)
 // --keep leaves the temp user data folder for a look. The phase names follow C5's start phases; FIRST_PAINT is the one
@@ -21,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 export const FIRST_PAINT = 'first-paint';
 const PRODUCT = 'Chausar';
-const usage = 'Usage: node scripts/release-smoke.mjs --installer <file> | --app <program> [--keep] [--timeout-ms N] [--quit-ms N]';
+const usage = 'Usage: node scripts/release-smoke.mjs --installer <file> | --app <program> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N]';
 
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 const ok = (step, detail = '') => process.stdout.write(`ok   ${step}${detail ? `: ${detail}` : ''}\n`);
@@ -29,10 +30,11 @@ class StepFailure extends Error { constructor(step, reason) { super(reason); thi
 const fail = (step, reason) => { throw new StepFailure(step, reason); };
 
 function parse(argv) {
-  const options = { keep: false, timeoutMs: 90_000, quitMs: 10_000 };
+  const options = { keep: false, allowInstall: false, timeoutMs: 90_000, quitMs: 10_000 };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === '--keep') options.keep = true;
+    else if (arg === '--allow-install') options.allowInstall = true;
     else if (['--installer', '--app', '--timeout-ms', '--quit-ms'].includes(arg) && argv[index + 1] && !argv[index + 1].startsWith('--')) {
       const value = argv[++index];
       if (arg === '--installer') options.installer = resolve(value);
@@ -118,13 +120,31 @@ async function smoke(program, options, wrap = null) {
   if (leftFailure) throw leftFailure;
 }
 
-const reg = args => spawnSync('reg', args, { encoding: 'utf8', windowsHide: true });
+const runReg = args => spawnSync('reg', args, { encoding: 'utf8', windowsHide: true, timeout: 60_000 });
 const UNINSTALL_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall';
-const uninstallEntries = text => Number(/(\d+) match\(es\) found/.exec(reg(['query', UNINSTALL_KEY, '/s', '/f', text, '/d']).stdout)?.[1] ?? 0);
+/** How many uninstall entries hold the text, or null when the answer cannot be read (a failure, or another language). */
+function uninstallEntries(text, reg = runReg) {
+  const result = reg(['query', UNINSTALL_KEY, '/s', '/f', text, '/d']);
+  const match = !result?.error && /^End of search: (\d+) match\(es\) found\.?\s*$/m.exec(result?.stdout ?? '');
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Why the Windows installer must not run here, or null. It runs only on CI (CI=true) or with --allow-install, and only
+ * when reg says plainly that no Chausar is installed for this user: an answer it cannot read counts as installed.
+ */
+export function installRefusal({ reg = runReg, env = process.env, allowInstall = false } = {}) {
+  if (env.CI !== 'true' && !allowInstall) return 'the Windows smoke installs and uninstalls a real build, so it runs only with CI=true or --allow-install';
+  const found = uninstallEntries(PRODUCT, reg);
+  if (found === null) return `could not read the installed programs (reg query failed or answered in another language); refusing in case ${PRODUCT} is installed`;
+  if (found > 0) return `this computer already has ${PRODUCT} installed for this user; run the smoke on CI or a clean machine`;
+  return null;
+}
 
 async function windowsInstaller(options) {
   if (process.platform !== 'win32') fail('install', 'an NSIS installer runs on Windows only');
-  if (uninstallEntries(PRODUCT) > 0) fail('install', `this computer already has ${PRODUCT} installed for this user; run the smoke on CI or a clean machine`);
+  const refusal = installRefusal({ allowInstall: options.allowInstall });
+  if (refusal) fail('install', refusal);
   const dir = await mkdtemp(join(tmpdir(), 'chausar-smoke-install-'));
   const install = spawnSync(options.installer, ['/S', `/D=${dir}`], { windowsHide: true, timeout: 300_000 });
   const program = join(dir, `${PRODUCT}.exe`);
@@ -135,7 +155,7 @@ async function windowsInstaller(options) {
   spawnSync(join(dir, `Uninstall ${PRODUCT}.exe`), ['/S'], { windowsHide: true, timeout: 300_000 });
   for (let wait = 0; wait < 120 && existsSync(program); wait++) await sleep(500);
   if (existsSync(program)) failure ??= new StepFailure('uninstall', `${program} is still there`);
-  else if (uninstallEntries(dir) > 0) failure ??= new StepFailure('uninstall', `the uninstall entry for ${dir} is still in the registry`);
+  else if (uninstallEntries(dir) !== 0) failure ??= new StepFailure('uninstall', `the uninstall entry for ${dir} is still in the registry, or reg could not say`);
   else ok('uninstall', 'the install folder and its uninstall entry are gone');
   await rm(dir, { recursive: true, force: true });
   if (failure) throw failure;

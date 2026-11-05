@@ -9,6 +9,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installRefusal } from '../../scripts/release-smoke.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/release-smoke.mjs', import.meta.url));
 
@@ -102,4 +103,29 @@ test('release-smoke-linux.sh installs the Ubuntu 24.04 packages, runs the smoke 
   assert.match(text, /node "\$here\/release-smoke\.mjs" --installer "\$build"/);
   assert.doesNotMatch(text, /curl[^\n]*\|\s*(?:sudo\s+)?(?:ba)?sh/, 'nothing is piped from the network into a shell');
   assert.match(await readFile(new URL('../../.gitattributes', import.meta.url), 'utf8'), /^\*\.sh text eol=lf$/m);
+});
+
+// D11 fix (review MEDIUM-1): the Windows smoke installs only when it is sure no Chausar is installed for this user, and
+// only on CI or with --allow-install. A reg answer it cannot read (a failure, empty output, another display language)
+// counts as installed, so it refuses. The reg answer is a stand-in here; nothing is installed or queried.
+test('the Windows install refuses on an install, on a reg answer it cannot read, and off CI without --allow-install', () => {
+  const answer = (stdout: string, status = 0, error?: Error) => () => ({ status, stdout, error });
+  const ci = { CI: 'true' };
+  assert.match(installRefusal({ reg: answer('HKEY_CURRENT_USER\\...\\Uninstall\\in.chausar.desktop\r\n    DisplayName    REG_SZ    Chausar\r\n\r\nEnd of search: 1 match(es) found.\r\n'), env: ci }) ?? '', /already has Chausar installed/);
+  assert.match(installRefusal({ reg: answer(''), env: ci }) ?? '', /could not read/);
+  assert.match(installRefusal({ reg: answer('Suche beendet: 0 Übereinstimmung(en) gefunden.\r\n'), env: ci }) ?? '', /could not read/);
+  assert.match(installRefusal({ reg: answer('', 1, new Error('spawn reg ENOENT')), env: ci }) ?? '', /could not read/);
+  const none = answer('\r\nEnd of search: 0 match(es) found.\r\n', 1);
+  assert.equal(installRefusal({ reg: none, env: ci }), null);
+  assert.match(installRefusal({ reg: none, env: {} }) ?? '', /CI=true or --allow-install/);
+  assert.equal(installRefusal({ reg: none, env: {}, allowInstall: true }), null);
+});
+
+test('--allow-install is read as a flag and the refusal comes before anything runs', async t => {
+  const f = await fixture(t), installer = join(f.folder, 'Chausar-Beta-0.1.0-win-x64.exe');
+  await writeFile(installer, 'not an installer; it must never run');
+  const run = spawnSync(process.execPath, [SCRIPT, '--installer', installer], { encoding: 'utf8', windowsHide: true, env: { ...process.env, CI: '' } });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, process.platform === 'win32' ? /CI=true or --allow-install|already has Chausar installed|could not read/ : /Windows only/);
+  assert.equal(spawnSync(process.execPath, [SCRIPT, '--app', installer, '--allow-install', 'extra'], { encoding: 'utf8', windowsHide: true }).status, 2);
 });
