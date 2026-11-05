@@ -8,6 +8,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { DELEGATE_CLIS, type CliFinding, type DelegateCli } from '../contracts.ts';
+import { newerVersion, noteNewerOnce, readLocalJson } from '../../local-files.ts';
 
 const MAX_BYTES = 16 * 1024;
 /** How long a kept look may answer at start: a day. Older, the tool is looked at before the first answer. */
@@ -32,10 +33,15 @@ export function cliLookFile(path: string): CliLookPort {
     async read() {
       try {
         const text = await readFile(path, 'utf8');
-        return text.length > MAX_BYTES ? null : JSON.parse(text) as unknown;
+        if (text.length > MAX_BYTES) return null;
+        const raw = JSON.parse(text) as unknown;
+        // D12: looks a newer Chausar kept are left alone: not read, not replaced; noted once.
+        if (newerVersion(raw, 1)) { await noteNewerOnce(dirname(path), CLI_LOOKS_FILE, 'cli-looks'); return null; }
+        return raw;
       } catch { return null; }
     },
     async write(looks: KeptLooks) {
+      if (newerVersion(await readLocalJson(path), 1)) { await noteNewerOnce(dirname(path), CLI_LOOKS_FILE, 'cli-looks'); return; }
       await mkdir(dirname(path), { recursive: true });
       const temporary = `${path}.${randomBytes(6).toString('hex')}.tmp`;
       await writeFile(temporary, JSON.stringify({ version: 1, looks }), { encoding: 'utf8', mode: 0o600 });

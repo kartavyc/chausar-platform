@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { ChausarError, check } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory, wrappersDigestOf } from './vault.ts';
 import type { DeviceKeyRecord } from './device-custody.ts';
+import { newerFormat, noteNewerOnce, readLocalJson } from './local-files.ts';
 import {
   AUTO_BACKUP, BACKUP_LIST_MAX, BUSINESS_LIST_MAX, CUSTODY_WORDS, TRANSFER,
   type BackupKind, type BackupView, type BusinessList, type BusinessOnComputer, type ComputerCustodyView,
@@ -79,8 +80,15 @@ export class CustodyFiles {
     try { const info = await lstat(join(folder, name)); if (info.isFile() && !info.isSymbolicLink()) await unlink(join(folder, name)); }
     catch (error: any) { if (error?.code !== 'ENOENT') throw error; }
   }
+  /** D12: a card a newer Chausar wrote is left alone (ignored, never rewritten or removed) and noted once. */
+  async #newerCard(folder: string): Promise<boolean> {
+    if (!newerFormat(await readLocalJson(join(this.cards, `${folder}.json`)), CARD_FORMAT)) return false;
+    await noteNewerOnce(join(this.directory, 'custody'), `cards/${folder}.json`, 'card');
+    return true;
+  }
   async readCard(folder: string): Promise<VaultCard | null> {
     if (!FOLDER_RULE.test(folder)) return null;
+    if (await this.#newerCard(folder)) return null;
     const card = await this.#readJson(this.cards, `${folder}.json`);
     return validCard(card) && card.folder === folder ? card : null;
   }
@@ -102,8 +110,8 @@ export class CustodyFiles {
       if (lines.length > 200) await atomicWriteText(path, `${lines.slice(-200).join('\n')}\n`, true);
     } catch { /* the log is a help, never a gate */ }
   }
-  async writeCard(card: VaultCard) { check(validCard(card), 'INVALID_CARD', 'A business card needs its folder and unlock mode.'); await this.#write(this.cards, `${card.folder}.json`, card); }
-  async removeCard(folder: string) { if (FOLDER_RULE.test(folder)) await this.#remove(this.cards, `${folder}.json`); }
+  async writeCard(card: VaultCard) { check(validCard(card), 'INVALID_CARD', 'A business card needs its folder and unlock mode.'); if (await this.#newerCard(card.folder)) return; await this.#write(this.cards, `${card.folder}.json`, card); }
+  async removeCard(folder: string) { if (FOLDER_RULE.test(folder) && !(await this.#newerCard(folder))) await this.#remove(this.cards, `${folder}.json`); }
   async listCards(): Promise<VaultCard[]> {
     const folder = await this.#folder(this.cards, false); if (!folder) return [];
     const cards: VaultCard[] = [];
