@@ -12,6 +12,7 @@
   "platform/tests/desktop-engine-bundle-d7.test.ts": 2.5,
   "platform/tests/desktop-smoke-d5.test.ts": 1,
   "platform/tests/desktop-trim-d5.test.ts": 2.5,
+  "platform/tests/desktop-updates-c5.test.ts": 1,
   "platform/tests/doctor-d11.test.ts": 1,
   "platform/tests/engine-bundle-d7.test.ts": 8.3,
   "platform/tests/engine-bundle-rules-d7.test.ts": 1.5,
