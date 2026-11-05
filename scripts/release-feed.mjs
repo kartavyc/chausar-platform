@@ -3,6 +3,7 @@
 // AppImage; .deb, .tar.gz, blockmaps and checksums are not update targets), makes one ReleaseManifest for each, signs
 // each manifest and then the whole feed with the Ed25519 private key file passed in, and writes the feed and its detached
 // signature (<output>.sig). The tag workflow (release.yml) calls it; the private key never enters the checkout.
+// The feed expires (--valid-days, 90 by default): the release checklist in docs/desktop-releases.md says when to re-sign.
 // D11f task 32: each manifest's dataSchemaVersion is the build's own CURRENT_SCHEMA from the migration ladder.
 // Usage: node scripts/release-feed.mjs --artifacts <dir> --private-key <file> --output <feed.json>
 //          [--version <x.y.z>] [--channel beta|stable] [--rollout <0-100>] [--base-url <https url/>] [--min-engine <x.y.z>]

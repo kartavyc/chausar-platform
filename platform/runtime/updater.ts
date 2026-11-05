@@ -211,7 +211,7 @@ export class ReleaseUpdater {
     check(typeof feed!=='string'||feed===payload,'NONCANONICAL_FEED','Verify the exact canonical feed, without duplicate keys or alternate encodings.');
     const bytes=signatureBytes(signature,'INVALID_FEED_SIGNATURE','A feed requires a detached base64url Ed25519 signature.');
     check(verifySignature(null,Buffer.from(payload),this.#key,bytes),'INVALID_FEED_SIGNATURE','The update feed signature is invalid.');
-    check(Date.parse(value.expiresAt)>(options.now??new Date()).getTime(),'FEED_EXPIRED','This update feed has expired. Chausar checks for a newer one later.');
+    check(Date.parse(value.expiresAt)>(options.now??new Date()).getTime(),'FEED_EXPIRED','This update feed has expired, or this computer\'s clock may be wrong. Chausar checks for a newer one later.');
     check(value.channel===options.channel,'FEED_CHANNEL_MISMATCH','This feed is for another release channel.');
     const releases:FeedRelease[]=value.releases.map((release:any)=>({manifest:this.#authenticate(release.manifest,release.signature,false),signature:release.signature}));
     const seen=new Map<string,string>();

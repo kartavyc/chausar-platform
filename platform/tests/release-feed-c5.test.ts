@@ -102,6 +102,15 @@ test('it refuses an empty folder, two installers for one platform, a key that is
   assert.equal(usage.status, 2);
 });
 
+// Fix round 2 (review 2, LOW-2): the feed expires, so the release checklist beside the scripts says to re-sign it in time.
+test('the release checklist says to re-sign the feed before its 90 days run out', async () => {
+  const doc = await readFile(join(ROOT, 'docs', 'desktop-releases.md'), 'utf8');
+  const section = doc.slice(doc.indexOf('## The update feed'));
+  assert.ok(doc.includes('## The update feed'), 'a section on the update feed');
+  assert.match(section, /release-feed\.mjs/); assert.match(section, /90 days/); assert.match(section, /re-sign/i); assert.match(section, /--valid-days/);
+  assert.match(await readFile(FEED, 'utf8'), /docs\/desktop-releases\.md/);
+});
+
 test('release-key writes the private half outside the checkout, once, and prints only the public half', async t => {
   const root = await folder(t), out = join(root, 'keys', 'chausar-release.pem');
   const made = run(KEY, ['--out', out]);

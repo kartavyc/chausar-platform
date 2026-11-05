@@ -267,7 +267,7 @@ test('an expired feed is refused, and the expiry is part of what is signed',asyn
   const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t)}),options={channel:'beta' as const,installId:'f'.repeat(32)};
   const feed=feedOf([manifest('1.1.0')],{expiresAt:'2026-12-01T00:00:00.000Z'}),signed=feedSignature(feed);
   assert.equal(updater.verifyFeed(feed,signed,{...options,now:new Date('2026-11-30T23:59:59.000Z')}).reason,'offered');
-  assert.throws(()=>updater.verifyFeed(feed,signed,{...options,now:new Date('2026-12-01T00:00:00.000Z')}),code('FEED_EXPIRED'));
+  assert.throws(()=>updater.verifyFeed(feed,signed,{...options,now:new Date('2026-12-01T00:00:00.000Z')}),(error:any)=>error.code==='FEED_EXPIRED'&&/clock/.test(error.message));
   assert.throws(()=>updater.verifyFeed({...feed,expiresAt:'2099-01-01T00:00:00.000Z'},signed,options),code('INVALID_FEED_SIGNATURE'));
   const {expiresAt:_dropped,...noExpiry}=feed;assert.throws(()=>updater.verifyFeed(noExpiry as any,feedSignature(noExpiry),options),code('INVALID_FEED'));
   const loose={...feed,expiresAt:'2099-01-01'};assert.throws(()=>updater.verifyFeed(loose,feedSignature(loose),options),code('INVALID_FEED'));
