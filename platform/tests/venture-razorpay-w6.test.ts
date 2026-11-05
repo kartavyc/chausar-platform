@@ -70,7 +70,7 @@ test('a payment link is made only on the exact approval, then polling records th
   await env.money('venture.billing.set', { razorpayKeys: { keyId: KEY_ID, keySecret: KEY_SECRET } });
   const view = await env.money<InvoiceView>('venture.invoice.get', { invoiceId: (await issued(env)).invoice.id });
   const offer = view.howToPay!.payLinkOffer!;
-  assert.deepEqual({ amount: offer.amount, currency: offer.currency, label: offer.label }, { amount: 'INR 23,305.00', currency: 'INR', label: 'fixture-tested' });
+  assert.deepEqual({ amount: offer.amount, currency: offer.currency, label: offer.label }, { amount: '₹23,305', currency: 'INR', label: 'fixture-tested' });
   const answers = recorded([{ status: 200, body: link() }, { status: 200, body: link() }, { status: 200, body: PAID }, { status: 200, body: PAID }]);
   env.deps.paymentHttp = answers.http;
   await assert.rejects(env.money('venture.invoice.payLink', { invoiceId: view.invoice.id, action: 'create', digest: 'other0digest' }), code('APPROVAL_STALE'));
