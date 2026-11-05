@@ -405,6 +405,38 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
   return { ok: failures.length === 0, mode: plan.mode, target: plan.target, cliPath, viteCli, version, checks, failures, qualification: plan.qualification };
 }
 
+// D5 task 4: a build proves its own notices. The unpacked folder electron-builder leaves (win-unpacked, linux-unpacked)
+// is read after the build: a beta or final build carries the AGPL LICENSE, NOTICE, the third-party notices and each
+// font's OFL text (app/desktop/notices/fonts, shipped as resources/notices/fonts), and feedback.json exactly when report
+// keys were staged; the demo preview carries none of them. Read only; nothing is started.
+export const UNPACKED_FOLDER = Object.freeze({ win32: 'win-unpacked', linux: 'linux-unpacked' });
+const NOTICE_RESOURCES = Object.freeze(['LICENSE', 'NOTICE', 'notices/THIRD-PARTY-NOTICES.md']);
+
+/** The font licence files a build must carry: the OFL texts in app/desktop/notices/fonts (none until they are copied there). */
+export async function packagedFontLicences(folder = join(projectRoot, 'app/desktop/notices/fonts')) {
+  try { return (await readdir(folder)).filter(name => /-OFL\.txt$/.test(name)).sort(); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+}
+
+/** What a packaged build lacks or should not carry, in plain words; empty when it is right. */
+export async function packagedResourceProblems(unpackedDir, { mode, reports, fonts = [] } = {}) {
+  const resources = join(unpackedDir, 'resources');
+  const present = async relativePath => { try { return (await lstat(join(resources, ...relativePath.split('/')))).isFile(); } catch { return false; } };
+  try { if (!(await lstat(resources)).isDirectory()) return ['the unpacked build has no resources folder']; }
+  catch { return ['the unpacked build has no resources folder']; }
+  const problems = [];
+  const staged = Boolean(reports && (reports.posthog || reports.sentry));
+  if (mode === 'preview') {
+    for (const file of [...NOTICE_RESOURCES, 'feedback.json']) if (await present(file)) problems.push(`resources/${file} is in the preview`);
+    return problems;
+  }
+  for (const file of [...NOTICE_RESOURCES, ...fonts.map(name => `notices/fonts/${name}`)]) if (!(await present(file))) problems.push(`resources/${file} is missing`);
+  const feedback = await present('feedback.json');
+  if (staged && !feedback) problems.push('resources/feedback.json is missing');
+  if (!staged && feedback) problems.push('resources/feedback.json is there, but no report keys were staged');
+  return problems;
+}
+
 async function sha256(path) {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -470,6 +502,12 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (status !== 0) throw new Error(`${command.name} failed with exit code ${status}`);
     // The window refuses to start without the build, so a package without it is refused here first.
     if (command.name === 'Ink build') await regular(join(root, 'app/ui/dist/index.html'));
+  }
+  // D5 task 4: no receipt for a build that lacks its notices (or carries report keys nobody staged).
+  if (Object.hasOwn(UNPACKED_FOLDER, plan.platform)) {
+    const unpackedDir = join(root, plan.output, UNPACKED_FOLDER[plan.platform]);
+    const problems = await packagedResourceProblems(unpackedDir, { mode: plan.mode, reports: feedback, fonts: await packagedFontLicences(join(root, 'app/desktop/notices/fonts')) });
+    if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
   }
   const artifacts = [];
   if (plan.mode !== 'final' && !plan.unpacked) {

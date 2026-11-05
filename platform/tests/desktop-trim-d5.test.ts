@@ -73,3 +73,49 @@ test('task 2: no build carries a Claude Code program file; the Agent SDK itself 
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Task 4: a build proves its own notices. Read from the unpacked folder electron-builder leaves (win-unpacked,
+// linux-unpacked); a beta or final build without one of them gets no receipt.
+// ---------------------------------------------------------------------------
+
+async function unpacked(t: any, files: string[]) {
+  const root = await mkdtemp(join(tmpdir(), 'chausar-unpacked-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, 'resources'));
+  for (const file of files) {
+    await mkdir(join(root, 'resources', ...file.split('/').slice(0, -1)), { recursive: true });
+    await writeFile(join(root, 'resources', ...file.split('/')), 'synthetic\n');
+  }
+  return root;
+}
+
+test('task 4: a beta or final build carries LICENSE, NOTICE, the third-party notices and each font licence; feedback.json only with report keys', async t => {
+  const { packagedResourceProblems } = desktopPackage;
+  const complete = ['LICENSE', 'NOTICE', 'notices/THIRD-PARTY-NOTICES.md', 'notices/fonts/DMMono-OFL.txt'];
+  const fonts = ['DMMono-OFL.txt'];
+  for (const mode of ['beta', 'final']) {
+    assert.deepEqual(await packagedResourceProblems(await unpacked(t, complete), { mode, fonts }), [], mode);
+    for (const missing of complete) {
+      const problems = await packagedResourceProblems(await unpacked(t, complete.filter(file => file !== missing)), { mode, fonts });
+      assert.deepEqual(problems, [`resources/${missing} is missing`], `${mode} ${missing}`);
+    }
+    // Report keys staged: feedback.json must be there; none staged: it must not.
+    assert.deepEqual(await packagedResourceProblems(await unpacked(t, [...complete, 'feedback.json']), { mode, fonts, reports: { posthog: true, sentry: false } }), []);
+    assert.deepEqual(await packagedResourceProblems(await unpacked(t, complete), { mode, fonts, reports: { posthog: false, sentry: true } }), ['resources/feedback.json is missing']);
+    assert.deepEqual(await packagedResourceProblems(await unpacked(t, [...complete, 'feedback.json']), { mode, fonts, reports: { posthog: false, sentry: false } }), ['resources/feedback.json is there, but no report keys were staged']);
+    assert.deepEqual(await packagedResourceProblems(await unpacked(t, [...complete, 'feedback.json']), { mode, fonts }), ['resources/feedback.json is there, but no report keys were staged']);
+  }
+  // The demo preview carries none of them.
+  assert.deepEqual(await packagedResourceProblems(await unpacked(t, []), { mode: 'preview', fonts }), []);
+  assert.deepEqual(await packagedResourceProblems(await unpacked(t, ['NOTICE', 'feedback.json']), { mode: 'preview', fonts }), ['resources/NOTICE is in the preview', 'resources/feedback.json is in the preview']);
+  // A folder that is not an unpacked build at all.
+  assert.deepEqual(await packagedResourceProblems(join(tmpdir(), `chausar-no-such-build-${process.pid}`), { mode: 'beta', fonts }), ['the unpacked build has no resources folder']);
+});
+
+test('task 4: the font licences a build must carry are the ones in app/desktop/notices/fonts', async () => {
+  const { packagedFontLicences } = desktopPackage;
+  const listed = await packagedFontLicences(join(tmpdir(), `chausar-no-fonts-${process.pid}`));
+  assert.deepEqual(listed, []);
+  assert.ok(Array.isArray(await packagedFontLicences()));
+});
