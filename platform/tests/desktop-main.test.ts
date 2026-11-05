@@ -420,6 +420,12 @@ test('A5: a preview or development run answers that start at login is not here, 
   const refused = await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
   assert.deepEqual([refused.ok, refused.error.code], [false, 'BACKGROUND_UNAVAILABLE']);
   assert.deepEqual(d.logins, []);
+  // B1 fix round 1 (quality 8): the refusal's words are one constant, shared by main and background.cjs.
+  const { BACKGROUND_UNAVAILABLE_LINE } = require('./background.cjs');
+  assert.equal(refused.error.message, BACKGROUND_UNAVAILABLE_LINE);
+  assert.equal(BACKGROUND_UNAVAILABLE_LINE, 'Only the installed Chausar app can start when you sign in to this computer.');
+  const sources = (await Promise.all(['main.cjs', 'background.cjs'].map(name => readFile(new URL(`../../app/desktop/${name}`, import.meta.url), 'utf8')))).join(' ');
+  assert.equal(sources.split(BACKGROUND_UNAVAILABLE_LINE).length - 1, 1, 'written once');
 });
 
 test('A5: the real preload forwards only the two ticks', async () => {
