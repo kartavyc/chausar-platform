@@ -5,6 +5,7 @@ import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ChausarError, hash, initialState, type State, type StateStore } from './contracts.ts';
 import { acquireProcessLock, type ProcessLock } from './process-lock.ts';
+import { CURRENT_SCHEMA, STEPS, migrate, type LadderStep } from './migrations/ladder.ts';
 
 const FORMAT = 'chausar.vault.v1';
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -50,7 +51,8 @@ export type CreateBootstrapVaultOptions = Common & {
   passphrase: string; state: State; expectedStateDigest: string; expectedWorkspaceId: string; expectedOwnerId: string;
   budgets: VaultBootstrapBudgets;
 };
-export type OpenVaultOptions = Common & { passphrase: string };
+/** migrationSteps: tests only (D12), a stand-in ladder; every host opens through the real STEPS. */
+export type OpenVaultOptions = Common & { passphrase: string; migrationSteps?: readonly LadderStep[] };
 export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
 export type RestoreVaultOptions = Common & { backupFile: string } & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
 
@@ -100,7 +102,7 @@ function validateEnvelope(value: any): asserts value is VaultEnvelope {
   if (!value || value.format !== FORMAT || !/^[a-zA-Z0-9_-]{1,100}$/.test(value.id) || !Number.isSafeInteger(value.revision) || value.revision < 0 || !value.passphrase || !value.recovery || !value.snapshot) throw new Error('Invalid envelope');
 }
 function validateState(value: any): asserts value is State {
-  if (!value || value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.workspace?.id !== 'string' || typeof value.workspace?.name !== 'string' || !Array.isArray(value.members) || !value.policy) throw new Error('Invalid authority snapshot');
+  if (!value || value.schemaVersion !== CURRENT_SCHEMA || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.workspace?.id !== 'string' || typeof value.workspace?.name !== 'string' || !Array.isArray(value.members) || !value.policy) throw new Error('Invalid authority snapshot');
   for (const name of ['facts','imports','receipts','answers','decisions','actions','jobs','learning','plugins','modelReceipts','activity','conflicts','merges','tombstones','conversations','routes','sessions','unsupported','schedules','sourceRules']) if (!Array.isArray(value[name])) throw new Error('Invalid authority collection');
 }
 const stateCollections = ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'plugins',
@@ -167,7 +169,7 @@ function freshBootstrapState(options: CreateBootstrapVaultOptions): State {
   const state = JSON.parse(text) as State;
   bootstrapExact(state, ['schemaVersion', 'revision', 'workspace', 'members', 'policy', 'ontology', ...stateCollections]);
   bootstrapExact(state.workspace, ['id', 'name', 'currency', 'demo', 'createdAt']);
-  if (state.schemaVersion !== 1 || state.revision !== 0 || state.workspace.demo !== true || state.workspace.id !== options.expectedWorkspaceId
+  if (state.schemaVersion !== CURRENT_SCHEMA || state.revision !== 0 || state.workspace.demo !== true || state.workspace.id !== options.expectedWorkspaceId
     || typeof state.workspace.name !== 'string' || !state.workspace.name.trim() || state.workspace.name.length > 200
     || typeof state.workspace.currency !== 'string' || !state.workspace.currency || state.workspace.currency.length > 32 || /[\x00-\x1f]/.test(state.workspace.currency)
     || typeof state.workspace.createdAt !== 'string' || state.workspace.createdAt.length > 64 || !Number.isFinite(Date.parse(state.workspace.createdAt)))
@@ -233,6 +235,19 @@ function decodeSnapshot(envelope: VaultEnvelope, key: Uint8Array): State {
   const plaintext = unseal(key, envelope.snapshot, aad(envelope));
   try { const state = JSON.parse(plaintext.toString('utf8')); validateState(state); if (state.revision !== envelope.revision) throw new Error('Revision mismatch'); return state; }
   finally { plaintext.fill(0); }
+}
+/** D12: opening a business. Decrypts, then brings the State up to CURRENT_SCHEMA through the ladder (on a copy; the
+ * file is not touched). DATA_NEWER and DATA_MIGRATION_FAILED can only be thrown after the key opened the data. */
+function openSnapshot(envelope: VaultEnvelope, key: Uint8Array, steps: readonly LadderStep[]): { state: State; migratedFrom: number | null } {
+  validateEnvelope(envelope);
+  const plaintext = unseal(key, envelope.snapshot, aad(envelope));
+  let raw: unknown;
+  try { raw = JSON.parse(plaintext.toString('utf8')); } finally { plaintext.fill(0); }
+  const result = migrate(raw, new Date().toISOString(), steps);
+  const state = result.state as State;
+  validateState(state);
+  if (state.revision !== envelope.revision) throw new Error('Revision mismatch');
+  return { state, migratedFrom: result.from === result.to ? null : result.from };
 }
 
 async function existingRegular(path: string): Promise<boolean> {
@@ -326,6 +341,9 @@ export class Vault implements StateStore {
   #snapshotScope = new AsyncLocalStorage<boolean>();
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
+  /** D12: the data version this business was opened at, when the ladder brought it up in memory; null otherwise. */
+  #migratedFrom: number | null = null;
+  #migrating = false;
   readonly directory: string;
   readonly storageKind: 'postgres' | 'experimental-file';
   private constructor(directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock, key: Buffer, envelope: VaultEnvelope, state: State, keychain?: KeychainHook, writerGuard?: VaultWriterGuard) {
@@ -333,7 +351,11 @@ export class Vault implements StateStore {
   }
   /** Public identity metadata only; keys and encrypted wrappers stay private. */
   get vaultId(): string { this.#ready(); return this.#envelope.id; }
+  /** D12: the data version the file still holds while a migration waits for commitMigration; null when none waits. */
+  get migratedFrom(): number | null { return this.#migratedFrom; }
   private async guarded<T>(work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State }>): Promise<T> {
+    // D12: nothing writes the brought-up State before commitMigration has had the untouched file backed up.
+    if (this.#migratedFrom !== null && !this.#migrating) fail('MIGRATION_PENDING', 'This business must be brought up to date, with a backup of it as it was, before anything else is saved.');
     return this.#writerGuard ? this.#writerGuard({ state: structuredClone(this.#state), vaultId: this.#envelope.id }, work) : (await work(() => {})).result;
   }
   static async create(options: CreateVaultOptions): Promise<{ vault: Vault; recoveryCode: string }> {
@@ -443,9 +465,43 @@ export class Vault implements StateStore {
     try {
       const envelope = await adapter.load(); validateEnvelope(envelope);
       key = await unwrap(secret, recovery ? envelope.recovery : envelope.passphrase, envelope.id, recovery ? 'recovery' : 'passphrase');
-      const state = decodeSnapshot(envelope, key);
-      return new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard);
-    } catch { key?.fill(0); await lock.release(); await adapter.close?.(); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
+      // D12: through the ladder. Its two answers come only after the key opened the data; all else stays UNLOCK_FAILED.
+      const opened = openSnapshot(envelope, key, (options as OpenVaultOptions).migrationSteps ?? STEPS);
+      const vault = new Vault(directory, adapter, lock, key, envelope, opened.state, options.keychain, options.writerGuard);
+      vault.#migratedFrom = opened.migratedFrom;
+      return vault;
+    } catch (error) {
+      key?.fill(0); await lock.release(); await adapter.close?.();
+      if (error instanceof ChausarError && (error.code === 'DATA_NEWER' || error.code === 'DATA_MIGRATION_FAILED')) throw error;
+      return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.');
+    }
+  }
+  /**
+   * D12: saves a business the ladder brought up to date on open. `backup` gets the untouched file first (its envelope
+   * as JSON text, which is what a chausar.backup.v1 backup wraps); only after it succeeds is the brought-up State
+   * written, once, as the next revision. Any failure leaves the file as it was and the migration pending.
+   */
+  commitMigration(backup: (untouchedEnvelopeJson: string) => Promise<void>): Promise<{ from: number; to: number }> {
+    return this.#enqueue(() => this.#transaction.run(true, async () => {
+      const from = this.#migratedFrom;
+      if (from === null) fail('NO_MIGRATION', 'This business is already up to date.');
+      const unchanged = 'This version of Chausar couldn\'t bring your business up to date. Your business is unchanged.';
+      try { await backup(JSON.stringify(this.#envelope)); }
+      catch { fail('DATA_MIGRATION_FAILED', unchanged); }
+      this.#migrating = true;
+      try {
+        await this.guarded(async assertCurrent => {
+          const draft = structuredClone(this.#state); draft.revision = this.#state.revision + 1;
+          const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
+          assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+          this.#state = draft; this.#envelope = envelope;
+          return { result: undefined, committedState: structuredClone(this.#state) };
+        });
+      } catch { fail('DATA_MIGRATION_FAILED', unchanged); }
+      finally { this.#migrating = false; }
+      this.#migratedFrom = null;
+      return { from: from!, to: CURRENT_SCHEMA };
+    }));
   }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
     let envelope: VaultEnvelope, state: State, key: Buffer | undefined;

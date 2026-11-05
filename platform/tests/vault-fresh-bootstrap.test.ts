@@ -13,6 +13,7 @@ import { WorkspaceActivationHost, type AuthenticatedActivationCandidate, type Wo
 import { WorkspaceImportCandidateService } from '../runtime/workspace-import-candidate.ts';
 import { canonicalInterchangeJson, captureWorkspaceInterchange, interchangeDigest } from '../runtime/workspace-interchange.ts';
 import { artifactsFor, deterministicShopState, emptyTarget, fixedTime, interchangeOwner } from './fixtures/workspace-interchange-fixture.ts';
+import { CURRENT_SCHEMA } from '../runtime/migrations/ladder.ts';
 
 const budgets: VaultBootstrapBudgets = { maxStateBytes: 1_000_000, maxJsonDepth: 32, maxJsonNodes: 20_000, maxRecords: 1000 };
 const artifactBudgets: VaultEncryptedCustodyBudgets = { maxEntryBytes: 1_000_000, maxTotalEntryBytes: 2_000_000, maxArtifacts: 32 };
@@ -196,7 +197,7 @@ test('bootstrap refuses changed digest, workspace and owner pins plus carried au
     { name: 'workspace_pin', expected: 'BOOTSTRAP_STATE_INVALID', alter: () => {}, options: { expectedWorkspaceId: 'other_workspace' } },
     { name: 'owner_pin', expected: 'BOOTSTRAP_OWNER_INVALID', alter: () => {}, options: { expectedOwnerId: 'other_owner' } },
     { name: 'revision', expected: 'BOOTSTRAP_STATE_INVALID', alter: state => { state.revision = 1; } },
-    { name: 'schema', expected: 'BOOTSTRAP_STATE_INVALID', alter: state => { state.schemaVersion = 2; } },
+    { name: 'schema', expected: 'BOOTSTRAP_STATE_INVALID', alter: state => { state.schemaVersion = CURRENT_SCHEMA + 1; } }, // D12: newer than this app
     { name: 'real_user', expected: 'BOOTSTRAP_STATE_INVALID', alter: state => { state.workspace.demo = false; } },
     { name: 'extra_state_field', expected: 'BOOTSTRAP_STATE_INVALID', alter: state => { Object.assign(state, { historicalAuthority: {} }); } },
     { name: 'extra_workspace_field', expected: 'BOOTSTRAP_STATE_INVALID', alter: state => { Object.assign(state.workspace, { historicalToken: 'forbidden' }); } },

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {ChausarError,check,hash} from './portable.ts';
 import { formatMoney } from './owner-format.ts';
+import { CURRENT_SCHEMA } from './migrations/ladder.ts';
 export {ChausarError,check,hash} from './portable.ts';
 
 export const newId = (prefix = 'item') => `${prefix}_${randomUUID()}`;
@@ -31,7 +32,7 @@ export interface StateStore {
 }
 export function initialState(name: string, demo = false): State {
   return {
-    schemaVersion: 1, revision: 0, workspace: { id: newId('workspace'), name, currency: 'INR', demo, createdAt: now() },
+    schemaVersion: CURRENT_SCHEMA, revision: 0, workspace: { id: newId('workspace'), name, currency: 'INR', demo, createdAt: now() },
     members: [{ id: 'owner', name: 'Workspace owner', role: 'owner', active: true, epoch: 1, branches: ['*'] }],
     policy: { send: 'nothing', autonomy: false, allowedSources: ['*'], retentionDays: 90, sharing: false }, ontology: null,
     facts: [], imports: [], receipts: [], answers: [], decisions: [], actions: [], jobs: [], learning: [], plugins: [], modelReceipts: [], activity: [], conflicts: [], merges: [], tombstones: [], conversations: [], routes: [], sessions: [], unsupported: [], schedules: [], sourceRules: [],
