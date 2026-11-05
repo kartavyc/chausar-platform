@@ -92,3 +92,19 @@ test('part 2: every builder sends the same instructions for two different busine
   }
   assert.deepEqual([...new Set(problems)], []);
 });
+
+test('part 3: each builder stays within its weight budget (baselines/prompt-weight.json), which only shrinks', async () => {
+  const budget = JSON.parse(readFileSync(new URL('baselines/prompt-weight.json', import.meta.url), 'utf8')) as Record<string, Record<string, number | null>>;
+  const { measure } = await import('../../scripts/prompt-weight.mjs');
+  const over: string[] = [];
+  for (const row of await measure() as Record<string, string | number | null>[]) {
+    const limit = budget[row.name as string];
+    if (!limit) { over.push(`${row.name}: no budget; run node scripts/prompt-weight.mjs --write-baseline and say why in the pull request`); continue; }
+    for (const key of ['instructionChars', 'inputChars', 'schemaChars', 'toolManifestChars']) {
+      if (row[key] === undefined || row[key] === null) continue;
+      if (typeof limit[key] !== 'number' || (row[key] as number) > limit[key]!) over.push(`${row.name}: ${key} ${row[key]} is over its budget ${limit[key]}`);
+    }
+  }
+  assert.deepEqual(over, [], 'a raise goes to the founder in the pull request, with its reason');
+  for (const name of Object.keys(budget)) assert.ok(REGISTRY.some(builder => builder.name === name), `${name} is in the budget but not in the registry`);
+});
