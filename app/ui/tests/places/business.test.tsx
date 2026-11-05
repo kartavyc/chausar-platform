@@ -43,7 +43,8 @@ describe('Business: plan and playbook', () => {
   it("shows the plan with the work plan's kind, offers priced only by receipt, steps and what you approve", async () => {
     start('#/business/plan');
     expect(await screen.findByRole('heading', { level: 1, name: 'How the work is done' })).toBeTruthy();
-    await waitFor(() => expect(within(screen.getByRole('main')).getByText(/YouTube channel/)).toBeTruthy());
+    // B3: the plan's kind line (the platform rules may name the platform too, once they are read).
+    await waitFor(() => expect(within(screen.getByRole('main')).getByText(/Version 2, accepted/).textContent).toContain('YouTube channel'));
     expect(screen.getByText(/Version 2, accepted/)).toBeTruthy();
     expect(screen.getByText('Weekly audio gear reviews on YouTube, cut into shorts, with sponsor slots.')).toBeTruthy();
     const sponsor = await offerRow('Sponsor slot');
@@ -197,6 +198,8 @@ describe('Business: platform rules (2H)', () => {
     expect(screen.queryByRole('region', { name: 'Platform rules' })).toBeNull();
     expect(screen.queryByText('This business has no work instructions with dated platform rules.')).toBeNull();
     unmount();
+    // B3: the read store lets go of what nobody reads after the current task, so the page opened again reads afresh.
+    await act(async () => { await Promise.resolve(); });
 
     answer = () => Promise.reject(new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'));
     render(<App client={client} language="en" />);
