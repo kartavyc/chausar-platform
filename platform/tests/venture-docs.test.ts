@@ -13,15 +13,12 @@ import { VentureTestStore } from './venture-test-store.ts';
 const docsFolder = new URL('../../docs/venture/', import.meta.url);
 const lf = (text: string) => text.replace(/\r\n/g, '\n');
 
-async function readOptional(url: URL): Promise<string | null> {
-  try { return await readFile(url, 'utf8'); } catch (error: any) { if (error?.code === 'ENOENT') return null; throw error; }
-}
-
-test('docs/venture/architecture.md is the architecture document, copied as is', async () => {
+// B1 fix round 2: the tracked page is the architecture document. It was compared with a copy in the local .b2c-work
+// folder, which git ignores (.git/info/exclude): a fresh clone skipped the check and this machine's older copy (16 Oct)
+// failed it, so the result depended on the machine. The tracked page has been updated since (29 Oct) and stands alone.
+test('docs/venture/architecture.md is the architecture document', async () => {
   const copy = await readFile(new URL('architecture.md', docsFolder), 'utf8');
   assert.match(copy, /^# Chausar B2C: target architecture/);
-  const source = await readOptional(new URL('../../.b2c-work/ARCHITECTURE-B2C.md', import.meta.url));
-  if (source !== null) assert.equal(lf(copy), lf(source));
 });
 
 test('every venture doc is free of em dashes and the banned words', async () => {
