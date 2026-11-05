@@ -193,7 +193,7 @@ export function spentByPlan(state: State, venture: VentureRecord, subject: Extra
   } else {
     const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === subject.id);
     chosen = run ? deliveryRunSpends(state, run) : [];
-    label = 'AI spend of this run';
+    label = 'AI spend of this job';
   }
   return { subject, currency: 'USD', unit: 'micros', addends: addendsOf(chosen), words: { label, one: 'paid call', many: 'paid calls', none: 'No paid calls.' } };
 }

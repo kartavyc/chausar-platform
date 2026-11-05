@@ -37,7 +37,7 @@ const DEPARTMENTS: readonly { id: DepartmentId; name: string }[] = [
 const KEEPER_ROLE = 'Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.';
 const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
-const UNDECLARED = 'It proposed an outside action that none of its steps allows. Look at its runs before you clear it.';
+const UNDECLARED = 'It proposed an outside action that none of its steps allows. Look at its jobs before you clear it.';
 const WEEKS = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'];
 const WEEK_LABELS = ['Week of 14 Sep 2026', 'Week of 21 Sep 2026', 'Week of 28 Sep 2026', 'Week of 5 Oct 2026', 'Week of 12 Oct 2026', 'Week of 19 Oct 2026'];
 
@@ -175,7 +175,7 @@ export class FakeTeamDesk {
         ...this.spendWords(sample.shared, false),
       },
       totals: {
-        doneThisWeek: { count: jobs, receiptId: this.make('Jobs done this week by the whole team: runs that reached review, and practice runs that finished.', String(jobs)) },
+        doneThisWeek: { count: jobs, receiptId: this.make('Jobs done this week by the whole team: jobs that reached review, and practice jobs that finished.', String(jobs)) },
         spendThisMonth: {
           display: totalDisplay,
           receiptId: sample.total.receiptId || this.make('AI and tool calls this month.', totalDisplay),

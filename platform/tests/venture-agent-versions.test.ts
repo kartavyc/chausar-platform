@@ -82,7 +82,7 @@ test('a run already going keeps its version, and the thread says so (spec 8)', a
   assert.equal(run.status, 'waiting-for-you');
   const proposal = await propose(env, 'packager', 'package', PINNED);
   const decided = await accept(env, proposal);
-  assert.equal(decided.line, `Version ${first.version + 1} is in use from the next run. Run 1 keeps version ${first.version}.`);
+  assert.equal(decided.line, `Version ${first.version + 1} is in use from the next job. Job 1 keeps version ${first.version}.`);
   assert.equal(findRecord(env.store.read(), 'venture-delivery-run', run.id)!.playbookId, first.id);
   const thread = await env.agents('venture.agents.thread.list', { agent: 'packager' });
   const said = thread.items.filter((item: any) => item.type === 'message').map((item: any) => item.message.parts[0].text);

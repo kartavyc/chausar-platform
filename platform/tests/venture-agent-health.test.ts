@@ -85,9 +85,9 @@ test('health: healthy at first; two failed runs in a row is failing, three is qu
   assert.equal((await health(env)).status, 'healthy', 'one failure is not a pattern');
   assert.equal((await agent(env)).state, 'failed', 'its latest run failed');
   await failedRun(env, order);
-  assert.deepEqual(await health(env).then(item => [item.status, item.reason]), ['failing', 'Its last 2 runs failed.']);
+  assert.deepEqual(await health(env).then(item => [item.status, item.reason]), ['failing', 'Its last 2 jobs failed.']);
   await failedRun(env, order);
-  assert.deepEqual(await health(env).then(item => [item.status, item.reason]), ['quarantined', 'Its last 3 runs failed. It starts no new work until you clear it.']);
+  assert.deepEqual(await health(env).then(item => [item.status, item.reason]), ['quarantined', 'Its last 3 jobs failed. It starts no new work until you clear it.']);
 
   // A run that finished well breaks the run of failures.
   env.advance(60_000);
@@ -164,7 +164,7 @@ test('a quarantined agent starts no run; Clear quarantine needs the app and the 
   assert.equal(seen.status, 'quarantined');
   await delivery['venture.delivery.playbook']!(env.deps, owner, {});
   await assert.rejects(delivery['venture.delivery.run']!(env.deps, owner, { orderId: order.id, useTemplate: true }),
-    (error: any) => error.code === 'AGENT_QUARANTINED' && error.message === 'Bookkeeping agent is quarantined: Its last 3 runs failed. It starts no new work until you clear it. Clear it on Team first.');
+    (error: any) => error.code === 'AGENT_QUARANTINED' && error.message === 'Bookkeeping agent is quarantined: Its last 3 jobs failed. It starts no new work until you clear it. Clear it on Team first.');
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 3, 'nothing started');
 
   await assert.rejects(call(env, 'venture.team.clearQuarantine', { agentId: 'delivery', digest: seen.digest }, phone), code('APP_APPROVAL_REQUIRED'));

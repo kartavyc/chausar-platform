@@ -128,9 +128,9 @@ const RULES: Readonly<Record<IdeaRuleId, (facts: Facts) => IdeaDraft[]>> = Objec
       if (Date.parse(`${facts.today}T00:00:00Z`) - Date.parse(`${came}T00:00:00Z`) < START_AFTER_DAYS * 86_400_000) return [];
       const offer = facts.offer(order), on = facts.day(came);
       return [{
-        rule: 'start-order' as const, title: `Start work on ${client}'s order`, reason: `${client} ordered ${offer} on ${on}, and no run has started.`,
+        rule: 'start-order' as const, title: `Start work on ${client}'s order`, reason: `${client} ordered ${offer} on ${on}, and no job has started.`,
         evidence: [{ kind: 'venture-order' as const, id: order.id, line: `${offer} for ${client}, ordered ${on}.` }],
-        prompt: `Start a run on your AI for ${client}'s order. Each step that needs you still asks first.`,
+        prompt: `Start a job on your AI for ${client}'s order. Each step that needs you still asks first.`,
         action: { kind: 'start-run' as const, input: { orderId: order.id } },
       }];
     });

@@ -553,7 +553,7 @@ test('loop: turn, tool-call and spend limits force the last step, which must say
   assert.deepEqual(state.toolCalls.map(item => item.outcome), ['succeeded', 'succeeded', 'succeeded', 'cancelled']);
   assert.equal(!state.toolCalls[3].envelope.ok && state.toolCalls[3].envelope.error.code, 'HARNESS_LIMIT');
   const spendy = await applyTurn(env, newHarnessState(ALL, { ...DEFAULT_LIMITS, maxCostMicros: '500' }, []), turn([]), meta);
-  assert.equal(spendy.stopReason, 'The run reached its spending limit.');
+  assert.equal(spendy.stopReason, 'The job reached its spending limit.');
   const task = writeTask({
     serviceType: 'bookkeeping', offer: { name: 'Monthly books', description: 'Books.' }, clientRequest: 'Close my books', playbook: { steps: [] }, dictionaryManifest: 'm', files: [],
     containsClientData: false, idea: 'Books', allowed: [], priceRefs: { figures: [], dates: [{ ref: 'today', label: "Today's date", iso: '2026-10-16' }] }, templateTotalRef: 'offer_1.total', proven: [],

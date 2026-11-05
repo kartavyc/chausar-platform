@@ -68,7 +68,7 @@ export function chatAgent(state: State, venture: VentureRecord, agentId: string)
   const own = known.has(agentId) ? steps.filter(step => flagship.roleOf[step.id] === agentId)
     : steps.filter(step => flagship.roleOf[step.id] !== undefined && holderOf(state, venture.id, flagship.roleOf[step.id], known) === agentId);
   check(role && own.length, 'AGENT_NOT_FOUND', 'That agent was not found.');
-  check(role.kind === 'agent', 'AGENT_IS_CODE', `${role.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+  check(role.kind === 'agent', 'AGENT_IS_CODE', `${role.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
   return { id: role.id, name: role.name, job: role.job, steps: own, stepIds: own.map(step => step.id), team: steps, playbook, flagship };
 }
 

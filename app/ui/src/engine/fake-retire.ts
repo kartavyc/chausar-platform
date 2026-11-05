@@ -162,7 +162,7 @@ export class FakeRetireDesk {
     if (this.book().has(agentId)) throw new EngineError('AGENT_RETIRED', RETIRED_LINE);
     const found = (this.host.ask('venture.team.list', {}) as TeamListView).agents.find((agent) => agent.id === agentId);
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 

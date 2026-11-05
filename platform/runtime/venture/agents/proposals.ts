@@ -131,7 +131,7 @@ export function storeInstruction(tx: VentureTx, input: { agent: ChatAgent; playb
     const record: AgentProposalRecord = {
       ...tx.base('venture-agent-proposal'), agent: agent.id, proposalKind: 'instruction', quote: words, quoteDigest: digest(words.trim().toLowerCase()),
       messageId, patch, fromVersion, toVersion, parentHash: playbook.hash, diff: diffOf(before.guidance ?? [], patch, changed.guidance ?? []),
-      appliesTo: `Applies to "${before.title}" from the next run.`, note: null, label: draft.fromWords ? FROM_YOUR_WORDS : null,
+      appliesTo: `Applies to "${before.title}" from the next job.`, note: null, label: draft.fromWords ? FROM_YOUR_WORDS : null,
       status: 'drafted', digest: '', decidedAt: null, decidedBy: null,
     };
     record.digest = digest({ id: record.id, agent: record.agent, patch: { id: patch.id, op: patch.op, stepId: patch.stepId, value: patch.value }, fromVersion, toVersion, parentHash: record.parentHash, quote: words });
@@ -175,9 +175,9 @@ function inUseLine(state: State, venture: VentureRecord, version: number): strin
     byVersion.set(kept, [...(byVersion.get(kept) ?? []), run.number]);
   }
   const kept = [...byVersion.entries()].map(([old, numbers]) => numbers.length === 1
-    ? `Run ${numbers[0]} keeps version ${old}.`
-    : `Runs ${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)} keep version ${old}.`);
-  return `Version ${version} is in use from the next run. ${kept.join(' ')}`;
+    ? `Job ${numbers[0]} keeps version ${old}.`
+    : `Jobs ${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)} keep version ${old}.`);
+  return `Version ${version} is in use from the next job. ${kept.join(' ')}`;
 }
 
 // ---------------------------------------------------------------------------

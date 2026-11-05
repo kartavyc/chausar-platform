@@ -36,7 +36,7 @@ describe('fake engine: run controls (4F3)', () => {
     const events: string[] = [];
     engine.subscribe((event) => { if (event.runId === '31') events.push(event.type); });
     const result = await engine.request('venture.runs.stop', { runId: '31' }) as RunControlResult;
-    expect(result.line).toBe('Stop received. The step in progress finishes, then the run stops.');
+    expect(result.line).toBe('Stop received. The step in progress finishes, then the job stops.');
     expect(result.run.stop).toEqual({ state: 'stopping', line: 'Stopping: the step in progress finishes first.' });
     expect(result.run.state).toBe('active');
     await wait(FAKE_STOP_SETTLES_MS + 50);

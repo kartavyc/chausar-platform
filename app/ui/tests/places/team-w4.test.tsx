@@ -322,11 +322,11 @@ describe('Team w4: health', () => {
   });
 
   it('failing says its reason in fail words, with nothing to clear', async () => {
-    start('#/team', { intercept: withHealth('editor', { status: 'failing', reason: 'Its last 2 runs failed.' }) });
+    start('#/team', { intercept: withHealth('editor', { status: 'failing', reason: 'Its last 2 jobs failed.' }) });
     const editor = await cardOf('Editor');
     await waitFor(() => expect(editor.querySelector('[data-health]')).not.toBeNull());
     expect(editor.querySelector('[data-health] [data-tone="fail"]')?.textContent).toBe('Failing');
-    expect(editor.textContent).toContain('Its last 2 runs failed.');
+    expect(editor.textContent).toContain('Its last 2 jobs failed.');
     expect(within(editor).queryByRole('button', { name: 'Clear quarantine' })).toBeNull();
   });
 

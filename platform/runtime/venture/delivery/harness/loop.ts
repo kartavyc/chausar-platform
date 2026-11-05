@@ -364,7 +364,7 @@ export async function applyTurn(env: ToolEnv, state: HarnessState, turn: AgentTu
     if (delegated) { cancelled('TOOL_SKIPPED', 'A heavy-work brief ended this turn, so this call did not run.'); continue; }
     if (held) { cancelled('TOOL_SKIPPED', 'A call on hold ended this turn, so this call did not run.'); continue; }
     if (quarantined) { cancelled('TOOL_SKIPPED', 'Content held for the owner ended this turn, so this call did not run.'); continue; }
-    if (next.used.toolCalls >= next.limits.maxToolCalls) { cancelled('HARNESS_LIMIT', 'The run used all its tool calls.'); continue; }
+    if (next.used.toolCalls >= next.limits.maxToolCalls) { cancelled('HARNESS_LIMIT', 'The job used all its tool calls.'); continue; }
     // The owner's stop, read from the vault between calls (4F1): it works while this turn runs.
     if (stopping || env.stopRequested?.()) { stopping = true; cancelled('TOOL_SKIPPED', STOPPED_CALL); continue; }
     // 4F2: once the repeat-failure breaker tripped (below, after a call ran), nothing more of this turn starts.
@@ -443,7 +443,7 @@ function settle(state: HarnessState, finished: boolean, roundAt?: IsoTime): Harn
   else {
     const reason = state.used.turns >= state.limits.maxTurns ? 'The agent used all its turns.'
       : state.used.toolCalls >= state.limits.maxToolCalls ? 'The agent used all its tool calls.'
-        : BigInt(state.used.costMicros) >= runCapMicros(state) ? 'The run reached its spending limit.' : null;
+        : BigInt(state.used.costMicros) >= runCapMicros(state) ? 'The job reached its spending limit.' : null;
     state.phase = reason ? 'write' : 'act';
     state.stopReason = reason;
   }
@@ -472,7 +472,7 @@ export function capShortfall(state: Pick<HarnessState, 'limits' | 'capWindows' |
 /** Refuses, before it is sent, the call that would take the run past its cap. Today then asks for one more window. */
 export function reserveRunCall(state: Pick<HarnessState, 'limits' | 'capWindows' | 'used'>, estimateMicros: MicroString): void {
   if (capShortfall(state, estimateMicros) === null) return;
-  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatRate(estimateMicros)}, which would take this run past its spend cap of ${formatRate(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this run on Today to go on.`);
+  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatRate(estimateMicros)}, which would take this job past its spend cap of ${formatRate(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this job on Today to go on.`);
 }
 
 /** One more window for the run: whole windows of its own cap, enough for the call that waits. Null when it fits. */
@@ -486,7 +486,7 @@ export function capWindow(state: Pick<HarnessState, 'limits' | 'capWindows' | 'u
 /** The owner allowed one more window on Today: the run's cap rises by it, once. Refused when the call fits already. */
 export function allowCapWindow(state: HarnessState, estimateMicros: MicroString, at: IsoTime, by: string): HarnessState {
   const window = capWindow(state, estimateMicros);
-  check(window !== null, 'RUN_CAP_NOT_REACHED', 'This run is within its spend cap, so it needs no more room.');
+  check(window !== null, 'RUN_CAP_NOT_REACHED', 'This job is within its spend cap, so it needs no more room.');
   return addCapWindow(state, window, at, by);
 }
 

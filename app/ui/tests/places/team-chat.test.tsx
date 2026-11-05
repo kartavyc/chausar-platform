@@ -201,7 +201,7 @@ describe('Proposals in the thread', () => {
     const { spy } = start('#/team?sheet=agent:editor&tab=chat');
     const panel = await panelOf('Editor');
     const card = await within(panel).findByRole('article', { name: "Proposed change to Editor's instructions" });
-    expect(card.textContent).toContain('Applies to "Cut the episode" from the next run.');
+    expect(card.textContent).toContain('Applies to "Cut the episode" from the next job.');
     const lines = within(card).getByRole('group', { name: 'The change, with the lines around it' });
     expect(lines.textContent).toContain('Keep the length the client asked for.');
     expect(within(lines).getByText("Put the episode's name in the first line of every short's description.").tagName).toBe('INS');
@@ -220,7 +220,7 @@ describe('Proposals in the thread', () => {
     expect(after.textContent).toContain('Accepted. Editor works to version 5 from the next job.');
     expect(within(after).getByRole('button', { name: 'Undo' })).toBeTruthy();
     // The engine's own line about the run already going, in the thread.
-    expect(within(within(panel).getByRole('log')).getByText(/Version 5 is in use from the next run\. Runs .* keep version 4\./)).toBeTruthy();
+    expect(within(within(panel).getByRole('log')).getByText(/Version 5 is in use from the next job\. Jobs .* keep version 4\./)).toBeTruthy();
     expect(within(panel).getByRole('tab', { name: 'Instructions v5' })).toBeTruthy();
 
     await act(async () => { fireEvent.click(within(after).getByRole('button', { name: 'Undo' })); });

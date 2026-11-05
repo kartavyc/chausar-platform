@@ -252,7 +252,7 @@ function callError(state: State, callId: string | null): string | null {
 
 /** Why a run stopped, in the engine's own words; plain words when it kept none. */
 export function runError(state: State, run: DeliveryRunRecord): string {
-  return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This run stopped before it finished. Nothing was sent to the client.';
+  return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This job stopped before it finished. Nothing was sent to the client.';
 }
 
 const reviewReason = (answer: string | null): DeliveryReason =>
@@ -366,7 +366,7 @@ function roomWords(harness: HarnessState, window: MicroString, rupees: Rupees | 
   const after = rupees ? `${figure} · ${rupeeFigure(window, rupees)}` : figure;
   return BigInt(window) <= BigInt(harness.limits.maxCostMicros)
     ? { line: `Allow one more window of ${said}?`, change: { label: 'One more window', after } }
-    : { line: `Allow more spend for this run: ${said}`, change: { label: 'More spend for this run', after } };
+    : { line: `Allow more spend for this job: ${said}`, change: { label: 'More spend for this job', after } };
 }
 
 /** Runs a spot check picked at auto with spot checks: each waits until the owner says it looks right or needs work. */

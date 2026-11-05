@@ -244,7 +244,7 @@ export class FakeAgentsDesk {
     // W6 6G2: a retired agent keeps its own steps for its read-only thread on the Retired shelf.
     const found = this.agents().find((a) => a.id === agentId) ?? this.retired(agentId)?.agent;
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 
@@ -540,7 +540,7 @@ export class FakeAgentsDesk {
     this.seq += 1;
     const prop: Prop = {
       id: this.nextId('aprop'), agent: agent.id, at: said.at, seq: this.seq, kind: 'instruction', status: 'drafted', quote: words, quoteKey: keyOf(words), messageId: said.id,
-      appliesTo: `Applies to "${step.purpose}" from the next run.`, diff: [...before.map((text) => ({ op: 'same' as const, text })), { op: 'add', text: value }],
+      appliesTo: `Applies to "${step.purpose}" from the next job.`, diff: [...before.map((text) => ({ op: 'same' as const, text })), { op: 'add', text: value }],
       fromVersion: playbook.version, toVersion, parentHash: playbook.hash, note: null, patch, digest: '',
     };
     prop.digest = this.hex({ id: prop.id, patch, toVersion, parent: prop.parentHash });
@@ -622,8 +622,8 @@ export class FakeAgentsDesk {
     prop.status = 'accepted';
     prop.toVersion = made.version;
     const going = this.runs().filter((run) => run.state === 'waiting' || run.state === 'active');
-    const kept = going.length === 1 ? `Run ${going[0]!.runId} keeps` : `Runs ${going.slice(0, -1).map((r) => r.runId).join(', ')} and ${going.at(-1)?.runId ?? ''} keep`;
-    const line = going.length === 0 ? `Version ${made.version} is in use now. You can undo it.` : `Version ${made.version} is in use from the next run. ${kept} version ${current.version}.`;
+    const kept = going.length === 1 ? `Job ${going[0]!.runId} keeps` : `Jobs ${going.slice(0, -1).map((r) => r.runId).join(', ')} and ${going.at(-1)?.runId ?? ''} keep`;
+    const line = going.length === 0 ? `Version ${made.version} is in use now. You can undo it.` : `Version ${made.version} is in use from the next job. ${kept} version ${current.version}.`;
     this.put(book, agent.id, 'agent', line);
     return { proposal: this.proposalView(prop, agent.name), line, playbook: { id: made.id, version: made.version } };
   }
@@ -641,7 +641,7 @@ export class FakeAgentsDesk {
     this.seq += 1;
     const prop: Prop = {
       id: this.nextId('aprop'), agent: agent.id, at: said.at, seq: this.seq, kind: 'import', status: 'drafted', quote: 'An agent file you imported.', quoteKey: keyOf('An agent file you imported.'),
-      messageId: said.id, appliesTo: `Applies to ${agent.name} from the next run.${input.skipped.length ? ` Left out: ${input.skipped.join(' ')}` : ''}`,
+      messageId: said.id, appliesTo: `Applies to ${agent.name} from the next job.${input.skipped.length ? ` Left out: ${input.skipped.join(' ')}` : ''}`,
       diff: [...patches.map((patch) => ({ op: 'add' as const, text: patch.value })), ...input.personaLines],
       fromVersion: current?.version ?? null, toVersion: patches.length ? Math.max(0, ...book.versions.map((v) => v.version)) + 1 : null, parentHash: current?.hash ?? null,
       note: null, patch: null, digest: '', imported: { patches, accept: input.onAccept },
@@ -668,7 +668,7 @@ export class FakeAgentsDesk {
     prop.imported?.accept?.();
     prop.status = 'accepted';
     prop.toVersion = made?.version ?? null;
-    const line = made ? `Version ${made.version} is in use from the next run, with the orders from the file. You can undo it.` : 'The persona from the file is in use from the next run. You can undo it.';
+    const line = made ? `Version ${made.version} is in use from the next job, with the orders from the file. You can undo it.` : 'The persona from the file is in use from the next job. You can undo it.';
     this.put(book, agent.id, 'agent', line);
     return { proposal: this.proposalView(prop, agent.name), line, ...(made ? { playbook: { id: made.id, version: made.version } } : {}) };
   }

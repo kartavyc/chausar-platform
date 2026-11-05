@@ -135,7 +135,7 @@ test('ideas: an open order with no run after a day makes a start idea, whose pro
   env.setNow('2026-10-23T10:00:00.000Z');
   const [idea] = (await ideas(env)).ideas;
   assert.equal(idea.title, "Start work on Asha Rao's order");
-  assert.equal(idea.reason, `Asha Rao ordered ${offerName(env)} on 21 Oct 2026, and no run has started.`);
+  assert.equal(idea.reason, `Asha Rao ordered ${offerName(env)} on 21 Oct 2026, and no job has started.`);
   assert.deepEqual(idea.evidence.map(item => item.id), [made.id]);
   const runs = listRecords(env.store.read(), 'venture-delivery-run').length;
   const started = await start(env, idea.id);

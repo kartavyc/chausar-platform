@@ -323,7 +323,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
         return null;
       });
       // A turn that would cross the run's cap was not sent: the loop goes to its forced last step, as at the cap.
-      if (!turn) { state = skipActs(state, 'The run reached its spending limit.'); continue; }
+      if (!turn) { state = skipActs(state, 'The job reached its spending limit.'); continue; }
       state = await applyTurn(toolEnv, state, turn.value, { by: turn.by, callId: turn.callId, costMicros: turn.costMicros });
     }
 

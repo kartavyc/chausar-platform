@@ -60,7 +60,7 @@ test('run cap: after a turn the loop stops acting at the cap the owner raised, n
   const env = { deps: { services: {} }, runRef: { kind: 'rehearsal', scenarioId: 'scenario_1', episode: 0 }, files: [], tables: [], receipts: [], now: () => AT } as unknown as ToolEnv;
   const turn = { note: 'Look around', calls: [], finished: false };
   const atCap = await applyTurn(env, newHarnessState(['files.list'], limits('1000'), []), turn, { by: 'model', callId: 'call_1', costMicros: '1000' });
-  assert.deepEqual([atCap.phase, atCap.stopReason], ['write', 'The run reached its spending limit.']);
+  assert.deepEqual([atCap.phase, atCap.stopReason], ['write', 'The job reached its spending limit.']);
   const windowed: HarnessState = { ...newHarnessState(['files.list'], limits('1000'), []), capWindows: [{ micros: '1000', at: AT, by: 'owner' }] };
   const after = await applyTurn(env, windowed, turn, { by: 'model', callId: 'call_1', costMicros: '1000' });
   assert.deepEqual([after.phase, after.stopReason], ['act', null]);

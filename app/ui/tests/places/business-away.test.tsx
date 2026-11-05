@@ -89,7 +89,7 @@ describe('Business > Away', () => {
     expect(of(calls, 'venture.away.set')).toEqual([{ from: '2026-10-28', to: '2026-11-05' }]);
     expect(await screen.findByText(/^Away from 28 Oct 2026 to 5 Nov 2026\./)).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Keeps running' })).toBeTruthy();
-    expect(screen.getByText('While you are away, no new work starts on its own. Routines you set prepare runs that wait for you on Today.')).toBeTruthy();
+    expect(screen.getByText('While you are away, no new work starts on its own. Routines you set prepare jobs that wait for you on Today.')).toBeTruthy();
     // The engine's line says how many wait; the page does not say it twice. The list names the client.
     expect(screen.getAllByText(/things? waits? for you/).length).toBe(1);
     expect(screen.getByText(/'s payment for .+ is due\./)).toBeTruthy();

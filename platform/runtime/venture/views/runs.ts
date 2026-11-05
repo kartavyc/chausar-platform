@@ -639,7 +639,7 @@ export async function runsGetHandler(deps: VentureDeps, ctx: Context, payload: u
   const runId = identifier(body.runId, 'Run');
   const { state, venture, runs } = allRuns(deps, ctx, true);
   const build = runs.get(runId);
-  check(build, 'RUN_NOT_FOUND', 'That run was not found.');
+  check(build, 'RUN_NOT_FOUND', 'That job was not found.');
   const detail = build().detail;
   // W6 6G5 (D44): a delivery run's model receipt: the tool, tier, tokens and cost from its own records.
   const record = venture ? listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === runId) : undefined;

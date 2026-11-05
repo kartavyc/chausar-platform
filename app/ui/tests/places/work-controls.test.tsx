@@ -80,7 +80,7 @@ describe('Work: Stop on each running tile (O1)', () => {
     assertOnePrimary();
     await click(within(dialog).getByRole('button', { name: 'Stop' }));
     expect(of(calls, 'venture.runs.stop')).toEqual([{ runId: '31' }]);
-    expect(await within(tile).findByText('Stop received. The step in progress finishes, then the run stops.')).toBeTruthy();
+    expect(await within(tile).findByText('Stop received. The step in progress finishes, then the job stops.')).toBeTruthy();
     expect(await within(tile).findByText('Stopping')).toBeTruthy();
     expect(within(tile).queryByRole('button', { name: 'Stop: Cutting shorts from episode 13' })).toBeNull();
     // Once the step in progress came back, the engine says stopped: the run sits with the stopped runs, with Resume.
@@ -212,7 +212,7 @@ describe('4F3 review', () => {
     await click(within(within(tile).getByRole('dialog')).getByRole('button', { name: 'Stop' }));
     expect(await within(tile).findByText('Stopping')).toBeTruthy();
     // The status line takes the focus, so a screen reader hears what the engine did.
-    expect(document.activeElement).toBe(within(tile).getByText('Stop received. The step in progress finishes, then the run stops.'));
+    expect(document.activeElement).toBe(within(tile).getByText('Stop received. The step in progress finishes, then the job stops.'));
     expect(within(tile).getByRole('button', { name: 'Force stop: Cutting shorts from episode 13' })).toBeTruthy();
   });
 

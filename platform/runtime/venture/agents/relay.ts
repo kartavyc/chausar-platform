@@ -233,7 +233,7 @@ const ownerParts = (text: string): ChatPart[] => (/\d/.test(text) ? [{ kind: 'es
  */
 export function relaySend(tx: VentureTx, team: RelayTeam, rootId: string, input: RelaySendInput): RelayReceipt {
   const root = findRecord(tx.state, 'venture-delivery-run', rootId);
-  check(root && root.ventureId === tx.venture!.id, 'RUN_NOT_FOUND', 'That run was not found.');
+  check(root && root.ventureId === tx.venture!.id, 'RUN_NOT_FOUND', 'That job was not found.');
   const body = exactPayload(input, INPUT_FIELDS, ['kind', 'from', 'to', 'text']);
   check(RELAY_KINDS.includes(body.kind as RelayKind), 'INVALID_VENTURE_REQUEST', 'A message is an order, a report, a handover or a message.');
   const kind = body.kind as RelayKind;

@@ -401,7 +401,7 @@ export class FakeAgentExtras {
     if (agentId === 'keeper') throw new EngineError('AGENT_IS_CODE', 'Keeper is code, not AI. It holds no tools; its jobs are on Team.');
     const found = this.agents().find((agent) => agent.id === agentId);
     if (!found) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 
@@ -422,7 +422,7 @@ export class FakeAgentExtras {
     const before = versions.at(-2) ?? null;
     return {
       agent: agent.id, persona: clone(current?.persona ?? NO_PERSONA), skills: this.skills(agent),
-      line: line ?? (current ? `Version ${current.version} is in use from ${agent.name}'s next run.` : `${agent.name} has no persona yet, so it talks the way its role says. Its role and the facts it uses stay the same whatever you set.`),
+      line: line ?? (current ? `Version ${current.version} is in use from ${agent.name}'s next job.` : `${agent.name} has no persona yet, so it talks the way its role says. Its role and the facts it uses stay the same whatever you set.`),
       version: current?.version ?? 0, undo: before ? clone(before.persona) : null,
     };
   }
@@ -469,7 +469,7 @@ export class FakeAgentExtras {
     const record: PersonaRec = { agent: agent.id, persona: clone(persona), version: (versions.at(-1)?.version ?? 0) + 1 };
     this.book().personas.push(record);
     const words = source === 'import' ? 'The persona from the agent file you accepted is' : back ? 'Going back, my earlier way of talking is' : 'Your changes to how I talk are';
-    this.hooks.say?.(agent.id, `${words} version ${record.version}, in use from my next run. You can undo it in my persona.`);
+    this.hooks.say?.(agent.id, `${words} version ${record.version}, in use from my next job. You can undo it in my persona.`);
     return record;
   }
 
@@ -479,7 +479,7 @@ export class FakeAgentExtras {
     const persona = this.checkPersona(body.persona);
     const record = this.writePersona(agent, persona, 'owner');
     const back = record.version > 1 ? ` Version ${record.version - 1} is kept; undo sets it again.` : '';
-    return this.personaView(agent, `Version ${record.version} is in use from ${agent.name}'s next run.${back}`);
+    return this.personaView(agent, `Version ${record.version} is in use from ${agent.name}'s next job.${back}`);
   }
 
   /** venture.persona.test: the unsaved persona's first reply to each practice client, with the built-in templates or the owner's AI. */
@@ -763,7 +763,7 @@ export class FakeAgentExtras {
       const came = localDay(order.at);
       if (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${came}T00:00:00Z`) < 86_400_000) continue;
       const offer = offerOf(order), on = dayWords(came);
-      out.push({ id: make('start-order', [order.id]), title: `Start work on ${client}'s order`, reason: `${client} ordered ${offer} on ${on}, and no run has started.`, evidence: [{ id: order.id, line: `${offer} for ${client}, ordered ${on}.` }], prompt: `Start a run on your AI for ${client}'s order. Each step that needs you still asks first.`, action: { kind: 'start-run', target: { order: order.id } } });
+      out.push({ id: make('start-order', [order.id]), title: `Start work on ${client}'s order`, reason: `${client} ordered ${offer} on ${on}, and no job has started.`, evidence: [{ id: order.id, line: `${offer} for ${client}, ordered ${on}.` }], prompt: `Start a job on your AI for ${client}'s order. Each step that needs you still asks first.`, action: { kind: 'start-run', target: { order: order.id } } });
     }
     return out.filter((idea) => !decided.has(idea.id)).slice(0, 10);
   }

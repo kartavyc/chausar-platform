@@ -49,7 +49,7 @@ export function recheckBeforeApply(facts: ApplyFacts): Denial | null {
   if (!agentStage(facts.stage)) return { code: 'LAUNCH_STAGE_BLOCKED', reason: "The business's launch stage changed after you approved this, so it was stopped." };
   const call = BigInt(facts.callMicros);
   if (facts.run && BigInt(facts.run.usedMicros) + call > BigInt(facts.run.capMicros)) {
-    return { code: 'RUN_CAP_REACHED', reason: `This would take the run past its spend cap of ${formatRate(facts.run.capMicros)}, so it was stopped. Allow more spend for this run on Today to go on.` };
+    return { code: 'RUN_CAP_REACHED', reason: `This would take the job past its spend cap of ${formatRate(facts.run.capMicros)}, so it was stopped. Allow more spend for this job on Today to go on.` };
   }
   if (call > 0n && facts.month.capMicros !== null && BigInt(facts.month.spentMicros) + call > BigInt(facts.month.capMicros)) {
     return { code: 'SPEND_CAP', reason: `This could take this month's spend past your limit of ${formatRate(facts.month.capMicros)}, so it was stopped. Raise the limit or wait for next month.` };

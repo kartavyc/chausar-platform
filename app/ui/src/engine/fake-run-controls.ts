@@ -29,7 +29,7 @@ export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so
 export const TIME_LINE = 'The AI ran past its time limit, so Chausar stopped it. Its work so far is kept.';
 const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 const STOPPING = 'Stopping: the step in progress finishes first.';
-const RECEIVED = 'Stop received. The step in progress finishes, then the run stops.';
+const RECEIVED = 'Stop received. The step in progress finishes, then the job stops.';
 const NOT_RUNNING = 'This job is not running, so there is nothing to stop or steer.';
 const ALREADY = 'This job is already stopped. Resume it or run it again.';
 const NOT_STOPPED = 'This job is not stopped, so there is nothing to resume.';
@@ -127,7 +127,7 @@ export class FakeRunControls {
     if (!run?.scope) return undefined;
     const rate = this.rate();
     const rupees = rate ? rupeesOf(SAMPLE_CAP_MICROS, rate.perUsd) : null;
-    const figures: RowFigureReceipt['figures'] = [{ key: 'cap', label: "This run's spend cap", amount: SAMPLE_CAP_MICROS, unit: 'micros', currency: 'USD', display: run.scope.cap }];
+    const figures: RowFigureReceipt['figures'] = [{ key: 'cap', label: "This job's spend cap", amount: SAMPLE_CAP_MICROS, unit: 'micros', currency: 'USD', display: run.scope.cap }];
     if (rate && rupees) {
       figures.push({ key: 'cap-inr', label: 'The same in rupees', amount: SAMPLE_CAP_MICROS, unit: 'micros', currency: 'INR', display: rupees });
       figures.push({ key: 'rate', label: 'Your rate', amount: rate.perUsd, unit: 'rate', currency: 'INR', display: rate.words });
@@ -135,7 +135,7 @@ export class FakeRunControls {
     return {
       id, kind: 'row-figure', ventureId: run.businessId, at: run.startedAt, operation: 'venture.row-figure', subject: { type: 'scope-cap', recordId: run.runId },
       figures, allowedNumbers: figures.map((f) => f.display), digest: `scope-cap-${run.runId}`, stale: false,
-      explanation: `Set when the run started, from the business's spend cap for one run: ${run.scope.cap}.${rate && rupees ? ` In rupees at ${rate.words}: ${rupees}.` : ''} It does not change while the run goes on.`,
+      explanation: `Set when the job started, from the business's spend cap for one job: ${run.scope.cap}.${rate && rupees ? ` In rupees at ${rate.words}: ${rupees}.` : ''} It does not change while the job goes on.`,
     };
   }
 
@@ -192,7 +192,7 @@ export class FakeRunControls {
       if (answer?.trim()) this.note(run, answer.trim());
       this.dropRows(runId);
       this.host.emit({ type: 'run.step', businessId: run.businessId, runId, at: this.host.now() });
-      return 'The run goes on. Approve the next step when you are ready.';
+      return 'The job goes on. Approve the next step when you are ready.';
     }
     return null;
   }
@@ -216,7 +216,7 @@ export class FakeRunControls {
     // The step in progress, named before the stop, for what a force stop loses.
     const step = run.steps.find((s) => s.state === 'current' || s.state === 'waiting')?.purpose ?? 'the step in progress';
     if (run.state === 'active' && !force) {
-      // A turn is out: the stop is recorded, the step in progress finishes, then the run stops.
+      // A turn is out: the stop is recorded, the step in progress finishes, then the job stops.
       run.stop = { state: 'stopping', line: STOPPING };
       this.host.emit({ type: 'run.step', businessId: run.businessId, runId: run.runId, at: this.host.now() });
       setTimeout(() => { if (run.stop?.state === 'stopping') this.stopNow(run, false); }, FAKE_STOP_SETTLES_MS);
@@ -324,7 +324,7 @@ export class FakeRunControls {
     const every = (p.every ?? 1) as 1 | 2 | 3 | 5;
     run.gate = { on: p.on, every, waiting: p.on ? run.gate?.waiting ?? null : null };
     this.host.emit({ type: 'run.step', businessId: run.businessId, runId: run.runId, at: this.host.now() });
-    const line = !p.on ? 'The round gate is off.' : every === 1 ? 'The run waits for you after every round.' : `The run waits for you after every ${every} rounds.`;
+    const line = !p.on ? 'The round gate is off.' : every === 1 ? 'The job waits for you after every round.' : `The job waits for you after every ${every} rounds.`;
     return { run: clone(run), line };
   }
 

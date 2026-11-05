@@ -75,7 +75,7 @@ describe('Business > Routines (4J22a)', () => {
     await press(form, 'Save routine');
     expect(calls.some((c) => c.method === 'venture.routines.set')).toBe(false);
     const ask = form.querySelector('[data-second-ask]') as HTMLElement;
-    expect(ask.textContent).toContain('Each run waits for your approval on Today before anything goes to your AI. Save it?');
+    expect(ask.textContent).toContain('Each job waits for your approval on Today before anything goes to your AI. Save it?');
     await press(ask, 'Save');
     const set = calls.find((c) => c.method === 'venture.routines.set')!;
     expect(set.params).toEqual({ routine: {
@@ -112,7 +112,7 @@ describe('Business > Routines (4J22a)', () => {
     await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toBe('Off. Nothing runs.'));
     const off = screen.getByRole('article', { name: 'Weekly review' });
     await press(off, 'Turn on');
-    expect((off.querySelector('[data-second-ask]') as HTMLElement).textContent).toContain('Turn it on? Each run waits for your approval on Today.');
+    expect((off.querySelector('[data-second-ask]') as HTMLElement).textContent).toContain('Turn it on? Each job waits for your approval on Today.');
     await press(off.querySelector('[data-second-ask]') as HTMLElement, 'Turn on');
     await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toMatch(/^Next time /));
   });

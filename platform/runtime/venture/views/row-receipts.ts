@@ -114,8 +114,8 @@ function capRoom(state: State, venture: VentureRecord, id: string, runId: string
   if (!preview || !harness || window === null) return receiptOf(venture, id, subject, run.at, [], MOVED_ON, true);
   const cap = String(runCapMicros(harness));
   const figures = [
-    usd('room', BigInt(window) <= BigInt(harness.limits.maxCostMicros) ? 'One more window' : 'More spend for this run', window),
-    usd('cap', "This run's spend cap", cap), usd('used', 'Used so far', harness.used.costMicros),
+    usd('room', BigInt(window) <= BigInt(harness.limits.maxCostMicros) ? 'One more window' : 'More spend for this job', window),
+    usd('cap', "This job's spend cap", cap), usd('used', 'Used so far', harness.used.costMicros),
     usd('next', 'The next step could cost up to', preview.estimatedMaxCostMicros, preview.estimatedMaxCostDisplay),
   ];
   const rupees = rupeesOf(state, venture);
@@ -126,7 +126,7 @@ function capRoom(state: State, venture: VentureRecord, id: string, runId: string
     said = ` In rupees at ${rupeeRateWords(rupees)}: ${rupeeFigure(window, rupees)}.`;
   }
   return receiptOf(venture, id, subject, run.at, figures,
-    `This run's spend cap is ${formatMicros(cap)} and it has used ${formatMicros(harness.used.costMicros)}. The next step could cost up to ${preview.estimatedMaxCostDisplay}, which would pass the cap. More room comes in whole windows of the run's own cap of ${formatMicros(harness.limits.maxCostMicros)}: ${formatMicros(window)}.${said} Nothing is spent until the step runs.`,
+    `This job's spend cap is ${formatMicros(cap)} and it has used ${formatMicros(harness.used.costMicros)}. The next step could cost up to ${preview.estimatedMaxCostDisplay}, which would pass the cap. More room comes in whole windows of the job's own cap of ${formatMicros(harness.limits.maxCostMicros)}: ${formatMicros(window)}.${said} Nothing is spent until the step runs.`,
     false);
 }
 
@@ -135,7 +135,7 @@ function scopeCap(state: State, venture: VentureRecord, id: string, runId: strin
   const run = runOf(state, venture, runId);
   if (!run.scope) throw new ChausarError('RECEIPT_NOT_FOUND', GONE);
   const subject = { type: 'scope-cap' as const, recordId: run.id };
-  const figures = [usd('cap', "This run's spend cap", run.scope.capMicros)];
+  const figures = [usd('cap', "This job's spend cap", run.scope.capMicros)];
   const rupees = rupeesOf(state, venture);
   let said = '';
   if (rupees) {
@@ -144,7 +144,7 @@ function scopeCap(state: State, venture: VentureRecord, id: string, runId: strin
     said = ` In rupees at ${rupeeRateWords(rupees)}: ${rupeeFigure(run.scope.capMicros, rupees)}.`;
   }
   return receiptOf(venture, id, subject, run.scope.frozenAt, figures,
-    `Set when the run started, from the business's spend cap for one run: ${formatMicros(run.scope.capMicros)}.${said} It does not change while the run goes on.`,
+    `Set when the job started, from the business's spend cap for one job: ${formatMicros(run.scope.capMicros)}.${said} It does not change while the job goes on.`,
     false);
 }
 

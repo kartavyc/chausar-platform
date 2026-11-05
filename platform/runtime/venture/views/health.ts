@@ -29,10 +29,10 @@ const WAITING_DAYS = 7;
 const DAY_MS = 24 * 60 * 60_000;
 
 export const HEALTH_WORDS = Object.freeze({
-  failing: (runs: number) => `Its last ${runs} runs failed.`,
-  quarantinedRuns: (runs: number) => `Its last ${runs} runs failed. It starts no new work until you clear it.`,
-  undeclared: 'It proposed an outside action that none of its steps allows. Look at its runs before you clear it.',
-  teamUndeclared: 'An outside action was proposed in a turn no single agent can claim, and no step of the team allows it. Look at the runs before you clear it.',
+  failing: (runs: number) => `Its last ${runs} jobs failed.`,
+  quarantinedRuns: (runs: number) => `Its last ${runs} jobs failed. It starts no new work until you clear it.`,
+  undeclared: 'It proposed an outside action that none of its steps allows. Look at its jobs before you clear it.',
+  teamUndeclared: 'An outside action was proposed in a turn no single agent can claim, and no step of the team allows it. Look at the jobs before you clear it.',
   unwanted: "The work plan is producing work people don't want. Revise it.",
   deep: (count: number) => `${count} things wait on you for this agent.`,
   old: `Something has waited on you for this agent for more than ${WAITING_DAYS} days.`,
