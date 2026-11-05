@@ -1,4 +1,5 @@
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useDay } from '../../parts/when';
 import type { OrderLite, OrderStageView } from '../../engine/types';
 import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
@@ -8,7 +9,6 @@ import s from './OrderSteps.module.css';
  *  question mark where the engine is not sure; a step not reached yet is an empty dashed circle. */
 const MARK: Record<OrderStageView['state'], IconName | null> = { done: 'check', waits: 'clock', 'always-asks': 'lock', unknown: 'circle-help', 'not-yet': null };
 
-const LOCALE = { en: 'en-IN', hi: 'hi-IN' } as const;
 
 /**
  * W4 4J19: an order's stage steps (D-Work `.osteps`), read by the engine from the order's records (4J3's
@@ -19,14 +19,11 @@ const LOCALE = { en: 'en-IN', hi: 'hi-IN' } as const;
  */
 export function OrderSteps({ order }: { order: OrderLite }) {
   const t = useT();
-  const language = useLanguage();
+  const short = useDay('short');
   const stages = order.stages ?? [];
   if (stages.length === 0) return null;
   const waits = order.waitsOnYou;
-  const day = (iso: string) => {
-    const date = new Date(`${iso}T00:00:00.000Z`);
-    return Number.isNaN(date.getTime()) ? iso : new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
-  };
+  const day = (iso: string) => short(iso);
   const name = (id: OrderStageView['id']) => t(`work.steps.stage.${id}`);
   return (
     <>

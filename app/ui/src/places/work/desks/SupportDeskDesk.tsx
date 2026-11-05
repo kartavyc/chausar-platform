@@ -3,6 +3,7 @@ import {useId,useState} from 'react';
 import {useEngine,useResource} from '../../../engine/context';
 import {EngineError} from '../../../engine/types';
 import {useT,type T} from '../../../text';
+import {useOwnerZone} from '../../../shell/clock';
 import {Button} from '../../../parts/Button';
 import {Field} from '../../../parts/Field';
 import {Tile,TileHead} from '../../../parts/Tile';
@@ -16,7 +17,7 @@ const queueNames=['overdue','due-soon','open','waiting-customer','all'] as const
 function download(eml:string){const url=URL.createObjectURL(new Blob([eml],{type:'message/rfc822'}));const link=document.createElement('a');link.href=url;link.download='reply.eml';link.click();URL.revokeObjectURL(url);}
 /** Reads server queue order and due words; every action uses the digest of the exact opened ticket. */
 export function SupportDeskDesk(){
- const t=useT();const client=useEngine();const id=useId();
+ const t=useT();const client=useEngine();const id=useId();const zone=useOwnerZone();
  const [queue,setQueue]=useState<string>('all');const [selected,setSelected]=useState<string|null>(()=>new URLSearchParams(window.location.hash.split('?')[1]??'').get('support'));const [adding,setAdding]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
  const [incomingThread,setIncomingThread]=useState<string|null>(null);const [opening,setOpening]=useState('Mon-Sat 10:00-19:00');const [firstReply,setFirstReply]=useState('');const [resolution,setResolution]=useState('');const [until,setUntil]=useState('');const [reason,setReason]=useState('');const [score,setScore]=useState('5');const [ratingLink,setRatingLink]=useState<{url:string|null}|null>(null);
  const [serviceOrderId,setServiceOrderId]=useState('');const [customerOrder,setCustomerOrder]=useState('');const [customerPhone,setCustomerPhone]=useState('');const [matchSelection,setMatchSelection]=useState<{ticketId:string;value:string}|null>(null);
@@ -42,7 +43,7 @@ export function SupportDeskDesk(){
    <ul className={s.list}>{rows.map(row=><li key={row.id} className={s.row}><Button variant="quiet" onClick={()=>{setSelected(row.id);setHandoff(null);setReplying(false);}}><span data-content>{row.subject}</span></Button><span>{t(`pb-support-desk.status.${row.status}`)}</span>{row.proposal&&<span>{t('pb-support-desk.proposed')}</span>}{row.paused&&<span>{t('pb-support-desk.paused')}</span>}{row.due&&<span className={s.due}>{due(row.due)}</span>}</li>)}</ul>
    {(mail.data?.threads??[]).filter(m=>!rows.some(r=>r.thread===m.id)).map(m=><div key={m.id} className={s.row}><span data-content>{m.subject}</span><Button disabled={m.held} onClick={()=>{setIncomingThread(m.id);setEmail(m.from);setSubject(m.subject);setAdding(true);}}>{t('pb-support-desk.fromMail')}</Button></div>)}
   </Tile>
-  {adding&&<Tile as="section" label={t('pb-support-desk.add')} card><form className={s.form} onSubmit={async e=>{e.preventDefault();const answer=await act('propose',{thread:incomingThread??`manual_${crypto.randomUUID()}`,customerEmail:email,subject,language:customerLanguage,blocked,...(customerOrder?{customerOrderNumber:customerOrder}:{}),...(customerPhone?{customerPhone}:{}),...(serviceOrderId?{serviceOrderId}:{}),...(firstReply?{firstReplyHours:firstReply}:{}),...(resolution?{resolutionHours:resolution}:{}),...(firstReply||resolution?{shopHours:opening,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}:{})},'new');if(answer){setSelected(answer.id);setAdding(false);}}}>
+  {adding&&<Tile as="section" label={t('pb-support-desk.add')} card><form className={s.form} onSubmit={async e=>{e.preventDefault();const answer=await act('propose',{thread:incomingThread??`manual_${crypto.randomUUID()}`,customerEmail:email,subject,language:customerLanguage,blocked,...(customerOrder?{customerOrderNumber:customerOrder}:{}),...(customerPhone?{customerPhone}:{}),...(serviceOrderId?{serviceOrderId}:{}),...(firstReply?{firstReplyHours:firstReply}:{}),...(resolution?{resolutionHours:resolution}:{}),...(firstReply||resolution?{shopHours:opening,timeZone:zone}:{})},'new');if(answer){setSelected(answer.id);setAdding(false);}}}>
    <label className={s.label}>{t('pb-support-desk.serviceOrder')}<select value={serviceOrderId} onChange={e=>setServiceOrderId(e.target.value)}><option value="">{t('pb-support-desk.triageOnly')}</option>{(orders.data??[]).filter(o=>o.status!=='cancelled').map(o=><option key={o.id} value={o.id}>{(clients.data??[]).find(c=>c.id===o.clientId)?.name??o.id}: {o.request}</option>)}</select></label>
    <Field label={t('pb-support-desk.email')} type="email" required value={email} onChange={e=>setEmail(e.target.value)}/><Field label={t('pb-support-desk.subject')} required maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)}/>
    <Field label={t('pb-support-desk.customerOrder')} value={customerOrder} maxLength={80} onChange={e=>setCustomerOrder(e.target.value)}/><Field label={t('pb-support-desk.customerPhone')} value={customerPhone} maxLength={40} onChange={e=>setCustomerPhone(e.target.value)}/>

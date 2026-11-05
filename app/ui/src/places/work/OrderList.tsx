@@ -1,8 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useT, type T } from '../../text';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
-import { useClock } from '../../shell/clock';
+import { useClock, useOwnerZone } from '../../shell/clock';
+import { dayKeyIn, formatDay } from '../../../../../platform/runtime/owner-format';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { StateChip } from '../../parts/Chip';
@@ -36,36 +37,23 @@ export function waitsOnYou(view: OrderView): boolean {
   return view.state === 'waiting' || view.state === 'draft-ready' || view.draftInvoice;
 }
 
-const LOCALE = { en: 'en-IN', hi: 'hi-IN' } as const;
 const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * A day as the reader's calendar writes it, "2 Sept", with the year only when it is not this year. A day alone
- * (2026-10-28) is read in UTC, so it never slips to the day before; a moment is read on this computer's clock.
+ * A day as the owner reads it, "2 Sep", with the year only when it is not this year. A day alone (2026-10-28) is a
+ * calendar day and never slips to the day before; a moment reads in the owner's zone (B2).
  */
 function useDay(): (at: string) => string {
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const now = useClock();
   return useMemo(() => {
-    const year = now().getFullYear();
-    const formats = new Map<string, Intl.DateTimeFormat>();
-    const formatOf = (withYear: boolean, utc: boolean) => {
-      const key = `${withYear}:${utc}`;
-      let format = formats.get(key);
-      if (!format) {
-        format = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}), ...(utc ? { timeZone: 'UTC' } : {}) });
-        formats.set(key, format);
-      }
-      return format;
-    };
+    const year = dayKeyIn(now(), zone).slice(0, 4);
     return (at: string) => {
-      const dayOnly = DAY_ONLY.test(at);
-      const date = new Date(dayOnly ? `${at}T00:00:00.000Z` : at);
-      if (Number.isNaN(date.getTime())) return at;
-      const sameYear = (dayOnly ? date.getUTCFullYear() : date.getFullYear()) === year;
-      return formatOf(!sameYear, dayOnly).format(date);
+      const own = DAY_ONLY.test(at) ? at : dayKeyIn(at, zone);
+      if (!own) return at;
+      return formatDay(at, zone, own.slice(0, 4) === year ? 'short' : 'full');
     };
-  }, [language, now]);
+  }, [zone, now]);
 }
 
 /** Today on this computer, as the engine's date text (YYYY-MM-DD). */

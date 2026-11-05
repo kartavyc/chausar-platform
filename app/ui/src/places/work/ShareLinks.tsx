@@ -1,38 +1,23 @@
-import { useMemo, useState } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useState } from 'react';
+import { useT, type T } from '../../text';
+import { useDay, useMoment } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { DeliveryLite, ShareAnswer, ShareLink } from '../../engine/types';
 import s from './Work.module.css';
 
-const LOCALE = { en: 'en-IN', hi: 'hi-IN' } as const;
 const never = () => false;
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-/** When a link stops working, as '28 Oct' on this computer's calendar. */
+/** When a link stops working, as '28 Oct' in the owner's zone (B2). */
 function useUntil(): (iso: string) => string {
-  const language = useLanguage();
-  return useMemo(() => {
-    const format = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short' });
-    return (iso) => {
-      const at = new Date(iso);
-      return Number.isNaN(at.getTime()) ? iso : format.format(at);
-    };
-  }, [language]);
+  return useDay('short');
 }
 
-/** When the client first opened a link (4J7, O20), as "21 Oct, 10:42" on this computer's clock. */
+/** When the client first opened a link (4J7, O20), as "21 Oct, 4:12 pm" in the owner's zone on the 12-hour clock (B2). */
 function useWhen(): (iso: string) => string {
-  const language = useLanguage();
-  return useMemo(() => {
-    const day = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short' });
-    const time = new Intl.DateTimeFormat(LOCALE[language], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-    return (iso) => {
-      const at = new Date(iso);
-      return Number.isNaN(at.getTime()) ? iso : `${day.format(at)}, ${time.format(at)}`;
-    };
-  }, [language]);
+  return useMoment('short');
 }
 
 /** Which part of the draft a client's comment is on: the whole draft, or one post ('<run>.post-<n>'). */
