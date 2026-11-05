@@ -1187,3 +1187,39 @@ test('no command-line temp folder made by these tests is left behind', async () 
   const leftovers = (await readdir(tmpdir())).filter(name => name.startsWith(TEMP_PREFIX) && !TEMP_AT_START.has(name));
   assert.deepEqual(leftovers, []);
 });
+
+// D2 fix (review 1, HIGH 1): a call that reported cache tokens with no saved cache rate has its cost held. The caller
+// is told so: the reservation is the figure and the price is not confirmed, never '0' confirmed (callers add it up).
+test('D2 fix: a held cost comes back as the reservation with the price not confirmed; the record and spend row stay held', async () => {
+  const { deps, store, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  rec.replyHttp = () => anthropicReply({ words: 'Cached words' }, { usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } as never });
+  const outcome = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  const record = calls(store).find(row => row.id === outcome.callId)!;
+  assert.equal(record.costMicros, null, 'the call record keeps the cost held');
+  assert.ok(BigInt(record.estimatedMaxCostMicros) > 0n);
+  assert.equal(outcome.costMicros, record.estimatedMaxCostMicros, 'the caller counts the reservation, not 0');
+  assert.equal(outcome.priceConfirmed, false);
+  const spend = listRecords(store.read(), 'venture-spend').find(row => row.ref === outcome.callId);
+  if (spend) assert.equal(spend.settledMicros, spend.reservedMicros, 'the spend row settles at the reservation');
+});
+
+test('D2 fix: the harness run cap counts a held call at its reservation, so the next call that would cross the cap is refused', async () => {
+  const { applyTurn, capShortfall, DEFAULT_LIMITS, finishWrite, newHarnessState, reserveRunCall } = await import('../runtime/venture/delivery/harness/loop.ts');
+  const { deps, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  rec.replyHttp = () => anthropicReply({ words: 'Cached words' }, { usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } as never });
+  const held = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  const reservation = BigInt(held.costMicros);
+  assert.ok(reservation > 0n, 'a held call counts as its reservation, not 0');
+  // A cap with room for this call and less than one more of the same size.
+  const limits = { ...DEFAULT_LIMITS, maxCostMicros: String(reservation * 2n - 1n) };
+  const env = { runRef: { kind: 'rehearsal', runId: 'rehearsal_1' }, now: () => '2026-10-15T09:00:00.000Z' } as never;
+  let state = newHarnessState([], limits, []);
+  state = await applyTurn(env, state, { note: 'Looked at the files', calls: [], finished: false }, { by: held.by, callId: held.callId, costMicros: held.costMicros });
+  assert.equal(state.used.costMicros, String(reservation));
+  assert.notEqual(capShortfall(state, held.costMicros), null);
+  assert.throws(() => reserveRunCall(state, held.costMicros), code('RUN_CAP_REACHED'));
+  const written = finishWrite(newHarnessState([], limits, []), { by: held.by, callId: held.callId, costMicros: held.costMicros });
+  assert.equal(written.used.costMicros, String(reservation), 'the write step counts it the same way');
+});

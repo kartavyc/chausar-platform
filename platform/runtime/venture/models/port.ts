@@ -539,7 +539,9 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       if (metered) settleSpend(tx, spendKey(call.id), spendOutcome(sent, parsed.usage !== null, failure !== null, costMicros));
     });
     if (failure) throw new ChausarError(failure.code, failure.message);
-    return { value: value as T, by: 'model', callId: call.id, presetId: spec.id, model: call.model, costMicros: costMicros ?? '0', priceConfirmed: call.priceConfirmed, answeredBy };
+    // D2 fix: a held cost (null) reaches the caller as the reservation, not confirmed, so every caller that adds outcomes
+    // up (the run cap, simulate, improve, personas) counts the most the call could cost, never 0.
+    return { value: value as T, by: 'model', callId: call.id, presetId: spec.id, model: call.model, costMicros: costMicros ?? call.estimatedMaxCostMicros, priceConfirmed: costMicros === null ? false : call.priceConfirmed, answeredBy };
   };
 
   /** Shared start of generate and preview: task checks (the client-data flag first for standing consent), then the tier. */
