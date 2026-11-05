@@ -40,7 +40,7 @@ const go = async (hash: string) => { await act(async () => { window.location.has
 const click = async (element: Element) => { await act(async () => { fireEvent.click(element); window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 const main = () => screen.getByRole('main');
 const tile = (name: string) => screen.findByRole('region', { name });
-/** A tile head's count of open invoices: the words, and the number set as a Count (DM Mono, no proof). */
+/** A tile head's count of open invoices: the words, and the number set as a Count (tabular digits, no proof). */
 const counted = async (owed: HTMLElement, words: string, count: string) => {
   await waitFor(() => expect(owed.querySelector('h2')?.parentElement?.textContent).toContain(words));
   expect(owed.querySelector('[data-count]')?.textContent).toBe(count);
@@ -515,10 +515,10 @@ describe('Money v2: the invoices table on a phone', () => {
 });
 
 describe('Money v2: Amount', () => {
-  it('sets an amount in DM Mono, a currency code in front included, and words the engine wrote in the body face', () => {
+  it('sets an amount in the body font with tabular digits, a currency code in front included, and words the engine wrote in the body face', () => {
     render(<p><Amount text="$0.25" /> <Amount text="₹45" /> <Amount text="No price" /> <Amount text="$0.25 this month (includes estimates)" /> <Amount text="कोई कीमत नहीं" /></p>);
-    expect(screen.getByText('$0.25').className).toBe('mono');
-    expect(screen.getByText('₹45').className).toBe('mono');
+    expect(screen.getByText('$0.25').hasAttribute('data-num')).toBe(true);
+    expect(screen.getByText('₹45').hasAttribute('data-num')).toBe(true);
     expect(screen.getByText('No price').className).toBe('');
     expect(screen.getByText('$0.25 this month (includes estimates)').className).toBe('');
     expect(screen.getByText('कोई कीमत नहीं').className).toBe('');

@@ -334,8 +334,8 @@
   border-radius: var(--r-chip);
   background: var(--wash);
   color: var(--fg2);
-  font-family: var(--font-mono);
   font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
 }
 
 .steps {

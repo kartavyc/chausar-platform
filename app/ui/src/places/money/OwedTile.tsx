@@ -161,7 +161,7 @@ export function OpenList({ items, balances, className }: { items: readonly OpenI
               <span>{t('money.due', { date: day(item.dueDate) })}</span>
             </span>
           </span>
-          {balances && <span className={`${s.openAmount} mono`}>{item.balanceDisplay}</span>}
+          {balances && <span className={s.openAmount} data-num="">{item.balanceDisplay}</span>}
         </li>
       ))}
     </ul>

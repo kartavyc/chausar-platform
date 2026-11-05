@@ -58,14 +58,14 @@ describe('StoriesRow', () => {
     ]);
   });
 
-  it('colours the status words by tone, and a step count is DM Mono', () => {
+  it('colours the status words by tone, and a step count is in the body font with tabular digits', () => {
     render(<StoriesRow stories={STORIES} onOpen={() => {}} />);
     const status = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name},`) }).querySelector('[data-tone]') as HTMLElement;
     expect(status('Producer').textContent).toBe('Needs you');
     expect(status('Producer').dataset.tone).toBe('wait');
     expect(status('Editor').textContent).toBe('3 of 5');
     expect(status('Editor').dataset.tone).toBe('working');
-    expect(status('Editor').classList.contains('mono')).toBe(true);
+    expect(status('Editor').classList.contains('mono')).toBe(false);
     expect(status('Researcher').textContent).toBe('Working');
     expect(status('Researcher').dataset.tone).toBe('working');
     expect(status('Thumbnailer').textContent).toBe('Failed');
@@ -150,14 +150,14 @@ describe('PreviewFrame', () => {
     rerender(<PreviewFrame variant="video" title="Cut" duration="7:05" chapters={4} onOpen={() => {}} />);
     const duration = container.querySelector('[data-duration]') as HTMLElement;
     expect(duration.textContent).toContain('7:05');
-    expect(duration.querySelector('.mono')!.textContent).toBe('7:05');
+    expect(duration.querySelector('[data-num]')!.textContent).toBe('7:05');
     expect(container.querySelector('[data-chapters]')!.textContent).toBe('4 chapters');
     rerender(<PreviewFrame variant="video" title="Cut" chapters={1} onOpen={() => {}} />);
     expect(container.querySelector('[data-chapters]')!.textContent).toBe('1 chapter');
     expect(container.querySelector('video, img, iframe')).toBeNull();
   });
 
-  it('paper: the lines with their values in DM Mono inside a labelled image, and the total as a Figure with its receipt', () => {
+  it('paper: the lines with their values in the body font inside a labelled image, and the total as a Figure with its receipt', () => {
     const onReceipt = vi.fn();
     const { container } = render(
       <PreviewFrame
@@ -174,8 +174,9 @@ describe('PreviewFrame', () => {
     const sheet = screen.getByRole('img', { name: 'Invoice T-7, total ₹1,180.00' });
     expect(sheet.textContent).toContain('Monthly books');
     expect(sheet.textContent).toContain('Billed to Sample Client');
-    const values = [...sheet.querySelectorAll('.mono')].map((el) => el.textContent);
-    expect(values).toEqual(expect.arrayContaining(['T-7', '₹1,000.00', '₹180.00']));
+    const values = [...sheet.querySelectorAll('[data-num]')].map((el) => el.textContent);
+    expect(values).toEqual(expect.arrayContaining(['₹1,000.00', '₹180.00']));
+    expect(sheet.querySelector('[data-code]')!.textContent).toBe('T-7'); // the invoice number keeps DM Mono, a code
     expect(sheet.textContent).toContain('Paid by bank transfer');
     // The receipt stays a reachable button: nothing interactive sits inside the image.
     expect(sheet.querySelector('button')).toBeNull();
@@ -212,7 +213,7 @@ describe('PreviewFrame', () => {
     );
     const group = screen.getByRole('group', { name: 'How it is worked out' });
     expect(within(group).getByText('Each')).toBeTruthy();
-    expect(within(group).getByText('₹60.00').classList.contains('mono')).toBe(true);
+    expect(within(group).getByText('₹60.00').classList.contains('mono')).toBe(false);
     const ops = [...group.querySelectorAll('[data-op]')];
     expect(ops.map((op) => op.textContent)).toEqual(['×', '=']);
     for (const op of ops) expect(op.getAttribute('aria-hidden')).toBe('true');
@@ -736,7 +737,7 @@ describe('GalleryTile', () => {
     expect(group).not.toBeNull();
     // The chip sits on the label's line, as on the board.
     expect(label.parentElement!.querySelector('[data-estimate]')!.textContent).toBe('model estimate');
-    expect(within(group).getByText('₹2,000 to ₹6,000').classList.contains('mono')).toBe(true);
+    expect(within(group).getByText('₹2,000 to ₹6,000').classList.contains('mono')).toBe(false);
     expect(group.querySelectorAll('[data-estimate]')).toHaveLength(1);
     expect(container.querySelector('[data-receipt]')).toBeNull();
     assertInkRules(document.body);

@@ -135,12 +135,12 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       return (
         <>
           {t('team.instructions.tab')}
-          {version !== undefined && <>{' '}<span className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
+          {version !== undefined && <>{' '}<span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
         </>
       );
     }
     if (which === 'runs') {
-      return <>{t('team.runs')}{runs.data && <span className={cx(c.tabBadge, 'mono')} aria-hidden="true">{` ${mine.length}`}</span>}</>;
+      return <>{t('team.runs')}{runs.data && <span className={c.tabBadge} data-num="" aria-hidden="true">{` ${mine.length}`}</span>}</>;
     }
     return t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`);
   };

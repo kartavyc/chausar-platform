@@ -84,13 +84,13 @@ describe('Button', () => {
 });
 
 describe('Change', () => {
-  it('strikes the old value, shows the new one in mono and links its receipt', () => {
+  it('strikes the old value, shows the new one in the body font and links its receipt', () => {
     const onReceipt = vi.fn();
     const { container } = render(<Change before="₹25,000" after="₹30,000" receiptId="R-0415" onReceipt={onReceipt} />);
     const old = container.querySelector('del')!;
     expect(old.textContent).toBe('₹25,000');
-    expect(old.className).toContain('mono');
-    expect(screen.getByText('₹30,000').className).toContain('mono');
+    expect(old.className).not.toContain('mono');
+    expect(screen.getByText('₹30,000').className).not.toContain('mono');
     expect(container.textContent).toContain('was');
     fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹30,000' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0415');

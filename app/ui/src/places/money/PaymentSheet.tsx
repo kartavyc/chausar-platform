@@ -88,7 +88,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const owed = current && balance && (
     <span className={s.owedLine} data-figure-group="">
       <span>{t('money.payment.owed')}</span>
-      <span className="mono">{balance.display}</span>
+      <span data-num="">{balance.display}</span>
       {/* 4Z3: the mark named for what is still owed, the amount it sits beside. */}
       <Receipt id={current.invoice.priceReceiptId} amount={balance.display} />
       {current.payments.map((payment) => payment.booksReceiptId && <Receipt key={payment.id} id={payment.booksReceiptId} />)}

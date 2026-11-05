@@ -123,7 +123,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
               <span className={s.factName}>{pay.per ? t('gallery.payPer', { per: pay.per }) : t('gallery.pay')}</span>
               <PriceSources guide={pay.guide} range={sourcedRange} />
             </p>
-            <p className={cx(s.pay, 'mono')}>{pay.range}</p>
+            <p className={s.pay} data-num="">{pay.range}</p>
           </li>
         ) : (
           <li className={s.fact} data-figure-group="">
@@ -132,7 +132,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
               <span className={s.factName}>{pay.per ? t('gallery.payPer', { per: pay.per }) : t('gallery.pay')}</span>
               <ModelEstimate />
             </p>
-            <p className={cx(s.pay, 'mono')}>{pay.range}</p>
+            <p className={s.pay} data-num="">{pay.range}</p>
           </li>
         )}
       </ul>

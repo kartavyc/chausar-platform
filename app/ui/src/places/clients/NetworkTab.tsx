@@ -271,7 +271,7 @@ function Results({ search, setSearch }: { search: Extract<Search, { kind: 'done'
         <div className={s.traits}>
           <span id={tracesId} className={s.meta}>{t('clients.network.lookedFor')}</span>
           <ul className={s.traitList} aria-labelledby={tracesId}>
-            {view.traits.map((trait, index) => <li key={trait.id} className={s.trait}><span className="mono">{index + 1}</span>{trait.label}</li>)}
+            {view.traits.map((trait, index) => <li key={trait.id} className={s.trait}><span data-num="">{index + 1}</span>{trait.label}</li>)}
           </ul>
         </div>
       )}
@@ -329,7 +329,7 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
           <div className={s.who}>
             <div className={s.nameRow}>
               <h3 id={nameId} className={s.name}>{name}</h3>
-              {person?.degree && <span className={`${s.degree} mono`}>{t(`clients.network.degree.${person.degree}`)}</span>}
+              {person?.degree && <span className={s.degree} data-num="">{t(`clients.network.degree.${person.degree}`)}</span>}
             </div>
             {role && <p className={s.role}>{role}</p>}
           </div>

@@ -253,7 +253,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           {snoozeOptions.map((option) => (
             <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
               <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
-              <time className="mono" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
+              <time data-num="" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
             </Button>
           ))}
         </div>
@@ -315,7 +315,7 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
     <div className={s.answer} data-chief-message="">
       <p className={s.who}>
         <span className={s.whoName}>{t('chats.chief.name')}</span>
-        {time && <time className="mono" dateTime={message.at}>{time}</time>}
+        {time && <time data-num="" dateTime={message.at}>{time}</time>}
       </p>
       {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts)}</p>}
       {message.worked.length > 0 && (

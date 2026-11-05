@@ -140,7 +140,7 @@ describe('JobList in the D look', () => {
     const bar = cutting.querySelector('progress')!;
     expect(bar.getAttribute('value')).toBe('3');
     expect(bar.dataset.tone).toBe('working');
-    expect(within(cutting).getByText('3 of 5').classList.contains('mono')).toBe(true);
+    expect(within(cutting).getByText('3 of 5').classList.contains('mono')).toBe(false);
     const waiting = rowOf('Pricing the sponsor slot');
     expect(waiting.querySelector('progress')!.dataset.tone).toBe('wait');
     expect(waiting.textContent).toContain('Waiting on you');

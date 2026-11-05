@@ -69,12 +69,12 @@ describe('Today: the engine\'s previews on the cards (4J3)', () => {
     expect(card.querySelector('[data-checks]')!.textContent).toBe('2 of 3 checks passed · 1 not run');
   });
 
-  it('an invoice is paper lines in DM Mono with the total\'s receipt; a post has its exact text and counts; a choice labels each model estimate', async () => {
+  it('an invoice is paper lines in the body font with the total\'s receipt; a post has its exact text and counts; a choice labels each model estimate', async () => {
     // The invoice and the sign-off on their own, so each is one of the five full cards (4Z3) with its paper.
     start({ queue: QUEUE.filter((row) => row.id === 'q-invoice-mehta' || row.id === 'q-signoff-gst') });
     const invoice = await cardTitled('Invoice INV-0042 to Mehta Traders');
     const paper = invoice.querySelector('[data-preview="paper"]')!;
-    expect([...paper.querySelectorAll('li .mono')].map((n) => n.textContent)).toEqual(['₹16,000', '₹1,440', '₹1,440']);
+    expect([...paper.querySelectorAll('li [data-num]')].map((n) => n.textContent)).toEqual(['₹16,000', '₹1,440', '₹1,440']);
     expect(paper.querySelector('[data-figure-group] [data-receipt="R-0419"]')).not.toBeNull();
     // The line already says when it is due, and the title who it is to: neither is said twice (4J19 review).
     expect(invoice.querySelector('[data-due]')).toBeNull();

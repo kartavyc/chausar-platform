@@ -154,7 +154,7 @@ function ShareLine({ draft, onAnswered }: { draft: DeliveryLite; onAnswered?: ((
         <ul className={s.links} aria-label={t('work.share.links', { title })}>
           {live.map((link) => (
             <li key={link.id} className={s.link}>
-              {link.url ? <span className={`${s.url} mono`}>{link.url}</span> : <span className={s.quiet}>{link.reason}</span>}
+              {link.url ? <span data-code="" className={`${s.url} mono`}>{link.url}</span> : <span className={s.quiet}>{link.reason}</span>}
               <span className={s.until}>{t('work.share.until', { day: until(link.expiresAt) })}</span>
               {/* W4 4J21: the first time the client opened it (never the owner's own preview), from the engine. */}
               <span className={s.until} data-viewed="">{link.viewedAt ? t('work.request.viewed', { when: when(link.viewedAt) }) : t('work.request.notViewed')}</span>

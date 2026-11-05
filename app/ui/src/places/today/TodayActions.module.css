@@ -174,7 +174,7 @@
   color: var(--fg);
 }
 
-/* The work receipt sheet (W4 4J19): the receipt's figures in plain DM Mono, then its steps and explanation. */
+/* The work receipt sheet (W4 4J19): the receipt's figures in the body font with tabular digits, then its steps and explanation. */
 .workReceipt {
   display: grid;
   gap: var(--sp-3);

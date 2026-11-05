@@ -167,7 +167,7 @@ function factsOf(view: CliStatusView, t: T): [string, ReactNode][] {
   const out: [string, ReactNode][] = [[t('connections.cli.fact.found'), t(view.found ? 'connections.cli.yes' : 'connections.cli.no')]];
   if (!view.found) return out;
   if (view.path) out.push([t('connections.cli.fact.where'), view.path]);
-  out.push([t('connections.cli.fact.version'), view.version ? <span className="mono">{view.version}</span> : t('connections.cli.notRead')]);
+  out.push([t('connections.cli.fact.version'), view.version ? <span data-code="" className="mono">{view.version}</span> : t('connections.cli.notRead')]);
   out.push([t('connections.cli.fact.flags'), view.flags === 'mismatch'
     ? t('connections.cli.flags.mismatch', { flags: view.missingFlags.join(', ') })
     : t(`connections.cli.flags.${view.flags}`)]);
@@ -180,5 +180,5 @@ function LastTask({ task }: { task: CliStatusView['lastTask'] }) {
   const t = useT();
   const zone = useOwnerZone();
   if (!task) return <>{t('connections.cli.lastTask.none')}</>;
-  return <>{t(`connections.cli.lastTask.${task.outcome}`)}, <span className="mono">{momentOf(task.at, zone)}</span></>;
+  return <>{t(`connections.cli.lastTask.${task.outcome}`)}, <span data-num="">{momentOf(task.at, zone)}</span></>;
 }

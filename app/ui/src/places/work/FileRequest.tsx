@@ -54,7 +54,7 @@ export function FileRequest({ orderId }: { orderId: string }) {
       {made && (made.url ? (
         <div className={s.links} data-request="">
           <p className={s.link}>
-            <span className={`${s.url} mono`}>{made.url}</span>
+            <span data-code="" className={`${s.url} mono`}>{made.url}</span>
             <span className={s.until}>{t('work.request.until', { time: time(made.expiresAt) })}</span>
             <span className={s.act}><Button variant="quiet" onClick={() => copy(made.url!)}>{copied ? t('work.share.copied') : t('work.share.copy')}</Button></span>
           </p>

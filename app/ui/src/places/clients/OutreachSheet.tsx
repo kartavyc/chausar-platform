@@ -156,7 +156,7 @@ function Draft({ view, onView }: { view: OutreachView; onView: (view: OutreachVi
           <summary className={s.blurbSummary}>
             <Icon name="file-text" size={14} />
             <span>{t('clients.outreach.blurb')}</span>
-            {typeof view.blurbSentences === 'number' && <span className="mono">{t('clients.outreach.sentences', { count: view.blurbSentences })}</span>}
+            {typeof view.blurbSentences === 'number' && <span data-num="">{t('clients.outreach.sentences', { count: view.blurbSentences })}</span>}
           </summary>
           <p className={s.noteText} data-content="" data-blurb="">{view.blurb}</p>
         </details>

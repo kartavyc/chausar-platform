@@ -66,7 +66,7 @@ export function PlanCard({ proposals, agentOf, onChanged }: { proposals: readonl
           const agent = proposal.agent ? agentOf(proposal.agent) : undefined;
           return (
             <li key={proposal.id} className={s.step} data-status={proposal.status}>
-              <span className={cx(s.stepNumber, 'mono')} data-live={proposal.status === 'drafted' || proposal.status === 'raised' ? '' : undefined} aria-hidden="true">{index + 1}</span>
+              <span className={s.stepNumber} data-num="" data-live={proposal.status === 'drafted' || proposal.status === 'raised' ? '' : undefined} aria-hidden="true">{index + 1}</span>
               <div className={s.stepBody}>
                 <p className={s.stepTitle} data-step-title="">{proposal.title}</p>
                 {proposal.what && <p className={s.stepWhat}>{proposal.what}</p>}

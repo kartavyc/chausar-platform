@@ -2,7 +2,7 @@
    bars (.aging, .ag-l, .sbar, .sleg) and the cash line (.cash, .cs-*, .sw-l), from D-Money, D-Today, D-Team and
    D-TeamDept. Greys carry the data, the accent only the goal and today's dot, the --age-* colours only lateness; a
    department's data takes its solid and panel line. Labels are 12 px (D's 10.5 px raised to the floor). Values sit in
-   DM Mono with tabular digits, so columns of them line up. */
+   the body font with tabular digits (B2), so columns of them line up. */
 
 .chart {
   container-type: inline-size;
@@ -240,7 +240,6 @@
 
 .cap {
   fill: var(--mute);
-  font-family: var(--font-mono);
   font-size: var(--text-label);
   font-variant-numeric: tabular-nums;
 }
@@ -550,13 +549,12 @@
   display: block;
   flex: none;
   overflow: visible;
-  font-family: var(--font-mono);
   font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
 }
 
 .tick {
   fill: var(--mute);
-  font-family: var(--font-mono);
   font-size: var(--text-label);
   font-variant-numeric: tabular-nums;
 }

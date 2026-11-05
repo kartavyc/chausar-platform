@@ -216,7 +216,7 @@ function CodeOnce({ code, folder, onDone }: { code: string; folder: string; onDo
       <div className={s.body}>
         <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.recovery')}</h2>
         <p className={s.line}>{t('business.codeOnce')}</p>
-        <div className={`${s.code} mono`} role="group" aria-label={t('business.codeLabel')}>
+        <div data-code="" className={`${s.code} mono`} role="group" aria-label={t('business.codeLabel')}>
           {(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}
         </div>
         <div className={s.buttons}>

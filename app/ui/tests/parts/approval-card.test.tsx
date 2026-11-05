@@ -119,7 +119,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
     // The old and the new price share one receipt, so the change is one figure group (3B1a's strict rule).
     const change = article.querySelector<HTMLElement>('[data-figure-group][data-size="pill"]')!;
     expect(change.querySelector('del')!.textContent).toBe('₹25,000');
-    expect(within(change).getByText('₹30,000').className).toContain('mono');
+    expect(within(change).getByText('₹30,000').className).not.toContain('mono'); // B2 fix round 1: the body font
     expect(within(change).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     assertInkRules(document.body);
   });
@@ -373,14 +373,14 @@ describe('Driving a card from outside (the swipe on phone)', () => {
 });
 
 describe('Change, in its three sizes', () => {
-  it('a pill strikes the old value, points with an arrow to the new one in mono, with its receipt, and reads as was and now', () => {
+  it('a pill strikes the old value, points with an arrow to the new one in the body font, with its receipt, and reads as was and now', () => {
     const onReceipt = vi.fn();
     const { container } = render(<Change size="pill" label="Sponsor slot" before="₹25,000" after="₹30,000" receiptId="R-0415" onReceipt={onReceipt} />);
     const root = container.querySelector<HTMLElement>('[data-figure-group]')!;
     expect(root.getAttribute('data-size')).toBe('pill');
-    expect(root.querySelector('del')!.className).toContain('mono');
+    expect(root.querySelector('del')!.className).not.toContain('mono');
     expect(root.querySelector('svg.lucide-arrow-right')!.getAttribute('aria-hidden')).toBe('true');
-    expect(within(root).getByText('₹30,000').className).toContain('mono');
+    expect(within(root).getByText('₹30,000').className).not.toContain('mono'); // B2 fix round 1: the body font
     expect(root.textContent).toContain('Sponsor slot');
     expect(root.textContent).toContain('was ₹25,000');
     expect(root.textContent).toContain('now ₹30,000');

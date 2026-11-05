@@ -55,7 +55,7 @@ export function Rail({ route }: { route: Route }) {
                 <span>{t(`place.${place}`)}</span>
                 {place === 'today' && needsYou > 0 && (
                   <>
-                    <span className={cx(s.count, 'mono')} aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
+                    <span className={s.count} data-num="" aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
                     <span className="sr-only">, {t('rail.needsYou', { count: needsYou })}</span>
                   </>
                 )}

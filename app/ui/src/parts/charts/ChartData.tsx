@@ -106,5 +106,5 @@ export function ChartFoot({ proof, onReceipt, children }: ChartProofProps & { ch
 export function ChartValue({ money, value, className }: { money: boolean; value: string | null; className?: string | undefined }) {
   const t = useT();
   if (value === null) return <span className={cx(s.none, className)}>{t('chart.none')}</span>;
-  return money ? <span className={cx('mono', s.num, className)}>{value}</span> : <span className={cx('mono', s.num, className)} data-count="">{value}</span>;
+  return money ? <span className={cx(s.num, className)} data-num="">{value}</span> : <span className={cx(s.num, className)} data-num="" data-count="">{value}</span>;
 }

@@ -143,7 +143,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             )}
             <div className={s.pair}>
               <dt>{t('business.goals.share')}</dt>
-              <dd className="mono">{data.percent}</dd>
+              <dd data-num="">{data.percent}</dd>
             </div>
             {pastBy && (
               <div className={s.pair}>
@@ -240,7 +240,7 @@ function EarlierGoals({ thisMonth, words }: { thisMonth: string; words: (month: 
                     <Figure value={invoiced.value} receiptId={invoiced.receiptId!} />
                   </span>
                 )}
-                {view.invoicedPercent !== null && <span className="mono">{`${view.invoicedPercent}%`}</span>}
+                {view.invoicedPercent !== null && <span data-num="">{`${view.invoicedPercent}%`}</span>}
               </li>
             );
           })}

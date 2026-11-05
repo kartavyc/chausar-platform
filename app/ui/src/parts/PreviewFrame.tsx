@@ -143,7 +143,7 @@ function Video({ title, unseen, duration, chapters, poster, onOpen }: VideoPrevi
       {duration !== undefined && (
         <span className={s.duration} data-duration="">
           <span className="sr-only">{t('preview.length')} </span>
-          <span className="mono">{duration}</span>
+          <span data-num="">{duration}</span>
         </span>
       )}
     </>
@@ -163,7 +163,7 @@ function Paper({ label, business, docRef, title, sub, lines, total, tilt, onRece
           <p className={s.paperHead}>
             {business !== undefined && <span className={s.paperLogo}>{initialsOf(business)}</span>}
             {business !== undefined && <span className={s.paperBusiness}>{business}</span>}
-            {docRef !== undefined && <span className={cx(s.paperRef, 'mono')}>{docRef}</span>}
+            {docRef !== undefined && <span data-code="" className={cx(s.paperRef, 'mono')}>{docRef}</span>}
           </p>
         )}
         {title !== undefined && <p className={s.paperTitle}>{title}</p>}
@@ -173,7 +173,7 @@ function Paper({ label, business, docRef, title, sub, lines, total, tilt, onRece
             {lines.map((line, index) => (
               <li key={index} className={s.paperLine}>
                 <span>{line.label}</span>
-                {line.value !== undefined && <span className="mono">{line.value}</span>}
+                {line.value !== undefined && <span data-num="">{line.value}</span>}
               </li>
             ))}
           </ul>
@@ -212,7 +212,7 @@ function ChangeBody({ change, breakdown, onReceipt }: ChangePreview) {
                 {op !== undefined && <span className={s.op} data-op="" aria-hidden="true">{op}</span>}
                 <span className={s.box}>
                   <span className={s.boxLabel}>{part.label}</span>
-                  <span className="mono">{part.value}</span>
+                  <span data-num="">{part.value}</span>
                 </span>
               </span>
             );

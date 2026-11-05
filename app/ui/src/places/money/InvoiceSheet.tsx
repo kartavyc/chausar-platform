@@ -117,7 +117,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           {current.figures.map((figure) => (
             <div key={figure.key} className={s.sheetFigure} data-key={figure.key}>
               <dt>{figure.label}</dt>
-              <dd className="mono">{figure.display}</dd>
+              <dd data-num="">{figure.display}</dd>
             </div>
           ))}
         </dl>

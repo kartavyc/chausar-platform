@@ -181,7 +181,7 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
               <ul className={s.lines}>
                 {view.rates.map((rate) => (
                   <li key={rate.item} className={s.line}>
-                    <span className={`${s.label} mono`}>{rate.item}</span>
+                    <span data-code="" className={`${s.label} mono`}>{rate.item}</span>
                     <span className={s.value}>
                       <EngineWords>{rate.price}</EngineWords>
                       {rate.model && <span className={s.note} data-content="">{rate.model}</span>}

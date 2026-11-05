@@ -71,10 +71,10 @@
 }
 
 .count {
-  font-family: var(--font-mono);
   font-size: var(--text-label);
   font-weight: var(--weight-regular);
   color: var(--mute);
+  font-variant-numeric: tabular-nums;
 }
 
 .none {

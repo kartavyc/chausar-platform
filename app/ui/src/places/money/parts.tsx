@@ -75,7 +75,7 @@ export function isPhrase(text: string): boolean {
  * set in a typewriter face (`isPhrase`).
  */
 export function Amount({ text }: { text: string }) {
-  return <span className={isPhrase(text) ? undefined : 'mono'}>{text}</span>;
+  return <span data-num={isPhrase(text) ? undefined : ''}>{text}</span>;
 }
 
 /**
@@ -101,7 +101,7 @@ export function Rupees({ text }: { text?: string | undefined }) {
 export function InvoiceRef({ id, number }: { id: string; number: string }) {
   const t = useT();
   return (
-    <button type="button" className={cx(s.ref, 'mono')} data-invoice={id} aria-label={t('money.invoiceRef', { number })} onClick={(event) => openSheet('invoice', id, event.currentTarget)}>
+    <button data-code="" type="button" className={cx(s.ref, 'mono')} data-invoice={id} aria-label={t('money.invoiceRef', { number })} onClick={(event) => openSheet('invoice', id, event.currentTarget)}>
       {number}
     </button>
   );

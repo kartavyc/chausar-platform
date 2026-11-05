@@ -194,7 +194,7 @@ function OfRecord({ ca, onSaved }: { ca: CaOfRecord | null; onSaved: () => void 
             <Avatar name={ca.name} size={40} />
             <div>
               <p className={s.strong}>{ca.name}</p>
-              <p className={s.line}>{t('business.ca.membership')} <span className="mono">{ca.membershipNo}</span></p>
+              <p className={s.line}>{t('business.ca.membership')} <span data-code="" className="mono">{ca.membershipNo}</span></p>
             </div>
           </div>
           <div className={s.buttons}>

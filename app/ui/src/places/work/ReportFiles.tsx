@@ -148,7 +148,7 @@ function DraftReport({ runId, draft, canMake, reports, reload }: { runId: string
             <ul className={r.files} aria-label={t('kit-report.files', { title })}>
               {shown.files.map((file) => (
                 <li key={file.name} className={r.file} data-report-file={file.format}>
-                  <span className={`${r.name} mono`}>{file.name}</span>
+                  <span data-code="" className={`${r.name} mono`}>{file.name}</span>
                   {!engine.saveReport && (
                     <span className={r.act}>
                       <Button variant="quiet" disabled={busy !== null} aria-label={t('kit-report.saveName', { name: file.name })} onClick={() => void save(file.name, file.format)}>{t('kit-report.save')}</Button>
@@ -268,7 +268,7 @@ function ShareReport({ report, links, reload, again }: { report: Pick<ReportList
         <ul className={r.links} aria-label={t('kit-report.share.links')}>
           {shown.map((link) => (
             <li key={link.id} className={r.link} data-report-link={link.state}>
-              {link.url ? <span className={`${r.name} mono`}>{link.url}</span> : <span className={r.quiet}>{lineOf(link.reason ?? '', t)}</span>}
+              {link.url ? <span data-code="" className={`${r.name} mono`}>{link.url}</span> : <span className={r.quiet}>{lineOf(link.reason ?? '', t)}</span>}
               {link.state === 'open' && LINES[link.reason ?? ''] !== 'kit-report.reason.notServed' && <span className={r.quiet}>{t('kit-report.share.until', { day: day(link.expiresAt) })}</span>}
               <span className={r.quiet}>{views(link)}</span>
               {link.state !== 'disabled' && (

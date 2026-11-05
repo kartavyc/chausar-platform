@@ -4,6 +4,9 @@ import { Count, Figure } from '../../src/parts/Figure';
 import { ChatThread } from '../../src/parts/ChatThread';
 import { ApprovalRow } from '../../src/parts/ApprovalRow';
 import { Row } from '../../src/parts/Row';
+import { Change } from '../../src/parts/Change';
+import { ProgressBar } from '../../src/parts/ProgressBar';
+import { ModelEstimate } from '../../src/parts/ModelEstimate';
 import { ClockProvider } from '../../src/shell/clock';
 import type { QueueRow } from '../../src/engine/types';
 
@@ -39,6 +42,20 @@ describe('figures, counts, times and elapsed are in the body font (B2 task 11)',
     expect(container.querySelector('time')!.classList.contains('mono')).toBe(false);
     const end = [...container.querySelectorAll('span')].find((span) => span.textContent === '4 min')!;
     expect(end.classList.contains('mono')).toBe(false);
+  });
+
+  it('a price change, a step count and a model estimate are in the body font too (B2 fix round 1)', () => {
+    const { container } = render(
+      <div>
+        <Change label="Sponsor slot" before="₹25,000" after="₹30,000" receiptId="R-1" />
+        <ProgressBar progress={{ done: 3, total: 5 } as never} />
+        <ModelEstimate value="₹40,000 a month" />
+      </div>,
+    );
+    const figures = [...container.querySelectorAll('del, span, b')].filter((el) => /₹|\d of \d|3/.test(el.textContent ?? '') && el.children.length === 0);
+    expect(figures.length).toBeGreaterThan(2);
+    for (const el of figures) expect(el.classList.contains('mono'), el.outerHTML).toBe(false);
+    // The money legend and axis, Spend and the invoice table are held by the source rule (tests/source-rules.test.ts).
   });
 
   it('a real code keeps DM Mono', () => {

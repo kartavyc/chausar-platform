@@ -80,7 +80,7 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
           {link.url
             ? (
               <p className={v.linkUrl}>
-                <span className="mono" data-content="">{link.url}</span>
+                <span data-code="" className="mono" data-content="">{link.url}</span>
                 <Button size="sm" variant="quiet" onClick={() => void copy(link.url!)}>{t('money.accountant.copy')}</Button>
               </p>
             )

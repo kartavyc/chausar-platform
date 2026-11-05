@@ -85,7 +85,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                     {step.tools.map((tool, i) => (
                       <p key={i} className={s.tool} data-tool-state={tool.state}>
                         {tool.state && <ToolMark state={tool.state} />}
-                        <span className="mono">{tool.name}</span> {tool.line}
+                        <span data-code="" className="mono">{tool.name}</span> {tool.line}
                         {tool.state && tool.state !== 'done' && <> <span className={tool.state === 'error' ? s.toolError : s.toolCancelled}>{t(`runsheet.tool.${tool.state}`)}</span></>}
                         {tool.state === 'done' && <span className="sr-only">, {t('runsheet.tool.done')}</span>}
                         {tool.ms !== undefined && <> <span className={s.time}>{msWords(t, tool.ms)}</span></>}

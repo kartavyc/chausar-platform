@@ -1,6 +1,6 @@
 /* Money: D-Money in tiles. The figure tiles (`.mt`, `.m-lab`, `.s-row`, `.s-sub`), who owes you (`.owe`, `.ow-*`,
    `.ag-l`), due next (`.lt`), the invoices table (`.itile`, `.itab`, `.cl*`, `.amt`, `.due`), and the books, spend,
-   journal and sheets on the same tiles. Figures are DM Mono through the Figure part; receipts sit at the top right of a
+   journal and sheets on the same tiles. Figures are in the body font with tabular digits through the Figure part; receipts sit at the top right of a
    figure tile, as on the board. D's 12.5 and 13.5 px sizes snap to the Ink scale (13 and 14). */
 
 /* The sub-pages, as a segmented row above the page. */
@@ -116,10 +116,10 @@
 
 .goalPercent {
   margin-left: auto;
-  font-family: var(--font-mono);
   font-size: var(--text-tile);
   font-weight: var(--weight-medium);
   color: var(--fg);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Days left, in a pill at the end of the label line (D-Money's `.m-lab .pill`). */

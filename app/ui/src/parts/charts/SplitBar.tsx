@@ -46,7 +46,7 @@ export function SplitBar({ data, onReceipt }: SplitBarProps) {
               <span className={s.swatch} data-swatch="" data-dept={part.dept} data-zero={part.permille > 0 ? undefined : ''} aria-hidden="true" />
               {name(part.dept)}
             </span>
-            <span className={`${s.splitAmount} mono`}>{part.amount}</span>
+            <span className={s.splitAmount} data-num="">{part.amount}</span>
           </li>
         ))}
       </ul>
@@ -54,7 +54,7 @@ export function SplitBar({ data, onReceipt }: SplitBarProps) {
         <ChartData
           caption={data.label}
           columns={[t('chart.data.amount')]}
-          rows={legend.map((part) => ({ key: part.dept, heading: name(part.dept), cells: [<span className="mono">{part.amount}</span>] }))}
+          rows={legend.map((part) => ({ key: part.dept, heading: name(part.dept), cells: [<span data-num="">{part.amount}</span>] }))}
         />
       </ChartFoot>
     </div>

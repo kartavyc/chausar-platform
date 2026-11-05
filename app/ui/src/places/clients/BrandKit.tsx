@@ -83,7 +83,7 @@ export function BrandKit({ clientId, files }: { clientId: string; files: readonl
                 <div key={field} className={k.field}>
                   <dt className={k.label}>{t(`kit-media.field.${field}`)}</dt>
                   <dd className={k.value}>
-                    <span className={field === 'colours' ? 'mono' : undefined} data-content="">{(kit.resolved[field].value as string[]).join(field === 'samples' ? ' / ' : ', ')}</span>
+                    <span data-code="" className={field === 'colours' ? 'mono' : undefined} data-content="">{(kit.resolved[field].value as string[]).join(field === 'samples' ? ' / ' : ', ')}</span>
                     {kit.resolved[field].source !== 'client-kit' && <span className={k.source}>{sourceWords(kit.resolved[field].source, t)}</span>}
                   </dd>
                 </div>
@@ -91,7 +91,7 @@ export function BrandKit({ clientId, files }: { clientId: string; files: readonl
               {logo && (
                 <div className={k.field}>
                   <dt className={k.label}>{t('kit-media.field.logoFileId')}</dt>
-                  <dd className={`${k.value} mono`}>{logo}</dd>
+                  <dd data-code="" className={`${k.value} mono`}>{logo}</dd>
                 </div>
               )}
               {kit.resolved.claims.value.length > 0 && (

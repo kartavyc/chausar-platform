@@ -43,7 +43,7 @@ export function ProgressBar({ progress, tone = 'working', showCount = true, clas
         )}
       </span>
       {steps && showCount && (
-        <span className={cx(s.count, 'mono')} data-label="" data-count="" aria-hidden="true">
+        <span className={s.count} data-num="" data-label="" data-count="" aria-hidden="true">
           {t('bar.count', { done: steps.done, total: steps.total })}
         </span>
       )}

@@ -58,7 +58,9 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/* data-num: an amount, a percent, a duration or a time shown outside a Figure (a chart's axis, a receipt's rows). */
 [data-count],
+[data-num],
 time {
   font-variant-numeric: tabular-nums;
 }

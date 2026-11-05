@@ -63,6 +63,32 @@ describe('rules the UI keeps (spec section 6)', () => {
     }
     expect(found).toEqual([]);
   });
+  it('DM Mono is for codes only: figures, counts and times are in the body font (B2 fix round 1)', () => {
+    // A `mono` class sits on the same line as data-code (an id, a number such as an invoice number, a link, a file
+    // name, a key); a CSS rule in DM Mono is one of the listed code styles.
+    const CODE_RULES: Record<string, string> = {
+      'tokens/base.css .mono': 'the code class itself', 'places/business/Business.module.css .mono': 'a code in the business pages',
+      'places/business/Business.module.css .diff': 'a file diff', 'places/business/Reports.module.css .json': 'raw JSON',
+      'places/business/RulesSection.module.css .address span': 'an email address', 'places/connections/KitConnect.module.css .code': 'a pairing code',
+      'places/money/Money.module.css .pre': 'preformatted text', 'places/onboarding/FirstRun.module.css .code': 'a code',
+      'places/onboarding/Onboarding.module.css .code': 'a code', 'places/work/desks/YoutubeDesk.module.css .summary': 'a script as written',
+      'places/work/desks/YoutubeDesk.module.css .preview': 'a script as written', 'parts/QuestionCard.module.css .number': 'a question code',
+    };
+    const found: string[] = [];
+    for (const { f, text } of code.filter((c) => c.f.endsWith('.tsx'))) {
+      text.split('\n').forEach((line, index) => {
+        if (/className=[^\n]*\bmono\b/.test(line) && !/data-code/.test(line)) found.push(`${f}:${index + 1}`);
+      });
+    }
+    for (const { f, text } of code.filter((c) => c.f.endsWith('.css') && !c.f.endsWith('fonts.css') && !c.f.endsWith('tokens.css'))) {
+      for (const rule of uncomment(text).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!/font-family:\s*var\(--font-mono\)/.test(rule[2]!)) continue;
+        const selector = rule[1]!.trim();
+        if (!Object.hasOwn(CODE_RULES, `${f} ${selector}`)) found.push(`${f} ${selector}`);
+      }
+    }
+    expect(found).toEqual([]);
+  });
   it('no em dashes in code or copy', () => {
     for (const { f, text } of code) expect(text.includes('—'), f).toBe(false);
   });
