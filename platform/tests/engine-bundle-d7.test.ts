@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const modulePath = '../../scripts/bundle-engine.mjs';
@@ -89,6 +89,25 @@ test('the bundled worker, started by EngineHarness with plain Node, answers and 
     await rm(vault, { recursive: true, force: true });
     await rm(ink, { recursive: true, force: true });
   }
+});
+
+// D7 fix (review 1, MEDIUM 4): the bundle's own engine-paths chunk names the bundled .js entries, which exist, and finds
+// the files copied beside them; were it to think it runs from source, it would name .ts files the package does not hold.
+test('D7 fix: the bundled engine-paths chunk starts its bundled .js entries and finds its copied files', async () => {
+  const chunk = (await readdir(runtime)).find(name => /^engine-paths-.*\.js$/.test(name))!;
+  const exported = Object.values(await import(pathToFileURL(join(runtime, chunk)).href)) as unknown[];
+  const named = (name: string) => exported.find(value => typeof value === 'function' && value.name === name) as ((path: string) => string) | undefined;
+  const runtimeEntry = named('runtimeEntry'), runtimeFile = named('runtimeFile');
+  assert.ok(runtimeEntry && runtimeFile, 'the chunk exports runtimeEntry and runtimeFile');
+  // The chunk's body runs lazily: its importers call its one other export (rolldown's init) first, so the test does too.
+  const helpers = new Set(['runtimeUrl', 'runtimeFile', 'runtimeEntry']);
+  for (const value of exported) if (typeof value === 'function' && !helpers.has(value.name)) value();
+  for (const name of ['analytics-worker', 'venture/agent-runtime/stdio-bridge']) {
+    const entry = runtimeEntry(name);
+    assert.equal(entry, join(runtime, `${name}.js`), `${name}: the bundled .js, never the source .ts`);
+    assert.ok(existsSync(entry), entry);
+  }
+  for (const file of ['../helpers/analytics.py', 'wasm-worker.mjs', 'venture/packs/pack-worker.mjs', 'venture/models/credential-contract.cjs']) assert.ok(existsSync(runtimeFile(file)), file);
 });
 
 test('the bundled MCP bridge and DuckDB worker load as programs', () => {
