@@ -78,7 +78,7 @@ const grep = (...args: string[]) => {
   }
 };
 
-test('task 2: no tracked .png under docs/ (the screenshots live in the private repo)', { todo: 'D10 task 2' }, () => {
+test('task 2: no tracked .png under docs/ (the screenshots live in the private repo)', () => {
   const found = tracked.filter(file => file.startsWith('docs/') && /\.png$/i.test(file) && ![...PNG_KEPT.keys()].some(prefix => file.startsWith(prefix)));
   assert.deepEqual(found.slice(0, 10), [], `${found.length} tracked PNGs under docs/`);
 });

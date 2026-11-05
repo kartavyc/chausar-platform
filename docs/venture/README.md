@@ -9,7 +9,7 @@ Two rules hold everywhere:
 
 ## The journey
 
-Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). The screens are drawn in look B, "bold and graphic", and were walked in the browser on 18 October; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/). Since the keychain change of 19 October there is nothing to type to keep the plan, and the right side of each screen shows the business coming together in real words; that flow was walked against the real engine and this computer's Windows key store, and its captures are in [`screens/onboarding-v3/`](screens/onboarding-v3/).
+Since 18 October onboarding connects an AI first and asks one open question ([onboarding.md](onboarding.md)). The screens are drawn in look B, "bold and graphic", and were walked in the browser on 18 October. Since the keychain change of 19 October there is nothing to type to keep the plan, and the right side of each screen shows the business coming together in real words; that flow was walked against the real engine and this computer's Windows key store. The captures from those walks are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones of every place.
 
 1. **Connect an AI.** The owner's own Anthropic or OpenAI key (one Anthropic key runs Claude Haiku 5.5 for quick work and Sonnet 5.5 for plans), or Claude Code or Codex on this computer. "Sign in with ChatGPT" is shown as not open to Chausar yet, with the reason. The AI is kept in the engine's memory only until the owner keeps the plan. "Continue without AI" leads to the built-in templates, and "Open my business" takes a returning owner to Welcome back, since every restart starts on this screen.
 2. **What do you want to do?** One sentence: an idea, a skill or a problem. The quick model says which it is and picks two to four views from a fixed list. A sentence about a personal problem with nothing to sell gets "Chausar can't plan this one." and the built-in plan as a way on.
@@ -154,7 +154,7 @@ Words at rest per place, counted the way the renderer test counts them:
 | Money | 50 | 50 |
 | Connections | 36 | 36 |
 
-The screenshots in [`screens/`](screens/) were saved again from this walk: 02, 03, 04, 07, 10 to 16, 19, 21, 22, 24 and 25 to 29. The others show the first pass. 05, 06, 08 and 09 come right after the passphrase in onboarding, which this walk did through `/api/rpc`; 01, 17, 18, 20 and 23 look the same as before.
+Screenshots 02, 03, 04, 07, 10 to 16, 19, 21, 22, 24 and 25 to 29 were saved again from this walk; the others showed the first pass. Those captures are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones.
 
 Known limits:
 
@@ -230,7 +230,7 @@ Known limits:
 
 The founder's decisions of 18 October, built on the screens: no Keep it safe step (the vault is made, named from the business, when the owner keeps the plan); Welcome back lists this computer's businesses, and one that opens with this computer opens by itself; Trust & access has "Lock with a passphrase", the recovery code, automatic encrypted backups with restore, and moving to another computer with a file and a one-time code; and the live preview on the right shows the business coming together in real words, like prototype B. The screens are in [onboarding.md](onboarding.md#keeping-the-plan-welcome-back-and-the-live-preview-keychain-custody-18-october); the engine is in [docs/custody.md](../custody.md).
 
-What was run: the renderer tests (`venture-onboarding-renderer`, `venture-launch-renderer`, the new `custody-renderer`), the desktop, backup, shell and docs renderer tests, `node scripts/check.mjs`, and screenshots of nineteen screens from the renderer fixtures in headless Edge over the DevTools protocol, light and dark at 1366 px and 375 px, with nothing scrolling sideways at 375 px: [`screens/60-idea-typed`](screens/60-idea-typed-light.png) to [`screens/78-hosted-prices`](screens/78-hosted-prices-light.png). Not run in that package: a walk against the real engine with this computer's DPAPI (the integration pass below did it), and any Mac or Linux keychain.
+What was run: the renderer tests (`venture-onboarding-renderer`, `venture-launch-renderer`, the new `custody-renderer`), the desktop, backup, shell and docs renderer tests, `node scripts/check.mjs`, and screenshots of nineteen screens from the renderer fixtures in headless Edge over the DevTools protocol, light and dark at 1366 px and 375 px, with nothing scrolling sideways at 375 px (numbered 60 to 78; no longer kept in this repository). Not run in that package: a walk against the real engine with this computer's DPAPI (the integration pass below did it), and any Mac or Linux keychain.
 
 ## Keychain custody: integration, 19 October
 
