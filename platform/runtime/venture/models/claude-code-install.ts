@@ -3,7 +3,8 @@
 // yes, shows its progress, runs it unmodified, then looks for Claude Code again. Nothing is downloaded without that yes,
 // the downloaded bytes are the bytes run (their sha256 is reported), the installer gets no Chausar or secret variable,
 // and Chausar never signs in for the owner: the owner opens Claude Code and signs in themselves. Never on the hosted
-// web server. The ports are injected so tests never download or start anything.
+// web server. The ports are injected so tests never download or start anything. D5 fix: it fails closed. The caller
+// passes the ports (the real set is built once, at the wiring), and only an explicit desktop host installs.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -107,10 +108,12 @@ async function download(url: string, ports: ClaudeInstallPorts, progress: (step:
  */
 export async function installClaudeCode(
   request: { approval: unknown; platform: NodeJS.Platform; host: 'desktop' | 'hosted-web' | string; environment?: NodeJS.ProcessEnv },
-  ports: ClaudeInstallPorts = defaultClaudeInstallPorts(),
+  ports: ClaudeInstallPorts,
   onProgress: (progress: ClaudeInstallProgress) => void = () => undefined,
 ): Promise<ClaudeInstallResult> {
-  check(request.host !== 'hosted-web', 'TIER_UNAVAILABLE', CLAUDE_INSTALL_WORDS.hosted);
+  check(!!ports && typeof ports === 'object' && (['fetch', 'run', 'locate', 'tempFolder'] as const).every(name => typeof ports[name] === 'function'),
+    'INVALID_VENTURE_REQUEST', 'Pass the ports that download and run the installer.');
+  check(request.host === 'desktop', 'TIER_UNAVAILABLE', CLAUDE_INSTALL_WORDS.hosted);
   check(Object.hasOwn(CLAUDE_CODE_INSTALLERS, request.platform), 'CLAUDE_INSTALL_UNSUPPORTED', CLAUDE_INSTALL_WORDS.unsupported);
   const installer = CLAUDE_CODE_INSTALLERS[request.platform as InstallerPlatform];
   const before = ports.locate('claude');

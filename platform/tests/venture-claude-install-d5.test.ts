@@ -125,3 +125,19 @@ test('a system with no official installer is refused before anything', async () 
   await assert.rejects(installClaudeCode({ approval: YES, platform: 'aix' as any, host: 'desktop' }, fake.ports), code('CLAUDE_INSTALL_UNSUPPORTED'));
   assert.deepEqual([fake.fetched, fake.ran], [[], []]);
 });
+
+// D5 fix (review 1, MEDIUM 2): fail closed. Only an explicit desktop host installs; a missing or unknown host is
+// refused. The caller passes the ports: there is no default set that would download and run the real installer.
+test('D5 fix: only an explicit desktop host installs; a missing or unknown host is refused before anything', async () => {
+  for (const host of [undefined, null, '', 'Desktop', 'desktop-app', 'hosted', 'phone']) {
+    const fake = computer();
+    await assert.rejects(installClaudeCode({ approval: YES, platform: 'win32', host } as any, fake.ports), code('TIER_UNAVAILABLE'), String(host));
+    assert.deepEqual([fake.fetched, fake.ran], [[], []]);
+  }
+});
+
+test('D5 fix: no default ports; a call without them is refused before it looks, downloads or runs anything', async () => {
+  for (const ports of [undefined, null, {}, { fetch: () => undefined }]) {
+    await assert.rejects(installClaudeCode({ approval: undefined, platform: 'win32', host: 'desktop' }, ports as any), code('INVALID_VENTURE_REQUEST'));
+  }
+});
