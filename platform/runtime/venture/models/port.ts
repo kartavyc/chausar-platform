@@ -32,7 +32,7 @@ import {
   SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, cliRouteFlags, codexCommand, codexHost, codexPlan, parseClaudeCli, parseCodexCli, unknownRouteFlags,
   type CliPlan, type CodexHost,
 } from './cli.ts';
-import { callCostOrHeld, costDisplay, estimateMaxCostMicros } from './cost.ts';
+import { callCostOrHeld, costDisplay, estimateMaxCostMicros, recordedCallMicros } from './cost.ts';
 import { formatCost } from '../../owner-format.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
@@ -682,9 +682,11 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
       let spent = 0n;
       let estimate = false;
       for (const call of calls) {
-        if (call.costMicros === null || monthOf(call.at) !== month) continue;
-        spent += BigInt(call.costMicros);
-        if (!call.priceConfirmed) estimate = true;
+        // D3 fix: a held call (its cost null beside reported usage) counts at its reservation, as an estimate.
+        const micros = monthOf(call.at) === month ? recordedCallMicros(call) : null;
+        if (micros === null) continue;
+        spent += BigInt(micros);
+        if (!call.priceConfirmed || call.costMicros === null) estimate = true;
       }
       const views: ConnectionView[] = newestFirst(connections).map(connection => {
         const spec = presetSpec(connection.presetId);

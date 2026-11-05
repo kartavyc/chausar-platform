@@ -27,6 +27,7 @@ import { AGENT_ID, agentName, short } from '../views/shared.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { appendAgentMessage } from './store.ts';
 import { retiredName } from './retired.ts';
+import { recordedCallMicros } from '../models/cost.ts';
 
 /** The owner, above the team's top: where a top-level agent's report goes. */
 export const OWNER = 'owner';
@@ -119,8 +120,10 @@ export function roleSpend(ledger: TeamLedger): Map<string, bigint> {
   const flagship = ledger.flagship;
   if (!flagship) return out;
   const cost = new Map<string, bigint>();
-  for (const record of ledger.state.conversations as { kind?: unknown; id?: unknown; costMicros?: unknown }[]) {
-    if (record?.kind === 'venture-model-call' && typeof record.id === 'string' && typeof record.costMicros === 'string' && /^\d{1,30}$/.test(record.costMicros)) cost.set(record.id, BigInt(record.costMicros));
+  for (const record of ledger.state.conversations as { kind?: unknown; id?: unknown; costMicros?: unknown; usage?: unknown; estimatedMaxCostMicros?: unknown }[]) {
+    // D3 fix: a held cost counts at its reservation, like a native job's held charge above.
+    const micros = record?.kind === 'venture-model-call' && typeof record.id === 'string' ? recordedCallMicros(record) : null;
+    if (micros !== null) cost.set(record.id as string, BigInt(micros));
   }
   const add = (role: string | null | undefined, callId: string) => { if (role) out.set(role, (out.get(role) ?? 0n) + cost.get(callId)!); };
   const seenSpend = new Set<string>();

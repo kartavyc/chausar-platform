@@ -311,3 +311,24 @@ test('relay: Team nests a helper under its parent; no shipped team has a helper;
   const rolled = rolledUpSpend(TEAM.members, new Map([[AGENT_ID, 10n], ['researcher', 5n], ['writer', 7n], ['checker', 3n]]));
   assert.deepEqual(Object.fromEntries(rolled), { [AGENT_ID]: 25n, researcher: 8n, writer: 7n, checker: 3n, editor: 0n });
 });
+
+// D3 fix (review 1, item 3): a held call (cache tokens reported with no saved cache rate: its recorded cost is null
+// beside its usage) is shown at its reservation, marked an estimate, in the team's spend and in its role's own spend.
+test('D3 fix: a held call counts at its reservation in the team spend, marked an estimate, and in its role\'s spend', async () => {
+  const env = await agentBusiness();
+  const order = await episodeOrder(env);
+  const venture = listRecords(env.store.read(), 'venture-record')[0];
+  const ledger = teamLedger(env.store.read(), venture), drafter = ledger.flagship!.roleOf[ledger.flagship!.draftStep(null)];
+  const before = roleSpend(ledger).get(drafter) ?? 0n;
+  await ventureAction(env.deps, owner, 'prepare', 'test.held-call', tx => {
+    const call = tx.put({ ...tx.base('venture-model-call'), purpose: 'delivery', tier: 'main', presetId: 'anthropic-sonnet-5-5', status: 'completed', costMicros: null,
+      usage: { inputTokens: 1000, outputTokens: 200, cachedInputTokens: 4000 }, estimatedMaxCostMicros: '120000', priceConfirmed: true } as never) as { id: string };
+    // A one-step draft from before native jobs: its own call is the drafting role's.
+    tx.put({ ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: venture.playbookId!, playbookHash: 'a'.repeat(64), status: 'stopped', servedBy: 'model', practice: false,
+      callId: call.id, preview: null, deliverable: null, renderedText: null, checks: [], verdict: null, editedText: null } as never);
+  });
+  assert.equal(roleSpend(teamLedger(env.store.read(), venture)).get(drafter), before + 120000n, 'the role counts the reservation');
+  const team = await env.call('venture.team.list');
+  const spends = team.agents.map((agent: { spend: string }) => agent.spend).join(' | ');
+  assert.match(spends, /\$0\.12 \(estimate\)/, spends);
+});

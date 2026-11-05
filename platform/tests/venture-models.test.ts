@@ -1223,3 +1223,14 @@ test('D2 fix: the harness run cap counts a held call at its reservation, so the 
   const written = finishWrite(newHarnessState([], limits, []), { by: held.by, callId: held.callId, costMicros: held.costMicros });
   assert.equal(written.used.costMicros, String(reservation), 'the write step counts it the same way');
 });
+
+// D3 fix (review 1, item 3): the month's spend in the AI status counts a held call at its reservation, as an estimate.
+test('D3 fix: the month spent counts a held call at its reservation and says it is an estimate', async () => {
+  const { deps, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  rec.replyHttp = () => anthropicReply({ words: 'Cached words' }, { usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } as never });
+  const held = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  const status = deps.models.status(owner);
+  assert.equal(status.spentThisMonthMicros, held.costMicros, 'the reservation, not 0');
+  assert.equal(status.estimate, true);
+});
