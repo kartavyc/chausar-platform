@@ -276,7 +276,7 @@ export class FakeNotifyDesk {
       const value = p.digest as { hour?: unknown } | null;
       if (value === null) change.digest = null;
       else {
-        check(value && Number.isInteger(value.hour) && (value.hour as number) >= 0 && (value.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the digest hour from 0 to 23.');
+        check(value && Number.isInteger(value.hour) && (value.hour as number) >= 0 && (value.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the daily summary hour from 0 to 23.');
         change.digest = { hour: value.hour as number };
       }
     }

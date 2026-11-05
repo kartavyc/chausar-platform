@@ -34,5 +34,5 @@ test('A1 re-review: the SEO work refusals reach the owner in their own words, no
  // A seoNeed refusal on the same path: an evidence file that is not one keeps its own words too.
  const bad:any=await refusal('meta',await seed('not a manifest'));
  assert.ok(bad instanceof ChausarError);
- assert.deepEqual(ownerError(bad),{code:'SEO_INPUT_INVALID',message:'Upload a valid JSON evidence manifest.',owner:true});
+ assert.deepEqual(ownerError(bad),{code:'SEO_INPUT_INVALID',message:'Upload a valid JSON evidence file.',owner:true});
 });

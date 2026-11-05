@@ -122,13 +122,13 @@ function rate(value: string | null, warnings: string[]): string | null {
 }
 
 function exportObjects(document: TallyXmlNode, profile: TallyProfile): TallyXmlNode[] {
-  check(document.name === 'ENVELOPE', 'TALLY_XML_ENVELOPE_UNSUPPORTED', 'The exact Tally envelope is required.');
+  check(document.name === 'ENVELOPE', 'TALLY_XML_ENVELOPE_UNSUPPORTED', 'Tally did not send back an export Chausar can read.');
   const header = one(document, 'HEADER', profile.envelopeVariant === 'response-v1');
   if (header) {
     const version = scalar(header, 'VERSION'); check(version === '1' || profile.envelopeVariant === 'offline-native' && version === null, 'TALLY_WIRE_VERSION_UNSUPPORTED', 'XML messaging version 1 is separate from the application release.');
     const status = scalar(header, 'STATUS');
     if (profile.envelopeVariant === 'response-v1') check(status === '1', 'TALLY_SOURCE_FAILURE', 'An explicit successful XML export response is required.');
-    else check(status === null || status === '1', 'TALLY_SOURCE_FAILURE', 'The offline envelope reports failure.');
+    else check(status === null || status === '1', 'TALLY_SOURCE_FAILURE', 'This Tally export says it failed.');
     const request = scalar(header, 'TALLYREQUEST');
     check(request === null || profile.envelopeVariant === 'offline-native' && request === 'Import Data', 'TALLY_COMMAND_NOT_EXPORT', 'Only the declared offline native importable-export wrapper may contain Import Data metadata.');
   }
@@ -262,11 +262,11 @@ export function tallyXmlSchemaFingerprint(content: string, input: TallyProfile):
 }
 /** Envelope-only reader. Native object keys are unavailable in accessible official schema samples. */
 export function parseTallyNativeJsonEnvelope(content: string, input: TallyProfile): { document: Record<string, unknown>; schemaFingerprint: string; messageCount: number | null; warnings: string[] } {
-  const profile = profileChecked(input); check(profile.wireFormat === 'native-json-v7' && profile.envelopeVariant === 'response-v1', 'TALLY_PROFILE_MISMATCH', 'Only the documented Release 7 native response envelope is parsed.');
+  const profile = profileChecked(input); check(profile.wireFormat === 'native-json-v7' && profile.envelopeVariant === 'response-v1', 'TALLY_PROFILE_MISMATCH', 'Chausar reads only the export that Tally Release 7 sends itself.');
   const document = object(parseExactJson(content));
   const shape = object(parseExactJson(content, true));
   check(Object.keys(document).every(key => ['status', 'cmp_info', 'parms', 'tallymessage', 'data', 'result'].includes(key)), 'TALLY_JSON_ENVELOPE_UNSUPPORTED', 'Custom JSON and report-specific formats require independent schemas.');
-  check(document.status === '1' && shape.status === 'string', 'TALLY_SOURCE_FAILURE', 'An explicit successful native JSON export envelope is required.');
+  check(document.status === '1' && shape.status === 'string', 'TALLY_SOURCE_FAILURE', 'Tally did not send back a finished export.');
   if (document.cmp_info !== undefined) object(document.cmp_info);
   if (document.parms !== undefined) array(document.parms);
   if (document.data !== undefined) object(document.data);

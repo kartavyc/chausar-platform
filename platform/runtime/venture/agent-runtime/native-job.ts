@@ -228,7 +228,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
       if(!(work?.ventureId===scope.ventureId&&work.runRef.kind==='delivery'&&work.runRef.runId===run.id))return null;
       if(work.operation==='seo.claim'){
         const live=sourceNetworkGuard(),file=live.files.find(row=>row.id===work.inputs.columns.manifestId);
-        check(file,'JOB_FILE_FORBIDDEN','The claim manifest is no longer attached to this order.');
+        check(file,'JOB_FILE_FORBIDDEN','The list of claimed files is no longer attached to this order.');
         const checked=await checkedSourceClaim(file,work.inputs.columns.claimId,runId,live.receipt.currency,sourceNet).finally(()=>{sourceNetworkGuard();});
         sourceNetworkGuard();check(sourceClaimUnchanged(work,checked),'JOB_SOURCE_CHANGED','The claim source pages changed. Check the sources in a new job.');
       }

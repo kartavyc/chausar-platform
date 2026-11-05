@@ -132,7 +132,7 @@ export class ReleaseUpdater {
   verify(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
     const value=this.#authenticate(manifest,signature);
     check(compareVersions(value.version,this.#version)>0,'RELEASE_DOWNGRADE_REFUSED','The release must be newer than the running version.');
-    check(compareVersions(this.#version,value.minEngineVersion)>=0,'INCOMPATIBLE_ENGINE','Install an intermediate compatible engine before this release.');
+    check(compareVersions(this.#version,value.minEngineVersion)>=0,'INCOMPATIBLE_ENGINE','Install the update before this one first.');
     return value;
   }
   #authenticate(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
@@ -167,7 +167,7 @@ export class ReleaseUpdater {
     let restored:RollbackRestoreResult;
     try {
       restored=await validator(Object.freeze({...bindings,fromManifest:current,toManifest:previous,artifactBytes:Uint8Array.from(artifact.bytes),backupBytes:Uint8Array.from(snapshot.bytes),expectedVault:expected}));
-    } catch {check(false,'ROLLBACK_RESTORE_UNVERIFIED','The trusted restore validation failed. The authoritative vault was not changed by the updater.');}
+    } catch {check(false,'ROLLBACK_RESTORE_UNVERIFIED','Chausar could not check the restore, so your business was not changed.');}
     check(hasExactKeys(restored!,['restored','fromManifestSha256','toManifestSha256','artifactSha256','backupSha256','vaultId','workspaceId','revision','dataSchemaVersion'])&&restored!.restored===true&&Object.entries(bindings).every(([key,value])=>restored![key as keyof RollbackRestoreResult]===value)&&restored!.vaultId===expected.vaultId&&restored!.workspaceId===expected.workspaceId&&restored!.revision===expected.revision,'ROLLBACK_RESTORE_UNVERIFIED','The restore result is not bound to this package, backup, workspace and revision.');
     check(Number.isSafeInteger(restored!.dataSchemaVersion)&&restored!.dataSchemaVersion===previous.dataSchemaVersion,'ROLLBACK_SCHEMA_INCOMPATIBLE','The restored data schema is not supported by the previous signed package.');
     // A plan is a snapshot of checked bytes, not authority to execute files that may later change.

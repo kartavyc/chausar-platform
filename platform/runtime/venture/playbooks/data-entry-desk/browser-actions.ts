@@ -45,7 +45,7 @@ export async function formsBrowserAction(deps:VentureDeps,ctx:Context,id:unknown
  }
  const session=currentSession(deps,ctx,row);check(!session.busy,'FORM_ACTION_HELD','Wait for the current browser action to finish.');session.busy=true;
  try{
-  if(action==='continue'){const b=exactPayload(payload,['url']);check(row.state==='sign-in-response','FORM_ACTION_HELD','Only a separately approved credential response can continue in this browser.');const site=approvedFormSite(b.url,{origin:row.site!.origin,allowed:true,revocableStaffLogin:true});await port.navigate(session.runId,{url:site.url});sameClaim(deps,ctx,row);guardSession(deps,ctx,row,session);session.capture=null;session.saved=null;return replaceEntry(deps,ctx,row,{state:'open',mapping:[],submitIntent:'record',submitReview:null,responseEvidence:null,comparison:null});}
+  if(action==='continue'){const b=exactPayload(payload,['url']);check(row.state==='sign-in-response','FORM_ACTION_HELD','Only a separately approved sign-in answer can continue in this browser.');const site=approvedFormSite(b.url,{origin:row.site!.origin,allowed:true,revocableStaffLogin:true});await port.navigate(session.runId,{url:site.url});sameClaim(deps,ctx,row);guardSession(deps,ctx,row,session);session.capture=null;session.saved=null;return replaceEntry(deps,ctx,row,{state:'open',mapping:[],submitIntent:'record',submitReview:null,responseEvidence:null,comparison:null});}
   if(action==='capture'){
    exactPayload(payload,[]);check(['open','captured','filled','review'].includes(row.state),'FORM_ACTION_HELD','This entry cannot capture another form after submission.');
    const capture=formCapture(await port.capture(session.runId),row.site!.origin);sameClaim(deps,ctx,row);guardSession(deps,ctx,row,session);
@@ -64,7 +64,7 @@ export async function formsBrowserAction(deps:VentureDeps,ctx:Context,id:unknown
    const b=exactPayload(payload,['pageHash','targetId','fingerprint']);check(row.state==='captured'&&(action==='review-sign-in'?!row.mapping?.length:!!row.mapping?.length)&&session.capture?.pageHash===b.pageHash,'FORM_ACTION_HELD','Approve and fill a source mapping, then capture the filled form.');
    const target=session.capture!.targets.find(value=>value.id===b.targetId&&value.fingerprint===b.fingerprint);check(target?.kind==='submit'&&!target.disabled,'FORM_ACTION_HELD','Choose an actual native submit button. Other controls stay manual.');
    const review=submitReview(await port.prepare(session.runId,b),row.site!.origin,deps.clock().getTime());sameClaim(deps,ctx,row);guardSession(deps,ctx,row,session);
-   if(action==='review-sign-in')check(review.credential,'FORM_ACTION_HELD','This is not a visible credential form. Use the source mapping approval for client records.');else check(row.mapping!.every(value=>review.review.some(field=>field.name===value.name&&field.value===value.value)),'FORM_MAPPING_INVALID','The prepared form no longer contains the exact source values.');
+   if(action==='review-sign-in')check(review.credential,'FORM_ACTION_HELD','This is not a visible sign-in form. Use the source mapping approval for client records.');else check(row.mapping!.every(value=>review.review.some(field=>field.name===value.name&&field.value===value.value)),'FORM_MAPPING_INVALID','The prepared form no longer contains the exact source values.');
    return keepFormReview(deps,ctx,row,review,session.capture!,action==='review-sign-in'?'sign-in':'record');
   }
   if(action==='submit'){

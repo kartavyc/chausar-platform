@@ -83,7 +83,7 @@ export class BusinessEngine {
     const directory = await tenantDirectory(options.root, key);
     const folder = join(directory, key[1]);
     const existed = await stat(folder).then(() => true, () => false);
-    check(!existed, 'BUSINESS_EXISTS', 'This business already has a vault.');
+    check(!existed, 'BUSINESS_EXISTS', 'This business already exists.');
     const engine = BusinessEngine.#engineFor(options, key, directory);
     try {
       const result = await engine.request('workspace.create', { name: input.name, passphrase: input.passphrase, pack: 'services', folder: key[1] });

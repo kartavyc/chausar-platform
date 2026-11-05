@@ -14,7 +14,7 @@ export function watchObject(raw:unknown,keys:readonly string[]):Record<string,un
 export function monitoredTerms(rawUrl:unknown,raw:unknown,at:string):{url:string;terms:WatchTerms}{
  check(Number.isFinite(Date.parse(at)),'WATCH_INPUT_INVALID','Use a real observation time.');
  const p=watchObject(raw,['url','allowed','checkedOn']);check(p.allowed===true&&day(p.checkedOn,at.slice(0,10)),'WATCH_TERMS_REQUIRED','Read the current terms and confirm that this exact source allows automated reading.');
- const urlOf=(v:unknown)=>{check(typeof v==='string'&&v.length<=2000,'WATCH_INPUT_INVALID','Use a public page address.');let u:URL;try{u=new URL(v);}catch{check(false,'WATCH_INPUT_INVALID','Use a complete public page address.');}check(['http:','https:'].includes(u!.protocol)&&!u!.username&&!u!.password&&!u!.hash,'WATCH_INPUT_INVALID','Use a public address without credentials or a fragment.');return u!;};
+ const urlOf=(v:unknown)=>{check(typeof v==='string'&&v.length<=2000,'WATCH_INPUT_INVALID','Use a public page address.');let u:URL;try{u=new URL(v);}catch{check(false,'WATCH_INPUT_INVALID','Use a complete public page address.');}check(['http:','https:'].includes(u!.protocol)&&!u!.username&&!u!.password&&!u!.hash,'WATCH_INPUT_INVALID','Use a public web address with no user name, password or # part.');return u!;};
  const url=urlOf(rawUrl),termsUrl=urlOf(p.url);check(!fetchPolicySite(url),'FETCH_POLICY_REFUSED',"This site's terms don't allow automated reading. Paste the text instead.");
  return {url:url.href,terms:{url:termsUrl.href,allowed:true,checkedOn:p.checkedOn as string}};
 }

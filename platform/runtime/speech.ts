@@ -121,7 +121,7 @@ export class SpeechService {
     check(Number.isSafeInteger(input.durationMs) && input.durationMs! > 0 && input.durationMs! <= 300000, 'INVALID_AUDIO', 'Give the recording duration, up to five minutes.');
     const mimeType = input.mimeType;
     check(isAudioMime(mimeType), 'INVALID_AUDIO', 'Use wav, mp3, mp4, webm, or ogg audio.');
-    if (provider.kind === 'local-command') check(['audio/wav', 'audio/mpeg', 'audio/ogg'].includes(input.mimeType!), 'INVALID_AUDIO', 'The local whisper.cpp adapter supports wav, mp3, and ogg recordings.');
+    if (provider.kind === 'local-command') check(['audio/wav', 'audio/mpeg', 'audio/ogg'].includes(input.mimeType!), 'INVALID_AUDIO', 'Transcribing on this computer works with wav, mp3 and ogg recordings.');
     const audio = parseAudio(input.audioBase64);
     if (provider.kind === 'api-upload') check(this.store.read().policy.send === 'samples', 'SEND_DISABLED', 'Audio upload requires the samples privacy setting and an exact upload approval.');
     const boundary = `chausar-${newId('audio')}`;

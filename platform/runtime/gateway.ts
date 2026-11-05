@@ -938,7 +938,7 @@ export class ModelGateway {
       cliArguments(route, join(tmpdir(), 'plan-schema.json'), codexCapabilities);
     }
     const key = cli || route.kind === 'ollama' ? undefined : this.#credentials.get(route.id) || (route.credentialEnv ? process.env[route.credentialEnv] : undefined) || await this.options.credentialBroker?.(route.id);
-    check(cli || route.kind === 'ollama' || Boolean(key), route.kind === 'managed' ? 'MANAGED_UNAVAILABLE' : 'CREDENTIAL_REQUIRED', 'This model route needs its configured API credential.');
+    check(cli || route.kind === 'ollama' || Boolean(key), route.kind === 'managed' ? 'MANAGED_UNAVAILABLE' : 'CREDENTIAL_REQUIRED', 'This AI model needs its key. Add it in Connections.');
     // Credentials may be retrieved asynchronously; recheck access immediately before reserving and dispatch.
     route = this.#assertCurrent(context, preview);
     await this.store.update(state => {

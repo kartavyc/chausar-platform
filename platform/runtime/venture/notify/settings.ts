@@ -156,7 +156,7 @@ function quietHoursOf(value: unknown): NotifySettings['quietHours'] {
 function digestOf(value: unknown): NotifySettings['digest'] {
   if (value === null) return null;
   const body = exactPayload(value, ['hour'], ['hour']);
-  check(Number.isInteger(body.hour) && (body.hour as number) >= 0 && (body.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the digest hour from 0 to 23.');
+  check(Number.isInteger(body.hour) && (body.hour as number) >= 0 && (body.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the daily summary hour from 0 to 23.');
   return { hour: body.hour as number };
 }
 

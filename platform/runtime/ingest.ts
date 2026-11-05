@@ -228,7 +228,7 @@ export class ImportService {
     const recipe = input.recipe ?? defaultRecipe(input.format); validateRecipe(recipe, this.store, ctx);
     const dictionary = new OntologyService(this.store).current(ctx)!;
     if (input.installation) check(input.installation.company === recipe.scope.company && input.installation.edition === recipe.edition && (!recipe.scope.gstin || input.installation.gstin === recipe.scope.gstin), 'INSTALLATION_MISMATCH', 'This installation does not match the recipe company, edition or GST registration.');
-    check(input.format !== 'xlsx', 'EXCEL_ADAPTER_REQUIRED', 'Excel needs the optional isolated XLSX adapter. Export CSV or use previewWorkbook with an installed parser.');
+    check(input.format !== 'xlsx', 'EXCEL_ADAPTER_REQUIRED', 'Chausar can\'t read Excel files yet. Save the sheet as CSV and import that.');
     let rows: Record<string, unknown>[];
     if (input.format === 'csv') rows = parseCsv(input.content);
     else if (input.format === 'bank-csv') rows = parseBankCsv(input.content, recipe);

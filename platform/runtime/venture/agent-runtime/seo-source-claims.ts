@@ -18,9 +18,9 @@ export function sourceClaimOffer(state:State,run:DeliveryRunRecord):boolean {
 export async function checkedSourceClaim(file:UploadRecord,claimId:string,runId:string,currency:string,net:PoliteNet):Promise<Omit<WorkReceiptRecord,'id'|'kind'|'ventureId'|'memberId'|'epoch'|'at'>> {
  check(file.name==='seo-evidence.csv'&&file.bytes<=1000000&&digest(file.contentBase64)===file.digest,'SEO_INPUT_INVALID','Choose this order’s current bounded seo-evidence.csv.');
  const data=readSeoManifest(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.from(file.contentBase64,'base64')));
- check(Array.isArray(data.claims)&&data.claims.length<=50&&Array.isArray(data.competitors),'SEO_INPUT_INVALID','Record the claim sources in the evidence manifest.');
+ check(Array.isArray(data.claims)&&data.claims.length<=50&&Array.isArray(data.competitors),'SEO_INPUT_INVALID','Record the claim sources in the evidence list.');
  const matches=data.claims.filter((claim:ClaimInput)=>claim?.id===claimId);
- check(matches.length===1,'SEO_INPUT_INVALID','Choose one unique claim from this evidence manifest.');
+ check(matches.length===1,'SEO_INPUT_INVALID','Choose one unique claim from this evidence list.');
  const claim=matches[0] as ClaimInput,number=claim.number;
  const percent=typeof number==='string'?/^(0|[1-9]\d{0,29})(?:\.(\d{1,2}))?%$/.exec(number):null;
  check(percent,'SEO_INPUT_INVALID','This source figure requires an exact percentage with at most two decimal places. Other numeric formats are not supported here.');

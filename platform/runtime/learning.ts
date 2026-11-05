@@ -49,7 +49,7 @@ export class LearningService {
     return this.store.update(state => {
       check(!context.sourceTainted && context.channel !== 'phone', 'APP_CONSENT_REQUIRED', 'Explicit sharing consent must be given inside the app.');
       const preview = state.learning.find(e => e.id === previewId); check(preview, 'NOT_FOUND', 'Sharing preview not found.'); this.validPreview(state, context, preview);
-      check(state.policy.sharing, 'SHARING_DISABLED', 'Turn on structure-only sharing before giving consent.'); check(expectedDigest === preview.digest, 'PREVIEW_CHANGED', 'Consent must match the exact preview digest.');
+      check(state.policy.sharing, 'SHARING_DISABLED', 'Turn on structure-only sharing before giving consent.'); check(expectedDigest === preview.digest, 'PREVIEW_CHANGED', 'This changed since you looked. Look at the preview again before agreeing.');
       const receipt = { id: newId('consent'), type: 'consent', at: now(), memberId: context.memberId, role: context.role, epoch: context.epoch, previewId, digest: expectedDigest, sourceIds: preview.sourceIds, immutable: true };
       const signed = { ...receipt, integrity: digest(receipt) }; state.learning.push(signed); audit(state, 'learning.consented', { consentId: receipt.id, previewId, digest: expectedDigest }); return structuredClone(signed);
     });
