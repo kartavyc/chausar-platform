@@ -2,6 +2,7 @@ import {wholeCount} from '../../playbooks/kit/count.ts';
 // Finance tools after finance-skills, cfo and bankmcp (MIT ideas). Original source-table adapters, code arithmetic only.
 import type { ToolName, WorkFigure } from '../../contracts.ts';
 import type { Spec, ToolEnv, Field } from './tools.ts';
+import { runDay } from './run-day.ts';
 import { createRequire } from 'node:module';
 import { ChausarError,check } from '../../../contracts.ts';
 import { digest, findRecord, listRecords, isoDate } from '../../records.ts';
@@ -102,7 +103,7 @@ export const BOOKKEEPING_CFO_TOOLS: Readonly<Record<BookkeepingCfoToolName, Spec
         if (env.runRef.kind === 'delivery' && (!run || run.ventureId !== env.ventureId || !order || order.ventureId !== env.ventureId)) throw new ChausarError('CLIENT_LEDGER_REQUIRED', 'The ledger must belong to this client order.');
         const clientId = order?.clientId ?? 'rehearsal-client';
         const rows: ClientLedgerRow[] = ledgerTable.rows.map(row => ({ id: row.id, clientId, kind: cellOf(row, 'kind') as ClientLedgerRow['kind'], on: cellOf(row, 'on'), amountMinor: minor(env, ledgerTable, row), dueOn: cellOf(row, 'dueOn') || null, account: cellOf(row, 'account') || 'statement' }));
-        sourcePack = clientLedgerPack({ ...template!, country: order ? invoiceCountry(state, template!, order) : template!.country }, { clientId, sourceId: ledgerTable.id, rows }, isoDate(input.asOf ?? env.now().slice(0, 10), 'Client ledger date'));
+        sourcePack = clientLedgerPack({ ...template!, country: order ? invoiceCountry(state, template!, order) : template!.country }, { clientId, sourceId: ledgerTable.id, rows }, isoDate(input.asOf ?? runDay(env), 'Client ledger date'));
         if (sourcePack.totals.cashMinor === null) throw new ChausarError('CLIENT_BALANCE_REQUIRED', 'The client source has no closing bank balance; do not treat it as zero.');
       }
       const ratios = cfoRatios({ receivablesMinor: sourcePack?.totals.receivablesMinor ?? need(values, 'receivables'), payablesMinor: need(values, 'payables'), revenueMinor: need(values, 'revenue'), costsMinor: need(values, 'costs'), inventoryMinor: need(values, 'inventory'), cashMinor: sourcePack?.totals.cashMinor ?? need(values, 'cash'), netCashMinor: sourcePack ? String(BigInt(sourcePack.totals.revenueMinor) - BigInt(sourcePack.totals.costsMinor)) : need(values, 'net-cash'), days: wholeCount(input.days) });

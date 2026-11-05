@@ -5,7 +5,7 @@ import type { ToolName } from '../../contracts.ts';
 import { findRecord, listRecords } from '../../records.ts';
 import { requireCurrentWordSource } from '../../playbooks/youtube/bound-source.ts';
 import { requireRights } from '../rights.ts';
-import { localDayAt } from '../../local-day.ts';
+import { runDay } from './run-day.ts';
 import { applyEditOps, type EditOp } from '../../playbooks/youtube/edit-ops.ts';
 import { cleanTranscript, wordsAfterTrim } from '../../playbooks/youtube/clean.ts';
 import { youtubeCaptions } from '../../playbooks/youtube/captions.ts';
@@ -22,7 +22,7 @@ function session(env: ToolEnv, id: string) {
   const state = env.deps.store.read(), run = findRecord(state, 'venture-delivery-run', env.runRef.runId);
   const edit = findRecord(state, 'venture-youtube-edit', id);
   check(edit && run && edit.ventureId === env.ventureId && edit.orderId === run.orderId, 'EDIT_NOT_FOUND', 'Choose the edit document on this order.');
-  requireRights({ id: 'assemble', clipping: true }, env.intake ?? null, localDayAt(env.now(), { code: 'IN' }));
+  requireRights({ id: 'assemble', clipping: true }, env.intake ?? null, runDay(env));
   requireCurrentWordSource(state, edit);
   return edit;
 }

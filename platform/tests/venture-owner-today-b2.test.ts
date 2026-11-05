@@ -71,7 +71,9 @@ test('none of the listed spots reads the UTC day or a fixed India offset any mor
 // B2 fix round 1 (spec 5, quality 7): one owner-day rule across venture/ (build/ included). A day or month the owner
 // reads comes from the injected clock in the business's zone (local-day.ts localDayAt, ownerToday, todayLocal). These
 // shapes read the UTC day of an instant or the computer's own clock instead; each place left is listed with its reason.
-const UTC_DAY = /\bnow\.slice\(0, ?(?:7|10)\)|(?:clock\(\)|new Date\(\)|Date\.now\(\)\))\.toISOString\(\)\.slice\(0, ?(?:7|10)\)|(?:\bat|\.at|At|Iso|iso)\.slice\(0, ?(?:7|10)\)|\bDate\.now\(\)|localDayAt\(new Date\(\)/g;
+// B2 fix round 2: `now` in every shape, a value (tx.now, current.now) or a call (env.now(), deps.now()), sliced or
+// through toISOString.
+const UTC_DAY = /\bnow(?:\(\))?\.slice\(0, ?(?:7|10)\)|(?:clock\(\)|\bnow\(\)|new Date\(\)|Date\.now\(\)\))\.toISOString\(\)\.slice\(0, ?(?:7|10)\)|(?:\bat|\.at|At|Iso|iso)\.slice\(0, ?(?:7|10)\)|\bDate\.now\(\)|localDayAt\(new Date\(\)/g;
 const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: string]>> = {
   // The spend calendar: every AI spend cap, meter and spend line counts by the UTC month of each spend, one rule for
   // the engine and the fake. Moving it to the owner's month is a separate decision (caps would reset at the owner's
@@ -125,6 +127,7 @@ const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: stri
   'playbooks/online-seller/model.ts': [1, 'LEFT: a pure seller calculator called with no day (the desk and the harness now pass the owner day)'],
   'playbooks/trading-journal/desk.ts': [1, 'LEFT: the trading journal as-of day'],
   'delivery/harness/tools-translation-studio.ts': [1, 'LEFT: the translation rights day in the harness'],
+  'delivery/harness/tools-recruiting-desk.ts': [1, 'LEFT: the recruiting report day in the harness (moves with the recruiting ledger)'],
 };
 
 test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {
