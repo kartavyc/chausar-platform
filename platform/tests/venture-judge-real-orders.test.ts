@@ -657,3 +657,27 @@ test('the model port re-checks the judge setting and its consent when it claims 
   const third = (await port.preview(owner, task))!;
   await assert.rejects(port.runPreview(owner, third.callId, third.digest, raw => raw, { consent: 'standing-judge' }), code('POLICY_DENIED'), 'turned off: the port refuses');
 });
+
+// D3 fix (review 1, MEDIUM 1): a refused judge answer whose cost is held (a reported cache read with no saved cache
+// rate) is billed to the run at the call's reservation, the figure its spend row keeps, never as nothing.
+test('D3 fix: a refused standing judge answer with a held cost counts its reservation against the run', async () => {
+  const { DEFAULT_LIMITS, newHarnessState } = await import('../runtime/venture/delivery/harness/loop.ts');
+  const env = await manual();
+  const ready = await readyDraft(env);
+  // A run with a harness and no native job: the judge goes on its own under the standing consent (sendJudge, standing).
+  await ventureAction(env.deps, owner, 'approve', 'seed.harness', tx => {
+    const { agentJob: _job, ...current } = tx.find('venture-delivery-run', ready.id)!;
+    void _job;
+    tx.replace({ ...current, harness: newHarnessState([], DEFAULT_LIMITS, []), judgePending: { boundMicros: '5000', bound: 'USD 0.0050', until: '2026-10-21T11:00:00.000Z' } } as any);
+  });
+  await env.call('venture.judge.auto.set', { auto: true });
+  env.models.heldCost = true;
+  env.models.respond['judge-rules'] = () => ({ answer: 'looks fine' });
+  const judged = await autoJudge(env.deps, desktop, { id: ready.id });
+  assert.deepEqual(env.models.consents.slice(-1), ['standing-judge'], 'sent on its own');
+  assert.equal(judgeOf(judged).notChecked, true, 'the answer was refused');
+  const call = (env.store.read().conversations as any[]).find(record => record?.id === runOf(env, ready.id).judge!.callId);
+  assert.ok(call.usage, 'the provider reported usage');
+  assert.equal(call.costMicros, null, 'the call record keeps the cost held');
+  assert.equal(runOf(env, ready.id).harness!.used.costMicros, call.estimatedMaxCostMicros, 'the run counts the reservation, not nothing');
+});

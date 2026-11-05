@@ -42,7 +42,7 @@ export { JUDGE_EDIT_LINE };
 import { acceptedBlueprintOrNull, errorCode, previewShownWhole, quote, readAs, ventureReceipts } from './shared.ts';
 import { journalled } from '../journal/journal.ts';
 import { backgroundGateNow, backgroundWaits } from './report-back.ts';
-import { costDisplay, estimateMaxCostMicros } from '../models/cost.ts';
+import { costDisplay, estimateMaxCostMicros, recordedCallMicros } from '../models/cost.ts';
 import { presetSpec } from '../models/presets.ts';
 import { budgetPressure, listRateOfTable, modelTableOf, monthSpendNow, resolveRate, spendRatesOf } from '../money/spend.ts';
 import { flagshipJudgeRules } from '../playbooks/draft-checks.ts';
@@ -492,10 +492,12 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
   }
 }
 
-/** What a sent call cost, from its record (models/port.ts keeps it, a refused answer included); null when unknown. */
+/**
+ * What a sent call cost, from its record (models/port.ts keeps it, a refused answer included). D3 fix: a held cost
+ * counts at the call's reservation, as its spend row does, never as nothing; null when the call never got a price.
+ */
 function billedMicros(deps: VentureDeps, callId: string): string | null {
-  const call: { costMicros?: unknown } | undefined = deps.store.read().conversations.find((record: { id?: unknown } | null) => record?.id === callId);
-  return typeof call?.costMicros === 'string' && /^\d+$/.test(call.costMicros) ? call.costMicros : null;
+  return recordedCallMicros(deps.store.read().conversations.find((record: { id?: unknown } | null) => record?.id === callId));
 }
 
 function withCost(harness: NonNullable<DeliveryRunRecord['harness']>, micros: string): NonNullable<DeliveryRunRecord['harness']> {

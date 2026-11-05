@@ -37,6 +37,18 @@ export function callCostOrHeld(usage: Usage, table: ModelPriceTable | null): Mic
 }
 
 /**
+ * D3 fix: what a finished call record counts as. Its cost when priced; its reservation (estimatedMaxCostMicros) when
+ * the cost is held, that is null beside reported usage, the figure its spend row keeps; null only when the call never
+ * got a price (no usage: refused before it went, or no answer came). A held call is never counted as free.
+ */
+export function recordedCallMicros(call: { costMicros?: unknown; usage?: unknown; estimatedMaxCostMicros?: unknown } | null | undefined): MicroString | null {
+  const micros = /^\d{1,18}$/;
+  if (typeof call?.costMicros === 'string') return micros.test(call.costMicros) ? call.costMicros : null;
+  if (!call || call.costMicros !== null || !call.usage || typeof call.usage !== 'object') return null;
+  return typeof call.estimatedMaxCostMicros === 'string' && micros.test(call.estimatedMaxCostMicros) ? call.estimatedMaxCostMicros : null;
+}
+
+/**
  * The most a call can cost before it is sent: input tokens counted as ceil(payloadChars / 2), which is well above
  * what any tokenizer produces for text, plus the full output allowance. '0' without a table.
  */
