@@ -26,6 +26,7 @@
   "platform/tests/private-trials.test.ts": 14.7,
   "platform/tests/receipt-d11.test.ts": 1,
   "platform/tests/repo-diet-d10.test.ts": 1.5,
+  "platform/tests/runtime-map-d11.test.ts": 1,
   "platform/tests/venture-ca-receipts.test.ts": 11.3,
   "platform/tests/venture-ca-tools.test.ts": 23.3,
   "platform/tests/venture-claude-install-d5.test.ts": 1,
