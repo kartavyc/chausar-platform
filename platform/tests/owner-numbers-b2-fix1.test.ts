@@ -23,3 +23,17 @@ test('a negative figure grounds its signed number: "It fell by -500." is allowed
   assert.deepEqual(numberGuard('It fell by 500.', { allowedNumbers }), { accepted: true, checkedNumbers: 1 });
   assert.throws(() => numberGuard('It fell by -600.', { allowedNumbers }), { code: 'UNGROUNDED_NUMBER' });
 });
+
+// Quality 3: a deliverable goes to the client in the exact form. A display only stands when it has the exact shape
+// ("INR 1,180.00"); an owner form written with a code ("SGD 5,000") is rebuilt from the minor units.
+test('a deliverable quotes the exact form: "SGD 5,000" is rebuilt as "SGD 5,000.00", an exact display stands', async () => {
+  const { renderDeliverable } = await import('../runtime/venture/delivery/deliverable.ts');
+  const receipt = (display: string, minor: string, currency: string) => ({ id: `r-${currency}`, figures: [{ key: 'total', label: 'Total', display, minor, currency, unit: 'money' }] });
+  const draft = (id: string) => ({ title: 'Plan', sections: [{ heading: 'Price', parts: [{ kind: 'figure', receiptId: id, figureKey: 'total' }] }], questionsForClient: [] });
+  const render = (r: ReturnType<typeof receipt>) => renderDeliverable(draft(r.id) as any, [r as any], { dateOrder: 'DMY' } as any);
+  assert.match(render(receipt('SGD 5,000', '500000', 'SGD')), /Total: SGD 5,000\.00/);
+  assert.match(render(receipt('₹1,180', '118000', 'INR')), /Total: INR 1,180\.00/);
+  // A receipt kept with no minor units (an exact display written at rest) is quoted as written.
+  assert.match(render(receipt('INR 1,180.00', '0', 'INR')), /Total: INR 1,180\.00/);
+  assert.match(render(receipt('JPY 5,000', '5000', 'JPY')), /Total: JPY 5,000/);
+});

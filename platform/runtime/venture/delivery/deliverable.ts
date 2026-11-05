@@ -2,7 +2,7 @@
 // The model writes words and picks references; the engine fills every price and date from receipts and its clock.
 // A draft reply is never called a deliverable on screen: an agent in this build only has the client's message.
 import { check, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
+import { currencyMinorDigits, formatMinor } from '../../currency.ts';
 import { copiedTokens, formatVentureDate, modelNumbers, modelWords } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
@@ -293,8 +293,18 @@ type ExactFigure = { key: string; label: string; display: string; minor?: string
  */
 function exactDisplay(figure: ExactFigure): string {
   const money = figure.unit === undefined || figure.unit === 'money';
-  if (/^-?[A-Z]{3} -?\d/.test(figure.display)) return figure.display;
+  if (isExactForm(figure.display)) return figure.display;
   return money && figure.currency && typeof figure.minor === 'string' && /^-?\d+$/.test(figure.minor) ? formatMinor(figure.minor, figure.currency) : figure.display;
+}
+
+/**
+ * Whether a display has the exact form's whole shape: a code, a space, digits grouped in threes and every minor digit
+ * of that currency ("INR 1,180.00", "JPY 5,000"). The owner form of a code currency ("SGD 5,000") does not.
+ */
+function isExactForm(display: string): boolean {
+  const found = /^([A-Z]{3}) -?\d{1,3}(?:,\d{3})*(?:\.(\d+))?$/.exec(display);
+  if (!found) return false;
+  try { return (found[2] ?? '').length === currencyMinorDigits(found[1]!); } catch { return false; }
 }
 
 /** A text part that is one social post ("LinkedIn: ...", playbooks/social/post-lines.ts). */
