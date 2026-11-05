@@ -504,10 +504,17 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (command.name === 'Ink build') await regular(join(root, 'app/ui/dist/index.html'));
   }
   // D5 task 4: no receipt for a build that lacks its notices (or carries report keys nobody staged).
+  let contents;
   if (Object.hasOwn(UNPACKED_FOLDER, plan.platform)) {
     const unpackedDir = join(root, plan.output, UNPACKED_FOLDER[plan.platform]);
     const problems = await packagedResourceProblems(unpackedDir, { mode: plan.mode, reports: feedback, fonts: await packagedFontLicences(join(root, 'app/desktop/notices/fonts')) });
     if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
+    // D5 task 5: what the build carries goes on the receipt; any problem (a fourth language, a Claude Code program file,
+    // no Ink build, Ink source, another Codex) refuses it.
+    const { readPackageContents } = await import('./package-contents.mjs');
+    const read = await readPackageContents(unpackedDir, { mode: plan.mode });
+    if (read.problems.length) throw new Error(`the packaged build carries the wrong contents, so no receipt was written: ${read.problems.join('; ')}`);
+    contents = { sizes: read.sizes, totalBytes: read.totalBytes, fileCount: read.fileCount, locales: read.locales, anthropic: read.anthropic, codexVersion: read.codexVersion, archiveFiles: read.archive.files, problems: read.problems };
   }
   const artifacts = [];
   if (plan.mode !== 'final' && !plan.unpacked) {
@@ -525,7 +532,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     bundled = bundledReceipt(codex, plan);
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}) };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}), ...(contents ? { contents } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }
