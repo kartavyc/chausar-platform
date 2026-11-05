@@ -115,8 +115,15 @@ test('A3 L3: afterExit killed searches nothing after a tool that ended on its ow
   const left = await helperOf(ended);
   t.after(() => stop(left));
   await new Promise(done => ended.once('exit', done));
-  await wait(4_000);
-  assert.equal(alive(left), true, 'no search after a tool that ended on its own');
+  // A3 review M3: only Windows skips its PowerShell search after an ordinary exit. Elsewhere the tool's group is
+  // still ended after every exit (it costs nothing), so the helper it left in that group is gone.
+  if (process.platform === 'win32') {
+    await wait(4_000);
+    assert.equal(alive(left), true, 'no search after a tool that ended on its own');
+  } else {
+    for (let n = 0; n < 80 && alive(left); n++) await wait(100);
+    assert.equal(alive(left), false, 'the group is still ended after an ordinary exit');
+  }
   const killed = spawnTree(process.execPath, ['-e', helperScript(false)], { stdio: ['ignore', 'pipe', 'ignore'] }, { afterExit: 'killed' });
   const helper = await helperOf(killed);
   killed.kill();
@@ -136,8 +143,14 @@ test('A3 L3: the exec route (defaultProcess) searches for helpers only after a t
   assert.equal(done.exitCode, 0);
   const left = Number.parseInt(await readFile(pidFile('ended.pid'), 'utf8'), 10);
   t.after(() => stop(left));
-  await wait(4_000);
-  assert.equal(alive(left), true, 'no PowerShell search after an ordinary call');
+  // A3 review M3: no PowerShell search after an ordinary call on Windows; elsewhere the group is ended as ever.
+  if (process.platform === 'win32') {
+    await wait(4_000);
+    assert.equal(alive(left), true, 'no PowerShell search after an ordinary call');
+  } else {
+    for (let n = 0; n < 80 && alive(left); n++) await wait(100);
+    assert.equal(alive(left), false, 'the group is still ended after an ordinary call');
+  }
   // A call that timed out.
   await assert.rejects(defaultProcess(request(pidFile('timed.pid'), false, 3_000) as never), (error: any) => error.code === 'MODEL_TIMEOUT');
   const helper = Number.parseInt(await readFile(pidFile('timed.pid'), 'utf8'), 10);
