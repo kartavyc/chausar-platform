@@ -1,8 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
-import { useDay, useMoment } from '../../parts/when';
+import { useDay, useLocalToday, useMoment } from '../../parts/when';
 import { useEngine } from '../../engine/context';
-import { useClock } from '../../shell/clock';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { StatusMark, type StatusTone } from '../../parts/Row';
@@ -34,9 +33,8 @@ export function ChecksTile() {
   const day = useDay();
   const moment = useMoment('short');
   const client = useEngine();
-  // Today on this computer's calendar (not the UTC day), as 'YYYY-MM-DD', to compare with the day access ends.
-  const now = useClock()();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Today where the business is (B2 fix round 1), as 'YYYY-MM-DD', to compare with the day access ends.
+  const today = useLocalToday()();
   const headingId = useId();
   const listId = useId();
   const [view, setView] = useState<ConnectorChecksView | null>(null);

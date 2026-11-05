@@ -56,9 +56,9 @@ function useDay(): (at: string) => string {
   }, [zone, now]);
 }
 
-/** Today on this computer, as the engine's date text (YYYY-MM-DD). */
-function todayOf(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+/** Today where the business is, as the engine's date text (YYYY-MM-DD) (B2 fix round 1). */
+function todayOf(now: Date, zone: string): string {
+  return dayKeyIn(now, zone);
 }
 
 const ACTION_LABEL: Record<OrderAction, string> = { start: 'work.start', 'run-again': 'run.again', deliver: 'work.deliver' };
@@ -75,6 +75,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
   const t = useT();
   const client = useEngine();
   const now = useClock();
+  const zone = useOwnerZone();
   const day = useDay();
   const titleId = useId();
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'busy'>('idle');
@@ -93,7 +94,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
     setProblem(undefined);
     setNeedsConsent(false);
     try {
-      if (kind === 'deliver') await client.request('venture.order.deliver', { orderId: order.id, deliveredOn: todayOf(now()) });
+      if (kind === 'deliver') await client.request('venture.order.deliver', { orderId: order.id, deliveredOn: todayOf(now(), zone) });
       else await client.request('venture.delivery.run', { orderId: order.id });
       onChanged();
     } catch (error) {
@@ -126,7 +127,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       </p>
       {invoice?.number && (
         <p className={s.orderMeta}>
-          <span className="mono">{invoice.number}</span>
+          <span data-code="" className="mono">{invoice.number}</span>
           {invoice.total && totalReceipt && (
             <>
               <span aria-hidden="true">·</span>

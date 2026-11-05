@@ -40,6 +40,9 @@ describe('rules the UI keeps (spec section 6)', () => {
       if (/timeZone:\s*'UTC'/.test(text)) found.push(`${f}: timeZone 'UTC'`);
       if (/toLocaleString\(/.test(text)) found.push(`${f}: toLocaleString`);
       if (/\.slice\(0,\s?10\)/.test(text)) found.push(`${f}: a raw ISO day`);
+      // B2 fix round 1: a day or hour read off a Date is the computer's zone; useLocalToday, useDayKey and the
+      // when.ts hooks read the business's zone.
+      if (/\.get(?:FullYear|Month|Date|Hours|Day|Minutes)\(/.test(text)) found.push(`${f}: the computer's own day or hour`);
     }
     expect(found).toEqual([]);
   });

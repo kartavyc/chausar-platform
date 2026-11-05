@@ -219,11 +219,12 @@ describe('an older install with a silent login item is asked once on Today (foun
 });
 
 // A5 fix round 3 (finding 1): Not now is no answer. It sends nothing to the computer and saves no answer: the question
-// is put aside for the rest of this computer's day, kept by the desktop, and asks again on a later day with the same
-// rules. Only Save answers.
+// is put aside for the rest of the day (the open business's day, B2 fix round 1), kept by the desktop, and asks again
+// on a later day with the same rules. Only Save answers.
 describe('Not now on Today puts the question aside until tomorrow (A5 fix round 3)', () => {
   afterEach(() => { vi.useRealTimers(); });
-  const at = (day: number, hour: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 10, day, hour, 0, 0)); };
+  // The hour in India, the fake business's zone (UTC+5:30), as one instant, so the test reads the same on any computer.
+  const at = (day: number, hour: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Date.UTC(2026, 10, day, hour, 0, 0) - 330 * 60_000); };
   for (const [name, first, ticked] of [
     ['a silent login item that is on', { registered: true }, true],
     ['no login item', {}, true],

@@ -12,7 +12,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
-import { useClock } from '../../shell/clock';
+import { useClock, useOwnerZone } from '../../shell/clock';
+import { dayKeyIn, timeKeyIn } from '../../../../../platform/runtime/owner-format';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -106,7 +107,7 @@ function ExistingLeadSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <dl className={s.facts}>
             <div className={s.fact}>
               <dt>{t('clients.leads.foundOn')}</dt>
-              <dd className="mono">{lead.sourceUrl}</dd>
+              <dd data-code="" className="mono">{lead.sourceUrl}</dd>
             </div>
             <div className={s.fact}>
               <dt>{t('clients.field.email')}</dt>
@@ -159,10 +160,9 @@ function DraftItem({ lead, draft }: { lead: LeadView; draft: OutreachDraftView }
   );
 }
 
-/** A time as a datetime-local field's value, in this computer's time. Text work only. */
-function localOf(now: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+/** A time as a datetime-local field's value, on the business's clock (B2 fix round 1). Text work only. */
+function localOf(now: Date, zone: string): string {
+  return `${dayKeyIn(now, zone)}T${timeKeyIn(now, zone)}`;
 }
 
 /** The owner sent this draft from his own mailbox: he says when, and the engine records it. Chausar never sends it. */
@@ -170,9 +170,10 @@ function RecordSend({ lead, draft }: { lead: LeadView; draft: OutreachDraftView 
   const t = useT();
   const engine = useEngine();
   const clock = useClock();
+  const zone = useOwnerZone();
   const [open, setOpen] = useState(false);
   // "Now" from the app's one clock, so a test (or the parts page) can fix it.
-  const [when, setWhen] = useState(() => localOf(clock()));
+  const [when, setWhen] = useState(() => localOf(clock(), zone));
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
