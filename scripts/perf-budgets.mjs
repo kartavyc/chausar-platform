@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { outputFile } from '../platform/runtime/run-root.mjs';
+import { receiptSeconds } from './receipt.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const usage = 'Usage: node scripts/perf-budgets.mjs [--budgets <file>] [--tiers <file>] [--timings <folder>] [--output <file.json>]';
@@ -95,7 +96,8 @@ async function slowFiles() {
   const timings = {};
   for (const path of await receiptsBelow(resolve(root, options.timings))) {
     const receipt = JSON.parse(await readFile(path, 'utf8'));
-    if (receipt?.schema === 'chausar.factory-bench.v1' && receipt.fileTimings) Object.assign(timings, receipt.fileTimings);
+    // D11: the common receipt format's files (scripts/receipt.mjs), else an older receipt's fileTimings.
+    if (receipt?.schema === 'chausar.factory-bench.v1') Object.assign(timings, receiptSeconds(receipt));
   }
   if (!Object.keys(timings).length) return { reason: 'the engine receipts hold no fileTimings' };
   const heavy = new Set(JSON.parse(await readFile(resolve(root, options.tiers), 'utf8')).heavy ?? []);

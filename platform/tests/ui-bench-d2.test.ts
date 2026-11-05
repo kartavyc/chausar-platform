@@ -6,12 +6,15 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readTestReceipt } from '../../scripts/receipt.mjs';
 
 const STAND_IN = `import { writeFileSync, appendFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 appendFileSync(new URL('../../args.jsonl', import.meta.url), JSON.stringify(args) + '\\n');
 const out = args.find(arg => arg.startsWith('--outputFile.json=')).slice('--outputFile.json='.length);
-writeFileSync(out, JSON.stringify({ numTotalTestSuites: 2, numTotalTests: 3, numPassedTests: 3, numFailedTests: 0, numPendingTests: 0, numTodoTests: 0 }));
+writeFileSync(out, JSON.stringify({ numTotalTestSuites: 2, numTotalTests: 3, numPassedTests: 3, numFailedTests: 0, numPendingTests: 0, numTodoTests: 0,
+  testResults: [{ name: process.cwd() + '/app/ui/tests/one.test.ts', startTime: 100, endTime: 160, assertionResults: [{ status: 'passed' }, { status: 'passed' }] },
+    { name: process.cwd() + '/app/ui/tests/two.test.tsx', startTime: 100, endTime: 130, assertionResults: [{ status: 'passed' }] }] }));
 `;
 
 async function fixture(t: TestContext) {
@@ -20,6 +23,7 @@ async function fixture(t: TestContext) {
   await mkdir(join(directory, 'scripts'));
   await mkdir(join(directory, 'node_modules', 'vitest'), { recursive: true });
   await writeFile(join(directory, 'scripts', 'ui-bench.mjs'), await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url)));
+  await writeFile(join(directory, 'scripts', 'receipt.mjs'), await readFile(new URL('../../scripts/receipt.mjs', import.meta.url)));
   // D3: the run-root rules the script imports, at the same place beside it.
   await mkdir(join(directory, 'platform', 'runtime'), { recursive: true });
   await writeFile(join(directory, 'platform', 'runtime', 'run-root.mjs'), await readFile(new URL('../runtime/run-root.mjs', import.meta.url)));
@@ -52,6 +56,12 @@ test('--shard=2/3 reaches vitest, names the raw report for the shard and is kept
   assert.equal(receipt.passed, true);
   assert.ok(receipt.command.includes('--shard=2/3'));
   assert.deepEqual(receipt.counts, { suites: 2, tests: 3, pass: 3, fail: 0, skipped: 0, todo: 0 });
+  // D11: the common receipt part (scripts/receipt.mjs), one row per file from vitest's own report, repository paths.
+  const common = readTestReceipt(receipt);
+  assert.equal(common.tool, 'ui-tests');
+  assert.deepEqual(common.shard, { index: 2, total: 3 });
+  assert.deepEqual(common.files, [{ file: 'app/ui/tests/one.test.ts', ms: 60, tests: 2, pass: 2, fail: 0, skip: 0 }, { file: 'app/ui/tests/two.test.tsx', ms: 30, tests: 1, pass: 1, fail: 0, skip: 0 }]);
+  assert.deepEqual(common.totals, { files: 2, ms: 90, tests: 3, pass: 3, fail: 0, skip: 0 });
 });
 
 test('without a shard nothing changes: one raw report, shard null', async t => {

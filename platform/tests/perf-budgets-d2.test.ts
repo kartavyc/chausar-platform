@@ -14,7 +14,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 type Entry = { name: string; status: 'pass' | 'over' | 'no-budget' | 'not-measured'; value: number | null; budget: number | null; limit: number | null; suggestedBudget?: number; reason?: string; files?: string[] };
 
-async function fixture(t: TestContext, budgets: Record<string, unknown>, standIn: Record<string, number>, timings?: Record<string, number>) {
+async function fixture(t: TestContext, budgets: Record<string, unknown>, standIn: Record<string, number>, timings?: Record<string, number>, receiptBody?: unknown) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-perf-budgets-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await writeFile(join(directory, 'budgets.json'), JSON.stringify(budgets));
@@ -22,6 +22,7 @@ async function fixture(t: TestContext, budgets: Record<string, unknown>, standIn
   await writeFile(join(directory, 'tiers.json'), JSON.stringify({ heavy: ['platform/tests/known-heavy.test.ts'], isolated: [] }));
   await mkdir(join(directory, 'receipts', 'shard-1'), { recursive: true });
   if (timings) await writeFile(join(directory, 'receipts', 'shard-1', 'factory-bench.json'), JSON.stringify({ schema: 'chausar.factory-bench.v1', fileTimings: timings }));
+  if (receiptBody) await writeFile(join(directory, 'receipts', 'shard-1', 'factory-bench.json'), JSON.stringify(receiptBody));
   const result = spawnSync(process.execPath, [SCRIPT, '--budgets', join(directory, 'budgets.json'), '--tiers', join(directory, 'tiers.json'),
     '--timings', join(directory, 'receipts'), '--output', join(directory, 'receipt.json')],
   { cwd: ROOT, encoding: 'utf8', windowsHide: true, timeout: 60_000, env: { ...process.env, CHAUSAR_PERF_STAND_IN: join(directory, 'stand-in.json') } });
@@ -96,4 +97,15 @@ test('the real budgets file names every measure, the two waiting ones as not mea
     assert.ok(budgets[name].waitsOn.length > 5, name);
   }
   for (const entry of Object.values(budgets) as { tolerancePercent: number }[]) assert.ok(entry.tolerancePercent === 15 || entry.tolerancePercent === 0);
+});
+
+// D11 task 10: the slow-file check reads the common receipt format's files (scripts/receipt.mjs), not only fileTimings.
+test('D11: the slow-file check reads a bench receipt that carries only the common format', async t => {
+  const { testReceipt } = await import('../../scripts/receipt.mjs');
+  const row = (file: string, ms: number) => ({ file, ms, tests: 1, pass: 1, fail: 0, skip: 0 });
+  const body = { schema: 'chausar.factory-bench.v1', ...testReceipt({ tool: 'engine-tests', startedAt: 'a', finishedAt: 'b',
+    files: [row('platform/tests/known-heavy.test.ts', 90_000), row('platform/tests/new-slow.test.ts', 31_500), row('platform/tests/quick.test.ts', 2_000)] }) };
+  const f = await fixture(t, { 'slow-test-files': { budget: 0, unit: 'files', tolerancePercent: 0, measuredOn: '2026-11-05' } }, {}, undefined, body);
+  assert.equal(f.entry('slow-test-files').status, 'over', f.result.stdout + f.result.stderr);
+  assert.deepEqual(f.entry('slow-test-files').files, ['platform/tests/new-slow.test.ts']);
 });

@@ -20,6 +20,7 @@
   "platform/tests/private-trial-public-flow.test.ts": 22,
   "platform/tests/private-trials-public-acceptance.test.ts": 15.2,
   "platform/tests/private-trials.test.ts": 14.7,
+  "platform/tests/receipt-d11.test.ts": 1,
   "platform/tests/repo-diet-d10.test.ts": 1.5,
   "platform/tests/venture-ca-receipts.test.ts": 11.3,
   "platform/tests/venture-ca-tools.test.ts": 23.3,

@@ -4,9 +4,10 @@
 // raw report beside it (or --output <file.json>, anywhere outside the checkout; D3).
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { outputFile } from '../platform/runtime/run-root.mjs';
+import { testReceipt, vitestRows } from './receipt.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -39,15 +40,19 @@ const exitCode = await new Promise((fulfill) => {
   child.once('error', () => fulfill(null)); child.once('close', code => fulfill(code));
 });
 
-let counts = null;
+let counts = null; let rows = [];
+const inRepository = path => relative(root, resolve(root, path)).replaceAll('\\', '/');
 try {
   const report = JSON.parse(await readFile(raw, 'utf8'));
+  rows = vitestRows(report, inRepository);
   counts = { suites: report.numTotalTestSuites, tests: report.numTotalTests, pass: report.numPassedTests, fail: report.numFailedTests,
     skipped: report.numPendingTests, todo: report.numTodoTests };
 } catch { counts = null; }
 const passed = exitCode === 0 && counts !== null && counts.tests > 0 && counts.fail === 0 && counts.skipped === 0 && counts.todo === 0;
-const receipt = { schema: 'chausar.ui-tests.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
-  command: ['node', ...command.map(part => part.replace(root + (process.platform === 'win32' ? '\\' : '/'), '').replaceAll('\\', '/'))], shard, counts, passed };
+const finishedAt = new Date().toISOString();
+// D11: the common receipt part (scripts/receipt.mjs) beside this receipt's own fields.
+const receipt = { schema: 'chausar.ui-tests.v1', ...testReceipt({ tool: 'ui-tests', startedAt, finishedAt, shard, files: rows }), nodeVersion: process.version,
+  command: ['node', ...command.map(part => part.replace(root + (process.platform === 'win32' ? '\\' : '/'), '').replaceAll('\\', '/'))], counts, passed };
 await writeFile(destination, `${JSON.stringify(receipt, null, 2)}\n`);
 console.log(JSON.stringify({ passed, counts, report: destination.replaceAll('\\', '/') }));
 if (!passed) process.exitCode = 1;

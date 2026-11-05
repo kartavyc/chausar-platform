@@ -6,6 +6,7 @@ import { availableParallelism, tmpdir } from 'node:os';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { localDay } from '../runtime/run-root.mjs';
+import { readTestReceipt } from '../../scripts/receipt.mjs';
 
 interface BenchmarkReport {
   schema: string;
@@ -51,6 +52,7 @@ async function fixture(t: TestContext, failing = false, incomplete = false, ordi
   await mkdir(join(directory, 'platform', 'tests'), { recursive: true });
   await writeFile(join(directory, 'scripts', 'bench.mjs'), await readFile(new URL('../../scripts/bench.mjs', import.meta.url)));
   await writeFile(join(directory, 'scripts', 'test-timing-reporter.mjs'), await readFile(new URL('../../scripts/test-timing-reporter.mjs', import.meta.url)).catch(() => ''));
+  await writeFile(join(directory, 'scripts', 'receipt.mjs'), await readFile(new URL('../../scripts/receipt.mjs', import.meta.url)));
   // D3: the run-root rules the bench imports, at the same place beside it.
   await mkdir(join(directory, 'platform', 'runtime'), { recursive: true });
   await writeFile(join(directory, 'platform', 'runtime', 'run-root.mjs'), await readFile(new URL('../runtime/run-root.mjs', import.meta.url)));
@@ -121,6 +123,14 @@ function assertCompleteRun(report: BenchmarkReport, tests: number,
   assert.equal(report.testFiles.pattern, 'platform/tests/*.test.ts');
   assert.deepEqual(report.testFiles.discovered, discovered);
   assert.equal(report.testFiles.inventorySha256, createHash('sha256').update(JSON.stringify(report.testFiles.discovered)).digest('hex'));
+  // D11: the common receipt part (scripts/receipt.mjs) sits beside the bench's own fields, one row per file that ran.
+  const common = readTestReceipt(report);
+  assert.equal(common.tool, 'engine-tests');
+  assert.equal(common.startedAt, (report as any).startedAt);
+  assert.deepEqual(common.shard, report.shard);
+  assert.equal(common.totals.tests, tests);
+  assert.equal(common.totals.pass, tests);
+  assert.deepEqual(common.files.map(row => row.file), Object.keys(report.fileTimings).sort());
 }
 
 test('unsharded benchmark retains its default command, output and complete open-suite receipt', async t => {

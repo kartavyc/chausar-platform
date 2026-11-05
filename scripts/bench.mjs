@@ -6,6 +6,7 @@ import { dirname, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // D3: the receipt goes to the run root (CHAUSAR_RUN_ROOT, else the temp folder), never inside the checkout.
 import { outputFile } from '../platform/runtime/run-root.mjs';
+import { nodeTimingRows, testReceipt } from './receipt.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2); let requestedOutput; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all'; let isolation = 'process';
@@ -172,19 +173,23 @@ for (const name of ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', '
   counts[name] = each.every(value => value !== null) ? each.reduce((sum, value) => sum + value, 0) : null;
 }
 const hasSummary = ['tests', 'pass', 'fail', 'cancelled', 'skipped', 'todo'].every(name => Number.isSafeInteger(counts[name]));
-const fileTimings = {};
+const fileTimings = {}; const rows = [];
 for (const phase of phases) {
-  for (const line of (await readFile(phase.timings, 'utf8').catch(() => '')).split('\n').filter(Boolean)) {
+  const text = await readFile(phase.timings, 'utf8').catch(() => '');
+  for (const line of text.split('\n').filter(Boolean)) {
     const { file, ms } = JSON.parse(line);
     fileTimings[inRepository(file)] = Math.round(ms) / 1000;
   }
+  rows.push(...nodeTimingRows(text, inRepository));
   await rm(phase.timings, { force: true });
 }
 const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && counts.fail === 0 && counts.cancelled === 0 && counts.skipped === 0 && counts.todo === 0 && !outcome.timeout && !outcome.truncated;
+// D11: the common receipt part (scripts/receipt.mjs: format, tool, files, totals) beside the bench's own fields.
+const common = testReceipt({ tool: 'engine-tests', startedAt, finishedAt: new Date().toISOString(), shard, files: rows });
 const report = {
-  schema: 'chausar.factory-bench.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
+  schema: 'chausar.factory-bench.v1', ...common, nodeVersion: process.version,
   command: ['node', ...command], scope: scopeParts.length ? `Repository open tests (${scopeParts.join(', ')})` : 'Repository open tests', counts, passed,
-  shard, tier, isolation, isolatedCommand: isolatedCommand ? ['node', ...isolatedCommand] : null, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
+  tier, isolation, isolatedCommand: isolatedCommand ? ['node', ...isolatedCommand] : null, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
   exitCode: outcome.exitCode, signal: outcome.signal ?? null, timeout: outcome.timeout, outputTruncated: outcome.truncated,
   productionQualified: false,
   qualification: { openTests: passed ? 'passed' : 'failed', testRunComplete: hasSummary && counts.skipped === 0 && counts.todo === 0, specificationCoverageCertified: false, hiddenBusinessAcceptance: 'not-run', sealedBusinessAcceptance: 'not-run', releaseSigning: 'not-run', realConnectorQualification: 'not-run' },
