@@ -1,22 +1,26 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { glob, mkdir, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { glob, mkdir, statfs, writeFile } from 'node:fs/promises';
+import { availableParallelism, tmpdir } from 'node:os';
+import { dirname, isAbsolute, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null;
-const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--shard=1/2|--shard=2/2|--shard=1/4|--shard=2/4|--shard=3/4|--shard=4/4|--shard=1/5|--shard=2/5|--shard=3/5|--shard=4/5|--shard=5/5|--shard=1/6|--shard=2/6|--shard=3/6|--shard=4/6|--shard=5/6|--shard=6/6]';
+const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null;
+const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--shard=1/2|--shard=2/2|--shard=1/4|--shard=2/4|--shard=3/4|--shard=4/4|--shard=1/5|--shard=2/5|--shard=3/5|--shard=4/5|--shard=5/5|--shard=1/6|--shard=2/6|--shard=3/6|--shard=4/6|--shard=5/6|--shard=6/6]';
 const seen = new Set();
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
   const option = argument.split('=', 1)[0];
-  if (!['--output', '--shard'].includes(option) || seen.has(option)) throw new Error(usage);
+  if (!['--output', '--shard', '--workers'].includes(option) || seen.has(option)) throw new Error(usage);
   seen.add(option);
   const value = argument.includes('=') ? argument.slice(option.length + 1) : args[++index];
   if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
   if (option === '--output') requestedOutput = value;
-  else {
+  else if (option === '--workers') {
+    if (!/^[1-9]\d?$/.test(value) || Number(value) > 64) throw new Error('Workers must be a whole number from 1 to 64.');
+    requestedWorkers = Number(value);
+  } else {
     if (!/^(?:[12]\/2|[1-4]\/4|[1-5]\/5|[1-6]\/6)$/.test(value)) throw new Error('Benchmark shard must be exactly 1/2, 2/2, 1/4, 2/4, 3/4, 4/4, 1/5 to 5/5, or 1/6 to 6/6.');
     const [shardIndex, shardTotal] = value.split('/').map(Number);
     shard = { index: shardIndex, total: shardTotal };
@@ -24,6 +28,24 @@ for (let index = 0; index < args.length; index++) {
 }
 const destination = resolve(root, requestedOutput); const inside = relative(root, destination);
 if (!requestedOutput || isAbsolute(inside) || inside === '..' || inside.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !destination.endsWith('.json')) throw new Error('Benchmark output must be a JSON file within this repository.');
+// D2: the test files run side by side. More workers make more vault and job folders in the OS temp folder at once, so
+// the free space there is checked first: under 2 GB nothing runs, under 6 GB at most two workers run.
+// CHAUSAR_BENCH_FREE_BYTES (read here only) lets the bench's own test fake the number.
+const GIB = 1024 ** 3;
+const temporary = tmpdir();
+const tempFreeBytes = process.env.CHAUSAR_BENCH_FREE_BYTES !== undefined ? Number(process.env.CHAUSAR_BENCH_FREE_BYTES)
+  : await statfs(temporary).then(stats => stats.bavail * stats.bsize);
+const drive = process.platform === 'win32' ? parse(temporary).root.replace(/[\\/]+$/, '') : temporary;
+const gigabytes = (tempFreeBytes / GIB).toFixed(1);
+if (!(tempFreeBytes >= 2 * GIB)) {
+  process.stderr.write(`Free space on ${drive} is ${gigabytes} GB. The engine tests need at least 2 GB in the temp folder.\n`);
+  process.exit(2);
+}
+let workers = requestedWorkers ?? (process.env.CI ? 3 : Math.max(1, availableParallelism() - 1));
+if (tempFreeBytes < 6 * GIB && workers > 2) {
+  workers = 2;
+  process.stderr.write(`Free space on ${drive} is ${gigabytes} GB, so the engine tests run with 2 workers.\n`);
+}
 const discoveryPattern = 'platform/tests/*.test.ts';
 const discoveredFiles = [];
 for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
@@ -58,10 +80,9 @@ const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
   selection: plan ? (shard.total === 5 ? 'explicit-stable-five-shard-plan' : 'explicit-stable-six-shard-plan') : shard ? 'node-test-shard' : 'all-discovered-files',
   ...(plan ? { selectedFiles, plan } : {}) };
 const startedAt = new Date().toISOString();
-// Bound simultaneous vault/KDF fixtures consistently with local qualification.
-// Each shard has a twenty-minute deadline and a single-worker resource bound.
+// Each shard has a twenty-minute deadline; the worker count above bounds the files running at once.
 // Run every test in each selected file; no case filters or skip patterns.
-const command = ['--test', '--test-reporter=tap', '--test-concurrency=1',
+const command = ['--test', '--test-reporter=tap', `--test-concurrency=${workers}`,
   ...(selectedFiles ?? [...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), discoveryPattern])];
 const fullSuite = shard === null;
 const outcome = await new Promise((fulfill) => {
@@ -81,7 +102,7 @@ const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && count
 const report = {
   schema: 'chausar.factory-bench.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
   command: ['node', ...command], scope: fullSuite ? 'Repository open tests' : `Repository open tests (shard ${shard.index}/${shard.total})`, counts, passed,
-  shard, fullSuite, testFiles,
+  shard, fullSuite, workers, tempFreeBytes, testFiles,
   exitCode: outcome.exitCode, signal: outcome.signal ?? null, timeout: outcome.timeout, outputTruncated: outcome.truncated,
   productionQualified: false,
   qualification: { openTests: passed ? 'passed' : 'failed', testRunComplete: hasSummary && counts.skipped === 0 && counts.todo === 0, specificationCoverageCertified: false, hiddenBusinessAcceptance: 'not-run', sealedBusinessAcceptance: 'not-run', releaseSigning: 'not-run', realConnectorQualification: 'not-run' },

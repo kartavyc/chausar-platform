@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import test, { type TestContext } from 'node:test';
 
@@ -15,6 +15,8 @@ interface BenchmarkReport {
   testFiles: { pattern: string; discovered: string[]; inventorySha256: string; selection: string; selectedFiles?: string[];
     plan?: { name: string; ordinaryShardTotal: number; dedicatedFile: string; groups: { index: number; files: string[] }[] } };
   passed: boolean;
+  workers: number;
+  tempFreeBytes: number;
   exitCode: number | null;
   productionQualified: boolean;
   timeout: boolean;
@@ -25,6 +27,7 @@ interface BenchmarkReport {
 
 // Copy the real CLI into a tiny synthetic repository. Every invocation runs actual
 // Node test discovery, sharding and receipt generation, without the full vault suite.
+const GIB = 1024 ** 3;
 const independentFixtureFile = 'platform/tests/workspace-activation-independent-public-acceptance.test.ts';
 
 async function fixture(t: TestContext, failing = false, incomplete = false, fiveShard = false, ordinaryFiles = 6) {
@@ -56,8 +59,11 @@ async function fixture(t: TestContext, failing = false, incomplete = false, five
   if (fiveShard) await writeFixture(independentFixtureFile, ordinaryFiles + 1);
   return {
     directory,
-    invoke(args: string[]) {
-      const env = { ...process.env };
+    invoke(args: string[], extra: Record<string, string | undefined> = {}) {
+      // D2: CI and the free space are set per call, so the default worker count and the space check are deterministic.
+      const env: Record<string, string | undefined> = { ...process.env, CHAUSAR_BENCH_FREE_BYTES: String(100 * GIB) };
+      delete env.CI;
+      Object.assign(env, extra);
       // This is an independent CLI/test runner, not another test inside this file's
       // worker. Node's inherited worker marker would suppress its TAP summary.
       delete env.NODE_TEST_CONTEXT;
@@ -86,7 +92,9 @@ function assertCompleteRun(report: BenchmarkReport, tests: number,
   assert.equal(report.qualification.testRunComplete, true);
   assert.equal(report.qualification.specificationCoverageCertified, false);
   assert.equal(report.productionQualified, false);
-  assert.ok(report.command.includes('--test-concurrency=1'));
+  assert.ok(Number.isSafeInteger(report.workers) && report.workers >= 1);
+  assert.ok(report.command.includes(`--test-concurrency=${report.workers}`));
+  assert.equal(report.tempFreeBytes, 100 * GIB);
   assert.equal(report.testFiles.pattern, 'platform/tests/*.test.ts');
   assert.deepEqual(report.testFiles.discovered, discovered);
   assert.equal(report.testFiles.inventorySha256, createHash('sha256').update(JSON.stringify(report.testFiles.discovered)).digest('hex'));
@@ -101,7 +109,42 @@ test('unsharded benchmark retains its default command, output and complete open-
   assert.equal(report.shard, null);
   assert.equal(report.fullSuite, true);
   assert.equal(report.testFiles.selection, 'all-discovered-files');
-  assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', 'platform/tests/*.test.ts']);
+  assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, 'platform/tests/*.test.ts']);
+  assert.deepEqual((await f.executed()).sort(), [1, 2, 3, 4, 5, 6]);
+});
+
+test('D2: the worker count reaches the command and the receipt; CI defaults to 3, a laptop to its cores less one', async t => {
+  const f = await fixture(t);
+  assert.equal(f.invoke(['--workers=2', '--output', 'results/two.json']).status, 0);
+  const two = await f.report('results/two.json');
+  assertCompleteRun(two, 6);
+  assert.equal(two.workers, 2);
+  assert.deepEqual(two.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=2', 'platform/tests/*.test.ts']);
+  assert.equal(f.invoke(['--output=results/ci.json'], { CI: '1' }).status, 0);
+  assert.equal((await f.report('results/ci.json')).workers, 3);
+  assert.equal(f.invoke(['--output=results/local.json']).status, 0);
+  assert.equal((await f.report('results/local.json')).workers, Math.max(1, availableParallelism() - 1));
+  for (const bad of ['--workers=0', '--workers=x', '--workers=1.5', '--workers=65', '--workers']) {
+    const result = f.invoke([bad, '--output=results/bad.json']);
+    assert.notEqual(result.status, 0, bad);
+    assert.match(result.stderr, /Usage: node scripts\/bench\.mjs|Workers must be a whole number from 1 to 64/);
+  }
+});
+
+test('D2: the bench checks the temp folder first: under 2 GB it refuses before any test, under 6 GB it runs with 2 workers', async t => {
+  const f = await fixture(t);
+  const refused = f.invoke(['--workers=4'], { CHAUSAR_BENCH_FREE_BYTES: String(1 * GIB) });
+  assert.equal(refused.status, 2);
+  assert.match(refused.stderr, /Free space on .+ is 1\.0 GB\. The engine tests need at least 2 GB in the temp folder\./);
+  await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
+  const capped = f.invoke(['--workers=5'], { CHAUSAR_BENCH_FREE_BYTES: String(4 * GIB) });
+  assert.equal(capped.status, 0, capped.stderr);
+  assert.match(capped.stderr, /Free space on .+ is 4\.0 GB, so the engine tests run with 2 workers\./);
+  const report = await f.report();
+  assert.equal(report.workers, 2);
+  assert.equal(report.tempFreeBytes, 4 * GIB);
+  assert.ok(report.command.includes('--test-concurrency=2'));
   assert.deepEqual((await f.executed()).sort(), [1, 2, 3, 4, 5, 6]);
 });
 
@@ -120,7 +163,7 @@ test('actual Node shards are disjoint and their union covers every fixture test 
     assert.equal(report.testFiles.selection, 'node-test-shard');
     inventories.push(report.testFiles);
     assert.equal(report.scope, `Repository open tests (shard ${index}/2)`);
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
+    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
     const summary = JSON.parse(result.stdout.trim());
     assert.equal(summary.fullSuite, false);
     assert.deepEqual(summary.shard, report.shard);
@@ -150,7 +193,7 @@ test('actual four Node shards retain exact inventories and deterministic disjoin
     assert.deepEqual(report.shard, { index, total: 4 });
     assert.equal(report.testFiles.selection, 'node-test-shard');
     assert.equal(report.scope, `Repository open tests (shard ${index}/4)`);
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
+    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
     const summary = JSON.parse(result.stdout.trim());
     assert.equal(summary.fullSuite, false);
     assert.deepEqual(summary.shard, report.shard);
@@ -191,7 +234,7 @@ test('five planned shards preserve the four ordinary groups and execute the inde
     assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
     assert.deepEqual(report.testFiles.plan, { name: 'four-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 4,
       dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', ...groups[index - 1]]);
+    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
     assert.equal(report.command.some(argument => argument.startsWith('--test-shard=')), false);
     assert.equal(new Set(executed).size, executed.length);
     for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
@@ -236,7 +279,7 @@ test('six planned shards spread the ordinary files over five groups and execute 
     assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
     assert.deepEqual(report.testFiles.plan, { name: 'five-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 5,
       dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', ...groups[index - 1]]);
+    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
     assert.equal(new Set(executed).size, executed.length);
     for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
     covered.push(executed); inventories.push(report.testFiles);
