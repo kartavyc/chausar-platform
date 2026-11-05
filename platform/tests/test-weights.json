@@ -15,6 +15,7 @@
   "platform/tests/doctor-d11.test.ts": 1,
   "platform/tests/engine-bundle-d7.test.ts": 8.3,
   "platform/tests/engine-bundle-rules-d7.test.ts": 1.5,
+  "platform/tests/env-list-d11.test.ts": 8,
   "platform/tests/gateway-split-d11.test.ts": 1,
   "platform/tests/investigation-job-http.test.ts": 28.6,
   "platform/tests/near-d11.test.ts": 5,

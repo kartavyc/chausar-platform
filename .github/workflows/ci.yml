@@ -39,6 +39,8 @@ jobs:
       # D11: report only until D11a task 2 moves the helpers the UI value-imports into platform/shared.
       - name: Report imports that cross the platform boundaries
         run: node scripts/check-boundaries.mjs --report
+      - name: Check the CHAUSAR_ variable list and the files made from it
+        run: node scripts/env-docs.mjs --check
       - name: Typecheck runtime and tests
         run: npm run typecheck
       - name: Typecheck the Ink frontend
