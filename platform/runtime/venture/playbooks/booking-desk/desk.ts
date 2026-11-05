@@ -4,8 +4,9 @@
 // 6D1), issues it through the existing exact-approval issue (venture.invoice.issue), reads its How to pay UPI link (6D2)
 // and hands an approved reminder to the owner through the action journal (owner.handoff). Chausar sends nothing and
 // takes no money itself. Written for Chausar; nothing here is learned from an outside source.
-import { check, type Context, type State } from '../../../contracts.ts';
 import { formatMinor } from '../../../currency.ts';
+import { formatMoney } from '../../../owner-format.ts';
+import { check, type Context, type State } from '../../../contracts.ts';
 import type { DeskHandlers, DeskKindTypes } from '../desk-types.ts';
 import type { BookingRecord, BookingSlotRecord, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
@@ -32,14 +33,15 @@ export function bookingWorld(state: State, venture: VentureRecord, deps: Pick<Ve
     quote(orderId) {
       const order = listRecords(state, 'venture-order', venture.id).find(row => row.id === orderId);
       const receipt = order && listRecords(state, 'venture-price-receipt', venture.id).find(row => row.id === order.priceReceiptId);
-      return receipt ? { receiptId: receipt.id, total: formatMinor(receipt.totalMinor, receipt.currency) } : null;
+      return receipt ? { receiptId: receipt.id, total: formatMoney(receipt.totalMinor, receipt.currency) } : null;
     },
     invoice(id) {
       const invoice = listRecords(state, 'venture-invoice', venture.id).find(row => row.id === id);
       if (!invoice) return null;
       const upi = invoiceView(state, venture, invoice, deps).howToPay?.upi ?? null;
       return {
-        invoiceId: invoice.id, number: invoice.number, status: invoice.status, total: formatMinor(invoice.totalMinor, invoice.currency),
+        invoiceId: invoice.id, number: invoice.number, status: invoice.status, total: formatMoney(invoice.totalMinor, invoice.currency),
+        // B2: the balance stays exact, as the deposit message to the client quotes it.
         balance: formatMinor(invoice.balanceMinor, invoice.currency), receiptId: invoice.priceReceiptId, digest: invoice.digest,
         upi: upi ? { link: upi.link, amount: upi.amount } : null,
       };

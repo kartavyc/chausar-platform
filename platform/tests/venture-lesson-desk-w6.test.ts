@@ -3,6 +3,7 @@
 // consent (D21, the child-data hard stop), reusing the client AI permission and the person consent records; parent
 // messages go out only through the owner's exact approval, and Chausar sends nothing; fees are the existing orders and
 // invoices.
+import { formatMoney } from '../runtime/owner-format.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { kitBusiness, owner } from './fixtures/venture/kit-business.ts';
@@ -146,7 +147,7 @@ test('6E2 fees are the existing orders and invoices: a learner\'s fee is an invo
   assert.equal(invoice.orderId, f.order.id);
   assert.equal(invoice.part?.kind, 'advance');
   const fee = (await f.get()).item.learners[0].fees[0];
-  assert.deepEqual([fee.invoiceId, fee.status, fee.total], [invoice.id, 'draft', formatMinor(invoice.totalMinor, invoice.currency)]);
+  assert.deepEqual([fee.invoiceId, fee.status, fee.total], [invoice.id, 'draft', formatMoney(invoice.totalMinor, invoice.currency)]);
   assert.equal(listRecords(f.env.store.read(), 'venture-journal-entry').some(entry => entry.action === 'invoice.issue'), false, 'issuing still asks in Money');
 });
 
