@@ -8,23 +8,33 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const usage = 'Usage: node scripts/ui-bench.mjs [--output results/ui-tests.json]';
-let requested = 'results/ui-tests.json';
-if (args.length) {
-  if (args.length !== 2 || args[0] !== '--output' || !args[1] || args[1].startsWith('--')) throw new Error(usage);
-  requested = args[1];
+const usage = 'Usage: node scripts/ui-bench.mjs [--output results/ui-tests.json] [--shard=I/N, N from 1 to 8]';
+let requested = 'results/ui-tests.json'; let shard = null;
+const seen = new Set();
+for (let index = 0; index < args.length; index++) {
+  const option = args[index].split('=', 1)[0];
+  if (!['--output', '--shard'].includes(option) || seen.has(option)) throw new Error(usage);
+  seen.add(option);
+  const value = args[index].includes('=') ? args[index].slice(option.length + 1) : args[++index];
+  if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
+  if (option === '--output') requested = value;
+  else {
+    // D2: vitest's own --shard splits the test files; the raw report and the receipt say which shard ran.
+    if (!/^[1-8]\/[1-8]$/.test(value) || Number(value[0]) > Number(value[2])) throw new Error('The UI shard must be I/N with N from 1 to 8 and I from 1 to N, such as 2/3.');
+    shard = { index: Number(value[0]), total: Number(value[2]) };
+  }
 }
 const destination = resolve(root, requested); const inside = relative(root, destination);
 if (isAbsolute(inside) || inside === '..' || inside.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !destination.endsWith('.json')) {
   throw new Error('The UI test receipt must be a JSON file within this repository.');
 }
-const raw = resolve(root, 'results', 'ui-tests.vitest.json');
+const raw = resolve(root, 'results', shard ? `ui-tests.shard-${shard.index}-of-${shard.total}.vitest.json` : 'ui-tests.vitest.json');
 await mkdir(dirname(raw), { recursive: true });
 await mkdir(dirname(destination), { recursive: true });
 
 const startedAt = new Date().toISOString();
 const command = [resolve(root, 'node_modules/vitest/vitest.mjs'), 'run', '--config', 'app/ui/vitest.config.ts',
-  '--reporter=default', '--reporter=json', `--outputFile.json=${raw}`];
+  '--reporter=default', '--reporter=json', `--outputFile.json=${raw}`, ...(shard ? [`--shard=${shard.index}/${shard.total}`] : [])];
 const exitCode = await new Promise((fulfill) => {
   const child = spawn(process.execPath, command, { cwd: root, windowsHide: true, stdio: 'inherit' });
   child.once('error', () => fulfill(null)); child.once('close', code => fulfill(code));
@@ -38,7 +48,7 @@ try {
 } catch { counts = null; }
 const passed = exitCode === 0 && counts !== null && counts.tests > 0 && counts.fail === 0 && counts.skipped === 0 && counts.todo === 0;
 const receipt = { schema: 'chausar.ui-tests.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
-  command: ['node', ...command.map(part => part.replace(root + (process.platform === 'win32' ? '\\' : '/'), '').replaceAll('\\', '/'))], counts, passed };
+  command: ['node', ...command.map(part => part.replace(root + (process.platform === 'win32' ? '\\' : '/'), '').replaceAll('\\', '/'))], shard, counts, passed };
 await writeFile(destination, `${JSON.stringify(receipt, null, 2)}\n`);
 console.log(JSON.stringify({ passed, counts, report: relative(root, destination).replaceAll('\\', '/') }));
 if (!passed) process.exitCode = 1;
