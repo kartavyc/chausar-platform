@@ -28,8 +28,17 @@ function text(value: unknown, limit: number, what: string): string {
   if (trimmed.length > limit) throw invalid(`Keep the agent's ${what} to ${limit} characters.`);
   return trimmed;
 }
+// The floor here is a first line only, a check on the words an owner writes for a hired agent. The real guard for every
+// outward act is the engine's approval gates: whatever a hired agent's duties say, a send, payment, post, deletion,
+// booking, filing or price change still waits for the owner's approval of that exact thing.
 /** Verbs that act on the floor when they lead a duty or follow "and", "then", "to", "also" or "will" (review round 1). */
-const FLOOR_VERBS = new Set(['send', 'sends', 'sending', 'post', 'posts', 'posting', 'publish', 'publishes', 'email', 'emails', 'message', 'messages', 'reply', 'replies', 'forward', 'forwards', 'share', 'shares', 'pay', 'pays', 'paying', 'refund', 'refunds', 'transfer', 'transfers', 'charge', 'charges', 'buy', 'buys', 'purchase', 'purchases', 'delete', 'deletes', 'remove', 'removes', 'erase', 'erases', 'purge', 'purges', 'cancel', 'cancels', 'reprice', 'reprices', 'discount', 'discounts']);
+const FLOOR_VERBS = new Set(['send', 'sends', 'sending', 'post', 'posts', 'posting', 'publish', 'publishes', 'email', 'emails', 'message', 'messages', 'reply', 'replies', 'answer', 'answers', 'respond', 'responds', 'upload', 'uploads', 'forward', 'forwards', 'share', 'shares', 'pay', 'pays', 'paying', 'refund', 'refunds', 'transfer', 'transfers', 'charge', 'charges', 'buy', 'buys', 'purchase', 'purchases', 'order', 'orders', 'book', 'books', 'submit', 'submits', 'sign', 'signs', 'accept', 'accepts', 'decline', 'declines', 'delete', 'deletes', 'remove', 'removes', 'erase', 'erases', 'purge', 'purges', 'cancel', 'cancels', 'reprice', 'reprices', 'discount', 'discounts']);
+/** Verbs that are outward only with others in the clause: scheduling with someone, filing a return or a form. */
+const WITH_OTHERS: Readonly<Record<string, RegExp>> = Object.freeze({
+  schedule: /\b(?:with|clients?|customers?|leads?|people|guests?|patients?|vendors?|calls?|meetings?|posts?|appointments?)\b/,
+  file: /\b(?:returns?|forms?|gst|tds|itr|tax(?:es)?|claims?|complaints?|applications?)\b/,
+});
+const WITH_OTHERS_OF: Readonly<Record<string, string>> = Object.freeze({ schedule: 'schedule', schedules: 'schedule', file: 'file', files: 'file' });
 const PRICE_VERBS = new Set(['cut', 'cuts', 'lower', 'lowers', 'raise', 'raises', 'change', 'changes', 'set', 'sets', 'update', 'updates', 'drop', 'drops']);
 const PRICE_WORDS = new Set(['price', 'prices', 'pricing', 'rate', 'rates', 'fee', 'fees']);
 const VERB_PLACE = new Set(['and', 'then', 'to', 'also', 'will', 'can']);
@@ -38,7 +47,7 @@ const VERB_PLACE = new Set(['and', 'then', 'to', 'also', 'will', 'can']);
  * round 2: "Reminds me to send invoices", "Tells me when..."). A reminder or an explanation to a client is outward, so
  * "Reminds clients to pay" is not owner-first.
  */
-const OWNER_FIRST = /\b(?:draft\w*|approv\w*|ask(?:s|ing)?|suggest\w*|propos\w*|prepar\w*|review\w*|for\s+me\s+to|(?:send|sends|email|emails|message|messages|tell|tells|share|shares|forward|forwards)\s+(?:it\s+|them\s+)?(?:to\s+)?me|(?:remind|reminds|notify|notifies|alert|alerts|warn|warns|ping|pings|show|shows|tell|tells)\s+me|with\s+me)\b/;
+const OWNER_FIRST = /\b(?:draft\w*|suggest\w*|propos\w*|prepares?|preparing|asks?\s+(?:me|first|before)|asking\s+me|(?:for|with|after|until|once)\s+(?:my|your)\s+(?:approval|ok|review|sign-off)|(?:after|until|once|when)\s+i\s+(?:approve|review|say|agree)|for\s+me\s+to|(?:send|sends|email|emails|message|messages|tell|tells|share|shares|forward|forwards)\s+(?:it\s+|them\s+)?(?:to\s+)?me|(?:remind|reminds|notify|notifies|alert|alerts|warn|warns|ping|pings|show|shows|tell|tells)\s+me|with\s+me)\b/;
 /**
  * A duty read as clauses, so "Drafts and sends invoices" is two acts and the send is judged on its own. Review round 3:
  * a period, semicolon, ampersand, slash, spaced dash, new line, "plus", "also" or "while" starts a clause too, so
@@ -57,6 +66,7 @@ function actsWithoutOwner(words: string): boolean {
     return words.some((word, index) => {
       if (index > 0 && !VERB_PLACE.has(words[index - 1])) return false;
       if (FLOOR_VERBS.has(word)) return true;
+      if (WITH_OTHERS_OF[word] && WITH_OTHERS[WITH_OTHERS_OF[word]].test(words.slice(index + 1).join(' '))) return true;
       if (OUTWARD_VERBS.has(word) && words[index + 1] !== undefined && !['me', 'myself'].includes(words[index + 1])) return true;
       return PRICE_VERBS.has(word) && words.slice(index + 1, index + 4).some(next => PRICE_WORDS.has(next));
     });

@@ -128,3 +128,25 @@ test('punctuation never hides a floor act, and reminding or messaging a third pa
     assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty.replace(/\s+/g, ' '), duty);
   }
 });
+
+// Fix round 4: more outward acts. Replying, answering, uploading, sharing, booking, scheduling with others, inviting,
+// submitting or filing a return, ordering, buying, signing, accepting, declining, cancelling and refunding all act for the
+// owner, so each needs a draft or an ask first. A word like "reviews" or "approved" in the duty is not the owner's ok.
+test('replies, uploads, bookings, filings, orders and signatures are outward unless drafted or asked first', () => {
+  const outward = [
+    'Replies to customer reviews', 'Answers customer emails', 'Uploads the video to YouTube', 'Books meetings with clients',
+    'Responds to client messages', 'Publishes the blog post', 'Shares the report with the client', 'Forwards invoices to the accountant',
+    'Schedules calls with leads', 'Invites clients to the webinar', 'Submits the GST return', 'Files the quarterly TDS return',
+    'Files the claim form with the insurer', 'Orders printer paper', 'Buys stock photos', 'Purchases ad credits', 'Signs the vendor contract',
+    'Accepts new bookings', 'Declines late requests', 'Cancels unpaid orders', 'Refunds unhappy customers',
+    'Sends approved invoices', 'Replies to reviews after reading them', 'Books a table for the client dinner',
+  ];
+  for (const duty of outward) assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), duty);
+  const inside = [
+    'Keeps a list of overdue invoices', 'Summarises the week for me', 'Drafts replies for me to approve', 'Suggests a schedule for next week',
+    'Schedules my focus time', 'Files receipts into the right folders', 'Shares the weekly report with me', 'Forwards them to me',
+    'Reminds me to send invoices', 'Tells me when a client has not paid', 'Drafts answers to customer emails for my approval',
+    'Prepares the GST return for my review', 'Replies to customers after I approve each one',
+  ];
+  for (const duty of inside) assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
+});
