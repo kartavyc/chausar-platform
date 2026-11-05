@@ -57,8 +57,10 @@ export function formatMoneyRange(low: string | bigint, high: string | bigint, cu
  * Null when the text is not plain decimal digits the currency can hold (an exponent, stray commas, too many decimals).
  */
 export function typedMoney(text: string, currency: string): string | null {
-  const found = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text.trim());
+  // Grouping commas as the owner writes them, western ("125,000") or Indian ("1,25,000"); never stray ones ("1,2,3").
+  const found = /^(-?)(\d+|\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3})(?:\.(\d+))?$/.exec(text.trim());
   if (!found) return null;
+  found[2] = found[2]!.replace(/,/g, '');
   let precision: number;
   try { precision = currencyMinorDigits(currency); } catch { return null; }
   const fraction = (found[3] ?? '').replace(/0+$/, '');

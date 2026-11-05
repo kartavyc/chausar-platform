@@ -22,7 +22,7 @@ import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { invoiceTitle, messageOf, statusOf, useDay, useLocalToday } from './words';
+import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 
 type Phase = 'form' | 'confirm' | 'sending' | 'done';
@@ -164,14 +164,14 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
         </form>
         {(phase === 'confirm' || phase === 'sending') && (
           <div className={`${s.ask} ${s.block}`}>
-            <p>{split ? t('money.payment.splitAsk', { amount: amount.trim(), currency, date: day(receivedOn), count: String(allocations.length) }) : t('money.payment.ask', { amount: amount.trim(), currency, date: day(receivedOn) })}</p>
+            <p>{split ? t('money.payment.splitAsk', { amount: typedWords(amount, currency), date: day(receivedOn), count: String(allocations.length) }) : t('money.payment.ask', { amount: typedWords(amount, currency), date: day(receivedOn) })}</p>
             {/* A split's second ask names each part as typed, like every other second ask. */}
             {split && (
               <ul className={s.plain}>
-                {allocations.map((part) => <li key={part.invoiceId}>{t('money.payment.splitPart', { number: numberOf(part.invoiceId), amount: part.amount, currency })}</li>)}
+                {allocations.map((part) => <li key={part.invoiceId}>{t('money.payment.splitPart', { number: numberOf(part.invoiceId), amount: typedWords(part.amount, currency) })}</li>)}
               </ul>
             )}
-            {!split && india && tdsSection.trim() !== '' && tdsAmount.trim() !== '' && <p>{t('money.payment.tdsAsk', { amount: tdsAmount.trim(), currency, section: tdsSection.trim() })}</p>}
+            {!split && india && tdsSection.trim() !== '' && tdsAmount.trim() !== '' && <p>{t('money.payment.tdsAsk', { amount: typedWords(tdsAmount, currency), section: tdsSection.trim() })}</p>}
             <div className={s.buttons}>
               <Button ref={cancelRef} disabled={phase === 'sending'} onClick={() => setPhase('form')}>{t('approval.cancel')}</Button>
               <Button variant="primary" data-confirm="" disabled={phase === 'sending'} onClick={() => void record(current)}>{t('money.payment.confirm')}</Button>

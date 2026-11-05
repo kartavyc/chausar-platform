@@ -20,7 +20,7 @@ import { Figure } from '../../parts/Figure';
 import { Row } from '../../parts/Row';
 import { PAYMENT_METHODS, type BillView, type PaymentMethod } from '../../engine/types';
 import { Failed, Section } from './parts';
-import { messageOf, onMoney, useDay, useLocalToday } from './words';
+import { messageOf, onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 
@@ -159,7 +159,7 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
         </div>
       ) : (
         <div className={s.ask}>
-          <p>{t('money.bills.payAsk', { amount: amount.trim(), currency, vendor: bill.vendor, date: day(paidOn) })}</p>
+          <p>{t('money.bills.payAsk', { amount: typedWords(amount, currency), vendor: bill.vendor, date: day(paidOn) })}</p>
           <div className={s.buttons}>
             <Button disabled={phase === 'sending'} onClick={() => setPhase('form')}>{t('approval.cancel')}</Button>
             <Button variant="primary" data-confirm="" disabled={phase === 'sending'} onClick={() => void pay()}>{t('money.bills.payConfirm')}</Button>

@@ -4,6 +4,7 @@
  */
 
 import type { T } from '../../text';
+import { typedMoney } from '../../../../../platform/runtime/owner-format';
 import { useDay as useWhenDay, useLocalToday, useMoment as useWhenMoment, useMonth } from '../../parts/when';
 import { useResource } from '../../engine/context';
 import type { BooksSummaryLite, InvoiceLite, VentureRunEvent } from '../../engine/types';
@@ -96,4 +97,12 @@ export function invoiceTitle(t: T, invoice: Pick<InvoiceLite, 'number'>, client:
 
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * An amount the owner typed, echoed back in the owner form ("2000" on a rupee invoice reads "₹2,000", B2): the text is
+ * only regrouped, never worked out. Text that is not a plain amount comes back as typed, with its currency code.
+ */
+export function typedWords(text: string, currency: string): string {
+  return typedMoney(text.trim(), currency) ?? `${text.trim()} ${currency}`;
 }

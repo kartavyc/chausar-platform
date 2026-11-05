@@ -90,3 +90,12 @@ test('AI cost in the owner form: own plan, free, under a cent, cents, and an unc
   for (const words of ['$0.42', '$0.0015', '$3.00', '$1,234,567.89']) assert.deepEqual([...words.matchAll(MONEY_TEXT)].map(m => m[0]), [words]);
   assert.throws(() => formatCost('-1'), { code: 'INVALID_AMOUNT' });
 });
+
+test('a typed amount may carry grouping commas the owner writes, western or Indian, but not stray ones (B2 task 8)', async () => {
+  const { typedMoney } = await import('../runtime/owner-format.ts');
+  assert.equal(typedMoney('26,200', 'INR'), '₹26,200');
+  assert.equal(typedMoney('1,25,000', 'INR'), '₹1,25,000');
+  assert.equal(typedMoney('125,000.50', 'INR'), '₹1,25,000.50');
+  assert.equal(typedMoney('1,2,3', 'INR'), null);
+  assert.equal(typedMoney('12,00', 'INR'), null);
+});

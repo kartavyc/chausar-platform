@@ -169,7 +169,7 @@ describe('Money: invoices', () => {
     fireEvent.change(date, { target: { value: '2026-10-21' } });
     fireEvent.change(within(sheet).getByLabelText('How it was paid'), { target: { value: 'upi' } });
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
-    expect(sheet.textContent).toContain("Record 26,200 INR received on 21 Oct 2026? This can't be undone.");
+    expect(sheet.textContent).toContain("Record ₹26,200 received on 21 Oct 2026? This can't be undone.");
     expect(called(calls, 'venture.payment.record')).toEqual([]);
     await click(within(sheet).getByRole('button', { name: 'Cancel' }));
     expect((within(sheet).getByLabelText('Amount received') as HTMLInputElement).value).toBe('26,200');
