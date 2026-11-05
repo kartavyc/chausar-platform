@@ -1,4 +1,4 @@
-// D1: the shape of .github/workflows/ci.yml (one trigger per change, one lint job first, npm ci from the committed lock).
+// D1: the shape of .github/workflows/ci.yml (one lint job first, npm ci from the committed lock); D2: the matrix and the fast lane.
 // The two older workflow tests moved here from benchmark-sharding.test.ts, so later batches change one file.
 // Regular expressions on the YAML prove the shape only; the first push shows whether GitHub accepts the file.
 import test from 'node:test';
@@ -20,17 +20,20 @@ function job(name: string): string {
 /** The run lines of a job, in order. */
 const runs = (text: string) => [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => match[1].trim());
 
-test('CI runs once per change: push only on main, plus pull requests (docs-only ones skipped) and a manual start', () => {
+test('CI runs on every push (a branch push gets the fast lane), on pull requests (docs-only ones skipped) and by hand', () => {
   const on = workflow.slice(workflow.search(/^on:$/m), workflow.search(/^permissions:$/m));
-  assert.match(on, /^ {2}push:\n {4}branches: \[main\]$/m);
+  assert.match(on, /^ {2}push:$/m);
+  assert.doesNotMatch(on, /branches:/, 'D2: every branch push runs, the heavy jobs only on main');
   assert.match(on, /^ {2}pull_request:\n {4}paths-ignore:\n {6}- 'docs\/\*\*'\n {6}- '\*\*\/\*\.md'$/m);
   assert.match(on, /^ {2}workflow_dispatch:$/m);
+  assert.match(workflow, /^concurrency:\n {2}group: open-verification-\$\{\{ github\.ref \}\}\n {2}cancel-in-progress: true$/m, 'an older run on the same ref is cancelled');
 });
 
 test('one lint job on Ubuntu installs from the lock, then checks syntax, both typechecks and the notices, in that order', () => {
   const lint = job('lint');
   assert.match(lint, /runs-on: ubuntu-latest/);
   assert.match(lint, /node-version: '24\.13\.1'/);
+  assert.doesNotMatch(lint, /^ {4}if:/m, 'lint runs on every event');
   assert.deepEqual(runs(lint), [
     'npm ci --ignore-scripts --no-audit --no-fund',
     'node scripts/check.mjs',
@@ -40,12 +43,31 @@ test('one lint job on Ubuntu installs from the lock, then checks syntax, both ty
   ]);
 });
 
-test('verify and ui wait for lint and no longer repeat its checks', () => {
-  for (const name of ['verify', 'ui']) {
+const HEAVY_IF = "    if: github.event_name != 'push' || github.ref == 'refs/heads/main'";
+
+test('D2: verify, ui and build wait for lint, skip a branch push, and never repeat lint\'s checks', () => {
+  for (const name of ['verify', 'ui', 'build']) {
     const text = job(name);
     assert.match(text, /^ {4}needs: lint$/m, name);
+    assert.ok(text.split('\n').includes(HEAVY_IF), `${name} carries the heavy-job condition`);
     assert.doesNotMatch(text, /scripts\/check\.mjs|npm run typecheck/, name);
   }
+});
+
+test('D2: a branch push runs only the fast lane: Ubuntu, the fast engine tier in three shards of 3 workers, the changed UI tests', () => {
+  const fast = job('fast');
+  assert.match(fast, /^ {4}needs: lint$/m);
+  assert.ok(fast.split('\n').includes("    if: github.event_name == 'push' && github.ref != 'refs/heads/main'"));
+  assert.match(fast, /runs-on: ubuntu-latest/);
+  assert.doesNotMatch(fast, /windows/);
+  assert.match(fast, /shard: \[1, 2, 3\]$/m);
+  assert.match(fast, /fetch-depth: 0/, 'vitest --changed compares with origin/main, so the history is fetched');
+  assert.deepEqual(runs(fast), [
+    'npm ci --ignore-scripts --no-audit --no-fund',
+    'node scripts/bench.mjs --tier=fast --shard=${{ matrix.shard }}/3 --workers=3 --output results/factory-bench.json',
+    'node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts --changed origin/main --passWithNoTests',
+  ]);
+  assert.match(fast, /if: matrix\.shard == 1\n {8}run: node node_modules\/vitest/, 'the changed UI tests run once');
 });
 
 test('every install in every workflow is npm ci, and ci.yml caches npm from the lock', async () => {
@@ -56,9 +78,9 @@ test('every install in every workflow is npm ci, and ci.yml caches npm from the 
   }
   assert.doesNotMatch(workflow, /package-manager-cache: false/);
   const setups = workflow.match(/uses: actions\/setup-node@v6\n\s+with:\n(?:\s+[\w-]+: .+\n)+/g) ?? [];
-  assert.equal(setups.length, 3, 'lint, verify and ui each set up Node');
+  assert.equal(setups.length, 5, 'lint, verify, ui, build and fast each set up Node');
   for (const setup of setups) assert.match(setup, /cache: npm/);
-  assert.equal(runs(workflow).filter(line => line.startsWith('npm ci')).length, 3);
+  assert.equal(runs(workflow).filter(line => line.startsWith('npm ci')).length, 5);
 });
 
 test('verify keeps Node\'s compile cache between runs, keyed on the lock and the Node version', () => {
@@ -67,30 +89,35 @@ test('verify keeps Node\'s compile cache between runs, keyed on the lock and the
   assert.match(verify, /uses: actions\/cache@v4\n\s+with:\n\s+path: \$\{\{ runner\.temp \}\}\/node-cc\n\s+key: node-cc-\$\{\{ runner\.os \}\}-24\.13\.1-\$\{\{ hashFiles\('package-lock\.json'\) \}\}/);
 });
 
-test('CI requires all six planned shards on both operating systems with twelve unique report artifacts', async () => {
-  assert.match(workflow, /fail-fast: false/);
-  assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /shard: \[1, 2, 3, 4, 5, 6\]/);
-  assert.match(workflow, /node-version: '24\.13\.1'/);
-  assert.match(workflow, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/6 --output results\/factory-bench\.json/);
-  assert.match(workflow, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-6/);
-  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3, 4, 5, 6].map(shard => `open-test-report-${os}-shard-${shard}-of-6`));
-  assert.equal(new Set(artifacts).size, 12);
+test('D2: CI runs three time-balanced engine shards with 3 workers on both operating systems, six unique report artifacts', async () => {
+  const verify = job('verify');
+  assert.match(verify, /fail-fast: false/);
+  assert.match(verify, /os: \[ubuntu-latest, windows-latest\]/, 'Windows stays: it is where owners are');
+  assert.match(verify, /shard: \[1, 2, 3\]$/m);
+  assert.match(verify, /node-version: '24\.13\.1'/);
+  assert.match(verify, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/3 --workers=3 --output results\/factory-bench\.json$/m);
+  assert.match(verify, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-3$/m);
+  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3].map(shard => `open-test-report-${os}-shard-${shard}-of-3`));
+  assert.equal(new Set(artifacts).size, 6);
   const script = await readFile(new URL('../../scripts/bench.mjs', import.meta.url), 'utf8');
   assert.match(script, /20 \* 60 \* 1000/);
-  assert.match(job('verify'), /timeout-minutes: 25/);
+  assert.match(verify, /timeout-minutes: 25/);
   assert.match(script, /16 \* 1024 \* 1024/);
   assert.doesNotMatch(workflow, /continue-on-error: true|--test-name-pattern|--test-skip-pattern/);
 });
 
-test('CI runs the Ink frontend on both operating systems: every test with no skips, and the build', async () => {
+test('D2: CI runs the Ink frontend in three shards on both operating systems, every test with no skips; the build is its own job', async () => {
   const ui = job('ui');
-  assert.match(ui, /timeout-minutes: 25/, 'the complete wave-five UI run needs room for install and build');
+  assert.match(ui, /timeout-minutes: 25/);
   assert.match(ui, /os: \[ubuntu-latest, windows-latest\]/);
+  assert.match(ui, /shard: \[1, 2, 3\]$/m);
   assert.match(ui, /node-version: '24\.13\.1'/);
-  assert.match(ui, /run: node scripts\/ui-bench\.mjs --output results\/ui-tests\.json/);
-  assert.match(ui, /run: npm run build:ui/);
-  assert.match(ui, /name: ui-test-report-\$\{\{ matrix\.os \}\}/);
+  assert.match(ui, /run: node scripts\/ui-bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/3 --output results\/ui-tests\.json$/m);
+  assert.doesNotMatch(ui, /build:ui/);
+  assert.match(ui, /name: ui-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-3$/m);
+  const build = job('build');
+  assert.match(build, /os: \[ubuntu-latest, windows-latest\]/);
+  assert.deepEqual(runs(build), ['npm ci --ignore-scripts --no-audit --no-fund', 'npm run build:ui']);
   assert.doesNotMatch(workflow, /continue-on-error: true/);
   const script = await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url), 'utf8');
   assert.match(script, /counts\.fail === 0 && counts\.skipped === 0 && counts\.todo === 0/);
