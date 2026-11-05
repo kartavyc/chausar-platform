@@ -1,5 +1,6 @@
 import { useContext, useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -26,7 +27,7 @@ const failed = (t: ReturnType<typeof useT>, error: unknown) => t('business.actio
 /** Every backup of this business, newest first. Restore says what happens and waits for a second press. */
 export function AllBackups({ backups }: { backups: BackupLite[] }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const restarted = useContext(StartedContext);
   const [asking, setAsking] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
         {backups.map((backup) => (
           <li key={backup.file} className={s.backupRow}>
             <div className={s.backupLine}>
-              <span className={s.strong}>{momentOf(backup.at, language)}</span>
+              <span className={s.strong}>{momentOf(backup.at, zone)}</span>
               <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>

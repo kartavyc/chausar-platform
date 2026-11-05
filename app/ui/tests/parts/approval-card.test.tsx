@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import axe from 'axe-core';
 import { ApprovalRow, timeOf, type ApprovalHandle, type PressResult } from '../../src/parts/ApprovalRow';
+import { computerZone, formatTime } from '../../../../platform/runtime/owner-format';
 import { Change } from '../../src/parts/Change';
 import { TextProvider } from '../../src/text';
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
@@ -58,7 +59,8 @@ const card = () => document.querySelector<HTMLElement>('article[data-card]')!;
  *  button is natively disabled instead. */
 const isLocked = (button: HTMLElement) => button.hasAttribute('data-locked') && ((button as HTMLButtonElement).disabled || button.getAttribute('aria-disabled') === 'true');
 const approveIn = (name = 'Approve') => within(card()).getByRole('button', { name }) as HTMLButtonElement;
-const time = (at: string) => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(at));
+/** The time a card shows: the owner zone falls back to the computer's when no business is open (B2). */
+const time = (at: string) => formatTime(at, computerZone());
 
 describe('ApprovalRow as a card (layout="card")', () => {
   it('is an article with the row id, a head with avatar, name, business and time, a kind chip, an h3 title and the line', () => {
@@ -82,9 +84,9 @@ describe('ApprovalRow as a card (layout="card")', () => {
     assertInkRules(document.body);
   });
 
-  it('formats the time of day in the UI language', () => {
-    expect(timeOf('2026-10-21T08:40:00.000Z', 'en')).toBe(time('2026-10-21T08:40:00.000Z'));
-    expect(timeOf('not a date', 'en')).toBe('');
+  it('formats the time of day in the owner zone on the 12-hour clock', () => {
+    expect(timeOf('2026-10-21T08:40:00.000Z', 'Asia/Kolkata')).toBe('2:10 pm');
+    expect(timeOf('not a date', 'Asia/Kolkata')).toBe('');
   });
 
   it('names only the agent and the time when the list holds one business; a row with no agent is Chausar', () => {

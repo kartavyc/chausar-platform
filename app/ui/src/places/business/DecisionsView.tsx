@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { momentOf, refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
@@ -32,7 +33,7 @@ function autoStep(agents: readonly AgentView[], agentId: string | null, stepId: 
  */
 export function DecisionsView() {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const decisions = useResource('venture.decisions.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const team = useResource('venture.team.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
@@ -75,7 +76,7 @@ export function DecisionsView() {
                       {/* A4 review (L5): the reader's own decision is You's; another member's is named by their role. */}
                       {decision.mine ? t('business.decisions.who.mine') : t(`business.decisions.who.${decision.who}`)}
                       {' · '}
-                      <span className="mono">{momentOf(decision.at, language)}</span>
+                      <span className="mono">{momentOf(decision.at, zone)}</span>
                     </span>
                   )}
                   // The engine's own words; an amount it named in what was decided has no receipt here (NOTES item 30).

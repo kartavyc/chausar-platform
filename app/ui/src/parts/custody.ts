@@ -6,6 +6,7 @@
 
 import { EngineError } from '../engine/types';
 import type { T } from '../text';
+import { formatMoment } from '../../../../platform/runtime/owner-format';
 
 /** TRANSFER.maxTextChars in platform/runtime/workspace-custody-contracts.ts: a bigger move file is refused before it is sent. */
 export const TRANSFER_MAX_CHARS = 1_900_000;
@@ -37,10 +38,9 @@ export function groupsOf(code: string): string[] {
   return code.match(/.{1,4}/g) ?? [];
 }
 
-/** A moment as the reader's calendar writes it: "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
-export function momentOf(at: string, language: string): string {
-  const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+/** A moment in the owner's zone (`useOwnerZone`): "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
+export function momentOf(at: string, zone: string): string {
+  return formatMoment(at, zone);
 }
 
 /**

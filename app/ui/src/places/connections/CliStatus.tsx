@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useT, type T } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Inner } from '../../parts/Card';
@@ -177,7 +178,7 @@ function factsOf(view: CliStatusView, t: T): [string, ReactNode][] {
 
 function LastTask({ task }: { task: CliStatusView['lastTask'] }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   if (!task) return <>{t('connections.cli.lastTask.none')}</>;
-  return <>{t(`connections.cli.lastTask.${task.outcome}`)}, <span className="mono">{momentOf(task.at, language)}</span></>;
+  return <>{t(`connections.cli.lastTask.${task.outcome}`)}, <span className="mono">{momentOf(task.at, zone)}</span></>;
 }

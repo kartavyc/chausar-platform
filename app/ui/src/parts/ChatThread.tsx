@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useLanguage, useT, type Language, type T } from '../text';
+import { useT, type T } from '../text';
+import { useClock, useOwnerZone } from '../shell/clock';
+import { dayKeyIn, formatDay, formatTime } from '../../../../platform/runtime/owner-format';
 import { Avatar, ChausarAvatar, type DeptId } from './Avatar';
 import { cx } from './cx';
 import { Icon } from './Icon';
@@ -36,20 +38,12 @@ export interface ChatThreadProps {
   older?: readonly ThreadEntry[] | undefined;
   /** "Today" and "Yesterday" are worked out from this; left out, now. */
   now?: Date | undefined;
-  /** Left out, the computer's own zone. */
-  timeZone?: string | undefined;
   className?: string | undefined;
 }
 
-const LOCALE: Record<Language, string> = { en: 'en-IN' };
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** How close to the bottom, in px, still counts as reading the newest messages. */
 const NEAR_BOTTOM = 64;
-
-/** The calendar day of a moment in the zone, as 2026-10-23, so two moments can be compared as days. */
-function dayKey(date: Date, timeZone: string | undefined): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-}
 
 type Block =
   | { kind: 'day'; key: string; label: string }
@@ -57,17 +51,16 @@ type Block =
   | { kind: 'agent'; key: string; entries: Exclude<ThreadEntry, { kind: 'owner' }>[] };
 
 /** Day separators, then each owner message alone and each run of agent-side entries under one avatar. */
-function blocksOf(entries: readonly ThreadEntry[], t: T, language: Language, now: Date, timeZone: string | undefined): Block[] {
-  const today = dayKey(now, timeZone);
-  const yesterday = dayKey(new Date(now.getTime() - DAY_MS), timeZone);
-  const dayFormat = new Intl.DateTimeFormat(LOCALE[language], { timeZone, day: 'numeric', month: 'short' });
+function blocksOf(entries: readonly ThreadEntry[], t: T, now: Date, zone: string): Block[] {
+  const today = dayKeyIn(now, zone);
+  const yesterday = dayKeyIn(now.getTime() - DAY_MS, zone);
   const blocks: Block[] = [];
   let lastDay = '';
   for (const entry of entries) {
     const date = new Date(entry.at);
-    const key = Number.isNaN(date.getTime()) ? lastDay : dayKey(date, timeZone);
+    const key = Number.isNaN(date.getTime()) ? lastDay : dayKeyIn(date, zone);
     if (key !== lastDay) {
-      const label = key === today ? t('thread.today') : key === yesterday ? t('thread.yesterday') : dayFormat.format(date);
+      const label = key === today ? t('thread.today') : key === yesterday ? t('thread.yesterday') : formatDay(date, zone, 'short');
       blocks.push({ kind: 'day', key, label });
       lastDay = key;
     }
@@ -87,14 +80,14 @@ function blocksOf(entries: readonly ThreadEntry[], t: T, language: Language, now
  * arrives it follows it only if the owner was already at the bottom; someone reading older messages stays put.
  * Each message sets its own direction (`dir="auto"`), so a reply in a right-to-left script reads right.
  */
-export function ChatThread({ agent, entries, older, now, timeZone, className }: ChatThreadProps) {
+export function ChatThread({ agent, entries, older, now, className }: ChatThreadProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
+  const clock = useClock();
   const log = useRef<HTMLDivElement>(null);
-  const timeFormat = new Intl.DateTimeFormat(LOCALE[language], { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const timeOf = (at: string) => {
     const date = new Date(at);
-    return Number.isNaN(date.getTime()) ? null : <time className={cx(s.time, 'mono')} dateTime={at}>{timeFormat.format(date)}</time>;
+    return Number.isNaN(date.getTime()) ? null : <time className={cx(s.time, 'mono')} dateTime={at}>{formatTime(date, zone)}</time>;
   };
   const pinned = useRef(true);
   const onScroll = () => {
@@ -106,8 +99,8 @@ export function ChatThread({ agent, entries, older, now, timeZone, className }: 
     if (log.current && pinned.current) log.current.scrollTop = log.current.scrollHeight;
   }, [newest]);
 
-  const blocks = blocksOf(entries, t, language, now ?? new Date(), timeZone);
-  const olderBlocks = blocksOf(older ?? [], t, language, now ?? new Date(), timeZone);
+  const blocks = blocksOf(entries, t, now ?? clock(), zone);
+  const olderBlocks = blocksOf(older ?? [], t, now ?? clock(), zone);
   return (
     <div ref={log} className={cx(s.thread, className)} role="log" aria-live="polite" aria-label={t('thread.label', { name: agent.name })} onScroll={onScroll}>
       {blocks.length === 0 && olderBlocks.length === 0 && <p className={s.empty}>{t('thread.empty')}</p>}

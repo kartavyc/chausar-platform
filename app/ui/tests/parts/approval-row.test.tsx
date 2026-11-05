@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ApprovalRow, readBack } from '../../src/parts/ApprovalRow';
 import { EngineError, type QueueDecision, type QueueList, type QueueRow } from '../../src/engine/types';
 import { receiptMark } from '../helpers/ink-rules';
+import { ClockProvider } from '../../src/shell/clock';
 
 const price: QueueRow = {
   id: 'q1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'price', createdAt: '2026-10-21T08:00:00Z', digest: 'd1',
@@ -213,5 +214,14 @@ describe('ApprovalRow', () => {
     list(<ApprovalRow row={signoff} onDecide={pending} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to CA' })); });
     expect(screen.queryByText(POSTING)).toBeNull();
+  });
+});
+
+describe('ApprovalRow: the time a row came in (one-shot B2)', () => {
+  it('reads on the 12-hour clock in the owner zone: 19:11 UTC is 12:41 am in India', () => {
+    const late: QueueRow = { ...price, createdAt: '2026-11-02T19:11:00.000Z' };
+    const { container } = render(<ClockProvider now={() => new Date('2026-11-02T19:30:00.000Z')} zone="Asia/Kolkata"><ApprovalRow layout="card" row={late} onDecide={vi.fn()} /></ClockProvider>);
+    expect(container.textContent).toContain('12:41 am');
+    expect(container.textContent).not.toContain('00:41');
   });
 });

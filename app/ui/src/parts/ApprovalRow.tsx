@@ -1,5 +1,7 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
-import { useLanguage, useT, type Language, type T } from '../text';
+import { useT, type T } from '../text';
+import { useOwnerZone } from '../shell/clock';
+import { formatTime } from '../../../../platform/runtime/owner-format';
 import { Avatar, ChausarAvatar, type AvatarState, type DeptId } from './Avatar';
 import { Button, type ButtonSize } from './Button';
 import { Change } from './Change';
@@ -49,11 +51,11 @@ const KIND_ICON: Record<QueueKind, IconName> = {
 /** The icon a primary carries on a card when it is not locked (D's Approve check, Run again arrow). */
 const ACTION_ICON: Partial<Record<QueueAction['id'], IconName>> = { approve: 'check', 'run-again': 'rotate-ccw', 'send-to-ca': 'send' };
 
-/** The time of day a row came in (createdAt), as the reader's clock writes it: "08:40". Empty for a bad date. */
-export function timeOf(at: string, language: Language): string {
+/** The time of day a row came in (createdAt), in the owner's zone on the 12-hour clock: "8:40 am". Empty for a bad date. */
+export function timeOf(at: string, zone: string): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  return formatTime(date, zone);
 }
 
 export interface DecideExtra { viewed: boolean; answer?: string }
@@ -199,7 +201,7 @@ export function ApprovalRow({
   layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel,
 }: ApprovalRowProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const [current, setCurrent] = useState(row);
   const [phase, setPhase] = useState<Phase>('idle');
   const [pending, setPending] = useState<QueueAction | null>(null);
@@ -512,7 +514,7 @@ export function ApprovalRow({
   const kindIcon: IconName = stopped ? 'triangle-alert' : KIND_ICON[current.kind] ?? 'file-text';
   const name = current.agent ?? t('app.name');
   // W4 4E4: a follow-up's time is only its due day's start, so it shows none.
-  const time = current.kind === 'followup' ? '' : timeOf(current.createdAt, language);
+  const time = current.kind === 'followup' ? '' : timeOf(current.createdAt, zone);
   const note = lockNote ?? (primary.secondAsk ? t('approval.asksAgain') : current.kind === 'plan' ? t('approval.nothingYet') : current.needs?.answer === 'day' ? t('approval.pickDay') : undefined);
   const previewNode = typeof preview === 'function'
     ? preview(view, { answer: (text) => { if (phase !== 'idle' || inFlight.current) return; setAnswer(text); setPhase('answer'); } })
