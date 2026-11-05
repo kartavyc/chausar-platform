@@ -268,7 +268,6 @@
   "consent.whatSent": "What's sent",
   "consent.chatLine": "Chats go to your AI to answer. Keys, passphrases and bank or card numbers never do.",
   "consent.searchLine": "Your question goes to your AI with people's names, emails and phone numbers masked.",
-  "custody.refused.UNLOCK_FAILED": "That passphrase or code didn't open it. Check Caps Lock and try again.",
   "custody.refused.VAULT_OPEN": "Another business is open. Close it first.",
   "custody.refused.VAULT_LOCKED": "This business is closed. Open it first.",
   "custody.refused.WEAK_PASSPHRASE": "Use a passphrase of at least 12 characters.",

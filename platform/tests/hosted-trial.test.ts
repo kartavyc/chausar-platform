@@ -361,6 +361,8 @@ test('a trial ends 7 days after its last use: a day before, the session view say
   await signIn('someone@example.com');
   const ended = await visitor.get('/api/hosted/session');
   assert.deepEqual([ended.status, ended.json.error.message], [401, TRIAL_ENDED_LINE]);
+  // B1 fix round 1: flagged as the owner's words, so the app shows it exactly as sent.
+  assert.equal(ended.json.error.owner, true);
   assert.equal(await app.expireTrials(), 1);
   const state = directory.read();
   assert.equal(state.users.some(u => u.id === user.id || u.tenantId === user.tenantId), false, 'the account, with its sealed vault keys');

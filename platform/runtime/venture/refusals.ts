@@ -9,8 +9,8 @@ import { isRefusal } from './refusal-brand.ts';
 /** The refusal a branded coded error stands for, or null when it is not one of Chausar's. */
 export function asRefusal(error: unknown): ChausarError | null {
   if (error instanceof ChausarError || !isRefusal(error)) return null;
-  const raw = error as Error & { code: string; reason?: unknown; details?: unknown; missing?: unknown };
-  const extra = Object.fromEntries((['reason', 'details', 'missing'] as const).filter(key => raw[key] !== undefined).map(key => [key, raw[key]]));
+  const raw = error as Error & { code: string; reason?: unknown; details?: unknown; missing?: unknown; owner?: unknown };
+  const extra = Object.fromEntries((['reason', 'details', 'missing', 'owner'] as const).filter(key => raw[key] !== undefined).map(key => [key, raw[key]]));
   return Object.assign(new ChausarError(raw.code, raw.message), extra);
 }
 

@@ -1723,7 +1723,7 @@ export class Engine {
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
       case 'workspace.delete': {
-        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
         // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
         const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
         const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id;

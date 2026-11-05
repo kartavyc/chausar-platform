@@ -1,7 +1,7 @@
-// One-shot B1 (SCREENS P1, bug 12): an engine refusal reaches a screen in the owner's words. A code in the owner-words
-// table says its line from text/en/errors.json; a plain engine message stays as it is; a message that still carries a
-// developer word (vault, credential, engine, fixture, digest, an npm command) becomes the general line. Real and fake
-// clients do this at the same edge, so no screen shows "Unable to unlock vault. Check your credential...".
+// One-shot B1 (SCREENS P1, bug 12): an engine refusal reaches a screen in the owner's words. An unflagged code in the
+// owner-words table says its line from text/en/errors.json; a plain engine message stays as it is; an unflagged message
+// that still carries a developer word becomes the general line (B1 fix round 1: owner-flag-b1.test.ts covers the flag).
+// Real and fake clients do this at the same edge, so no screen shows "Unable to unlock vault. Check your credential...".
 import { describe, expect, it } from 'vitest';
 import { ownerError } from '../../src/engine/owner-errors';
 import { EngineError } from '../../src/engine/types';
@@ -11,13 +11,12 @@ import { CATALOGUES } from '../../src/text';
 const words = CATALOGUES.en;
 
 describe('owner words for engine refusals', () => {
-  it('a code in the table says its own line, and keeps the code, the reason and the engine text', () => {
+  it('a code in the table says its own line, and keeps the code and the reason', () => {
     const error = ownerError(new EngineError('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.', 'why'));
     expect(error).toBeInstanceOf(EngineError);
     expect(error.code).toBe('UNLOCK_FAILED');
     expect(error.reason).toBe('why');
-    expect(error.message).toBe("That passphrase or code didn't open it. Check Caps Lock and try again.");
-    expect(error.detail).toBe('Unable to unlock vault. Check your credential or restore a valid backup.');
+    expect(error.message).toBe("That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code.");
   });
 
   it('a plain engine message stays as the engine wrote it', () => {
@@ -45,6 +44,6 @@ describe('owner words for engine refusals', () => {
   it('through the fake client, a wrong passphrase reads in owner words', async () => {
     const client = createFakeClient(new FakeEngine({ closed: true }));
     const refused = await client.request('workspace.open', { folder: 'sitara', passphrase: 'not the passphrase' }).then(() => null, (error: unknown) => error as EngineError);
-    expect(refused).toMatchObject({ code: 'UNLOCK_FAILED', message: "That passphrase or code didn't open it. Check Caps Lock and try again." });
+    expect(refused).toMatchObject({ code: 'UNLOCK_FAILED', message: "That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code." });
   });
 });

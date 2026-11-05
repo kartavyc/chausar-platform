@@ -24,7 +24,7 @@ export const EXTERNAL_ORIGINS: readonly string[];
 export function validateRequest(input: unknown): { method: DesktopMethod; payload: Record<string, unknown> };
 export function validateExternalUrl(input: unknown): string;
 export function assertTrustedSender(event: unknown, contents: unknown): void;
-export function publicError(error: unknown): { code: string; message: string };
+export function publicError(error: unknown): { code: string; message: string; owner?: true };
 export type VentureEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed'
   | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
   | 'chain.changed' | 'desk.changed' | 'idea.changed';

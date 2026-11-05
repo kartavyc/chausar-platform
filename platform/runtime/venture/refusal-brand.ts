@@ -7,15 +7,18 @@ export const REFUSAL_BRAND: unique symbol = Symbol.for('chausar.venture.refusal'
 
 type Coded = Error & { code: string };
 
-/** Brands a plain error as one of Chausar's refusals, with its code and any extra fields (like the missing inputs). */
+/**
+ * Brands a plain error as one of Chausar's refusals, with its code and any extra fields (like the missing inputs). B1 fix
+ * round 1: it also says, as plain data that survives JSON, that its words are written for the owner (`owner: true`).
+ */
 export function refusalError<E extends Error>(error: E, fields: { code: string } & Record<string, unknown>): E & Coded {
-  return Object.assign(error, fields, { [REFUSAL_BRAND]: true });
+  return Object.assign(error, fields, { owner: true }, { [REFUSAL_BRAND]: true });
 }
 
 /** The same for an error class that sets its own code (DevError, NewsletterError and the like), from its constructor. */
 export function markRefusal<E extends Error>(error: E): E {
   Object.defineProperty(error, REFUSAL_BRAND, { value: true, enumerable: false });
-  return error;
+  return Object.assign(error, { owner: true });
 }
 
 /** True only for an error branded where Chausar threw it. */

@@ -1,5 +1,6 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
 import { ownerError } from './owner-errors';
+import { ownerWords } from '../../../../platform/runtime/owner-flag';
 import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
@@ -1303,7 +1304,7 @@ export class FakeEngine {
   private deleteBusiness(p: Record<string, unknown>) {
     const business = this.businesses.find((b) => b.id === this.current);
     if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
-    if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+    if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
     this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);
     this.ventures.delete(business.id);
@@ -1483,8 +1484,9 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
   return {
     engine,
     transport: 'fake',
-    // One-shot B1: refusals in the owner's words at the same edge as the real client (owner-errors.ts).
-    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return (engine.request(method, params) as Promise<ResultOf<M>>).catch((error: unknown) => { throw ownerError(error); }); },
+    // One-shot B1: refusals in the owner's words at the same edge as the real client (owner-errors.ts). B1 fix round 1:
+    // the fake's refusals carry the owner flag as the engine's transports send it (platform/runtime/owner-flag.ts).
+    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return (engine.request(method, params) as Promise<ResultOf<M>>).catch((error: unknown) => { throw ownerError(error instanceof EngineError && ownerWords(error.code) ? { code: error.code, message: error.message, reason: error.reason, owner: true } : error); }); },
     subscribe: (listener) => engine.subscribe(listener),
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),

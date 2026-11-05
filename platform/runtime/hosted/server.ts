@@ -11,6 +11,8 @@ import { mkdir, open, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
+import { knownError } from '../owner-error.ts';
+import { ownerWords } from '../owner-flag.ts';
 import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
 import { HostedApp, SHARE_TOKEN_PATTERN, type FileRequestPageView, type SharePageView } from './app.ts';
@@ -428,7 +430,9 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
       if (res.headersSent) { res.end(); return; }
       const extra: Record<string, string> = {};
       if (code === 'RATE_LIMITED') extra['Retry-After'] = String((error as any).retryAfterSeconds ?? 60);
-      send(statusOf(code), { error: { code, message } }, extra);
+      // B1 fix round 1: owner: true when these are words written for the owner (owner-flag.ts); the app shows them as sent.
+      const owner = (!known || knownError(error)) && ownerWords(code);
+      send(statusOf(code), { error: { code, message, ...(owner ? { owner: true } : {}) } }, extra);
     }
   };
 

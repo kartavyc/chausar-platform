@@ -13,11 +13,11 @@ export const TRANSFER_MAX_CHARS = 1_900_000;
 export const NEW_PASSPHRASE_MIN = 12;
 
 /**
- * Engine refusals whose own words name the vault or a credential: Ink says them in plain words instead. Every other
- * refusal (the custody ones above all) arrives in the engine's plain words already and is shown as it came.
+ * Engine refusals Ink says in this screen's own words. Every other refusal arrives in the owner's words already and is
+ * shown as it came; a wrong passphrase (UNLOCK_FAILED) is worded once, in text/en/errors.json (engine/owner-errors.ts).
  */
 const PLAIN = new Set([
-  'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_LOCKED', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
+  'VAULT_OPEN', 'VAULT_LOCKED', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
   // W4 4F3: the run controls' refusals, in the screen's words (English and Hindi).
   'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED',
 ]);

@@ -44,9 +44,9 @@ type Parts = { store: DraftStore; shelf: SecretShelf; deps: VentureDeps };
 
 /** The desk never reaches the engine's own services: it has no vault, books or trust settings. */
 const NO_SERVICES: VentureEngineServices = Object.freeze({
-  calculator: { calculate: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no vault yet.'); }, receipt: () => { throw new ChausarError('NOT_BUILT_YET', 'There is no vault yet.'); } },
-  ontology: { current: () => null, publish: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no vault yet.'); } },
-  trust: { updatePolicy: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no vault yet.'); } },
+  calculator: { calculate: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no business here yet.'); }, receipt: () => { throw new ChausarError('NOT_BUILT_YET', 'There is no business here yet.'); } },
+  ontology: { current: () => null, publish: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no business here yet.'); } },
+  trust: { updatePolicy: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no business here yet.'); } },
 });
 
 export class DraftDesk {
@@ -190,7 +190,7 @@ export class DraftDesk {
     });
     const deps: VentureDeps = Object.freeze({
       store, clock: this.#clock, models: port, services: options.helper ? Object.freeze({ ...NO_SERVICES, helper: options.helper }) : NO_SERVICES,
-      github: Object.freeze({ kind: 'fixture' as const, read: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no vault yet.'); } }),
+      github: Object.freeze({ kind: 'fixture' as const, read: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no business here yet.'); } }),
       secrets: shelf, host, demo: options.demo, storage: 'experimental-file' as const, claudeCodeTerms,
     });
     return { store, shelf, deps };

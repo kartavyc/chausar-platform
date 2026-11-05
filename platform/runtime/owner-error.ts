@@ -8,6 +8,7 @@ import { ChausarError } from './contracts.ts';
 import { VENTURE_ERRORS } from './venture/contracts.ts';
 import { CUSTODY_ERRORS } from './workspace-custody-contracts.ts';
 import type { PhoneErrorCode } from './phone/contracts.ts';
+import { ownerWords } from './owner-flag.ts';
 
 export const UNEXPECTED_CODE = 'REQUEST_FAILED';
 export const UNEXPECTED_WORDS = 'Something went wrong in Chausar, so this did not finish. Nothing was sent. Try again, and if it keeps happening, send feedback from Settings.';
@@ -20,7 +21,8 @@ const OWN_CODES: ReadonlySet<string> = new Set<string>([...VENTURE_ERRORS, ...CU
 /** The engine's own error classes that carry their own code and owner words (playbook desks and the phone protocol). */
 const OWN_CLASSES: ReadonlySet<string> = new Set(['PhoneError', 'DevError', 'NewsletterError', 'ArticleError', 'RecruitError']);
 
-export type OwnerError = { code: string; message: string; reason?: string };
+/** B1 fix round 1: `owner: true` when the words are written for the owner and the app shows them exactly as sent (owner-flag.ts). */
+export type OwnerError = { code: string; message: string; reason?: string; owner?: true };
 
 /** True for an error whose words are Chausar's own. */
 export function knownError(error: unknown): boolean {
@@ -32,7 +34,7 @@ export function knownError(error: unknown): boolean {
 
 /** The code, words and (when it is a short plain tag) reason a reply may carry. */
 export function ownerError(error: unknown): OwnerError {
-  if (!knownError(error)) return { code: UNEXPECTED_CODE, message: UNEXPECTED_WORDS };
+  if (!knownError(error)) return { code: UNEXPECTED_CODE, message: UNEXPECTED_WORDS, owner: true };
   const e = error as { code: string; message: string; reason?: unknown };
-  return { code: e.code, message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}) };
+  return { code: e.code, message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}), ...(ownerWords(e.code) && e.message !== e.code ? { owner: true as const } : {}) };
 }

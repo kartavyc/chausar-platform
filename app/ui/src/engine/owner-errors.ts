@@ -1,32 +1,42 @@
 /**
- * One-shot B1 (SCREENS P1, PLAN batch 12): one owner-words table for engine refusals. Most engine messages are already
- * written for the owner ("Set your price for Monthly visits first.") and stay as they are. A code listed in
- * text/en/errors.json says that line instead, and a message that still carries a developer word (vault, credential,
- * engine, fixture, digest, an npm command) says the general line, so raw engine text never reaches a screen. The
- * engine's own text stays on the error as `detail`. Real and fake clients both call this at their edge (client.ts,
- * fake.ts), so every place that shows an error's message gets the same words without changing.
+ * One-shot B1 (SCREENS P1, PLAN batch 12), B1 fix round 1: one owner-words table for engine refusals. Every transport
+ * (the local server, the desktop worker through main and the preload, the hosted server, the fake engine) marks a
+ * refusal written for the owner with `owner: true` (platform/runtime/owner-flag.ts), and such a refusal is shown exactly
+ * as sent: "Type your email address to delete your account.", "Set your price for Digest Ltd first." Only an unflagged
+ * error is put in the owner's words here: a code whose engine text is developer text (DEVELOPER_TEXT_CODES) says its
+ * line from text/en/errors.json, and any other unflagged message that still carries a developer word says the general
+ * line. Real and fake clients both call this at their edge (client.ts, fake.ts).
  */
 
+import { DEVELOPER_TEXT_CODES, DEVELOPER_WORDS } from '../../../../platform/runtime/owner-flag';
 import { CATALOGUES } from '../text';
 import { EngineError } from './types';
 
-/** Words an owner never needs to read: the engine's own vocabulary and developer instructions. */
-const DEVELOPER = /\b(?:vault|vaults|credentials?|engine|fixtures?|digest|npm|transaction|snapshot|adapter|envelope)\b/i;
+export { DEVELOPER_WORDS };
+/**
+ * DEVELOPER_WORDS (the one list the owner-words tests use too), checked only on an error no transport marked as the
+ * owner's: a desktop or network failure, a fault in this page.
+ */
+const DEVELOPER = new RegExp(`\\b(?:${DEVELOPER_WORDS.join('|')})s?\\b`, 'i');
 
-function line(key: string): string | null {
-  const message = CATALOGUES.en[key];
-  return typeof message === 'string' ? message : null;
+/** A code sent in place of words (the phone protocol's PhoneError says only its code). */
+const BARE_CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
+
+/** A line from text/en/errors.json. */
+export function errorLine(key: string): string {
+  const message = CATALOGUES.en[`errors.${key}`];
+  if (typeof message !== 'string') throw new Error(`errors.${key} is not in the catalogue`);
+  return message;
 }
 
-/** The refusal in the owner's words, as an EngineError with the same code and reason. */
+/** The refusal in the owner's words, as an EngineError with the same code and reason, marked as the owner's. */
 export function ownerError(error: unknown): EngineError {
-  const e = error as { code?: unknown; message?: unknown; reason?: unknown } | null;
+  const e = error as { code?: unknown; message?: unknown; reason?: unknown; owner?: unknown } | null;
   const code = typeof e?.code === 'string' ? e.code : 'REQUEST_FAILED';
   const message = typeof e?.message === 'string' ? e.message : String(error);
   const reason = typeof e?.reason === 'string' ? e.reason : undefined;
-  const words = line(`errors.${code}`) ?? (DEVELOPER.test(message) ? line('errors.general') : null);
-  if (words === null || words === message) return error instanceof EngineError ? error : new EngineError(code, message, reason);
-  const out = new EngineError(code, words, reason);
-  out.detail = message;
-  return out;
+  if (e?.owner === true) return error instanceof EngineError ? error : new EngineError(code, message, reason, true);
+  const words = DEVELOPER_TEXT_CODES.includes(code) ? errorLine(code) : DEVELOPER.test(message) || BARE_CODE.test(message) ? errorLine('general') : null;
+  if (words === null) return error instanceof EngineError ? error : new EngineError(code, message, reason);
+  return new EngineError(code, words, reason, true);
 }
