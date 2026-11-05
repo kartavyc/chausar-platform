@@ -627,7 +627,7 @@ export class FakeBusinessDesk {
 
   private heldOrThrow(biz: string) {
     const held = this.host.business(biz);
-    if (!held) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (!held) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     return held;
   }
 

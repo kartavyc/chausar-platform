@@ -269,7 +269,7 @@ export class Engine {
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
-      check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
+      check(this.vault === vault, 'VAULT_LOCKED', 'This business is closed. Open it first.');
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper, speech: this.services.speech },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
@@ -573,7 +573,7 @@ export class Engine {
     return new Engine({directory: selected.directory, version: this.version, demo: true, storage: 'experimental-file',
       workspaceAuthority: {workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId}});
   }
-  private store(): Vault { check(this.vault, 'VAULT_LOCKED', 'Open your workspace first.'); return this.vault; }
+  private store(): Vault { check(this.vault, 'VAULT_LOCKED', 'This business is closed. Open it first.'); return this.vault; }
   private writerGuard(): VaultWriterGuard | undefined {
     if (this.options.sync === undefined) return undefined;
     return (input, work) => {

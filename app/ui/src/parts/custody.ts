@@ -18,7 +18,9 @@ export const NEW_PASSPHRASE_MIN = 12;
  * shown as it came; a wrong passphrase (UNLOCK_FAILED) is worded once, in text/en/errors.json (engine/owner-errors.ts).
  */
 const PLAIN = new Set([
-  'VAULT_OPEN', 'VAULT_LOCKED', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
+  // B1 fix round 2: not VAULT_LOCKED. The engine says it in owner words, some of them specific ("Choose one of your
+  // businesses first."), so its own line is shown.
+  'VAULT_OPEN', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
   // W4 4F3: the run controls' refusals, in the screen's words (English and Hindi).
   'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED',
 ]);

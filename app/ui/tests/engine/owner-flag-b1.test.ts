@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEngineClient, type ChausarBridge } from '../../src/engine/client';
 import { DEVELOPER_WORDS, ownerError } from '../../src/engine/owner-errors';
 import { EngineError } from '../../src/engine/types';
+import { refusalWords } from '../../src/parts/custody';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { CATALOGUES } from '../../src/text';
 import { NAMED_REFUSALS } from '../../../../platform/tests/fixtures/owner-named-refusals';
@@ -109,6 +110,19 @@ describe('B1 fix round 1: the table speaks only for unflagged developer text', (
     expect(unknown).toMatchObject({ code: 'METHOD_NOT_ALLOWED', message: words['errors.general'], owner: true });
     const plain = await refusedBy(createFakeClient(new FakeEngine()).request('workspace.delete', { confirmation: 'not the name' } as never));
     expect(plain).toMatchObject({ code: 'CONFIRMATION_REQUIRED', message: 'Type the business name to delete it.', owner: true });
+  });
+});
+
+// B1 fix round 2 (the custody VAULT_LOCKED low): the custody screens' own line no longer covers the engine's specific
+// VAULT_LOCKED lines; the engine's general one now says the same plain words itself, engine and fake.
+describe('B1 fix round 2: a closed business on the custody screens', () => {
+  it('keeps the engine\'s own VAULT_LOCKED words, and the general one is plain', async () => {
+    const t = (key: string) => String(words[key] ?? key);
+    for (const [code, message] of NAMED.filter(([code]) => code === 'VAULT_LOCKED')) {
+      expect(refusalWords(ownerError({ code, message, owner: true }), t as never)).toBe(message);
+    }
+    const closed = await refusedBy(createFakeClient(new FakeEngine({ closed: true })).request('venture.get', {}));
+    expect(closed).toMatchObject({ code: 'VAULT_LOCKED', message: 'This business is closed. Open it first.', owner: true });
   });
 });
 

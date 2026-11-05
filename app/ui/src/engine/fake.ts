@@ -523,7 +523,7 @@ export class FakeEngine {
   async request(method: string, params: unknown = {}): Promise<unknown> {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
-    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
@@ -1303,7 +1303,7 @@ export class FakeEngine {
   /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go, its exports stay. */
   private deleteBusiness(p: Record<string, unknown>) {
     const business = this.businesses.find((b) => b.id === this.current);
-    if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (!business) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
     this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);

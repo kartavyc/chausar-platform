@@ -269,7 +269,6 @@
   "consent.chatLine": "Chats go to your AI to answer. Keys, passphrases and bank or card numbers never do.",
   "consent.searchLine": "Your question goes as you typed it; people's names, emails and phone numbers in your contacts and notes are masked.",
   "custody.refused.VAULT_OPEN": "Another business is open. Close it first.",
-  "custody.refused.VAULT_LOCKED": "This business is closed. Open it first.",
   "custody.refused.WEAK_PASSPHRASE": "Use a passphrase of at least 12 characters.",
   "custody.refused.WORKSPACE_NOT_FOUND": "There's no business in that folder on this computer.",
   "custody.refused.INVALID_PATH": "Choose a backup from the list.",
