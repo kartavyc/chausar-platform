@@ -48,10 +48,12 @@ export function lastEventAt(state: State, ventureId: string): Map<string, string
   return times;
 }
 
-/** Elapsed time as the screens show it: '45 s', '4 min', '1 h 5 min', '2 days 3 h'. Whole units only, never negative. */
+/**
+ * Elapsed time as the screens show it (owner-format.ts formatAge): "45 s", "1 min 20 s" (seconds while under ten
+ * minutes), "12 min", "1 h 5 min", "2 days 3 h"; never negative, and nothing under a second, so no screen says
+ * "Worked for 0s" (the app hides an empty elapsed).
+ */
 export function elapsedText(fromIso: string, toIso: string): string {
-  // One-shot B2: "45 s", "1 min 20 s", "12 min", "1 h 5 min", "2 days 3 h", and nothing under a second, so no
-  // screen says "Worked for 0s" (the app hides an empty elapsed).
   return formatAge(fromIso, toIso);
 }
 

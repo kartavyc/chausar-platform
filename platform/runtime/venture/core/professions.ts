@@ -312,6 +312,8 @@ export function cautionApplies(caution: Pick<Caution, 'size'>, business: Busines
 
 /** Whole rupees from paise in Indian words: "₹1.5 crore", "₹12 lakh", "₹50,000". */
 export function rupeeWords(minor: string): string {
+  // B2 fix round 1: the sign leads, as formatMoney writes it ("-₹500", never "₹-5").
+  if (BigInt(minor) < 0n) return `-${rupeeWords(String(-BigInt(minor)))}`;
   const rupees = BigInt(minor) / 100n;
   const scaled = (unit: bigint, word: string) => {
     const hundredths = (rupees * 100n) / unit;

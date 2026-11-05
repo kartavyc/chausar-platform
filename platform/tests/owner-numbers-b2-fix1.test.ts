@@ -61,3 +61,31 @@ test("under venture/, a count names the business's country: no formatCount(..., 
     .filter(f => readFileSync(join(root, f), 'utf8').split('\n').some(line => /formatCount\(.*,\s*'IN'\)/.test(line)));
   assert.deepEqual(found, []);
 });
+
+// Quality 10: an unconfirmed price is a priced route, so nothing spent on it reads "$0.00 (estimate)", never "Free (estimate)".
+test('a persona test on a key with an unconfirmed price never reads "Free (estimate)"', async () => {
+  const { costDisplay } = await import('../runtime/venture/models/cost.ts');
+  assert.equal(costDisplay('0', false), '$0.00 (estimate)');
+  assert.equal(costDisplay('0', true), 'Free');
+  assert.equal(costDisplay('0', true, 'template'), 'Free');
+});
+
+// Quality 12: the edges the review probed.
+test('owner-format edges: "-0" is zero, a negative rupee word leads with its sign, a day that is not on the calendar stays as written', async () => {
+  const { typedMoney, formatDay } = await import('../runtime/owner-format.ts');
+  const { rupeeWords } = await import('../runtime/venture/core/professions.ts');
+  assert.equal(typedMoney('-0', 'INR'), '₹0');
+  assert.equal(typedMoney('-0.00', 'INR'), '₹0');
+  assert.equal(rupeeWords('-50000'), '-₹500');
+  assert.equal(formatDay('2026-02-31', 'Asia/Kolkata'), '2026-02-31');
+  assert.equal(formatDay('2026-02-28', 'Asia/Kolkata'), '28 Feb 2026');
+});
+
+// Quality 9: an ISO time with no zone is not an instant (it would read in the computer's zone).
+test('a time with no Z or offset is not an instant: it comes back as written', async () => {
+  const { formatTime, formatDay } = await import('../runtime/owner-format.ts');
+  assert.equal(formatTime('2026-11-02T19:11:00', 'Asia/Kolkata'), '2026-11-02T19:11:00');
+  assert.equal(formatTime('2026-11-02T19:11:00Z', 'Asia/Kolkata'), '12:41 am');
+  assert.equal(formatTime('2026-11-02T19:11:00+00:00', 'Asia/Kolkata'), '12:41 am');
+  assert.equal(formatDay('2026-11-02T19:11:00', 'Asia/Kolkata'), '2026-11-02T19:11:00');
+});

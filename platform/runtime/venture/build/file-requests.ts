@@ -131,7 +131,7 @@ export async function fileRequestEntry(deps: VentureDeps, ctx: Context, token: u
     if (closed) return { open: false, businessName: venture.workingName, reason: closed.line } satisfies FileRequestPage;
     const country = venture.country;
     // The owner's day and time where the business is (B2): the UTC day could be the day before.
-    const expires = country ? `${formatVentureDate(localDayAt(record.expiresAt, country), country.dateOrder)} at ${ownerClock(record.expiresAt, country)}` : ownerClock(record.expiresAt, null);
+    const expires = country ? `${formatVentureDate(localDayAt(record.expiresAt, country), country.dateOrder)} at ${ownerClock(record.expiresAt, country)}` : `${formatVentureDate(localDayAt(record.expiresAt, null), 'day-month-year')} at ${ownerClock(record.expiresAt, null)} UTC`;
     return { open: true, businessName: venture.workingName, note: record.note, line: FILE_REQUEST_LINE, expires, maxBytes: MAX_UPLOAD_BYTES } satisfies FileRequestPage;
   }
   if (step === 'store') {

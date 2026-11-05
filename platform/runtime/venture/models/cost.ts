@@ -70,7 +70,8 @@ export const OWN_PLAN_WORDS = ' (runs on your own plan)';
  */
 export function costDisplay(micros: MicroString, priceConfirmed: boolean, routeKind?: ModelRouteKind): string {
   const ownPlan = routeKind === 'claude-cli' || routeKind === 'codex-cli';
-  const paidCalls = routeKind !== undefined && !ownPlan && routeKind !== 'template';
+  // An unconfirmed price belongs to a priced route, so nothing spent there is "$0.00 (estimate)", never "Free (estimate)".
+  const paidCalls = !ownPlan && routeKind !== 'template' && (routeKind !== undefined || !priceConfirmed);
   const words = formatCost(micros, { ownPlan, paidCalls, estimate: !priceConfirmed });
   return ownPlan && BigInt(micros) > 0n ? words + OWN_PLAN_WORDS : words;
 }

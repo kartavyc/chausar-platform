@@ -74,7 +74,9 @@ export function typedMoney(text: string, currency: string): string | null {
   try { precision = currencyMinorDigits(currency); } catch { return null; }
   const fraction = (found[3] ?? '').replace(/0+$/, '');
   if (fraction.length > precision) return null;
-  return written(found[1] === '-', found[2]!.replace(/^0+(?=\d)/, ''), fraction ? fraction.padEnd(precision, '0') : '', currency);
+  // "-0" is zero: a sign only leads an amount that has a digit above zero.
+  const negative = found[1] === '-' && /[1-9]/.test(found[2]! + fraction);
+  return written(negative, found[2]!.replace(/^0+(?=\d)/, ''), fraction ? fraction.padEnd(precision, '0') : '', currency);
 }
 
 /**
@@ -117,7 +119,8 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const CALENDAR_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+// An instant names its zone (Z or an offset); a time without one would read in the computer's own zone (B2 fix round 1).
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
 
 export type When = string | Date | number;
 type Local = { year: number; month: number; day: number; hour: number; minute: number; weekday: number };
@@ -154,7 +157,9 @@ function calendarDay(value: When): { year: number; month: number; day: number } 
   const found = typeof value === 'string' ? CALENDAR_DAY.exec(value) : null;
   if (!found) return null;
   const [year, month, day] = [Number(found[1]), Number(found[2]), Number(found[3])];
-  return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { year, month, day } : null;
+  // A day on the calendar only: "2026-02-31" is not one (Date.UTC would roll it into March).
+  const real = new Date(Date.UTC(year, month - 1, day));
+  return month >= 1 && month <= 12 && real.getUTCMonth() === month - 1 && real.getUTCDate() === day ? { year, month, day } : null;
 }
 
 const asGiven = (value: When): string => (typeof value === 'string' ? value : '');
@@ -200,6 +205,14 @@ export function formatMonth(month: string, size: 'long' | 'name' | 'short' = 'lo
 export function dayKeyIn(value: When, zone: string): string {
   const local = localIn(value, zone);
   return local ? `${local.year}-${String(local.month).padStart(2, '0')}-${String(local.day).padStart(2, '0')}` : '';
+}
+
+/** A calendar day ('YYYY-MM-DD') moved by whole days, on the calendar alone (no zone): a date field's min and max. */
+export function dayKeyPlus(day: string, days: number): string {
+  const found = CALENDAR_DAY.exec(day);
+  if (!found) return '';
+  const moved = new Date(Date.UTC(Number(found[1]), Number(found[2]) - 1, Number(found[3]) + days));
+  return `${moved.getUTCFullYear()}-${String(moved.getUTCMonth() + 1).padStart(2, '0')}-${String(moved.getUTCDate()).padStart(2, '0')}`;
 }
 
 /** The hour (0 to 23) in the zone at an instant, for a greeting; NaN when the value is not an instant. */
