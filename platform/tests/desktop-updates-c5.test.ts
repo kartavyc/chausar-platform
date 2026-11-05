@@ -6,7 +6,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import fsp, { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalReleaseManifest, type ReleaseManifest } from '../runtime/updater.ts';
@@ -172,4 +172,21 @@ test('a boot marker from a newer Chausar is left alone, a broken one is replaced
   const words = await updates.onFailedBoot({ version: '0.2.0', previous: '0.1.0' }, { note: (line: any) => noted.push(line) });
   assert.equal(words, 'This version didn\'t start. Install the previous one:');
   assert.deepEqual(noted.map(line => [line.op, line.version, line.previous]), [['failed-boot', '0.2.0', '0.1.0']]);
+});
+
+// Fix round 2 (review 2, MEDIUM-1): with the updates folder set, as in the real call, keeping the release copies the whole
+// installer. A copy rewritten while it is being kept must not run: the hash and the signature of the file that runs are
+// the very last steps before it starts. The rewrite is done by a stand-in copyFile; nothing is run.
+test('Windows: a private copy rewritten while the release is kept is not run, and nothing is kept as installed', async t => {
+  const root = await folder(t), release = await staged(root, 'win32'), runs: string[] = [];
+  const original = fsp.copyFile;
+  t.mock.method(fsp, 'copyFile', async (from: string, to: string, mode?: number) => {
+    await original(from, to, mode);
+    if (/[\\/]\.installed-[0-9a-f]+[\\/]installer$/.test(to)) await writeFile(from, 'EVIL: bytes put in place while the release was kept');
+  });
+  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf: async () => ({ status: 'Valid', publisher: 'Chausar Technologies' }), spawnInstaller: (path: string) => { runs.push(path); }, isBusy: neverBusy, updatesFolder: join(root, 'updates') });
+  assert.equal(result.state, 'not-verified');
+  assert.deepEqual(runs, []);
+  await assert.rejects(readFile(join(root, 'updates', 'installed', 'installer')), 'nothing unverified is kept as the installed release');
+  assert.deepEqual((await readdir(join(root, 'updates'))).filter(name => name.startsWith('.installed-')), [], 'no half-kept folder is left');
 });

@@ -84,9 +84,8 @@ function noterFor(updatesFolder) {
   };
 }
 
-/** Moves <updates>/installed to previous/, then keeps this release as installed/ (manifest.json, signature, installer). */
-async function keepRelease(updatesFolder, staged) {
-  const installed = join(updatesFolder, 'installed'), previous = join(updatesFolder, 'previous');
+/** Writes this release (manifest.json, signature, installer) into a fresh hidden folder; nothing is kept yet. */
+async function prepareKeep(updatesFolder, staged) {
   await fsp.mkdir(updatesFolder, { recursive: true });
   const building = join(updatesFolder, `.installed-${randomBytes(6).toString('hex')}`);
   await fsp.mkdir(building);
@@ -95,6 +94,19 @@ async function keepRelease(updatesFolder, staged) {
     await fsp.writeFile(join(building, 'signature'), `${staged.signature}\n`);
     await fsp.copyFile(staged.artifactPath, join(building, 'installer'));
   } catch (error) { await fsp.rm(building, { recursive: true, force: true }); throw error; }
+  return building;
+}
+/**
+ * Keeps a prepared release: its installer must still match the signed manifest. Then <updates>/installed moves to
+ * previous/ and the prepared folder becomes installed/. A copy that no longer matches is thrown away.
+ */
+async function commitKeep(updatesFolder, building, manifest) {
+  const installer = join(building, 'installer'), stat = await regularFile(installer);
+  if (!stat || stat.size !== manifest.size || await sha256Of(installer) !== manifest.sha256) {
+    await fsp.rm(building, { recursive: true, force: true });
+    throw Object.assign(new Error('The kept copy changed.'), { code: 'UPDATE_COPY_CHANGED' });
+  }
+  const installed = join(updatesFolder, 'installed'), previous = join(updatesFolder, 'previous');
   if (await fsp.stat(installed).then(() => true, () => false)) {
     const old = join(updatesFolder, `.previous-${randomBytes(6).toString('hex')}`);
     if (await fsp.stat(previous).then(() => true, () => false)) await fsp.rename(previous, old);
@@ -102,6 +114,10 @@ async function keepRelease(updatesFolder, staged) {
     await fsp.rm(old, { recursive: true, force: true });
   }
   await fsp.rename(building, installed);
+}
+/** Moves <updates>/installed to previous/, then keeps this release as installed/ (manifest.json, signature, installer). */
+async function keepRelease(updatesFolder, staged) {
+  await commitKeep(updatesFolder, await prepareKeep(updatesFolder, staged), staged.manifest);
 }
 
 /** The version of the release kept as previous, or null. */
@@ -154,16 +170,25 @@ async function installOnQuit(input) {
       if (answer?.status !== 'Valid') return done('needs-signing');
       if (answer.publisher !== windowsPublisher) return done('publisher-mismatch');
       await input.beforeInstall?.(staged);
-      // Review round 1 (MEDIUM-3): what runs is a private copy made after the backup, hashed against the signed manifest
-      // and signature-checked itself, right before it runs; the staged path is never run.
+      // Review rounds 1 and 2 (MEDIUM-3, MEDIUM-1): what runs is a private copy made after the backup. Its keeping copy is
+      // prepared first; then the copy's hash against the signed manifest and its signature are the very last checks,
+      // with nothing awaited between them and the spawn. The prepared release is kept only after the spawn, and only if
+      // its own copy still matches the manifest. The staged path is never run.
       const runPath = await privateCopy(staged);
-      const refuseCopy = async state => { await fsp.unlink(runPath).catch(() => {}); return done(state); };
+      let building = null;
+      const refuseCopy = async state => {
+        await fsp.unlink(runPath).catch(() => {});
+        if (building) await fsp.rm(building, { recursive: true, force: true }).catch(() => {});
+        return done(state);
+      };
+      if (updatesFolder) building = await prepareKeep(updatesFolder, { ...staged, artifactPath: runPath }).catch(() => null);
       if (!(await verifyStaged({ ...staged, artifactPath: runPath }, publicKey, platform))) return refuseCopy('not-verified');
       const last = await signatureOf(runPath);
       if (last?.status !== 'Valid') return refuseCopy('needs-signing');
       if (last.publisher !== windowsPublisher) return refuseCopy('publisher-mismatch');
-      if (updatesFolder) await keepRelease(updatesFolder, { ...staged, artifactPath: runPath }).catch(() => note({ op: 'keep-release', state: 'failed', version }));
       spawnInstaller(runPath, ['/S', '--updated']);
+      if (building) await commitKeep(updatesFolder, building, staged.manifest).catch(() => note({ op: 'keep-release', state: 'failed', version }));
+      else if (updatesFolder) await note({ op: 'keep-release', state: 'failed', version });
       return done('installer-started');
     }
     return done('manual');
