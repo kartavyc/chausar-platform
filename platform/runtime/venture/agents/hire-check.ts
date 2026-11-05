@@ -33,17 +33,26 @@ const FLOOR_VERBS = new Set(['send', 'sends', 'sending', 'post', 'posts', 'posti
 const PRICE_VERBS = new Set(['cut', 'cuts', 'lower', 'lowers', 'raise', 'raises', 'change', 'changes', 'set', 'sets', 'update', 'updates', 'drop', 'drops']);
 const PRICE_WORDS = new Set(['price', 'prices', 'pricing', 'rate', 'rates', 'fee', 'fees']);
 const VERB_PLACE = new Set(['and', 'then', 'to', 'also', 'will', 'can']);
-/** Words that keep the owner in the act: the agent drafts, suggests or asks, or the act goes to the owner only. */
-const OWNER_FIRST = /\b(?:draft\w*|approv\w*|ask(?:s|ing)?|suggest\w*|propos\w*|prepar\w*|review\w*|for\s+me\s+to|(?:send|sends|email|emails|message|messages|tell|tells|share|shares|forward|forwards)\s+(?:it\s+|them\s+)?(?:to\s+)?me|with\s+me)\b/;
+/**
+ * Words that keep the owner in the act: the agent drafts, suggests or asks, or the act goes to the owner only (review
+ * round 2: "Reminds me to send invoices", "Tells me when..."). A reminder or an explanation to a client is outward, so
+ * "Reminds clients to pay" is not owner-first.
+ */
+const OWNER_FIRST = /\b(?:draft\w*|approv\w*|ask(?:s|ing)?|suggest\w*|propos\w*|prepar\w*|review\w*|for\s+me\s+to|(?:send|sends|email|emails|message|messages|tell|tells|share|shares|forward|forwards)\s+(?:it\s+|them\s+)?(?:to\s+)?me|(?:remind|reminds|notify|notifies|alert|alerts|warn|warns|ping|pings|show|shows|tell|tells)\s+me|with\s+me)\b/;
+/** A duty read as clauses, so "Drafts and sends invoices" is two acts and the send is judged on its own. */
+const CLAUSES = /\s*(?:,|;|\band\b|\bthen\b|\bbut\b)\s*/;
 /** True when the words have the agent send, pay, post, delete or change a price without the owner. */
 function actsWithoutOwner(words: string): boolean {
   const flat = words.toLowerCase(), tokens = flat.split(/[^a-z0-9]+/).filter(Boolean);
   if (UNATTENDED.test(flat) && tokens.some(word => FLOOR_ACTS.has(word))) return true;
-  if (OWNER_FIRST.test(flat)) return false;
-  return tokens.some((word, index) => {
-    if (index > 0 && !VERB_PLACE.has(tokens[index - 1])) return false;
-    if (FLOOR_VERBS.has(word)) return true;
-    return PRICE_VERBS.has(word) && tokens.slice(index + 1, index + 4).some(next => PRICE_WORDS.has(next));
+  return flat.split(CLAUSES).filter(Boolean).some(clause => {
+    if (OWNER_FIRST.test(clause)) return false;
+    const words = clause.split(/[^a-z0-9]+/).filter(Boolean);
+    return words.some((word, index) => {
+      if (index > 0 && !VERB_PLACE.has(words[index - 1])) return false;
+      if (FLOOR_VERBS.has(word)) return true;
+      return PRICE_VERBS.has(word) && words.slice(index + 1, index + 4).some(next => PRICE_WORDS.has(next));
+    });
   });
 }
 

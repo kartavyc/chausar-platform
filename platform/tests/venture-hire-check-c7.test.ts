@@ -105,3 +105,14 @@ test('a duty whose verb acts on the floor refuses even without "automatically"; 
     assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
   }
 });
+
+// Fix round 2 (review 2, LOW-2): owner-directed reminders and notes pass; the same words aimed at a client stay refused,
+// since a reminder to a client is an outward message; and a duty is judged clause by clause.
+test('reminders and notes to the owner pass; to a client they refuse unless drafted or asked first', () => {
+  for (const duty of ['Reminds me to send invoices', 'Tells me when a client has not paid', 'Alerts me before a payment is due', 'Shows me which posts did well', 'Notifies me when a booking is cancelled', 'Drafts replies and asks me before sending them']) {
+    assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty, duty);
+  }
+  for (const duty of ['Reminds clients to pay', 'Reminds clients to pay their invoices', 'Tells customers how to pay', 'Drafts and sends invoices', 'Reminds me of the due dates and sends the reminders to clients']) {
+    assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), duty);
+  }
+});
