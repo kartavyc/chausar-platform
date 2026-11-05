@@ -277,7 +277,7 @@ test('relay: Team nests a helper under its parent; no shipped team has a helper;
   const views = [{ id: 'lead', name: 'Lead', spend: 'X' }, { id: 'helper', name: 'Helper', spend: 'X' }, { id: 'keeper', name: 'Keeper', spend: 'Y' }];
   const nested = nestTeam(views, fixture, () => new Map([['lead', 100000n], ['helper', 50000n]]), '');
   assert.deepEqual(nested.map(view => [view.id, view.parentId ?? null, view.spend]), [
-    ['lead', null, 'USD 0.1500 with its helpers'], ['helper', 'lead', 'USD 0.0500'], ['keeper', null, 'Y'],
+    ['lead', null, '$0.15 with its helpers'], ['helper', 'lead', '$0.05'], ['keeper', null, 'Y'],
   ]);
   // A team with no helper is left as it is; a helper whose parent is not shown is not nested.
   assert.deepEqual(nestTeam(views, flagshipDelivery(YOUTUBE_ID), () => new Map(), ''), views);

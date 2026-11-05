@@ -738,7 +738,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const connection = requireCurrentConnection(tx, route.connection);
         // The run's own cap (W1 H4): a call that may cost more than its run has left is refused before anything is kept.
         if (task.capLeftMicros !== undefined && BigInt(estimate) > BigInt(task.capLeftMicros)) {
-          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatUsd(estimate)}, more than the ${formatRate(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
+          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatRate(estimate)}, more than the ${formatRate(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
         }
         checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now),tx);
         const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);

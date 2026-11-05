@@ -150,7 +150,7 @@ test('each move needs its evidence: a send for Asked, a reply for Talking, a quo
   const quote = await moneyCall<PriceReceiptRecord>(env, 'venture.price.quote', { offerId: 'offer_1' });
   const proposal = await move(env, card.id, 'proposal', { evidence: { kind: 'quote', id: quote.id } });
   assert.deepEqual([proposal.card.stage, proposal.line], ['proposal', 'Moved to Proposal.']);
-  assert.deepEqual(cardById(env, card.id).history.at(-1)!.evidence, { kind: 'quote', id: quote.id, line: 'A quote of INR 2,499.00 before tax.' });
+  assert.deepEqual(cardById(env, card.id).history.at(-1)!.evidence, { kind: 'quote', id: quote.id, line: 'A quote of ₹2,499 before tax.' });
 
   const second = await add(env, rahul);
   const byNote = await move(env, second.card.id, 'proposal', { evidence: { kind: 'note', text: 'Sent the price list on WhatsApp' } });

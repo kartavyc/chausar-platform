@@ -472,7 +472,7 @@ export function capShortfall(state: Pick<HarnessState, 'limits' | 'capWindows' |
 /** Refuses, before it is sent, the call that would take the run past its cap. Today then asks for one more window. */
 export function reserveRunCall(state: Pick<HarnessState, 'limits' | 'capWindows' | 'used'>, estimateMicros: MicroString): void {
   if (capShortfall(state, estimateMicros) === null) return;
-  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatUsd(estimateMicros)}, which would take this run past its spend cap of ${formatRate(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this run on Today to go on.`);
+  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatRate(estimateMicros)}, which would take this run past its spend cap of ${formatRate(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this run on Today to go on.`);
 }
 
 /** One more window for the run: whole windows of its own cap, enough for the call that waits. Null when it fits. */

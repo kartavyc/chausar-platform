@@ -36,7 +36,7 @@ test('run cap: the call that would cross the cap is refused before it runs; a ca
   assert.doesNotThrow(() => reserveRunCall(state, '400'));
   assert.throws(() => reserveRunCall(state, '401'), (error: any) => {
     assert.equal(error.code, 'RUN_CAP_REACHED');
-    assert.match(error.message, /USD 0\.0010/, 'the cap is said in the engine format');
+    assert.match(error.message, /spend cap of \$0\.001,/, 'the cap is said as set, in the owner form (B2)');
     assert.match(error.message, /not sent/);
     return true;
   });

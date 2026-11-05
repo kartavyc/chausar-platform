@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MCP_PROTOCOL_VERSION } from '../runtime/mcp.ts';
+import { formatMinor } from '../runtime/currency.ts';
 import { JobCapability } from '../runtime/venture/agent-runtime/scope.ts';
 import { createJobMCP, type JobToolPorts, type JobSnapshot, type JobDraft, type JobProposal } from '../runtime/venture/agent-runtime/job-tools.ts';
 import { kitBusiness, installKitFixture, owner } from './fixtures/venture/kit-business.ts';
@@ -29,7 +30,7 @@ function draft(ref:string){return {title:'A reply',sections:[{heading:'Reply',pa
 test('scripted agent reads only this order, uses a real price receipt, saves a guarded draft and proposes the exact handoff',async t=>{
  const env=await setup(t);const order=env.data(await env.call('read_order'));assert.equal(order.id,env.snapshot.order.id);
  const calculation=env.data(await env.call('calculate',{operation:'order_price',arguments:{}}));const total=calculation.refs.figures.find((r:any)=>r.figureKey==='total');
- const saved=env.data(await env.call('draft_document',{draft:draft(total.ref)}));assert.ok(env.saved?.renderedText.includes(env.price.figures.find(f=>f.key==='total')!.display));
+ const saved=env.data(await env.call('draft_document',{draft:draft(total.ref)}));assert.ok(env.saved?.renderedText.includes(formatMinor(env.price.figures.find(f=>f.key==='total')!.minor,env.price.currency)));
  env.data(await env.call('propose_action',{kind:'send-handoff',draftId:saved.draftId,draftDigest:saved.digest,to:'asha@example.com',subject:'Your draft'}));
  assert.equal(env.proposed?.body,env.saved?.renderedText);assert.deepEqual(env.proposed?.receiptIds,[env.price.id]);assert.equal(env.proposed?.kind,'send-handoff');
  assert.equal((await env.call('queue_decide',{decision:'approve'}))?.error?.data?.code,'UNKNOWN_TOOL');
