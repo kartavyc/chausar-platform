@@ -41,7 +41,7 @@ describe('Connections > Bank account', () => {
     expect(transfer.textContent).toContain('Between your own accounts');
     expect(transfer.textContent).toContain('Out ₹20,000.00');
     // The engine's display date, never the stored ISO date.
-    expect(transfer.textContent).toContain('03 Oct 2026');
+    expect(transfer.textContent).toContain('3 Oct 2026');
     expect(transfer.textContent).not.toContain('2026-10-03');
     expect(within(transfer).queryByRole('button', { name: 'Record payment' })).toBeNull();
     expect(within(transfer).queryByRole('button', { name: 'Add as cost' })).toBeNull();
@@ -146,9 +146,9 @@ describe('Connections > Bank account', () => {
     const sbi = accountOf(sheet, 'SBI savings');
     fireEvent.change(within(sbi).getByLabelText('Days'), { target: { value: '30' } });
     await act(async () => { fireEvent.click(within(sbi).getByRole('button', { name: 'Renew' })); });
-    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^Bank access ends on \d{2} [A-Z][a-z]{2} \d{4}, in 30 days\.$/)).toBeTruthy());
+    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^Bank access ends on \d{1,2} [A-Z][a-z]{2} \d{4}, in 30 days\.$/)).toBeTruthy());
     await act(async () => { fireEvent.click(within(accountOf(sheet, 'SBI savings')).getByRole('button', { name: 'Stop' })); });
-    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^You stopped bank access on \d{2} [A-Z][a-z]{2} \d{4}\.$/)).toBeTruthy());
+    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^You stopped bank access on \d{1,2} [A-Z][a-z]{2} \d{4}\.$/)).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.consent')).toEqual([{ account: 'SBI savings', days: 30 }, { account: 'SBI savings', revoke: true }]);
   });
 

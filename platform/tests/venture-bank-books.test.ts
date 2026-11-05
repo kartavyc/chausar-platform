@@ -76,7 +76,7 @@ test('own transfers: opposite amounts in two own accounts at most two days apart
   assert.deepEqual([out.classification, into.classification], ['own-transfer', 'own-transfer']);
   assert.equal(out.pairedWith, into.id);
   assert.equal(into.pairedWith, out.id);
-  assert.deepEqual([out.direction, out.amount, out.dateDisplay, into.direction, into.amount], ['out', 'INR 20,000.00', '03 Oct 2026', 'in', 'INR 20,000.00']);
+  assert.deepEqual([out.direction, out.amount, out.dateDisplay, into.direction, into.amount], ['out', 'INR 20,000.00', '3 Oct 2026', 'in', 'INR 20,000.00']);
   // The second 20,000.00 has nothing left to pair with: the one it could have paired with is taken.
   const later = rowOf(view, 'TRANSFER IN AGAIN');
   assert.deepEqual([later.classification, later.pairedWith], ['money-in', null]);
@@ -147,7 +147,7 @@ test('a part payment the owner typed is not suggested again when the same money 
   assert.equal(again.suggestion?.line, 'Pays part of INV-0007. INR 1,800.00 would be left.');
   const today = (await run<QueueList>(env, 'venture.queue.list', {})).rows.filter(row => row.kind === 'bank');
   assert.equal(today.length, 1, 'only the second row asks to be recorded');
-  assert.match(today[0].title, /INR 5,000\.00 from 05 Oct 2026/);
+  assert.match(today[0].title, /INR 5,000\.00 from 5 Oct 2026/);
 });
 
 test('the same statement file is never imported into a second account; one row both files share keeps its own id per account', async () => {
@@ -289,7 +289,7 @@ test('Today: each suggested match is one bank row, decided through venture.queue
   const bank = today.rows.filter(row => row.kind === 'bank');
   assert.equal(bank.length, 1, 'the transfer pair makes no row');
   const [row] = bank;
-  assert.equal(row.title, 'Record INR 11,800.00 from 04 Oct 2026 as payment of INV-0007?');
+  assert.equal(row.title, 'Record INR 11,800.00 from 4 Oct 2026 as payment of INV-0007?');
   assert.equal(row.line, 'Pays INV-0007 in full.');
   assert.deepEqual(row.actions.map(item => [item.id, item.label, item.primary]), [['deny', 'Not this', false], ['approve', 'Record payment', true]]);
 

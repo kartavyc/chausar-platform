@@ -38,7 +38,7 @@ const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not 
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 const UNDECLARED = 'It proposed an outside action that none of its steps allows. Look at its runs before you clear it.';
 const WEEKS = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'];
-const WEEK_LABELS = ['Week of 14 Sep 2026', 'Week of 21 Sep 2026', 'Week of 28 Sep 2026', 'Week of 05 Oct 2026', 'Week of 12 Oct 2026', 'Week of 19 Oct 2026'];
+const WEEK_LABELS = ['Week of 14 Sep 2026', 'Week of 21 Sep 2026', 'Week of 28 Sep 2026', 'Week of 5 Oct 2026', 'Week of 12 Oct 2026', 'Week of 19 Oct 2026'];
 
 /**
  * One department's sample: jobs per week (this week last), spend per week and this month in micro-dollars (the engine

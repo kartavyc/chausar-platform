@@ -6,6 +6,7 @@
  * invoice screens see it. Imports and consent stay on the extras desk (fake-extras.ts). The sample rows are synthetic.
  */
 
+import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type BankAlertRuleLite, type BankAlertsView, type BankApplyResult, type BankLedgerRow, type BankLedgerView, type InvoiceViewLite,
   type QueueRow, type VentureRunEvent,
@@ -66,11 +67,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** Paise as the decimal text a typed payment carries: 2620000 as 26200.00. */
 const decimalText = (minor: number) => `${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, '0')}`;
 const sameLabel = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** '2026-10-03' as '03 Oct 2026', the way the engine writes a date for India (records.ts formatVentureDate). */
+/** '2026-10-03' as '3 Oct 2026', the way the engine writes a date for India (records.ts formatVentureDate). */
 export function dayMonthYear(iso: string): string {
-  const [year, month, day] = iso.slice(0, 10).split('-');
-  return `${day} ${MONTHS[Number(month) - 1]} ${year}`;
+  return formatDay(iso.slice(0, 10), 'UTC');
 }
 
 function ruleLine(rule: BankAlertRuleLite, currency = 'INR'): string {

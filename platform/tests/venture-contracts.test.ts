@@ -255,8 +255,8 @@ test('payload checks, amounts, rates, dates and model words', () => {
   assert.equal(bpsPercent('850'), '8.5');
   assert.equal(bpsPercent('25'), '0.25');
 
-  assert.equal(formatVentureDate('2026-10-01', 'day-month-year'), '01 Oct 2026');
-  assert.equal(formatVentureDate('2026-10-01', 'month-day-year'), 'Oct 01, 2026');
+  assert.equal(formatVentureDate('2026-10-01', 'day-month-year'), '1 Oct 2026');
+  assert.equal(formatVentureDate('2026-10-01', 'month-day-year'), 'Oct 1, 2026');
   assert.equal(formatVentureDate('2026-10-01', 'year-month-day'), '2026-10-01');
 
   assert.equal(modelWords('First line\nsecond line', 'note'), 'First line second line');

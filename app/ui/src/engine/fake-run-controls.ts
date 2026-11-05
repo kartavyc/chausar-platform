@@ -12,6 +12,7 @@
  * fake has none. Run again starts a new run id, as the engine does. Away is a list built from records; Chausar sends nothing.
  */
 
+import { formatDay } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AwayView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
 import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
@@ -44,7 +45,6 @@ const MAX_AWAY_DAYS = 90;
 const DAY_MS = 86_400_000;
 /** The sample run's spend cap in micro-dollars, the amount behind its "$0.40". */
 const SAMPLE_CAP_MICROS = '400000';
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** How long the fake's step in progress takes to come back after a Stop, in ms. */
 export const FAKE_STOP_SETTLES_MS = 600;
 
@@ -72,8 +72,8 @@ function rupeesOf(micros: string, perUsd: string): string {
 }
 const day = (iso: string) => iso.slice(0, 10);
 const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
-/** '2026-10-01' as '01 Oct 2026', the engine's day-month-year order (records.ts formatVentureDate). */
-const say = (iso: string) => `${iso.slice(8, 10)} ${MONTHS[parseInt(iso.slice(5, 7), 10) - 1]} ${iso.slice(0, 4)}`;
+/** '2026-10-01' as '1 Oct 2026', the engine's day-month-year order (records.ts formatVentureDate). */
+const say = (iso: string) => formatDay(iso.slice(0, 10), 'UTC');
 const isDay = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
 
 export class FakeRunControls {

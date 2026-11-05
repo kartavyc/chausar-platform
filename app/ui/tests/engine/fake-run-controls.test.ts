@@ -138,8 +138,8 @@ describe('fake engine: run controls (4F3)', () => {
     expect(await refused(engine.request('venture.away.set', { from: '2026-10-01', to: '2026-10-02' }))).toBe('INVALID_VENTURE_REQUEST');
     const away = await engine.request('venture.away.set', { from: '2026-10-28', to: '2026-11-05' }) as AwayView;
     expect(away.away).toEqual({ from: '2026-10-28', to: '2026-11-05' });
-    expect(away.autoReply).toContain('I am away from 28 Oct 2026 to 05 Nov 2026 and back on 06 Nov 2026.');
-    expect(away.line).toMatch(/^Away from 28 Oct 2026 to 05 Nov 2026\. \d+ things? waits? for you\.$/);
+    expect(away.autoReply).toContain('I am away from 28 Oct 2026 to 5 Nov 2026 and back on 6 Nov 2026.');
+    expect(away.line).toMatch(/^Away from 28 Oct 2026 to 5 Nov 2026\. \d+ things? waits? for you\.$/);
     expect(away.keepsRunning.length).toBeGreaterThan(0);
     for (const promise of away.promises) expect(promise.due >= '2026-10-28' && promise.due <= '2026-11-05').toBe(true);
   });

@@ -95,8 +95,8 @@ test('cash: 13 weeks from the bank balance, projected and labelled so, the lowes
   assert.deepEqual(view.nextWeeks.map(item => [item.on, item.direction, item.line, item.amount.display]), [
     ['2026-10-10', 'out', 'Bill from Metro Repairs, overdue since 10 Oct 2026', 'INR 6,020.00'],
     ['2026-10-25', 'in', `Due from Cafe Aroma Demo on 25 Oct 2026`, 'INR 22,305.00'],
-    ['2026-11-04', 'in', `Due from Cafe Aroma Demo on 04 Nov 2026`, 'INR 23,305.00'],
-    ['2026-11-05', 'out', 'Bill from Cloud Host, due 05 Nov 2026', 'INR 2,800.00'],
+    ['2026-11-04', 'in', `Due from Cafe Aroma Demo on 4 Nov 2026`, 'INR 23,305.00'],
+    ['2026-11-05', 'out', 'Bill from Cloud Host, due 5 Nov 2026', 'INR 2,800.00'],
   ]);
   assert.equal(view.nextWeeks[0].amount.receiptId, view.points[1].forecast?.receiptId);
   assert.equal(view.nextWeeks[3].amount.receiptId, view.points[2].forecast?.receiptId);
@@ -196,7 +196,7 @@ test('every week ahead is projected and its receipt says so; what the forecast l
   // Week 2 holds only the invoice due 4 Nov, taken as paid on its due date: still projected, still an estimate.
   const week2 = await env.money<SumReceiptRecord>('venture.receipt.get', { id: view.points[2].forecast!.receiptId });
   assert.equal(week2.estimate, true);
-  assert.match(week2.figures[0].label, /^Projected cash in the week to 06 Nov 2026/);
+  assert.match(week2.figures[0].label, /^Projected cash in the week to 6 Nov 2026/);
   assert.ok(week2.addends.slice(1).every(addend => /due/.test(addend.label)));
   assert.ok(view.points.slice(1).every(point => point.forecast?.estimate === true && point.forecast.projected === true));
   assert.equal(view.points[0].actual?.estimate, undefined, 'today is no estimate');

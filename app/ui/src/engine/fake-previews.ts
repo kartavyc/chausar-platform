@@ -8,6 +8,7 @@
  * ffmpeg, so it takes no still: the poster method answers as the engine does on a computer without ffmpeg.
  */
 
+import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type InvoiceLite, type OrderLite, type OrderStageReason, type OrderStageView, type OrderWaitsOnYou, type QueuePreview, type QueueRow, type UploadLite,
 } from './types';
@@ -96,9 +97,8 @@ export const FAKE_ORDER_STEPS: Readonly<Record<string, { stages: OrderStageView[
   },
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** A day as the engine writes it for an Indian business (records.ts formatVentureDate, day month year): "05 Nov 2026". */
-const dayWords = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d} ${MONTHS[Number(m) - 1] ?? m} ${y}`; };
+/** A day as the engine writes it for an Indian business (records.ts formatVentureDate, day month year): "5 Nov 2026". */
+const dayWords = (iso: string) => formatDay(iso, 'UTC');
 
 /** The fixed steps for an order the fake made itself: the Invoice and Paid steps from the order's own invoice. */
 function fixedSteps(order: OrderLite, invoices: readonly InvoiceLite[]): { stages: OrderStageView[]; waitsOnYou: OrderWaitsOnYou | null } {

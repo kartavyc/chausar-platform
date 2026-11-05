@@ -13,6 +13,7 @@
  * An agent file import is a proposal in the agent's chat through the agents' desk; nothing changes until it is accepted.
  */
 
+import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type AgentProposalView, type AgentView, type BlueprintViewLite, type CapabilityItemView, type CapabilityPageView,
   type ClientLite, type DeliveryLite, type DiffLine, type IdeaView, type KnowledgeSourceInput, type KnowledgeSourceView, type ModelStatusLite,
@@ -146,12 +147,11 @@ export function shortName(clause: string): string {
   return words.join(' ') || clause.slice(0, 60);
 }
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** The owner's calendar day of an instant, in Kolkata (the sample businesses are in India). */
 const localDay = (iso: string): string => new Date(Date.parse(iso) + 330 * 60_000).toISOString().slice(0, 10);
 /** formatVentureDate, day-month-year: "28 Oct 2026". */
-const dayWords = (day: string): string => `${day.slice(8, 10)} ${MONTHS[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}`;
+const dayWords = (day: string): string => formatDay(day.slice(0, 10), 'UTC');
 const monthWords = (month: string): string => `${LONG_MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
 
 function exact(p: Record<string, unknown>, allowed: readonly string[], required: readonly string[] = allowed): Record<string, unknown> {

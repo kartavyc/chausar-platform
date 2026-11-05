@@ -139,7 +139,7 @@ test('aging as of an earlier day is what was owed then: later invoices left out,
   assert.equal(then.total.display, 'INR 69,915.00'); // 2330500 x 3 = 6991500
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: then.total.receiptId });
   assert.deepEqual([receipt.subject, receipt.totalMinor, receipt.stale], [{ type: 'aging', asOf: '2026-10-01' }, '6991500', false]);
-  assert.equal(then.total.basis?.filters[0], 'Invoices in INR issued by 01 Oct 2026, tax included, less what was paid or credited by then');
+  assert.equal(then.total.basis?.filters[0], 'Invoices in INR issued by 1 Oct 2026, tax included, less what was paid or credited by then');
   // A later day is not changed by the past one; asking for the future still counts what is owed now.
   assert.equal((await env.money<AgingView>('venture.money.aging', { asOf: '2026-12-01' })).total.display, 'INR 66,584.50');
 });

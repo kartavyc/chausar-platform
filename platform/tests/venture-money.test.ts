@@ -611,7 +611,7 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
     `GSTIN: ${GSTIN_27}`,
     'To: Cafe Aroma Demo',
     'Place of supply: Maharashtra (27)',
-    'Issued: 01 Oct 2026    Due: 16 Oct 2026',
+    'Issued: 1 Oct 2026    Due: 16 Oct 2026',
     '----------------------------------------',
     'Monthly books  SAC 998222  1 x INR 2,499.00  INR 2,499.00',
     'Subtotal  INR 2,499.00',
@@ -728,7 +728,7 @@ test('invoice titles follow the owner settings and the experimental notice follo
   assert.equal(usView.invoice.sacCode, null);
   assert.deepEqual(usView.notes, []);
   assert.ok(!usView.documentText.includes('experimental'));
-  assert.match(usView.documentText, /\nIssued: Oct 01, 2026    Due: Oct 01, 2026\n/);
+  assert.match(usView.documentText, /\nIssued: Oct 1, 2026    Due: Oct 1, 2026\n/);
   assert.match(usView.documentText, /\nMonthly books  2 x USD 150\.00  USD 300\.00\n/);
 
   // United Kingdom, registered for VAT without a VAT number: not a tax invoice, and the notes name the number.

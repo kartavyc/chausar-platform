@@ -87,7 +87,7 @@ describe('Business > Away', () => {
     fireEvent.change(screen.getByLabelText('Last day away'), { target: { value: '2026-11-05' } });
     await click(screen.getByRole('button', { name: 'Set the days' }));
     expect(of(calls, 'venture.away.set')).toEqual([{ from: '2026-10-28', to: '2026-11-05' }]);
-    expect(await screen.findByText(/^Away from 28 Oct 2026 to 05 Nov 2026\./)).toBeTruthy();
+    expect(await screen.findByText(/^Away from 28 Oct 2026 to 5 Nov 2026\./)).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Keeps running' })).toBeTruthy();
     expect(screen.getByText('While you are away, no new work starts on its own. Routines you set prepare runs that wait for you on Today.')).toBeTruthy();
     // The engine's line says how many wait; the page does not say it twice. The list names the client.
@@ -97,7 +97,7 @@ describe('Business > Away', () => {
     const reply = screen.getByRole('region', { name: 'A reply for your own mail app' });
     expect(within(reply).getByText('Chausar sends nothing. Copy this into the auto-reply of your own mail app.')).toBeTruthy();
     const quoted = reply.querySelector('[data-content]')!;
-    expect(quoted.textContent).toContain('I am away from 28 Oct 2026 to 05 Nov 2026 and back on 06 Nov 2026.');
+    expect(quoted.textContent).toContain('I am away from 28 Oct 2026 to 5 Nov 2026 and back on 6 Nov 2026.');
     await click(within(reply).getByRole('button', { name: 'Copy' }));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('I am away from 28 Oct 2026'));
     expect(await within(reply).findByText('Copied')).toBeTruthy();

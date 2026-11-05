@@ -381,13 +381,13 @@ export function requireAppChannel(ctx: Context, method: VentureMethod) {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** '2026-10-01' as '01 Oct 2026', 'Oct 01, 2026' or '2026-10-01', from the country's date order. No Date arithmetic. */
+/** '2026-10-01' as '1 Oct 2026', 'Oct 1, 2026' or '2026-10-01', from the country's date order (no leading zero, B2). No Date arithmetic. */
 export function formatVentureDate(iso: string, order: DateOrder): string {
   check(validDate(iso), 'INVALID_VENTURE_REQUEST', 'Use a date like 2026-10-15.');
   const [year, month, day] = iso.split('-');
   const name = MONTHS[Number(month) - 1];
-  if (order === 'day-month-year') return `${day} ${name} ${year}`;
-  if (order === 'month-day-year') return `${name} ${day}, ${year}`;
+  if (order === 'day-month-year') return `${Number(day)} ${name} ${year}`;
+  if (order === 'month-day-year') return `${name} ${Number(day)}, ${year}`;
   return iso;
 }
 
