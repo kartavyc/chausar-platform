@@ -24,6 +24,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   const opened: string[] = [], openedPaths: string[] = [], shownItems: string[] = [];
   const shell = { openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); }, openPath: async (path: string) => { openedPaths.push(path); return ''; }, showItemInFolder: (path: string) => { shownItems.push(path); } };
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
+  // D11 release smoke: the paths main.cjs sets before ready.
+  app.setPaths = [] as [string, string][]; app.setPath = (name: string, value: string) => { app.setPaths.push([name, value]); };
   class Window extends EventEmitter {
     webContents: any; options: any;
     constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; windows.push(this); }
@@ -532,4 +534,19 @@ test('A6: main answers the invoice share and show channels for the window of the
   const showRefused = await show(trusted, { name: '../secret.pdf' });
   assert.deepEqual([showRefused.ok, showRefused.error.code], [false, 'INVALID_REQUEST']);
   assert.deepEqual(d.shownItems, []);
+});
+
+// D11 task 29: --smoke-user-data=<absolute path> gives a release smoke run its own user data folder, set before the
+// single-instance lock and ready; anything else (relative, empty, a second copy of the flag) is ignored.
+test('D11: --smoke-user-data sets userData only to an absolute path, before the single-instance lock', async () => {
+  const absolute = await desktop(['--smoke-user-data=C:\\Users\\someone\\AppData\\Local\\Temp\\chausar-smoke-1']);
+  assert.deepEqual(absolute.app.setPaths, [['userData', 'C:\\Users\\someone\\AppData\\Local\\Temp\\chausar-smoke-1']]);
+  const linux = await desktop(['--smoke-user-data=/tmp/chausar-smoke-2'], Promise.resolve(), false, { platform: 'linux' });
+  assert.deepEqual(linux.app.setPaths, [['userData', '/tmp/chausar-smoke-2']]);
+  for (const args of [['--smoke-user-data=chausar-smoke'], ['--smoke-user-data='], ['--smoke-user-data', 'C:\\x'], ['--smoke-user-data=..\\up'], []]) {
+    assert.deepEqual((await desktop(args)).app.setPaths, [], JSON.stringify(args));
+  }
+  assert.deepEqual((await desktop(['--smoke-user-data=chausar-smoke'], Promise.resolve(), false, { platform: 'linux' })).app.setPaths, [], 'relative on Linux too');
+  const source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
+  assert.ok(source.indexOf('--smoke-user-data=') < source.indexOf('requestSingleInstanceLock()'), 'set before the lock, which lives in userData');
 });
