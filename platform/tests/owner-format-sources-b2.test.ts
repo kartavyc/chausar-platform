@@ -46,6 +46,7 @@ const EXACT: Readonly<Record<string, readonly [calls: number, why: string]>> = {
   'money/across.ts': [2, 'a saved business summary keeps the exact form at rest, which the custody snapshot checks'],
   'agents/helper-brief.ts': [2, "the helper's brief is text only the AI reads"],
   'playbooks/ca-firm/claims.ts': [1, "the claim check's source text, read by code and the AI judge only"],
+  'playbooks/ca-firm/money.ts': [1, "a CA step's label is its figure's label, which a client's deliverable quotes (B2 fix round 3)"],
 };
 
 const EXACT_CALL = /\bformat(?:Minor|Micros)\(/g;
