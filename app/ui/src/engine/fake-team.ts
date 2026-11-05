@@ -33,7 +33,7 @@ const DEPARTMENTS: readonly { id: DepartmentId; name: string }[] = [
   { id: 'money', name: 'Money' },
   { id: 'operations', name: 'Operations' },
 ];
-const KEEPER_ROLE = 'Runs the engine\'s own jobs as code, not AI: backups, the journal sweep, connection checks, rule and rate dates, posting steps and network strength.';
+const KEEPER_ROLE = 'Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.';
 const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 const UNDECLARED = 'It proposed an outside action that none of its steps allows. Look at its runs before you clear it.';

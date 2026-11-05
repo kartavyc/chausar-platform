@@ -118,7 +118,7 @@ function settingsLine(settings: NotifySettings, venture: VentureRecord, host: Ve
   }
   if (gaveUp && !pausedAt(settings, nowMs)) parts.push("Phone alerts couldn't be sent: Chausar will try with the next new item.");
   parts.push(settings.quietHours ? `Quiet hours: ${settings.quietHours.from} to ${settings.quietHours.to}.` : 'No quiet hours.');
-  parts.push(settings.digest ? `Daily digest at ${hourText(settings.digest.hour)}.` : 'No daily digest.');
+  parts.push(settings.digest ? `Daily summary at ${hourText(settings.digest.hour)}.` : 'No daily summary.');
   return parts.join(' ');
 }
 

@@ -288,7 +288,7 @@ export function applyChange(place: LayoutPlace, current: LayoutState, change: La
       return { state, line: `${who} switched to the view ${view.name}.` };
     }
     case 'reset': return { state: { ...defaultLayout(place), views: state.views }, line: `${who} reset ${LAYOUT_LIBRARY[place].title}.` };
-    default: return invalid('Undo and Keep are answered by the engine.');
+    default: return invalid('Use Undo or Keep on the page for that.');
   }
 }
 

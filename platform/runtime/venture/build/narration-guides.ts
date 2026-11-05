@@ -24,7 +24,7 @@ export const NARRATION_GUIDES:Readonly<Record<string,Omit<ConnectorGuide,'charge
       "In the narration desk, select that file and a licensed stock voice.",
       "Review the exact source segments. After source changes, prepare them again before approval."
     ],
-    "skipped": "A filename or cached digest is not evidence. Current stored bytes and current manuscript rights must agree.",
+    "skipped": "A file name alone is not proof. The stored file and the current manuscript rights must agree.",
     "checks": "Chausar reads the actual bounded file and rechecks the current client and rights. Unreadable or unsupported files refuse.",
     "sends": "Sends: nothing outside Chausar while importing the manuscript. Any later AI or speech call asks separately.",
     "agentLimits": "Agents cannot borrow another client source, invent rights or send a private manuscript to the cloud."

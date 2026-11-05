@@ -28,7 +28,8 @@ import { plain } from './shared.ts';
 /** Keeper's id on the team. It is code: it has no chat, no steps and no posture to set. */
 export const KEEPER_ID = 'keeper';
 export const KEEPER_NAME = 'Keeper';
-const KEEPER_ROLE = 'Runs the engine\'s own jobs as code, not AI: backups, the journal sweep, connection checks, rule and rate dates, posting steps and network strength.';
+/** B1 fix round 1 (quality 3): the role line Team shows, in the owner's words. The fake's copy says the same (fake-team.ts). */
+export const KEEPER_ROLE = 'Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.';
 
 /** The jobs Keeper always lists, in order; the probes and the calendar feed are listed once they have run. */
 const LISTED: readonly KeeperJobId[] = ['backups', 'journal-sweep', 'connection-checks', 'rule-freshness', 'rate-tables', 'posting-steps', 'network-strength'];

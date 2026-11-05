@@ -901,7 +901,7 @@
         "2. In the narration desk, select that file and a licensed stock voice.",
         "3. Review the exact source segments. After source changes, prepare them again before approval."
       ],
-      "skipped": "A filename or cached digest is not evidence. Current stored bytes and current manuscript rights must agree.",
+      "skipped": "A file name alone is not proof. The stored file and the current manuscript rights must agree.",
       "charges": {
         "line": "No charge for reading the local manuscript. Any later model or speech use has its own approval and quote.",
         "checkedOn": null

@@ -154,7 +154,7 @@
   "pb-connector-guides.narration-files.step1": "Attach a rights-cleared TXT, Markdown or DOCX manuscript to this client order.",
   "pb-connector-guides.narration-files.step2": "In the narration desk, select that file and a licensed stock voice.",
   "pb-connector-guides.narration-files.step3": "Review the exact source segments. After source changes, prepare them again before approval.",
-  "pb-connector-guides.narration-files.skipped": "A filename or cached digest is not evidence. Current stored bytes and current manuscript rights must agree.",
+  "pb-connector-guides.narration-files.skipped": "A file name alone is not proof. The stored file and the current manuscript rights must agree.",
   "pb-connector-guides.narration-files.checks": "Chausar reads the actual bounded file and rechecks the current client and rights. Unreadable or unsupported files refuse.",
   "pb-connector-guides.narration-files.sends": "Sends: nothing outside Chausar while importing the manuscript. Any later AI or speech call asks separately.",
   "pb-connector-guides.narration-files.agentLimits": "Agents cannot borrow another client source, invent rights or send a private manuscript to the cloud.",

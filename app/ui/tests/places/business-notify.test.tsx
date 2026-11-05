@@ -68,7 +68,7 @@ describe('Business > Notifications on this computer', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
-    await screen.findByText('The tray shows how many things need you. Quiet hours: 22:00 to 07:00. Daily digest at 08:00.');
+    await screen.findByText('The tray shows how many things need you. Quiet hours: 22:00 to 07:00. Daily summary at 08:00.');
     const reach = await region('How alerts reach you');
     await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     expect(within(reach).queryByRole('button', { name: 'Turn on phone alerts' })).toBeNull();
@@ -102,16 +102,16 @@ describe('Business > Notifications on this computer', () => {
     expect((within(quiet).getByLabelText('From') as HTMLInputElement).value).toBe('22:00');
     expect((within(quiet).getByLabelText('To') as HTMLInputElement).value).toBe('07:00');
     fireEvent.change(within(quiet).getByLabelText('From'), { target: { value: '21:30' } });
-    fireEvent.change(within(quiet).getByLabelText('Daily digest'), { target: { value: '9' } });
+    fireEvent.change(within(quiet).getByLabelText('Daily summary'), { target: { value: '9' } });
     fireEvent.click(within(quiet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ quietHours: { from: '21:30', to: '07:00' }, digest: { hour: 9 } }));
-    await screen.findByText(/Quiet hours: 21:30 to 07:00\. Daily digest at 09:00\.$/);
+    await screen.findByText(/Quiet hours: 21:30 to 07:00\. Daily summary at 09:00\.$/);
     fireEvent.click(within(quiet).getByRole('checkbox', { name: 'Quiet hours' }));
     expect(within(quiet).queryByLabelText('From')).toBeNull();
-    fireEvent.change(within(quiet).getByLabelText('Daily digest'), { target: { value: 'off' } });
+    fireEvent.change(within(quiet).getByLabelText('Daily summary'), { target: { value: 'off' } });
     fireEvent.click(within(quiet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ quietHours: null, digest: null }));
-    await screen.findByText(/No quiet hours\. No daily digest\.$/);
+    await screen.findByText(/No quiet hours\. No daily summary\.$/);
   });
 
   it('pauses until a date at most 30 days ahead, and resumes', async () => {
@@ -153,7 +153,7 @@ describe('Business > Notifications: what each setting means, and what the engine
     start();
     const quiet = await region('Quiet times');
     await within(quiet).findByText("During quiet hours, alerts outside the app wait, then one count comes when they end. Items that expire soon still come. Times are in the business's time zone.");
-    expect(within(quiet).getByText('The digest stays in the bell: its words never go to your phone or the tray.')).toBeTruthy();
+    expect(within(quiet).getByText('The summary stays in the bell: its words never go to your phone or the tray.')).toBeTruthy();
     expect(within(quiet).getByText('30 days at most. Nothing is replayed after it ends. The bell still lists everything.')).toBeTruthy();
   });
 

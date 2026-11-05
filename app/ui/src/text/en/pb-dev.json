@@ -63,7 +63,7 @@
   "pb-dev.approveCoding": "Approve this coding request",
   "pb-dev.untrusted": "Untrusted coding output",
   "pb-dev.audit": "Dependency audit",
-  "pb-dev.auditHelp": "Only the approved package metadata goes to the npm registry. No install, scripts or fix runs. Additional scanners stay manual until a reviewed adapter is available.",
+  "pb-dev.auditHelp": "Only the approved package metadata goes to the npm registry. No install, scripts or fix runs. Other scanners stay manual for now.",
   "pb-dev.previewAudit": "Review audit request",
   "pb-dev.approveAudit": "Approve metadata disclosure",
   "pb-dev.auditResults": "Reported dependency findings",

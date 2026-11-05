@@ -238,7 +238,7 @@ export class FakeNotifyDesk {
       parts.push(stored.tray ? 'The tray shows how many things need you.' : 'The tray count is off. The bell still lists everything.');
     }
     parts.push(stored.quietHours ? `Quiet hours: ${stored.quietHours.from} to ${stored.quietHours.to}.` : 'No quiet hours.');
-    parts.push(stored.digest ? `Daily digest at ${String(stored.digest.hour).padStart(2, '0')}:00.` : 'No daily digest.');
+    parts.push(stored.digest ? `Daily summary at ${String(stored.digest.hour).padStart(2, '0')}:00.` : 'No daily summary.');
     // settings.ts keepsRunning: the Keeper jobs that ran here; the hosted app sleeps while nobody has it open.
     const keepsRunning = hosted || this.fresh ? [] : ['Backups, by Keeper', 'Journal sweep, by Keeper', 'Connection checks, by Keeper'];
     return {
