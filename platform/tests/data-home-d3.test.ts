@@ -153,7 +153,8 @@ test('no script writes to results/ in the checkout; every --output script uses t
   const naming: string[] = [], unrooted: string[] = [];
   for (const name of await scriptFiles(folder)) {
     const text = await readFile(new URL(name, folder), 'utf8');
-    if (/(?:^|[\s'"`(=[])results[\\/]/m.test(text)) naming.push(name);
+    // The clean-tree guard names results/ as a pattern it refuses; it writes nothing.
+    if (name !== 'check-clean-tree.mjs' && /(?:^|[\s'"`(=[])results[\\/]/m.test(text)) naming.push(name);
     if (/['"`]--output\b/.test(text) && !/platform\/runtime\/run-root\.mjs['"]/.test(text)) unrooted.push(name);
   }
   assert.deepEqual(naming, [], 'scripts that still name results/');

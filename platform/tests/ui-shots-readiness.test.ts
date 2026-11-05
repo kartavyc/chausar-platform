@@ -38,7 +38,8 @@ test('the walk writes to the run root by default, and no script points at app/ui
  const folder=new URL('../../scripts/',import.meta.url);
  const naming:string[]=[];
  for(const entry of await readdir(folder,{withFileTypes:true,recursive:true})){
-  if(!entry.isFile()||!/\.(?:mjs|cjs|js|ps1|sh)$/.test(entry.name))continue;
+  // The clean-tree guard names .shots/ as a pattern it refuses; it writes nothing.
+  if(!entry.isFile()||!/\.(?:mjs|cjs|js|ps1|sh)$/.test(entry.name)||entry.name==='check-clean-tree.mjs')continue;
   const path=`${entry.parentPath??(entry as any).path}/${entry.name}`;
   if(/\.shots\b/.test(readFileSync(path,'utf8')))naming.push(entry.name);
  }
