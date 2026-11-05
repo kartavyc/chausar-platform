@@ -149,7 +149,7 @@ export function validatePack(raw: unknown): ValidPack {
   });
   for (const item of row.mcpServers as unknown[]) {
     const server = object(item, 'Describe each server reference.');
-    check(!Object.hasOwn(server, 'credentialRef') && !Object.hasOwn(server, 'credentialRevision'), BAD, 'A pack cannot carry saved credentials. The owner signs in or saves a key after adding the server.');
+    check(!Object.hasOwn(server, 'credentialRef') && !Object.hasOwn(server, 'credentialRevision'), BAD, 'A pack can’t carry a saved sign-in or password. Add the server first, then sign in or save its key.');
   }
   let mcpServers: ExternalMcpServer[] = [];
   try { mcpServers = validateExternalServers(row.mcpServers); }

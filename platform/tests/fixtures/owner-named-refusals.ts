@@ -17,7 +17,7 @@ export const NAMED_REFUSALS: readonly (readonly [code: string, message: string])
   ['UNAUTHENTICATED', 'This temporary business has ended. Start again.'],
   ['VAULT_LOCKED', 'Choose one of your businesses first.'],
   ['VAULT_LOCKED', 'The temporary business did not open.'],
-  ['INVALID_VENTURE_REQUEST', 'Use HTTPS, or local HTTP, without credentials or query parameters.'],
+  ['INVALID_VENTURE_REQUEST', 'Use an https address (or http on this computer) with no password or ? part in it. Add a password in the box for it.'],
   ['INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.'],
   ['PRICE_REQUIRED', 'Set your price for Digest Ltd first.'],
   ['INVALID_VENTURE_REQUEST', 'This report has nothing from Vault Studios in it yet.'],
