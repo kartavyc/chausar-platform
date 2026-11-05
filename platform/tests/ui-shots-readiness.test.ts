@@ -29,3 +29,18 @@ test('walk permits a 44-second module load while keeping its readiness bound at 
 test('walk never treats a boot screen, loading text or missing requested sheet as ready',async()=>{
  for(const blocked of ['boot','loading','sheet'] as const)assert.deepEqual(await simulate(0,blocked),{ready:false,elapsed:120000},blocked);
 });
+// D3: the walk's shots, report and Chrome profiles go to the run root (CHAUSAR_RUN_ROOT/ui-shots, else the temp folder's
+// chausar-runs), never app/ui/.shots in the checkout. A rule over every script, comments included.
+test('the walk writes to the run root by default, and no script points at app/ui/.shots',async()=>{
+ assert.match(walk,/from '\.\.\/\.\.\/platform\/runtime\/run-root\.mjs'/);
+ assert.match(walk,/runRoot\('ui-shots'\)/);
+ const {readdir}=await import('node:fs/promises');
+ const folder=new URL('../../scripts/',import.meta.url);
+ const naming:string[]=[];
+ for(const entry of await readdir(folder,{withFileTypes:true,recursive:true})){
+  if(!entry.isFile()||!/\.(?:mjs|cjs|js|ps1|sh)$/.test(entry.name))continue;
+  const path=`${entry.parentPath??(entry as any).path}/${entry.name}`;
+  if(/\.shots\b/.test(readFileSync(path,'utf8')))naming.push(entry.name);
+ }
+ assert.deepEqual(naming,[]);
+});
