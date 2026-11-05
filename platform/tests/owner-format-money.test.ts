@@ -63,6 +63,11 @@ test('the money pattern still finds the exact form, for receipts and text code r
   assert.equal(HOLDS_MONEY.test('Sent 3 drafts'), false);
 });
 
+test('any currency written with its code reads as money, and a tax or tool acronym does not (B2 fix round 1, quality 5)', () => {
+  for (const text of ['HKD 5,000', 'HKD 5,000.50', '-HKD 500', 'MYR 1,200', 'THB 300', 'BRL 10.00']) wholeMatch(text);
+  for (const text of ['GST 18%', 'TDS 10 percent', 'API 3 calls', 'UPI 2 links']) assert.equal(HOLDS_MONEY.test(text), false, text);
+});
+
 test('counts: Indian grouping for an Indian business, western elsewhere', () => {
   assert.equal(formatCount(100000, 'IN'), '1,00,000');
   assert.equal(formatCount(100000, 'US'), '100,000');

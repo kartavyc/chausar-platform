@@ -68,8 +68,11 @@ export function typedMoney(text: string, currency: string): string | null {
   return written(found[1] === '-', found[2]!.replace(/^0+(?=\d)/, ''), fraction ? fraction.padEnd(precision, '0') : '', currency);
 }
 
-/** The currency codes the screens read as money when a figure is written with its code. */
-const CODES = 'INR|USD|EUR|GBP|AED|SGD|AUD|CAD|JPY|NZD|ZAR|CHF|KWD';
+/**
+ * The currency codes the screens read as money when a figure is written with its code: every code the runtime knows
+ * (the list currency.ts accepts), so "HKD 5,000" is money and "GST 18%" is not.
+ */
+const CODES = [...Intl.supportedValuesOf('currency'), 'CLF', 'UYI', 'UYW'].join('|');
 /**
  * Money in text, one pattern for the engine, the fake and the app: a sign or a code, then its digits. It reads the
  * owner form ("₹2,000", "-₹500", "SGD 5,000") and the exact form ("INR 2,000.00", "USD 0.0042") alike.
