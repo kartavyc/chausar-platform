@@ -6,6 +6,7 @@
 //
 // Ideas taken, code written here: Open Security's worklist that the read tool marks, Pinloop's coverage first, and
 // OpenQodex's "partial unless complete".
+import { formatCount } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import type { CoverageView, ToolCallRecord, WorkReceiptRecord } from '../contracts.ts';
 import { findRecord } from '../records.ts';
@@ -19,7 +20,8 @@ export type CoverageVerb = CoverageView['verb'];
 const UNIT_WORDS: Readonly<Record<CoverageUnit, readonly [string, string]>> = Object.freeze({
   rows: ['row', 'rows'], lines: ['line', 'lines'], pages: ['page', 'pages'], items: ['item', 'items'], 'bank-lines': ['bank line', 'bank lines'],
 });
-const count = (value: number) => value.toLocaleString('en-US');
+// B2: counts group as the owner's country does; India first when no business is at hand.
+const count = (value: number) => formatCount(value, 'IN');
 
 /** A coverage line, fraction first: "1,204 of 1,210 lines matched". Complete only when every item counted was seen. */
 export function coverageView(done: number | null, total: number | null, unit: CoverageUnit, verb: CoverageVerb, unitWords?: string): CoverageView {

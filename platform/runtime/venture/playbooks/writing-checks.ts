@@ -1,3 +1,4 @@
+import { formatCount } from '../../owner-format.ts';
 // Chausar flagship playbooks (Ink v2 wave 4, package 4J16, catalogue Q20): writing checks as code, in English and Hindi.
 // Code only, no model, and a check never rewrites the draft: it says what it found and the owner edits.
 // - writing-bans: hard bans, each a failure: the long dash, "not X but Y" contrasts, summary phrases ("in conclusion",
@@ -163,7 +164,7 @@ const SUMMARY_PATTERNS: Readonly<Record<WritingLanguage, readonly { label: strin
 });
 
 const LANGUAGE_WORDS: Readonly<Record<WritingLanguage, string>> = { en: 'English', hi: 'Hindi' };
-const plural = (count: number, one: string, many: string) => `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`;
+const plural = (count: number, one: string, many: string) => `${formatCount(count, 'IN')} ${count === 1 ? one : many}`;
 const listed = (items: readonly string[]) => [...new Set(items)].slice(0, 6).join(', ');
 
 function bans(text: string, copy: string, removed: number, language: WritingLanguage, characters: number): WritingResult {

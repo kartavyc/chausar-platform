@@ -3,6 +3,7 @@
 // route, usage and cost (agent-runtime/billing.ts), or the call records and charges the model port kept. Nothing is
 // priced here: a cost comes from the charge records code already settled, with the sum receipt behind it. A run on the
 // owner's own Codex or Claude plan says "On your plan", with no figure and never rupees.
+import { formatCount } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import { formatMicros, listRecords } from '../records.ts';
 import { presetSpec } from '../models/presets.ts';
@@ -21,7 +22,8 @@ export const RECEIPT_WORDS = Object.freeze({
   tier: { main: 'Main model', fast: 'Quick model' } as Readonly<Record<ModelTier, string>>,
 });
 const SEPARATOR = ' · ';
-const count = (value: number) => value.toLocaleString('en-US');
+// B2: counts group as the owner's country does; India first when no business is at hand.
+const count = (value: number) => formatCount(value, 'IN');
 
 /** The tool in the owner's words: Codex and Claude Code on their plan, a model on their key, templates. */
 export function toolWords(presetId: ModelPresetId): Display {

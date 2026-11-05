@@ -44,7 +44,7 @@ describe('Clients place', () => {
     expect(rows).toHaveLength(2);
     const boat = rows.find((r) => r.textContent?.includes('Boat Audio'))!;
     expect(boat.textContent).toContain('Order open: Two mentions in episode 14');
-    expect(within(boat).getByText('₹26,200.00').className).toContain('mono');
+    expect(within(boat).getByText('₹26,200').className).toContain('mono');
     expect(within(boat).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const nimbus = rows.find((r) => r.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.textContent).toContain('No orders yet.');
@@ -59,7 +59,7 @@ describe('Clients place', () => {
     start();
     await click(await screen.findByRole('button', { name: receiptMark('R-0416') }));
     const sheet = await screen.findByRole('complementary', { name: 'R-0416' });
-    await waitFor(() => expect(sheet.textContent).toContain('₹13,100.00'));
+    await waitFor(() => expect(sheet.textContent).toContain('₹13,100'));
   });
 
   it('says "No clients yet." with one way to add one', async () => {
@@ -253,10 +253,10 @@ describe('client sheet', () => {
     const line = owes.parentElement!;
     // Ink v2 (3E2): the amount is a Figure, its receipt chip beside it with a gap rather than a space character.
     // 4Z3: the receipt is a mark beside it; its code is not printed.
-    expect(line.textContent).toMatch(/^owes ₹26,200\.00\s*$/);
-    expect(within(line).getByRole('button', { name: 'Receipt for ₹26,200.00' }).getAttribute('data-receipt')).toBe('R-0416');
-    expect(within(line).getByText('₹26,200.00').className).toContain('mono');
-    expect(within(line).getByText('₹26,200.00').closest('[data-figure]')).toBeTruthy();
+    expect(line.textContent).toMatch(/^owes ₹26,200\s*$/);
+    expect(within(line).getByRole('button', { name: 'Receipt for ₹26,200' }).getAttribute('data-receipt')).toBe('R-0416');
+    expect(within(line).getByText('₹26,200').className).toContain('mono');
+    expect(within(line).getByText('₹26,200').closest('[data-figure]')).toBeTruthy();
     expect(within(line).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
   });
 

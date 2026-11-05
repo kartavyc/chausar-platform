@@ -1,12 +1,12 @@
 import { Fragment, type ReactNode } from 'react';
 import { useT, type T } from '../text';
-import { useClock } from '../shell/clock';
+import { useClock, useOwnerCountry } from '../shell/clock';
 import type { QueueAmount, QueueRow, QueueSendsTo } from '../engine/types';
 import { Count, Figure } from './Figure';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
 import s from './ApprovalMeta.module.css';
-import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
+import { formatCount, HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 
 /**
  * W4 4J19: what the engine says about a Today row beyond its title and line (4J1's views/row-meta.ts, 4J16's quote
@@ -113,6 +113,7 @@ const SENDS_ICON: Record<QueueSendsTo, IconName> = { client: 'send', public: 'me
  */
 export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: string) => void) | undefined }) {
   const t = useT();
+  const country = useOwnerCountry() ?? 'IN';
   const { sendsTo, attempt, changeCount } = row;
   // 4Z2: a count against a platform's limit shows only near the limit (nine tenths of it or more); far under it, it
   // was a number to puzzle over. Over the limit it always shows.
@@ -132,9 +133,9 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
           {counts?.map((count) => (
             <span key={count.label} className={s.count} data-count-of="" data-over={count.count > count.limit ? '' : undefined}>
               {count.label}{' '}
-              <Count value={count.count.toLocaleString('en-IN')} />
+              <Count value={formatCount(count.count, country)} />
               {' '}{t('approval.meta.of')}{' '}
-              <Count value={count.limit.toLocaleString('en-IN')} />
+              <Count value={formatCount(count.limit, country)} />
               {/* Over the platform's limit: the words and a mark say so, not the colour alone. */}
               {count.count > count.limit && <> · <Icon name="triangle-alert" size={12} />{t('approval.meta.over')}</>}
             </span>

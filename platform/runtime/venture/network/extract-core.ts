@@ -1,3 +1,4 @@
+import { formatCount } from '../../owner-format.ts';
 import { refusalError } from '../refusal-brand.ts';
 import {HIDDEN,FORMULA,normalEmail} from './normal-email.ts';
 import { fold } from './fold.ts';
@@ -78,7 +79,8 @@ export function extractError(code: string, message: string): Error & { code: str
 }
 
 /** A whole number with thousands commas. */
-export const count = (value: number) => value.toLocaleString('en-US');
+// B2: counts group as the owner's country does; India first when no business is at hand.
+export const count = (value: number) => formatCount(value, 'IN');
 /** '1 line', '3 lines'. */
 export const plural = (value: number, one: string, many: string) => `${count(value)} ${value === 1 ? one : many}`;
 

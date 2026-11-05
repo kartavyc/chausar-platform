@@ -33,14 +33,12 @@ describe('rules the UI keeps (spec section 6)', () => {
     // parts/when.ts writes every day and time in the owner's zone; onboarding/flow.ts guesses the country from the
     // computer's zone, which is not a date shown to anyone. The fake engine answers as the engine does.
     const exempt = (f: string) => f.startsWith('engine/fake') || f === 'parts/when.ts' || f === 'places/onboarding/flow.ts';
-    // Counts still grouped by the computer's language until B2 task 9 moves them to formatCount.
-    const countsLeft = new Set(['parts/ApprovalMeta.tsx', 'parts/RunQuality.tsx']);
     const found: string[] = [];
     for (const { f, text } of code.filter((c) => /\.tsx?$/.test(c.f) && !exempt(c.f))) {
       if (/Intl\.DateTimeFormat/.test(text)) found.push(`${f}: Intl.DateTimeFormat`);
       if (/hourCycle/.test(text)) found.push(`${f}: hourCycle`);
       if (/timeZone:\s*'UTC'/.test(text)) found.push(`${f}: timeZone 'UTC'`);
-      if (/toLocaleString\(/.test(text) && !countsLeft.has(f)) found.push(`${f}: toLocaleString`);
+      if (/toLocaleString\(/.test(text)) found.push(`${f}: toLocaleString`);
       if (/\.slice\(0,\s?10\)/.test(text)) found.push(`${f}: a raw ISO day`);
     }
     expect(found).toEqual([]);

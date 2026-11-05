@@ -4,6 +4,7 @@
  * imports, no file or network access and a deadline; their answers become code receipts in the job that asked.
  * A pack's MCP server references are shown only: adding one is the normal owner-approved server setting.
  */
+import { formatCount } from '../../owner-format.ts';
 import { spawn } from 'node:child_process';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -149,7 +150,7 @@ function display(minor: string, unit: PackCalculator['output']['unit'], currency
   const value = BigInt(minor);
   if (unit === 'money') return { display: money(value, currency), unit: 'money' };
   if (unit === 'bps') { const sign = value < 0n ? '-' : '', abs = value < 0n ? -value : value; return { display: `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}%`, unit: 'percent' }; }
-  return { display: value.toLocaleString('en-IN'), unit: 'count' };
+  return { display: formatCount(value, 'IN'), unit: 'count' };
 }
 
 /**

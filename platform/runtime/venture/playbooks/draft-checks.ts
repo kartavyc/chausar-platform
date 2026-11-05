@@ -1,3 +1,4 @@
+import { formatCount } from '../../owner-format.ts';
 import {youtubeServiceChecks} from './youtube/service-checks.ts';
 import {isYoutubeService} from './youtube/service-fields.ts';
 // Chausar flagship playbooks: their own checks on a draft (playbook wiring, design 7.5 and 7.8). Code only, no model.
@@ -553,7 +554,7 @@ const andList = (items: readonly string[]) => (items.length > 1 ? `${items.slice
 /** A post code split into a thread: which one, into how many posts, and each part's length as the platform counts it. */
 function threadNote(post: PostDraft): string | null {
   if (!post.thread?.length) return null;
-  const lengths = post.thread.map(part => countCharacters(part, post.channel).toLocaleString('en-US'));
+  const lengths = post.thread.map(part => formatCount(countCharacters(part, post.channel), 'IN'));
   return `${post.id} on ${channelCapability(post.channel).name} is split into ${post.thread.length} posts by code: ${andList(lengths)} characters.`;
 }
 

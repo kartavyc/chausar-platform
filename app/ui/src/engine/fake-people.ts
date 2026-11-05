@@ -11,6 +11,7 @@
  * The fake reads plain words with a small table instead of the owner's AI: it is a sample, never a model.
  */
 
+import { formatCount } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type ChatConsentView, type NetworkImportKind, type NetworkImportResult, type NetworkImportView, type NetworkSearchView, type NetworkSourcesView, type PeopleView,
   type PersonSummary, type PersonView, type PipelineCardView, type PipelineStage, type ReceiptLite, type SearchResultView, type SearchWebState, type TieBand,
@@ -48,7 +49,8 @@ const SHARED_CHECK_LINE = "A second one-way check, made with this computer's key
 const BACKUPS_LINE = 'Backups made before now still hold this person until those backups are deleted.';
 const PROTECTED = /\b(religion|religious|caste|health|illness|disease|disabled|age|aged|gender|male|female|sexual|gay|lesbian|married|single mothers?|hindu|muslim|christian|sikh|jain|brahmin|dalit)\b|धर्म|जाति|उम्र|लिंग|स्वास्थ्य|बीमारी/iu;
 
-const count = (n: number) => n.toLocaleString('en-US');
+// B2: as the engine's network/extract-core.ts count, India first.
+const count = (n: number) => formatCount(n, 'IN');
 const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('');
