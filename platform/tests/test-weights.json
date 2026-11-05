@@ -10,6 +10,7 @@
   "platform/tests/conversation-synthesis-public-negative.test.ts": 18.4,
   "platform/tests/desktop-smoke-d5.test.ts": 1,
   "platform/tests/desktop-trim-d5.test.ts": 2.5,
+  "platform/tests/engine-bundle-rules-d7.test.ts": 1.5,
   "platform/tests/investigation-job-http.test.ts": 28.6,
   "platform/tests/package-contents-d5.test.ts": 1.5,
   "platform/tests/phone-host-http.test.ts": 33.9,
