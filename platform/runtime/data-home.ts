@@ -58,3 +58,8 @@ export function dataHome(kind: DataKind, options: DataHomeOptions = {}): string 
   if (platform !== process.platform) return chosen;
   return refuseInsideRepo(chosen, { env, variable, fallback });
 }
+
+/** The local web server's data folder: CHAUSAR_VAULT_DIRECTORY, else the data home (the demo kind for --demo). */
+export function serverDataDirectory(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv): string {
+  return dataHome(args.includes('--demo') ? 'local-web-demo' : 'local-web', { env: environment });
+}

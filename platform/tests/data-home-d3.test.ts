@@ -94,3 +94,22 @@ test('this very checkout is recognised (the real package.json and .git)', () => 
   const root = fileURLToPath(new URL('../..', import.meta.url));
   assert.throws(() => refuseInsideRepo(join(root, 'data'), { env: {} }), code('DATA_INSIDE_REPO'));
 });
+
+// Task 2: the local web server keeps its data in the data home, not ./data where it was started.
+test('the local web server: the demo kind under the data home, CHAUSAR_VAULT_DIRECTORY first, never inside the checkout', async t => {
+  const { serverDataDirectory, createServerEngine } = await import('../runtime/server.ts');
+  const parent = await realpath(await mkdtemp(join(tmpdir(), 'chausar-data-home-')));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const users = { LOCALAPPDATA: join(parent, 'local'), XDG_DATA_HOME: join(parent, 'xdg') };
+  const userDemo = dataHome('local-web-demo', { env: users });
+  assert.equal(serverDataDirectory(users, ['node', 'server.ts', '--demo']), userDemo);
+  assert.notEqual(serverDataDirectory(users, ['node', 'server.ts']), userDemo, 'real and demo differ');
+  assert.equal(serverDataDirectory({ CHAUSAR_HOME: join(parent, 'home') }, ['--demo']), join(parent, 'home', 'local-web-demo'));
+  assert.equal(serverDataDirectory({ CHAUSAR_HOME: join(parent, 'home'), CHAUSAR_VAULT_DIRECTORY: join(parent, 'vault') }, ['--demo']), join(parent, 'vault'));
+  const root = fileURLToPath(new URL('../..', import.meta.url));
+  assert.throws(() => serverDataDirectory({ CHAUSAR_VAULT_DIRECTORY: join(root, 'data') }, ['--demo']), code('DATA_INSIDE_REPO'));
+  const engine = await createServerEngine({ CHAUSAR_HOME: join(parent, 'home') }, ['node', 'server.ts', '--demo']);
+  t.after(() => engine.shutdown());
+  assert.equal(engine.options.directory, join(parent, 'home', 'local-web-demo'));
+  await assert.rejects(createServerEngine({ CHAUSAR_VAULT_DIRECTORY: join(root, 'data') }, ['--demo']), code('DATA_INSIDE_REPO'));
+});
