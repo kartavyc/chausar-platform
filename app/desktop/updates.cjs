@@ -5,7 +5,8 @@
 // Ed25519 signature over the canonical manifest, this platform, the length and the SHA-256. Then:
 //   Linux:   an AppImage (process.env.APPIMAGE) is replaced by the verified file with the same mode, by a copy in the same
 //            folder and one rename, so the old file is gone only once the rename has happened.
-//   Windows: the staged NSIS installer runs silently (/S --updated) only when Get-AuthenticodeSignature says Valid and
+//   Windows: a private copy of the staged NSIS installer, made after the safety backup and checked again (hash and
+//            signature) right before it runs, runs silently (/S --updated) only when Get-AuthenticodeSignature says Valid and
 //            the signer is the pinned publisher (chausarWindowsPublisher in the build metadata). With no publisher
 //            pinned, or an unsigned file, nothing runs and the state is needs-signing (the certificate is an outside step).
 //   macOS:   manual.
@@ -16,7 +17,7 @@
 // ready and paint clear it; the third start calls onFailedBoot once (attach point 3), which D12 replaces with the
 // automatic rollback. Nothing here downloads, and nothing is sent anywhere.
 const fsp = require('node:fs/promises');
-const { createReadStream } = require('node:fs');
+const { createReadStream, constants: fsConstants } = require('node:fs');
 const { createHash, createPublicKey, randomBytes, verify } = require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const { dirname, isAbsolute, join, basename } = require('node:path');
@@ -108,6 +109,13 @@ async function previousVersion(updatesFolder) {
   try { const version = JSON.parse(await fsp.readFile(join(updatesFolder, 'previous', 'manifest.json'), 'utf8')).version; return typeof version === 'string' ? version : null; } catch { return null; }
 }
 
+/** A copy of the staged installer, beside it under a fresh name, to be checked and run. */
+async function privateCopy(staged) {
+  const runPath = join(dirname(staged.artifactPath), `chausar-update-${randomBytes(8).toString('hex')}.exe`);
+  await fsp.copyFile(staged.artifactPath, runPath, fsConstants.COPYFILE_EXCL);
+  return runPath;
+}
+
 async function swapAppImage(appImage, staged, fs) {
   const old = await fsp.stat(appImage), temporary = tempName(appImage);
   try {
@@ -146,8 +154,16 @@ async function installOnQuit(input) {
       if (answer?.status !== 'Valid') return done('needs-signing');
       if (answer.publisher !== windowsPublisher) return done('publisher-mismatch');
       await input.beforeInstall?.(staged);
-      if (updatesFolder) await keepRelease(updatesFolder, staged).catch(() => note({ op: 'keep-release', state: 'failed', version }));
-      spawnInstaller(staged.artifactPath, ['/S', '--updated']);
+      // Review round 1 (MEDIUM-3): what runs is a private copy made after the backup, hashed against the signed manifest
+      // and signature-checked itself, right before it runs; the staged path is never run.
+      const runPath = await privateCopy(staged);
+      const refuseCopy = async state => { await fsp.unlink(runPath).catch(() => {}); return done(state); };
+      if (!(await verifyStaged({ ...staged, artifactPath: runPath }, publicKey, platform))) return refuseCopy('not-verified');
+      const last = await signatureOf(runPath);
+      if (last?.status !== 'Valid') return refuseCopy('needs-signing');
+      if (last.publisher !== windowsPublisher) return refuseCopy('publisher-mismatch');
+      if (updatesFolder) await keepRelease(updatesFolder, { ...staged, artifactPath: runPath }).catch(() => note({ op: 'keep-release', state: 'failed', version }));
+      spawnInstaller(runPath, ['/S', '--updated']);
       return done('installer-started');
     }
     return done('manual');

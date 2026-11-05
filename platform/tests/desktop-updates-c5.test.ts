@@ -83,8 +83,34 @@ test('Windows: unsigned or no certificate gives needs-signing, the wrong publish
   assert.equal((await at('Chausar Technologies', { status: 'Valid', publisher: 'Someone Else' })).state, 'publisher-mismatch');
   assert.equal(runs.length, 0);
   assert.equal((await at('Chausar Technologies', { status: 'Valid', publisher: 'Chausar Technologies' }, join(root, 'updates'))).state, 'installer-started');
-  assert.deepEqual(runs, [[release.artifactPath, ['/S', '--updated']]]);
+  assert.equal(runs.length, 1); assert.deepEqual(runs[0][1], ['/S', '--updated']);
+  assert.notEqual(runs[0][0], release.artifactPath, 'a private copy runs, never the staged path');
+  assert.match(runs[0][0], /\.exe$/);
+  assert.deepEqual(await readFile(runs[0][0]), NEW);
   assert.deepEqual(await readFile(join(root, 'updates', 'installed', 'installer')), NEW);
+});
+
+// Fix round 1 (review MEDIUM-3): the file that runs is a private copy made after the safety backup, hashed against the
+// signed manifest and signature-checked itself, right before it runs. A staged file changed during the backup never runs.
+test('Windows: a staged file rewritten during the backup is not run, and the signature is read again on the copy that runs', async t => {
+  const root = await folder(t), release = await staged(root, 'win32'), runs: string[] = [], read: string[] = [];
+  const spawnInstaller = (path: string) => { runs.push(path); };
+  const signatureOf = async (path: string) => { read.push(path); return { status: 'Valid', publisher: 'Chausar Technologies' }; };
+  const swapped = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller, isBusy: neverBusy, updatesFolder: join(root, 'updates'),
+    beforeInstall: async () => { await writeFile(release.artifactPath, 'a different program put here during the backup'); } });
+  assert.equal(swapped.state, 'not-verified');
+  assert.equal(runs.length, 0);
+  await assert.rejects(readFile(join(root, 'updates', 'installed', 'installer')), 'nothing unverified is kept as the installed release');
+  assert.deepEqual((await readdir(join(root, 'stage'))).filter(name => name.endsWith('.exe')), [], 'no private copy is left behind');
+  const again = await staged(join(root, 'again'), 'win32');
+  let calls = 0;
+  const lateUnsigned = async (path: string) => { read.push(path); return ++calls === 1 ? { status: 'Valid', publisher: 'Chausar Technologies' } : { status: 'NotSigned', publisher: null }; };
+  const late = await updates.installOnQuit({ staged: again, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf: lateUnsigned, spawnInstaller, isBusy: neverBusy });
+  assert.equal(late.state, 'needs-signing'); assert.equal(runs.length, 0);
+  const ok = await staged(join(root, 'ok'), 'win32');
+  read.length = 0;
+  assert.equal((await updates.installOnQuit({ staged: ok, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller, isBusy: neverBusy })).state, 'installer-started');
+  assert.equal(read.at(-1), runs.at(-1), 'the last signature read is of the exact file that runs');
 });
 
 test('never during a busy run, never over newer data, and macOS stays manual', async t => {
