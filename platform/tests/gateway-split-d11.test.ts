@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseOllamaOutput } from '../runtime/gateway/providers/ollama.ts';
 
 const runtime = fileURLToPath(new URL('../runtime/', import.meta.url));
 const lines = (file: string) => readFileSync(file, 'utf8').split('\n').length - (readFileSync(file, 'utf8').endsWith('\n') ? 1 : 0);
@@ -35,4 +36,16 @@ test('the gateway is split: gateway.ts routes, and each provider route has its o
 test('gateway.ts still exports every value it exported before the split', async () => {
   const gateway = await import('../runtime/gateway.ts');
   assert.deepEqual(Object.keys(gateway).sort(), ['DEFAULT_OPERATIONS', 'ModelGateway', 'businessSelectionSchema', 'cliArguments', 'defaultProcess', 'operationCatalog', 'planSchema', 'validateEndpoint', 'validatePlan']);
+});
+
+// D11 fix (review LOW-7): the Ollama route's reader, pinned directly. Removing any one of its checks fails this table.
+test('the Ollama reader refuses a refusal, a tool call and an unfinished answer, and reads a clean one', () => {
+  const answer = (message: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ message: { content: '{"ok":true}', ...message }, done: true, done_reason: 'stop', prompt_eval_count: 3, eval_count: 5, ...extra });
+  const refusedWith = (code: string) => (error: any) => error.code === code;
+  assert.throws(() => parseOllamaOutput(answer({ refusal: 'I will not help with that.' })), refusedWith('MODEL_REFUSAL'));
+  assert.throws(() => parseOllamaOutput(answer({ tool_calls: [{ function: { name: 'send', arguments: {} } }] })), refusedWith('MODEL_TOOL_ATTEMPT'));
+  assert.throws(() => parseOllamaOutput(answer({}, { done: false })), refusedWith('MODEL_INCOMPLETE'));
+  assert.throws(() => parseOllamaOutput(answer({}, { done_reason: 'length' })), refusedWith('MODEL_INCOMPLETE'));
+  assert.throws(() => parseOllamaOutput({ error: 'model not found' }), refusedWith('MODEL_FAILED'));
+  assert.deepEqual(parseOllamaOutput(answer({})), { value: { ok: true }, usage: { input_tokens: 3, output_tokens: 5 } });
 });
