@@ -113,11 +113,8 @@ const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: stri
   'playbooks/youtube/data-api.ts': [1, "YouTube's own published day"],
   'money/dates.ts': [1, 'calendar arithmetic on a day string'],
   'playbooks/social/risk-gate.ts': [1, "a platform rule's checked-on age, not a business day"],
-  // LEFT in this round (B2 fix round 1 notes): each still takes the transaction's UTC day.
-  'playbooks/monitored-data/extract.ts': [4, 'LEFT: a watched page read day'],
-  'playbooks/monitored-data/check.ts': [1, 'LEFT: a watched page read day'],
-  'playbooks/monitored-data/state.ts': [2, 'LEFT: a watched page read day'],
-  'playbooks/online-seller/model.ts': [1, 'LEFT: a pure seller calculator called with no day (the desk and the harness now pass the owner day)'],
+  // Kept, with no business reachable: a pure calculator with no store; every caller with a business passes the day.
+  'playbooks/online-seller/model.ts': [1, "the pure seller calculator's fallback when no day is passed: it has no store or business to read; the desk, the harness and the fake pass the owner's day, only unit tests leave it out"],
 };
 
 test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {

@@ -1,5 +1,5 @@
 import {fakeSellerOperations} from './fake-online-seller-operations';
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatMoney, ownerZone } from '../../../../platform/runtime/owner-format';
 import {fakeSellerConnectors} from './fake-seller-connectors';
 /**
  * Fake seller engine. Uses the exact browser-safe core and source contracts of the real engine.
@@ -24,6 +24,8 @@ const fail = (code: string, words: string): never => { throw new EngineError(cod
 const display = (key: string, value: string) => key.includes('Minor') ? formatMoney(value, 'INR') : key.endsWith('Bps') ? sellerPercent(value) : value;
 /** Keeps report records by business, with the same refusals and source-file boundary as the engine. */
 export function fakeOnlineSellerDesk(host: W4DeskHost): FakePlaybookDesk {
+  // Today where the business is, as the engine's desk passes it (one-shot B2, the owner-day rule).
+  const today = () => dayKeyIn(host.now(), ownerZone((host.ask('venture.get', {}) as { venture?: { country?: { code: string } | null } } | null)?.venture?.country?.code, 'UTC'));
   const operations=fakeSellerOperations(host);
   const connectors=fakeSellerConnectors(host);
   const reports = new Map<string, Report[]>(); let sequence = 0;
@@ -48,7 +50,7 @@ export function fakeOnlineSellerDesk(host: W4DeskHost): FakePlaybookDesk {
       if (!orders.some(order => order.id === body.orderId && order.status === 'open')) fail('ORDER_NOT_FOUND', 'Choose an open order in this business.');
       let economics: ReturnType<typeof sellerFile> | null = null;
       let file: ReturnType<typeof sellerFile>, result: unknown, images: ReturnType<typeof sellerImageFiles> = [];
-      try { economics = body.economics === undefined ? null : sellerFile(body.economics); if (body.mode !== 'ads' && economics) fail('SELLER_INPUT_INVALID', 'An economics export belongs only on an ads check.'); file = sellerFile({ name: body.name, contentBase64: body.contentBase64 }); images = sellerImageFiles(body.images); if (body.mode !== 'listing' && images.length) fail('SELLER_INPUT_INVALID', 'Photos belong only on a listing check.'); result = analyseSellerRows(body.mode as SellerMode, sellerCsv(file.text), { rehearsal: false, ...SELLER_INDIA_DATA }, structuredClone(SELLER_TAX_DATA), images.map(image => ({ name: image.name, ...image.dimensions, source: image.name })), economics ? sellerCsv(economics.text) : undefined); }
+      try { economics = body.economics === undefined ? null : sellerFile(body.economics); if (body.mode !== 'ads' && economics) fail('SELLER_INPUT_INVALID', 'An economics export belongs only on an ads check.'); file = sellerFile({ name: body.name, contentBase64: body.contentBase64 }); images = sellerImageFiles(body.images); if (body.mode !== 'listing' && images.length) fail('SELLER_INPUT_INVALID', 'Photos belong only on a listing check.'); result = analyseSellerRows(body.mode as SellerMode, sellerCsv(file.text), { rehearsal: false, ...SELLER_INDIA_DATA, today: today() }, structuredClone(SELLER_TAX_DATA), images.map(image => ({ name: image.name, ...image.dimensions, source: image.name })), economics ? sellerCsv(economics.text) : undefined); }
       catch (error) { const e = error as Error & { code: string; missing?: unknown }; throw Object.assign(new EngineError(e.code, e.message), e.missing ? { missing: e.missing, details: { missing: e.missing } } : {}); }
       const upload = host.ask('venture.files.add', { orderId: body.orderId, name: file.name, contentBase64: file.contentBase64 }) as { id: string; name: string; digest: string };
       const economicsAdded = economics ? host.ask('venture.files.add', { orderId: body.orderId, name: economics.name, contentBase64: economics.contentBase64 }) as { id: string; name: string; digest: string } : null;
