@@ -47,6 +47,7 @@
   "platform/tests/venture-network-search.test.ts": 25,
   "platform/tests/venture-plan-meter-c7.test.ts": 1,
   "platform/tests/venture-social-run.test.ts": 23.3,
+  "platform/tests/whats-new-c7.test.ts": 1,
   "platform/tests/workspace-activation-independent-public-acceptance.test.ts": 251.8,
   "platform/tests/workspace-activation-local.test.ts": 87.8,
   "platform/tests/workspace-activation-public.test.ts": 151.8,
