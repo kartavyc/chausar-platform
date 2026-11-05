@@ -7,6 +7,7 @@
  * only. On the hosted app only the open business shows. Times read in Kolkata, as the sample businesses are in India.
  */
 
+import { formatMoment, ownerZone } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AcrossLeftOut, type AcrossMoneyView, type AcrossRunsView, type AgingView, type GoalView, type MoneyOverview, type ReceiptLite, type SpendLead, type SpendPolicyView } from './types';
 import { inr } from './fake-money';
 import type { W4DeskHost } from './fake-w4';
@@ -31,10 +32,9 @@ const keyMissingLine = (name: string) => `${name} can't open with this computer 
 const noneLine = (name: string) => `Chausar has nothing saved about ${name} yet. Open it once and it shows here.`;
 const asOfLine = (when: string) => `As of ${when}, when you last opened it.`;
 
-/** '21 Oct 2026, 10:30' in Kolkata (UTC+05:30), as the engine's asOfWords says it. */
+/** '21 Oct 2026, 10:30 am' in India, as the engine's asOfWords says it (B2). */
 function asOfWords(iso: string): string {
-  const local = new Date(Date.parse(iso) + 330 * 60_000).toISOString();
-  return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
+  return formatMoment(iso, ownerZone('IN', 'UTC'));
 }
 const monthWords = (month: string) => `${MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
 const usd = (micros: number) => `USD ${(Math.round(micros / 100) / 10000).toFixed(4)}`;

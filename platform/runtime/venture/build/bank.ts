@@ -10,7 +10,8 @@
 import { createHash } from 'node:crypto';
 import { check, type Context } from '../../contracts.ts';
 import { decimalMinor, formatMinor } from '../../currency.ts';
-import type { DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
+import type { CountryProfile, DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
+import { ownerClock } from '../local-day.ts';
 import { formatVentureDate, isAppChannel, isoDate, singleLine } from '../records.ts';
 import { validDate } from '../../memory.ts';
 import { checkUrl } from '../core/net-guard.ts';
@@ -70,17 +71,18 @@ export function requireActiveConsent(consent: BankConsent | null, now: Date): Ba
   return consent;
 }
 
-export function pollAllowed(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY): { allowed: boolean; used: number; nextAt: IsoTime | null; line: string } {
+/** country: where the business is, so the next read is said on the owner's clock (B2); without one, UTC and says so. */
+export function pollAllowed(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY, country?: Pick<CountryProfile, 'code'> | null): { allowed: boolean; used: number; nextAt: IsoTime | null; line: string } {
   const windowStart = now.getTime() - DAY_MS;
   const recent = polls.map(p => Date.parse(p)).filter(t => t > windowStart).sort((a, b) => a - b);
   if (recent.length < limit) return { allowed: true, used: recent.length, nextAt: null, line: `${recent.length} of ${limit} reads used in the last day.` };
   const nextAt = new Date(recent[0] + DAY_MS).toISOString();
-  return { allowed: false, used: recent.length, nextAt, line: `The bank allows ${limit} reads a day. The next one can run at ${nextAt.slice(11, 16)} UTC.` };
+  return { allowed: false, used: recent.length, nextAt, line: `The bank allows ${limit} reads a day. The next one can run at ${country ? ownerClock(nextAt, country) : `${ownerClock(nextAt, null)} UTC`}.` };
 }
 
 /** Records one unattended read, or refuses with BANK_POLL_LIMIT. Returns only the reads from the last day. */
-export function recordPoll(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY): IsoTime[] {
-  const verdict = pollAllowed(polls, now, limit);
+export function recordPoll(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY, country?: Pick<CountryProfile, 'code'> | null): IsoTime[] {
+  const verdict = pollAllowed(polls, now, limit, country);
   check(verdict.allowed, 'BANK_POLL_LIMIT', verdict.line);
   const windowStart = now.getTime() - DAY_MS;
   return [...polls.filter(p => Date.parse(p) > windowStart), now.toISOString()];

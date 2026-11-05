@@ -225,3 +225,9 @@ export function formatClock(hhmm: string): string {
   const hour = Number(found[1]);
   return `${hour % 12 || 12}:${found[2]} ${hour < 12 ? 'am' : 'pm'}`;
 }
+
+/** The wall clock in the zone at an instant as 'HH:MM' (24-hour): a key to compare with a time field, never shown. */
+export function timeKeyIn(value: When, zone: string): string {
+  const local = localIn(value, zone);
+  return local ? `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}` : '';
+}

@@ -107,6 +107,9 @@ test('polling cap: four unattended reads in any 24 hours, then a refusal that sa
   const blocked = pollAllowed(polls, new Date('2026-10-21T23:00:00.000Z'));
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.nextAt, '2026-10-22T00:00:00.000Z');
+  // B2: the next read is said on the owner's clock where the business is, not in UTC.
+  assert.equal(pollAllowed(polls, new Date('2026-10-21T23:00:00.000Z'), BANK_POLLS_PER_DAY, { code: 'IN' }).line, 'The bank allows 4 reads a day. The next one can run at 5:30 am.');
+  assert.equal(blocked.line, 'The bank allows 4 reads a day. The next one can run at 12:00 am UTC.');
   assert.throws(() => recordPoll(polls, new Date('2026-10-21T23:00:00.000Z')), code('BANK_POLL_LIMIT'));
   const later = recordPoll(polls, new Date('2026-10-22T00:00:01.000Z'));
   assert.equal(later.length, 4, 'polls older than a day drop off');

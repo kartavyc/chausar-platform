@@ -78,7 +78,7 @@ describe('Connections: the mailbox', () => {
     await settle();
     expect(calls(spy, 'venture.mailbox.sync')).toHaveLength(1);
     expect(within(card).getByText('2 new messages from people you know: 2 need you on Today.')).toBeTruthy();
-    expect(card.querySelector('[data-mailbox-line]')?.textContent).toMatch(/Last read 23 Oct 2026 at 15:30\./);
+    expect(card.querySelector('[data-mailbox-line]')?.textContent).toMatch(/Last read 23 Oct 2026 at 3:30 pm\./);
     fireEvent.click(within(card).getByRole('button', { name: 'Disconnect' }));
     expect(calls(spy, 'venture.mailbox.disconnect')).toHaveLength(0);
     await act(async () => { fireEvent.click(within(within(card).getByText(/Chausar stops reading this mailbox/).parentElement!).getByRole('button', { name: 'Disconnect' })); });

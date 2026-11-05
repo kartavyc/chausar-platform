@@ -11,6 +11,7 @@ import type { CountryProfile, IsoDate } from './contracts.ts';
  */
 export {COUNTRY_TIME_ZONES} from './local-day-data.ts';
 import {COUNTRY_TIME_ZONES} from './local-day-data.ts';
+import { formatTime } from '../owner-format.ts';
 
 let rules: CalendarRules | null = null;
 
@@ -49,4 +50,12 @@ export function localTimeAt(instant: Date | string, country: Pick<CountryProfile
 /** Today on the owner's calendar, from the injected clock. */
 export function ownerToday(clock: () => Date, country: Pick<CountryProfile, 'code'> | null | undefined): IsoDate {
   return localDayAt(clock(), country);
+}
+
+/**
+ * The owner's time of day at an instant, on the 12-hour clock in the business's zone: '12:41 am' for 19:11 UTC in
+ * India (one-shot B2). A time a field keeps ('HH:MM', quiet hours) stays as it is; this is for words the owner reads.
+ */
+export function ownerClock(instant: Date | string, country: Pick<CountryProfile, 'code'> | null | undefined): string {
+  return formatTime(instant, ventureTimeZone(country));
 }

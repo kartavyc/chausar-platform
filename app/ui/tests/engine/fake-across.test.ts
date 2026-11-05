@@ -17,7 +17,7 @@ describe('fake engine: money and runs across businesses (4J6)', () => {
     const view = await ask<AcrossMoneyView>(engine, 'venture.money.across');
     const [open, ledger, sitara] = view.businesses;
     expect([open!.businessId, open!.line, open!.lineKey, open!.invoiced]).toEqual(['lumen', 'Open now.', 'open', '₹1,12,400.00']);
-    expect([ledger!.line, ledger!.lineKey, ledger!.asOf, ledger!.invoiced]).toEqual(['As of 22 Oct 2026, 18:00, when you last opened it.', 'as-of', '2026-10-22T12:30:00.000Z', '₹26,200.00']);
+    expect([ledger!.line, ledger!.lineKey, ledger!.asOf, ledger!.invoiced]).toEqual(['As of 22 Oct 2026, 6:00 pm, when you last opened it.', 'as-of', '2026-10-22T12:30:00.000Z', '₹26,200.00']);
     expect([sitara!.locked, sitara!.lineKey, sitara!.invoiced, sitara!.line]).toEqual([true, 'locked', null, 'Sitara Events is locked with a passphrase, so Chausar shows nothing about it until you open it.']);
     // The open business reads its own ledger (4J20): 11240000 + 2620000 = 13860000.
     expect(view.total?.display).toBe('₹1,38,600.00');
@@ -27,7 +27,7 @@ describe('fake engine: money and runs across businesses (4J6)', () => {
     const total = await ask<ReceiptLite>(engine, 'venture.receipt.get', { id: view.total!.receiptId });
     expect(total.figures[0]!.display).toBe('₹1,38,600.00');
     const saved = await ask<ReceiptLite>(engine, 'venture.receipt.get', { id: ledger!.receipts!.invoiced! });
-    expect(saved.explanation).toBe('1 saved figure: Ledgerline, as saved on 22 Oct 2026, 18:00 ₹26,200.00. Added together: ₹26,200.00.');
+    expect(saved.explanation).toBe('1 saved figure: Ledgerline, as saved on 22 Oct 2026, 6:00 pm ₹26,200.00. Added together: ₹26,200.00.');
     await expect(ask(engine, 'venture.money.across', { scope: 'all' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });
   });
 

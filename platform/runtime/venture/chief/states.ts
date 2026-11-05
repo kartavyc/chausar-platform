@@ -14,7 +14,7 @@ import type {
 } from '../contracts.ts';
 import { exactPayload, formatVentureDate, identifier, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { readAs } from '../delivery/shared.ts';
-import { localTimeAt } from '../local-day.ts';
+import { localDayAt, localTimeAt, ownerClock } from '../local-day.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -101,10 +101,9 @@ export function snoozeOptions(now: IsoTime, country: VentureRecord['country']): 
   });
 }
 
-/** A wake time as the owner reads it, where the business is: '22 Oct 2026, 09:00'. */
+/** A wake time as the owner reads it, where the business is: '22 Oct 2026, 9:00 am'. */
 export function wakeWords(until: IsoTime, venture: VentureRecord): string {
-  const local = localTimeAt(until, venture.country);
-  return `${formatVentureDate(local.slice(0, 10), venture.country.dateOrder)}, ${local.slice(11, 16)}`;
+  return `${formatVentureDate(localDayAt(until, venture.country), venture.country.dateOrder)}, ${ownerClock(until, venture.country)}`;
 }
 
 /** The request that puts a chat back in the state it shows now. */

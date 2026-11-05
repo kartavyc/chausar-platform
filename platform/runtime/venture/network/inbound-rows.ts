@@ -12,7 +12,7 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import type { CalendarFeedRecord, InboundRecord, QueueAction, QueueReply, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, formatVentureDate, listRecords, ventureAction, type VentureTx } from '../records.ts';
-import { localDayAt, localTimeAt } from '../local-day.ts';
+import { localDayAt, ownerClock } from '../local-day.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../views/queue-w4.ts';
 import { cardForWrite, cardsOf, CLOSED_STAGES, findCard, moveCard, STAGE_RANK, type Card } from './pipeline.ts';
 import { listPeople } from './store.ts';
@@ -150,7 +150,7 @@ export function replyRows(deps: VentureDeps, _ctx: Context, state: State, ventur
     rows.push({
       kind: 'notice', subject: `meeting:${event.id}`, version: event.endAt.replace(/[^0-9]/g, ''), createdAt: event.endAt,
       title: `Add notes from your call with ${whoWords(first)}?`,
-      line: `The call ended at ${localTimeAt(event.endAt, venture.country).slice(11, 16)}. Paste your notes, and Chausar drafts the next steps for you to approve.`,
+      line: `The call ended at ${ownerClock(event.endAt, venture.country)}. Paste your notes, and Chausar drafts the next steps for you to approve.`,
       actions: [action('open', 'Add notes', true), action('deny', 'No notes', false)], navigate: 'Add your notes from the call in the notes sheet on Today.',
       reply: { inboundId: null, reason: 'meeting-notes', name: names[0], company: null, opportunityId: null, eventId: event.id, topics: [], from: null, subject: null, draft: null },
     });

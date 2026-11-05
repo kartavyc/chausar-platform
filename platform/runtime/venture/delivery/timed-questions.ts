@@ -8,7 +8,7 @@
 import { ChausarError, type Context } from '../../contracts.ts';
 import { currentVenture, formatVentureDate, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import type { DeliveryRunRecord, HandoffRequest, HarnessState, IsoTime, PlaybookRecord, VentureDeps, VentureRecord } from '../contracts.ts';
-import { localTimeAt } from '../local-day.ts';
+import { localDayAt, ownerClock } from '../local-day.ts';
 import { expireHandoff } from './harness/loop.ts';
 import { recordDecision } from '../journal/decisions.ts';
 
@@ -52,11 +52,10 @@ export function expiredQuestion(state: Pick<HarnessState, 'handoffs' | 'phase'> 
   return open?.expiresAt && Date.parse(open.expiresAt) <= nowMs ? open : null;
 }
 
-/** A moment as the owner reads it: their calendar day in their date order and the time on their clock ('17 Oct 2026, 15:30'). */
+/** A moment as the owner reads it: their calendar day in their date order and the time on their clock ('17 Oct 2026, 3:30 pm'). */
 export function ownerMoment(iso: IsoTime, venture: Pick<VentureRecord, 'country'>): string {
   const country = venture.country ?? { code: 'XX', dateOrder: 'year-month-day' as const };
-  const local = localTimeAt(iso, country);
-  return `${formatVentureDate(local.slice(0, 10), country.dateOrder ?? 'year-month-day')}, ${local.slice(11, 16)}`;
+  return `${formatVentureDate(localDayAt(iso, country), country.dateOrder ?? 'year-month-day')}, ${ownerClock(iso, country)}`;
 }
 
 /** The line the run and its next turn read once its question ran out. */

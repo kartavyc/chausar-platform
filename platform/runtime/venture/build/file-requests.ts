@@ -17,7 +17,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { Display, FileRequestRecord, FileRequestView, ShareLinkStoredRecord, UploadFormat, UploadRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, digest, exactPayload, formatVentureDate, identifier, listRecords, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
-import { localTimeAt } from '../local-day.ts';
+import { localDayAt, ownerClock } from '../local-day.ts';
 import { HOSTED_NO_PDF, MAX_UPLOAD_BYTES, MAX_UPLOADS_PER_ORDER, sniffFormat, tablesOfFile, type FileLike } from '../delivery/harness/files.ts';
 import { HELD_WORDS, screenUntrusted } from '../policy/untrusted.ts';
 
@@ -130,7 +130,8 @@ export async function fileRequestEntry(deps: VentureDeps, ctx: Context, token: u
     const closed = closedReason(record, now);
     if (closed) return { open: false, businessName: venture.workingName, reason: closed.line } satisfies FileRequestPage;
     const country = venture.country;
-    const expires = country ? `${formatVentureDate(record.expiresAt.slice(0, 10), country.dateOrder)} at ${localTimeAt(record.expiresAt, country).slice(11, 16)}` : record.expiresAt.slice(11, 16);
+    // The owner's day and time where the business is (B2): the UTC day could be the day before.
+    const expires = country ? `${formatVentureDate(localDayAt(record.expiresAt, country), country.dateOrder)} at ${ownerClock(record.expiresAt, country)}` : ownerClock(record.expiresAt, null);
     return { open: true, businessName: venture.workingName, note: record.note, line: FILE_REQUEST_LINE, expires, maxBytes: MAX_UPLOAD_BYTES } satisfies FileRequestPage;
   }
   if (step === 'store') {

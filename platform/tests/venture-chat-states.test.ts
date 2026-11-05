@@ -64,7 +64,7 @@ test('6G1: pin, snooze, settle and back to active, each an owner action from the
   assert.equal(snoozed.thread.pinned, false, 'the four states are one at a time');
   assert.equal(snoozed.thread.snoozedUntil, '2026-10-22T03:30:00.000Z', 'tomorrow at 09:00 in India');
   assert.deepEqual(snoozed.undo, { threadId: a, state: 'pinned' });
-  assert.equal(snoozed.line, 'Snoozed until 22 Oct 2026, 09:00. It comes back early if it needs you.');
+  assert.equal(snoozed.line, 'Snoozed until 22 Oct 2026, 9:00 am. It comes back early if it needs you.');
   assert.deepEqual(await groupsOf(env), [['today', [b]], ['snoozed', [a]]], 'a snoozed chat sits at the end, out of the way');
 
   const settled = await env.chief('venture.chief.thread.state', { threadId: a, state: 'settled' });

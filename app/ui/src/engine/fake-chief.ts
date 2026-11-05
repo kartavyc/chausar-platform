@@ -14,6 +14,7 @@
  * sample studio's titles and hooks carry over), labelled a model estimate as the engine's is.
  */
 
+import { formatMoment, ownerZone } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type ChatConsentView, type ChatPart, type ChiefCounted, type ChiefFit, type ChiefLineAmount, type ChiefMessageView, type ChiefSendResult, type ChiefThreadSummary, type ChiefThreadView,
   type ChiefThreadsView, type ChiefSettleResult, type ChiefSnoozeOption, type ChiefThreadState, type ChiefThreadStateInput, type ChiefThreadStateResult, type InvoiceLite, type OrderLite, type ProposalKind, type ProposalStatus, type ProposalView, type QueueAction, type QueueRow,
@@ -124,16 +125,14 @@ function lastLineOf(parts: readonly ChatPart[]): { lastLine: string; amounts: Ch
   const kept = text.slice(0, cut).trimEnd();
   return { lastLine: `${kept}...`, amounts: amounts.filter((amount) => amount.start + amount.length <= kept.length) };
 }
-/** '22 Oct 2026, 18:00' in Kolkata, as the engine's asOfWords says it. */
+/** '22 Oct 2026, 6:00 pm' in India, as the engine's asOfWords says it (B2). */
 function asOfWords(iso: string): string {
-  const local = new Date(Date.parse(iso) + 330 * 60_000).toISOString();
-  return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
+  return formatMoment(iso, ownerZone('IN', 'UTC'));
 }
 
-/** W6 6G1: a wake time in Kolkata as chief/states.ts wakeWords says it: '22 Oct 2026, 09:00'. */
+/** W6 6G1: a wake time in India as chief/states.ts wakeWords says it: '22 Oct 2026, 9:00 am'. */
 function wakeWords(iso: string): string {
-  const local = new Date(Date.parse(iso) + KOLKATA_MS).toISOString();
-  return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
+  return formatMoment(iso, ownerZone('IN', 'UTC'));
 }
 
 /** W6 6G1: the snooze choices now (chief/states.ts snoozeOptions): in three hours, tomorrow 09:00, next Monday 09:00, in Kolkata. */

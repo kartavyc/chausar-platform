@@ -11,6 +11,7 @@
  * instead of the owner's AI: it is a sample, never a model. Nothing here sends anything: a handoff is a link.
  */
 
+import { dayKeyIn, formatClock, formatTime, ownerZone, timeKeyIn } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type CalendarFeedView, type FollowupView, type InboundTriage, type InboundView, type LawfulBasis, type LeadView, type LostReason,
   type MailboxView, type OutreachChannel, type OutreachHandoff, type OutreachKind, type OutreachSentChannel, type OutreachView, type PipelineCardView, type PipelineQuoteView,
@@ -104,12 +105,13 @@ const DRAFT_CHOICES: readonly { kind: OutreachKind; channel: OutreachChannel }[]
     .map((channel) => ({ kind, channel })));
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Days, as the engine reads them in India (UTC+05:30)
+// Days, as the engine reads them in India, by the engine's zone table, not a fixed offset (B2)
 // ---------------------------------------------------------------------------------------------------------------------
 
-const IST_MS = 330 * 60_000;
-const localDay = (iso: string) => new Date(Date.parse(iso) + IST_MS).toISOString().slice(0, 10);
-const localTime = (iso: string) => new Date(Date.parse(iso) + IST_MS).toISOString().slice(11, 16);
+const INDIA = ownerZone('IN', 'UTC');
+const localDay = (iso: string) => dayKeyIn(iso, INDIA);
+/** 'HH:MM' in India, a key to compare with a send time; words for the owner use formatTime. */
+const localTime = (iso: string) => timeKeyIn(iso, INDIA);
 const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00.000Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 const weekday = (day: string) => ((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
@@ -665,7 +667,7 @@ export class FakePipelineDesk {
       };
       if (plan.due > today) { later.push(view); continue; }
       const sending = card.state.sending ?? DEFAULT_PIPELINE_SETTINGS;
-      if (plan.due === today && localTime(this.host.now()) < sending.sendTime) { later.push({ ...view, line: `${words}. It shows on Today from ${sending.sendTime}.` }); continue; }
+      if (plan.due === today && localTime(this.host.now()) < sending.sendTime) { later.push({ ...view, line: `${words}. It shows on Today from ${formatClock(sending.sendTime)}.` }); continue; }
       if (!sending.weekdays.includes(weekday(today))) { later.push({ ...view, line: `${words}. Today is not one of your sending days.` }); continue; }
       due.push({ card, view, daysLate: Math.max(0, daysBetween(plan.due, today)) });
     }
@@ -1139,7 +1141,7 @@ export class FakePipelineDesk {
   private mailboxView(box: Mailbox | null): MailboxView {
     if (!box || box.status === 'disconnected') return { connected: false, host: box?.host ?? null, user: box?.user ?? null, lastSync: box?.lastSync ?? null, line: 'Not connected. Chausar reads no mail.', needsPassword: false };
     if (!box.password) return { connected: true, host: box.host, user: box.user, lastSync: box.lastSync, line: 'Chausar keeps your app password only while the app is open. Type it again under Connections to read new mail.', needsPassword: true };
-    const when = box.lastSync ? `Last read ${longDay(localDay(box.lastSync))} at ${localTime(box.lastSync)}.` : 'Not read yet.';
+    const when = box.lastSync ? `Last read ${longDay(localDay(box.lastSync))} at ${formatTime(box.lastSync, INDIA)}.` : 'Not read yet.';
     return { connected: true, host: box.host, user: box.user, lastSync: box.lastSync, line: `Reading ${box.user} on ${box.host}, read-only. ${when} Chausar never sends mail or marks it read.`, needsPassword: false };
   }
 
@@ -1212,7 +1214,10 @@ export class FakePipelineDesk {
     const now = this.host.now();
     const today = localDay(now);
     const day = localDay(feed.lastRead) >= today ? addDays(today, 1) : today;
-    const at = new Date(Date.parse(`${day}T06:00:00.000Z`) - IST_MS).toISOString();
+    // 06:00 in India: the wall time less the zone's own offset at that moment, from the table (B2).
+    const wall = Date.parse(`${day}T06:00:00.000Z`);
+    const offset = Date.parse(`${dayKeyIn(wall, INDIA)}T${timeKeyIn(wall, INDIA)}:00.000Z`) - wall;
+    const at = new Date(wall - offset).toISOString();
     return { set: true, host: feed.host, lastRead: feed.lastRead, line: feed.line, nextRead: at < now ? now : at };
   }
 
@@ -1390,7 +1395,7 @@ export class FakePipelineDesk {
       const who = names.length === 1 ? firstOf(names[0]!) : names.length === 2 ? `${firstOf(names[0]!)} and ${firstOf(names[1]!)}` : `${firstOf(names[0]!)} and ${names.length - 1} others`;
       rows.push({
         ...business, id: `meeting:${event.id}:${event.endAt.replace(/[^0-9]/g, '')}`, kind: 'notice', createdAt: event.endAt, title: `Add notes from your call with ${who}?`,
-        line: `The call ended at ${localTime(event.endAt)}. Paste your notes, and Chausar drafts the next steps for you to approve.`,
+        line: `The call ended at ${formatTime(event.endAt, INDIA)}. Paste your notes, and Chausar drafts the next steps for you to approve.`,
         actions: [action('open', 'Add notes', true), action('deny', 'No notes', false)],
         reply: { inboundId: null, reason: 'meeting-notes', name: names[0]!, company: null, opportunityId: null, eventId: event.id, topics: [], from: null, subject: null, draft: null },
       });

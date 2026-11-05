@@ -13,6 +13,7 @@ import type {
 } from '../contracts.ts';
 import { ventureAction } from '../records.ts';
 import { localDayAt, localTimeAt } from '../local-day.ts';
+import { formatClock } from '../../owner-format.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../views/queue-w4.ts';
 import { addDays, daysBetween, isoWeekday, lateWords, nextAllowedDay, shortDay, weekStart } from './followups.ts';
 import { CHANNEL_WORDS, cardForWrite, cardsOf, pipelineSettings, planOf, recordCardSend, unsentDrafts, type Card, type CardDraft } from './pipeline.ts';
@@ -68,7 +69,7 @@ export function followupSchedule(state: State, venture: VentureRecord, now: IsoT
     const drafted = entry.draft ? ` Nudge drafted for ${CHANNEL_WORDS[entry.draft.channel]}.` : '';
     const { weekdays, sendTime } = entry.card.sequence!;
     if (entry.due > today) { later.push({ ...entry, line: `${entry.line}.${drafted}` }); continue; }
-    if (entry.due === today && clock < sendTime) { later.push({ ...entry, line: `${entry.line}. It shows on Today from ${sendTime}.` }); continue; }
+    if (entry.due === today && clock < sendTime) { later.push({ ...entry, line: `${entry.line}. It shows on Today from ${formatClock(sendTime)}.` }); continue; }
     if (!weekdays.includes(isoWeekday(today))) { later.push({ ...entry, line: `${entry.line}. Today is not one of your sending days.` }); continue; }
     if (dayRoom > 0 && weekRoom > 0) {
       dayRoom -= 1; weekRoom -= 1;

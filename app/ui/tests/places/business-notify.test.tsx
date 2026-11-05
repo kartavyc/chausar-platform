@@ -68,7 +68,7 @@ describe('Business > Notifications on this computer', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
-    await screen.findByText('The tray shows how many things need you. Quiet hours: 22:00 to 07:00. Daily summary at 08:00.');
+    await screen.findByText('The tray shows how many things need you. Quiet hours: 10:00 pm to 7:00 am. Daily summary at 8:00 am.');
     const reach = await region('How alerts reach you');
     await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     expect(within(reach).queryByRole('button', { name: 'Turn on phone alerts' })).toBeNull();
@@ -105,7 +105,7 @@ describe('Business > Notifications on this computer', () => {
     fireEvent.change(within(quiet).getByLabelText('Daily summary'), { target: { value: '9' } });
     fireEvent.click(within(quiet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(said(calls, 'venture.notify.settings')).toContainEqual({ quietHours: { from: '21:30', to: '07:00' }, digest: { hour: 9 } }));
-    await screen.findByText(/Quiet hours: 21:30 to 07:00\. Daily summary at 09:00\.$/);
+    await screen.findByText(/Quiet hours: 9:30 pm to 7:00 am\. Daily summary at 9:00 am\.$/);
     fireEvent.click(within(quiet).getByRole('checkbox', { name: 'Quiet hours' }));
     expect(within(quiet).queryByLabelText('From')).toBeNull();
     fireEvent.change(within(quiet).getByLabelText('Daily summary'), { target: { value: 'off' } });

@@ -40,7 +40,7 @@ describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
     await settle();
     expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-titles', state: 'snoozed', preset: 'tomorrow' }]);
     const status = await screen.findByRole('status', { name: 'Chat change' });
-    expect(status.textContent).toContain('Snoozed until 24 Oct 2026, 09:00. It comes back early if it needs you.');
+    expect(status.textContent).toContain('Snoozed until 24 Oct 2026, 9:00 am. It comes back early if it needs you.');
     await waitFor(() => expect(within(chatList()).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Today', 'Last week', 'Snoozed']));
     await act(async () => { fireEvent.click(within(status).getByRole('button', { name: 'Undo' })); });
     await settle();

@@ -257,7 +257,7 @@ test('a follow-up due today shows on Today from the owner\'s send time', async (
   await recordSent(env, card.id, { on: '2026-10-09', channel: 'whatsapp', kind: 'intro-request' }); // due Friday 16 Oct
   env.advance(14 * 3_600_000); // 16 Oct 00:00 UTC, 05:30 in Kolkata
   assert.deepEqual(await followupRowsOf(env), []);
-  assert.deepEqual((await followups(env)).later.map(item => item.line), ['Follow up today. It shows on Today from 09:30.']);
+  assert.deepEqual((await followups(env)).later.map(item => item.line), ['Follow up today. It shows on Today from 9:30 am.']);
   env.advance(4 * 3_600_000); // 09:30 in Kolkata
   const [row] = await followupRowsOf(env);
   assert.equal(row.id, `followup:${card.id}:2026-10-16`);
