@@ -63,7 +63,7 @@ test('every install in every workflow is npm ci, and ci.yml caches npm from the 
 
 test('verify keeps Node\'s compile cache between runs, keyed on the lock and the Node version', () => {
   const verify = job('verify');
-  assert.match(verify, /^ {4}env:\n {6}NODE_COMPILE_CACHE: \$\{\{ runner\.temp \}\}\/node-cc$/m);
+  assert.match(verify, /^ {8}env:\n {10}NODE_COMPILE_CACHE: \$\{\{ runner\.temp \}\}\/node-cc\n {8}run: node scripts\/bench\.mjs /m);
   assert.match(verify, /uses: actions\/cache@v4\n\s+with:\n\s+path: \$\{\{ runner\.temp \}\}\/node-cc\n\s+key: node-cc-\$\{\{ runner\.os \}\}-24\.13\.1-\$\{\{ hashFiles\('package-lock\.json'\) \}\}/);
 });
 
@@ -95,4 +95,37 @@ test('CI runs the Ink frontend on both operating systems: every test with no ski
   const script = await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url), 'utf8');
   assert.match(script, /counts\.fail === 0 && counts\.skipped === 0 && counts\.todo === 0/);
   assert.match(script, /counts\.tests > 0/);
+});
+
+// D1 fix: GitHub refused ci.yml because a job-level `env:` used `runner.temp`. Workflow-level keys and every job key
+// except `steps` and `outputs` are evaluated before a runner exists, so `runner`, `steps` and `job` are not allowed
+// there (and `matrix`, `strategy` and `needs` are not allowed at workflow level). Comments are ignored.
+function contextsBeforeARunner(text: string): string[] {
+  const found: string[] = [];
+  let top = '', jobKey = '';
+  for (const [index, line] of text.replace(/\r\n/g, '\n').split('\n').entries()) {
+    if (/^\s*(#|$)/.test(line)) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) { top = line.split(':', 1)[0]; jobKey = ''; }
+    if (top === 'jobs' && indent === 4) jobKey = line.trim().split(':', 1)[0];
+    const expressions = [...line.matchAll(/\$\{\{(.*?)\}\}/g)].map(match => match[1]);
+    if (/^\s*if: /.test(line) && !line.includes('${{')) expressions.push(line.trim().slice(4));
+    const banned = top !== 'jobs' ? /\b(runner|steps|job|matrix|strategy|needs)\.\w/
+      : indent >= 4 && !['steps', 'outputs'].includes(jobKey) ? /\b(runner|steps|job)\.\w/ : null;
+    if (!banned) continue;
+    for (const expression of expressions) if (banned.test(expression)) found.push(`${index + 1}: ${line.trim()}`);
+  }
+  return found;
+}
+
+test('no workflow uses runner, steps or job where GitHub evaluates it before a runner exists', async () => {
+  const folder = new URL('../../.github/workflows/', import.meta.url);
+  for (const name of await readdir(folder)) {
+    const text = await readFile(new URL(name, folder), 'utf8');
+    assert.deepEqual(contextsBeforeARunner(text), [], name);
+  }
+  // The scan itself: the refused shape is caught, the same line at step level is allowed.
+  assert.equal(contextsBeforeARunner('jobs:\n  a:\n    env:\n      X: ${{ runner.temp }}/x\n').length, 1);
+  assert.equal(contextsBeforeARunner('env:\n  X: ${{ runner.temp }}\njobs:\n').length, 1);
+  assert.deepEqual(contextsBeforeARunner('jobs:\n  a:\n    steps:\n      - run: x\n        env:\n          X: ${{ runner.temp }}/x\n'), []);
 });

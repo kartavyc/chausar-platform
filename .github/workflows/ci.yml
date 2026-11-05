@@ -50,8 +50,6 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
-    env:
-      NODE_COMPILE_CACHE: ${{ runner.temp }}/node-cc
     steps:
       - uses: actions/checkout@v5
         with:
@@ -68,6 +66,9 @@ jobs:
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run repository open tests and capture benchmark receipt
+        # The runner context exists only from the steps on, so the compile cache folder is set here, not on the job.
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-cc
         run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --output results/factory-bench.json
       - name: Upload open-test report
         if: always()
