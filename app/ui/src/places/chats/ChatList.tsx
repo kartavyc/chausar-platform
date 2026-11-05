@@ -9,30 +9,26 @@
  */
 
 import { useId, useState, type ReactNode } from 'react';
-import { useLanguage, useT, type Language } from '../../text';
+import { useT } from '../../text';
 import type { Resource } from '../../engine/context';
 import type { ChiefLineAmount, ChiefThreadSummary, ChiefThreadsView } from '../../engine/types';
-import { useClock } from '../../shell/clock';
+import { useClock, useOwnerZone } from '../../shell/clock';
+import { dayKeyIn, formatDay, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
 import { Figure } from '../../parts/Figure';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
 
-const LOCALE: Record<Language, string> = { en: 'en-IN' };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The day of a moment on this computer's calendar, as 2026-10-23. */
-const dayKey = (date: Date) => new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-
-/** When a chat last moved, as the list writes it: 18:42 today, the weekday within six days, else the date. */
-function whenOf(at: string, now: Date, language: Language): string {
+/** When a chat last moved, in the owner's zone: 6:42 pm today, the weekday within six days, else the date (B2). */
+function whenOf(at: string, now: Date, zone: string): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  const locale = LOCALE[language];
-  if (dayKey(date) === dayKey(now)) return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  if (now.getTime() - date.getTime() < 6 * DAY_MS) return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date);
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date);
+  if (dayKeyIn(date, zone) === dayKeyIn(now, zone)) return formatTime(date, zone);
+  if (now.getTime() - date.getTime() < 6 * DAY_MS) return weekdayIn(date, zone);
+  return formatDay(date, zone, 'short');
 }
 
 export interface ChatListProps {
@@ -44,7 +40,7 @@ export interface ChatListProps {
 
 export function ChatList({ threads, selected, onNew }: ChatListProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const clock = useClock();
   const titleId = useId();
   const searchId = useId();
@@ -82,7 +78,7 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
         {threads.data && groups.length === 0 && settled === 0 && <p className={s.quiet}>{t('chats.list.none')}</p>}
         {needle !== '' && groups.length > 0 && shown.length === 0 && <p className={s.quiet}>{t('chats.list.noMatch')}</p>}
         {shown.map((group) => (
-          <Group key={group.key} label={t(`chats.group.${group.key}`)} threads={group.threads} selected={selected} now={now} language={language} snoozed={group.key === 'snoozed'} />
+          <Group key={group.key} label={t(`chats.group.${group.key}`)} threads={group.threads} selected={selected} now={now} zone={zone} snoozed={group.key === 'snoozed'} />
         ))}
       </div>
     </nav>
@@ -90,7 +86,7 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
 }
 
 /** snoozed (6G1): the Snoozed group shows when each chat comes back instead of when it last moved. */
-function Group({ label, threads, selected, now, language, snoozed }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; language: Language; snoozed: boolean }) {
+function Group({ label, threads, selected, now, zone, snoozed }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; zone: string; snoozed: boolean }) {
   const t = useT();
   const headingId = useId();
   return (
@@ -113,10 +109,10 @@ function Group({ label, threads, selected, now, language, snoozed }: { label: st
                 {snoozed && thread.snoozedUntil ? (
                   <span className={cx(s.chatTime, 'mono')}>
                     <span className="sr-only">{t('chats.list.wakes')} </span>
-                    <time dateTime={thread.snoozedUntil}>{whenOf(thread.snoozedUntil, now, language)}</time>
+                    <time dateTime={thread.snoozedUntil}>{whenOf(thread.snoozedUntil, now, zone)}</time>
                   </span>
                 ) : (
-                  <time className={cx(s.chatTime, 'mono')} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, language)}</time>
+                  <time className={cx(s.chatTime, 'mono')} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, zone)}</time>
                 )}
                 {thread.unread > 0 && <span className={s.unread} aria-hidden="true" />}
               </span>

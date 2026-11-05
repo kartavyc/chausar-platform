@@ -6,7 +6,8 @@
  */
 
 import { useId, useState } from 'react';
-import { useLanguage, useT, type Language } from '../../text';
+import { useT } from '../../text';
+import { useDay } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import type { ChiefThreadStateInput, ChiefThreadSummary, VentureRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -14,7 +15,6 @@ import { TileSection, messageOf } from '../business/shared';
 import { ChangeNotice } from './ChangeNotice';
 import s from './Chats.module.css';
 
-const LOCALE: Record<Language, string> = { en: 'en-IN' };
 /** The quiet-day choices; the owner's own number, when it is another, is offered too. */
 const DAY_CHOICES = [3, 7, 14, 30] as const;
 const LIST_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message';
@@ -24,7 +24,7 @@ type Change = { line: string; undo: () => Promise<void> };
 
 export function SettledChats() {
   const t = useT();
-  const language = useLanguage();
+  const day = useDay('short');
   const engine = useEngine();
   const threads = useResource('venture.chief.threads', {}, { refreshOn: LIST_EVENTS });
   const daysId = useId();
@@ -59,10 +59,7 @@ export function SettledChats() {
     return { line: result.line, undo: () => run(() => daysChange(result.undo)) };
   };
 
-  const dateOf = (at: string) => {
-    const date = new Date(at);
-    return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short' }).format(date);
-  };
+  const dateOf = (at: string) => day(at);
   const why = (thread: ChiefThreadSummary) => (thread.settled?.by === 'owner'
     ? t('chats.archive.byOwner', { date: dateOf(thread.settled.at) })
     : t('chats.archive.byQuiet', { date: dateOf(thread.settled?.at ?? ''), count: days ?? 0 }));

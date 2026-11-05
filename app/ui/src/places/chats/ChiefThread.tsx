@@ -23,11 +23,12 @@
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useLanguage, useT, type Language } from '../../text';
+import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
 import { navigate } from '../../shell/navigation';
-import { useClock } from '../../shell/clock';
+import { useClock, useOwnerZone } from '../../shell/clock';
+import { dayKeyIn, formatMonth, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
 import { ChausarAvatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ConsentWords } from '../../parts/ConsentWords';
@@ -46,15 +47,13 @@ import s from './Chats.module.css';
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
 const SUGGESTIONS = ['chats.suggest.invoiced', 'chats.suggest.waiting', 'chats.suggest.spend'] as const;
-const LOCALE: Record<Language, string> = { en: 'en-IN' };
-
-/** 6G1: a snooze choice's wake time on this computer's clock: 18:42 today, else the weekday and the time ("Mon 09:00"). */
-function wakeOf(at: string, now: Date, language: Language): string {
+/** 6G1: a snooze choice's wake time in the owner's zone: 6:42 pm today, else the weekday and the time ("Mon 9:00 am"). */
+function wakeOf(at: string, now: Date, zone: string): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  const time = new Intl.DateTimeFormat(LOCALE[language], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  if (date.toDateString() === now.toDateString()) return time;
-  return `${new Intl.DateTimeFormat(LOCALE[language], { weekday: 'short' }).format(date)} ${time}`;
+  const time = formatTime(date, zone);
+  if (dayKeyIn(date, zone) === dayKeyIn(now, zone)) return time;
+  return `${weekdayIn(date, zone)} ${time}`;
 }
 
 const codeOf = (error: unknown) => (error instanceof EngineError ? error.code : null);
@@ -73,7 +72,7 @@ export interface ChiefThreadProps {
 
 export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThreadProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const clock = useClock();
   const engine = useEngine();
   const titleId = useId();
@@ -254,7 +253,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           {snoozeOptions.map((option) => (
             <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
               <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
-              <time className="mono" dateTime={option.until}>{wakeOf(option.until, clock(), language)}</time>
+              <time className="mono" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
             </Button>
           ))}
         </div>
@@ -309,9 +308,9 @@ function Consent({ stale, text, words, problem, busy, onAgree, onNotNow }: { sta
 /** One answer from the chief: who and when, its parts, the worked table, what was left out, where it went, the plan. */
 function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: ChiefMessageView; threadId: string | null; agentOf: AgentLookup; onChanged: () => void }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const at = new Date(message.at);
-  const time = Number.isNaN(at.getTime()) ? null : new Intl.DateTimeFormat(LOCALE[language], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
+  const time = Number.isNaN(at.getTime()) ? null : formatTime(at, zone);
   return (
     <div className={s.answer} data-chief-message="">
       <p className={s.who}>
@@ -354,12 +353,8 @@ const COUNTED_KINDS = new Set(['clients', 'orders', 'invoices', 'runs', 'people'
  */
 function Counted({ counted }: { counted: ChiefCounted }) {
   const t = useT();
-  const language = useLanguage();
   const titleId = useId();
-  const monthOf = (month: string) => {
-    const date = new Date(`${month}-01T00:00:00Z`);
-    return Number.isNaN(date.getTime()) ? month : new Intl.DateTimeFormat(LOCALE[language], { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
-  };
+  const monthOf = (month: string) => formatMonth(month);
   return (
     <div className={s.counted} role="group" aria-labelledby={titleId} data-counted="">
       <p id={titleId} className={s.countedTitle}>{t('chats.counted.title')}</p>

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
-import { EngineError, type ChiefThreadView, type EngineClient } from '../../src/engine/types';
+import { EngineError, type ChiefThreadView, type ChiefThreadsView, type EngineClient } from '../../src/engine/types';
+import { ClockProvider } from '../../src/shell/clock';
 import { NARROW } from '../../src/shell/useNarrow';
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
 
@@ -602,5 +603,21 @@ describe('Start: the fit and "Not sure which fits?"', () => {
     expect(window.location.hash).toBe('#/chats');
     await waitFor(() => expect(composer().value).toBe('Which way fits 5 hours a week?'));
     expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
+  });
+});
+
+describe('Chats: the list writes times in the owner zone (one-shot B2)', () => {
+  it("today's thread shows its time on the 12-hour clock in the business's zone: 19:12 UTC is 12:42 am in India", async () => {
+    const LATE = '2026-11-02T19:12:00.000Z';
+    window.location.hash = '#/chats';
+    const fake = createFakeClient(new FakeEngine({ now: () => LATE }));
+    answer('venture.chief.threads', async (_params, base) => {
+      const view = await base('venture.chief.threads') as ChiefThreadsView;
+      const first = view.groups.flatMap((group) => group.threads).find((one) => !one.snoozedUntil)!;
+      return { ...view, groups: view.groups.map((group) => ({ ...group, threads: group.threads.map((one) => (one === first ? { ...one, lastAt: LATE } : one)) })) };
+    })(fake);
+    render(<ClockProvider now={() => new Date('2026-11-02T19:30:00.000Z')}><App client={fake} language="en" /></ClockProvider>);
+    await waitFor(() => expect(chatList().querySelector(`time[datetime="${LATE}"]`)).not.toBeNull());
+    expect(chatList().querySelector(`time[datetime="${LATE}"]`)!.textContent).toBe('12:42 am');
   });
 });

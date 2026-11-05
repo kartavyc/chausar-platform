@@ -21,10 +21,11 @@ const DAY_AND_TIME_CASES = (format: typeof import('../runtime/owner-format.ts'))
   format.formatMonth('2026-11', 'long'),
   format.formatMonth('2026-11', 'short'),
   format.formatMonth('2026-11', 'name'),
+  format.weekdayIn('2026-11-02T19:11:00.000Z', 'Asia/Kolkata'),
 ];
 const EXPECTED = [
   '3 Nov 2026', '3 Nov 2026', '3 Nov 2026', 'soon', '12:41 am', '9:05 pm', '12:00 pm', '3 Nov 2026, 12:41 am',
-  '2 Nov 2026, 7:11 pm', 'November 2026', 'Nov', 'November',
+  '2 Nov 2026, 7:11 pm', 'November 2026', 'Nov', 'November', 'Tue',
 ];
 
 test('days and times read in the zone given: an instant at 00:50 IST on 3 Nov is 3 Nov; a calendar day never shifts', async () => {

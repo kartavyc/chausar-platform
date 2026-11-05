@@ -211,3 +211,9 @@ export function formatElapsed(ms: number): string {
 export function formatAge(fromIso: string, toIso: string): string {
   return formatElapsed(Date.parse(toIso) - Date.parse(fromIso));
 }
+
+/** The short weekday in the zone at an instant ("Tue"), for a list within the week; '' when the value is not an instant. */
+export function weekdayIn(value: When, zone: string): string {
+  const local = localIn(value, zone);
+  return local ? WEEKDAY_SHORT[local.weekday]! : '';
+}
