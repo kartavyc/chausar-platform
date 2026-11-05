@@ -378,6 +378,18 @@ describe('Today: deciding', () => {
     expect(needsYou().textContent).not.toContain('Your plan is ready');
   });
 
+  it('the sheet beside Today says the plan was accepted once Accept is pressed on its card (B3)', async () => {
+    start();
+    const row = await rowOf('Your plan is ready. Read it.');
+    await click(within(row).getByRole('button', { name: 'Read' }));
+    await settleHash();
+    const sheet = await screen.findByRole('complementary');
+    await waitFor(() => expect(locked(within(row).getByRole('button', { name: 'Accept' }))).toBe(false));
+    expect(sheet.querySelector('[data-sheet-decided]')).toBeNull();
+    await click(within(row).getByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(sheet.querySelector('[role="status"][data-sheet-decided]')?.textContent).toBe('Plan accepted.'));
+  });
+
   it('a row decided somewhere else shrinks to "Resolved elsewhere"', async () => {
     const { client } = start();
     await rowOf('GST working for September');
