@@ -5,6 +5,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { constants as fsConstants } from 'node:fs';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import fsp, { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -189,4 +190,31 @@ test('Windows: a private copy rewritten while the release is kept is not run, an
   assert.deepEqual(runs, []);
   await assert.rejects(readFile(join(root, 'updates', 'installed', 'installer')), 'nothing unverified is kept as the installed release');
   assert.deepEqual((await readdir(join(root, 'updates'))).filter(name => name.startsWith('.installed-')), [], 'no half-kept folder is left');
+});
+
+// Fix round 2 (review 2, LOW-3): the late publisher check on the copy, and the copy never written over an existing file.
+test('Windows: a copy whose late signature names another publisher does not run, and is removed', async t => {
+  const root = await folder(t), release = await staged(root, 'win32'), runs: string[] = [];
+  let reads = 0;
+  const signatureOf = async () => ++reads === 1 ? { status: 'Valid', publisher: 'Chausar Technologies' } : { status: 'Valid', publisher: 'Someone Else' };
+  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller: (path: string) => { runs.push(path); }, isBusy: neverBusy, updatesFolder: join(root, 'updates') });
+  assert.equal(result.state, 'publisher-mismatch'); assert.equal(reads, 2); assert.deepEqual(runs, []);
+  assert.deepEqual((await readdir(join(root, 'stage'))).filter(name => name.startsWith('chausar-update-')), []);
+  assert.deepEqual((await readdir(join(root, 'updates'))).filter(name => name.startsWith('.installed-') || name === 'installed'), []);
+});
+
+test('Windows: the private copy is made with an exclusive create, so it never writes over a file already there', async t => {
+  const root = await folder(t), release = await staged(root, 'win32'), modes: Array<number | undefined> = [];
+  const original = fsp.copyFile;
+  t.mock.method(fsp, 'copyFile', async (from: string, to: string, mode?: number) => {
+    if (/chausar-update-[0-9a-f]+\.exe$/.test(to)) modes.push(mode);
+    return original(from, to, mode);
+  });
+  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf: async () => ({ status: 'Valid', publisher: 'Chausar Technologies' }), spawnInstaller: () => {}, isBusy: neverBusy });
+  assert.equal(result.state, 'installer-started');
+  assert.deepEqual(modes, [fsConstants.COPYFILE_EXCL]);
+  const taken = join(root, 'taken.exe');
+  await writeFile(taken, 'already here');
+  await assert.rejects(original(release.artifactPath, taken, fsConstants.COPYFILE_EXCL), (error: any) => error.code === 'EEXIST');
+  assert.equal(await readFile(taken, 'utf8'), 'already here');
 });
