@@ -46,7 +46,8 @@ function SpendTile({ line, held, span }: { line: MoneyOverviewLine; held?: { wor
   const shown = spendShown(line.lead, line.value, line.rupees);
   return (
     <Tile span={span} pad="compact" card className={s.spendTile}>
-      <p className={s.statLabel}><Icon name="indian-rupee" size={14} />{t('team.stats.spend')}</p>
+      {/* B2: the rupee icon only beside a figure that leads in rupees, never beside dollars. */}
+      <p className={s.statLabel}>{line.lead?.currency === 'INR' && <Icon name="indian-rupee" size={14} />}{t('team.stats.spend')}</p>
       <div className={cx(s.statValue, WORDS.test(shown.value) && s.worded)}>
         <ProvedFigure value={shown.value} proof={proof} rupees={shown.rupees} />
       </div>

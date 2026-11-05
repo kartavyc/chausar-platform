@@ -160,7 +160,8 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
             </li>
             {view.rupeeRate && (
               <li className={s.policyLine}>
-                <Icon name="indian-rupee" size={16} />
+                {/* B2: the rupee icon only while rupees lead the spend. */}
+                {view.leads === 'INR' && <Icon name="indian-rupee" size={16} />}
                 <span className={s.policyText}><span className={s.figureLabel}>{t('money.policy.inrPerUsd')}</span>{' '}<EngineWords>{view.rupeeRate}</EngineWords></span>
               </li>
             )}
