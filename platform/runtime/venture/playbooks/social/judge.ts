@@ -15,6 +15,7 @@ import { ghostwritingChecks } from './structures.ts';
 import { socialSlots, type SocialSlotKind } from './slot-kinds.ts';
 import { SOCIAL_CHANNELS, type SocialChannel } from './channels.ts';
 import { checkSocialDraft, type AiUse, type ClientRules, type Finding, type PostDraft, type SocialMedia } from './checks.ts';
+import { runtimeUrl } from '../../../engine-paths.ts';
 
 export const SOCIAL_JUDGE_RULES: readonly JudgeRule[] = Object.freeze([
   {id:'fair-price-receipted',question:'Does every proposed rupee amount for a creator use the current code receipt, stay within the owner cap and remain labelled model estimate until actual results exist?',text:'Every creator price offer needs its current receipt and explicit owner-set cap. Forecasts are model estimates.',floor:{kind:'required-yes'}},
@@ -83,7 +84,7 @@ export function socialJudgeInput(draft: string, trace: JudgeTrace, context?: str
 // Baseline
 // ---------------------------------------------------------------------------
 
-export const SOCIAL_BASELINE_DIR = new URL('./baselines/', import.meta.url);
+export const SOCIAL_BASELINE_DIR = runtimeUrl('venture/playbooks/social/baselines/');
 export const SOCIAL_BASELINE_NAME = 'social-agency';
 
 /** The social facts of a held-back case: the channel and what the post is, so the code checks can run on it. */

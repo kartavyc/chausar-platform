@@ -76,3 +76,58 @@ test('the rewrite turns each lazy form into require() and leaves packages by nam
   assert.match(code, /req\('playwright'\)/);
   assert.match(code, /upload\('\.\/not-a-load\.ts'\)/);
 });
+
+// ---------------------------------------------------------------------------
+// Task 3: the engine finds its own files through engine-paths.ts, so the bundle can carry them. import.meta.url stays
+// only in engine-paths.ts, in the "am I the entry" checks of the programs that start themselves, in ui-ink.ts (served
+// from source or CHAUSAR_INK_ROOT), in hosted/server.ts (not bundled) and in createRequire (packages by name, and the lazy loads the rewrite above covers).
+// ---------------------------------------------------------------------------
+
+const ENTRY_CHECK = /process\.argv\[1\][^\n]*import\.meta\.url|import\.meta\.url\s*===\s*pathToFileURL\(process\.argv\[1\]\)/;
+const ALLOWED_META: Readonly<Record<string, string>> = Object.freeze({
+  'engine-paths.ts': 'the one helper',
+  'ui-ink.ts': 'the Ink build, served from source or CHAUSAR_INK_ROOT',
+  'hosted/server.ts': 'the hosted server, never bundled',
+});
+
+test('import.meta.url names a path only in engine-paths.ts; elsewhere only entry checks and package requires', async () => {
+  const hits: string[] = [];
+  for (const file of await sources()) {
+    const text = await readFile(file, 'utf8');
+    const name = named(file);
+    if (!text.includes('import.meta.url') || ALLOWED_META[name]) continue;
+    text.split('\n').forEach((line, index) => {
+      if (!line.includes('import.meta.url') || ENTRY_CHECK.test(line) || /^\s*(?:\/\/|\*)/.test(line)) return;
+      if (/createRequire\(\s*import\.meta\.url\s*\)/.test(line)) return;
+      hits.push(`${name}:${index + 1}`);
+    });
+  }
+  assert.deepEqual(hits, []);
+});
+
+test('every runtimeFile, runtimeUrl and runtimeEntry literal names a file or folder that exists in platform/runtime', async () => {
+  const { existsSync } = await import('node:fs');
+  const missing: string[] = [];
+  let seen = 0;
+  for (const file of await sources()) {
+    const text = await readFile(file, 'utf8');
+    for (const match of text.matchAll(/runtime(File|Url|Entry)\(\s*(['"])([^'"`$]+)\2\s*\)/g)) {
+      seen += 1;
+      const target = match[1] === 'Entry' ? `${match[3]}.ts` : match[3];
+      if (!existsSync(join(RUNTIME, target))) missing.push(`${named(file)}: ${match[3]}`);
+    }
+  }
+  assert.ok(seen >= 8, `the engine's files go through the helper (${seen} found)`);
+  assert.deepEqual(missing, []);
+});
+
+test('the helper answers platform/runtime paths from source, and .ts entries', async () => {
+  const { runtimeFile, runtimeUrl, runtimeEntry, FROM_SOURCE } = await import('../runtime/engine-paths.ts');
+  assert.equal(FROM_SOURCE, true);
+  assert.equal(runtimeFile('wasm-worker.mjs'), join(RUNTIME, 'wasm-worker.mjs'));
+  assert.equal(runtimeFile('../helpers/analytics.py'), join(RUNTIME, '..', 'helpers', 'analytics.py'));
+  assert.equal(runtimeEntry('analytics-worker'), join(RUNTIME, 'analytics-worker.ts'));
+  assert.equal(runtimeUrl('venture/delivery/judge/baselines/').href.endsWith('/platform/runtime/venture/delivery/judge/baselines/'), true);
+  assert.throws(() => runtimeFile('C:/elsewhere'), /relative/);
+  assert.throws(() => runtimeFile(String.raw`..\x`), /relative/);
+});

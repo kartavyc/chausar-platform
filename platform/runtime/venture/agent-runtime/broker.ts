@@ -8,6 +8,7 @@ import type { MCPService } from '../../mcp.ts';
 import type { JobCapability } from './scope.ts';
 import type { AgentMcpConnection } from './driver-types.ts';
 import { boundedLines, writeLine } from './stdio-bridge.ts';
+import { runtimeEntry } from '../../engine-paths.ts';
 
 export type JobBroker = {connection:AgentMcpConnection;close:()=>Promise<void>};
 export async function startJobBroker(options:{service:MCPService;capability:JobCapability;executable?:string}):Promise<JobBroker> {
@@ -39,7 +40,7 @@ export async function startJobBroker(options:{service:MCPService;capability:JobC
   });
   await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(path,()=>{server.off('error',reject);resolve();});});
   if(process.platform!=='win32')await chmod(path,0o600);
-  const connection:AgentMcpConnection={name:'chausar',command:options.executable??process.execPath,args:[fileURLToPath(new URL('./stdio-bridge.ts',import.meta.url))],env:{ELECTRON_RUN_AS_NODE:'1',CHAUSAR_AGENT_MCP_SOCKET:path,CHAUSAR_AGENT_MCP_TOKEN:token}};
+  const connection:AgentMcpConnection={name:'chausar',command:options.executable??process.execPath,args:[runtimeEntry('venture/agent-runtime/stdio-bridge')],env:{ELECTRON_RUN_AS_NODE:'1',CHAUSAR_AGENT_MCP_SOCKET:path,CHAUSAR_AGENT_MCP_TOKEN:token}};
   return {connection,close:async()=>{
     if(closed)return;closed=true;capability.close();for(const socket of sockets)socket.destroy();
     await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));

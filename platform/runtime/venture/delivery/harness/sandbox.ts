@@ -15,6 +15,7 @@ import type { CapabilityState, ExecutionTier, SandboxPorts, SandboxProcessReques
 import { looksLikeAmount } from './cells.ts';
 import type { RowProgram } from './sandbox-lang.ts';
 import { compileRowProgram, MAX_MEMORY_PAGES } from './sandbox-wasm.ts';
+import { runtimeFile } from '../../../engine-paths.ts';
 
 export const MAX_TABLE_ROWS = 5000;
 export const MAX_CELL_BYTES = 500;
@@ -65,7 +66,7 @@ export function labelFinding(value: string): string | null {
 
 /** Runs one compiled module in the isolated worker. Errors keep the worker's code and never echo the program. */
 function runWorker(moduleBase64: string, maxMemoryPages: number): Promise<{ rows: string[][]; memoryPages: number }> {
-  const worker = fileURLToPath(new URL('../../../wasm-worker.mjs', import.meta.url));
+  const worker = runtimeFile('wasm-worker.mjs');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${worker}`, '--max-old-space-size=64', worker], {
       stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },

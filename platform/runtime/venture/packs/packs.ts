@@ -16,6 +16,7 @@ import { recordDecision } from '../journal/decisions.ts';
 import { removeRecords } from '../network/people.ts';
 import { PACK_FORMAT, packOperation, packView, validatePack, type PackCalculator, type PackDoc, type PackView } from './pack-format.ts';
 import type { JobCalculation } from '../agent-runtime/job-tools.ts';
+import { runtimeFile } from '../../engine-paths.ts';
 
 export type PackRecordBody = { packId: string; doc: PackDoc; digest: string; addedBy: string };
 const BAD = 'INVALID_VENTURE_REQUEST';
@@ -111,7 +112,7 @@ export async function runPackCalculator(calc: PackCalculator, inputs: Record<str
   check(inputs && typeof inputs === 'object' && Object.keys(inputs).length === calc.inputs.length && calc.inputs.every(input => typeof inputs[input.name] === 'string' && /^-?(0|[1-9][0-9]{0,18})$/.test(inputs[input.name] as string)
     && BigInt(inputs[input.name] as string) <= 9223372036854775807n && BigInt(inputs[input.name] as string) >= -9223372036854775808n), BAD, 'Give every input as a whole number in text, like "125000". Money is in paise.');
   const args = calc.inputs.map(input => inputs[input.name] as string);
-  const worker = fileURLToPath(new URL('./pack-worker.mjs', import.meta.url));
+  const worker = runtimeFile('venture/packs/pack-worker.mjs');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${worker}`, '--max-old-space-size=32', worker], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' } });
     let output = '', done = false;

@@ -4,6 +4,7 @@ import { authorize, audit, check, newId, now } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
+import { runtimeFile } from './engine-paths.ts';
 
 export type PluginManifest = { id: string; name: string; version: string; runtime: 'wasm'; entrypoint: 'run'; capabilities: string[]; sourceIds: string[]; maxMemoryPages: number; timeoutMs: number };
 export type HostFunction = { description: string; sourceIds?: string[]; value: (context: Context, state: State) => number };
@@ -58,7 +59,7 @@ export function inspectWasm(bytes: Uint8Array, memoryLimit: number): { imports: 
 }
 
 function isolatedWasm(moduleBase64: string, manifest: PluginManifest, values: Record<string, number>): Promise<{ result: number; memoryPages: number }> {
-  const worker = fileURLToPath(new URL('./wasm-worker.mjs', import.meta.url));
+  const worker = runtimeFile('wasm-worker.mjs');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${worker}`, '--max-old-space-size=32', worker], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' } });
     let output = ''; let errors = ''; let done = false;
