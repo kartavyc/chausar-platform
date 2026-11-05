@@ -6,7 +6,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runInNewContext } from 'node:vm';
@@ -338,43 +337,9 @@ test('A6 round 1 (medium 1): a file another app holds keeps its name; the share 
   assert.ok((await readdir(s.folder)).every(name => !name.endsWith('.tmp')));
 });
 
-/**
- * A6 round 2: holds a file open the way a PDF viewer does (read sharing only, no delete sharing) in a hidden PowerShell,
- * and answers the release. Waiting for it to start is time-limited, and the release always ends the process.
- */
-async function holdOpen(path: string): Promise<() => Promise<void>> {
-  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$f=[System.IO.File]::Open('${path}', 'Open', 'Read', 'Read'); Write-Output held; [Console]::In.ReadLine() | Out-Null; $f.Close()`], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
-  const exited = new Promise<void>(done => { if (holder.exitCode !== null) done(); else holder.once('exit', () => done()); });
-  const release = async () => {
-    holder.stdin.end();
-    const late = setTimeout(() => holder.kill(), 3000);
-    await Promise.race([exited, new Promise(done => setTimeout(done, 6000))]);
-    clearTimeout(late);
-    if (holder.exitCode === null && holder.signalCode === null) { holder.kill(); await Promise.race([exited, new Promise(done => setTimeout(done, 2000))]); }
-  };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      new Promise(done => holder.stdout.once('data', done)),
-      new Promise((_, fail) => { timer = setTimeout(() => fail(new Error('The file holder did not start.')), 10_000); }),
-    ]);
-  } catch (error) { await release(); throw error; } finally { clearTimeout(timer); }
-  return release;
-}
-
-test('A6 round 1 (medium 1): on Windows, a PDF held open without delete sharing still lets the share go through', { skip: process.platform !== 'win32', timeout: 30_000 }, async t => {
-  const s = await shareDeps(t, { app: true });
-  await mkdir(s.folder, { recursive: true });
-  const path = join(s.folder, 'INV-0001.pdf');
-  await writeFile(path, 'an older copy');
-  const release = await holdOpen(path);
-  // A6 round 2: released in the test itself, before the folder is cleaned up, even when an assertion fails.
-  try {
-    const reply = await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, s.deps);
-    assert.deepEqual([reply.ok, reply.result?.file], [true, 'INV-0001-2.pdf']);
-    assert.deepEqual(await readFile(join(s.folder, 'INV-0001-2.pdf')), PDF);
-  } finally { await release(); }
-});
+// A6 round 1 (medium 1) with a real lock: a PDF held open without delete sharing (Windows answers EPERM to the rename)
+// is the qualification run platform/tests/qualification/invoice-share-lock-real.test.ts, not a test that skips here
+// off Windows. The stand-in fs above throws the same codes on every computer.
 
 test('A6 round 1 (low 8): an old folder, junction or link named like a share file is never taken out, nor what it points to', async t => {
   const s = await shareDeps(t);
