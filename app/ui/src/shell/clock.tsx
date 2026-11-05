@@ -8,7 +8,7 @@ export type Clock = () => Date;
 const ClockContext = createContext<Clock>(() => new Date());
 
 /** The zone instants read in, and the business's country code when one is open (counts group by it). */
-type Zone = { zone: string; country: string | null; pinned: boolean };
+type Zone = { zone: string; country: string | null; pinned: boolean; ready: boolean };
 const ZoneContext = createContext<Zone | null>(null);
 
 /**
@@ -19,7 +19,7 @@ const ZoneContext = createContext<Zone | null>(null);
  */
 export function ClockProvider({ now, zone, children }: { now: Clock; zone?: string | undefined; children: ReactNode }) {
   const clock = <ClockContext.Provider value={now}>{children}</ClockContext.Provider>;
-  return zone ? <ZoneContext.Provider value={{ zone, country: null, pinned: true }}>{clock}</ZoneContext.Provider> : clock;
+  return zone ? <ZoneContext.Provider value={{ zone, country: null, pinned: true, ready: true }}>{clock}</ZoneContext.Provider> : clock;
 }
 
 /** The clock in force: call it to read the time. */
@@ -39,7 +39,17 @@ export function OwnerZone({ children }: { children: ReactNode }) {
   const venture = useResource('venture.get', {}, { refreshOn: onQueue });
   const country = venture.data?.venture?.country?.code ?? null;
   const zone = outer?.pinned ? outer.zone : ownerZone(country, computerZone());
-  return <ZoneContext.Provider value={{ zone, country, pinned: Boolean(outer?.pinned) }}>{children}</ZoneContext.Provider>;
+  // B2 fix round 1: until the engine says where the business is, the zone is only the computer's guess.
+  const ready = Boolean(outer?.pinned) || venture.data !== undefined || venture.error !== undefined || !venture.loading;
+  return <ZoneContext.Provider value={{ zone, country, pinned: Boolean(outer?.pinned), ready }}>{children}</ZoneContext.Provider>;
+}
+
+/**
+ * Whether the zone is known: pinned, or the business read (or no business to read). A place whose words depend on the
+ * hour or the day (Today's date line and greeting) waits for it, so the computer's own zone never shows first.
+ */
+export function useOwnerZoneReady(): boolean {
+  return useContext(ZoneContext)?.ready ?? true;
 }
 
 /** The zone instants read in: the pinned one, else the business's, else the computer's. */

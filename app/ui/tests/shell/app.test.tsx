@@ -5,8 +5,11 @@ import { ClockProvider, useClock } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type CustodyViewLite, type EngineClient } from '../../src/engine/types';
 
-/** Today's title is the greeting for the hour (Ink v2, 3C), so the shell reads the app at 10:00 on this computer's clock. */
-const MORNING = () => new Date(2026, 9, 23, 10, 0);
+/**
+ * Today's title is the greeting for the hour (Ink v2, 3C) on the business's clock (B2), so the shell reads the app at
+ * 10:00 in India, the fake business's zone, whatever zone the computer is in (CI runs in UTC).
+ */
+const MORNING = () => new Date('2026-10-23T04:30:00.000Z');
 const TODAY = 'Good morning';
 
 function start(hash = '#/today', language: 'en' = 'en') {

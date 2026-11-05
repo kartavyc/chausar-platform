@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { useOwnerHour, useWeekday } from '../../parts/when';
-import { useClock } from '../../shell/clock';
+import { useClock, useOwnerZoneReady } from '../../shell/clock';
 import { PageTitle } from '../../parts/PageTitle';
 
 /**
@@ -31,5 +31,7 @@ export function Greeting({ line, count, tools }: { line?: ReactNode; count?: str
   const owner = useResource('venture.owner.get', {}, { refreshOn: never });
   const name = owner.data?.firstName;
   const key = greetingKey(hour);
+  // B2 fix round 1: the date and the greeting wait for the business's zone, so the computer's day never shows first.
+  if (!useOwnerZoneReady()) return null;
   return <PageTitle eyebrow={weekday(now)} title={name ? t(`${key}Named`, { name }) : t(key)} line={line} count={count} tools={tools} />;
 }

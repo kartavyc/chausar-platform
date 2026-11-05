@@ -68,7 +68,7 @@ describe('Today: the header and the list', () => {
   // Ink v2 (3C): the page title is the greeting for the hour, and the engine's summary leads the line under it.
   it('greets the owner and says the engine summary line', async () => {
     start();
-    expect(screen.getByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
     await waitFor(() => expect(headerLine()).toBe('13 need you, across 3 businesses. 2 agents are working.'));
   });
 
@@ -452,12 +452,31 @@ describe('Today: keys', () => {
 describe('Today: the date and the greeting in the owner zone (one-shot B2)', () => {
   const LATE = () => new Date('2026-11-02T19:11:00.000Z'); // 12:41 am on 3 Nov in India, 2:11 pm on 2 Nov in New York
   const header = async () => (await screen.findByRole('heading', { level: 1 })).closest('header')!;
-  it('at 00:41 in India the eyebrow is that day and the greeting is the night one, on any computer', async () => {
-    window.location.hash = '#/today';
-    render(<ClockProvider now={LATE}><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
-    expect((await header()).textContent).toContain('Tuesday, 3 November');
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Good evening');
-  });
+  // B2 fix round 1 (CI on UTC runners): the computer's own zone is set to UTC and to New York here, so the page must
+  // read the business's zone (India) from its first paint; the computer's zone never shows, not even while loading.
+  for (const computer of ['UTC', 'America/New_York']) {
+    it(`at 00:41 in India the eyebrow is that day and the greeting is the night one, on a computer in ${computer}`, async () => {
+      const was = process.env.TZ;
+      process.env.TZ = computer;
+      // The ICU zone the app falls back to is read once per process, so the computer's zone is stubbed where it is read.
+      const real = Intl.DateTimeFormat.prototype.resolvedOptions;
+      const stub = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (this: Intl.DateTimeFormat) {
+        return { ...real.call(this), timeZone: computer };
+      });
+      try {
+        expect(new Date('2026-11-02T19:11:00.000Z').getDate()).toBe(2); // the computer really reads another day
+        window.location.hash = '#/today';
+        render(<ClockProvider now={LATE}><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
+        const title = await screen.findByRole('heading', { level: 1 });
+        expect(title.textContent).toBe('Good evening');
+        expect(title.closest('header')!.textContent).toContain('Tuesday, 3 November');
+        expect(title.closest('header')!.textContent).not.toContain('2 November');
+      } finally {
+        stub.mockRestore();
+        if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+      }
+    });
+  }
   it('a zone the clock pins reads its own day and hour', async () => {
     window.location.hash = '#/today';
     render(<ClockProvider now={LATE} zone="America/New_York"><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
