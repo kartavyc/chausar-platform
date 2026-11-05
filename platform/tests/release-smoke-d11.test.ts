@@ -90,3 +90,16 @@ test('usage: an installer or an app is needed, and an unknown installer kind is 
   assert.equal(odd.status, 2);
   assert.match(odd.stderr, /\.exe \(Windows NSIS\), \.AppImage or \.deb/);
 });
+
+// D11f task 30: the Linux run, ready for the VPS (a fresh Ubuntu 24.04). Text checks: it installs what the AppImage and
+// Electron need, runs the smoke on the build it is given, stops at the first error, and is stored with LF endings.
+test('release-smoke-linux.sh installs the Ubuntu 24.04 packages, runs the smoke and keeps LF line endings', async () => {
+  const text = await readFile(new URL('../../scripts/release-smoke-linux.sh', import.meta.url), 'utf8');
+  assert.equal(text.includes('\r'), false, 'LF only: bash on Linux refuses CRLF');
+  assert.match(text, /^#!\/usr\/bin\/env bash\n/);
+  assert.match(text, /^set -euo pipefail$/m);
+  for (const name of ['xvfb', 'libfuse2t64', 'libnss3', 'libgtk-3-0t64', 'libasound2t64', 'libgbm1']) assert.match(text, new RegExp(`(?<![\\w-])${name}(?![\\w-])`), name);
+  assert.match(text, /node "\$here\/release-smoke\.mjs" --installer "\$build"/);
+  assert.doesNotMatch(text, /curl[^\n]*\|\s*(?:sudo\s+)?(?:ba)?sh/, 'nothing is piped from the network into a shell');
+  assert.match(await readFile(new URL('../../.gitattributes', import.meta.url), 'utf8'), /^\*\.sh text eol=lf$/m);
+});
