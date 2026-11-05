@@ -163,7 +163,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     const body = (await response.json().catch(() => null)) as { token?: unknown; error?: { code?: string; message?: string } } | null;
     if (response.ok && typeof body?.token === 'string' && LOCAL_TOKEN.test(body.token)) { localToken = body.token; return; }
     status.set({ state: 'unpaired' });
-    throw asEngineError(body?.error ?? { code: 'UNAUTHENTICATED', message: 'This phone could not pair.', owner: true });
+    throw asEngineError(body?.error ?? { code: 'UNAUTHENTICATED', message: errorLine('client.pairFailed'), owner: true });
   }
 
   async function bearer(): Promise<string | null> {
@@ -240,9 +240,10 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       throw asEngineError(body.error);
     }
     if (!response.ok || !body) {
-      const message = `HTTP ${response.status}`;
+      // B1 fix round 2: the status code stays out of the owner's words; the line is the page's own (errors.json).
+      const message = errorLine('client.noAnswer');
       status.set({ state: 'error', message });
-      throw new EngineError('HTTP_ERROR', message);
+      throw new EngineError('HTTP_ERROR', message, undefined, true);
     }
     status.set({ state: 'ok' });
     return body.result;

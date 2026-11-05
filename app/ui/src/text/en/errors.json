@@ -24,5 +24,7 @@
   "errors.client.offline": "Chausar isn't answering right now. Try again in a moment.",
   "errors.client.phoneOffline": "The computer isn't answering. Check that this phone is on the same Wi-Fi.",
   "errors.client.unpaired": "This browser isn't connected to Chausar. Open the link from your Chausar app again.",
-  "errors.client.sessionEnded": "This session ended."
+  "errors.client.sessionEnded": "This session ended.",
+  "errors.client.pairFailed": "This phone couldn't connect to Chausar. Open the link from your Chausar app again.",
+  "errors.client.noAnswer": "Chausar answered in a way this page couldn't read. Try again in a moment."
 }

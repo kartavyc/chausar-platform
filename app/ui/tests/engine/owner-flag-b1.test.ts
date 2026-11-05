@@ -144,6 +144,16 @@ describe('B1 fix round 1: words the page makes itself are the owner\'s', () => {
     expect(await refusedBy(ended.request('venture.get', {}))).toMatchObject({ code: 'UNAUTHENTICATED', message: words['errors.client.sessionEnded'], owner: true });
   });
 
+  // B1 fix round 2 (quality finding 7): the page's last two lines of its own are in the catalogue too.
+  it('B1 fix round 2: a phone that could not pair, and an answer the page could not read', async () => {
+    const phone = createEngineClient({ fetch: vi.fn(async () => json(403, {})), location: { hash: `#pair=${'c'.repeat(43)}`, pathname: '/', search: '' }, replaceUrl: vi.fn() });
+    expect(await refusedBy(phone.request('venture.get', {}))).toMatchObject({ code: 'UNAUTHENTICATED', message: words['errors.client.pairFailed'], owner: true });
+    const odd = createEngineClient({ fetch: vi.fn(async () => new Response('<html>bad gateway</html>', { status: 502 })), location: { hash: `#token=${TOKEN}`, pathname: '/', search: '' }, replaceUrl: vi.fn() });
+    expect(await refusedBy(odd.request('venture.get', {}))).toMatchObject({ code: 'HTTP_ERROR', message: words['errors.client.noAnswer'], owner: true });
+    expect(odd.status()).toEqual({ state: 'error', message: words['errors.client.noAnswer'] });
+    for (const key of ['errors.client.pairFailed', 'errors.client.noAnswer']) expect(typeof words[key], key).toBe('string');
+  });
+
   it('none of these lines carries a developer word', () => {
     const lines = Object.entries(words).filter(([key]) => key.startsWith('errors.'));
     for (const [key, line] of lines) expect(bannedIn(String(line)), key).toEqual([]);
