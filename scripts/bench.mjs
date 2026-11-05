@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { glob, mkdir, statfs, writeFile } from 'node:fs/promises';
+import { glob, mkdir, readFile, rm, statfs, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir } from 'node:os';
 import { dirname, isAbsolute, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,7 +82,13 @@ const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
 const startedAt = new Date().toISOString();
 // Each shard has a twenty-minute deadline; the worker count above bounds the files running at once.
 // Run every test in each selected file; no case filters or skip patterns.
-const command = ['--test', '--test-reporter=tap', `--test-concurrency=${workers}`,
+// A second reporter (D2) adds up each file's top-level test time into a lines file beside the receipt; the receipt
+// keeps it as fileTimings and the lines file is removed.
+const timingsPath = destination.replace(/\.json$/, '.timings.jsonl');
+const timingsInside = relative(root, timingsPath).replaceAll('\\', '/');
+await mkdir(dirname(destination), { recursive: true }); await rm(timingsPath, { force: true });
+const command = ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
+  '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${timingsInside}`, `--test-concurrency=${workers}`,
   ...(selectedFiles ?? [...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), discoveryPattern])];
 const fullSuite = shard === null;
 const outcome = await new Promise((fulfill) => {
@@ -98,11 +104,17 @@ const outcome = await new Promise((fulfill) => {
 const counts = {};
 for (const name of ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']) { const matches = [...outcome.stdout.matchAll(new RegExp(`^# ${name} (\\d+)\\r?$`, 'gm'))]; counts[name] = matches.length ? Number(matches.at(-1)[1]) : null; }
 const hasSummary = ['tests', 'pass', 'fail', 'cancelled', 'skipped', 'todo'].every(name => Number.isSafeInteger(counts[name]));
+const fileTimings = {};
+for (const line of (await readFile(timingsPath, 'utf8').catch(() => '')).split('\n').filter(Boolean)) {
+  const { file, ms } = JSON.parse(line);
+  fileTimings[relative(root, file).replaceAll('\\', '/')] = Math.round(ms) / 1000;
+}
+await rm(timingsPath, { force: true });
 const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && counts.fail === 0 && counts.cancelled === 0 && counts.skipped === 0 && counts.todo === 0 && !outcome.timeout && !outcome.truncated;
 const report = {
   schema: 'chausar.factory-bench.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
   command: ['node', ...command], scope: fullSuite ? 'Repository open tests' : `Repository open tests (shard ${shard.index}/${shard.total})`, counts, passed,
-  shard, fullSuite, workers, tempFreeBytes, testFiles,
+  shard, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
   exitCode: outcome.exitCode, signal: outcome.signal ?? null, timeout: outcome.timeout, outputTruncated: outcome.truncated,
   productionQualified: false,
   qualification: { openTests: passed ? 'passed' : 'failed', testRunComplete: hasSummary && counts.skipped === 0 && counts.todo === 0, specificationCoverageCertified: false, hiddenBusinessAcceptance: 'not-run', sealedBusinessAcceptance: 'not-run', releaseSigning: 'not-run', realConnectorQualification: 'not-run' },

@@ -16,6 +16,7 @@ interface BenchmarkReport {
     plan?: { name: string; ordinaryShardTotal: number; dedicatedFile: string; groups: { index: number; files: string[] }[] } };
   passed: boolean;
   workers: number;
+  fileTimings: Record<string, number>;
   tempFreeBytes: number;
   exitCode: number | null;
   productionQualified: boolean;
@@ -30,7 +31,7 @@ interface BenchmarkReport {
 const GIB = 1024 ** 3;
 const independentFixtureFile = 'platform/tests/workspace-activation-independent-public-acceptance.test.ts';
 
-async function fixture(t: TestContext, failing = false, incomplete = false, fiveShard = false, ordinaryFiles = 6) {
+async function fixture(t: TestContext, failing = false, incomplete = false, fiveShard = false, ordinaryFiles = 6, sleeps: number[] = []) {
   const temporaryRoot = await realpath(resolve(tmpdir()));
   if (process.platform === 'win32') assert.match(temporaryRoot, /^C:\\/i);
   const directory = await mkdtemp(join(temporaryRoot, 'chausar-bench-sharding-'));
@@ -43,11 +44,13 @@ async function fixture(t: TestContext, failing = false, incomplete = false, five
   await mkdir(join(directory, 'scripts'));
   await mkdir(join(directory, 'platform', 'tests'), { recursive: true });
   await writeFile(join(directory, 'scripts', 'bench.mjs'), await readFile(new URL('../../scripts/bench.mjs', import.meta.url)));
+  await writeFile(join(directory, 'scripts', 'test-timing-reporter.mjs'), await readFile(new URL('../../scripts/test-timing-reporter.mjs', import.meta.url)).catch(() => ''));
   await writeFile(join(directory, 'package.json'), JSON.stringify({ type: 'module' }));
   async function writeFixture(file: string, index: number, options = '') {
     await writeFile(join(directory, file),
       `import test from 'node:test';\nimport { appendFile } from 'node:fs/promises';\n` +
       `test('fixture-file-${index}'${options}, async () => {\n` +
+      (sleeps[index - 1] ? `  await new Promise(done => setTimeout(done, ${sleeps[index - 1]}));\n` : '') +
       `  await appendFile(new URL('../../executed.jsonl', import.meta.url), '${index}\\n');\n` +
       (failing ? `  throw new Error('Deliberate fixture failure');\n` : '') +
       `});\n`);
@@ -77,10 +80,14 @@ async function fixture(t: TestContext, failing = false, incomplete = false, five
       return JSON.parse(await readFile(join(directory, output), 'utf8'));
     },
     async executed(): Promise<number[]> {
-      return (await readFile(join(directory, 'executed.jsonl'), 'utf8')).trim().split('\n').map(Number);
+      // D2: files run side by side, so the order they finish in varies; which files ran is what is compared.
+      return (await readFile(join(directory, 'executed.jsonl'), 'utf8')).trim().split('\n').map(Number).sort((left, right) => left - right);
     },
   };
 }
+
+/** The command without its reporter options, which task 3's own test checks once. */
+const withoutReporters = (command: string[]) => command.filter(part => !part.startsWith('--test-reporter'));
 
 function assertCompleteRun(report: BenchmarkReport, tests: number,
   discovered = Array.from({ length: 6 }, (_, index) => `platform/tests/fixture-${index + 1}.test.ts`)) {
@@ -109,7 +116,7 @@ test('unsharded benchmark retains its default command, output and complete open-
   assert.equal(report.shard, null);
   assert.equal(report.fullSuite, true);
   assert.equal(report.testFiles.selection, 'all-discovered-files');
-  assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, 'platform/tests/*.test.ts']);
+  assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, 'platform/tests/*.test.ts']);
   assert.deepEqual((await f.executed()).sort(), [1, 2, 3, 4, 5, 6]);
 });
 
@@ -119,7 +126,7 @@ test('D2: the worker count reaches the command and the receipt; CI defaults to 3
   const two = await f.report('results/two.json');
   assertCompleteRun(two, 6);
   assert.equal(two.workers, 2);
-  assert.deepEqual(two.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=2', 'platform/tests/*.test.ts']);
+  assert.deepEqual(withoutReporters(two.command), ['node', '--test', '--test-concurrency=2', 'platform/tests/*.test.ts']);
   assert.equal(f.invoke(['--output=results/ci.json'], { CI: '1' }).status, 0);
   assert.equal((await f.report('results/ci.json')).workers, 3);
   assert.equal(f.invoke(['--output=results/local.json']).status, 0);
@@ -148,6 +155,21 @@ test('D2: the bench checks the temp folder first: under 2 GB it refuses before a
   assert.deepEqual((await f.executed()).sort(), [1, 2, 3, 4, 5, 6]);
 });
 
+test('D2: the receipt keeps each file time from a second reporter, beside the TAP text', async t => {
+  const f = await fixture(t, false, false, false, 3, [600, 50, 300]);
+  assert.equal(f.invoke(['--workers=1']).status, 0);
+  const report = await f.report();
+  assertCompleteRun(report, 3, ['platform/tests/fixture-1.test.ts', 'platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts']);
+  assert.deepEqual(report.command.slice(1, 6), ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
+    '--test-reporter=./scripts/test-timing-reporter.mjs', '--test-reporter-destination=results/factory-bench.timings.jsonl']);
+  const timings = report.fileTimings;
+  assert.deepEqual(Object.keys(timings).sort(), ['platform/tests/fixture-1.test.ts', 'platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts']);
+  const bySpeed = Object.entries(timings).sort((left, right) => left[1] - right[1]).map(([file]) => file);
+  assert.deepEqual(bySpeed, ['platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts', 'platform/tests/fixture-1.test.ts']);
+  assert.ok(timings['platform/tests/fixture-1.test.ts'] >= 0.5, JSON.stringify(timings));
+  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.timings.jsonl')), { code: 'ENOENT' }, 'the timings file is folded into the receipt');
+});
+
 test('actual Node shards are disjoint and their union covers every fixture test file', async t => {
   const f = await fixture(t), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
   for (const index of [1, 2]) {
@@ -163,7 +185,7 @@ test('actual Node shards are disjoint and their union covers every fixture test 
     assert.equal(report.testFiles.selection, 'node-test-shard');
     inventories.push(report.testFiles);
     assert.equal(report.scope, `Repository open tests (shard ${index}/2)`);
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
+    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
     const summary = JSON.parse(result.stdout.trim());
     assert.equal(summary.fullSuite, false);
     assert.deepEqual(summary.shard, report.shard);
@@ -193,7 +215,7 @@ test('actual four Node shards retain exact inventories and deterministic disjoin
     assert.deepEqual(report.shard, { index, total: 4 });
     assert.equal(report.testFiles.selection, 'node-test-shard');
     assert.equal(report.scope, `Repository open tests (shard ${index}/4)`);
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
+    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
     const summary = JSON.parse(result.stdout.trim());
     assert.equal(summary.fullSuite, false);
     assert.deepEqual(summary.shard, report.shard);
@@ -234,7 +256,7 @@ test('five planned shards preserve the four ordinary groups and execute the inde
     assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
     assert.deepEqual(report.testFiles.plan, { name: 'four-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 4,
       dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
+    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
     assert.equal(report.command.some(argument => argument.startsWith('--test-shard=')), false);
     assert.equal(new Set(executed).size, executed.length);
     for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
@@ -279,7 +301,7 @@ test('six planned shards spread the ordinary files over five groups and execute 
     assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
     assert.deepEqual(report.testFiles.plan, { name: 'five-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 5,
       dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
+    assert.deepEqual(withoutReporters(report.command), ['node', '--test', `--test-concurrency=${report.workers}`, ...groups[index - 1]]);
     assert.equal(new Set(executed).size, executed.length);
     for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
     covered.push(executed); inventories.push(report.testFiles);
