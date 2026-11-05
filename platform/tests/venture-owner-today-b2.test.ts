@@ -114,20 +114,16 @@ const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: stri
   'money/dates.ts': [1, 'calendar arithmetic on a day string'],
   'playbooks/social/risk-gate.ts': [1, "a platform rule's checked-on age, not a business day"],
   // LEFT in this round (B2 fix round 1 notes): each still takes the transaction's UTC day.
-  'agent-runtime/desk-context.ts': [2, "LEFT: a run's own day for its seller and recruiting report"],
   'delivery/deliverable.ts': [1, "LEFT: the order's day on a draft's date line"],
   'playbooks/monitored-data/extract.ts': [4, 'LEFT: a watched page read day'],
   'playbooks/monitored-data/check.ts': [1, 'LEFT: a watched page read day'],
   'playbooks/monitored-data/state.ts': [2, 'LEFT: a watched page read day'],
-  'playbooks/recruiting-desk/ledger.ts': [2, 'LEFT: a touch day in the recruiting ledger'],
-  'playbooks/recruiting-desk/round-core.ts': [1, 'LEFT: the recruiting report day'],
   'playbooks/narration-studio/runtime.ts': [1, 'LEFT: the narration source rights day'],
   'playbooks/app-testing/demo-source.ts': [1, 'LEFT: the demo narration rights day'],
   'playbooks/online-seller/shopify-state.ts': [2, 'LEFT: the Shopify change day'],
   'playbooks/online-seller/model.ts': [1, 'LEFT: a pure seller calculator called with no day (the desk and the harness now pass the owner day)'],
   'playbooks/trading-journal/desk.ts': [1, 'LEFT: the trading journal as-of day'],
   'delivery/harness/tools-translation-studio.ts': [1, 'LEFT: the translation rights day in the harness'],
-  'delivery/harness/tools-recruiting-desk.ts': [1, 'LEFT: the recruiting report day in the harness (moves with the recruiting ledger)'],
 };
 
 test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {
@@ -154,4 +150,30 @@ test("a run's consent check at 00:30 in India reads the owner's day: a consent u
     const check = () => requireOrderPeopleConsent(state, venture, order, today);
     if (holds) assert.doesNotThrow(check); else assert.throws(check, { code: 'CONSENT_REQUIRED' });
   }
+});
+
+// B2 fix round 2: the recruiting report's day (round-core.ts, ledger.ts) was the UTC day of the desk's clock, and each
+// candidate and message was counted by its UTC day. At 00:30 in India the report said yesterday and counted yesterday's
+// people as today's.
+test("the recruiting report at 00:30 in India is the owner's day and counts that day's candidates only", async () => {
+  const { setup, seedBlueprint, seedOrder, owner: deskOwner } = await import('./venture-views-env.ts');
+  const { RECRUITING_DESK_DESK } = await import('../runtime/venture/playbooks/recruiting-desk/desk.ts');
+  const env = await setup(), { order } = await seedOrder(env, await seedBlueprint(env));
+  const act = (kind: string, id: string, action: string, payload: unknown, digest?: string) => RECRUITING_DESK_DESK[kind]!.act!(env.deps, deskOwner,
+    { playbook: 'recruiting-desk', kind, id, action, payload: payload as any, ...(digest ? { digest } : {}) });
+  const get = (kind: string, id: string) => RECRUITING_DESK_DESK[kind]!.get!(env.deps, deskOwner, { playbook: 'recruiting-desk', kind, id });
+  const answers = { roleTitle: 'SQL analyst', location: 'Pune', payRange: 'Client to confirm', hardRules: ['SQL reporting'], mustHaves: ['Report design | A work sample'],
+    exclusions: [], targetCompanies: [], searchWords: ['SQL'], privacyNoticeUrl: 'https://client.example/privacy', retentionDays: '90' };
+  const made = await act('role', 'new', 'create', { serviceOrderId: order.id });
+  for (const [questionId, value] of Object.entries(answers)) await act('role', made.id, 'answer', { questionId, value });
+  let role = await get('role', made.id);
+  for (const c of (role.item as any).brief.criteria) { await act('role', made.id, 'approve-rule', { criterionId: c.id }, role.digest); role = await get('role', made.id); }
+  // 23:30 in India on 15 Oct (18:00 UTC): a candidate is added.
+  env.advance(Date.parse('2026-10-15T18:00:00.000Z') - Date.parse(env.now()));
+  await act('candidate', 'new', 'add', { roleId: made.id, name: 'Dev', email: null, resume: 'SQL reports', sourceUrl: null });
+  // An hour later it is 00:30 on 16 Oct in India; UTC still says 15 Oct.
+  env.advance(60 * 60 * 1000);
+  const report = ((await act('role', made.id, 'report', {})).result as any).data;
+  assert.equal(report.day, '2026-10-16');
+  assert.equal(report.tiles.newCandidates, 0);
 });
