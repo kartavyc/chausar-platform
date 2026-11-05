@@ -6,7 +6,7 @@
 import { lstat, open, readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TRIM } from './desktop-package.mjs';
+import { TRIM } from './package-trim.mjs';
 
 const CODEX_VERSION = '0.166.0';
 const INK_ENTRY = 'app/ui/dist/index.html';

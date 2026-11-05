@@ -6,6 +6,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { lockfileProblems, PINNED_BUILD_GIT_SOURCES } from './lockfile.mjs';
+import { TRIM } from './package-trim.mjs';
+import { readPackageContents } from './package-contents.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
@@ -227,15 +229,8 @@ const onlyPinnedHook = config => {
   return hooks.length === 1 && hooks[0] === 'afterPack' && config.afterPack === AFTER_PACK_HOOK;
 };
 
-// D5: the installer trim, one rule all three builder files meet. Chromium's languages: English (US and UK) and Hindi,
-// which C5 brings back as a pack (the app never picks money or dates from them). No Claude Code program file: Chausar
-// always runs the owner's own Claude Code (agent-runtime/route.ts) and never the Agent SDK's bundled one, so the
-// founder dropped it from every installer (5 Nov); the SDK itself still ships.
-export const TRIM = Object.freeze({
-  electronLanguages: Object.freeze(['en-US', 'en-GB', 'hi']),
-  claudeBinary: 'none',
-  claudeBinaryExclusion: '!node_modules/@anthropic-ai/claude-agent-sdk-*/**',
-});
+// D5: the installer trim (package-trim.mjs): three Chromium languages and no Claude Code program file.
+export { TRIM };
 /** Every mode: exactly the three languages, and the Agent SDK's platform packages left out after node_modules. */
 export function validateTrim(config) {
   if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
@@ -511,7 +506,6 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
     // D5 task 5: what the build carries goes on the receipt; any problem (a fourth language, a Claude Code program file,
     // no Ink build, Ink source, another Codex) refuses it.
-    const { readPackageContents } = await import('./package-contents.mjs');
     const read = await readPackageContents(unpackedDir, { mode: plan.mode });
     if (read.problems.length) throw new Error(`the packaged build carries the wrong contents, so no receipt was written: ${read.problems.join('; ')}`);
     contents = { sizes: read.sizes, totalBytes: read.totalBytes, fileCount: read.fileCount, locales: read.locales, anthropic: read.anthropic, codexVersion: read.codexVersion, archiveFiles: read.archive.files, problems: read.problems };

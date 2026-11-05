@@ -123,3 +123,14 @@ test('the command line prints the problems and exits 1, or 0 with --json for a c
   assert.equal(none.status, 1);
   assert.match(none.stderr, /Usage/);
 });
+
+// Found on the first real beta --dir build: package-contents.mjs imported desktop-package.mjs, whose command line is a
+// top-level await, so packageDesktop's own import of package-contents.mjs waited on itself and Node exited (code 13)
+// before the receipt. The shared rule lives in package-trim.mjs, and nothing packageDesktop imports reaches back.
+test('package-contents.mjs never imports desktop-package.mjs, so packaging cannot wait on itself', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const text = await readFile(SCRIPT, 'utf8');
+  assert.doesNotMatch(text, /from '\.\/desktop-package\.mjs'|import\('\.\/desktop-package\.mjs'\)/);
+  const trim = await readFile(new URL('../../scripts/package-trim.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(trim, /^import /m, 'the shared rule imports nothing');
+});
