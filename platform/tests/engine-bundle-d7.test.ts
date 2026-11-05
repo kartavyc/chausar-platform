@@ -78,6 +78,10 @@ test('the bundled worker, started by EngineHarness with plain Node, answers and 
     const status = await engine.request('workspace.status');
     assert.equal(status.version, pkg.version);
     assert.equal(status.open, false);
+    // Every playbook, as from source: this reads the lazily loaded kit definitions (engine-lazy-require.mjs).
+    const { PLAYBOOK_DEFINITIONS } = await import('../runtime/venture/playbooks/definitions.ts');
+    const list = await engine.request('venture.playbooks.list', {});
+    assert.ok(Array.isArray(list.ways) && list.ways.length >= PLAYBOOK_DEFINITIONS.length, `${list.ways?.length} ways`);
     const stopped = await engine.stop();
     assert.equal(stopped.graceful, true);
   } finally {

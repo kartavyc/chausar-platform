@@ -131,3 +131,15 @@ test('the helper answers platform/runtime paths from source, and .ts entries', a
   assert.throws(() => runtimeFile('C:/elsewhere'), /relative/);
   assert.throws(() => runtimeFile(String.raw`..\x`), /relative/);
 });
+
+// Found by the first packaged run of the bundle: the plugin matched only forward-slash ids, so on Windows it rewrote
+// nothing and venture.playbooks.list failed (Cannot find module '../definitions.ts').
+test('the bundle plugin rewrites engine files whatever the path separator, and nothing outside the engine', async () => {
+  const { lazyRequirePlugin } = await import(lazyPath);
+  const plugin = lazyRequirePlugin();
+  const code = "const x = createRequire(import.meta.url)('../definitions.ts');";
+  for (const id of [String.raw`D:\work\chausar\platform\runtime\venture\playbooks\kit\installed.ts`, '/work/chausar/platform/runtime/venture/playbooks/kit/installed.ts']) {
+    assert.equal(plugin.transform(code, id)?.code, "const x = require('../definitions.ts');", id);
+  }
+  assert.equal(plugin.transform(code, String.raw`D:\work\chausar\node_modules\some\index.ts`), null);
+});

@@ -23,7 +23,7 @@ export function lazyRequirePlugin() {
   return {
     name: 'chausar-engine-lazy-require',
     transform(code, id) {
-      if (!/[\/]platform[\/]runtime[\/].*\.ts$/.test(id) || !code.includes('createRequire')) return null;
+      if (!/[\\/]platform[\\/]runtime[\\/].*\.ts$/.test(id) || !code.includes('createRequire')) return null;
       const { code: rewritten, count } = rewriteLazyLoads(code);
       return count ? { code: rewritten, map: null } : null;
     },
