@@ -143,7 +143,7 @@ test('the receipts carry every figure, the steps that add them and their sources
   const journal = buildJournal(readTradebook(fixture('zerodha-tradebook.csv')).trades, [], '2026-11-01');
   const source = { id: 'import-1', name: 'tradebook.csv', digest: 'a'.repeat(64) };
   const receipt = journalReceipt('journal-1', [source], journal);
-  assert.equal(receipt.figures.find(f => f.key === 'charges-total')!.display, 'INR 131.22');
+  assert.equal(receipt.figures.find(f => f.key === 'charges-total')!.display, '₹131.22');
   assert.ok(receipt.steps.find(s => s.result === '4578')!.rule.includes('BSE notice'));
   assert.match(receipt.digest, /^[a-f0-9]{64}$/);
   const pack = taxPackReceipt('pack-1', [source], taxPack(journal, 'fy-2025-26'));

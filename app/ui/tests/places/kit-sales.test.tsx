@@ -118,7 +118,7 @@ describe('Business: Go or no go (5A2, M18)', () => {
     const card = await screen.findByRole('region', { name: 'A reels pack for gyms' });
     expect(within(card).getByText('Go')).toBeTruthy();
     expect(within(card).getByText('The most you could lose is within your limit.')).toBeTruthy();
-    expect(within(card).getByText('INR 35,000.00')).toBeTruthy();
+    expect(within(card).getByText('₹35,000')).toBeTruthy();
     expect(within(card).getByRole('button', { name: receiptMark(/gonogo_/) })).toBeTruthy();
     expect(within(card).getByText('Go spends nothing: each spend still asks you.')).toBeTruthy();
     assertInkRules();

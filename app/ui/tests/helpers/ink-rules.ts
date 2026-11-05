@@ -255,12 +255,44 @@ export function assertNoInlineStyles(root: Root = document.body): void {
   fail('no inline styles', styleProblems(root));
 }
 
-/** All three rules at once, reporting every problem rather than the first. Every place test calls it on the page. */
+/** One-shot B2: where an exact form may still show: a receipt sheet (the proof), quoted client or AI words, form fields. */
+const OWNER_FORMAT_ALLOWED = '[data-receipt-sheet], [data-content], input, textarea, select, option, script, style';
+const EXACT_MONEY = /\b(?:INR|USD|EUR) -?\d/;
+const FOUR_DECIMALS = /\d\.\d{4}\b/;
+const CLOCK_24 = /\b[0-2]\d:\d{2}\b(?! ?[ap]m)/;
+
+/**
+ * One-shot B2 task 12: money and time in the owner form on every screen. Outside a receipt sheet, quoted words and form
+ * fields, no text shows the exact money form ("INR 2,000.00"), four decimals ("USD 0.0042"), or a 24-hour time in a
+ * <time> ("00:41").
+ */
+export function ownerFormatProblems(root: Root = document.body): string[] {
+  const problems: string[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    const text = node.textContent ?? '';
+    if (!parent || parent.closest(OWNER_FORMAT_ALLOWED)) continue;
+    if (EXACT_MONEY.test(text) || FOUR_DECIMALS.test(text)) problems.push(`"${text.trim().slice(0, 80)}" shows money in the exact form: show the owner form ("₹2,000", "$0.42")`);
+  }
+  for (const time of root.querySelectorAll('time')) {
+    if (time.closest(OWNER_FORMAT_ALLOWED)) continue;
+    if (CLOCK_24.test(time.textContent ?? '')) problems.push(`<time> "${time.textContent}" is on the 24-hour clock: show "12:41 am"`);
+  }
+  return problems;
+}
+
+export function assertOwnerFormats(root: Root = document.body): void {
+  fail('money and time in the owner form', ownerFormatProblems(root));
+}
+
+/** All the rules at once, reporting every problem rather than the first. Every place test calls it on the page. */
 export function assertInkRules(root: Root = document.body): void {
   const problems = [
     ...figureProblems(root).problems.map((p) => `receipts on figures: ${p}`),
     ...primaryProblems(root).map((p) => `one filled primary per card: ${p}`),
     ...styleProblems(root).map((p) => `no inline styles: ${p}`),
+    ...ownerFormatProblems(root).map((p) => `owner formats: ${p}`),
   ];
   if (problems.length) throw new Error(`Ink rules are broken:\n- ${problems.join('\n- ')}`);
 }

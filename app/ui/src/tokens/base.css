@@ -54,7 +54,10 @@ select {
 }
 
 /* Every number the engine sends, and every count and time, keeps its digits in columns in the body font (B2). */
-[data-ui-number],
+[data-ui-number] {
+  font-variant-numeric: tabular-nums;
+}
+
 [data-count],
 time {
   font-variant-numeric: tabular-nums;

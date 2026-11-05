@@ -1,4 +1,5 @@
 // Original Chausar accounting posting loop. Complete dry runs, one claimed action per document.
+import { formatMoney } from '../../owner-format.ts';
 import {check,authorize,type Context,type State} from '../../contracts.ts';
 import type {VentureDeps,BooksPostingRecord,WorkReceiptRecord} from '../contracts.ts';
 import {readVenture,listRecords,digest,exactPayload,requireAppChannel,ventureAction} from '../records.ts';
@@ -55,7 +56,7 @@ export async function stageBooksPosting(deps:VentureDeps,ctx:Context,target:Book
  return ventureAction(deps,ctx,'approve','books.stage',tx=>{
   check(source(tx.state,venture.id,b).digest===input.digest&&target.identity===identity,'BOOKS_SOURCE_CHANGED','The source or connection changed while checking the books.');
   const base=tx.base('venture-books-posting'),values=batch.rows.map(row=>row.action==='skip'?'0':String(BigInt(row.totalMinor)*(row.action==='create-refund-draft'?-1n:1n)));
-  const figures=[{key:'total',label:'Net draft amount',minor:batch.totalMinor,display:formatMinor(batch.totalMinor,'INR'),currency:'INR',unit:'money' as const},...batch.rows.map((row,index)=>({key:row.externalId,label:'Draft amount: '+row.orderId,minor:values[index]!,display:formatMinor(values[index]!,'INR'),currency:'INR',unit:'money' as const}))];
+  const figures=[{key:'total',label:'Net draft amount',minor:batch.totalMinor,display:formatMoney(batch.totalMinor,'INR'),currency:'INR',unit:'money' as const},...batch.rows.map((row,index)=>({key:row.externalId,label:'Draft amount: '+row.orderId,minor:values[index]!,display:formatMoney(values[index]!,'INR'),currency:'INR',unit:'money' as const}))];
   const proof:WorkReceiptRecord={...tx.base('venture-work-receipt'),operation:'work.totals',runRef:{kind:'delivery',runId:base.id},currency:'INR',inputs:{tables:[{id:input.upload.id,name:input.upload.name,digest:input.digest}],columns:{totalMinor:'totalMinor'},rowIds:batch.rows.map(row=>row.orderId)},steps:[{op:'add',inputs:values,result:batch.totalMinor,rule:'Sum proposed drafts in paise; refund drafts subtract and skipped orders contribute zero.'}],figures,reconciliation:null,allowedNumbers:figures.flatMap(row=>[row.minor,row.display]),explanation:'Source totals are checked before this dry run. Creating drafts does not issue or send them.',digest:''};proof.digest=digest({...proof,digest:''});tx.put(proof);
   const record=seal({...base,clientId:input.order.clientId,orderId:input.order.id,cycleId:input.cycle.id,entry:{kind:'posting',uploadId:input.upload.id,sourceDigest:input.digest,target:identity,prepared,batch,state:'staged',outcomes:batch.rows.filter(row=>row.action!=='skip').map(row=>({externalId:row.externalId,state:'pending',remoteId:null})),receiptId:proof.id,reviewDigest:''}});tx.put(record);tx.emit('desk.changed',{playbook:'bookkeeping-cfo',kind:'finance',id:record.id});return record;
  });

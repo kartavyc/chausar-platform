@@ -133,11 +133,11 @@ describe('Money v2: the overview tiles', () => {
     assertInkRules();
   });
 
-  it('AI spend: the amount stays the mono figure and the words the engine wrote after it take the body face (w3 3I)', async () => {
+  it('AI spend: the amount stays the figure (body font, tabular figures, B2) and the words the engine wrote after it take the body face (w3 3I)', async () => {
     start('#/money', { override: { 'venture.money.overview': overview() } });
     const spend = await tile('AI spend this month');
     const amount = await within(spend).findByText('₹60.10');
-    expect(amount.matches('[data-ui-number].mono')).toBe(true);
+    expect(amount.matches('[data-ui-number]:not(.mono)')).toBe(true); // B2: the body font, tabular figures
     const words = within(spend).getByText(', includes estimates');
     expect(words.matches('[data-figure-words]')).toBe(true);
     expect(words.classList.contains('mono')).toBe(false);

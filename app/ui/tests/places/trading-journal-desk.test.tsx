@@ -20,11 +20,11 @@ describe('trading journal desk (6E7)', () => {
     const file = new File([csv], 'zerodha.csv', { type: 'text/csv' });
     fireEvent.change(screen.getByLabelText('Tradebook CSV'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
-    expect(await screen.findByText('INR 131.22')).toBeTruthy();
+    expect(await screen.findByText('₹131.22')).toBeTruthy();
     expect(screen.getByText('All charges')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Prepare tax pack' }));
     await waitFor(() => expect(screen.getAllByText(/Check with your CA/).length).toBeGreaterThan(0));
-    expect(screen.getAllByText('INR 1,436.63').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₹1,436.63').length).toBeGreaterThan(0);
     assertInkRules(container);
   });
 });

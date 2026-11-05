@@ -37,7 +37,7 @@ test('6E7 import a tradebook: trades read, charges worked and a work receipt sav
   assert.equal(view.item.journal.totals.total, '13122');
   assert.equal(view.item.imports[0].brokerName, 'Zerodha');
   assert.equal(view.item.summary.receiptId, made.result.receiptId);
-  assert.equal(view.item.summary.figures.find((f: any) => f.key === 'charges-total').display, 'INR 131.22');
+  assert.equal(view.item.summary.figures.find((f: any) => f.key === 'charges-total').display, '₹131.22');
   assert.match(view.digest, /^[a-f0-9]{64}$/);
   const list = await env.call('venture.desk.list', base);
   assert.deepEqual(list.rows.map((row: any) => [row.kind, row.label]), [['import', 'Zerodha: zerodha-2025.csv']]);

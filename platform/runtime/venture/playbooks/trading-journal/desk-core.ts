@@ -3,6 +3,8 @@
 // lines the owner reads. Browser-safe. Written for Chausar.
 import { check, digest } from '../../../portable.ts';
 import { decimalMinor } from '../../../currency.ts';
+// B2: the tax pack file for the CA keeps the exact form; the desk shows its figures in the owner form.
+import { formatMoney } from '../../../owner-format.ts';
 import { readTradebook, type TradeRow } from './brokers.ts';
 import { buildJournal, GRANDFATHER_BEFORE, type Journal, type OpeningLot } from './journal.ts';
 import { BROKER_IDS, BROKER_RATES, type BrokerId } from './rates.ts';
@@ -92,7 +94,7 @@ export function journalItem(rows: readonly JournalEntryRow[], asOf: string, figu
     imports: rows.flatMap(row => row.entry.kind === 'import' ? [{ id: row.id, broker: row.entry.broker, brokerName: BROKER_RATES[row.entry.broker].name, name: row.entry.name, trades: row.entry.trades.length, formatChecked: row.entry.formatChecked, receiptId: row.entry.receiptId }] : []),
     openings: rows.flatMap(row => row.entry.kind === 'opening' ? [{ ...row.entry.lot, entryId: row.id }] : []),
     packs: rows.flatMap(row => row.entry.kind === 'pack' ? [{ id: row.id, yearId: row.entry.yearId, year: row.entry.pack.year, act: row.entry.pack.act, line: row.entry.pack.line, receiptId: row.entry.receiptId, stale: row.entry.sourceDigest !== sourceDigest,
-      figures: row.entry.pack.figures.map(f => ({ key: f.key, label: f.label, display: f.display, section: f.rule.section })) }] : []),
+      figures: row.entry.pack.figures.map(f => ({ key: f.key, label: f.label, display: f.unit === 'money' ? formatMoney(f.minor, 'INR') : f.display, section: f.rule.section })) }] : []),
     journal: journalOf(rows, asOf), sourceDigest,
     summary: receiptId && figures ? { receiptId, figures: figures.map(({ key, label, display }) => ({ key, label, display })) } : null,
   };

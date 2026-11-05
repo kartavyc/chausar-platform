@@ -32,7 +32,7 @@ describe('Money w4: AI spend by department', () => {
     const legend = [...tile.querySelectorAll('li[data-dept]')].map((row) => row.textContent);
     // The engine's amounts, led as the engine says (4Z3: rupees for a business in India with a rate); a part with no
     // share is left out of the legend.
-    expect(legend).toEqual(['Marketing₹18.00', 'Production₹38.00', 'Shared by the team₹4.10']);
+    expect(legend).toEqual(['Marketing₹18', 'Production₹38', 'Shared by the team₹4.10']);
     const chart = tile.querySelector('[data-chart]') as HTMLElement;
     expect(within(chart).getAllByRole('button', { name: receiptMark('R-0431') }).length).toBeGreaterThan(0);
     assertInkRules(document.body);
