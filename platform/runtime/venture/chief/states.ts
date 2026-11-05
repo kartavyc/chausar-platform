@@ -112,11 +112,14 @@ function undoOf(threadId: string, view: ThreadStateView): ChiefThreadStateInput 
   return view.state === 'snoozed' && view.snoozedUntil ? { threadId, state: 'snoozed', until: view.snoozedUntil } : { threadId, state: view.state };
 }
 
+/** B1 fix round 1: what moving a chat aside says ("Settled chats" are "Old chats"); the fake says the same. */
+export const CHAT_STATE_WORDS = Object.freeze({ settled: 'Moved to old chats. It stays there until you open it again.' });
+
 /** The engine's words for a change, said the same way by the fake engine. */
 function lineOf(state: ChiefThreadState, until: IsoTime | null, venture: VentureRecord): string {
   if (state === 'pinned') return 'Pinned to the top of your chats.';
   if (state === 'snoozed' && until) return `Snoozed until ${wakeWords(until, venture)}. It comes back early if it needs you.`;
-  if (state === 'settled') return 'Settled. It is in Settled chats until you open it again.';
+  if (state === 'settled') return CHAT_STATE_WORDS.settled;
   return 'Back in your chats.';
 }
 

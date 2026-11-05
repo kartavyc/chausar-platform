@@ -27,7 +27,7 @@ export const FAKE_4D4_METHODS: readonly string[] = [
 const KINDS: readonly NetworkImportKind[] = ['linkedin-connections', 'linkedin-messages', 'contacts-csv', 'vcard', 'calendar-ics', 'mail-headers'];
 const KIND_LABEL: Readonly<Record<NetworkImportKind, string>> = {
   'linkedin-connections': 'LinkedIn connections', 'linkedin-messages': 'LinkedIn messages', 'contacts-csv': 'Contacts file', vcard: 'Phone contacts',
-  'calendar-ics': 'Calendar', 'mail-headers': 'Mail headers',
+  'calendar-ics': 'Calendar', 'mail-headers': 'Email export',
 };
 const REFRESH: Readonly<Record<NetworkImportKind, string>> = {
   'linkedin-connections': 'Download a new copy to catch new connections.', 'linkedin-messages': 'Download a new copy to catch new messages.',
@@ -98,7 +98,7 @@ function sampleNetwork(): Network {
     {
       id: 'person_tara', name: 'Tara Iyer', title: 'Brand partnerships lead', company: 'Kettle Audio', place: 'Mumbai', emails: ['tara@kettleaudio.example'],
       linkedin: 'https://www.linkedin.com/in/tara-iyer-kettle', hidden: false, band: 'know-well',
-      how: ['11 emails both ways, the last on 14 Oct (Mail headers, takeout-mail.mbox)', 'A LinkedIn connection since 2023 (LinkedIn connections, Connections.csv)'],
+      how: ['11 emails both ways, the last on 14 Oct (Email export, takeout-mail.mbox)', 'A LinkedIn connection since 2023 (LinkedIn connections, Connections.csv)'],
       paths: [direct('know-well', 'Tara Iyer')],
       facts: [
         fact('Name', 'Tara Iyer', LI(14), true), fact('Role', 'Brand partnerships lead, Kettle Audio', LI(14)), fact('LinkedIn', 'https://www.linkedin.com/in/tara-iyer-kettle', LI(14), true),
@@ -121,7 +121,7 @@ function sampleNetwork(): Network {
     },
     {
       id: 'person_arjun', name: 'Arjun Kulkarni', title: 'Sales manager', company: 'Pocket Audio', place: 'Pune', emails: ['arjun.k@pocketaudio.example'], linkedin: null,
-      hidden: false, band: 'know', how: ['Saved in your phone (Phone contacts, contacts.vcf)', '3 emails both ways, the last on 2 Oct (Mail headers, takeout-mail.mbox)'],
+      hidden: false, band: 'know', how: ['Saved in your phone (Phone contacts, contacts.vcf)', '3 emails both ways, the last on 2 Oct (Email export, takeout-mail.mbox)'],
       paths: [direct('know', 'Arjun Kulkarni')],
       facts: [
         fact('Name', 'Arjun Kulkarni', VCF(3), true), fact('Role', 'Sales manager, Pocket Audio', VCF(3)), fact('Email', 'arjun.k@pocketaudio.example', VCF(3), true),
@@ -145,7 +145,7 @@ function sampleNetwork(): Network {
     {
       id: 'person_leela', name: 'Leela Menon', title: 'Freelance video editor', company: null, place: 'Bengaluru', emails: ['leela.edits@mail.example'], linkedin: null,
       hidden: false, band: 'close',
-      how: ['23 emails both ways, the last on 20 Oct (Mail headers, takeout-mail.mbox)', '4 small meetings, the last on 9 Oct (Calendar, work.ics)', 'Saved in your phone (Phone contacts, contacts.vcf)'],
+      how: ['23 emails both ways, the last on 20 Oct (Email export, takeout-mail.mbox)', '4 small meetings, the last on 9 Oct (Calendar, work.ics)', 'Saved in your phone (Phone contacts, contacts.vcf)'],
       paths: [direct('close', 'Leela Menon')],
       facts: [
         fact('Name', 'Leela Menon', VCF(1), true), fact('Role', 'Freelance video editor', VCF(1)), fact('Email', 'leela.edits@mail.example', VCF(1), true),
@@ -169,7 +169,7 @@ function sampleNetwork(): Network {
     },
     {
       id: 'person_pooja', name: 'Pooja Nair', title: 'Head of content', company: 'Nimbus Mics', place: 'Pune', emails: ['pooja@nimbusmics.example'], linkedin: null,
-      hidden: false, band: 'know', how: ['Nimbus Mics paid you, the last invoice on 19 Oct (Your clients in Chausar)', '5 emails both ways, the last on 19 Oct (Mail headers, takeout-mail.mbox)'],
+      hidden: false, band: 'know', how: ['Nimbus Mics paid you, the last invoice on 19 Oct (Your clients in Chausar)', '5 emails both ways, the last on 19 Oct (Email export, takeout-mail.mbox)'],
       paths: [direct('know', 'Pooja Nair')],
       facts: [
         fact('Name', 'Pooja Nair', VCF(5), true), fact('Role', 'Head of content, Nimbus Mics', VCF(5)), fact('Email', 'pooja@nimbusmics.example', VCF(5), true),

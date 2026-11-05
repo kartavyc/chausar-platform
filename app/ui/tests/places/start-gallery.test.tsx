@@ -87,7 +87,7 @@ describe('Start: the ways to earn from the engine', () => {
     expect(tile.textContent).toContain('Meet clients, review drafts, work with your CA.');
     expect(within(tile).getByRole('img', { name: '2 agents: Reconciler and Tax preparer' })).toBeTruthy();
     const pay = tile.querySelector('[data-figure-group]')!;
-    expect(pay.textContent).toContain('Clients usually pay, a client a month');
+    expect(pay.textContent).toContain('Usual pay (a client a month)');
     expect(pay.textContent).toContain('₹5,000 to ₹20,000');
     expect(pay.querySelector('[data-estimate]')?.textContent).toBe('model estimate');
     // The hours are a model's estimate too: a screen reader hears it with them.
@@ -176,7 +176,7 @@ describe('Start: the flagship tiles (5A1)', () => {
     expect(within(tile).getByRole('img', { name: '3 agents: Story editor, Producer and Packager' })).toBeTruthy();
     expect(tile.textContent).toContain('Edits, shorts, titles and sponsor quotes.');
     const pay = tile.querySelector('[data-figure-group]')!;
-    expect(pay.textContent).toContain('Clients usually pay, per video');
+    expect(pay.textContent).toContain('Usual pay (per video)');
     expect(pay.textContent).toContain('₹5,000 to ₹30,000');
     figures(tile);
     assertInkRules();

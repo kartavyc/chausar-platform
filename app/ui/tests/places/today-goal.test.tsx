@@ -236,7 +236,7 @@ describe('Today: the next best step (W4 4I2)', () => {
     await act(async () => { fireEvent.click(within(next).getByRole('button', { name: /^Approve/ })); });
     await settle();
     const card = screen.getByRole('region', { name: 'Needs you' }).querySelector<HTMLElement>('[data-row-id="q-price-sponsor"]')!;
-    const notNow = within(card).getByRole('button', { name: 'Not now' });
+    const notNow = within(card).getByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(notNow);
     expect(calls.some(([method]) => method === 'venture.queue.decide')).toBe(false);
   });
@@ -283,7 +283,7 @@ describe('Today: the next best step (W4 4I2)', () => {
     await act(async () => { fireEvent.click(within(folded).getByRole('button', { name: /^Approve/ })); });
     await settle();
     const card = screen.getByRole('region', { name: 'Needs you' }).querySelector<HTMLElement>('[data-row-id="q-price-sponsor"]')!;
-    expect(within(card).getByRole('button', { name: 'Not now' })).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Cancel' })).toBeTruthy();
     expect(calls.some(([method]) => method === 'venture.queue.decide')).toBe(false);
   });
 });

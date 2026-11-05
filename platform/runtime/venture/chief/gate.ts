@@ -45,7 +45,7 @@ export type Target = { title: string; line: string; spends: boolean; sends: bool
 export type Gate = { ok: true; target: Target } | { ok: false; reason: string };
 
 const LINES = Object.freeze({
-  'start-run': 'This starts a run on your AI for this order. Each step that needs you still asks first.',
+  'start-run': 'This starts a job on your AI for this order. Each step that needs you still asks first.',
   'draft-invoice': 'Chausar drafts the invoice from your price. You issue it from Today.',
   'draft-reminder': 'Chausar drafts a payment reminder. You send it yourself.',
   quote: 'Chausar works out the price with its receipt. Nothing is sent.',

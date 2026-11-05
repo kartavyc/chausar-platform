@@ -175,7 +175,7 @@ describe('Business in the Ink v2 look', () => {
   });
 
   it('the local web experimental storage note shows under the header on every business page but Keep, which says it once itself', async () => {
-    const EXPERIMENTAL = "Test version: practise here, don't send real invoices yet.";
+    const EXPERIMENTAL = "Test version: practice here, don't send real invoices yet.";
     function custody(hash: string) {
       window.location.hash = hash;
       const fake = createFakeClient(new FakeEngine());

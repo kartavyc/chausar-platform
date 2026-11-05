@@ -113,7 +113,7 @@ const METER_SAMPLE: Readonly<Record<string, readonly { id: string; name: string;
 const EMPTY_SUM_RECEIPT = 'R-0453';
 const METER_WORDS = {
   noLimit: 'No limit of its own', paused: 'Paused: it reached its limit. Other work goes on.',
-  plan: (n: number) => `${n} ${n === 1 ? 'run' : 'runs'} on your plan`, used: (permille: number) => `${Math.floor(permille / 10)}% of its limit used`,
+  plan: (n: number) => `${n} ${n === 1 ? 'job' : 'jobs'} on your plan`, used: (permille: number) => `${Math.floor(permille / 10)}% of its limit used`,
 };
 const DAY = 86_400_000;
 const UNSUBSCRIBE = 'If you would rather not hear from us, reply "unsubscribe" and we will not write again.';

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEVELOPER_WORDS } from '../../../platform/runtime/owner-flag';
-import { FakeEngine } from '../src/engine/fake';
+import { FakeEngine, createFakeClient } from '../src/engine/fake';
 
 const folder = join(import.meta.dirname, '../src/text/en');
 const catalogue = Object.assign({}, ...readdirSync(folder).filter(name => name.endsWith('.json'))
@@ -81,7 +81,7 @@ describe('one-shot B1: no engine or developer words on a screen', () => {
     expect(catalogue['money-pay.fixture']).toBe('Not tried live yet');
     expect(catalogue['team.keeper.code']).toBe('Fixed rules, no AI');
     expect(catalogue['chats.counted.title']).toBe("Counts from your records. The summary didn't work this time.");
-    expect(catalogue['business.experimental']).toBe("Test version: practise here, don't send real invoices yet.");
+    expect(catalogue['business.experimental']).toBe("Test version: practice here, don't send real invoices yet.");
     expect(catalogue['chats.thread.role']).toBe('Reads your books, team and receipts');
   });
 });
@@ -102,7 +102,7 @@ describe('one-shot B1: start at login reads the same everywhere', () => {
 // platform/tests/owner-words-engine-b1.test.ts against the same list.
 describe('B1 fix round 1: the fake engine\'s screen words carry no developer word', () => {
   it('team roles, needs and alerts', async () => {
-    const engine = new FakeEngine();
+    const engine = createFakeClient(new FakeEngine());
     const team = await engine.request('venture.team.list', {});
     const needs = await engine.request('venture.needs.list', {});
     const bell = await engine.request('venture.notify.list', {});

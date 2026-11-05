@@ -384,7 +384,7 @@ function posterTile(posters: PosterIndex, record: DeliveryRunRecord): Pick<RunSu
  * a real order were a rehearsal, so each says it is the agent's.
  */
 export const RUN_SCOPE_POSTURE: Readonly<Record<Posture, string>> = Object.freeze({
-  rehearsal: 'with the agent still rehearsing', shadow: 'with the agent practising on real orders',
+  rehearsal: 'with the agent still rehearsing', shadow: 'with the agent practicing on real orders',
   'approve-each': 'with each step waiting for your approval', 'auto-spot-check': 'on auto with spot checks',
 });
 const ACTION_WORDS: Readonly<Partial<Record<string, string>>> = Object.freeze({

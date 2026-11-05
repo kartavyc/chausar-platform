@@ -164,13 +164,13 @@ describe('Team: the agent sheet', () => {
     start();
     const sheet = await openAgent('Editor');
     // Ink v2 (3D): runs sit on the panel's Runs tab.
-    await click(within(sheet).getByRole('tab', { name: 'Runs' }));
-    const runs = await within(sheet).findByRole('list', { name: 'Runs' });
+    await click(within(sheet).getByRole('tab', { name: 'Jobs' }));
+    const runs = await within(sheet).findByRole('list', { name: 'Jobs' });
     expect(within(runs).getAllByRole('listitem')).toHaveLength(2);
     expect(runs.textContent).toContain('Cutting shorts from episode 13');
     expect(runs.textContent).toContain('Rendering the thumbnail set');
     // 4Z2: the engine sends no result line on a failed run; the sheet says it failed (never "Stopped").
-    expect(runs.textContent).toContain('This run failed.');
+    expect(runs.textContent).toContain('This job failed.');
     expect(runs.textContent).not.toContain('Checking titles');
     await click(within(runs).getByRole('button', { name: 'Rendering the thumbnail set' }));
     expect(window.location.hash).toBe('#/team?sheet=run%3A28');
@@ -183,15 +183,15 @@ describe('Team: the agent sheet', () => {
   it('a waiting run says so, and a finished run shows its result with its receipt', async () => {
     const { base } = start();
     const producer = await openAgent('Producer');
-    await click(within(producer).getByRole('tab', { name: 'Runs' }));
-    const waiting = await within(producer).findByRole('list', { name: 'Runs' });
+    await click(within(producer).getByRole('tab', { name: 'Jobs' }));
+    const waiting = await within(producer).findByRole('list', { name: 'Jobs' });
     expect(waiting.textContent).toContain('Pricing the sponsor slot');
     expect(within(waiting).getByText('Waiting on you')).toBeTruthy();
     await click(screen.getByRole('button', { name: 'Close Producer' }));
     await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
     const bookkeeper = await openAgent('Bookkeeper');
-    await click(within(bookkeeper).getByRole('tab', { name: 'Runs' }));
-    const done = await within(bookkeeper).findByRole('list', { name: 'Runs' });
+    await click(within(bookkeeper).getByRole('tab', { name: 'Jobs' }));
+    const done = await within(bookkeeper).findByRole('list', { name: 'Jobs' });
     expect(done.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(done).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
   });

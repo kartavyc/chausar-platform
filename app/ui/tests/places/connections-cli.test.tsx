@@ -405,7 +405,7 @@ describe('Team: which AI serves each role', () => {
     await engine.request('workspace.open', { folder: 'ledgerline' });
     start({ hash: '#/team?sheet=agent:bookkeeper', engine });
     const panel = (await screen.findByText('Bookkeeper', { selector: 'aside h2' })).closest('aside') as HTMLElement;
-    fireEvent.click(within(panel).getByRole('tab', { name: 'Runs' }));
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Jobs' }));
     const run = (await within(panel).findByText('Matched September bank lines to invoices')).closest('li') as HTMLElement;
     expect(run.querySelector('[data-written-by]')?.textContent).toBe('Written by Claude Sonnet 5.5');
     assertInkRules(document.body);
@@ -423,7 +423,7 @@ describe('Team: which AI serves each role', () => {
   it('a run the engine names no writer for claims none', async () => {
     start({ hash: '#/team?sheet=agent:researcher' });
     const panel = (await screen.findByText('Researcher', { selector: 'aside h2' })).closest('aside') as HTMLElement;
-    fireEvent.click(within(panel).getByRole('tab', { name: 'Runs' }));
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Jobs' }));
     const run = (await within(panel).findByText('Estimated reach for episode 14')).closest('li') as HTMLElement;
     expect(run.querySelector('[data-written-by]')).toBeNull();
   });

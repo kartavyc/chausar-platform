@@ -71,7 +71,7 @@ test('6G1: pin, snooze, settle and back to active, each an owner action from the
   assert.equal(settled.thread.state, 'settled');
   assert.deepEqual(settled.thread.settled, { at: NOW, by: 'owner' });
   assert.equal(settled.thread.snoozedUntil, null);
-  assert.equal(settled.line, 'Settled. It is in Settled chats until you open it again.');
+  assert.equal(settled.line, 'Moved to old chats. It stays there until you open it again.');
   assert.deepEqual(settled.undo, { threadId: a, state: 'snoozed', until: '2026-10-22T03:30:00.000Z' }, 'Undo puts the same wake time back');
   const view = await env.chief('venture.chief.threads');
   assert.deepEqual(view.groups.map((group: any) => group.key), ['today'], 'a settled chat leaves the list');

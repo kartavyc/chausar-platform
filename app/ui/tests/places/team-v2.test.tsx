@@ -309,7 +309,7 @@ describe('Team v2: a department panel', () => {
     const panel = screen.getByRole('article', { name: 'Sales and clients' });
     const wait = within(panel).getByText('2 waiting on you');
     expect(wait.getAttribute('data-tone')).toBe('wait');
-    expect(panel.textContent).toContain('2 runs failed');
+    expect(panel.textContent).toContain('2 jobs failed');
     expect(panel.textContent).toContain('3 idle');
     // A department with nobody in it says so and points to the ways to earn (spec section 8).
     expect(within(panel).getByText('No agents in Sales and clients yet.')).toBeTruthy();
@@ -394,7 +394,7 @@ describe('Team v2: one department', () => {
     expect(within(hero).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     expect(within(hero).getByText('work steps').closest('div')!.querySelector('[data-count]')!.textContent).toBe('3');
     expect(within(hero).getByText('1 working')).toBeTruthy();
-    expect(within(hero).getByText('1 run failed')).toBeTruthy();
+    expect(within(hero).getByText('1 job failed')).toBeTruthy();
 
     const flow = screen.getByRole('region', { name: 'How Production runs' });
     const steps = within(flow).getAllByRole('listitem');
@@ -467,13 +467,13 @@ describe('Team v2: the agent panel', () => {
     const [chat, steps, runs, notes] = within(tabs).getAllByRole('tab');
     expect([chat!.textContent, notes!.textContent]).toEqual(['Chat', 'Notes']);
     expect(steps!.textContent).toMatch(/^Instructions/);
-    expect(runs!.textContent).toMatch(/^Runs/);
+    expect(runs!.textContent).toMatch(/^Jobs/);
     expect(steps!.getAttribute('aria-selected')).toBe('true');
     expect(within(panel).getByRole('tabpanel', { name: /^Instructions/ })).toBeTruthy();
     await act(async () => { steps!.focus(); fireEvent.keyDown(steps!, { key: 'ArrowRight' }); });
     expect(runs!.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(runs);
-    expect(within(panel).getByRole('tabpanel', { name: 'Runs' })).toBeTruthy();
+    expect(within(panel).getByRole('tabpanel', { name: 'Jobs' })).toBeTruthy();
     await act(async () => { fireEvent.keyDown(runs!, { key: 'Home' }); });
     expect(chat!.getAttribute('aria-selected')).toBe('true');
     // W4 4J22b: Can do comes after Notes, so End is Can do and Left from there is Notes.
@@ -506,8 +506,8 @@ describe('Team v2: the agent panel', () => {
   it('Runs: its runs with rings and state words, each opening the run sheet', async () => {
     start();
     const panel = await openPanel();
-    await click(within(panel).getByRole('tab', { name: 'Runs' }));
-    const runs = await within(panel).findByRole('list', { name: 'Runs' });
+    await click(within(panel).getByRole('tab', { name: 'Jobs' }));
+    const runs = await within(panel).findByRole('list', { name: 'Jobs' });
     const items = within(runs).getAllByRole('listitem');
     expect(items).toHaveLength(2);
     expect(within(items[0]!).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
@@ -526,7 +526,7 @@ describe('Team v2: the agent panel', () => {
     const check = async () => (await axe.run(container, { rules: { 'color-contrast': { enabled: false } }, resultTypes: ['violations'] }))
       .violations.flatMap((v) => v.nodes.map((node) => `${v.id}: ${node.target.join(' ')}`));
     expect(await check()).toEqual([]);
-    await click(within(panel).getByRole('tab', { name: 'Runs' }));
+    await click(within(panel).getByRole('tab', { name: 'Jobs' }));
     await settle();
     expect(await check()).toEqual([]);
   });

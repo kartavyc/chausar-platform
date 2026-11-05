@@ -503,7 +503,7 @@ describe('Today: approve several (O9)', () => {
     expect(approve().getAttribute('aria-disabled')).toBeNull();
 
     await press(approve());
-    expect(within(picker).getByText("This can't be undone. Approve these 2?")).toBeTruthy();
+    expect(within(picker).getByText("Approve these 2? Check them once more.")).toBeTruthy();
     expect(calls(spy, 'venture.queue.set')).toEqual([]);
     await press(within(picker).getByRole('button', { name: 'Approve 2' }));
     const sent = calls(spy, 'venture.queue.set');

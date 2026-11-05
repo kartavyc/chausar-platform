@@ -103,7 +103,7 @@
   "pb-dev.error.TIER_UNAVAILABLE": "Set up your own supported coding tool on desktop. Use the manual review meanwhile.",
   "pb-dev.error.RULE_UNCONFIRMED": "Security delivery waits for named professional review. Prepare a manual report meanwhile.",
   "pb-dev.error.SEND_DISABLED": "Sending is off. Change your sending choice before requesting a tool.",
-  "pb-dev.error.DEV_CLI_PENDING": "Check the previous coding run before starting another.",
+  "pb-dev.error.DEV_CLI_PENDING": "Check the previous coding job before starting another.",
   "pb-dev.error.ORDER_NOT_FOUND": "Choose a current developer order.",
   "pb-dev.error.CLIENT_NOT_FOUND": "The client is no longer available. Start with a current client.",
   "pb-dev.removeFinding": "Remove finding"

@@ -44,8 +44,8 @@ describe('The business menu: Pause all, Stop all, Away', () => {
     expect(within(menu).getByRole('link', { name: 'Away' }).getAttribute('href')).toBe('#/business/away');
     await click(within(menu).getByRole('button', { name: 'Pause all' }));
     expect(of(calls, 'venture.business.pause')).toEqual([]);
-    const ask = within(menu).getByRole('group', { name: 'Pause all? No new work starts until you unpause. Runs already going finish the step in progress, then wait until you unpause.' });
-    expect(document.activeElement).toBe(within(ask).getByRole('button', { name: 'Not now' }));
+    const ask = within(menu).getByRole('group', { name: 'Pause all? No new work starts until you unpause. Jobs already going finish the step in progress, then wait until you unpause.' });
+    expect(document.activeElement).toBe(within(ask).getByRole('button', { name: 'Cancel' }));
     await click(within(ask).getByRole('button', { name: 'Pause all' }));
     expect(of(calls, 'venture.business.pause')).toEqual([{ paused: true }]);
     expect(await within(menu).findByText('Paused. No new work starts until you unpause.')).toBeTruthy();
@@ -54,7 +54,7 @@ describe('The business menu: Pause all, Stop all, Away', () => {
     expect(within(menu).getByText('Paused by you. No new work starts until you unpause.')).toBeTruthy();
     await click(within(menu).getByRole('button', { name: 'Unpause' }));
     expect(of(calls, 'venture.business.pause')).toEqual([{ paused: true }, { paused: false }]);
-    expect(await within(menu).findByText('Unpaused. Stopped runs stay stopped until you resume them.')).toBeTruthy();
+    expect(await within(menu).findByText('Unpaused. Stopped jobs stay stopped until you resume them.')).toBeTruthy();
   });
 
   it("Stop all asks once more, then says how many runs stopped with the engine's own count", async () => {
@@ -62,10 +62,10 @@ describe('The business menu: Pause all, Stop all, Away', () => {
     await settle();
     const menu = await openMenu();
     await click(within(menu).getByRole('button', { name: 'Stop all' }));
-    const ask = await within(menu).findByRole('group', { name: 'Stop all? 3 runs stop, and no new work starts until you unpause. Finished steps are kept.' });
+    const ask = await within(menu).findByRole('group', { name: 'Stop all? 3 jobs stop, and no new work starts until you unpause. Finished steps are kept.' });
     await click(within(ask).getByRole('button', { name: 'Stop all' }));
     expect(of(calls, 'venture.business.pause')).toEqual([{ paused: true, stopRunning: true }]);
-    expect(await within(menu).findByText('Paused. 3 runs are stopping or stopped.')).toBeTruthy();
+    expect(await within(menu).findByText('Paused. 3 jobs are stopping or stopped.')).toBeTruthy();
   });
 
   it('reads Paused from the engine after a reload: the menu offers Unpause, not Pause all', async () => {

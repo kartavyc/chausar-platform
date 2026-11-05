@@ -106,7 +106,7 @@ describe('the agent panel: Persona (W4 4J22b, from 4J17)', () => {
     await type(within(tab).getByRole('textbox', { name: 'Tone' }), 'Warm and brief');
     await press(within(tab).getByRole('button', { name: 'Save' }));
     expect(calls(spy, 'venture.persona.set')).toEqual([]);
-    expect(within(tab).getByText("Use this from Editor's next run?")).toBeTruthy();
+    expect(within(tab).getByText("Use this from Editor's next job?")).toBeTruthy();
     await press(within(tab).getByRole('button', { name: 'Yes, use it' }));
     expect(calls(spy, 'venture.persona.set')).toHaveLength(1);
     expect(within(tab).getByRole('status').textContent).toBe("Version 1 is in use from Editor's next run.");

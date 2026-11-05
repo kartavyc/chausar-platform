@@ -29,13 +29,13 @@ export const TIME_LINE = 'The AI ran past its time limit, so Chausar stopped it.
 const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 const STOPPING = 'Stopping: the step in progress finishes first.';
 const RECEIVED = 'Stop received. The step in progress finishes, then the run stops.';
-const NOT_RUNNING = 'This run is not running, so there is nothing to stop or steer.';
-const ALREADY = 'This run is already stopped. Resume it or run it again.';
-const NOT_STOPPED = 'This run is not stopped, so there is nothing to resume.';
+const NOT_RUNNING = 'This job is not running, so there is nothing to stop or steer.';
+const ALREADY = 'This job is already stopped. Resume it or run it again.';
+const NOT_STOPPED = 'This job is not stopped, so there is nothing to resume.';
 const RESUMED = 'Resumed. Approve the next step when you are ready.';
 const RESUMED_ANSWER = 'Resumed. Answer the question to go on.';
 const STEER_SENT = 'Sent. Waiting for the agent to pick it up.';
-const SUPERSEDED = 'A newer run of this order replaced this one, so it cannot be resumed. Open the newer run instead.';
+const SUPERSEDED = 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.';
 const PAUSED_VIEW = 'Paused by you. No new work starts until you unpause.';
 const NOT_AWAY = 'You are not away. Set the days you will be away and Chausar lists what falls due.';
 const MAX_NOTE_CHARS = 500;
@@ -202,7 +202,7 @@ export class FakeRunControls {
   private runOf(p: Record<string, unknown>): RunDetail {
     const runId = typeof p.runId === 'string' ? p.runId : '';
     const run = this.runs().find((r) => r.runId === runId && r.businessId === this.host.current());
-    if (!run) throw new EngineError('RUN_NOT_FOUND', 'That run was not found.');
+    if (!run) throw new EngineError('RUN_NOT_FOUND', 'That job was not found.');
     return run;
   }
 
@@ -297,7 +297,7 @@ export class FakeRunControls {
     if (raw.length < 1 || raw.length > MAX_NOTE_CHARS) throw new EngineError('INVALID_VENTURE_REQUEST', `Your note must be between 1 and ${MAX_NOTE_CHARS} characters.`);
     const run = this.runOf(p);
     if(run.agentProgress){
-      if(run.state!=='active'&&run.state!=='waiting')throw new EngineError('RUN_CONTROL_UNAVAILABLE','This run cannot receive AI instructions. Start a new AI job.');
+      if(run.state!=='active'&&run.state!=='waiting')throw new EngineError('RUN_CONTROL_UNAVAILABLE','This job cannot take AI instructions. Start a new AI job.');
       const line='Instruction saved. Continue in a new AI session when you are ready.';
       run.steer=[...(run.steer??[]),{text:screenReadback(redactSecrets(raw),{keep:['pan']}).text,at:this.host.now(),line:'Saved for the next AI session.'}];
       this.stopNow(run,false);return {run:clone(this.view(run)),line};
@@ -320,7 +320,7 @@ export class FakeRunControls {
     if (p.every !== undefined && ![1, 2, 3, 5].includes(p.every as number)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose every 1, 2, 3 or 5 rounds.');
     const run = this.runOf(p);
     if(run.agentProgress)throw new EngineError('RUN_CONTROL_UNAVAILABLE','The AI tool reviews its own steps. Change AI review settings or stop this job.');
-    if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', 'This run is not running, so it has no next round.');
+    if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', 'This job is not running, so it has no next round.');
     const every = (p.every ?? 1) as 1 | 2 | 3 | 5;
     run.gate = { on: p.on, every, waiting: p.on ? run.gate?.waiting ?? null : null };
     this.host.emit({ type: 'run.step', businessId: run.businessId, runId: run.runId, at: this.host.now() });
@@ -348,9 +348,9 @@ export class FakeRunControls {
       }
     }
     this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.host.now() });
-    const line = !p.paused ? 'Unpaused. Stopped runs stay stopped until you resume them.'
+    const line = !p.paused ? 'Unpaused. Stopped jobs stay stopped until you resume them.'
       : !p.stopRunning ? 'Paused. No new work starts until you unpause.'
-        : `Paused. ${stopped === 1 ? '1 run is' : `${stopped} runs are`} stopping or stopped. No new work starts until you unpause.`;
+        : `Paused. ${stopped === 1 ? '1 job is' : `${stopped} jobs are`} stopping or stopped. No new work starts until you unpause.`;
     return { paused: p.paused, stopped, line };
   }
 

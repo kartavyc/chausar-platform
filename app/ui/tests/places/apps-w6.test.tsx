@@ -143,7 +143,7 @@ describe('Apps (6H1)', () => {
     await click(screen.getByRole('button', { name: 'Turn off' }));
     expect(await screen.findByText('Allow this app to run it.')).toBeTruthy();
     expect(screen.getByRole('region', { name: /^Allow "/ })).toBeTruthy();
-    await click(screen.getByRole('button', { name: 'Not now' }));
+    await click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(window.location.hash).toBe('#/apps'));
   });
 

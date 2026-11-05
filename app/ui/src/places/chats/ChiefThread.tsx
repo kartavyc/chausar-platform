@@ -316,7 +316,6 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
     <div className={s.answer} data-chief-message="">
       <p className={s.who}>
         <span className={s.whoName}>{t('chats.chief.name')}</span>
-        <span>{t('chats.chief.role')}</span>
         {time && <time className="mono" dateTime={message.at}>{time}</time>}
       </p>
       {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts)}</p>}

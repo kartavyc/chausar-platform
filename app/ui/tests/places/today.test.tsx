@@ -144,7 +144,7 @@ describe('Today: deciding', () => {
     const row = await rowOf('Sponsor slot price');
     await click(within(row).getByRole('button', { name: 'Approve' }));
     expect(spy.mock.calls.some(([m]) => m === 'venture.queue.decide')).toBe(false);
-    expect(row.textContent).toContain("This can't be undone. Approve?");
+    expect(row.textContent).toContain("Approve? Check it once more.");
     await click(within(row).getByRole('button', { name: 'Approve' }));
     const line = await waitFor(() => {
       const li = needsYou().querySelector<HTMLElement>('[data-row-id="q-price-sponsor"][data-decided]');

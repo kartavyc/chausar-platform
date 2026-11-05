@@ -35,7 +35,7 @@ describe('first run words (B1)', () => {
     start(engine);
     expect(await screen.findByText('Signed in', {}, { timeout: 4000 })).toBeTruthy();
     const main = screen.getByRole('main');
-    expect(within(main).getAllByText("Chausar sends your idea, answers and plan to the AI you pick, never your books, keys or client details. Anything that sends, posts or pays waits for your tap.")).toHaveLength(1);
+    expect(within(main).getAllByText("Chausar sends your idea, answers and plan to the AI you pick, never your books, keys or client details. It runs on your plan and its limits. Anything that sends, posts, pays or changes a price waits for your tap.")).toHaveLength(1);
     const fold = within(main).getByText("What's sent").closest('details')!;
     expect(fold).toBeTruthy();
     expect(fold.open).toBe(false);

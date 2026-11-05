@@ -36,7 +36,7 @@ describe('no raw run ids on screen (B1)', () => {
   it('the Stop dialog asks "Stop this run?"', async () => {
     await start();
     await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Stop: Cutting shorts from episode 13' })); });
-    expect(screen.getByRole('dialog', { name: 'Stop this run?' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Stop this job?' })).toBeTruthy();
   });
 
   it("the run sheet's eyebrow names the agent, not the run's id", () => {

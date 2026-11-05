@@ -339,7 +339,7 @@ describe('Money v2: the invoices table', () => {
     const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
     await click(await within(sheet).findByRole('button', { name: 'Issue invoice' }));
     expect(sheet.textContent).toContain("Issue this invoice? It gets its number and can't be changed after.");
-    await click(within(sheet).getByRole('button', { name: 'Not now' }));
+    await click(within(sheet).getByRole('button', { name: 'Cancel' }));
     expect(calls.filter(([m]) => m === 'venture.invoice.issue')).toEqual([]);
     assertInkRules();
   });

@@ -28,7 +28,7 @@ const MONEY_DIR = new URL('../runtime/venture/money/', import.meta.url);
 
 const GSTIN_27 = '27ZZZZZ9999Z1Z8'; // synthetic GSTIN with a valid checksum, state 27
 const GSTIN_29 = '29ZZZZZ9999Z1Z4'; // synthetic GSTIN with a valid checksum, state 29
-const EXPERIMENTAL = "Test version: practise here, don't send real invoices yet.";
+const EXPERIMENTAL = "Test version: practice here, don't send real invoices yet.";
 
 // ---------------------------------------------------------------------------
 // Harness

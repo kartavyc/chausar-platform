@@ -64,7 +64,7 @@
   "pb-support-desk.error.generic": "This did not finish. Review the ticket and try again.",
   "pb-support-desk.error.TICKET_STALE": "This ticket changed. Open it again before deciding.",
   "pb-support-desk.error.TICKET_EXPIRED": "This proposal expired. Review a fresh ticket.",
-  "pb-support-desk.error.TICKET_RUN_ACTIVE": "Wait for the conversation run to stop before confirming.",
+  "pb-support-desk.error.TICKET_RUN_ACTIVE": "Wait for the conversation job to stop before confirming.",
   "pb-support-desk.error.TICKET_DUPLICATE": "This conversation already has a ticket.",
   "pb-support-desk.error.TICKET_NOTE_REQUIRED": "Add a note before resolving or closing this ticket.",
   "pb-support-desk.error.TICKET_CLOSED": "A closed ticket stays closed. Start a new conversation.",

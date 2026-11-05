@@ -435,7 +435,7 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
 /** The presets that run on the owner's own AI plan (their Claude Code or Codex sign-in), never billed per call. */
 const ON_OWN_PLAN: ReadonlySet<string> = new Set(PRESETS.filter(preset => preset.kind === 'claude-cli' || preset.kind === 'codex-cli').map(preset => preset.id));
 /** Some calls ran on a key, some on the owner's own plan. */
-export const OWN_PLAN_PART = ' (plus calls on your own plan)';
+export const OWN_PLAN_PART = ' (plus calls on your own AI plan, nothing extra)';
 /** A4 review (L4): what a rehearsal or loop costs when it all ran on the owner's own plan. */
 export const RAN_ON_OWN_PLAN = 'Nothing extra, it ran on your own AI plan.';
 

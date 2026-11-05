@@ -217,7 +217,7 @@ describe('RunSheet: run controls (W4 4F3)', () => {
     render(<RunSheetView run={run('31')} onClose={() => {}} onSteer={onSteer} />);
     fireEvent.change(screen.getByLabelText('Tell Editor something for its next step'), { target: { value: 'Hello' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to Editor' })); });
-    expect(screen.getByText('Could not send it: This run is not running, so there is nothing to stop or steer.')).toBeTruthy();
+    expect(screen.getByText('Could not send it: This job is not running, so there is nothing to stop or steer.')).toBeTruthy();
   });
 
   it('marks each tool call with a shape and a word, with its measured time, and counts the calls in flight', () => {
@@ -259,7 +259,7 @@ describe('JobList', () => {
     const onOpen = vi.fn();
     render(<JobList runs={summaries} onOpen={onOpen} onRunAgain={onRunAgain} />);
     // 4Z2: the engine sends no result line on a failed run; the row says it failed.
-    expect(screen.getByText('This run failed.')).toBeTruthy();
+    expect(screen.getByText('This job failed.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cutting shorts from episode 13' }));

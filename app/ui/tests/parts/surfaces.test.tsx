@@ -86,7 +86,7 @@ describe('Bento and Tile', () => {
 
   it('a name goes only on an element that can carry one: a plain div is never named', () => {
     render(<><Tile as="section" label="Runs">a</Tile><Inner as="li" label="Editor">b</Inner><Bento as="aside" label="Side">c</Bento></>);
-    expect(screen.getByRole('region', { name: 'Runs' }).tagName).toBe('SECTION');
+    expect(screen.getByRole('region', { name: 'Jobs' }).tagName).toBe('SECTION');
     expect(screen.getByRole('listitem', { name: 'Editor' }).tagName).toBe('LI');
     expect(screen.getByRole('complementary', { name: 'Side' }).tagName).toBe('ASIDE');
     // @ts-expect-error a plain div tile cannot be named

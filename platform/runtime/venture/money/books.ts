@@ -9,7 +9,7 @@ import { previousMonth } from './goal-plans.ts';
 import { newestFirst } from './shared.ts';
 import { experimentalStorage, type BooksFigure, type BooksPeriodKey, type BooksSummary, type IsoDate, type MinorString, type VentureDeps, type VentureRecord } from '../contracts.ts';
 
-export const EXPERIMENTAL_NOTE = "Test version: practise here, don't send real invoices yet.";
+export const EXPERIMENTAL_NOTE = "Test version: practice here, don't send real invoices yet.";
 export const BOOKS_TAX_NOTE = 'Billed and earned leave out tax. Received is the cash that came in, tax included.';
 export const BOOKS_AGING_NOTE = "The back office's receivable aging compares invoices without tax to cash with tax, so use these invoice balances for taxed invoices.";
 export const BILLED_COVERS_MORE = 'The books receipt covers more than this invoice.';

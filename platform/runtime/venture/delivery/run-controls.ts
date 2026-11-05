@@ -15,7 +15,7 @@ import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 
 export { awaySkipLine, PAUSED_BY_YOU, pauseSkipLine, pausedNow } from './run-guards.ts';
 
-const NOT_RUNNING = 'This run is not running, so there is nothing to stop or steer.';
+const NOT_RUNNING = 'This job is not running, so there is nothing to stop or steer.';
 const STALE = 'This changed since you opened it.';
 const MAX_NOTE_CHARS = 500;
 /** The owner's words for the agent, screened as they are kept: keys and tokens, card, Aadhaar, bank account and OTP numbers. */
@@ -31,14 +31,14 @@ function deliveryRunOf(state: State, venture: VentureRecord, runId: string): Del
   const run = findRecord(state, 'venture-delivery-run', runId);
   if (run && run.ventureId === venture.id) return run;
   const other = [...listRecords(state, 'venture-simulation-run', venture.id), ...listRecords(state, 'venture-improvement-run', venture.id)].some(item => item.id === runId);
-  throw other ? new ChausarError('RUN_NOT_RUNNING', NOT_RUNNING) : new ChausarError('RUN_NOT_FOUND', 'That run was not found.');
+  throw other ? new ChausarError('RUN_NOT_RUNNING', NOT_RUNNING) : new ChausarError('RUN_NOT_FOUND', 'That job was not found.');
 }
 
 /** Stop a job before its next result can be accepted. Native session interruption follows commit. */
 export function stopIn(tx: VentureTx, runId: string, _force: boolean, _by: string): void {
   const current = tx.find('venture-delivery-run', runId);
-  check(current, 'RUN_NOT_FOUND', 'That run was not found.');
-  check(current.status !== 'stopped', 'RUN_ALREADY_STOPPED', 'This run is already stopped. Resume it or run it again.');
+  check(current, 'RUN_NOT_FOUND', 'That job was not found.');
+  check(current.status !== 'stopped', 'RUN_ALREADY_STOPPED', 'This job is already stopped. Resume it or run it again.');
   check(STOPPABLE.includes(current.status) || current.agentJob && current.status === 'ready-for-review', 'RUN_NOT_RUNNING', NOT_RUNNING);
   const job = current.agentJob ? { ...current.agentJob } : undefined;
   if (job) delete job.pendingApproval;
@@ -47,7 +47,7 @@ export function stopIn(tx: VentureTx, runId: string, _force: boolean, _by: strin
   tx.emit('queue.changed', {});
 }
 
-const SUPERSEDED = 'A newer run of this order replaced this one, so it cannot be resumed. Open the newer run instead.';
+const SUPERSEDED = 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.';
 
 /** 4F3: whether a newer run of the same order exists; of two at the same moment, the later one stored wins. */
 function supersededBy(state: State, run: DeliveryRunRecord): boolean {
@@ -78,7 +78,7 @@ async function resumeRun(deps: VentureDeps, ctx: Context, state: State, venture:
   refuseNewWork(state, venture, ctx, deps.clock().toISOString());
   check(!supersededBy(state, run), 'RUN_SUPERSEDED', SUPERSEDED);
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-  check(findRecord(state, 'venture-order', run.orderId)?.status !== 'cancelled', 'ORDER_NOT_ACTIVE', 'This order was cancelled, so its run cannot go on.');
+  check(findRecord(state, 'venture-order', run.orderId)?.status !== 'cancelled', 'ORDER_NOT_ACTIVE', 'This order was cancelled, so its job cannot go on.');
   refuseUnsignedRun(state, venture, run);
   check(canResumeAgentJob(state, run), 'RUN_RESTART_REQUIRED', 'There is no current saved work to continue. Choose Run again to start a fresh AI job.');
   const next = await deliveryRunHandler(deps, ctx, { orderId: run.orderId }, { resumeFrom: run.id });
@@ -92,7 +92,7 @@ export async function runsResumeHandler(deps: VentureDeps, ctx: Context, payload
   const runId = identifier(body.runId, 'Run');
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = deliveryRunOf(state, venture, runId);
-  check(run.status === 'stopped', 'RUN_NOT_STOPPED', 'This run is not stopped, so there is nothing to resume.');
+  check(run.status === 'stopped', 'RUN_NOT_STOPPED', 'This job is not stopped, so there is nothing to resume.');
   const resumed = await resumeRun(deps, ctx, state, venture, run);
   return { run: await detailOf(deps, ctx, resumed.runId), line: resumed.line };
 }
@@ -107,7 +107,7 @@ export async function runsSteerHandler(deps: VentureDeps, ctx: Context, payload:
   deliveryRunOf(state, venture, runId);
   await ventureAction(deps, ctx, 'prepare', 'runs.steer', tx => {
     const run = tx.find('venture-delivery-run', runId);
-    check(run?.agentJob && (run.status === 'stopped' || STOPPABLE.includes(run.status) || run.status === 'ready-for-review'), 'RUN_CONTROL_UNAVAILABLE', 'This run cannot receive AI instructions. Start a new AI job.');
+    check(run?.agentJob && (run.status === 'stopped' || STOPPABLE.includes(run.status) || run.status === 'ready-for-review'), 'RUN_CONTROL_UNAVAILABLE', 'This job cannot take AI instructions. Start a new AI job.');
     tx.replace({ ...run, agentJob: { ...run.agentJob, ownerNotes: [...(run.agentJob.ownerNotes ?? []), { text, at: tx.now, by: ctx.memberId }] } });
     if (run.status !== 'stopped') stopIn(tx, runId, false, ctx.memberId);
     else { tx.emit('run.step', { runId }); tx.emit('queue.changed', {}); }
@@ -154,9 +154,9 @@ export async function businessPauseHandler(deps: VentureDeps, ctx: Context, payl
       }
     }
     tx.emit('queue.changed', {});
-    const line = !paused ? 'Unpaused. Stopped runs stay stopped until you resume them.'
+    const line = !paused ? 'Unpaused. Stopped jobs stay stopped until you resume them.'
       : !stopRunning ? 'Paused. No new work starts until you unpause.'
-        : `Paused. ${stopped === 1 ? '1 run is' : `${stopped} runs are`} stopping or stopped. No new work starts until you unpause.`;
+        : `Paused. ${stopped === 1 ? '1 job is' : `${stopped} jobs are`} stopping or stopped. No new work starts until you unpause.`;
     return { paused, stopped, line };
   });
   for (const id of stoppedIds) stopAgentJob(deps.store, id);

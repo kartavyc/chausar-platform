@@ -188,7 +188,7 @@ describe('The chat consent', () => {
     await within(panel).findByRole('log');
     await act(async () => { fireEvent.change(within(panel).getByRole('textbox', { name: 'Message Bookkeeper' }), { target: { value: 'Hello' } }); });
     await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Send' })); });
-    await click(within(await within(panel).findByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Not now' }));
+    await click(within(await within(panel).findByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Cancel' }));
     await settle();
     expect(calls(spy, 'venture.agents.thread.send')).toEqual([]);
     expect(within(panel).getByRole('alert').textContent).toContain("You didn't agree, so nothing was sent.");
@@ -217,7 +217,7 @@ describe('Proposals in the thread', () => {
     expect(decided[0]).toMatchObject({ decision: 'accept' });
     expect(decided[0]!.digest).toMatch(/^[a-f0-9]{64}$/);
     const after = within(panel).getByRole('article', { name: "Proposed change to Editor's instructions" });
-    expect(after.textContent).toContain('Accepted. Editor works to version 5 from the next run.');
+    expect(after.textContent).toContain('Accepted. Editor works to version 5 from the next job.');
     expect(within(after).getByRole('button', { name: 'Undo' })).toBeTruthy();
     // The engine's own line about the run already going, in the thread.
     expect(within(within(panel).getByRole('log')).getByText(/Version 5 is in use from the next run\. Runs .* keep version 4\./)).toBeTruthy();
@@ -331,7 +331,7 @@ describe('The agent panel tabs, by keyboard and axe', () => {
     start('#/team?sheet=agent:editor');
     const panel = await panelOf('Editor');
     const tabs = within(within(panel).getByRole('tablist', { name: 'Editor' })).getAllByRole('tab');
-    await waitFor(() => expect(tabs.map((tab) => tab.textContent)).toEqual(['Chat', 'Instructions v4', 'Runs 2', 'Notes', 'Can do']));
+    await waitFor(() => expect(tabs.map((tab) => tab.textContent)).toEqual(['Chat', 'Instructions v4', 'Jobs 2', 'Notes', 'Can do']));
     const [chat, instructions, runs] = tabs;
     const last = tabs.at(-1)!;
     await act(async () => { instructions!.focus(); fireEvent.keyDown(instructions!, { key: 'ArrowRight' }); });
@@ -349,7 +349,7 @@ describe('The agent panel tabs, by keyboard and axe', () => {
     await within(panel).findByRole('log');
     await settle();
     expect(await axeOn(container)).toEqual([]);
-    for (const name of [/^Instructions/, 'Runs', 'Notes']) {
+    for (const name of [/^Instructions/, 'Jobs', 'Notes']) {
       await click(within(panel).getByRole('tab', { name }));
       await settle();
       expect(await axeOn(container)).toEqual([]);
@@ -371,7 +371,7 @@ describe('Review 4B3: reading, never writing; Undo as the engine says; the conse
     const { spy } = start('#/team?sheet=agent:editor&tab=chat');
     const panel = await panelOf('Editor');
     await within(panel).findByRole('log');
-    for (const name of [/^Instructions/, 'Runs', 'Notes']) {
+    for (const name of [/^Instructions/, 'Jobs', 'Notes']) {
       await click(within(panel).getByRole('tab', { name }));
       await settle();
     }

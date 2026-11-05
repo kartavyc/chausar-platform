@@ -313,7 +313,7 @@ describe('#/chats: a thread', () => {
     await start('#/chats?thread=chiefthread-billed', { override: counted });
     const box = await within(await screen.findByRole('log')).findByRole('group', { name: "Counts from your records. The summary didn't work this time." });
     expect(within(box).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      '4 clients', '1 order', '2 invoices', '6 runs', '0 people in your network', '3 leads', 'August 2026: 2 new', 'September 2026: 5 new', 'October 2026: 9 new',
+      '4 clients', '1 order', '2 invoices', '6 jobs', '0 people in your network', '3 leads', 'August 2026: 2 new', 'September 2026: 5 new', 'October 2026: 9 new',
     ]);
     expect(box.querySelector('[data-estimate]')).toBeNull();
     expect(within(thread()).getByText('One figure was left out: it had no receipt.')).toBeTruthy();
@@ -454,7 +454,7 @@ describe('#/chats: asking', () => {
     fireEvent.change(composer(), { target: { value: 'How is the month going?' } });
     await click(screen.getByRole('button', { name: 'Send' }));
     await settle();
-    await click(within(screen.getByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Not now' }));
+    await click(within(screen.getByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Cancel' }));
     await settle();
     expect(screen.queryByRole('region', { name: 'Before your first message' })).toBeNull();
     expect(composer().value).toBe('How is the month going?');

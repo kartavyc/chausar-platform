@@ -204,11 +204,11 @@ describe('ApprovalRow as a card (layout="card")', () => {
       render(<ApprovalRow layout="card" row={price} onDecide={onDecide} />);
       fireEvent.click(within(card()).getByRole('button', { name: 'Approve' }));
       expect(onDecide).not.toHaveBeenCalled();
-      expect(card().textContent).toContain("This can't be undone. Approve?");
-      expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Not now' }));
+      expect(card().textContent).toContain("Approve? Check it once more.");
+      expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Cancel' }));
       assertInkRules(document.body);
-      fireEvent.click(within(card()).getByRole('button', { name: 'Not now' }));
-      expect(card().textContent).not.toContain("can't be undone");
+      fireEvent.click(within(card()).getByRole('button', { name: 'Cancel' }));
+      expect(card().textContent).not.toContain("Check it once more");
       expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Approve' }));
       fireEvent.click(within(card()).getByRole('button', { name: 'Approve' }));
       await act(async () => { fireEvent.click(within(card()).getAllByRole('button', { name: 'Approve' }).at(-1)!); });
@@ -328,11 +328,11 @@ describe('Driving a card from outside (the swipe on phone)', () => {
     let result: string | undefined;
     act(() => { result = handle.current!.pressPrimary(); });
     expect(result).toBe('locked');
-    expect(card().textContent).not.toContain("can't be undone");
+    expect(card().textContent).not.toContain("Check it once more");
     rerender(<ApprovalRow layout="card" row={post} viewed onDecide={onDecide} handle={handle} />);
     act(() => { result = handle.current!.pressPrimary(); });
     expect(result).toBe('asking');
-    expect(card().textContent).toContain("This can't be undone. Approve and post?");
+    expect(card().textContent).toContain("Approve and post? Check it once more.");
     act(() => { result = handle.current!.pressPrimary(); });
     expect(result).toBe('asking');
     expect(onDecide).not.toHaveBeenCalled();
@@ -459,9 +459,9 @@ describe('Review of 3B5a', () => {
       const onDecide = vi.fn(async () => done('Approved'));
       const { rerender } = render(<ApprovalRow layout="card" row={price} onDecide={onDecide} />);
       fireEvent.click(approveIn());
-      expect(card().textContent).toContain("can't be undone");
+      expect(card().textContent).toContain("Check it once more");
       rerender(<ApprovalRow layout="card" row={newer} onDecide={onDecide} />);
-      expect(card().textContent).not.toContain("can't be undone");
+      expect(card().textContent).not.toContain("Check it once more");
       expect(card().textContent).toContain('This changed. Here is the new version.');
       expect(card().textContent).toContain('₹90,000');
       expect(within(card()).getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
@@ -478,11 +478,11 @@ describe('Review of 3B5a', () => {
       const { rerender } = render(<ApprovalRow layout="card" row={price} onDecide={onDecide} handle={handle} />);
       act(() => { handle.current!.pressPrimary(); });
       rerender(<ApprovalRow layout="card" row={newer} onDecide={onDecide} handle={handle} />);
-      expect(card().textContent).not.toContain("can't be undone");
+      expect(card().textContent).not.toContain("Check it once more");
       let result: PressResult | undefined;
       act(() => { result = handle.current!.pressPrimary(); });
       expect(result).toBe('asking');
-      expect(card().textContent).toContain("can't be undone");
+      expect(card().textContent).toContain("Check it once more");
       expect(onDecide).not.toHaveBeenCalled();
     });
 
@@ -564,7 +564,7 @@ describe('Review of 3B5a', () => {
   it('Not now in the answer box puts focus back on Answer', () => {
     render(<ApprovalRow layout="card" row={question} onDecide={vi.fn()} />);
     fireEvent.click(within(card()).getByRole('button', { name: 'Answer' }));
-    fireEvent.click(within(card()).getByRole('button', { name: 'Not now' }));
+    fireEvent.click(within(card()).getByRole('button', { name: 'Cancel' }));
     expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Answer' }));
   });
 

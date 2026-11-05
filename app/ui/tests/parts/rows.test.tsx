@@ -178,7 +178,7 @@ describe('JobList in the D look', () => {
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
     const failed = rowOf('Rendering the thumbnail set');
     // 4Z2: a failed run carries no result line from the engine; the row says it failed.
-    expect(within(failed).getByText('This run failed.').className).toMatch(/fail/);
+    expect(within(failed).getByText('This job failed.').className).toMatch(/fail/);
     fireEvent.click(within(failed).getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
     assertInkRules(document.body);

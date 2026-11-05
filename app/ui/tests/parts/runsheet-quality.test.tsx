@@ -123,7 +123,7 @@ describe('run sheet: coverage, outcomes, the report, expiry and interruptions (4
 
   it("says when a run's question expires, from the clock", () => {
     show(run('29'), { questionExpiresAt: '2026-10-21T13:00:00.000Z' });
-    const question = screen.getByRole('region', { name: 'The run asks' });
+    const question = screen.getByRole('region', { name: 'The job asks' });
     expect(within(question).getByText('Expires in 3 h')).toBeTruthy();
   });
 

@@ -40,8 +40,8 @@ describe('ApprovalRow', () => {
     expect(container.querySelector('[data-row]')!.hasAttribute('data-second-ask')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(onDecide).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("This can't be undone. Approve?");
-    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    expect(container.textContent).toContain("Approve? Check it once more.");
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(container.textContent).not.toContain("can't be undone");
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Approve' }).at(-1)!); });

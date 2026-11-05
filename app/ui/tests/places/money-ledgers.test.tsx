@@ -319,7 +319,7 @@ describe('Money: journal', () => {
     const { calls } = start('#/money/journal');
     const unknown = (await screen.findByText('Send email · Iyer & Co')).closest('li')!;
     await click(within(unknown).getByRole('button', { name: 'Resolve' }));
-    await click(within(unknown).getByRole('button', { name: 'Not now' }));
+    await click(within(unknown).getByRole('button', { name: 'Cancel' }));
     expect(within(unknown).queryByRole('button', { name: 'It did not go out' })).toBeNull();
     expect(calls.filter(([m]) => m === 'venture.journal.resolve')).toEqual([]);
     await click(within(unknown).getByRole('button', { name: 'Resolve' }));

@@ -3853,7 +3853,7 @@ export type TieSignalKind = 'mail-both' | 'mail-one' | 'meeting' | 'client' | 'c
 /**
  * One signal of a tie, in basis points, faded by its half-life from its last date (4D2). count: what the weight is
  * multiplied by (months, meetings) or 1; weightBp: after the cap, before fading. source: where it came from, in words
- * ('Mail headers, takeout.mbox'); line: what it is ('Mail both ways in 6 months, the last on 20 Oct 2026').
+ * ('Email export, takeout.mbox'); line: what it is ('Mail both ways in 6 months, the last on 20 Oct 2026').
  */
 export type TieSignal = { kind: TieSignalKind; count: number; last: IsoDate | null; weightBp: number; decayedBp: number; source: string; line: string };
 /**

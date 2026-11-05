@@ -74,9 +74,9 @@ describe('Work: Stop on each running tile (O1)', () => {
     const stop = within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' });
     await click(stop);
     expect(stop.getAttribute('aria-expanded')).toBe('true');
-    const dialog = within(tile).getByRole('dialog', { name: 'Stop this run?' });
+    const dialog = within(tile).getByRole('dialog', { name: 'Stop this job?' });
     expect(within(dialog).getByText('Stop lets the step in progress finish, then stops. Finished steps are kept.')).toBeTruthy();
-    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Not now' }));
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }));
     assertOnePrimary();
     await click(within(dialog).getByRole('button', { name: 'Stop' }));
     expect(of(calls, 'venture.runs.stop')).toEqual([{ runId: '31' }]);
@@ -104,7 +104,7 @@ describe('Work: Stop on each running tile (O1)', () => {
     const { calls } = await start();
     const tile = await tileOf('Cutting shorts from episode 13');
     await click(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
-    await click(within(tile).getByRole('button', { name: 'Not now' }));
+    await click(within(tile).getByRole('button', { name: 'Cancel' }));
     expect(within(tile).queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
     await click(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
@@ -119,11 +119,11 @@ describe('Work: Stop on each running tile (O1)', () => {
   });
 
   it('says what the engine refused, in its words', async () => {
-    await start('#/work', { intercept: { 'venture.runs.stop': () => { throw Object.assign(new Error('This run is not running, so there is nothing to stop or steer.'), { code: 'RUN_NOT_RUNNING' }); } } });
+    await start('#/work', { intercept: { 'venture.runs.stop': () => { throw Object.assign(new Error('This job is not running, so there is nothing to stop or steer.'), { code: 'RUN_NOT_RUNNING' }); } } });
     const tile = await tileOf('Checking titles against the last 30 videos');
     await click(within(tile).getByRole('button', { name: 'Stop: Checking titles against the last 30 videos' }));
     await click(within(within(tile).getByRole('dialog')).getByRole('button', { name: 'Stop' }));
-    expect(await within(tile).findByText(/This run is not running, so there is nothing to stop or steer\./)).toBeTruthy();
+    expect(await within(tile).findByText(/This job is not running, so there is nothing to stop or steer\./)).toBeTruthy();
   });
 });
 
@@ -168,7 +168,7 @@ describe('Today: Stop in Working now', () => {
     await settle();
     const stop = within(working).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' });
     await click(stop);
-    const dialog = within(working).getByRole('dialog', { name: 'Stop this run?' });
+    const dialog = within(working).getByRole('dialog', { name: 'Stop this job?' });
     await click(within(dialog).getByRole('button', { name: 'Force stop' }));
     await click(within(within(working).getByRole('dialog')).getByRole('button', { name: 'Force stop' }));
     expect(of(calls, 'venture.runs.stop')).toEqual([{ runId: '31', force: true }]);
@@ -206,7 +206,7 @@ describe('4F3 review', () => {
     const waiting = await tileOf('Pricing the sponsor slot');
     await click(within(waiting).getByRole('button', { name: 'Stop: Pricing the sponsor slot' }));
     expect(within(waiting).queryByRole('button', { name: 'Force stop' })).toBeNull();
-    await click(within(waiting).getByRole('button', { name: 'Not now' }));
+    await click(within(waiting).getByRole('button', { name: 'Cancel' }));
     const tile = await tileOf('Cutting shorts from episode 13');
     await click(within(tile).getByRole('button', { name: 'Stop: Cutting shorts from episode 13' }));
     await click(within(within(tile).getByRole('dialog')).getByRole('button', { name: 'Stop' }));

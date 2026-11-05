@@ -28,7 +28,7 @@ export const METER_WORDS = Object.freeze({
   noLimit: 'No limit of its own',
   paused: 'Paused: it reached its limit. Other work goes on.',
   used: (percent: string) => `${percent} of its limit used`,
-  plan: (count: number) => `${count} ${count === 1 ? 'run' : 'runs'} on your plan`,
+  plan: (count: number) => `${count} ${count === 1 ? 'job' : 'jobs'} on your plan`,
   media: (upTo: boolean, figure: string) => `Images and video: ${upTo ? 'up to ' : ''}${figure}, quoted by Sunra`,
   retired: (name: string) => `${name} (retired)`,
   removed: (name: string) => `${name} (removed)`,

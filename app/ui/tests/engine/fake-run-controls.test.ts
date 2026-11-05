@@ -111,9 +111,9 @@ describe('fake engine: run controls (4F3)', () => {
     expect(await engine.request('venture.business.pause', { paused: true })).toEqual({ paused: true, stopped: 0, line: 'Paused. No new work starts until you unpause.' });
     const all = await engine.request('venture.business.pause', { paused: true, stopRunning: true }) as { stopped: number; line: string };
     expect(all.stopped).toBe(3);
-    expect(all.line).toBe('Paused. 3 runs are stopping or stopped. No new work starts until you unpause.');
+    expect(all.line).toBe('Paused. 3 jobs are stopping or stopped. No new work starts until you unpause.');
     expect(await refused(engine.request('venture.business.pause', { paused: false, stopRunning: true }))).toBe('INVALID_VENTURE_REQUEST');
-    expect((await engine.request('venture.business.pause', { paused: false }) as { line: string }).line).toBe('Unpaused. Stopped runs stay stopped until you resume them.');
+    expect((await engine.request('venture.business.pause', { paused: false }) as { line: string }).line).toBe('Unpaused. Stopped jobs stay stopped until you resume them.');
   });
 
   it("venture.get says paused, since when, with the engine's line; the scope's cap has its receipt", async () => {

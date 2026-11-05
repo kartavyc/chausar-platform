@@ -102,7 +102,7 @@ export function autoReadiness(state: State, venture: VentureRecord, agentId: str
       held === 0 ? 'Every paid call is settled in the spend log.' : `${held} paid ${held === 1 ? 'call is' : 'calls are'} still held or unknown in the spend log.`),
     met('drills', 'Two clean drill runs within 30 days and since the work instructions last changed', freshDrill, drillLine),
     met('no-taint', 'No run was latched by outside content', latched === 0,
-      latched === 0 ? 'No real run in the last 14 days read mail, a post or a web page, or had content held by the screen.' : `${latched} real ${latched === 1 ? 'run' : 'runs'} in the last 14 days read outside content beyond the order, or had content held by the screen.`),
+      latched === 0 ? 'No real job in the last 14 days read mail, a post or a web page, or had content held by the screen.' : `${latched} real ${latched === 1 ? 'job' : 'jobs'} in the last 14 days read outside content beyond the order, or had content held by the screen.`),
   ];
   const agentReady = agentItems.every(entry => entry.met);
   const readySteps = agentReady ? steps.filter(step => stepItems.filter(entry => entry.id.endsWith(`:${step.id}`)).every(entry => entry.met)).length : 0;

@@ -39,7 +39,7 @@ describe('Money > Spend: each agent and routine', () => {
     expect(editor.textContent).toContain('No limit of its own');
     expect(within(editor).getByRole('button', { name: receiptMark('R-0451') })).toBeTruthy();
     const researcher = within(panel).getByText('Researcher').closest('li')!;
-    const plan = within(researcher).getByText('2 runs on your plan');
+    const plan = within(researcher).getByText('2 jobs on your plan');
     expect(plan.textContent).not.toMatch(/₹|USD/);
   });
 

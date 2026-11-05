@@ -44,7 +44,7 @@ describe('Business > Routines (4J22a)', () => {
     expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 09:00, Asia/Kolkata');
     expect(item.querySelector('[data-asks]')!.textContent).toBe('Asks Chausar');
     // Worded by the screen from routine.on and routine.next, in the routine's own time zone.
-    expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next run 26 Oct, 09:00');
+    expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next time 26 Oct, 09:00');
     assertInkRules();
   });
 
@@ -114,7 +114,7 @@ describe('Business > Routines (4J22a)', () => {
     await press(off, 'Turn on');
     expect((off.querySelector('[data-second-ask]') as HTMLElement).textContent).toContain('Turn it on? Each run waits for your approval on Today.');
     await press(off.querySelector('[data-second-ask]') as HTMLElement, 'Turn on');
-    await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toMatch(/^Next run /));
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toMatch(/^Next time /));
   });
 
   it('changes a routine in its own form, prefilled, after a second ask', async () => {

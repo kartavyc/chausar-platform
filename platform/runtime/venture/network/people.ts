@@ -24,7 +24,7 @@ const GROUPED_KINDS: ReadonlySet<PersonFactKind> = new Set<PersonFactKind>(['mee
 /** How each file kind is named to the owner. */
 export const KIND_LABEL: Readonly<Record<NetworkImportKind, string>> = Object.freeze({
   'linkedin-connections': 'LinkedIn connections', 'linkedin-messages': 'LinkedIn messages', 'contacts-csv': 'Contacts file', vcard: 'Phone contacts',
-  'calendar-ics': 'Calendar', 'mail-headers': 'Mail headers',
+  'calendar-ics': 'Calendar', 'mail-headers': 'Email export',
 });
 
 /** The key of a fact's source row: 'netimport_x:12' for a file row, else 'owner' or the page address. */

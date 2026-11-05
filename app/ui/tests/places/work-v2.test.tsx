@@ -199,7 +199,7 @@ describe('Work v2: running now', () => {
     const running = await screen.findByRole('region', { name: 'Running now' });
     await settle();
     expect(within(running).queryByText('3 running · 1 failed')).toBeNull();
-    expect(screen.getByText(/runs going and 1 failed\./)).toBeTruthy();
+    expect(screen.getByText(/jobs going and 1 failed\./)).toBeTruthy();
   });
 
   it('offers Stop on each running tile now that the engine has run controls (W4 4F3); Force stop and Resume wait until asked', async () => {
@@ -245,12 +245,12 @@ describe('Work v2: the failed run', () => {
     expect(within(stopped).queryByRole('button', { name: 'Run again' })).toBeNull();
     await act(async () => { fireEvent.click(again); });
     expect(decides(calls)).toEqual([]);
-    expect(within(stopped).getByText("This can't be undone. Try again?")).toBeTruthy();
-    const notNow = within(stopped).getByRole('button', { name: 'Not now' });
+    expect(within(stopped).getByText("Try again? Check it once more.")).toBeTruthy();
+    const notNow = within(stopped).getByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(notNow);
     assertInkRules();
     await act(async () => { fireEvent.click(notNow); });
-    expect(within(stopped).queryByText("This can't be undone. Try again?")).toBeNull();
+    expect(within(stopped).queryByText("Try again? Check it once more.")).toBeNull();
     expect(decides(calls)).toEqual([]);
     await act(async () => { fireEvent.click(within(stopped).getByRole('button', { name: 'Try again' })); });
     const confirm = within(stopped).getByRole('button', { name: 'Try again' });
@@ -310,24 +310,24 @@ describe('Work v2: finished', () => {
     expect(within(estimate!).getByText('model estimate')).toBeTruthy();
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
     expect(within(finished).queryByText('Rendering the thumbnail set')).toBeNull();
-    expect(within(finished).queryByRole('link', { name: 'All finished runs' })).toBeNull();
+    expect(within(finished).queryByRole('link', { name: 'All finished jobs' })).toBeNull();
     assertInkRules();
   });
 
-  it('All lists the newest five, and "All finished runs" leads to Done with every one', async () => {
+  it('All lists the newest five, and "All finished jobs" leads to Done with every one', async () => {
     const more = ['Cut episode 9', 'Cut episode 10', 'Cut episode 11', 'Cut episode 12', 'Cut episode 13'].map((purpose, i) => doneRun(`f${i}`, purpose));
     await start('#/work', { intercept: { 'venture.runs.list': withRuns(...more) } });
     const finished = await screen.findByRole('region', { name: 'Finished' });
     await within(finished).findByText('Matched September bank lines to invoices');
     expect(within(finished).getAllByRole('listitem')).toHaveLength(5);
     expect(within(finished).queryByText('Cut episode 12')).toBeNull();
-    const all = within(finished).getByRole('link', { name: 'All finished runs' });
+    const all = within(finished).getByRole('link', { name: 'All finished jobs' });
     expect(all.getAttribute('href')).toBe('#/work?state=done');
     await go('#/work?state=done');
     const every = await screen.findByRole('region', { name: 'Finished' });
     expect(await within(every).findByText('Cut episode 13')).toBeTruthy();
     expect(within(every).getAllByRole('listitem')).toHaveLength(7);
-    expect(within(every).queryByRole('link', { name: 'All finished runs' })).toBeNull();
+    expect(within(every).queryByRole('link', { name: 'All finished jobs' })).toBeNull();
   });
 });
 
@@ -403,7 +403,7 @@ describe('Work v2: the header line and the other filters', () => {
   it('the line under the title counts what is going, failed and open, with the running count in bold', async () => {
     await start();
     const header = screen.getByRole('heading', { level: 1, name: 'Work' }).closest('header')!;
-    await waitFor(() => expect(header.textContent).toContain('3 runs going and 1 failed. 2 orders open for 1 client.'));
+    await waitFor(() => expect(header.textContent).toContain('3 jobs going and 1 failed. 2 orders open for 1 client.'));
     expect(header.querySelector('b')?.textContent).toBe('3');
   });
 

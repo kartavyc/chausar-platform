@@ -40,7 +40,7 @@
   "apps.allow.new": "New",
   "apps.allow.never": "It can never",
   "apps.allow.yes": "Allow",
-  "apps.allow.notNow": "Not now",
+  "apps.allow.notNow": "Cancel",
   "apps.allow.later": "You can change this later in Apps. Each change to the app shows what changed.",
   "apps.access.title": "What it may do",
   "apps.access.off": "Turn off",

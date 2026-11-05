@@ -128,7 +128,7 @@ describe('Money: invoices', () => {
     const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
     await click(await within(sheet).findByRole('button', { name: 'Issue invoice' }));
     expect(sheet.textContent).toContain("Issue this invoice? It gets its number and can't be changed after.");
-    await click(within(sheet).getByRole('button', { name: 'Not now' }));
+    await click(within(sheet).getByRole('button', { name: 'Cancel' }));
     expect(called(calls, 'venture.invoice.issue')).toEqual([]);
     await click(within(sheet).getByRole('button', { name: 'Issue invoice' }));
     await click(within(sheet).getByRole('button', { name: 'Issue' }));
@@ -171,7 +171,7 @@ describe('Money: invoices', () => {
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
     expect(sheet.textContent).toContain("Record 26,200 INR received on 21 Oct 2026? This can't be undone.");
     expect(called(calls, 'venture.payment.record')).toEqual([]);
-    await click(within(sheet).getByRole('button', { name: 'Not now' }));
+    await click(within(sheet).getByRole('button', { name: 'Cancel' }));
     expect((within(sheet).getByLabelText('Amount received') as HTMLInputElement).value).toBe('26,200');
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
     await click(within(sheet).getByRole('button', { name: 'Record' }));

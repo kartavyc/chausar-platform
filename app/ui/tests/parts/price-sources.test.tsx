@@ -79,7 +79,7 @@ describe('Gallery: a sourced range replaces the model estimate only where it fit
     const { container, unmount } = render(<GalleryTile way={books} onStart={() => {}} />);
     const pay = container.querySelector('[data-sourced-range]')!;
     expect(pay.textContent).toContain('₹499 to ₹15,000');
-    expect(pay.textContent).toContain('Clients usually pay, per month');
+    expect(pay.textContent).toContain('Usual pay (per month)');
     expect(within(pay as HTMLElement).queryByText('model estimate')).toBeNull();
     expect(within(pay as HTMLElement).getByRole('button', { name: 'Where this range comes from' })).toBeTruthy();
     expect(() => assertFiguresProved(container)).not.toThrow();

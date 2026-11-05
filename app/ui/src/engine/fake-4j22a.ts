@@ -527,7 +527,7 @@ export class FakeQualityDesk {
       { id: 'real-run', label: 'A real order passed in the last 14 days', met: false, line: 'No real order passed in the last 14 days with every check passing and your Accept.' },
       { id: 'spend-log', label: 'The spend log is complete', met: true, line: 'Every paid call is settled in the spend log.' },
       { id: 'drills', label: 'Two clean drill runs within 30 days and since the work instructions last changed', met: clean, line: drillLine },
-      { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real run in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
+      { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real job in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
     ];
     return { agent: agent.id, items, locked: true, line: `0 of ${agent.steps.length} steps have every item met. ${AUTO_LOCKED_WORDS}` };
   }

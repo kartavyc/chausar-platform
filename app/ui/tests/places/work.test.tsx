@@ -183,8 +183,8 @@ describe('Work: orders', () => {
     ep12.focus();
     fireEvent.keyDown(ep12, { key: 'a' });
     fireEvent.click(mark);
-    expect(within(ep12).getByText("This can't be undone. Mark delivered?")).toBeTruthy();
-    await waitFor(() => expect(document.activeElement).toBe(within(ep12).getByRole('button', { name: 'Not now' })));
+    expect(within(ep12).getByText("Mark delivered? Check it once more.")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(within(ep12).getByRole('button', { name: 'Cancel' })));
     fireEvent.keyDown(document.activeElement!, { key: 'a' });
     expect(calls.some((c) => c.method === 'venture.order.deliver')).toBe(false);
     await act(async () => { fireEvent.click(within(ep12).getByRole('button', { name: 'Mark delivered' })); });
@@ -226,7 +226,7 @@ describe('Work: one order from the address', () => {
     await waitFor(() => expect(row.textContent).toContain('Draft ready. Read it before it goes to the client.'));
     expect(clientOf(row).textContent).toContain('Boat Audio');
     expect(within(order).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
-    const runs = screen.getByRole('region', { name: 'Runs' });
+    const runs = screen.getByRole('region', { name: 'Jobs' });
     expect((await rowOf('Sponsor script for episode 14', runs)).textContent).toContain('Draft ready.');
     expect((await rowOf('Practice sponsor script', runs)).textContent).toContain('Practice draft only.');
     expect(screen.queryByText('Two mentions in episode 12')).toBeNull();
@@ -238,15 +238,15 @@ describe('Work: one order from the address', () => {
     expect(window.location.hash).toBe('#/work?state=done');
     await go('#/work?state=done');
     expect(await screen.findByText('Matched September bank lines to invoices')).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'Runs' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Jobs' })).toBeNull();
   });
 
   it('lists the runs the engine knows for the order, and says when there are none or no such order', async () => {
     const { engine } = await start('#/work?order=o-iyer-oct', { folder: 'ledgerline' });
-    expect(await screen.findByText('No runs yet.')).toBeTruthy();
+    expect(await screen.findByText('No jobs yet.')).toBeTruthy();
     await allowOrderAi(engine,'c-iyer');
     await act(async () => { await engine.request('venture.delivery.run', { orderId: 'o-iyer-oct' }); });
-    const runs = screen.getByRole('region', { name: 'Runs' });
+    const runs = screen.getByRole('region', { name: 'Jobs' });
     const run = await rowOf('Draft a reply for Iyer & Co', runs);
     expect(run.textContent).toContain('Started 0s ago');
     await go('#/work?order=nope');
@@ -362,7 +362,7 @@ describe('Work: new order', () => {
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });
     fireEvent.change(within(sheet).getByLabelText('What they asked for'), { target: { value: 'One mention' } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add order' })); });
-    expect(await within(sheet).findByText("Couldn't add the order: Set a price for this service first.")).toBeTruthy();
+    expect(await within(sheet).findByText("Set a price for this service first.")).toBeTruthy();
     expect((within(sheet).getByLabelText('What they asked for') as HTMLTextAreaElement).value).toBe('One mention');
   });
 });

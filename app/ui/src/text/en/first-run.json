@@ -26,7 +26,7 @@
   "first-run.ai.setup.use": "Use this Codex",
   "first-run.ai.hint.codex": "Opens OpenAI's own sign-in page.",
   "first-run.ai.hint.claude": "Opens Anthropic's own sign-in page.",
-    "first-run.ai.finish.codex": "Finish signing in on OpenAI's page",
+  "first-run.ai.finish.codex": "Finish signing in on OpenAI's page",
   "first-run.ai.finish.claude": "Finish signing in on Anthropic's page",
   "first-run.ai.finish.line": "Type this code there, then come back. Chausar never sees your password or login files.",
   "first-run.ai.finish.lineNoCode": "Finish there, then come back. Chausar never sees your password or login files.",
@@ -40,7 +40,7 @@
   "first-run.ai.tryAgain": "Try again",
   "first-run.ai.keyContinue": "Continue with this AI",
   "first-run.ai.keyFirst": "Connect a key above first.",
-  "first-run.ai.limits": "Chausar sends your idea, answers and plan to the AI you pick, never your books, keys or client details. Anything that sends, posts or pays waits for your tap.",
+  "first-run.ai.limits": "Chausar sends your idea, answers and plan to the AI you pick, never your books, keys or client details. It runs on your plan and its limits. Anything that sends, posts, pays or changes a price waits for your tap.",
   "first-run.ai.skip": "Skip for now: use templates",
   "first-run.ai.checking": "Looking for Codex and Claude Code",
 

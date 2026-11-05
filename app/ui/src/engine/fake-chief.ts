@@ -52,7 +52,7 @@ const DAY_MS = 86_400_000;
 const KOLKATA_MS = 330 * 60_000;
 type GroupKey = (typeof GROUPS)[number]['key'];
 const LINES: Partial<Record<ProposalKind, string>> = {
-  'start-run': 'This starts a run on your AI for this order. Each step that needs you still asks first.',
+  'start-run': 'This starts a job on your AI for this order. Each step that needs you still asks first.',
   'draft-invoice': 'Chausar drafts the invoice from your price. You issue it from Today.',
   'draft-reminder': 'Chausar drafts a payment reminder. You send it yourself.',
   quote: 'Chausar works out the price with its receipt. Nothing is sent.',
@@ -421,7 +421,7 @@ export class FakeChiefDesk {
     const undo: ChiefThreadStateInput = before.state === 'snoozed' && before.snoozedUntil ? { threadId: thread.id, state: 'snoozed', until: before.snoozedUntil } : { threadId: thread.id, state: before.state };
     const line = state === 'pinned' ? 'Pinned to the top of your chats.'
       : state === 'snoozed' && until ? `Snoozed until ${wakeWords(until)}. It comes back early if it needs you.`
-        : state === 'settled' ? 'Settled. It is in Settled chats until you open it again.' : 'Back in your chats.';
+        : state === 'settled' ? 'Moved to old chats. It stays there until you open it again.' : 'Back in your chats.';
     return { thread: this.summary(thread), undo, line };
   }
 

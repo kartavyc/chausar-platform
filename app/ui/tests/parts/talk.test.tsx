@@ -556,7 +556,7 @@ describe('DiffCard', () => {
     await act(async () => { fireEvent.click(accept); });
     rerender(<DiffCard {...base} decided="accepted" onAccept={done()} onReject={done()} onUndo={onUndo} />);
     const outcome = screen.getByRole('status');
-    expect(outcome.textContent).toBe('Accepted. Editor works to version 5 from the next run.');
+    expect(outcome.textContent).toBe('Accepted. Editor works to version 5 from the next job.');
     expect(document.activeElement).toBe(outcome);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Undo' })); });
     expect(onUndo).toHaveBeenCalledTimes(1);

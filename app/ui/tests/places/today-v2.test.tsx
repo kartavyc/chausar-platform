@@ -350,7 +350,7 @@ describe('Today v2: needs you', () => {
     const head = within(needsYou()).getByRole('heading', { level: 2, name: 'Needs you' });
     expect(head.parentElement!.textContent).toContain('13');
     const show = within(needsYou()).getByRole('group', { name: 'Show' });
-    for (const name of ['All 13', 'To approve 7', 'Questions 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked 1']) {
+    for (const name of ['All 13', 'To approve 7', 'From your agents 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked 1']) {
       expect(within(show).getByRole('button', { name }), name).toBeTruthy();
     }
     expect(within(show).getAllByRole('button')).toHaveLength(7);
@@ -360,10 +360,10 @@ describe('Today v2: needs you', () => {
   it('Questions shows only the questions and puts show=questions in the address', async () => {
     start();
     await loaded();
-    await click(within(needsYou()).getByRole('button', { name: 'Questions 4' }));
+    await click(within(needsYou()).getByRole('button', { name: 'From your agents 4' }));
     expect(window.location.hash).toBe('#/today?show=questions');
     await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs', 'contract:o-iyer-oct:contract-iyer-1']));
-    expect(within(needsYou()).getByRole('button', { name: 'Questions 4' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(needsYou()).getByRole('button', { name: 'From your agents 4' }).getAttribute('aria-pressed')).toBe('true');
     await click(within(needsYou()).getByRole('button', { name: 'All 13' }));
     expect(window.location.hash).toBe('#/today');
   });
@@ -456,7 +456,7 @@ describe('Today v2: needs you', () => {
     expect(card.getAttribute('data-layout')).toBe('compact');
     await click(within(card).getByRole('button', { name: 'Answer' }));
     fireEvent.change(within(card).getByRole('textbox', { name: 'Your answer' }), { target: { value: 'Option B' } });
-    await click(within(needsYou()).getByRole('button', { name: 'Questions 4' }));
+    await click(within(needsYou()).getByRole('button', { name: 'From your agents 4' }));
     await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs', 'contract:o-iyer-oct:contract-iyer-1']));
     expect(cardOf('q-question-title')).toBe(card);
     expect(card.getAttribute('data-layout')).toBe('card');
@@ -641,7 +641,7 @@ describe('Today v2: previews on the cards', () => {
     const spy = vi.spyOn(client, 'request');
     const price = cardOf('q-price-sponsor');
     await click(within(price).getByRole('button', { name: 'Approve' }));
-    expect(price.textContent).toContain("This can't be undone. Approve?");
+    expect(price.textContent).toContain("Approve? Check it once more.");
     expect(spy.mock.calls.some(([m]) => m === 'venture.queue.decide')).toBe(false);
     await click(within(price).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(cardOf('q-price-sponsor').hasAttribute('data-decided')).toBe(true));

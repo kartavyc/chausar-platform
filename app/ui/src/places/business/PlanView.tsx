@@ -82,7 +82,7 @@ export function PlanView() {
                 {bp.deliverySteps.map((step) => (
                   <li key={step.id} className={s.flowStep}>
                     {step.title.value}<LabelTag line={step.title} />
-                    <span className={s.stepWho}>{t(`business.doneBy.${step.doneBy}`)} · {t(`business.capability.${step.capability}`)}</span>
+                    <span className={s.stepWho}>{step.doneBy === 'you' && step.capability === 'planned' ? t('business.who.youPlanned') : `${t(`business.doneBy.${step.doneBy}`)} · ${t(`business.capability.${step.capability}`)}`}</span>
                   </li>
                 ))}
               </ol>

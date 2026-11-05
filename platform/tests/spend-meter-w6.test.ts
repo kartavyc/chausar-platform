@@ -87,13 +87,13 @@ test('the meter: each agent and each routine, this month\'s spend with its recei
   let view = await env.call('venture.spend.policy.get') as SpendPolicyView;
   const editor = view.meters!.agents.find(row => row.id === 'story-editor')!;
   assert.deepEqual([editor.name, editor.used, editor.cap, editor.paused, editor.plan, editor.line],
-    ['Story editor', 'USD 0.5000 this month', null, false, '1 run on your plan', 'No limit of its own']);
+    ['Story editor', 'USD 0.5000 this month', null, false, '1 job on your plan', 'No limit of its own']);
   assert.equal(editor.usedLead.currency, 'INR');
   assert.equal(JSON.stringify(editor.plan).includes('₹'), false, 'plan runs carry no rupee figure');
   const receipt = findRecord(env.store.read(), 'venture-sum-receipt', editor.receiptId) as SumReceiptRecord;
   assert.deepEqual([receipt.subject, receipt.totalMinor], [{ type: 'spent-by', scope: 'agent', id: 'story-editor', month: '2026-10' }, '500000']);
   const daily = view.meters!.routines.find(row => row.id === routineId)!;
-  assert.deepEqual([daily.name, daily.used, daily.plan], ['Editor check', 'USD 0.4000 this month', '1 run on your plan']);
+  assert.deepEqual([daily.name, daily.used, daily.plan], ['Editor check', 'USD 0.4000 this month', '1 job on your plan']);
 
   await assert.rejects(policy(env, { routineCaps: [{ routine: routineId, capUsd: '1.00' }] }, phone), code('APP_APPROVAL_REQUIRED'));
   await assert.rejects(policy(env, { routineCaps: [{ routine: 'routine_nope', capUsd: '1.00' }] }), code('INVALID_VENTURE_REQUEST'));

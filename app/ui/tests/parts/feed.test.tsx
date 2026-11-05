@@ -610,7 +610,7 @@ describe('SwipeCard with a real ApprovalRow behind it', () => {
     drag(card, 130, 0, { id: 21 });
     drag(card, 130, 0, { id: 22 });
     expect(onDecide).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("This can't be undone. Approve?");
+    expect(container.textContent).toContain("Approve? Check it once more.");
   });
 
   it('a swipe right on a row not opened yet decides nothing and says why', () => {
@@ -731,7 +731,7 @@ describe('GalleryTile', () => {
 
   it('shows what clients usually pay as a model estimate, the label on the line above the range, never with a receipt', () => {
     const { container } = render(<GalleryTile way={WAY} onStart={() => {}} />);
-    const label = screen.getByText('Clients usually pay, per video');
+    const label = screen.getByText('Usual pay (per video)');
     const group = label.closest('[data-figure-group]') as HTMLElement;
     expect(group).not.toBeNull();
     // The chip sits on the label's line, as on the board.
@@ -791,7 +791,7 @@ describe('Gallery', () => {
     for (const name of ['Wedding videos', 'Menu cards', 'Online tuition']) expect(within(list).getByRole('article', { name })).toBeTruthy();
     expect(container.querySelectorAll('[data-variant="primary"]')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Start Menu cards' }).dataset.variant).toBe('primary');
-    expect(screen.getByText('Clients usually pay')).toBeTruthy();
+    expect(screen.getByText('Usual pay')).toBeTruthy();
     assertOnePrimary(document.body);
     assertFiguresProved(document.body);
     assertInkRules(document.body);
