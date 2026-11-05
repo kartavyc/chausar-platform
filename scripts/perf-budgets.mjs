@@ -4,7 +4,7 @@
 // waits on, and an entry with no budget yet records the number and a suggested first budget (the number plus 15%).
 //
 // Usage (from the repo root): node scripts/perf-budgets.mjs [--budgets <file>] [--tiers <file>] [--timings <folder>]
-//   [--output results/perf-budgets.json]
+//   [--output <file.json>]  (default: the run root's perf-budgets/perf-budgets.json, never inside the checkout; D3)
 // --timings is a folder of bench receipts (searched below it); their fileTimings feed the slow-file check.
 // CHAUSAR_PERF_STAND_IN (read by this script only) names a JSON file of stand-in values, so its test runs no measure.
 import { spawnSync } from 'node:child_process';
@@ -12,10 +12,11 @@ import { mkdtemp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { outputFile } from '../platform/runtime/run-root.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const usage = 'Usage: node scripts/perf-budgets.mjs [--budgets <file>] [--tiers <file>] [--timings <folder>] [--output <file.json>]';
-const options = { budgets: 'platform/tests/baselines/perf-budgets.json', tiers: 'platform/tests/tiers.json', timings: null, output: 'results/perf-budgets.json' };
+const options = { budgets: 'platform/tests/baselines/perf-budgets.json', tiers: 'platform/tests/tiers.json', timings: null, output: null };
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
   const name = args[index].replace(/^--/, '').split('=', 1)[0];
@@ -24,7 +25,8 @@ for (let index = 0; index < args.length; index++) {
   if (!value || value.startsWith('--')) throw new Error(usage);
   options[name] = value;
 }
-if (!options.output.endsWith('.json')) throw new Error('The perf receipt must be a .json file.');
+// D3: the receipt goes to the run root, or any .json path outside the checkout; checked before anything is measured.
+const destination = outputFile(options.output ?? undefined, { name: 'perf-budgets', file: 'perf-budgets.json' });
 
 const SLOW_FILE_SECONDS = 30;
 const standIn = process.env.CHAUSAR_PERF_STAND_IN ? JSON.parse(await readFile(process.env.CHAUSAR_PERF_STAND_IN, 'utf8')) : null;
@@ -145,7 +147,6 @@ const passed = entries.every(entry => entry.status !== 'over');
 const receipt = { schema: 'chausar.perf-budgets.v1', at: new Date().toISOString(), nodeVersion: process.version, platform: process.platform,
   architecture: process.arch, standIn: Boolean(standIn), entries, passed,
   notes: { vaultSnapshotCeiling: /const MAX_BYTES = ([^;]+);/.exec(vaultSource)?.[1] ?? 'not found' } };
-const destination = resolve(root, options.output);
 await mkdir(dirname(destination), { recursive: true });
 await writeFile(destination, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
 process.exitCode = passed ? 0 : 1;

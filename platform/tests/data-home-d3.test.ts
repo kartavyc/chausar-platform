@@ -135,3 +135,27 @@ test('the worker: CHAUSAR_VAULT_DIRECTORY is required, refused inside the checko
   t.after(() => engine.shutdown());
   assert.equal(engine.options.directory, userData);
 });
+
+// Task 5: run outputs go to the run root. A repo-wide rule over every script: none names results/ (the old in-repo
+// output folder), and every script with an --output option takes its default and its refusal from run-root.mjs.
+async function scriptFiles(folder: URL): Promise<string[]> {
+  const { readdir } = await import('node:fs/promises');
+  const found: string[] = [];
+  for (const entry of await readdir(folder, { withFileTypes: true })) {
+    if (entry.isDirectory()) found.push(...(await scriptFiles(new URL(`${entry.name}/`, folder))).map(name => `${entry.name}/${name}`));
+    else if (/\.(?:mjs|cjs|js|ps1|sh)$/.test(entry.name)) found.push(entry.name);
+  }
+  return found;
+}
+test('no script writes to results/ in the checkout; every --output script uses the run root', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const folder = new URL('../../scripts/', import.meta.url);
+  const naming: string[] = [], unrooted: string[] = [];
+  for (const name of await scriptFiles(folder)) {
+    const text = await readFile(new URL(name, folder), 'utf8');
+    if (/(?:^|[\s'"`(=[])results[\/]/m.test(text)) naming.push(name);
+    if (/['"`]--output\b/.test(text) && !/platform\/runtime\/run-root\.mjs['"]/.test(text)) unrooted.push(name);
+  }
+  assert.deepEqual(naming, [], 'scripts that still name results/');
+  assert.deepEqual(unrooted, [], 'scripts with --output that do not use run-root.mjs');
+});

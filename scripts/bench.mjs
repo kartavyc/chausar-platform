@@ -2,12 +2,14 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { glob, mkdir, readFile, rm, statfs, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir } from 'node:os';
-import { dirname, isAbsolute, parse, relative, resolve } from 'node:path';
+import { dirname, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// D3: the receipt goes to the run root (CHAUSAR_RUN_ROOT, else the temp folder), never inside the checkout.
+import { outputFile } from '../platform/runtime/run-root.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all'; let isolation = 'process';
-const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--tier=fast|heavy|all] [--isolation=none] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
+const args = process.argv.slice(2); let requestedOutput; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all'; let isolation = 'process';
+const usage = 'Usage: node scripts/bench.mjs [--output <file.json>] [--workers=N] [--tier=fast|heavy|all] [--isolation=none] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
 const seen = new Set(); let list = false;
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
@@ -36,19 +38,14 @@ for (let index = 0; index < args.length; index++) {
   }
 }
 if (weightSources && seen.size > 1) throw new Error(usage);
-const insideRepository = (path) => {
-  const target = resolve(root, path), inner = relative(root, target);
-  if (!path || isAbsolute(inner) || inner === '..' || inner.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !target.endsWith('.json')) return null;
-  return { target, inner };
-};
 const weightsPath = resolve(root, 'platform/tests/test-weights.json');
 if (weightSources) {
   // D2: refresh the shard weights from one or more receipts' fileTimings (the shards of one full run, or a full run).
   const weights = {};
   for (const source of weightSources) {
-    const found = insideRepository(source);
-    if (!found) throw new Error('Weights come from benchmark receipts: JSON files within this repository.');
-    const receipt = JSON.parse(await readFile(found.target, 'utf8'));
+    // D3: receipts live in the run root (or wherever a run wrote them); the weights file is the one write in the checkout.
+    if (!source.endsWith('.json')) throw new Error('Weights come from benchmark receipts: JSON files.');
+    const receipt = JSON.parse(await readFile(resolve(source), 'utf8'));
     if (receipt.schema !== 'chausar.factory-bench.v1' || !receipt.fileTimings || typeof receipt.fileTimings !== 'object') throw new Error(`${source} is not a benchmark receipt with fileTimings.`);
     for (const [file, seconds] of Object.entries(receipt.fileTimings)) if (typeof seconds === 'number' && seconds >= 0) weights[file] = Math.max(0.1, Math.round(seconds * 10) / 10);
   }
@@ -57,9 +54,8 @@ if (weightSources) {
   process.stdout.write(`${JSON.stringify({ weights: relative(root, weightsPath).replaceAll('\\', '/'), files: Object.keys(sorted).length })}\n`);
   process.exit(0);
 }
-const output = insideRepository(requestedOutput);
-if (!output) throw new Error('Benchmark output must be a JSON file within this repository.');
-const { target: destination, inner: inside } = output;
+// D3: no --output means <run root>/engine-tests/factory-bench.json; a given path is any .json file outside the checkout.
+const destination = outputFile(requestedOutput, { name: 'engine-tests', file: 'factory-bench.json' });
 const discoveryPattern = 'platform/tests/*.test.ts';
 const discoveredFiles = [];
 for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
@@ -136,7 +132,7 @@ const startedAt = new Date().toISOString();
 await mkdir(dirname(destination), { recursive: true });
 const inRepository = path => relative(root, path).replaceAll('\\', '/');
 const commandFor = (files, timings, shared) => ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
-  '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${inRepository(timings)}`,
+  '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${timings}`,
   ...(shared ? ['--test-isolation=none'] : []), `--test-concurrency=${workers}`, ...files];
 const phases = [];
 if (isolation === 'none') {
@@ -196,5 +192,5 @@ const report = {
   stdout: outcome.stdout, stderr: outcome.stderr,
 };
 await mkdir(dirname(destination), { recursive: true }); await writeFile(destination, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-process.stdout.write(`${JSON.stringify({ passed, counts, report: inside.replaceAll('\\', '/'), shard, fullSuite, productionQualified: false })}\n`);
+process.stdout.write(`${JSON.stringify({ passed, counts, report: destination.replaceAll('\\', '/'), shard, fullSuite, productionQualified: false })}\n`);
 process.exitCode = passed ? 0 : 1;

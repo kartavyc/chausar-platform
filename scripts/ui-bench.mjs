@@ -1,15 +1,17 @@
 // Runs the Ink frontend's tests (vitest, app/ui) the way the open suite runs the engine's (scripts/bench.mjs): every
 // test in every file, and the run fails on a failed, skipped or todo test, not only on a failure. Writes a small
-// receipt to results/ui-tests.json (or --output <path inside the repository>).
+// receipt, ui-tests.json, to the run root (CHAUSAR_RUN_ROOT/ui-tests, else the temp folder's chausar-runs/<date>-ui-tests), with vitest's
+// raw report beside it (or --output <file.json>, anywhere outside the checkout; D3).
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { outputFile } from '../platform/runtime/run-root.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const usage = 'Usage: node scripts/ui-bench.mjs [--output results/ui-tests.json] [--shard=I/N, N from 1 to 8]';
-let requested = 'results/ui-tests.json'; let shard = null;
+const usage = 'Usage: node scripts/ui-bench.mjs [--output <file.json>] [--shard=I/N, N from 1 to 8]';
+let requested; let shard = null;
 const seen = new Set();
 for (let index = 0; index < args.length; index++) {
   const option = args[index].split('=', 1)[0];
@@ -24,11 +26,8 @@ for (let index = 0; index < args.length; index++) {
     shard = { index: Number(value[0]), total: Number(value[2]) };
   }
 }
-const destination = resolve(root, requested); const inside = relative(root, destination);
-if (isAbsolute(inside) || inside === '..' || inside.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !destination.endsWith('.json')) {
-  throw new Error('The UI test receipt must be a JSON file within this repository.');
-}
-const raw = resolve(root, 'results', shard ? `ui-tests.shard-${shard.index}-of-${shard.total}.vitest.json` : 'ui-tests.vitest.json');
+const destination = outputFile(requested, { name: 'ui-tests', file: 'ui-tests.json' });
+const raw = join(dirname(destination), shard ? `ui-tests.shard-${shard.index}-of-${shard.total}.vitest.json` : 'ui-tests.vitest.json');
 await mkdir(dirname(raw), { recursive: true });
 await mkdir(dirname(destination), { recursive: true });
 
@@ -50,5 +49,5 @@ const passed = exitCode === 0 && counts !== null && counts.tests > 0 && counts.f
 const receipt = { schema: 'chausar.ui-tests.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
   command: ['node', ...command.map(part => part.replace(root + (process.platform === 'win32' ? '\\' : '/'), '').replaceAll('\\', '/'))], shard, counts, passed };
 await writeFile(destination, `${JSON.stringify(receipt, null, 2)}\n`);
-console.log(JSON.stringify({ passed, counts, report: relative(root, destination).replaceAll('\\', '/') }));
+console.log(JSON.stringify({ passed, counts, report: destination.replaceAll('\\', '/') }));
 if (!passed) process.exitCode = 1;

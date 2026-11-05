@@ -20,17 +20,23 @@ async function fixture(t: TestContext) {
   await mkdir(join(directory, 'scripts'));
   await mkdir(join(directory, 'node_modules', 'vitest'), { recursive: true });
   await writeFile(join(directory, 'scripts', 'ui-bench.mjs'), await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url)));
+  // D3: the run-root rules the script imports, at the same place beside it.
+  await mkdir(join(directory, 'platform', 'runtime'), { recursive: true });
+  await writeFile(join(directory, 'platform', 'runtime', 'run-root.mjs'), await readFile(new URL('../runtime/run-root.mjs', import.meta.url)));
   await writeFile(join(directory, 'node_modules', 'vitest', 'vitest.mjs'), STAND_IN);
   await writeFile(join(directory, 'package.json'), JSON.stringify({ type: 'module' }));
   return {
     directory,
-    invoke(args: string[]) {
-      return spawnSync(process.execPath, [join(directory, 'scripts', 'ui-bench.mjs'), ...args], { cwd: directory, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+    invoke(args: string[], extra: Record<string, string | undefined> = {}) {
+      // D3: the run root is a folder inside this fixture unless a test says otherwise.
+      const env: Record<string, string | undefined> = { ...process.env, CHAUSAR_RUN_ROOT: join(directory, 'runs'), ...extra };
+      delete env.CHAUSAR_ALLOW_REPO_DATA;
+      return spawnSync(process.execPath, [join(directory, 'scripts', 'ui-bench.mjs'), ...args], { cwd: directory, env, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
     },
     async calls(): Promise<string[][]> {
       return (await readFile(join(directory, 'args.jsonl'), 'utf8').catch(() => '')).split('\n').filter(Boolean).map(line => JSON.parse(line));
     },
-    async receipt(path = 'results/ui-tests.json') { return JSON.parse(await readFile(join(directory, path), 'utf8')); },
+    async receipt(path = 'runs/ui-tests/ui-tests.json') { return JSON.parse(await readFile(join(directory, path), 'utf8')); },
   };
 }
 
@@ -53,7 +59,7 @@ test('without a shard nothing changes: one raw report, shard null', async t => {
   assert.equal(f.invoke([]).status, 0);
   const [args] = await f.calls();
   assert.equal(args.some(arg => arg.startsWith('--shard')), false);
-  assert.ok(args.some(arg => arg.replaceAll('\\', '/').endsWith('results/ui-tests.vitest.json')));
+  assert.ok(args.some(arg => arg.replaceAll('\\', '/').endsWith('runs/ui-tests/ui-tests.vitest.json')), 'the raw report sits beside the receipt in the run root');
   assert.equal((await f.receipt()).shard, null);
   assert.equal(f.invoke(['--output=results/equals.json', '--shard', '1/2']).status, 0);
   assert.deepEqual((await f.receipt('results/equals.json')).shard, { index: 1, total: 2 });
@@ -61,9 +67,27 @@ test('without a shard nothing changes: one raw report, shard null', async t => {
 
 test('a bad shard or option refuses before vitest starts', async t => {
   const f = await fixture(t);
-  for (const args of [['--shard=0/3'], ['--shard=4/3'], ['--shard=1/9'], ['--shard=1/03'], ['--shard'], ['--shard=1/2', '--shard=2/2'], ['--unknown'], ['--output', '../x.json']]) {
+  for (const args of [['--shard=0/3'], ['--shard=4/3'], ['--shard=1/9'], ['--shard=1/03'], ['--shard'], ['--shard=1/2', '--shard=2/2'], ['--unknown'], ['--output', 'x.txt']]) {
     const result = f.invoke(args);
     assert.notEqual(result.status, 0, JSON.stringify(args));
   }
   assert.deepEqual(await f.calls(), []);
+});
+
+// D3: the receipt and the raw report go to the run root, or beside any --output outside the checkout; inside it, refused.
+test('D3: an --output outside the checkout keeps the raw report beside it; inside a checkout it refuses before vitest starts', async t => {
+  const f = await fixture(t);
+  const outside = join(f.directory, 'out', 'ui-1.json');
+  assert.equal(f.invoke(['--shard=1/2', '--output', outside]).status, 0);
+  const [args] = await f.calls();
+  assert.ok(args.includes(`--outputFile.json=${join(f.directory, 'out', 'ui-tests.shard-1-of-2.vitest.json')}`), JSON.stringify(args));
+  assert.equal((await f.receipt(join('out', 'ui-1.json'))).passed, true);
+  await writeFile(join(f.directory, 'package.json'), JSON.stringify({ name: 'chausar-desktop', type: 'module' }));
+  await mkdir(join(f.directory, '.git'));
+  for (const [args, extra] of [[['--output', 'results/ui.json'], {}], [[], { CHAUSAR_RUN_ROOT: join(f.directory, 'results') }]] as [string[], Record<string, string>][]) {
+    const result = f.invoke(args, extra);
+    assert.notEqual(result.status, 0, JSON.stringify(args));
+    assert.match(result.stderr, /Chausar keeps its data outside the code folder\./);
+  }
+  assert.equal((await f.calls()).length, 1, 'vitest never started for the refused runs');
 });

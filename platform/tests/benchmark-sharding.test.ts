@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { availableParallelism, tmpdir } from 'node:os';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { localDay } from '../runtime/run-root.mjs';
 
 interface BenchmarkReport {
   schema: string;
@@ -29,6 +30,9 @@ interface BenchmarkReport {
   qualification: { testRunComplete: boolean; specificationCoverageCertified: boolean };
 }
 
+/** D3: with no --output the receipt lands in the run root, <CHAUSAR_RUN_ROOT>/engine-tests/factory-bench.json. */
+const DEFAULT_RECEIPT = 'runs/engine-tests/factory-bench.json';
+
 // Copy the real CLI into a tiny synthetic repository. Every invocation runs actual
 // Node test discovery, sharding and receipt generation, without the full vault suite.
 const GIB = 1024 ** 3;
@@ -47,6 +51,9 @@ async function fixture(t: TestContext, failing = false, incomplete = false, ordi
   await mkdir(join(directory, 'platform', 'tests'), { recursive: true });
   await writeFile(join(directory, 'scripts', 'bench.mjs'), await readFile(new URL('../../scripts/bench.mjs', import.meta.url)));
   await writeFile(join(directory, 'scripts', 'test-timing-reporter.mjs'), await readFile(new URL('../../scripts/test-timing-reporter.mjs', import.meta.url)).catch(() => ''));
+  // D3: the run-root rules the bench imports, at the same place beside it.
+  await mkdir(join(directory, 'platform', 'runtime'), { recursive: true });
+  await writeFile(join(directory, 'platform', 'runtime', 'run-root.mjs'), await readFile(new URL('../runtime/run-root.mjs', import.meta.url)));
   await writeFile(join(directory, 'package.json'), JSON.stringify({ type: 'module' }));
   async function writeFixture(file: string, index: number, options = '') {
     await writeFile(join(directory, file),
@@ -66,7 +73,9 @@ async function fixture(t: TestContext, failing = false, incomplete = false, ordi
     invoke(args: string[], extra: Record<string, string | undefined> = {}) {
       // D2: CI and the free space are set per call, so the default worker count and the space check are deterministic.
       const env: Record<string, string | undefined> = { ...process.env, CHAUSAR_BENCH_FREE_BYTES: String(100 * GIB) };
-      delete env.CI;
+      delete env.CI; delete env.CHAUSAR_ALLOW_REPO_DATA;
+      // D3: the run root is a folder inside this fixture unless a test says otherwise.
+      env.CHAUSAR_RUN_ROOT = join(directory, 'runs');
       Object.assign(env, extra);
       // This is an independent CLI/test runner, not another test inside this file's
       // worker. Node's inherited worker marker would suppress its TAP summary.
@@ -77,7 +86,7 @@ async function fixture(t: TestContext, failing = false, incomplete = false, ordi
       assert.equal(result.signal, null, result.stderr);
       return result;
     },
-    async report(output = 'results/factory-bench.json'): Promise<BenchmarkReport> {
+    async report(output = DEFAULT_RECEIPT): Promise<BenchmarkReport> {
       return JSON.parse(await readFile(join(directory, output), 'utf8'));
     },
     async tiers(tiers: { heavy?: string[]; isolated?: string[] }) {
@@ -151,7 +160,7 @@ test('D2: the bench checks the temp folder first: under 2 GB it refuses before a
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Free space on .+ is 1\.0 GB\. The engine tests need at least 2 GB in the temp folder\./);
   await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
-  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(f.directory, DEFAULT_RECEIPT)), { code: 'ENOENT' });
   const capped = f.invoke(['--workers=5'], { CHAUSAR_BENCH_FREE_BYTES: String(4 * GIB) });
   assert.equal(capped.status, 0, capped.stderr);
   assert.match(capped.stderr, /Free space on .+ is 4\.0 GB, so the engine tests run with 2 workers\./);
@@ -168,13 +177,13 @@ test('D2: the receipt keeps each file time from a second reporter, beside the TA
   const report = await f.report();
   assertCompleteRun(report, 3, ['platform/tests/fixture-1.test.ts', 'platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts']);
   assert.deepEqual(report.command.slice(1, 6), ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
-    '--test-reporter=./scripts/test-timing-reporter.mjs', '--test-reporter-destination=results/factory-bench.timings.jsonl']);
+    '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${join(f.directory, 'runs', 'engine-tests', 'factory-bench.timings.jsonl')}`]);
   const timings = report.fileTimings;
   assert.deepEqual(Object.keys(timings).sort(), ['platform/tests/fixture-1.test.ts', 'platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts']);
   const bySpeed = Object.entries(timings).sort((left, right) => left[1] - right[1]).map(([file]) => file);
   assert.deepEqual(bySpeed, ['platform/tests/fixture-2.test.ts', 'platform/tests/fixture-3.test.ts', 'platform/tests/fixture-1.test.ts']);
   assert.ok(timings['platform/tests/fixture-1.test.ts'] >= 0.5, JSON.stringify(timings));
-  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.timings.jsonl')), { code: 'ENOENT' }, 'the timings file is folded into the receipt');
+  await assert.rejects(readFile(join(f.directory, 'runs', 'engine-tests', 'factory-bench.timings.jsonl')), { code: 'ENOENT' }, 'the timings file is folded into the receipt');
 });
 
 // D2 task 4: one time-balanced plan replaces the 2, 4, 5 and 6-shard plans. Every shard count from 1 to 8 places the
@@ -251,7 +260,7 @@ test('D2: --list prints the files and the plan and runs nothing, even with littl
   assert.deepEqual(listed.plan.map((group: { estimatedSeconds: number }) => group.estimatedSeconds), [11, 10, 9]);
   assert.equal(listed.files.length, listed.plan[1].files);
   await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
-  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(f.directory, DEFAULT_RECEIPT)), { code: 'ENOENT' });
 });
 
 test('D2: more shards than files refuses the empty shard before spawning tests', async t => {
@@ -363,22 +372,66 @@ test('invalid, duplicated and unknown shard options refuse before spawning fixtu
     assert.match(result.stderr, /Usage: node scripts\/bench\.mjs|Benchmark shard must be I\/N/);
   }
   await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
-  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(f.directory, DEFAULT_RECEIPT)), { code: 'ENOENT' });
 });
 
-test('output containment and JSON extension checks remain enforced with sharding', async t => {
+// D3: the receipt goes to the run root by default; --output takes any .json path outside the checkout.
+test('D3: the default receipt lands in CHAUSAR_RUN_ROOT, else the temp folder under chausar-runs, dated by the local day', async t => {
   const f = await fixture(t);
-  for (const output of ['../escape.json', join(f.directory, '..', 'escape.json'), 'results/report.txt', 'results/report.JSON']) {
+  const run = join(f.directory, 'elsewhere');
+  const rooted = f.invoke(['--shard=1/2'], { CHAUSAR_RUN_ROOT: run });
+  assert.equal(rooted.status, 0, rooted.stderr);
+  assert.equal(JSON.parse(rooted.stdout.trim()).report, join(run, 'engine-tests', 'factory-bench.json').replaceAll('\\', '/'));
+  assert.deepEqual((await f.report(join('elsewhere', 'engine-tests', 'factory-bench.json'))).shard, { index: 1, total: 2 });
+  // No CHAUSAR_RUN_ROOT: the temp folder (pointed into the fixture here) under chausar-runs/<YYYY-MM-DD>-engine-tests.
+  const temp = join(f.directory, 'temp');
+  const before = localDay(new Date());
+  const dated = f.invoke(['--shard=2/2'], { CHAUSAR_RUN_ROOT: undefined, TEMP: temp, TMP: temp, TMPDIR: temp });
+  assert.equal(dated.status, 0, dated.stderr);
+  const days = [...new Set([before, localDay(new Date())])];
+  const found = await Promise.any(days.map(day => readFile(join(temp, 'chausar-runs', `${day}-engine-tests`, 'factory-bench.json'), 'utf8')));
+  assert.deepEqual(JSON.parse(found).shard, { index: 2, total: 2 });
+  await assert.rejects(readFile(join(f.directory, 'results', 'factory-bench.json')), { code: 'ENOENT' }, 'never results/ beside the code');
+});
+
+test('D3: an absolute --output outside the checkout works; the extension is checked; both spellings still work', async t => {
+  const f = await fixture(t);
+  const outside = await mkdtemp(join(await realpath(resolve(tmpdir())), 'chausar-bench-out-'));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  assert.equal(f.invoke(['--shard=1/2', '--output', join(outside, 'one.json')]).status, 0);
+  assert.equal(JSON.parse(await readFile(join(outside, 'one.json'), 'utf8')).passed, true);
+  for (const output of ['results/report.txt', 'results/report.JSON', join(outside, 'two.txt')]) {
     const result = f.invoke(['--shard=1/2', '--output', output]);
     assert.notEqual(result.status, 0, output);
-    assert.match(result.stderr, /Benchmark output must be a JSON file within this repository/);
+    assert.match(result.stderr, /The output must be a \.json file\./);
   }
-  await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
-  // Both historical output option spellings still work without a shard.
   for (const args of [['--output', 'results/separated.json'], ['--output=results/equals.json']]) {
     assert.equal(f.invoke(args).status, 0);
     assertCompleteRun(await f.report(args.length === 2 ? args[1] : args[0].slice(9)), 6);
   }
+});
+
+test('D3: inside a checkout (package.json chausar-desktop beside .git) an output or a run root there is refused before any test', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.directory, 'package.json'), JSON.stringify({ name: 'chausar-desktop', type: 'module' }));
+  await mkdir(join(f.directory, '.git'));
+  for (const [args, extra] of [
+    [['--output', 'results/inside.json'], {}],
+    [['--output', join(f.directory, 'deep', 'inside.json')], {}],
+    [[], { CHAUSAR_RUN_ROOT: join(f.directory, 'results') }],
+  ] as [string[], Record<string, string>][]) {
+    const result = f.invoke(args, extra);
+    assert.notEqual(result.status, 0, JSON.stringify(args));
+    assert.match(result.stderr, /Chausar keeps its data outside the code folder\./);
+  }
+  await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(f.directory, 'results', 'inside.json')), { code: 'ENOENT' });
+  // The weights file is source: --write-weights is the one write inside the checkout, from receipts outside it.
+  const outside = await mkdtemp(join(await realpath(resolve(tmpdir())), 'chausar-bench-out-'));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  assert.equal(f.invoke(['--workers=1', '--output', join(outside, 'receipt.json')], { CHAUSAR_RUN_ROOT: outside }).status, 0);
+  assert.equal(f.invoke([`--write-weights=${join(outside, 'receipt.json')}`], { CHAUSAR_RUN_ROOT: outside }).status, 0);
+  assert.equal(Object.keys(JSON.parse(await readFile(join(f.directory, 'platform', 'tests', 'test-weights.json'), 'utf8'))).length, 6);
 });
 
 test('a failing fixture shard returns failure and never claims a full-suite result', async t => {
