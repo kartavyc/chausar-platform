@@ -7,7 +7,7 @@ import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { createDecipheriv, createECDH, createPublicKey, hkdfSync, randomBytes, verify } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HostedApp, type HostedAppOptions } from '../runtime/hosted/app.ts';
 import { LocalVentureRuntime } from '../runtime/hosted/runtime/local.ts';
@@ -158,7 +158,7 @@ test('D3: the hosted data folder is the data home, and a folder inside the check
   const parent = await mkdtemp(join(tmpdir(), 'chausar-hosted-home-'));
   t.after(() => rm(parent, { recursive: true, force: true }));
   assert.equal(hostedConfig({ CHAUSAR_HOME: parent }, ['--hosted', '--dev']).dataDirectory, join(parent, 'hosted'));
-  assert.notEqual(hostedConfig({}, ['--hosted', '--dev']).dataDirectory, resolve('data/hosted'));
+  assert.notEqual(hostedConfig({}, ['--hosted', '--dev']).dataDirectory, fileURLToPath(new URL('../../data/hosted', import.meta.url)));
   assert.equal(hostedConfig({ CHAUSAR_HOME: parent, CHAUSAR_HOSTED_DATA: join(parent, 'own') }, ['--hosted', '--dev']).dataDirectory, join(parent, 'own'));
   const root = fileURLToPath(new URL('../..', import.meta.url));
   assert.throws(() => hostedConfig({ CHAUSAR_HOSTED_DATA: join(root, 'data', 'hosted') }, ['--hosted', '--dev']), code('DATA_INSIDE_REPO'));

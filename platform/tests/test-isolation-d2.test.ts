@@ -13,9 +13,14 @@ const TESTS = fileURLToPath(new URL('.', import.meta.url));
 const REVIEWED: readonly { file: string; name: string; reason: string }[] = [
   { file: 'codex-bundle-w6.test.ts', name: 'chausar-no-such-codex-bundle', reason: 'a folder that must not exist; the check refuses it before reading' },
   { file: 'codex-trust.test.ts', name: 'no-review-held', reason: 'a path recorded as a string in a trust record; never opened' },
+  { file: 'data-home-d3.test.ts', name: 'chausar-runs', reason: 'the expected default run root, compared with runRoot(); runRoot never creates it' },
   { file: 'decision-journal-worker.test.ts', name: 'chausar-journal-worker-', reason: 'a prefix compared with the mkdtemp result' },
   { file: 'ui-ink-hosting.test.ts', name: 'resources', reason: 'a packaged-app path shape handed to the path resolver; never created' },
+  { file: 'venture-android-apk-identity.test.ts', name: 'chausar-client.apk', reason: 'an APK path handed to the stand-in SDK runner; never read or written' },
+  { file: 'venture-android-execution.test.ts', name: 'chausar-client.apk', reason: 'an APK path handed to the stand-in adb runner; never read or written' },
   { file: 'venture-cli-status.test.ts', name: 'chausar-cli-status-bin', reason: 'the folder a stand-in locator reports for the tools; the tools are faked, nothing is written there' },
+  { file: 'venture-codex-connectors-w6.test.ts', name: 'chausar-synthetic-codex-job', reason: 'a job folder handed to the stand-in Codex launcher as its cwd; never created' },
+  { file: 'venture-codex-driver-w6.test.ts', name: 'chausar-synthetic-codex-job', reason: 'a job folder handed to the stand-in Codex launcher as its cwd; never created' },
   { file: 'venture-model-records.test.ts', name: 'codex.exe', reason: 'a program path handed to a stand-in transport; never started' },
   { file: 'venture-models.test.ts', name: 'chausar-models-test-bin', reason: 'the folder a stand-in locator reports for the tools; nothing is written there' },
   { file: 'venture-models.test.ts', name: 'codex.exe', reason: 'a program path handed to a stand-in transport; never started' },
@@ -114,4 +119,24 @@ test('the scan itself: created fixed names fail even when reviewed, unique and m
   assert.deepEqual(check(`const dir = await mkdtemp(join(tmpdir(), 'chausar-a-'));\nconst p = join(tmpdir(), \`chausar-\${process.pid}\`);\nawait mkdir(p);`), []);
   assert.deepEqual(check(`const prefix = join(tmpdir(), 'chausar-p-'); const dir = await mkdtemp(prefix);`), []);
   assert.deepEqual(check(`server.listen(0, '127.0.0.1');\nserver.listen(8123);\nserver.listen({ port: 9000 });`), ['port', 'port']);
+});
+
+// D3 task 7: an engine test never builds a path inside the checkout for its data: not from resolve('results/...'),
+// resolve('data/...') and the like (relative to the working folder, which is the checkout), and not from the working
+// folder itself. Folders a test creates come from mkdtemp; paths only handed to a stand-in sit under tmpdir().
+const IN_CHECKOUT = /\bresolve\(\s*(['"`])(?:results|data|vaults|backups|exports)(?:[\\/][^'"`]*)?\1|\b(?:join|resolve)\(\s*process\.cwd\(\)/g;
+
+test('D3: no engine test builds a path in the checkout from results/, data/ or the working folder', async () => {
+  const found: string[] = [];
+  for (const path of await sources(TESTS)) {
+    const file = relative(TESTS, path).replaceAll('\\', '/');
+    if (file === 'test-isolation-d2.test.ts') continue; // its rule and self-test hold the shapes as text
+    const text = (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
+    for (const match of text.matchAll(IN_CHECKOUT)) found.push(`${file}:${text.slice(0, match.index).split('\n').length} ${match[0]}`);
+  }
+  assert.deepEqual(found, []);
+  // The rule itself: the shapes it must catch, and what it leaves alone.
+  const caught = (text: string) => [...text.matchAll(IN_CHECKOUT)].length;
+  assert.equal(caught(`const a = resolve('results/x.json'); const b = resolve("data"); const c = join(process.cwd(), 'tools');`), 3);
+  assert.equal(caught(`const a = resolve('client.apk'); const b = join(tmpdir(), 'results'); const c = resolve(root, 'data');`), 0);
 });

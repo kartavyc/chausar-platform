@@ -31,6 +31,7 @@
     "platform/tests/venture-exec-places.test.ts",
     "platform/tests/venture-failure-words.test.ts",
     "platform/tests/venture-kit-define.test.ts",
+    "platform/tests/venture-local-apps.test.ts",
     "platform/tests/venture-mocks.test.ts",
     "platform/tests/venture-model-records.test.ts",
     "platform/tests/venture-models.test.ts",

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { CodexDriver, codexConfig } from '../runtime/venture/agent-runtime/codex-driver.ts';
 import type { CodexChild } from '../runtime/venture/agent-runtime/codex-rpc.ts';
 import type { AgentDriverEvent, AgentDriverInput } from '../runtime/venture/agent-runtime/driver-types.ts';
@@ -28,7 +29,7 @@ function fixture(change?: (method: string, response: any) => unknown) {
   return { driver, sent, launches, receive, exit: () => child.emit('exit', 1) };
 }
 function input(events: AgentDriverEvent[] = []): AgentDriverInput {
-  return { jobId: 'job-1', jobRoot: resolve('results/synthetic-codex-job'), settings: { model: 'explicit-model', effort: 'high', autoReview: true, shell: false, network: false, webSearch: false }, mcp: { name: 'chausar', command: process.execPath, args: ['synthetic-mcp'], env: { SYNTHETIC_CAPABILITY: 'fixture' } }, guard() {}, onEvent: event => events.push(event) };
+  return { jobId: 'job-1', jobRoot: join(tmpdir(), 'chausar-synthetic-codex-job'), settings: { model: 'explicit-model', effort: 'high', autoReview: true, shell: false, network: false, webSearch: false }, mcp: { name: 'chausar', command: process.execPath, args: ['synthetic-mcp'], env: { SYNTHETIC_CAPABILITY: 'fixture' } }, guard() {}, onEvent: event => events.push(event) };
 }
 async function starting(f: ReturnType<typeof fixture>, session: Awaited<ReturnType<CodexDriver['open']>>, prompt = 'Synthetic order') {
   const run = session.run(prompt); await new Promise(resolveDone => setImmediate(resolveDone)); return { run };
