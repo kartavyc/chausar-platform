@@ -146,6 +146,8 @@ export interface ApprovalRowProps {
   buttonSize?: ButtonSize | undefined;
   /** W4 4J22b: the answer box's send words for what is typed (an agent's question card says the answer back). */
   answerLabel?: ((answer: string) => string) | undefined;
+  /** B3: the row was decided already (Today's session holds its line): it is drawn as that line from the start. */
+  done?: { line: string; receiptId?: string | undefined } | undefined;
 }
 
 type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
@@ -198,15 +200,15 @@ export function primaryOf(row: QueueRow, viewed: boolean, t: T): ApprovalPrimary
  */
 export function ApprovalRow({
   row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true, onReread,
-  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel,
+  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel, done,
 }: ApprovalRowProps) {
   const t = useT();
   const zone = useOwnerZone();
   const [current, setCurrent] = useState(row);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>(done ? 'decided' : 'idle');
   const [pending, setPending] = useState<QueueAction | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined } | null>(null);
+  const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined } | null>(done ? { line: done.line, receiptId: done.receiptId } : null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [viewedHere, setViewedHere] = useState(false);
   const [answer, setAnswer] = useState('');
@@ -221,7 +223,7 @@ export function ApprovalRow({
   const focusDecided = useRef(false);
   // Set before the decision is sent and checked by every way in (click, confirm, handle, keys), so two presses in the
   // same moment send one decision: state alone would let the second one through before the first re-renders.
-  const inFlight = useRef(false);
+  const inFlight = useRef(Boolean(done));
 
   const staleWords = layout === 'row' ? `${t('approval.stale')} ${t('approval.staleNew')}` : t('approval.staleHere');
 

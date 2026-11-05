@@ -5,6 +5,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList, type RulesListView } from '../../src/engine/types';
 import { lineDiff } from '../../src/places/business/SiteEdits';
 import { receiptMark } from '../helpers/ink-rules';
+import common from '../../src/text/en/common.json';
 
 type Bridged = Window & { chausar?: unknown };
 
@@ -233,6 +234,38 @@ describe('Business: prices', () => {
     expect(within(row).getByText(/Check it once more/)).toBeTruthy();
     await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
+    // B3 (row 33, bug 9): one decided line in the engine's words; the card never comes back with Read and Accept.
+    await waitFor(() => expect(waiting.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
+    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(waiting.querySelectorAll('[data-row]')).toHaveLength(1);
+    expect(within(waiting).queryByRole('button', { name: 'Read' })).toBeNull();
+    expect(within(waiting).queryByRole('button', { name: 'Accept' })).toBeNull();
+    expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000');
+    // Opened again in this session: the line, not a card.
+    await act(async () => { window.location.hash = '#/business/plan'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await act(async () => { window.location.hash = '#/business/prices'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    const again = await region('Waiting on you');
+    await waitFor(() => expect(again.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
+    expect(within(again).queryByRole('button', { name: 'Accept' })).toBeNull();
+  });
+
+  it('a price decided on Prices shows the same line on Today, not "resolved elsewhere" (B3)', async () => {
+    start('#/business/prices');
+    const shorts = await offerRow('Shorts from your long video');
+    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    const waiting = await region('Waiting on you');
+    const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
+    await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
+    await waitFor(() => expect(waiting.querySelector('[data-decided]')).not.toBeNull());
+    await act(async () => { window.location.hash = '#/today'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    const needs = await screen.findByRole('region', { name: 'Needs you' });
+    // A row Today never listed takes its place after the cards, behind the fold.
+    const more = await waitFor(() => within(needs).getByRole('button', { name: /^Show \d+ more$/ }));
+    await act(async () => { fireEvent.click(more); });
+    await waitFor(() => expect(needs.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
+    expect(needs.textContent).not.toContain(common['approval.elsewhere']);
   });
 
   it('an offer with no price says so and the engine refuses to price it', async () => {

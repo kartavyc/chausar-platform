@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
+import { decide as decideRow } from '../places/today/session';
 import { openSheet } from '../shell/navigation';
 import { Avatar, type AvatarState } from './Avatar';
 import { Button } from './Button';
@@ -231,7 +232,8 @@ export function RunSheet({ runId, onClose, returnFocus }: { runId: string; onClo
     );
   }
   const decide = async (row: QueueRow, action: QueueActionId, answer?: string) => {
-    await client.request('venture.queue.decide', answer === undefined ? { id: row.id, digest: row.digest, action } : { id: row.id, digest: row.digest, action, answer });
+    // B3: through Today's session, so Today shows the engine's line for it, not "resolved elsewhere".
+    await decideRow(client, row, action, answer === undefined ? {} : { answer }, t);
     run.reload();
     queue.reload();
   };

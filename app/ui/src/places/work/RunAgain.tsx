@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
+import { decide as decideRow } from '../today/session';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import type { QueueAction, QueueRow } from '../../engine/types';
@@ -65,7 +66,7 @@ export function useRunAgain(row: QueueRow | undefined, onChanged: () => void, pr
     setPhase('busy');
     setProblem(null);
     try {
-      const decision = await client.request('venture.queue.decide', { id: current.id, digest: current.digest, action: chosen.id, viewed });
+      const decision = await decideRow(client, current, chosen.id, { viewed }, t);
       if (decision.outcome !== 'done') setProblem(t('work.failed.again', { message: decision.line }));
       onChanged();
     } catch (error) {

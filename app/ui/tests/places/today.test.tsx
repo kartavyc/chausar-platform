@@ -6,6 +6,7 @@ import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake'
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import { EngineError, type EngineClient, type QueueDecision, type QueueKind, type QueueRow } from '../../src/engine/types';
 import { receiptMark } from '../helpers/ink-rules';
+import common from '../../src/text/en/common.json';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
@@ -304,6 +305,49 @@ describe('Today: deciding', () => {
     await go('#/today');
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"]')?.textContent).toBe('GST working for September · Sent to your CA'));
     expect(rowIds().indexOf('q-signoff-gst')).toBe(QUEUE.findIndex((r) => r.id === 'q-signoff-gst'));
+  });
+
+  it('answering a run\'s question in the run sheet open over Today leaves the engine\'s line on Today (B3)', async () => {
+    start();
+    const row = await rowOf('The sponsor wants to see the video before it goes up');
+    await go('#/today?sheet=run:29');
+    expect(row.getAttribute('data-row-id')).toBe('q-question-preview');
+    const sheet = await screen.findByRole('complementary', { name: 'Pricing the sponsor slot' });
+    await click(await within(sheet).findByRole('button', { name: 'Yes, share a private link' }));
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-question-preview"][data-decided]')).not.toBeNull());
+    const line = needsYou().querySelector('[data-row-id="q-question-preview"]')!.textContent!;
+    expect(line).not.toContain(common['approval.elsewhere']);
+    expect(line).toBe('The sponsor wants to see the video before it goes up · Answered');
+  });
+
+  it('while a decision is on its way and the list has dropped its row, the card stays the same element with focus (B3)', async () => {
+    const engine = new FakeEngine();
+    const fake = createFakeClient(engine);
+    let release: () => void = () => {};
+    const answered = new Promise<void>((resolve) => { release = resolve; });
+    const client: EngineClient = {
+      ...fake,
+      request: (async (method: string, params?: unknown) => {
+        const answer = await fake.request(method as never, params as never);
+        if (method === 'venture.queue.decide') await answered;
+        return answer;
+      }) as EngineClient['request'],
+    };
+    start({ client });
+    const card = await rowOf('GST working for September');
+    await readFirst(card);
+    const button = within(card).getByRole('button', { name: 'Send to CA' });
+    button.focus();
+    await click(button);
+    // The engine decided it and said so; the list read again without the row, and the answer has not come yet.
+    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+    const listed = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: { id: string }[] };
+    expect(listed.rows.some((r) => r.id === 'q-signoff-gst')).toBe(false);
+    const now = needsYou().querySelector('[data-row-id="q-signoff-gst"]');
+    expect(now).toBe(card);
+    expect(card.contains(document.activeElement) || document.activeElement === card).toBe(true);
+    await act(async () => { release(); });
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"][data-decided]')?.textContent).toBe('GST working for September · Sent to your CA'));
   });
 
   it('a row decided somewhere else shrinks to "Resolved elsewhere"', async () => {

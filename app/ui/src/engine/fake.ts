@@ -944,7 +944,12 @@ export class FakeEngine {
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       return { outcome: 'done', line: sold };
     }
-    if (action.id === 'approve' && row.viewRef?.kind === 'plan') this.desk.accept(row.businessId, row.viewRef.id);
+    if (action.id === 'approve' && row.viewRef?.kind === 'plan') {
+      this.desk.accept(row.businessId, row.viewRef.id);
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
+      return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.' };
+    }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
     if (action.id === 'send-to-ca' && row.viewRef?.kind === 'file') this.extras.sentToCa(row.viewRef.id);
