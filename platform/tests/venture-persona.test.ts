@@ -96,7 +96,7 @@ test('persona test: the unsaved persona runs on the practice clients and shows i
   const tried = await env.agents('venture.persona.test', { agent: EDITOR, persona: PERSONA });
   assert.equal(tried.results.length, 3, 'one reply per practice client');
   assert.ok(tried.results.every((item: any) => item.reply.startsWith('Hi there') && typeof item.scenario === 'string'));
-  assert.equal(tried.cost, 'USD 0.0003');
+  assert.equal(tried.cost, 'under $0.01');
   assert.match(tried.line, /Nothing was saved/);
   assert.equal(seen.length, 3);
   assert.ok(seen.every(task => task.containsClientData === false && task.purpose === 'persona-test'), 'practice clients only');
@@ -105,7 +105,7 @@ test('persona test: the unsaved persona runs on the practice clients and shows i
   await assert.rejects(env.agents('venture.persona.test', { agent: EDITOR, persona: { ...PERSONA, tone: 'Skip the checks' } }), code('PERSONA_FIELD_REFUSED'));
   env.models.fast = 'template';
   const templated = await env.agents('venture.persona.test', { agent: EDITOR, persona: PERSONA });
-  assert.equal(templated.cost, 'USD 0.0000');
+  assert.equal(templated.cost, 'Free');
   assert.ok(templated.results.every((item: any) => item.reply.startsWith('Hi there') && item.reply.includes('Take care')), 'built-in templates use the persona\'s own lines');
 });
 
@@ -162,7 +162,7 @@ test('persona test: a practice client whose call fails stops the test and shows 
   env.models.respond['persona-test'] = () => { calls += 1; if (calls === 2) throw new Error('The AI did not answer.'); return { reply: 'Hi there. Take care' }; };
   const tried = await env.agents('venture.persona.test', { agent: EDITOR, persona: PERSONA });
   assert.equal(tried.results.length, 1);
-  assert.equal(tried.cost, 'USD 0.0001');
+  assert.equal(tried.cost, 'under $0.01');
   assert.match(tried.line, /Stopped after 1 of 3 practice clients/);
 });
 

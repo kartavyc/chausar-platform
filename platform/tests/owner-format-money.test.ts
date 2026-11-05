@@ -70,3 +70,22 @@ test('counts: Indian grouping for an Indian business, western elsewhere', () => 
   assert.equal(formatCount(0, 'XX'), '0');
   assert.equal(formatCount(12345678, 'IN'), '1,23,45,678');
 });
+
+test('AI cost in the owner form: own plan, free, under a cent, cents, and an unconfirmed price says estimate (B2 task 6a)', async () => {
+  const { formatCost, formatRate } = await import('../runtime/owner-format.ts');
+  assert.equal(formatCost('0', { ownPlan: true }), 'On your own AI plan');
+  assert.equal(formatCost('0', { paidCalls: false }), 'Free');
+  assert.equal(formatCost('0'), 'Free');
+  assert.equal(formatCost('0', { paidCalls: true }), '$0.00');
+  assert.equal(formatCost('4200'), 'under $0.01');
+  assert.equal(formatCost('421300'), '$0.42');
+  assert.equal(formatCost('425000'), '$0.43');
+  assert.equal(formatCost('421300', { estimate: true }), '$0.42 (estimate)');
+  assert.equal(formatCost('1234567890000'), '$1,234,567.89');
+  assert.equal(formatRate('1500'), '$0.0015');
+  assert.equal(formatRate('3000000'), '$3.00');
+  assert.equal(formatRate('3250000'), '$3.25');
+  assert.equal(formatRate('120'), '$0.0001');
+  for (const words of ['$0.42', '$0.0015', '$3.00', '$1,234,567.89']) assert.deepEqual([...words.matchAll(MONEY_TEXT)].map(m => m[0]), [words]);
+  assert.throws(() => formatCost('-1'), { code: 'INVALID_AMOUNT' });
+});

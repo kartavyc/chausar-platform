@@ -32,6 +32,7 @@ import {
   type CliPlan, type CodexHost,
 } from './cli.ts';
 import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
+import { formatCost } from '../../owner-format.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
 import {
@@ -624,7 +625,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         connections: views,
         tiers,
         spentThisMonthMicros: spentText,
-        spentThisMonthDisplay: costDisplay(spentText, !estimate),
+        // B2: the month's total in the owner form; nothing spent reads $0.00 here (the total, not one call).
+        spentThisMonthDisplay: formatCost(spentText, { paidCalls: true, estimate }),
         estimate,
         sendPolicy: state.policy.send,
         replay: { active: transport.replay === true, label: transport.replay === true ? 'synthetic recording' : null },

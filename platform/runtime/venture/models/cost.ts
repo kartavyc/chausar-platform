@@ -1,7 +1,7 @@
 // Chausar venture launcher, package P2 (models): model costs, worked out by code in BigInt micro-USD.
 // Token counts arrive as numbers from the provider; every amount is BigInt or decimal text.
 import { check } from '../../contracts.ts';
-import { formatMicros } from '../records.ts';
+import { formatCost } from '../../owner-format.ts';
 import type { MicroString, ModelPriceTable, ModelRouteKind } from '../contracts.ts';
 import { validTokenCount, type Usage } from './types.ts';
 
@@ -62,10 +62,14 @@ export function monthlyCapMicros(value: unknown): MicroString {
 export const ESTIMATE_WORDS = ' (estimate, price unconfirmed)';
 export const OWN_PLAN_WORDS = ' (runs on your own plan)';
 
-/** 'USD 0.0002', plus the estimate words for an unconfirmed table, or the own-plan words for a command-line tool. */
+/**
+ * An AI cost in the owner form (one-shot B2): "$0.42", "under $0.01", " (estimate)" for an unconfirmed table, "On your
+ * own AI plan" for a command-line tool that charged nothing, "Free" for nothing spent on a template or with no route.
+ * The exact "USD 0.0002" stays on the receipt (records.ts formatMicros).
+ */
 export function costDisplay(micros: MicroString, priceConfirmed: boolean, routeKind?: ModelRouteKind): string {
-  const base = formatMicros(micros);
-  if (!priceConfirmed) return base + ESTIMATE_WORDS;
-  if (routeKind === 'claude-cli' || routeKind === 'codex-cli') return base + OWN_PLAN_WORDS;
-  return base;
+  const ownPlan = routeKind === 'claude-cli' || routeKind === 'codex-cli';
+  const paidCalls = routeKind !== undefined && !ownPlan && routeKind !== 'template';
+  const words = formatCost(micros, { ownPlan, paidCalls, estimate: !priceConfirmed });
+  return ownPlan && BigInt(micros) > 0n ? words + OWN_PLAN_WORDS : words;
 }

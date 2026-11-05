@@ -1,4 +1,5 @@
 import { currencyMinorDigits } from './currency.ts';
+import { check } from './portable.ts';
 import { COUNTRY_TIME_ZONES } from './venture/local-day-data.ts';
 
 // Chausar: how an amount, a count, a day and a time read on the owner's screens (one-shot B2).
@@ -230,4 +231,32 @@ export function formatClock(hhmm: string): string {
 export function timeKeyIn(value: When, zone: string): string {
   const local = localIn(value, zone);
   return local ? `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}` : '';
+}
+
+// AI cost (one-shot B2 task 6). Micro units are millionths of a US dollar. The owner form rounds half up to cents; the
+// receipt keeps the exact four-decimal form (records.ts formatMicros, "USD 0.0042").
+
+const MICROS = /^\d{1,30}$/;
+
+/**
+ * An AI cost as the owner reads it: "On your own AI plan" when every call ran on the owner's Claude Code or Codex and
+ * nothing was charged; "Free" for nothing spent with no paid call (a template); "under $0.01" below a cent; else
+ * "$0.42". An unconfirmed price adds " (estimate)".
+ */
+export function formatCost(micros: string, options: { ownPlan?: boolean; paidCalls?: boolean; estimate?: boolean } = {}): string {
+  check(MICROS.test(micros), 'INVALID_AMOUNT', 'Cost must be whole micro units.');
+  const value = BigInt(micros), tail = options.estimate ? ' (estimate)' : '';
+  if (value === 0n && options.ownPlan) return 'On your own AI plan';
+  if (value === 0n && !options.paidCalls) return `Free${tail}`;
+  if (value > 0n && value < 10_000n) return `under $0.01${tail}`;
+  const cents = (value + 5_000n) / 10_000n;
+  return `$${grouped(String(cents / 100n), false)}.${String(cents % 100n).padStart(2, '0')}${tail}`;
+}
+
+/** A price per call or per million tokens: two decimals at least, up to four when the rate has them ("$3.00", "$0.0015"). */
+export function formatRate(micros: string): string {
+  check(MICROS.test(micros), 'INVALID_AMOUNT', 'A rate must be whole micro units.');
+  const tenThousandths = (BigInt(micros) + 50n) / 100n;
+  const fraction = String(tenThousandths % 10_000n).padStart(4, '0');
+  return `$${grouped(String(tenThousandths / 10_000n), false)}.${fraction.slice(0, 2)}${fraction.slice(2).replace(/0+$/, '')}`;
 }
