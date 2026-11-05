@@ -84,11 +84,11 @@ test('recheck: nothing changed lets it apply; each changed fact denies with its 
   assert.equal(denied({ stage: 'rehearsal' }), null);
   const overRun = denied({ run: { usedMicros: '950', capMicros: '1000' } });
   assert.equal(overRun?.code, 'RUN_CAP_REACHED');
-  assert.match(overRun!.reason, /USD 0\.0010/);
+  assert.match(overRun!.reason, /spend cap of \$0\.001,/);
   assert.equal(denied({ run: { usedMicros: '900', capMicros: '1000' } }), null, 'reaching the run cap exactly fits');
   const overMonth = denied({ month: { capMicros: '1000', spentMicros: '950' } });
   assert.equal(overMonth?.code, 'SPEND_CAP');
-  assert.match(overMonth!.reason, /USD 0\.0010/, 'the limit as set now, in the engine format');
+  assert.match(overMonth!.reason, /limit of \$0\.001,/, 'the limit as set now, in the owner form');
   assert.equal(denied({ month: { capMicros: '1000', spentMicros: '5000' }, callMicros: '0' }), null, 'a free action is never stopped by the monthly limit');
   assert.equal(denied({ run: null, month: { capMicros: null, spentMicros: '99999999' } }), null);
 });

@@ -8,6 +8,7 @@
 // computer (cli-status.ts) and what was found rules their availability, the connection and each call. One look at a
 // time per tool; the status screen's look is reused for a minute, a connection always looks again; and a real call the
 // tool refuses for a route flag it does not know marks that tool's flags a mismatch for the rest of the session.
+import { formatRate, formatUsd } from '../../owner-format.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ import type {
   CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
   ModelStatusView, ModelTask, ModelTier, SpendRate, VentureDeps,
 } from '../contracts.ts';
-import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import { MAX_STORED_PAYLOAD, currentVenture, digest, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import {
   listRateOfTable, modelTableOf, payerWords, reserveSpend, resolveRate, settleSpend, spendRatesOf, spendRefused, type SpendOutcome, type SpendSubject,
 } from '../money/spend.ts';
@@ -190,7 +191,7 @@ function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: Pr
   if (!spec.needsKey) return;
   const total = BigInt(estimate)+modelBudgetUsed(calls,tx.list('venture-spend'),connection.presetId,month);
   check(total <= BigInt(connection.monthlyCapMicros), 'BUDGET_REACHED',
-    `This call could take ${spec.label} past your monthly limit of ${formatMicros(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
+    `This call could take ${spec.label} past your monthly limit of ${formatRate(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -737,7 +738,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const connection = requireCurrentConnection(tx, route.connection);
         // The run's own cap (W1 H4): a call that may cost more than its run has left is refused before anything is kept.
         if (task.capLeftMicros !== undefined && BigInt(estimate) > BigInt(task.capLeftMicros)) {
-          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatMicros(estimate)}, more than the ${formatMicros(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
+          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatUsd(estimate)}, more than the ${formatRate(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
         }
         checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now),tx);
         const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);

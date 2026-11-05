@@ -1,3 +1,4 @@
+import { formatRate, formatUsd } from '../../../owner-format.ts';
 import { caNamedTokens } from '../../playbooks/ca-firm/draft-references.ts';
 // Chausar delivery harness: the bounded agent loop. Act turns on the cheap tier call tools; a write step on the main
 // tier writes the reply with tools off. Limits: turns, tool calls, calls per turn and spend. Older tool results
@@ -13,7 +14,7 @@ import { caNamedTokens } from '../../playbooks/ca-firm/draft-references.ts';
 // The run's spend cap is held before each model call: the call that would cross it is refused before it is sent, and
 // Today asks the owner for one more window. While calls wait for the owner, each turn is told they have not run.
 import { ChausarError, check } from '../../../contracts.ts';
-import { assertNoNumbers, formatMicros, tidyWords } from '../../records.ts';
+import { assertNoNumbers, tidyWords } from '../../records.ts';
 import { REQUIRED_SECTIONS } from '../../contracts.ts';
 import type {
   AuditRound, ClaimProof, DelegateCli, Deliverable, ExecutionOutcome, HarnessLimits, HarnessState, IsoTime, Json, MicroString, ModelTask, PlaybookRecord, PolicyHold, ServiceType, ToolEnvelope, ToolName,
@@ -471,7 +472,7 @@ export function capShortfall(state: Pick<HarnessState, 'limits' | 'capWindows' |
 /** Refuses, before it is sent, the call that would take the run past its cap. Today then asks for one more window. */
 export function reserveRunCall(state: Pick<HarnessState, 'limits' | 'capWindows' | 'used'>, estimateMicros: MicroString): void {
   if (capShortfall(state, estimateMicros) === null) return;
-  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatMicros(estimateMicros)}, which would take this run past its spend cap of ${formatMicros(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this run on Today to go on.`);
+  throw new ChausarError('RUN_CAP_REACHED', `This step could cost up to ${formatUsd(estimateMicros)}, which would take this run past its spend cap of ${formatRate(String(runCapMicros(state)))}, so it was not sent. Allow more spend for this run on Today to go on.`);
 }
 
 /** One more window for the run: whole windows of its own cap, enough for the call that waits. Null when it fits. */

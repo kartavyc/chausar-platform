@@ -9,6 +9,7 @@ import { socialRevisionReceipt } from '../playbooks/social/revision-receipt.ts';
 import { ChausarError, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { digest, findRecord, formatMicros, listRecords } from '../records.ts';
+import { formatMoney, formatRate, formatUsd } from '../../owner-format.ts';
 import type {
   BlueprintRecord, DeliveryRunRecord, Display, IsoTime, Offer, RowFigure, RowFigureReceipt, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -55,8 +56,19 @@ export function offerPriceText(offer: Offer | undefined, currency: string): stri
 const usd = (key: string, label: string, micros: string, display: Display = formatMicros(micros)): RowFigure =>
   ({ key, label, amount: micros, unit: 'micros', currency: 'USD', display });
 
+/**
+ * One-shot B2: the owner form of each figure, so a card that says "$0.15" or "₹2,000" is proved by a receipt whose rows
+ * keep the exact form ("USD 0.1500", "INR 2,000.00"). Both name the same amount.
+ */
+function ownerForms(figure: RowFigure): string[] {
+  if (!/^-?\d+$/.test(figure.amount)) return [];
+  if (figure.unit === 'micros' && figure.currency === 'USD' && !figure.amount.startsWith('-')) return [formatUsd(figure.amount), formatRate(figure.amount)];
+  if (figure.unit === 'minor') { try { return [formatMoney(figure.amount, figure.currency)]; } catch { return []; } }
+  return [];
+}
+
 function receiptOf(venture: VentureRecord, id: string, subject: RowFigureReceipt['subject'], at: IsoTime, figures: RowFigure[], explanation: string, stale: boolean): RowFigureReceipt {
-  const allowedNumbers = [...new Set(figures.flatMap(figure => moneyIn(figure.display)))];
+  const allowedNumbers = [...new Set(figures.flatMap(figure => [...moneyIn(figure.display), ...ownerForms(figure).flatMap(moneyIn)]))];
   return {
     id, kind: 'row-figure', ventureId: venture.id, at, operation: 'venture.row-figure', subject, figures, allowedNumbers, explanation,
     digest: digest({ id, figures: figures.map(figure => [figure.key, figure.unit, figure.amount]) }), stale,

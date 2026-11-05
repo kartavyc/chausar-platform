@@ -223,10 +223,10 @@ test('price: a spend quote shows its figure with a receipt; the receipt goes sta
   await assert.rejects(paidCall(env.deps, owner, { key: 'render-1', item: 'connector:fal', label: 'Thumbnail render', payer: 'connector:fal', draftDigest: 'b'.repeat(64), list: FAL }, async () => ({ value: 'x', billedMicros: null })), code('QUOTE_WAITING'));
   const [quote] = kindOf(await list(env), 'quote');
   const [stored] = listRecords(env.store.read(), 'venture-spend-quote');
-  assert.deepEqual(quote.price, { display: 'USD 0.1500', receiptId: `fig:quote:${stored.id}`, line: 'Nothing spent yet' });
+  assert.deepEqual(quote.price, { display: '$0.15', receiptId: `fig:quote:${stored.id}`, line: 'Nothing spent yet' });
   await assertAmountsProved(env, quote);
   const served = await receipt(env, `fig:quote:${stored.id}`);
-  assert.deepEqual(served.figures.map(figure => [figure.label, figure.display]), [['It may cost', 'USD 0.1500']]);
+  assert.deepEqual(served.figures.map(figure => [figure.label, figure.display]), [['It may cost', '$0.15']]);
   assert.equal((await decide(env, quote, 'approve')).outcome, 'done');
   assert.equal((await receipt(env, `fig:quote:${stored.id}`)).stale, true);
 });
@@ -266,7 +266,7 @@ test('amounts: the spend notice states this month\'s spend and the limit, in rup
   const alert = (await list(env)).find(row => row.id.startsWith('spend:alert:'))!;
   assert.ok(alert, 'the spend notice is on Today');
   const id = 'fig:spend:2026-10';
-  assert.deepEqual(alert.amounts?.map(amount => [amount.text, amount.receiptId]), [['USD 0.1500', id], ['USD 0.1600', id], ['₹12.53', id], ['₹13.36', id], ['₹83.50', id], ['$1', id]]);
+  assert.deepEqual(alert.amounts?.map(amount => [amount.text, amount.receiptId]), [['$0.15', id], ['$0.16', id], ['₹12.53', id], ['₹13.36', id], ['₹83.50', id], ['$1', id]]);
   await assertAmountsProved(env, alert);
   const served = await receipt(env, id);
   assert.deepEqual([served.subject, served.stale], [{ type: 'month-spend', recordId: '2026-10' }, false]);
