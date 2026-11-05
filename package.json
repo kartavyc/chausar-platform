@@ -20,6 +20,8 @@
     "desktop": "node scripts/desktop-launch.mjs --demo",
     "test": "node --test platform/tests/*.test.ts",
     "check": "node scripts/check.mjs",
+    "format": "biome format --write",
+    "format:check": "biome format",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/check.mjs && node --test platform/tests/*.test.ts",
     "prebuild": "npm run build:ui",
