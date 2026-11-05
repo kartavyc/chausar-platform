@@ -6,6 +6,7 @@ import { Count, Figure } from './Figure';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
 import s from './ApprovalMeta.module.css';
+import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 
 /**
  * W4 4J19: what the engine says about a Today row beyond its title and line (4J1's views/row-meta.ts, 4J16's quote
@@ -26,8 +27,8 @@ function amountsIn(row: QueueRow, where: Where, index?: number): QueueAmount[] {
     .sort((a, b) => a.start - b.start);
 }
 
-/** An amount anywhere in a text (the money rule's own test, tests/helpers/ink-rules.ts MONEY). */
-const HOLDS_AMOUNT = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d/;
+/** An amount anywhere in a text: the one money pattern (owner-format.ts HOLDS_MONEY, B2), as the money rule uses. */
+const HOLDS_AMOUNT = HOLDS_MONEY;
 
 /**
  * A field's text with each amount the engine proved drawn as a Figure at its exact offsets. `proved` is true when every

@@ -28,16 +28,16 @@ export const FAKE_PREVIEWS: Readonly<Record<string, QueuePreview>> = {
   },
   'q-invoice-mehta': {
     kind: 'paper', paper: 'invoice', title: 'TAX INVOICE (draft)', from: 'Ledgerline', to: 'Mehta Traders',
-    lines: [{ label: 'Monthly books, September', quantity: '1', unit: '₹16,000.00', value: '₹16,000.00', ...price }],
-    subtotal: { label: 'Subtotal', value: '₹16,000.00', ...price },
-    taxLines: [{ label: 'CGST at 9%', value: '₹1,440.00', ...price }, { label: 'SGST at 9%', value: '₹1,440.00', ...price }],
-    total: { label: 'Total', value: '₹18,880.00', ...price },
+    lines: [{ label: 'Monthly books, September', quantity: '1', unit: '₹16,000', value: '₹16,000', ...price }],
+    subtotal: { label: 'Subtotal', value: '₹16,000', ...price },
+    taxLines: [{ label: 'CGST at 9%', value: '₹1,440', ...price }, { label: 'SGST at 9%', value: '₹1,440', ...price }],
+    total: { label: 'Total', value: '₹18,880', ...price },
     due: { days: 15, date: '2026-11-05', display: 'Due in 15 days' },
   },
   // The working's figures are the CA receipt's own (fixtures-extras.ts CA_RECEIPTS w-gst-sep).
   'q-signoff-gst': {
     kind: 'paper', paper: 'working', title: 'GST working for September', client: 'Mehta Traders',
-    working: [{ label: 'Output IGST', value: 'INR 900.00', ...gst }, { label: 'Net payable', value: 'INR 2,825.00', ...gst }],
+    working: [{ label: 'Output IGST', value: '₹900', ...gst }, { label: 'Net payable', value: '₹2,825', ...gst }],
     more: 0, signer: { name: 'Meera Joshi', state: 'to-send' },
   },
   'q-question-title': {

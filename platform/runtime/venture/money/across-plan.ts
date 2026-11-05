@@ -4,8 +4,7 @@
 // With open, the open business's own amounts come from its records as of now; each other business's figure is what
 // its summary saved, with when, and never changes. Nothing here is a model number.
 import type { State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
-import { formatUsd } from '../../owner-format.ts';
+import { formatUsd, formatMoney } from '../../owner-format.ts';
 import type { AcrossFigureId, CountryProfile, IsoTime, SumReceiptSubject, VentureRecord } from '../contracts.ts';
 import { formatVentureDate } from '../records.ts';
 import { localDayAt, ownerClock } from '../local-day.ts';
@@ -40,7 +39,7 @@ function openPlan(state: State, venture: VentureRecord, subject: AcrossSubject):
  */
 export function acrossPlan(state: State, venture: VentureRecord, subject: AcrossSubject): SumPlan {
   const unit = subject.what === 'spend' ? 'micros' as const : 'minor' as const;
-  const shown = (amount: string) => (unit === 'micros' ? formatUsd(amount) : formatMinor(amount, subject.currency));
+  const shown = (amount: string) => (unit === 'micros' ? formatUsd(amount) : formatMoney(amount, subject.currency));
   const own: Addend[] = subject.open
     ? openPlan(state, venture, subject).addends.map(item => ({ ...item, label: `${venture.workingName}: ${item.label}` }))
     : [];

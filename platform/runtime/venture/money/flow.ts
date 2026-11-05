@@ -6,8 +6,8 @@
 // in rupees at the owner's own rate and labelled with that rate; without a rate (or for a business that keeps its books
 // in another currency) it is left out and the month and the total say so, never counted as zero. Each figure has its
 // own sum receipt; bars are per mille of the largest month; a side with nothing recorded is null. Money in BigInt.
+import { formatMoney } from '../../owner-format.ts';
 import type { Context, Fact, State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { BOOKS_SOURCE_ID, exactPayload, formatVentureDate, listRecords, readVenture, smallInteger } from '../records.ts';
 import type { FlowMonthView, FlowView, IsoDate, KindedFigure, SpendRecord, SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
 import { calendarMonth, todayLocal } from './dates.ts';
@@ -44,7 +44,7 @@ export function costsOut(state: State, venture: VentureRecord, from: IsoDate, to
 /** A cost fact as an addend: its words and day, at what left the bank. */
 export function costAddend(venture: VentureRecord, cost: CostOut): Addend {
   const words = typeof cost.fact.fields.description === 'string' && cost.fact.fields.description.trim() ? cost.fact.fields.description.trim() : 'A cost';
-  return { recordId: cost.fact.id, label: `${words}, ${formatVentureDate(cost.fact.validFrom, venture.country.dateOrder)}`, amount: String(cost.cash), display: formatMinor(cost.cash, venture.country.currency), estimate: false };
+  return { recordId: cost.fact.id, label: `${words}, ${formatVentureDate(cost.fact.validFrom, venture.country.dateOrder)}`, amount: String(cost.cash), display: formatMoney(cost.cash, venture.country.currency), estimate: false };
 }
 
 /**
@@ -58,7 +58,7 @@ export function callAddend(item: { record: SpendRecord; micros: bigint; estimate
   const paise = microsToPaise(String(item.micros), rupees.rate.perUsd);
   return {
     recordId: item.record.id, label: `${item.record.label}${item.estimate ? ' (estimate)' : ''} at ${rupeeRateWords(rupees)}`,
-    amount: String(paise), display: formatMinor(paise, 'INR'), estimate: item.estimate, rupeeRate: rupees.rate.perUsd,
+    amount: String(paise), display: formatMoney(paise, 'INR'), estimate: item.estimate, rupeeRate: rupees.rate.perUsd,
   };
 }
 
@@ -96,7 +96,7 @@ export function flowPlan(state: State, venture: VentureRecord, subject: Extract<
   const { from, to } = calendarMonth(subject.month);
   const ins = receivedPlan(state, venture, from, to).addends;
   const outs = [...costsOut(state, venture, from, to).map(cost => costAddend(venture, cost)), ...aiSpendOut(state, venture, subject.month).addends];
-  const negate = (addend: Addend): Addend => ({ ...addend, label: `Out: ${addend.label}`, amount: String(-BigInt(addend.amount)), display: formatMinor(-BigInt(addend.amount), country.currency) });
+  const negate = (addend: Addend): Addend => ({ ...addend, label: `Out: ${addend.label}`, amount: String(-BigInt(addend.amount)), display: formatMoney(-BigInt(addend.amount), country.currency) });
   const addends = subject.part === 'in' ? ins : subject.part === 'out' ? outs : [...ins.map(addend => ({ ...addend, label: `In: ${addend.label}` })), ...outs.map(negate)];
   const words = PART_WORDS[subject.part];
   return {

@@ -35,7 +35,7 @@ describe('Money > Spend: each agent and routine', () => {
     const editor = within(panel).getByText('Editor').closest('li')!;
     // The sample has the owner's rupee rate, so rupees lead and the dollars sit beside them.
     expect(editor.textContent).toContain('₹42.10 this month');
-    expect(editor.textContent).toContain('USD 0.50');
+    expect(editor.textContent).toContain('$0.50');
     expect(editor.textContent).toContain('No limit of its own');
     expect(within(editor).getByRole('button', { name: receiptMark('R-0451') })).toBeTruthy();
     const researcher = within(panel).getByText('Researcher').closest('li')!;
@@ -53,7 +53,7 @@ describe('Money > Spend: each agent and routine', () => {
     await click(within(editor).getByRole('button', { name: 'Save limit' }));
     expect(calls.find(([method]) => method === 'venture.spend.policy.set')?.[1]).toEqual({ agentCaps: [{ agent: 'editor', capUsd: '0.50' }] });
     const saved = (await within(panel).findByText('Paused: it reached its limit. Other work goes on.')).closest('li')!;
-    expect(saved.textContent).toContain('USD 0.5000 a month');
+    expect(saved.textContent).toContain('$0.50 a month');
     expect(within(saved).getByRole('button', { name: 'Change limit' })).toBeTruthy();
   });
 

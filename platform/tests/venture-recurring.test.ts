@@ -15,8 +15,8 @@ import { VentureHost } from '../runtime/venture/host.ts';
 import { DAY, goalBusiness, invoice } from './venture-goals-helpers.ts';
 import { call, code, owner, phone } from './venture-views-env.ts';
 
-// The business: 23 October 2026, 15:30 in Kolkata. INR 19,750.00 a month before tax; with CGST and SGST at 9% each
-// (177750 each) a month is 2330500 (INR 23,305.00).
+// The business: 23 October 2026, 15:30 in Kolkata. ₹19,750 a month before tax; with CGST and SGST at 9% each
+// (177750 each) a month is 2330500 (₹23,305).
 
 async function business(options: { price?: string | null } = {}) {
   const env = await goalBusiness(options);
@@ -230,23 +230,23 @@ test('every invoice has one next action by its state and a short timeline: issue
   });
   await env.money('venture.payment.record', { invoiceId: id, amount: '1000', receivedOn: '2026-10-12', method: 'cheque' });
   const view = await env.get(id);
-  // Left: 2330500 - 500000 - 233050 = 1597450 (INR 15,974.50); the cheque for 100000 waits.
+  // Left: 2330500 - 500000 - 233050 = 1597450 (₹15,974.50); the cheque for 100000 waits.
   assert.deepEqual(view.timeline?.map(item => [item.what, item.on, item.line]), [
     ['issued', '2026-10-01', 'Issued on 1 Oct 2026'],
-    ['paid', '2026-10-05', 'Paid INR 5,000.00 by UPI on 5 Oct 2026, marked paid by you'],
-    ['cheque', '2026-10-12', 'Cheque for INR 1,000.00 received on 12 Oct 2026, waiting to clear'],
-    ['credited', '2026-10-23', 'Credit note CN-0001 for INR 2,330.50 on 23 Oct 2026'],
+    ['paid', '2026-10-05', 'Paid ₹5,000 by UPI on 5 Oct 2026, marked paid by you'],
+    ['cheque', '2026-10-12', 'Cheque for ₹1,000 received on 12 Oct 2026, waiting to clear'],
+    ['credited', '2026-10-23', 'Credit note CN-0001 for ₹2,330.50 on 23 Oct 2026'],
     ['reminded', '2026-10-23', 'Reminder sent on 23 Oct 2026'],
-    ['awaiting', '2026-10-16', 'Awaiting INR 15,974.50, due 16 Oct 2026'],
+    ['awaiting', '2026-10-16', 'Awaiting ₹15,974.50, due 16 Oct 2026'],
   ]);
-  assert.deepEqual(view.next, { action: 'clear', line: 'A cheque for INR 1,000.00 is waiting to clear. Mark it cleared once it is in your bank.' });
+  assert.deepEqual(view.next, { action: 'clear', line: 'A cheque for ₹1,000 is waiting to clear. Mark it cleared once it is in your bank.' });
   const listed = (await env.money<(InvoiceView['invoice'] & { next?: unknown })[]>('venture.invoice.list')).find(item => item.id === id)!;
   assert.deepEqual(listed.next, view.next);
 
   const settled = await invoice(env, '1', '2026-10-02');
   const done = await env.money<InvoiceView>('venture.payment.record', { invoiceId: settled.invoice.id, amount: '23305', receivedOn: '2026-10-09', method: 'bank-transfer' });
   assert.deepEqual(done.next, { action: 'none', line: 'Paid in full.' });
-  assert.deepEqual(done.timeline?.map(item => item.line), ['Issued on 2 Oct 2026', 'Paid INR 23,305.00 by bank transfer on 9 Oct 2026', 'Paid in full']);
+  assert.deepEqual(done.timeline?.map(item => item.line), ['Issued on 2 Oct 2026', 'Paid ₹23,305 by bank transfer on 9 Oct 2026', 'Paid in full']);
 });
 
 // ---------------------------------------------------------------------------

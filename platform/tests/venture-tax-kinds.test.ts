@@ -34,7 +34,7 @@ test('TDS the client deducts settles the invoice pending the certificate, and is
   const issued = await invoice(env, '1', '2026-10-01');
   const id = issued.invoice.id;
   const pay = (extra: Record<string, unknown>) => env.money<InvoiceView>('venture.payment.record', { invoiceId: id, receivedOn: '2026-10-20', method: 'bank-transfer', ...extra });
-  // TDS at 10% on the amount before tax: 1975000 x 1000 / 10000 = 197500 (INR 1,975.00). Cash: 2330500 - 197500 = 2133000.
+  // TDS at 10% on the amount before tax: 1975000 x 1000 / 10000 = 197500 (₹1,975). Cash: 2330500 - 197500 = 2133000.
   await assert.rejects(pay({ amount: '21330.01', tds: { section: '194J', amount: '1975' } }), code('PAYMENT_TOO_LARGE')); // 2133001 + 197500 > 2330500
   await assert.rejects(pay({ amount: '21330', tds: { section: '', amount: '1975' } }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(pay({ amount: '21330', tds: { section: '194J; drop', amount: '1975' } }), code('INVALID_VENTURE_REQUEST'));
@@ -43,8 +43,8 @@ test('TDS the client deducts settles the invoice pending the certificate, and is
   const view = await pay({ amount: '21,330', tds: { section: '194J', amount: '1,975' } });
   assert.deepEqual([view.invoice.paidMinor, view.invoice.balanceMinor, view.invoice.status], ['2330500', '0', 'paid']);
   assert.deepEqual([view.payments[0].amountMinor, view.payments[0].tds], ['2133000', { section: '194J', amountMinor: '197500' }]);
-  assert.ok(view.notes.includes('TDS INR 1,975.00 under 194J, to be shown on the client\'s TDS certificate.'));
-  assert.deepEqual(view.timeline?.map(item => item.line).slice(1, 2), ['Paid INR 21,330.00 by bank transfer on 20 Oct 2026, and TDS INR 1,975.00 under 194J to be shown on the client\'s TDS certificate']);
+  assert.ok(view.notes.includes('TDS ₹1,975 under 194J, to be shown on the client\'s TDS certificate.'));
+  assert.deepEqual(view.timeline?.map(item => item.line).slice(1, 2), ['Paid ₹21,330 by bank transfer on 20 Oct 2026, and TDS ₹1,975 under 194J to be shown on the client\'s TDS certificate']);
   // Received is the cash: 2133000. The books' payment fact says the same, with the TDS beside it.
   assert.deepEqual(receivedPlan(env.store.read(), env.venture, '2026-10-20', '2026-10-20').addends.map(item => item.amount), ['2133000']);
   const fact = env.store.read().facts.find(item => item.kind === 'payment')!;
@@ -53,7 +53,7 @@ test('TDS the client deducts settles the invoice pending the certificate, and is
 });
 
 test('a tax-included price is split in BigInt into the amount before tax and the tax, with the rule on the receipt', async () => {
-  // INR 999.00 with GST included. Before tax per unit: (99900 x 10000 x 2 + 11800) / (2 x 11800) = 84661 (84,661.52 down);
+  // ₹999 with GST included. Before tax per unit: (99900 x 10000 x 2 + 11800) / (2 x 11800) = 84661 (84,661.52 down);
   // tax 99900 - 84661 = 15239; CGST (15239 + 1) / 2 = 7620, SGST 15239 - 7620 = 7619. The total stays 99900.
   const env = await goalBusiness({ price: '99900' });
   const made = await order(env, { taxInclusive: true });
@@ -66,7 +66,7 @@ test('a tax-included price is split in BigInt into the amount before tax and the
   assert.equal(receipt.figures[0].label, 'Price per month, GST included');
   assert.ok(receipt.steps.some(step => step.rule === 'tax included in the price: the amount before tax per unit is the price times 10000 over 10000 plus the rate, rounded half up to the minor unit, times the quantity; the tax is the rest, so the total stays the price'));
   assert.ok(receipt.steps.some(step => step.rule === 'CGST is half the tax, rounded half up to the minor unit; SGST is the rest, so the two add up to the tax exactly'));
-  assert.equal(receipt.explanation, '1 x month at INR 999.00 with GST included: INR 846.61 before tax, CGST at 9% (INR 76.20) and SGST at 9% (INR 76.19) = INR 999.00.');
+  assert.equal(receipt.explanation, '1 x month at ₹999 with GST included: ₹846.61 before tax, CGST at 9% (₹76.20) and SGST at 9% (₹76.19) = ₹999.');
 
   const view = await prepare(env, made.id);
   assert.deepEqual(view.invoice.lines, [{ description: 'Monthly books (price includes GST)', quantity: '1', unitMinor: '84661', amountMinor: '84661', taxRateBps: '1800' }]);
@@ -119,7 +119,7 @@ test('a rate change shows on drafts only; a draft keeps the rate charged until y
 });
 
 test('a tax-included split a minor unit off the rate: the line takes the difference when that is exact, else the receipt says why', async () => {
-  // INR 100.01 with GST included, 2 months. Per unit before tax (10001 x 10000 x 2 + 11800) / 23600 = 8475; x 2 = 16950,
+  // ₹100.01 with GST included, 2 months. Per unit before tax (10001 x 10000 x 2 + 11800) / 23600 = 8475; x 2 = 16950,
   // which leaves 20002 - 16950 = 3052 of tax, one more than 16950 x 18% (30,510,000 + 5000, / 10000 = 3051). The line takes
   // the paisa: 16951 before tax, 3051 of tax (16951 x 1800 = 30,511,800; + 5000, / 10000 = 3051); CGST 1526, SGST 1525.
   const env = await goalBusiness({ price: '10001' });
@@ -134,7 +134,7 @@ test('a tax-included split a minor unit off the rate: the line takes the differe
   const exact = await prepare(env, (await order(env, { taxInclusive: true, quantity: '1' })).id);
   assert.doesNotMatch(exact.documentText, /Unit price shown rounded/, 'a line that multiplies exactly has no note');
 
-  // INR 100.00 with GST included: 8475 before tax leaves 1525 of tax, while 8475 x 18% rounds to 1526; no amount before tax
+  // ₹100 with GST included: 8475 before tax leaves 1525 of tax, while 8475 x 18% rounds to 1526; no amount before tax
   // gives exactly 10000 (8474 gives 8474 + 1525 = 9999; 8475 gives 8475 + 1526 = 10001), so the tax stays the rest, and says so.
   const flat = await goalBusiness({ price: '10000' });
   const one = await prepare(flat, (await order(flat, { taxInclusive: true })).id);

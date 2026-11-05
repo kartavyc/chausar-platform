@@ -324,18 +324,18 @@ test('a figure that moved sharply: weekly received with a z-score over 3 on at l
   assert.ok(row, 'seven points are enough');
   assert.equal(subjectOf(row), 'probe:moved:received');
   assert.equal(row.title, 'Money received moved sharply');
-  assert.equal(row.line, 'Moved sharply this week: INR 9,000.00 received so far, against INR 1,029.00 a week on average over the 7 weeks before.');
+  assert.equal(row.line, 'Moved sharply this week: ₹9,000 received so far, against ₹1,029 a week on average over the 7 weeks before.');
   assert.equal(row.notice!.severity, 'medium');
   assert.equal(row.notice!.link, '#/money');
   // Both figures carry their receipts, worked out again by code on every read.
   assert.deepEqual(row.amounts?.map(amount => [amount.text, amount.receiptId]), [
-    ['INR 9,000.00', 'fig:week:received:2026-10-12'], ['INR 1,029.00', 'fig:weeks:received:2026-08-24:2026-10-05'],
+    ['₹9,000', 'fig:week:received:2026-10-12'], ['₹1,029', 'fig:weeks:received:2026-08-24:2026-10-05'],
   ]);
   const week = await getReceipt(env.deps, owner, { id: 'fig:week:received:2026-10-12' }) as RowFigureReceipt;
-  assert.deepEqual(week.figures.map(figure => [figure.key, figure.amount, figure.display]), [['total', '900000', 'INR 9,000.00']]);
+  assert.deepEqual(week.figures.map(figure => [figure.key, figure.amount, figure.display]), [['total', '900000', '₹9,000']]);
   assert.equal(week.stale, false);
   const usual = await getReceipt(env.deps, owner, { id: 'fig:weeks:received:2026-08-24:2026-10-05' }) as RowFigureReceipt;
-  assert.equal(usual.figures.at(-1)!.display, 'INR 1,029.00');
+  assert.equal(usual.figures.at(-1)!.display, '₹1,029');
   assert.equal(usual.figures.length, 8, 'each of the 7 weeks, then the average');
   await assert.rejects(getReceipt(env.deps, owner, { id: 'fig:week:sideways:2026-10-12' }), code('RECEIPT_NOT_FOUND'));
 });
@@ -364,7 +364,7 @@ test('billed moves too: invoices issued in a week, before tax', async () => {
   await invoice('2026-10-12', '2000000', 'INV-9');
   const [row] = await ofProbe(env, 'moved');
   assert.equal(row?.title, 'Money billed moved sharply');
-  assert.match(row.line!, /^Moved sharply this week: INR 20,000\.00 billed so far, before tax, against INR 1,900\.00 a week on average over the 8 weeks before\.$/);
+  assert.match(row.line!, /^Moved sharply this week: ₹20,000 billed so far, before tax, against ₹1,900 a week on average over the 8 weeks before\.$/);
 });
 
 test('a stalled client: "No reply from Asha in 14 days" on a Talking card, and an open quote 14 days unanswered', async () => {

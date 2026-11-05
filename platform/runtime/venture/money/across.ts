@@ -10,6 +10,7 @@ import type {
   AcrossFigureId, AcrossLeftOut, AcrossLineKey, AcrossMoneyView, BusinessSnapshot, BusinessSnapshotRead, Display, SnapshotFigure, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { currentVenture, exactPayload, readVenture } from '../records.ts';
+import { formatMoney, formatUsd } from '../../owner-format.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { blocklistOf } from '../network/pipeline.ts';
 import { runsListHandler } from '../views/runs.ts';
@@ -204,8 +205,8 @@ export async function moneyAcross(deps: VentureDeps, ctx: Context, payload: unkn
     const saved = snapshot.money;
     rows.push({
       businessId: read.id, name, open: false, locked: false, asOf: snapshot.asOf, line: saved ? line : `${line} ${SETTING_UP_LINE}`, lineKey: saved ? 'as-of' : 'as-of-setting-up',
-      invoiced: saved?.invoiced.display ?? null, received: saved?.received.display ?? null, owed: saved?.owed.display ?? null,
-      late: saved?.late ?? null, spend: saved?.spend.display ?? null, ...inRupees(saved?.spend, false),
+      invoiced: savedWords(saved?.invoiced), received: savedWords(saved?.received), owed: savedWords(saved?.owed),
+      late: saved?.late ?? null, spend: savedWords(saved?.spend), ...inRupees(saved?.spend, false),
       ...(saved ? { receipts: await savedReceipts(deps, ctx, venture, snapshot) } : {}),
     });
     if (!saved) left.push({ businessId: read.id, name, why: 'setting-up', month: null });
@@ -225,4 +226,13 @@ export async function moneyAcross(deps: VentureDeps, ctx: Context, payload: unkn
   const receipt = await sumReceipt(deps, ctx, venture.id, acrossPlan(deps.store.read(), venture, subject));
   const line: Display = `Invoiced in ${monthWords(month)} ${parts === 1 ? 'in 1 business' : `across ${parts} businesses`}.${notCounted}`;
   return { ...base, total: { display: receipt.figures[0].display, receiptId: receipt.id }, lineKey: 'counted', line };
+}
+
+/**
+ * A saved figure from another business in the owner form, worked out from its amount (B2): a summary saved before the
+ * owner form still says "INR 45,000.00" in its display, and the amount is the same either way.
+ */
+export function savedWords(figure: { amount: string; unit: 'minor' | 'micros'; currency: string; display: string } | undefined): string | null {
+  if (!figure) return null;
+  try { return figure.unit === 'micros' ? formatUsd(figure.amount) : formatMoney(figure.amount, figure.currency); } catch { return figure.display; }
 }

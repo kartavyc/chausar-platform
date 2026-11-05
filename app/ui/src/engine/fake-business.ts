@@ -1,5 +1,6 @@
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
-import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { resetCountry } from './fake-country-plan';
 import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
 import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
@@ -76,15 +77,6 @@ const SYNTHETIC = 'These answers come from a synthetic recording of GitHub, not 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const told = (value: string) => ({ value, label: 'told-by-you' as const, by: 'owner' as const });
 
-/** Indian grouping for the sample: '1500000' gives '₹15,00,000.00'. Text work only; the real engine formats minor units. */
-function rupees(typed: string): string {
-  const [whole = '0', fraction = ''] = typed.split('.');
-  const last = whole.slice(-3);
-  const rest = whole.slice(0, -3);
-  const grouped = rest ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${last}` : last;
-  return `₹${grouped}.${`${fraction}00`.slice(0, 2)}`;
-}
-
 export class FakeBusinessDesk {
   private readonly host: DeskHost;
   private models: Record<string, ModelStatusLite>;
@@ -94,7 +86,7 @@ export class FakeBusinessDesk {
   private builds: Record<string, BuildStatusView>;
   private receipts: ReceiptLite[];
   /** What each priced offer costs, as the engine would show it, by business and offer. */
-  private prices: Record<string, string> = { 'lumen:offer_sponsor': '₹15,000.00', 'ledgerline:offer_books': '₹16,000.00', 'ledgerline:offer_gst': '₹5,000.00' };
+  private prices: Record<string, string> = { 'lumen:offer_sponsor': '₹15,000', 'ledgerline:offer_books': '₹16,000', 'ledgerline:offer_gst': '₹5,000' };
   /** 4J8: how many offers each business's owner has added, so an added offer's id is never reused. */
   private ownerOffers: Record<string, number> = {};
   private seq = 0;
@@ -425,7 +417,7 @@ export class FakeBusinessDesk {
         if (!new RegExp('^\\d{1,9}' + (digits ? '(\\.\\d{1,' + digits + '})?' : '') + '$').test(typed) || /^0+(\.0+)?$/.test(typed)) throw new EngineError('INVALID_AMOUNT', 'Type a positive price using the currency’s decimal places.');
         offer.pricing.unitPriceMinor = decimalMinor(typed, country.currency);
         offer.pricing.unitPriceLabel = 'told-by-you';
-        typedPrices[offer.id] = country.currency === 'INR' ? rupees(typed) : formatMinor(offer.pricing.unitPriceMinor, country.currency);
+        typedPrices[offer.id] = formatMoney(offer.pricing.unitPriceMinor, country.currency);
       }
       // 5A2 (money/share-price.ts applyShareChange): a share in place of a fixed price; a fixed price takes it away.
       if (change.share !== undefined) {
@@ -494,7 +486,7 @@ export class FakeBusinessDesk {
       return `${bps.slice(0, -2).replace(/^0+(?=\d)/, '')}${fraction ? `.${fraction}` : ''}% of the amount your client confirms`;
     }
     if (!offer || offer.pricing.unitPriceMinor === null) return 'Not set';
-    return `${this.prices[key] ?? rupees(offer.pricing.unitPriceMinor.slice(0, -2) || '0')} per ${offer.pricing.quantityUnit}`;
+    return `${this.prices[key] ?? formatMoney(offer.pricing.unitPriceMinor, 'INR')} per ${offer.pricing.quantityUnit}`;
   }
 
   /** The engine's plan row (views/queue.ts planRows): one per business, for the latest draft version. */
@@ -535,8 +527,12 @@ export class FakeBusinessDesk {
     const quantity = BigInt(quantityText);
     // The fake computes paise here, where the engine computes them, and sends both the raw total and its display.
     // Tax follows the existing sample receipt only; other tax settings retain the explicit manual limitation below.
-    const showMinor = (minor: bigint) => view.blueprint.backOffice.currency === 'INR' ? rupees(`${minor / 100n}.${String(minor % 100n).padStart(2, '0')}`) : formatMinor(minor, view.blueprint.backOffice.currency);
-    const readSampleMinor = (display: string) => BigInt(display.replace(/[^0-9]/g, ''));
+    const showMinor = (minor: bigint) => formatMoney(minor, view.blueprint.backOffice.currency);
+    // B2: a sample figure reads in the owner form, so paise show only when it has some ("₹15,000", "₹15,000.50").
+    const readSampleMinor = (display: string) => {
+      const found = /(\d[\d,]*)(?:\.(\d{2}))?/.exec(display);
+      return found ? BigInt(`${found[1]!.replace(/,/g, '')}${found[2] ?? '00'}`) : 0n;
+    };
     const unit = BigInt(offer.pricing.unitPriceMinor);
     const display = this.prices[`${biz}:${offer.id}`] ?? showMinor(unit);
     const taxed = view.blueprint.backOffice.taxRegistered.value;

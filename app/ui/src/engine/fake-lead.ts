@@ -4,7 +4,7 @@
  * than two decimals of dollars, and the other currency beneath it at the owner's rate. The UI computes none of this.
  */
 
-import { formatUsd } from '../../../../platform/runtime/owner-format';
+import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { EngineError, type CurrencyLead, type SpendLead } from './types';
 
 /** The owner's choices, as the engine's CURRENCY_LEADS; anything else is refused in the engine's words. */
@@ -26,7 +26,7 @@ export function dollarsLead(micros: number | string | bigint): string {
 /** Micro-dollars as rupees at a rate in ten-thousandths, to the nearest paisa, a half paisa up ('₹60.10'). */
 function rupeeFigure(micros: bigint, perUsd: bigint): string {
   const paise = (micros * perUsd + 50_000_000n) / 100_000_000n;
-  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')}`;
+  return formatMoney(paise, 'INR');
 }
 
 /** A spend figure as it leads, as the engine's spendLead: `perUsd` null when no rate is set (dollars alone). */
@@ -67,7 +67,7 @@ export function rupeesAt(micros: number | string | bigint, rate: SampleRate): st
   return `${rupeeAmount(BigInt(micros), rate.perUsd)} at ${rate.words}`;
 }
 
-/** Micro-dollars as rupees at a rate, as the engine's rupeeFigure ('₹18.00'). */
+/** Micro-dollars as rupees at a rate, as the engine's rupeeFigure ('₹18'). */
 export function rupeeAmount(micros: number | string | bigint, perUsd: bigint): string {
   return rupeeFigure(BigInt(micros), perUsd);
 }

@@ -1,6 +1,7 @@
 import { cx } from './cx';
 import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
+import { HOLDS_MONEY, MONEY_TEXT } from '../../../../platform/runtime/owner-format';
 import s from './Figure.module.css';
 
 /**
@@ -49,10 +50,10 @@ export function proofOf(source: { receiptId?: string | undefined; estimate?: boo
  * figure, set in DM Mono, and the words stay in the body face beside it (w3 3I). Nothing is parsed or worked out: the
  * text is cut once, after the first amount, only when a currency sign or code starts it and words follow.
  */
-const AMOUNT_THEN_WORDS = /^((?:[₹$€]\s?|(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s)\d[\d,]*(?:\.\d+)?)([,;]?\s+\D.*)$/s;
+const AMOUNT_THEN_WORDS = new RegExp(`^(${MONEY_TEXT.source})([,;]?\\s+\\D.*)$`, 's');
 
-/** An amount anywhere in a text (the same test as tests/helpers/ink-rules.ts MONEY). */
-const HOLDS_AMOUNT = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d/;
+/** An amount anywhere in a text: the one money pattern the engine and the money rule use (owner-format.ts, B2). */
+const HOLDS_AMOUNT = HOLDS_MONEY;
 
 export function splitFigure(value: string): { amount: string; words?: string | undefined } {
   const found = AMOUNT_THEN_WORDS.exec(value);

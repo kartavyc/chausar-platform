@@ -105,7 +105,7 @@ export const QUEUE: RowSeed[] = [
   {
     id: 'q-invoice-mehta', businessId: 'ledgerline', businessName: 'Ledgerline', agent: 'Billing', kind: 'invoice', createdAt: '2026-10-21T09:20:00.000Z',
     title: 'Invoice INV-0042 to Mehta Traders', line: 'Monthly books for September, due in 15 days.',
-    change: { label: 'Total', after: '₹18,880.00', receiptId: 'R-0419' },
+    change: { label: 'Total', after: '₹18,880', receiptId: 'R-0419' },
     actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'issue', label: 'Issue', primary: true, secondAsk: true }],
   },
   {
@@ -190,7 +190,7 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
   {
     kind: 'file', id: 'ca-req-gst-sep', businessName: 'Ledgerline', agent: 'Bookkeeper', title: 'GST working for September', line: 'Mehta Traders, worked by the calculator',
     sections: [
-      { heading: 'GST on sales', lines: ['Taxable value ₹16,000.00 (R-0419)', 'CGST at 9% ₹1,440.00 (R-0419)', 'SGST at 9% ₹1,440.00 (R-0419)'] },
+      { heading: 'GST on sales', lines: ['Taxable value ₹16,000 (R-0419)', 'CGST at 9% ₹1,440 (R-0419)', 'SGST at 9% ₹1,440 (R-0419)'] },
       { heading: 'Checks', lines: ['The sales register matches the invoices issued', 'Rates from GST table version 3, waiting for your CA'] },
     ],
   },
@@ -294,7 +294,7 @@ export const AGENTS: Record<string, AgentView[]> = {
       ],
     },
     {
-      id: 'researcher', department: 'marketing', name: 'Researcher', role: 'Titles, hooks and thumbnails', now: 'Checking titles against the last 30 videos', posture: 'shadow', spend: '₹18.00 reserved',
+      id: 'researcher', department: 'marketing', name: 'Researcher', role: 'Titles, hooks and thumbnails', now: 'Checking titles against the last 30 videos', posture: 'shadow', spend: '₹18 reserved',
       last: { line: 'About 18,000 views in 30 days', estimate: true },
       steps: [
         { id: 'titles', purpose: 'Suggest titles', gate: 'auto', floor: false },
@@ -302,14 +302,14 @@ export const AGENTS: Record<string, AgentView[]> = {
       ],
     },
     {
-      id: 'producer', department: 'sales', name: 'Producer', role: 'Sponsors and prices', now: 'Waiting on you', posture: 'approve-each', spend: '₹0.00 this month',
+      id: 'producer', department: 'sales', name: 'Producer', role: 'Sponsors and prices', now: 'Waiting on you', posture: 'approve-each', spend: '₹0 this month',
       last: { line: 'Priced the sponsor slot', receiptId: 'R-0415' },
       steps: [
         { id: 'brief', purpose: 'Read sponsor briefs', gate: 'auto', floor: false },
       ],
     },
     {
-      id: 'publisher', department: 'marketing', name: 'Publisher', role: 'Posts to your channels', now: 'Idle', posture: 'rehearsal', spend: '₹0.00 this month',
+      id: 'publisher', department: 'marketing', name: 'Publisher', role: 'Posts to your channels', now: 'Idle', posture: 'rehearsal', spend: '₹0 this month',
       steps: [{ id: 'post', purpose: 'Post to Instagram', gate: 'hold', floor: true }],
     },
   ],
@@ -334,28 +334,28 @@ export const AGENTS: Record<string, AgentView[]> = {
 
 export const RECEIPTS: ReceiptLite[] = [
   { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
-  { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: 'USD 0.7198' }] },
+  { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: '$0.72' }] },
   { id: 'R-0412', at: '2026-10-21T07:34:00.000Z', explanation: 'Bank lines matched to issued invoices by amount, date and reference.', stale: false, figures: [{ key: 'total', label: 'Lines matched', display: '212 of 214' }] },
   // W6 6G5 (D44): the sums behind the spend meter rows and a run's model receipt, as money/spend-meter.ts spentByPlan words them.
-  { id: 'R-0451', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Model calls for episode 14 USD 0.5041. Added together: USD 0.5041.', stale: false, figures: [{ key: 'total', label: 'AI spend of Editor this month', display: 'USD 0.5041' }] },
-  { id: 'R-0452', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Title comparison, running USD 0.2156 (estimate). Added together: USD 0.2156. Calls not settled yet count at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI spend of Researcher this month', display: 'USD 0.2156' }] },
-  { id: 'R-0453', at: '2026-10-21T10:31:00.000Z', explanation: 'No paid calls.', stale: false, figures: [{ key: 'total', label: 'AI spend this month', display: 'USD 0.0000' }] },
-  { id: 'R-0454', at: '2026-10-21T07:12:00.000Z', explanation: '1 paid call: Claude Sonnet 5.5, delivery USD 0.0412. Added together: USD 0.0412.', stale: false, figures: [{ key: 'total', label: 'AI spend of this run', display: 'USD 0.0412' }] },
+  { id: 'R-0451', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Model calls for episode 14 $0.50. Added together: $0.50.', stale: false, figures: [{ key: 'total', label: 'AI spend of Editor this month', display: '$0.50' }] },
+  { id: 'R-0452', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Title comparison, running $0.22 (estimate). Added together: $0.22. Calls not settled yet count at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI spend of Researcher this month', display: '$0.22' }] },
+  { id: 'R-0453', at: '2026-10-21T10:31:00.000Z', explanation: 'No paid calls.', stale: false, figures: [{ key: 'total', label: 'AI spend this month', display: '$0.00' }] },
+  { id: 'R-0454', at: '2026-10-21T07:12:00.000Z', explanation: '1 paid call: Claude Sonnet 5.5, delivery $0.04. Added together: $0.04.', stale: false, figures: [{ key: 'total', label: 'AI spend of this run', display: '$0.04' }] },
   {
     id: 'R-0415', at: '2026-10-21T10:04:00.000Z', explanation: 'Two mentions at ₹15,000 each, no discount, priced before tax.', stale: false,
-    figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000.00' }, { key: 'subtotal', label: 'Two mentions', display: '₹30,000.00' }, { key: 'total', label: 'Total before tax', display: '₹30,000.00' }],
+    figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000' }, { key: 'subtotal', label: 'Two mentions', display: '₹30,000' }, { key: 'total', label: 'Total before tax', display: '₹30,000' }],
   },
   {
     id: 'R-0419', at: '2026-10-21T09:20:00.000Z', explanation: 'Monthly books at ₹16,000, GST at 18% split as CGST and SGST.', stale: false,
-    figures: [{ key: 'subtotal', label: 'Monthly books', display: '₹16,000.00' }, { key: 'cgst', label: 'CGST at 9%', display: '₹1,440.00' }, { key: 'sgst', label: 'SGST at 9%', display: '₹1,440.00' }, { key: 'total', label: 'Total', display: '₹18,880.00' }],
+    figures: [{ key: 'subtotal', label: 'Monthly books', display: '₹16,000' }, { key: 'cgst', label: 'CGST at 9%', display: '₹1,440' }, { key: 'sgst', label: 'SGST at 9%', display: '₹1,440' }, { key: 'total', label: 'Total', display: '₹18,880' }],
   },
-  { id: 'R-0420', at: '2026-10-21T09:31:00.000Z', explanation: 'Monthly fee for books up to 300 bank lines.', stale: true, figures: [{ key: 'total', label: 'Monthly fee', display: '₹12,000.00' }] },
+  { id: 'R-0420', at: '2026-10-21T09:31:00.000Z', explanation: 'Monthly fee for books up to 300 bank lines.', stale: true, figures: [{ key: 'total', label: 'Monthly fee', display: '₹12,000' }] },
   {
-    id: 'R-0416', at: '2026-10-02T11:00:00.000Z', explanation: 'Two mentions at ₹13,100.00 each, no discount, priced before tax.', stale: false,
-    figures: [{ key: 'unit', label: 'Per mention', display: '₹13,100.00' }, { key: 'subtotal', label: 'Two mentions', display: '₹26,200.00' }, { key: 'total', label: 'Total before tax', display: '₹26,200.00' }],
+    id: 'R-0416', at: '2026-10-02T11:00:00.000Z', explanation: 'Two mentions at ₹13,100 each, no discount, priced before tax.', stale: false,
+    figures: [{ key: 'unit', label: 'Per mention', display: '₹13,100' }, { key: 'subtotal', label: 'Two mentions', display: '₹26,200' }, { key: 'total', label: 'Total before tax', display: '₹26,200' }],
   },
-  { id: 'R-0401', at: '2026-10-01T00:00:00.000Z', explanation: 'Invoices issued in October.', stale: false, figures: [{ key: 'total', label: 'Billed', display: '₹1,12,400.00' }] },
-  { id: 'R-0402', at: '2026-10-01T00:00:00.000Z', explanation: 'Payments recorded in October.', stale: false, figures: [{ key: 'total', label: 'Received', display: '₹86,200.00' }] },
+  { id: 'R-0401', at: '2026-10-01T00:00:00.000Z', explanation: 'Invoices issued in October.', stale: false, figures: [{ key: 'total', label: 'Billed', display: '₹1,12,400' }] },
+  { id: 'R-0402', at: '2026-10-01T00:00:00.000Z', explanation: 'Payments recorded in October.', stale: false, figures: [{ key: 'total', label: 'Received', display: '₹86,200' }] },
   { id: 'R-0403', at: '2026-10-01T00:00:00.000Z', explanation: 'Billed less tax for October.', stale: false, figures: [{ key: 'total', label: 'Earned', display: '₹95,254.24' }] },
 ];
 
@@ -363,21 +363,21 @@ export const BOOKS: Record<string, BooksSummaryLite> = {
   lumen: {
     currency: 'INR', period: { from: '2026-10-01', to: '2026-10-31' },
     figures: [
-      { operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400.00', stale: false },
-      { operation: 'received', label: 'Received', receiptId: 'R-0402', display: '₹86,200.00', stale: false },
+      { operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400', stale: false },
+      { operation: 'received', label: 'Received', receiptId: 'R-0402', display: '₹86,200', stale: false },
       { operation: 'earned', label: 'Earned', receiptId: 'R-0403', display: '₹95,254.24', stale: false },
     ],
-    openInvoices: [{ invoiceId: 'inv-0039', number: 'INV-0039', clientName: 'Boat Audio', balanceDisplay: '₹26,200.00', dueDate: '2026-10-28' }],
+    openInvoices: [{ invoiceId: 'inv-0039', number: 'INV-0039', clientName: 'Boat Audio', balanceDisplay: '₹26,200', dueDate: '2026-10-28' }],
     notes: ['Sample data. Clients pay through links on your site, and you record each payment here.'],
   },
   ledgerline: {
     currency: 'INR', period: { from: '2026-10-01', to: '2026-10-31' },
     figures: [
-      { operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400.00', stale: false },
-      { operation: 'received', label: 'Received', receiptId: 'R-0402', display: '₹86,200.00', stale: false },
+      { operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400', stale: false },
+      { operation: 'received', label: 'Received', receiptId: 'R-0402', display: '₹86,200', stale: false },
       { operation: 'earned', label: 'Earned', receiptId: 'R-0403', display: '₹95,254.24', stale: false },
     ],
-    openInvoices: [{ invoiceId: 'inv-0041', number: 'INV-0041', clientName: 'Mehta Traders', balanceDisplay: '₹18,880.00', dueDate: '2026-11-05' }],
+    openInvoices: [{ invoiceId: 'inv-0041', number: 'INV-0041', clientName: 'Mehta Traders', balanceDisplay: '₹18,880', dueDate: '2026-11-05' }],
     notes: ['Sample data. Tax figures come from the calculator and need your CA before filing.'],
   },
 };
@@ -387,18 +387,18 @@ export const BOOKS: Record<string, BooksSummaryLite> = {
  * rate and currency choice give them rupees and their leads in the fake too, from SPEND_MICROS).
  */
 export const SPEND: SpendRow[] = [
-  { id: 'sp1', agent: 'Editor', label: 'Model calls for episode 14', reserved: 'USD 0.5389', settled: 'USD 0.5041', kind: 'billed', receiptId: 'R-0412' },
+  { id: 'sp1', agent: 'Editor', label: 'Model calls for episode 14', reserved: '$0.54', settled: '$0.50', kind: 'billed', receiptId: 'R-0412' },
   { id: 'sp2', agent: 'Researcher', label: 'Title comparison, running', reserved: '$0.22', kind: 'estimate' },
   { id: 'sp3', connector: 'Instagram', label: 'Paid boost for the short', reserved: 'No price', kind: 'refused', reason: 'Instagram has no price on your rate card, so the call was refused.' },
 ];
 
-/** Each sample call's reserved and settled micro-dollars (₹45.00, ₹42.10 and ₹18.00 at ₹83.50 per $1); a refused call has none. */
+/** Each sample call's reserved and settled micro-dollars (₹45, ₹42.10 and ₹18 at ₹83.50 per $1); a refused call has none. */
 export const SPEND_MICROS: Readonly<Record<string, { reserved: number; settled?: number }>> = { sp1: { reserved: 538_863, settled: 504_132 }, sp2: { reserved: 215_600 } };
 
 export const JOURNAL: JournalEntry[] = [
   { id: 'j1', action: 'Send invoice', target: 'Mehta Traders', state: 'described', at: '2026-10-21T09:20:00.000Z', line: 'Waiting for your approval' },
   { id: 'j2', action: 'Hold quote', target: 'Iyer & Co', state: 'approved', at: '2026-10-21T09:31:00.000Z', line: 'Approved, held for one hour', receiptId: 'R-0420' },
-  { id: 'j3', action: 'Record payment', target: 'Boat Audio', state: 'applied', at: '2026-10-20T16:00:00.000Z', line: 'Recorded ₹86,200.00', receiptId: 'R-0402' },
+  { id: 'j3', action: 'Record payment', target: 'Boat Audio', state: 'applied', at: '2026-10-20T16:00:00.000Z', line: 'Recorded ₹86,200', receiptId: 'R-0402' },
   { id: 'j4', action: 'Post', target: 'LinkedIn', state: 'rejected', at: '2026-10-19T12:00:00.000Z', line: 'You said no' },
   { id: 'j5', action: 'Send email', target: 'Iyer & Co', state: 'outcome_unknown', at: '2026-10-18T18:00:00.000Z', line: 'The send timed out.' },
 ];
@@ -431,14 +431,14 @@ export const CLIENTS: Record<string, ClientLite[]> = {
     { id: 'c-nimbus', at: '2026-10-19T12:00:00.000Z', name: 'Nimbus Mics', email: null, countryCode: 'IN', taxId: null, stateCode: null, note: null },
     {
       id: 'c-boat', at: '2026-09-02T10:00:00.000Z', name: 'Boat Audio', email: 'partners@boataudio.in', countryCode: 'IN', taxId: '27AABCB4321K1Z3', stateCode: '27',
-      note: 'Sponsors two episodes a month.', owed: { display: '₹26,200.00', receiptId: 'R-0416' },
+      note: 'Sponsors two episodes a month.', owed: { display: '₹26,200', receiptId: 'R-0416' },
     },
   ],
   ledgerline: [
     { id: 'c-iyer', at: '2026-10-12T09:00:00.000Z', name: 'Iyer & Co', email: null, countryCode: 'IN', taxId: null, stateCode: null, note: null },
     {
       id: 'c-mehta', at: '2026-08-01T09:00:00.000Z', name: 'Mehta Traders', email: 'accounts@mehtatraders.in', countryCode: 'IN', taxId: '27AAACM1234F1Z5', stateCode: '27',
-      note: null, owed: { display: '₹18,880.00', receiptId: 'R-0419' },
+      note: null, owed: { display: '₹18,880', receiptId: 'R-0419' },
     },
   ],
 };

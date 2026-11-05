@@ -38,43 +38,43 @@ async function business() {
   return { ...env, credit, rows, rowOf, decide, get, pay, build };
 }
 
-// One month is INR 19,750.00 before tax; GST at 18% split CGST and SGST (177750 each) makes 2330500 (INR 23,305.00).
+// One month is ₹19,750 before tax; GST at 18% split CGST and SGST (177750 each) makes 2330500 (₹23,305).
 
 test('a credit note waits on Today; issuing it there numbers it, links it, takes it off the balance and the goal, once', async () => {
   const env = await business();
   const issued = await invoice(env, '1', '2026-10-01');
   await env.money('venture.goals.set', { month: '2026-10', amountMinor: '5000000' });
-  // 10% of the total: 233050 (INR 2,330.50).
+  // 10% of the total: 233050 (₹2,330.50).
   const asked = await env.credit({ invoiceId: issued.invoice.id, amountMinor: '233050', reason: REASON, digest: issued.invoice.digest });
   assert.deepEqual([asked.creditNote.state, asked.creditNote.number, asked.creditNote.amount, asked.creditNote.invoiceId, asked.creditNote.reason],
-    ['waiting', null, 'INR 2,330.50', issued.invoice.id, REASON]);
+    ['waiting', null, '₹2,330.50', issued.invoice.id, REASON]);
   assert.equal(asked.creditNote.line, 'Waiting on Today for you to issue it.');
   const row = await env.rowOf(asked.creditNote.rowId);
   assert.equal(row.kind, 'invoice');
   assert.equal(row.title, 'Credit note for Cafe Aroma Demo on INV-0001');
-  assert.equal(row.line, `Takes INR 2,330.50 off what Cafe Aroma Demo owes. Reason: ${REASON}`);
-  // 2330500 - 233050 = 2097450 (INR 20,974.50).
-  assert.deepEqual(row.change, { label: 'Left to pay on INV-0001', before: 'INR 23,305.00', after: 'INR 20,974.50', receiptId: `credit-balance:${asked.creditNote.id}` });
+  assert.equal(row.line, `Takes ₹2,330.50 off what Cafe Aroma Demo owes. Reason: ${REASON}`);
+  // 2330500 - 233050 = 2097450 (₹20,974.50).
+  assert.deepEqual(row.change, { label: 'Left to pay on INV-0001', before: '₹23,305', after: '₹20,974.50', receiptId: `credit-balance:${asked.creditNote.id}` });
   assert.deepEqual(row.actions, [{ id: 'deny', label: 'Cancel it', primary: false }, { id: 'issue', label: 'Issue credit note', primary: true, secondAsk: true }]);
   // Nothing changed while it waits.
   assert.equal((await env.get(issued.invoice.id)).invoice.balanceMinor, '2330500');
-  assert.equal((await env.money<GoalView>('venture.goals.get')).invoiced.display, 'INR 19,750.00');
+  assert.equal((await env.money<GoalView>('venture.goals.get')).invoiced.display, '₹19,750');
 
   // Off the app the decision is refused and nothing happens.
   await assert.rejects(env.decide(row, 'issue', phone), code('APP_APPROVAL_REQUIRED'));
   const done = await env.decide(row, 'issue');
-  assert.deepEqual([done.outcome, done.line], ['done', 'Issued credit note CN-0001. Cafe Aroma Demo now owes INR 20,974.50 on INV-0001.']);
+  assert.deepEqual([done.outcome, done.line], ['done', 'Issued credit note CN-0001. Cafe Aroma Demo now owes ₹20,974.50 on INV-0001.']);
   const note = listRecords(env.store.read(), 'venture-credit-note')[0];
   assert.deepEqual([note.status, note.number, note.invoiceId, note.issuedAt], ['issued', 'CN-0001', issued.invoice.id, env.now()]);
   const after = await env.get(issued.invoice.id);
   assert.deepEqual([after.invoice.balanceMinor, after.invoice.status], ['2097450', 'issued']);
-  assert.deepEqual(after.credits?.map(item => [item.number, item.amount, item.state]), [['CN-0001', 'INR 2,330.50', 'issued']]);
+  assert.deepEqual(after.credits?.map(item => [item.number, item.amount, item.state]), [['CN-0001', '₹2,330.50', 'issued']]);
   // The books: a refund fact of its share before tax. 233050 x 1975000 / 2330500 = 197500 exactly; tax 233050 - 197500 = 35550.
   const refunds = env.store.read().facts.filter(fact => fact.kind === 'refund');
   assert.deepEqual(refunds.map(fact => [fact.fields.amountMinor, fact.fields.taxMinor, fact.fields.invoiceId, fact.validFrom]), [['197500', '35550', issued.invoice.id, '2026-10-23']]);
-  // The goal: 1975000 - 197500 = 1777500 invoiced before tax (INR 17,775.00), the credit note a line of its receipt.
+  // The goal: 1975000 - 197500 = 1777500 invoiced before tax (₹17,775), the credit note a line of its receipt.
   const goal = await env.money<GoalView>('venture.goals.get');
-  assert.equal(goal.invoiced.display, 'INR 17,775.00');
+  assert.equal(goal.invoiced.display, '₹17,775');
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: goal.invoiced.receiptId! });
   assert.deepEqual(receipt.addends.map(item => [item.label, item.amount]), [['INV-0001 for Cafe Aroma Demo', '1975000'], ['Less credit note CN-0001 on INV-0001', '-197500']]);
 
@@ -119,11 +119,11 @@ test('cancelling a credit note on Today changes nothing; after a payment the old
   // Asked for 2000000 with 2330500 owed; then the client paid the 330500 it does not hold, leaving 2000000.
   const big = await env.credit({ invoiceId: issued.invoice.id, amountMinor: '2000000', reason: REASON, digest: issued.invoice.digest });
   const before = await env.rowOf(big.creditNote.rowId);
-  assert.deepEqual(before.change, { label: 'Left to pay on INV-0001', before: 'INR 23,305.00', after: 'INR 3,305.00', receiptId: `credit-balance:${big.creditNote.id}` });
+  assert.deepEqual(before.change, { label: 'Left to pay on INV-0001', before: '₹23,305', after: '₹3,305', receiptId: `credit-balance:${big.creditNote.id}` });
   await env.pay({ invoiceId: issued.invoice.id, amount: '3305', receivedOn: '2026-10-20', method: 'upi' });
   const stale = await env.decide(before, 'issue');
   assert.equal(stale.outcome, 'stale');
-  assert.deepEqual(stale.latest?.change, { label: 'Left to pay on INV-0001', before: 'INR 20,000.00', after: 'INR 0.00', receiptId: `credit-balance:${big.creditNote.id}` });
+  assert.deepEqual(stale.latest?.change, { label: 'Left to pay on INV-0001', before: '₹20,000', after: '₹0', receiptId: `credit-balance:${big.creditNote.id}` });
   assert.equal(listRecords(env.store.read(), 'venture-credit-note')[1].status, 'waiting', 'a stale click issued nothing');
   const done = await env.decide(stale.latest!, 'issue');
   assert.equal(done.line, 'Issued credit note CN-0001. INV-0001 is settled.');
@@ -245,13 +245,13 @@ test('clientStatement: one client\'s open invoices, paid so far and credit notes
 
   const statement = clientStatement(env.store.read(), env.client.id, '2026-10-23');
   assert.deepEqual([statement.client.name, statement.currency, statement.asOf], ['Cafe Aroma Demo', 'INR', '2026-10-23']);
-  // INV-0002: 2330500 - 500000 paid - 233050 credited = 1597450 (INR 15,974.50).
+  // INV-0002: 2330500 - 500000 paid - 233050 credited = 1597450 (₹15,974.50).
   assert.deepEqual(statement.open.map(item => [item.number, item.dueDate, item.total, item.paid, item.credited, item.balance, item.late]),
-    [['INV-0002', '2026-10-16', 'INR 23,305.00', 'INR 5,000.00', 'INR 2,330.50', 'INR 15,974.50', '7 days late']]);
-  assert.deepEqual(statement.paid.map(item => [item.number, item.receivedOn, item.amount]), [['INV-0001', '2026-09-20', 'INR 23,305.00'], ['INV-0002', '2026-10-10', 'INR 5,000.00']]);
-  assert.deepEqual(statement.waiting.map(item => [item.number, item.amount, item.line]), [['INV-0002', 'INR 1,000.00', 'Cheque received on 12 Oct 2026, waiting to clear.']]);
-  assert.deepEqual(statement.credits.map(item => [item.number, item.invoiceNumber, item.amount, item.reason]), [['CN-0001', 'INV-0002', 'INR 2,330.50', REASON]]);
-  assert.deepEqual([statement.owed.display, statement.paidTotal.display, statement.creditedTotal.display], ['INR 15,974.50', 'INR 28,305.00', 'INR 2,330.50']);
+    [['INV-0002', '2026-10-16', '₹23,305', '₹5,000', '₹2,330.50', '₹15,974.50', '7 days late']]);
+  assert.deepEqual(statement.paid.map(item => [item.number, item.receivedOn, item.amount]), [['INV-0001', '2026-09-20', '₹23,305'], ['INV-0002', '2026-10-10', '₹5,000']]);
+  assert.deepEqual(statement.waiting.map(item => [item.number, item.amount, item.line]), [['INV-0002', '₹1,000', 'Cheque received on 12 Oct 2026, waiting to clear.']]);
+  assert.deepEqual(statement.credits.map(item => [item.number, item.invoiceNumber, item.amount, item.reason]), [['CN-0001', 'INV-0002', '₹2,330.50', REASON]]);
+  assert.deepEqual([statement.owed.display, statement.paidTotal.display, statement.creditedTotal.display], ['₹15,974.50', '₹28,305', '₹2,330.50']);
   assert.ok(!JSON.stringify(statement).includes('Brew Lab Demo'), 'another client never shows');
 
   const sealed = await statementReceipts(env.deps, owner, statement);
@@ -274,7 +274,7 @@ test('a payment shows on Today as the client paid until you mark it seen; a cheq
   const [row] = await paidRows();
   const payment = listRecords(env.store.read(), 'venture-payment')[0];
   assert.deepEqual([row.kind, row.title, row.line], ['notice', 'Cafe Aroma Demo paid INV-0001', 'Part paid by UPI on 20 Oct 2026. The rest is still to pay.']);
-  assert.deepEqual(row.change, { label: 'Received', after: 'INR 5,000.00', receiptId: payment.booksReceiptId });
+  assert.deepEqual(row.change, { label: 'Received', after: '₹5,000', receiptId: payment.booksReceiptId });
   assert.deepEqual(row.actions, [{ id: 'later', label: 'Later', primary: false }, { id: 'approve', label: 'Seen', primary: true }]);
   assert.equal((await env.decide(row, 'approve')).line, 'Marked as seen.');
   assert.equal((await paidRows()).length, 0);
@@ -330,7 +330,7 @@ test('a credit note that settles an invoice makes it paid, and Total, Paid, Cred
   assert.equal(view.invoice.status, 'paid');
   // 1330500 + 1000000 + 0 = 2330500.
   assert.deepEqual(view.figures.filter(item => ['total', 'paid', 'credited', 'balance'].includes(item.key)).map(item => [item.key, item.label, item.display]), [
-    ['total', 'Total', 'INR 23,305.00'], ['paid', 'Paid', 'INR 13,305.00'], ['credited', 'Credited', 'INR 10,000.00'], ['balance', 'Balance', 'INR 0.00'],
+    ['total', 'Total', '₹23,305'], ['paid', 'Paid', '₹13,305'], ['credited', 'Credited', '₹10,000'], ['balance', 'Balance', '₹0'],
   ]);
   assert.match(view.documentText, /\nTotal {2}INR 23,305\.00\nPaid {2}INR 13,305\.00\nCredited {2}INR 10,000\.00\nBalance {2}INR 0\.00\n/);
   assert.deepEqual(view.next, { action: 'none', line: 'Settled: paid and credited.' });
@@ -339,12 +339,12 @@ test('a credit note that settles an invoice makes it paid, and Total, Paid, Cred
 test('a cheque with TDS shows the cheque\'s own amount, the TDS named apart, on your views and on the client\'s statement', async () => {
   const env = await business();
   const issued = await invoice(env, '1', '2026-10-01');
-  // The cheque is 2133000 (INR 21,330.00); the client deducted 197500 (INR 1,975.00) under 194J.
+  // The cheque is 2133000 (₹21,330); the client deducted 197500 (₹1,975) under 194J.
   const view = await env.pay({ invoiceId: issued.invoice.id, amount: '21330', tds: { section: '194J', amount: '1975' }, receivedOn: '2026-10-20', method: 'cheque' });
-  assert.equal(view.next?.line, 'A cheque for INR 21,330.00 is waiting to clear, with TDS INR 1,975.00 under 194J. Mark it cleared once it is in your bank.');
-  assert.equal(view.timeline?.find(item => item.what === 'cheque')?.line, 'Cheque for INR 21,330.00 received on 20 Oct 2026, waiting to clear, and TDS INR 1,975.00 under 194J');
+  assert.equal(view.next?.line, 'A cheque for ₹21,330 is waiting to clear, with TDS ₹1,975 under 194J. Mark it cleared once it is in your bank.');
+  assert.equal(view.timeline?.find(item => item.what === 'cheque')?.line, 'Cheque for ₹21,330 received on 20 Oct 2026, waiting to clear, and TDS ₹1,975 under 194J');
   const statement = clientStatement(env.store.read(), env.client.id, '2026-10-23');
-  assert.deepEqual(statement.waiting.map(item => [item.number, item.amount, item.tds, item.line]), [['INV-0001', 'INR 21,330.00', 'TDS INR 1,975.00 under 194J', 'Cheque received on 20 Oct 2026, waiting to clear.']]);
+  assert.deepEqual(statement.waiting.map(item => [item.number, item.amount, item.tds, item.line]), [['INV-0001', '₹21,330', 'TDS ₹1,975 under 194J', 'Cheque received on 20 Oct 2026, waiting to clear.']]);
 });
 
 test('issuing a credit note goes through the action journal: one entry, applied once, bound to the note and the balance shown', async () => {
@@ -355,7 +355,7 @@ test('issuing a credit note goes through the action journal: one entry, applied 
   await env.decide(row, 'issue');
   const entries = listRecords(env.store.read(), 'venture-journal-entry').filter(entry => entry.action === 'credit.issue');
   assert.deepEqual(entries.map(entry => [entry.state, entry.subject, entry.target]), [['applied', asked.creditNote.id, 'Cafe Aroma Demo']]);
-  assert.equal(entries[0].journal.at(-1)?.line, 'Issued credit note CN-0001. Cafe Aroma Demo now owes INR 20,974.50 on INV-0001.');
+  assert.equal(entries[0].journal.at(-1)?.line, 'Issued credit note CN-0001. Cafe Aroma Demo now owes ₹20,974.50 on INV-0001.');
 });
 
 test('a balance that changes between the click and the claim is caught at the claim: nothing is issued and the card comes back', async () => {
@@ -383,7 +383,7 @@ test('a balance that changes between the click and the claim is caught at the cl
   assert.equal(env.store.read().facts.filter(fact => fact.kind === 'refund').length, 0);
   assert.deepEqual(listRecords(env.store.read(), 'venture-journal-entry').filter(entry => entry.action === 'credit.issue').map(entry => entry.state), ['rejected']);
   // The new card, with the new balance (2330500 - 100000 = 2230500), issues it.
-  assert.equal(decision.latest?.change?.before, 'INR 22,305.00');
+  assert.equal(decision.latest?.change?.before, '₹22,305');
   assert.equal((await env.decide(decision.latest!, 'issue')).outcome, 'done');
 });
 
@@ -394,8 +394,8 @@ test('the credit card\'s balances carry the invoice\'s balance receipt: its tota
   const asked = await env.credit({ invoiceId: issued.invoice.id, amountMinor: '233050', reason: REASON, digest: issued.invoice.digest });
   const row = await env.rowOf(asked.creditNote.rowId);
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: row.change!.receiptId! });
-  // 2330500 - 500000 = 1830500 now (INR 18,305.00); less 233050: 1597450 after (INR 15,974.50).
-  assert.deepEqual(receipt.figures.map(item => [item.key, item.label, item.display]), [['balance', 'Left to pay on INV-0001 now', 'INR 18,305.00'], ['total', 'Left to pay after this credit note', 'INR 15,974.50']]);
+  // 2330500 - 500000 = 1830500 now (₹18,305); less 233050: 1597450 after (₹15,974.50).
+  assert.deepEqual(receipt.figures.map(item => [item.key, item.label, item.display]), [['balance', 'Left to pay on INV-0001 now', '₹18,305'], ['total', 'Left to pay after this credit note', '₹15,974.50']]);
   assert.deepEqual(receipt.addends.map(item => [item.label, item.amount]), [['INV-0001 total', '2330500'], ['Less paid on INV-0001, 20 Oct 2026', '-500000'], ['Less this credit note, waiting for you to issue it', '-233050']]);
   assert.equal(receipt.stale, false);
   await env.decide(row, 'issue');
@@ -412,7 +412,7 @@ test('credit notes that credit an invoice in full add up exactly before tax: the
     await env.decide(await env.rowOf(asked.creditNote.rowId), 'issue');
   }
   assert.deepEqual(env.store.read().facts.filter(fact => fact.kind === 'refund').map(fact => fact.fields.amountMinor), ['85', '85', '1974830']);
-  assert.equal((await env.money<GoalView>('venture.goals.get')).invoiced.display, 'INR 0.00');
+  assert.equal((await env.money<GoalView>('venture.goals.get')).invoiced.display, '₹0');
 });
 
 test('through VentureHost.request: issue an invoice, record a payment, ask for a credit note and issue it on Today', async () => {

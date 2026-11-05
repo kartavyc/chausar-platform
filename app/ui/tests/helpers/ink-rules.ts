@@ -1,3 +1,4 @@
+import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 /**
  * The Ink rules a test can see in rendered output, as plain assertions every part and place test calls
  * (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold").
@@ -62,8 +63,8 @@
 // types from a file it has detected as one.
 export type Root = ParentNode;
 
-/** A currency sign or a currency code (the engine writes "INR 2,825.00" and "USD 0.2500" too) followed by a digit. */
-const MONEY = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d/;
+/** A currency sign or a currency code followed by a digit: the one money pattern the engine and the app use (owner-format.ts, B2). */
+const MONEY = HOLDS_MONEY;
 /** Where money-looking text may sit: proved, labelled, quoted, an engine row line (until W4 4J1, see above), a receipt
  *  sheet (the proof itself, see above), or typed by the owner. Counts are left to their own, clearer check. Receipt ids
  *  (R-0419) never hold a currency sign, so they need no exemption, and none is given. */

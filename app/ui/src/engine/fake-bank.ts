@@ -6,13 +6,13 @@
  * invoice screens see it. Imports and consent stay on the extras desk (fake-extras.ts). The sample rows are synthetic.
  */
 
-import { formatDay } from '../../../../platform/runtime/owner-format';
+import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type BankAlertRuleLite, type BankAlertsView, type BankApplyResult, type BankLedgerRow, type BankLedgerView, type InvoiceViewLite,
   type QueueRow, type VentureRunEvent,
 } from './types';
 import { inr } from './fake-money';
-import { decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { decimalMinor } from '../../../../platform/runtime/currency';
 
 export interface BankHost {
   current(): string;
@@ -73,7 +73,7 @@ export function dayMonthYear(iso: string): string {
 }
 
 function ruleLine(rule: BankAlertRuleLite, currency = 'INR'): string {
-  const show = (minor: string) => currency === 'INR' ? inr(Number(minor)) : formatMinor(minor, currency);
+  const show = (minor: string) => currency === 'INR' ? inr(Number(minor)) : formatMoney(minor, currency);
   if (rule.kind === 'large-debit') return `When ${show(rule.minor)} or more goes out in one payment.`;
   if (rule.kind === 'balance-below') return `When the balance falls below ${show(rule.minor)}.`;
   if (rule.kind === 'credit-matching') return `When money comes in that mentions ${rule.text}.`;

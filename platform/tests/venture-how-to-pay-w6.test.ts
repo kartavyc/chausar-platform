@@ -43,7 +43,7 @@ test('an issued invoice carries the exact UPI link, its QR code and the bank det
   const upi = view.howToPay!.upi!;
   assert.equal(upi.link, LINK);
   assert.equal(upi.amountMinor, '2330500');
-  assert.equal(upi.amount, 'INR 23,305.00');
+  assert.equal(upi.amount, '₹23,305');
   assert.equal(upi.reference, 'INV-0001');
   assert.equal(upi.receiptId, view.invoice.priceReceiptId, 'the owner sees the receipt mark beside the amount');
   assert.equal(upi.qr.size, upi.qr.version * 4 + 17);
@@ -55,7 +55,7 @@ test('an issued invoice carries the exact UPI link, its QR code and the bank det
   // A part payment the owner marks: the link asks for the exact balance, and the timeline says who marked it.
   const part = await env.money<InvoiceView>('venture.payment.record', { invoiceId: view.invoice.id, amount: '5000', receivedOn: '2026-10-23', method: 'upi' });
   assert.match(part.howToPay!.upi!.link, /&am=18305\.00&/);
-  assert.ok(part.timeline!.some(item => item.line === 'Paid INR 5,000.00 by UPI on 23 Oct 2026, marked paid by you'));
+  assert.ok(part.timeline!.some(item => item.line === 'Paid ₹5,000 by UPI on 23 Oct 2026, marked paid by you'));
   const paid = await env.money<InvoiceView>('venture.payment.record', { invoiceId: view.invoice.id, amount: '18305', receivedOn: '2026-10-23', method: 'upi' });
   assert.equal(paid.howToPay!.upi, null, 'nothing left to pay, no link');
 });

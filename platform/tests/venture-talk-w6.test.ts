@@ -70,7 +70,7 @@ test('the view: desktop, no consent yet, whisper.cpp not set up, Sarvam fixture-
   assert.match(view.consent.text, /deletes the recording unless you choose to keep it/);
   assert.equal(view.whisper.ready, false);
   assert.deepEqual([view.sarvam.label, view.sarvam.connected, view.sarvam.price.paisePerMinute, view.sarvam.price.checkedOn, view.sarvam.rateDigest], ['fixture-tested', false, '49', '2026-11-01', SARVAM_RATE_DIGEST]);
-  assert.deepEqual([view.sarvam.capMinor, view.sarvam.cap, view.sarvam.spent], ['10000', '₹100.00', '₹0.00']);
+  assert.deepEqual([view.sarvam.capMinor, view.sarvam.cap, view.sarvam.spent], ['10000', '₹100', '₹0']);
   assert.equal(view.speak.label, 'planned: write');
   assert.equal(view.session, null);
   env.deps.host = 'hosted-web';

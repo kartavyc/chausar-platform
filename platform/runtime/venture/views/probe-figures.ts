@@ -8,8 +8,9 @@
 // under way can only grow); last week counts either way. Both figures a notice states carry receipts that are worked
 // out again from the records on every read: 'fig:week:<what>:<monday>' and 'fig:weeks:<what>:<first monday>:<last
 // monday>'. Nothing here is stored, and no number comes from a model.
+import { formatMoney } from '../../owner-format.ts';
 import { ChausarError, type State } from '../../contracts.ts';
-import { currencyMinorDigits, formatMinor } from '../../currency.ts';
+import { currencyMinorDigits } from '../../currency.ts';
 import { digest, formatVentureDate, listRecords } from '../records.ts';
 import type { InvoiceRecord, IsoDate, IsoTime, QueueAmount, QueueRow, RowFigure, RowFigureReceipt, VentureRecord } from '../contracts.ts';
 import { paymentState } from '../money/ledger.ts';
@@ -125,7 +126,7 @@ export function sharpMove(state: State, venture: VentureRecord, what: WeeklyWhat
     const direction = moved(wholeOf(total, scale), totals.map(value => wholeOf(value, scale)));
     if (!direction || (current && direction !== 'up')) continue;
     return {
-      what, week, current, direction, total: formatMinor(total, currency), average: formatMinor(averageMinor(totals, scale), currency), weeks: totals.length,
+      what, week, current, direction, total: formatMoney(total, currency), average: formatMoney(averageMinor(totals, scale), currency), weeks: totals.length,
       weekReceiptId: WEEK_FIGURE.week(what, week), averageReceiptId: WEEK_FIGURE.weeks(what, baseline.from, baseline.to),
     };
   }
@@ -167,16 +168,16 @@ export function weekFigureReceipt(state: State, venture: VentureRecord, id: stri
   const items = itemsOf(state, venture, what as WeeklyWhat);
   const currency = venture.country.currency;
   const order = venture.country.dateOrder;
-  const figureOf = (key: string, label: string, minor: bigint): RowFigure => ({ key, label, amount: String(minor), unit: 'minor', currency, display: formatMinor(minor, currency) });
+  const figureOf = (key: string, label: string, minor: bigint): RowFigure => ({ key, label, amount: String(minor), unit: 'minor', currency, display: formatMoney(minor, currency) });
   if (kind === 'week') {
     if (to !== undefined) throw new ChausarError('RECEIPT_NOT_FOUND', GONE);
     const counted = inWeek(items, from);
     const total = totalOf(counted);
-    const named = counted.map(item => `${item.label()} ${formatMinor(item.minor, currency)}`).join('; ');
+    const named = counted.map(item => `${item.label()} ${formatMoney(item.minor, currency)}`).join('; ');
     const count = counted.length === 1 ? `1 ${words.one}` : `${counted.length} ${words.many}`;
     return receipt(venture, id, { type: 'week-total', recordId: `${what}:${from}` }, counted.at(-1)?.at ?? `${from}T00:00:00.000Z`,
       [figureOf('total', `${words.label}, week of ${formatVentureDate(from, order)}`, total)],
-      `${count} in the week of ${formatVentureDate(from, order)}, added in code from ${words.how}${named ? `: ${named}` : ''}. Total ${formatMinor(total, currency)}.`);
+      `${count} in the week of ${formatVentureDate(from, order)}, added in code from ${words.how}${named ? `: ${named}` : ''}. Total ${formatMoney(total, currency)}.`);
   }
   if (!isMonday(to) || to < from || daysBetween(from, to) / 7 + 1 > SHARP_MOVE.maxWeeks) throw new ChausarError('RECEIPT_NOT_FOUND', GONE);
   const scale = 10n ** BigInt(currencyMinorDigits(currency));
@@ -187,7 +188,7 @@ export function weekFigureReceipt(state: State, venture: VentureRecord, id: stri
   const figures = weeks.map((monday, index) => figureOf(`week-${monday}`, `Week of ${formatVentureDate(monday, order)}`, totals[index]));
   figures.push(figureOf('average', 'Average week', average));
   return receipt(venture, id, { type: 'week-average', recordId: `${what}:${from}:${to}` }, `${to}T00:00:00.000Z`, figures,
-    `The ${weeks.length} weekly totals from the week of ${formatVentureDate(from, order)} to the week of ${formatVentureDate(to, order)}, added in code from ${words.how}, then divided by ${weeks.length} and rounded to a whole amount: ${formatMinor(average, currency)} a week.`);
+    `The ${weeks.length} weekly totals from the week of ${formatVentureDate(from, order)} to the week of ${formatVentureDate(to, order)}, added in code from ${words.how}, then divided by ${weeks.length} and rounded to a whole amount: ${formatMoney(average, currency)} a week.`);
 }
 
 /**

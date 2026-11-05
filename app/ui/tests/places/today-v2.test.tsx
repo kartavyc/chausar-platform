@@ -141,7 +141,7 @@ describe('Today v2: the goal card', () => {
     const goal = await screen.findByRole('region', { name: 'October goal' });
     await waitFor(() => expect(goal.textContent).toContain('No goal for October yet.'));
     expect(spy.mock.calls.some(([method]) => (method as string) === 'venture.goals.get')).toBe(true);
-    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000.00');
+    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000');
     expect(goal.textContent).toContain('Invoiced this month');
     expect(within(goal).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect(within(goal).queryByRole('img')).toBeNull();
@@ -218,7 +218,7 @@ describe('Today v2: the goal card', () => {
     expect(data.invoiced).toBeNull();
     const { container } = render(<TextProvider language="en"><GoalCard data={data} /></TextProvider>);
     const goal = screen.getByRole('region', { name: 'Invoiced this month' });
-    expect(goal.textContent).not.toContain('₹1,12,400.00');
+    expect(goal.textContent).not.toContain('₹1,12,400');
     expect(goal.textContent).not.toContain('Nothing invoiced');
     expect(goal.textContent).toContain('Received this month');
     assertInkRules(container);
@@ -571,7 +571,7 @@ describe('Today v2: previews on the cards', () => {
   it('a line the engine marks as a model estimate shows the "model estimate" label, on the card and in the sheet', async () => {
     const view = (v: QueueItemView): QueueItemView => (v.kind !== 'plan' ? v : {
       ...v,
-      sections: [{ heading: 'What you sell', lines: ['Monthly books: ₹16,000.00 per month (model estimate)', 'GST working (model estimate): ₹5,000.00 per project.'] }],
+      sections: [{ heading: 'What you sell', lines: ['Monthly books: ₹16,000 per month (model estimate)', 'GST working (model estimate): ₹5,000 per project.'] }],
     });
     const { client } = wrapped(new FakeEngine({ now: ENGINE_NOW }), { view });
     start({ client });
@@ -584,7 +584,7 @@ describe('Today v2: previews on the cards', () => {
     const chips = [...preview.querySelectorAll('[data-estimate]')];
     expect(chips.map((chip) => chip.textContent)).toEqual(['model estimate', 'model estimate']);
     expect(preview.textContent).not.toContain('(model estimate)');
-    expect(preview.textContent).toContain('Monthly books: ₹16,000.00 per month');
+    expect(preview.textContent).toContain('Monthly books: ₹16,000 per month');
     assertFiguresProved(needsYou());
     await click(within(cardOf('q-plan')).getByRole('button', { name: 'Read' }));
     const sheet = await screen.findByRole('complementary', { name: 'Ledgerline plan' });
@@ -618,7 +618,7 @@ describe('Today v2: previews on the cards', () => {
       expect(found.textContent).toContain('GST on sales');
       return found;
     });
-    for (const line of ['Taxable value ₹16,000.00 (R-0419)', 'CGST at 9% ₹1,440.00 (R-0419)', 'SGST at 9% ₹1,440.00 (R-0419)']) {
+    for (const line of ['Taxable value ₹16,000 (R-0419)', 'CGST at 9% ₹1,440 (R-0419)', 'SGST at 9% ₹1,440 (R-0419)']) {
       expect(preview.textContent).toContain(line);
     }
     expect(preview.textContent).not.toContain('Checks');
@@ -693,7 +693,7 @@ describe('Today v2: working now and earlier', () => {
     start();
     const earlier = await screen.findByRole('region', { name: 'Earlier' });
     await waitFor(() => expect(within(earlier).getAllByRole('listitem')).toHaveLength(5));
-    expect(earlier.textContent).toContain('Recorded ₹86,200.00');
+    expect(earlier.textContent).toContain('Recorded ₹86,200');
     expect(within(earlier).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect(within(earlier).getByRole('button', { name: receiptMark('R-0420') })).toBeTruthy();
     const check = within(earlier).getByRole('link', { name: 'Check it' });
@@ -711,7 +711,7 @@ describe('Today v2: working now and earlier', () => {
     for (const words of ['Waiting for your approval', 'You said no', 'The send timed out.']) {
       expect(itemOf(words).closest('[data-engine-line]'), words).toBeTruthy();
     }
-    for (const words of ['Approved, held for one hour', 'Recorded ₹86,200.00']) {
+    for (const words of ['Approved, held for one hour', 'Recorded ₹86,200']) {
       expect(itemOf(words).closest('[data-engine-line]'), words).toBeNull();
       expect(itemOf(words).closest('[data-figure-group]'), words).toBeTruthy();
     }

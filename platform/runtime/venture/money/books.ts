@@ -1,7 +1,7 @@
 // The books: the existing calculator proves billed, received and earned from the facts the venture wrote.
 // Every calculator call here runs after a venture transaction has committed, never inside one.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { exactPayload, isoDate, listRecords, readVenture } from '../records.ts';
 import { localDayAt, ventureTimeZone } from '../local-day.ts';
 import { BOOKS_PERIOD_KEYS, booksPeriods, calendarMonth, todayLocal } from './dates.ts';
@@ -67,7 +67,7 @@ async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRec
     check(receipt.currency === venture.country.currency, 'CURRENCY_CONFLICT', 'The books receipt must use this business currency.');
     const currency = receipt.currency;
     if (receipt.exclusions?.some((row: { reason: string }) => row.reason.includes('currency scope'))) notes.add(`Totals are in ${currency}. Other currencies are excluded; no conversion was made.`);
-    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMinor(receipt.totalMinor, currency), stale: receipt.stale === true });
+    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMoney(receipt.totalMinor, currency), stale: receipt.stale === true });
   }
   return figures;
 }
@@ -114,7 +114,7 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
       number: invoice.number as string,
       clientName: clients.find(c => c.id === invoice.clientId)?.name ?? 'Unknown client',
       balanceMinor: invoice.balanceMinor,
-      balanceDisplay: formatMinor(invoice.balanceMinor, invoice.currency),
+      balanceDisplay: formatMoney(invoice.balanceMinor, invoice.currency),
       dueDate: invoice.dueDate as IsoDate,
     }));
 

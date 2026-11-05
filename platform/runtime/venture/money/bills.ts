@@ -10,8 +10,8 @@
 // cost fact, so the books count it once: a bank row of the same money out is flagged as recorded (build/bank-methods.ts
 // reads billPaymentList), and a bill paid after its bank row was added as a cost is recorded against that cost. The GST
 // choice is kept on the bill at its first payment, and no cost is ever below zero or above the payment.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context, type Fact, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { currentVenture, exactPayload, percentBps, formatVentureDate, isoDate, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { addDaysUtc } from './dates.ts';
@@ -59,8 +59,8 @@ export function billState(bill: BillRecord, today: IsoDate): BillView['state'] {
 /** One bill as the screens show it. */
 export function billView(bill: BillRecord, today: IsoDate): BillView {
   return {
-    id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: formatMinor(bill.totalMinor, bill.currency),
-    paid: formatMinor(bill.paidMinor, bill.currency), balance: formatMinor(balanceOf(bill), bill.currency), state: billState(bill, today), recurring: bill.recurring,
+    id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: formatMoney(bill.totalMinor, bill.currency),
+    paid: formatMoney(bill.paidMinor, bill.currency), balance: formatMoney(balanceOf(bill), bill.currency), state: billState(bill, today), recurring: bill.recurring,
   };
 }
 
@@ -73,7 +73,7 @@ export function billsPlan(state: State, venture: VentureRecord, subject: Extract
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.at.localeCompare(b.at))
     .map(bill => ({
       recordId: bill.id, label: `${bill.vendor}, due ${formatVentureDate(bill.dueDate, venture.country.dateOrder)}`,
-      amount: String(balanceOf(bill)), display: formatMinor(balanceOf(bill), currency), estimate: false,
+      amount: String(balanceOf(bill)), display: formatMoney(balanceOf(bill), currency), estimate: false,
     }));
   const by = subject.due === null ? '' : ` by ${formatVentureDate(subject.due, venture.country.dateOrder)}`;
   return { subject: { ...subject }, currency, unit: 'minor', addends, words: { label: `Owed on bills${by}`, one: 'bill', many: 'bills', none: 'No bills are waiting to be paid.' } };
@@ -86,7 +86,7 @@ export function billsPlan(state: State, venture: VentureRecord, subject: Extract
 function oneBillPlan(state: State, venture: VentureRecord, subject: Extract<SumReceiptSubject, { type: 'bills' }>): SumPlan {
   const bill = listRecords(state, 'venture-bill', venture.id).find(item => item.id === subject.billId);
   const currency = bill?.currency ?? venture.country.currency;
-  const show = (minor: bigint) => formatMinor(minor, currency);
+  const show = (minor: bigint) => formatMoney(minor, currency);
   const day = (iso: IsoDate) => formatVentureDate(iso, venture.country.dateOrder);
   const addends = bill ? [
     ...bill.lines.map((line, index) => ({ recordId: `${bill.id}.line-${index + 1}`, label: line.description, amount: line.amountMinor, display: show(BigInt(line.amountMinor)), estimate: false })),
@@ -232,7 +232,7 @@ export async function billsPay(deps: VentureDeps, ctx: Context, payload: unknown
     check(bill, 'INVALID_VENTURE_REQUEST', 'This bill was not found.');
     const amount = typedOrMinor(body.amount, body.amountMinor, bill.currency, 'The payment');
     const balance = balanceOf(bill);
-    check(amount <= balance, 'BILL_PAYMENT_TOO_LARGE', balance <= 0n ? 'This bill is already paid in full.' : `This is more than the ${formatMinor(balance, bill.currency)} left to pay on this bill.`);
+    check(amount <= balance, 'BILL_PAYMENT_TOO_LARGE', balance <= 0n ? 'This bill is already paid in full.' : `This is more than the ${formatMoney(balance, bill.currency)} left to pay on this bill.`);
     const { beforeTax, total } = billTotals(bill.lines);
     const left = balance - amount;
     // The GST choice of the bill's first payment holds for every payment of it, whatever the registration is later.
@@ -298,7 +298,7 @@ export async function billsList(deps: VentureDeps, ctx: Context, payload: unknow
   const plan = billsPlan(state, venture, { type: 'bills', due: null });
   if (!plan.addends.length) return { bills, owed: null };
   const receipt = await sumReceipt(deps, ctx, venture.id, plan);
-  return { bills, owed: { display: formatMinor(receipt.totalMinor, receipt.currency), receiptId: receipt.id } };
+  return { bills, owed: { display: formatMoney(receipt.totalMinor, receipt.currency), receiptId: receipt.id } };
 }
 
 /** The latest bill of each vendor whose bills repeat, with the day of the month its chain started on. */

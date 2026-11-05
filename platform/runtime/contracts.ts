@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {ChausarError,check,hash} from './portable.ts';
+import { formatMoney } from './owner-format.ts';
 export {ChausarError,check,hash} from './portable.ts';
 
 export const newId = (prefix = 'item') => `${prefix}_${randomUUID()}`;
@@ -11,10 +12,8 @@ export function minor(value: string | number): string {
   const [whole, fraction = ''] = text.replace(/^-/, '').split('.');
   return String(sign * (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))));
 }
-export const money = (value: string | bigint, currency = 'INR') => {
-  const n = BigInt(value); const negative = n < 0n; const absolute = negative ? -n : n;
-  return `${currency === 'INR' ? '₹' : currency + ' '}${negative ? '-' : ''}${(absolute / 100n).toLocaleString('en-IN')}.${String(absolute % 100n).padStart(2, '0')}`;
-};
+// One-shot B2: an amount in minor units in the owner form ("₹2,000", "$5,000"), the same as owner-format.ts formatMoney.
+export const money = (value: string | bigint, currency = 'INR') => formatMoney(value, currency);
 export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';
 export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'web' | 'phone' | 'mcp'; sourceTainted?: boolean };
 export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };

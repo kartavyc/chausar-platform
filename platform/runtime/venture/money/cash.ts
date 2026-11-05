@@ -7,8 +7,8 @@
 // are the average of the last 3 full months' money out, bills left out because each bill is counted from its record.
 // The assumptions are listed and carried by every figure that rests on them. A line that never falls says nothing
 // about running out. Money in BigInt minor units; per mille scaled in code from the lowest to the highest point.
+import { formatMoney } from '../../owner-format.ts';
 import type { Context, State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { exactPayload, formatVentureDate, listRecords, readVenture } from '../records.ts';
 import type {
   BillRecord, CashIssueView, CashItemView, CashLowest, CashPointView, CashView, IsoDate, KindedFigure, SumReceiptRecord, SumReceiptSubject, VentureDeps, VentureRecord,
@@ -67,11 +67,11 @@ function recordedSince(state: State, venture: VentureRecord, after: IsoDate, asO
     .sort((a, b) => a.receivedOn.localeCompare(b.receivedOn) || a.at.localeCompare(b.at))
     .map(payment => ({
       recordId: payment.id, label: `Recorded since your statement: ${numbers.get(payment.invoiceId) ?? 'an invoice'}, ${formatVentureDate(payment.receivedOn, dateOrder)}`,
-      amount: payment.amountMinor, display: formatMinor(payment.amountMinor, currency), estimate: false,
+      amount: payment.amountMinor, display: formatMoney(payment.amountMinor, currency), estimate: false,
     }));
   const outs = costsOut(state, venture, addDaysUtc(after, 1), asOf).filter(cost => typeof cost.fact.fields.bankReference !== 'string').map(cost => {
     const words = typeof cost.fact.fields.description === 'string' && cost.fact.fields.description.trim() ? cost.fact.fields.description.trim() : 'A cost';
-    return { recordId: cost.fact.id, label: `Recorded since your statement: ${words}, ${formatVentureDate(cost.fact.validFrom, dateOrder)}`, amount: String(-cost.cash), display: formatMinor(-cost.cash, currency), estimate: false };
+    return { recordId: cost.fact.id, label: `Recorded since your statement: ${words}, ${formatVentureDate(cost.fact.validFrom, dateOrder)}`, amount: String(-cost.cash), display: formatMoney(-cost.cash, currency), estimate: false };
   });
   return [...ins, ...outs];
 }
@@ -150,7 +150,7 @@ function flowsAhead(state: State, venture: VentureRecord, asOf: IsoDate, until: 
     flows.push({
       addend: {
         recordId: invoice.id, label: late ? `${invoice.number} from ${client}, late since ${day(invoice.dueDate)}, counted in the first week` : `${invoice.number} from ${client}, due ${day(invoice.dueDate)}`,
-        amount: invoice.balanceMinor, display: formatMinor(invoice.balanceMinor, currency), estimate: false,
+        amount: invoice.balanceMinor, display: formatMoney(invoice.balanceMinor, currency), estimate: false,
       },
       on: late ? addDaysUtc(asOf, 1) : invoice.dueDate, due: invoice.dueDate, direction: 'in', late, overdue: false, line: `Due from ${client} on ${day(invoice.dueDate)}`,
     });
@@ -160,7 +160,7 @@ function flowsAhead(state: State, venture: VentureRecord, asOf: IsoDate, until: 
     const overdue = bill.dueDate <= asOf;
     const words = overdue ? `overdue since ${day(bill.dueDate)}` : `due ${day(bill.dueDate)}`;
     flows.push({
-      addend: { recordId: bill.billId, label: `Bill from ${bill.vendor}, ${words}${bill.expected ? ', expected' : ''}`, amount: String(-BigInt(bill.balanceMinor)), display: formatMinor(-BigInt(bill.balanceMinor), currency), estimate: bill.expected },
+      addend: { recordId: bill.billId, label: `Bill from ${bill.vendor}, ${words}${bill.expected ? ', expected' : ''}`, amount: String(-BigInt(bill.balanceMinor)), display: formatMoney(-BigInt(bill.balanceMinor), currency), estimate: bill.expected },
       on: overdue ? addDaysUtc(asOf, 1) : bill.dueDate, due: bill.dueDate, direction: 'out', late: false, overdue, line: `Bill from ${bill.vendor}, ${words}${bill.expected ? ' (expected)' : ''}`,
     });
   }
@@ -169,7 +169,7 @@ function flowsAhead(state: State, venture: VentureRecord, asOf: IsoDate, until: 
     flows.push({
       addend: {
         recordId: `repeat:${vendorKey(repeat.vendor)}:${repeat.billDate}`, label: `Bill from ${repeat.vendor}, expected ${day(repeat.billDate)} and due ${day(repeat.dueDate)} (repeats ${repeat.recurring})`,
-        amount: String(-repeat.minor), display: formatMinor(-repeat.minor, currency), estimate: true,
+        amount: String(-repeat.minor), display: formatMoney(-repeat.minor, currency), estimate: true,
       },
       on: repeat.dueDate, due: repeat.dueDate, direction: 'out', late: false, overdue: false, line: `Bill from ${repeat.vendor}, due ${day(repeat.dueDate)} (expected, repeats ${repeat.recurring})`,
     });
@@ -184,7 +184,7 @@ export function cashPlan(state: State, venture: VentureRecord, subject: Extract<
   const { balances } = bankBalances(state, venture, asOf);
   const statements: Addend[] = balances.map(balance => ({
     recordId: `${balance.importId}:${balance.transactionId}`, label: `${balance.account}, balance on ${formatVentureDate(balance.on, country.dateOrder)} from your statement`,
-    amount: String(balance.minor), display: formatMinor(balance.minor, country.currency), estimate: false,
+    amount: String(balance.minor), display: formatMoney(balance.minor, country.currency), estimate: false,
   }));
   if (scenario === 'bank') {
     return {
@@ -200,7 +200,7 @@ export function cashPlan(state: State, venture: VentureRecord, subject: Extract<
   const usualMinor = usualFor(usual, weeks);
   const costs: Addend[] = usualMinor > 0n ? [{
     recordId: `usual:${usual.names.join(',')}`, label: `Usual costs for ${weeks} ${weeks === 1 ? 'week' : 'weeks'}, at the average of what went out in ${monthsWords(usual.names)}`,
-    amount: String(-usualMinor), display: formatMinor(-usualMinor, country.currency), estimate: true,
+    amount: String(-usualMinor), display: formatMoney(-usualMinor, country.currency), estimate: true,
   }] : [];
   const shown = formatVentureDate(week, country.dateOrder);
   return {
@@ -242,7 +242,7 @@ function levelTicks(values: readonly bigint[], currency: string): { permille: nu
     const levels: bigint[] = [];
     for (let k = ceil(lo, step); k <= floor(hi, step); k += 1n) levels.push(k * step);
     if (levels.filter(level => level !== 0n).length < 2) continue;
-    return levels.filter(level => level !== 0n || lo < 0n).map(level => ({ permille: countOf(((level - lo) * 1000n) / range), label: formatMinor(level, currency) }));
+    return levels.filter(level => level !== 0n || lo < 0n).map(level => ({ permille: countOf(((level - lo) * 1000n) / range), label: formatMoney(level, currency) }));
   }
   return [];
 }
@@ -274,7 +274,7 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
     const minor = BigInt(flow.addend.amount);
     nextWeeks.push({
       on: flow.due, line: flow.line, direction: flow.direction,
-      amount: { display: formatMinor(minor < 0n ? -minor : minor, country.currency), receiptId: proof.id, kind: 'calculated', source: { from: 'receipt', receiptId: proof.id }, projected: true },
+      amount: { display: formatMoney(minor < 0n ? -minor : minor, country.currency), receiptId: proof.id, kind: 'calculated', source: { from: 'receipt', receiptId: proof.id }, projected: true },
     });
   }
 
@@ -287,7 +287,7 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
       const due = addDaysUtc(asOf, invoice.dueInDays);
       return {
         invoiceId: invoice.id, client: names.get(invoice.clientId) ?? 'A client', due, week: weekOf(due),
-        amount: { display: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, kind: 'calculated' as const, source: { from: 'receipt' as const, receiptId: invoice.priceReceiptId }, projected: true as const },
+        amount: { display: formatMoney(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, kind: 'calculated' as const, source: { from: 'receipt' as const, receiptId: invoice.priceReceiptId }, projected: true as const },
       };
     });
 
@@ -315,7 +315,7 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
   const weekly = usualFor(usual, 1);
   const usualLine = usual.months === 0 || usual.total === 0n
     ? 'No money went out in the last 3 months, so no usual costs are taken.'
-    : `Usual costs of ${formatMinor(weekly, country.currency)} a week: the average of what went out in ${monthsWords(usual.names)}, bills left out because they are counted above.`;
+    : `Usual costs of ${formatMoney(weekly, country.currency)} a week: the average of what went out in ${monthsWords(usual.names)}, bills left out because they are counted above.`;
   const assumptions = [
     `Starts from your bank balance on ${day(bankDay(balances))}, with what you recorded since.`,
     'Clients pay open invoices on their due dates.',
@@ -337,7 +337,7 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
   const only = balances.length === 1 ? balances[0] : null;
   const bank = {
     ...(only
-      ? reportedFigure(formatMinor(only.minor, country.currency), bankReceipt.id, { recordId: only.importId, row: only.transactionId, line: `Closing balance on your ${only.account} statement, ${day(only.on)}` })
+      ? reportedFigure(formatMoney(only.minor, country.currency), bankReceipt.id, { recordId: only.importId, row: only.transactionId, line: `Closing balance on your ${only.account} statement, ${day(only.on)}` })
       : calculatedFigure(bankReceipt, { basis: accountsBasis })),
     on: bankDay(balances),
   };
@@ -376,7 +376,7 @@ export async function moneyCash(deps: VentureDeps, ctx: Context, payload: unknow
     : !falls ? `Projected, if clients pay on time: cash does not fall in the next ${WEEKS} weeks.`
       : !onTimeLow ? `Projected, if clients pay on time: cash does not fall below today's balance in the next ${WEEKS} weeks.`
         : `Projected, if clients pay on time: the lowest week is the week to ${day(weeks[low])}, at ${onTimeLow.display}.`;
-  const usualFigure = usual.months === 0 || usual.total === 0n ? null : assumptionFigure(formatMinor(weekly, country.currency), (await receipt(weeks[1])).id, usualLine);
+  const usualFigure = usual.months === 0 || usual.total === 0n ? null : assumptionFigure(formatMoney(weekly, country.currency), (await receipt(weeks[1])).id, usualLine);
   return {
     bank, opening, points, lowest: { onTime: onTimeLow, ifLateNeverPay: lateLow }, usualCosts: usualFigure, assumptions, nextWeeks, ifIssued,
     ticks: levelTicks(forecasts.map(item => item.minor), country.currency), basis: forecastBasis, line,

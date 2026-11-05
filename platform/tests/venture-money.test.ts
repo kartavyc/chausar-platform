@@ -266,7 +266,7 @@ function figure(receipt: { figures: { key: string; minor: string; label: string;
 
 test('computePrice matches every hand-worked example, both rounding outcomes included', () => {
   const inr = (taxTreatment: any, extra: Record<string, string> = {}) => computePrice({ unitPriceMinor: '249900', quantity: '1', discountBps: '0', taxRateBps: '1800', currency: 'INR', taxTreatment, ...extra });
-  // INR 2,499.00, GST 1800 bps single: 249900 x 1800 = 449,820,000; (449,820,000 + 5,000) / 10,000 = 44982; total 249900 + 44982 = 294882.
+  // ₹2,499, GST 1800 bps single: 249900 x 1800 = 449,820,000; (449,820,000 + 5,000) / 10,000 = 44982; total 249900 + 44982 = 294882.
   const single = inr('single');
   assert.deepEqual([single.amounts.subtotal, single.amounts.discount, single.amounts.taxable, single.amounts.tax, single.amounts.total], ['249900', '0', '249900', '44982', '294882']);
   assert.equal(single.amounts.cgst, null);
@@ -290,10 +290,10 @@ test('computePrice matches every hand-worked example, both rounding outcomes inc
   // cgst-sgst: each (189,000 + 10,000) / 20,000 = 9 (9.95 truncated, exact 9.45 half up is 9), tax 18, total 123.
   assert.deepEqual([small('cgst-sgst').amounts.cgst, small('cgst-sgst').amounts.sgst, small('cgst-sgst').amounts.tax, small('cgst-sgst').amounts.total], ['9', '9', '18', '123']);
 
-  // USD 33.33 x 3 hours at 825 bps: subtotal 9999; 9999 x 825 = 8,249,175; (8,249,175 + 5,000) / 10,000 = 825; total 10824.
+  // $33.33 x 3 hours at 825 bps: subtotal 9999; 9999 x 825 = 8,249,175; (8,249,175 + 5,000) / 10,000 = 825; total 10824.
   const usd = computePrice({ unitPriceMinor: '3333', quantity: '3', discountBps: '0', taxRateBps: '825', currency: 'USD', taxTreatment: 'single' });
   assert.deepEqual([usd.amounts.subtotal, usd.amounts.tax, usd.amounts.total], ['9999', '825', '10824']);
-  // JPY 5000 x 2 at 1000 bps: subtotal 10000; (10,000,000 + 5,000) / 10,000 = 1000; total 11000.
+  // JPY 5,000 x 2 at 1000 bps: subtotal 10000; (10,000,000 + 5,000) / 10,000 = 1000; total 11000.
   const jpy = computePrice({ unitPriceMinor: '5000', quantity: '2', discountBps: '0', taxRateBps: '1000', currency: 'JPY', taxTreatment: 'single' });
   assert.deepEqual([jpy.amounts.subtotal, jpy.amounts.tax, jpy.amounts.total], ['10000', '1000', '11000']);
   // Tie: 1 x 1 at 5000 bps: (5,000 + 5,000) / 10,000 = 1; total 2.
@@ -336,15 +336,15 @@ test('a quote prices the latest draft, stays current after acceptance and goes s
   assert.equal(receipt.inputs.unitPriceBy, 'told-by-you');
   assert.equal(receipt.inputs.taxRateBy, 'country-table');
   assert.equal(receipt.minorDigits, 2);
-  // 249900 at 18 percent: tax 44982, total 294882 (INR 2,948.82).
+  // 249900 at 18 percent: tax 44982, total 294882 (₹2,948.82).
   assert.equal(figure(receipt, 'subtotal').minor, '249900');
   assert.equal(figure(receipt, 'tax').minor, '44982');
   assert.equal(figure(receipt, 'tax').label, 'GST at 18%');
   assert.equal(figure(receipt, 'total').minor, '294882');
-  assert.equal(figure(receipt, 'total').display, 'INR 2,948.82');
+  assert.equal(figure(receipt, 'total').display, '₹2,948.82');
   assert.equal(figure(receipt, 'unit').label, 'Price per month');
   assert.equal(receipt.totalMinor, '294882');
-  assert.equal(receipt.explanation, '1 x month at INR 2,499.00, plus GST at 18% (INR 449.82) = INR 2,948.82.');
+  assert.equal(receipt.explanation, '1 x month at ₹2,499, plus GST at 18% (₹449.82) = ₹2,948.82.');
   assert.deepEqual(numberGuard(receipt.explanation, receipt), { accepted: true, checkedNumbers: 5 });
   assert.ok(receipt.allowedNumbers.includes('2948.82') && receipt.allowedNumbers.includes('294882') && receipt.allowedNumbers.includes('18'));
   assert.ok(receipt.allowedNumbers.every(n => /^\d+(\.\d+)?$/.test(n)), 'plain numbers only');
@@ -366,7 +366,7 @@ test('a quote prices the latest draft, stays current after acceptance and goes s
   // Quantity 3: 249900 x 3 = 749700; tax (749,700 x 1800 + 5,000) / 10,000 = 134946; total 884646.
   const three = await call(env, 'venture.price.quote', { offerId: 'offer_1', quantity: '3' });
   assert.equal(three.totalMinor, '884646');
-  assert.equal(three.explanation, '3 x month at INR 2,499.00, plus GST at 18% (INR 1,349.46) = INR 8,846.46.');
+  assert.equal(three.explanation, '3 x month at ₹2,499, plus GST at 18% (₹1,349.46) = ₹8,846.46.');
   numberGuard(three.explanation, three);
 
   // A newer version with a different price makes the old receipt stale.
@@ -392,13 +392,13 @@ test('numberGuard passes on the explanation of all five tax treatments', async (
   const lut = await receipt(abroad.order.priceReceiptId);
   const assumed = await receipt(noState.order.priceReceiptId);
   assert.equal(cgst.inputs.taxTreatment, 'cgst-sgst');
-  assert.equal(cgst.explanation, '1 x month at INR 2,499.00, plus CGST at 9% (INR 224.91) and SGST at 9% (INR 224.91) = INR 2,948.82.');
+  assert.equal(cgst.explanation, '1 x month at ₹2,499, plus CGST at 9% (₹224.91) and SGST at 9% (₹224.91) = ₹2,948.82.');
   assert.deepEqual(['cgst', 'sgst', 'tax'].map(key => [figure(cgst, key).label, figure(cgst, key).minor]), [['CGST at 9%', '22491'], ['SGST at 9%', '22491'], ['GST total', '44982']]);
   assert.equal(igst.inputs.taxTreatment, 'igst');
-  assert.equal(igst.explanation, '1 x month at INR 2,499.00, plus IGST at 18% (INR 449.82) = INR 2,948.82.');
+  assert.equal(igst.explanation, '1 x month at ₹2,499, plus IGST at 18% (₹449.82) = ₹2,948.82.');
   assert.equal(figure(igst, 'igst').label, 'IGST at 18%');
   assert.equal(lut.inputs.taxTreatment, 'zero-rated-lut');
-  assert.equal(lut.explanation, '1 x month at INR 2,499.00, zero-rated as an export of services under LUT = INR 2,499.00.');
+  assert.equal(lut.explanation, '1 x month at ₹2,499, zero-rated as an export of services under LUT = ₹2,499.');
   assert.equal(figure(lut, 'tax').label, 'GST, zero-rated export under LUT');
   assert.equal(lut.totalMinor, '249900');
   assert.equal(assumed.inputs.taxTreatment, 'cgst-sgst');
@@ -410,13 +410,13 @@ test('numberGuard passes on the explanation of all five tax treatments', async (
   assert.equal(none.inputs.taxTreatment, 'none');
   assert.equal(none.inputs.taxRateBps, '0');
   assert.equal(none.inputs.taxRateBy, 'not-registered');
-  assert.equal(none.explanation, '1 x hour at USD 150.00 = USD 150.00.');
+  assert.equal(none.explanation, '1 x hour at $150 = $150.');
   assert.equal(figure(none, 'tax').label, 'Tax');
   assert.equal(none.totalMinor, '15000');
 
   for (const r of [quote, cgst, igst, lut, assumed, none]) assert.equal(numberGuard(r.explanation, r).accepted, true, r.inputs.taxTreatment);
   // An invented number in a sentence is refused against the same receipt.
-  assert.throws(() => numberGuard('The total is INR 3,000.00.', quote), code('UNGROUNDED_NUMBER'));
+  assert.throws(() => numberGuard('The total is ₹3,000.', quote), code('UNGROUNDED_NUMBER'));
 });
 
 // ---------------------------------------------------------------------------
@@ -589,8 +589,8 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.equal(view.documentText.includes(inv.priceReceiptId), false, 'the client copy must not expose the internal receipt id');
   assert.deepEqual(view.receipt.subject, { type: 'invoice', invoiceId: inv.id });
   assert.deepEqual(view.figures.map(f => [f.key, f.label, f.display]), [
-    ['subtotal', 'Subtotal', 'INR 2,499.00'], ['cgst', 'CGST at 9%', 'INR 224.91'], ['sgst', 'SGST at 9%', 'INR 224.91'],
-    ['total', 'Total', 'INR 2,948.82'], ['paid', 'Paid', 'INR 0.00'], ['balance', 'Balance', 'INR 2,948.82'],
+    ['subtotal', 'Subtotal', '₹2,499'], ['cgst', 'CGST at 9%', '₹224.91'], ['sgst', 'SGST at 9%', '₹224.91'],
+    ['total', 'Total', '₹2,948.82'], ['paid', 'Paid', '₹0'], ['balance', 'Balance', '₹2,948.82'],
   ]);
   assert.deepEqual(view.notes, [EXPERIMENTAL]);
   assert.ok(view.documentText.startsWith('TAX INVOICE DRAFT\n'));
@@ -774,7 +774,7 @@ test('payments: part then the rest, overpaying refuses, and the received receipt
   await assert.rejects(pay('-5', '2026-10-05'), code('INVALID_AMOUNT'));
   await assert.rejects(pay('2948.83', '2026-10-05'), code('PAYMENT_TOO_LARGE')); // one paisa above 294882
 
-  // INR 1,000.00 first: paid 100000, balance 294882 - 100000 = 194882.
+  // ₹1,000 first: paid 100000, balance 294882 - 100000 = 194882.
   const part = await pay('1,000', '2026-10-05');
   assert.equal(part.invoice.status, 'part-paid');
   assert.equal(part.invoice.paidMinor, '100000');
@@ -784,7 +784,7 @@ test('payments: part then the rest, overpaying refuses, and the received receipt
   assert.equal(part.payments[0].booksNote, null);
   assert.equal(env.calculator.receipt(owner, part.payments[0].booksReceiptId!).totalMinor, '100000');
   await assert.rejects(pay('1948.83', '2026-10-06'), code('PAYMENT_TOO_LARGE'));
-  // The rest, INR 1,948.82 = 194882: paid 294882, balance 0.
+  // The rest, ₹1,948.82 = 194882: paid 294882, balance 0.
   const rest = await pay('1948.82', '2026-10-06');
   assert.equal(rest.invoice.status, 'paid');
   assert.equal(rest.invoice.paidMinor, '294882');
@@ -801,7 +801,7 @@ test('payments: part then the rest, overpaying refuses, and the received receipt
   assert.deepEqual(paymentFacts.map(f => [f.sourceRow, f.validFrom]), [[2, '2026-10-05'], [3, '2026-10-06']]);
   assert.equal(listRecords(state, 'venture-term').find(t => t.key === 'payment')!.lifecycle, 'active');
 
-  // One full payment of INR 2,948.82: the received receipt is 294882.
+  // One full payment of ₹2,948.82: the received receipt is 294882.
   const full = await setup('IN');
   const one = await issuedIndiaInvoice(full);
   const paid = await call(full, 'venture.payment.record', { invoiceId: one.invoice.id, amount: '2948.82', receivedOn: '2026-10-05', method: 'bank-transfer' });
@@ -854,7 +854,7 @@ test('delivery writes a sale fact and the books summary proves billed, received 
   assert.equal(listRecords(env.store.read(), 'venture-order').find(o => o.id === order.id)!.status, 'delivered', 'a delivered order stays delivered');
 
   const before = await call(env, 'venture.books.summary', { from: '2026-10-01', to: '2026-10-31' });
-  assert.deepEqual(before.openInvoices, [{ invoiceId: issued.invoice.id, number: 'INV-0001', clientName: 'Cafe Aroma Demo', balanceMinor: '294882', balanceDisplay: 'INR 2,948.82', dueDate: '2026-10-16' }]);
+  assert.deepEqual(before.openInvoices, [{ invoiceId: issued.invoice.id, number: 'INV-0001', clientName: 'Cafe Aroma Demo', balanceMinor: '294882', balanceDisplay: '₹2,948.82', dueDate: '2026-10-16' }]);
 
   await call(env, 'venture.payment.record', { invoiceId: issued.invoice.id, amount: '2948.82', receivedOn: '2026-10-05', method: 'upi' });
   const summary = await call(env, 'venture.books.summary', { from: '2026-10-01', to: '2026-10-31' });
@@ -862,9 +862,9 @@ test('delivery writes a sale fact and the books summary proves billed, received 
   assert.equal(summary.currency, 'INR');
   // Billed 249900 (without tax), received 294882 (with tax), earned 249900 (without tax).
   assert.deepEqual(summary.figures.map(f => [f.operation, f.label, f.minor, f.display, f.stale]), [
-    ['billed', 'Billed (without tax)', '249900', 'INR 2,499.00', false],
-    ['received', 'Received (with tax)', '294882', 'INR 2,948.82', false],
-    ['earned', 'Earned (without tax)', '249900', 'INR 2,499.00', false],
+    ['billed', 'Billed (without tax)', '249900', '₹2,499', false],
+    ['received', 'Received (with tax)', '294882', '₹2,948.82', false],
+    ['earned', 'Earned (without tax)', '249900', '₹2,499', false],
   ]);
   for (const f of summary.figures) {
     const receipt = env.calculator.receipt(owner, f.receiptId);

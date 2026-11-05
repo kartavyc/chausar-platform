@@ -12,7 +12,7 @@
  * fake has none. Run again starts a new run id, as the engine does. Away is a list built from records; Chausar sends nothing.
  */
 
-import { formatDay } from '../../../../platform/runtime/owner-format';
+import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AwayView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
 import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
@@ -68,7 +68,7 @@ function rupeesOf(micros: string, perUsd: string): string {
   const [whole = '0', part = ''] = perUsd.split('.');
   const rate = BigInt(whole) * 10_000n + BigInt(part.padEnd(4, '0').slice(0, 4));
   const paise = (BigInt(micros) * rate + 50_000_000n) / 100_000_000n;
-  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')}`;
+  return formatMoney(paise, 'INR');
 }
 const day = (iso: string) => iso.slice(0, 10);
 const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);

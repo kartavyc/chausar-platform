@@ -35,7 +35,7 @@ test('goals.set keeps a month\'s goal inside the app, for the owner; refusals wr
   const view = await env.money<GoalView>('venture.goals.set', { month: '2026-10', amountMinor: '15000000' });
   assert.equal(view.month, '2026-10');
   assert.equal(view.state, 'set');
-  assert.equal(view.goal?.display, 'INR 150,000.00');
+  assert.equal(view.goal?.display, '₹1,50,000');
   const [goal] = listRecords(env.store.read(), 'venture-goal');
   assert.deepEqual([goal.month, goal.amountMinor, goal.currency, goal.by], ['2026-10', '15000000', 'INR', 'owner']);
   // Today's goal card reads again: queue.changed in the same commit, and published after it.
@@ -49,14 +49,14 @@ test('goals.set keeps a month\'s goal inside the app, for the owner; refusals wr
   });
   for (const ctx of [{ memberId: 'viewer', role: 'viewer', epoch: 1, channel: 'desktop' }, { memberId: 'ca', role: 'accountant', epoch: 1, channel: 'desktop' }] as Context[]) {
     await assert.rejects(env.money('venture.goals.set', { month: '2026-10', amountMinor: '15000000' }, ctx), code('FORBIDDEN'), ctx.role);
-    assert.equal((await get(env, {}, ctx)).goal?.display, 'INR 150,000.00', `${ctx.role} may read it`);
+    assert.equal((await get(env, {}, ctx)).goal?.display, '₹1,50,000', `${ctx.role} may read it`);
   }
   for (const amountMinor of ['0', '-15000000', '1500.50', '1.5e7', '', ' 15000000', '0150', '1000000000000000', 15000000, null]) {
     await assert.rejects(env.money('venture.goals.set', { month: '2026-10', amountMinor }), code('GOAL_INVALID'), String(amountMinor));
   }
   // Fifteen digits is the most a goal may have; twelve months ahead is the furthest.
   const december = await env.money<GoalView>('venture.goals.set', { month: '2026-12', amountMinor: '999999999999999' });
-  assert.equal(december.goal?.display, 'INR 9,999,999,999,999.99');
+  assert.equal(december.goal?.display, '₹99,99,99,99,99,999.99');
   await env.money('venture.goals.set', { month: '2027-10', amountMinor: '100' });
   await assert.rejects(env.money('venture.goals.set', { month: '2026-09', amountMinor: '15000000' }), code('GOAL_MONTH_PAST'));
   for (const month of ['2026-13', 'October', '2026-1', 202610, '1999-12', '2027-11']) {
@@ -70,7 +70,7 @@ test('goals.set keeps a month\'s goal inside the app, for the owner; refusals wr
   // read stale: the goal in use is part of what they add up, even when the amount is the same.
   env.advance(60_000);
   const newer = await env.money<GoalView>('venture.goals.set', { month: '2026-10', amountMinor: '12000000' });
-  assert.equal(newer.goal?.display, 'INR 120,000.00');
+  assert.equal(newer.goal?.display, '₹1,20,000');
   assert.equal((await receipt(env, view.goal!.receiptId)).stale, true);
   env.advance(60_000);
   const same = await env.money<GoalView>('venture.goals.set', { month: '2026-10', amountMinor: '12000000' });
@@ -78,7 +78,7 @@ test('goals.set keeps a month\'s goal inside the app, for the owner; refusals wr
   assert.equal((await receipt(env, newer.paceReceiptId)).stale, true);
   assert.equal((await receipt(env, same.goal!.receiptId)).stale, false);
   assert.deepEqual(listRecords(env.store.read(), 'venture-goal').filter(item => item.month === '2026-10').map(item => item.amountMinor), ['15000000', '12000000', '12000000']);
-  assert.equal((await get(env, { month: '2026-12' })).goal?.display, 'INR 9,999,999,999,999.99', 'December does not touch October');
+  assert.equal((await get(env, { month: '2026-12' })).goal?.display, '₹99,99,99,99,99,999.99', 'December does not touch October');
 
   // A goal kept in another currency than the business's books is refused, never shown as if it were rupees.
   await ventureAction(env.deps, owner, 'admin', 'seed.goal', tx => { tx.put<GoalRecord>({ ...tx.base('venture-goal'), month: '2026-11', amountMinor: '500000', currency: 'USD', by: 'owner' }); });
@@ -89,7 +89,7 @@ test('goals.set takes the goal as the owner typed it (4I2): read in the business
   const env = await goalBusiness();
   // INR has two decimals: "1,50,000.50" is 150000 rupees and 50 paise, 15000050 paise; grouping commas and spaces go.
   const typed = await env.money<GoalView>('venture.goals.set', { month: '2026-10', amount: '1,50,000.50' });
-  assert.equal(typed.goal?.display, 'INR 150,000.50');
+  assert.equal(typed.goal?.display, '₹1,50,000.50');
   assert.equal(listRecords(env.store.read(), 'venture-goal').at(-1)?.amountMinor, '15000050');
   // " 1 50 000 " is 150000 rupees, 15000000 paise; "2000.5" is 200050 paise; "0007" is 700 paise.
   for (const [amount, minor] of [[' 1 50 000 ', '15000000'], ['2000.5', '200050'], ['0007', '700']] as const) {
@@ -117,8 +117,8 @@ test('goals.get: invoiced before tax this month, ready to issue, pace, days left
   // A draft dated today, 1 month: 1975000 before tax, ready to issue. A draft dated in September is not October's.
   const ready = await invoice(env, '1', '2026-10-23', true);
   await invoice(env, '1', '2026-09-29', true);
-  // INR 50,000.00 came in on 10 Oct against the first October invoice (it stays part-paid and still counts as invoiced);
-  // INR 10,000.00 came in on 30 Sep against September's.
+  // ₹50,000 came in on 10 Oct against the first October invoice (it stays part-paid and still counts as invoiced);
+  // ₹10,000 came in on 30 Sep against September's.
   await env.money('venture.payment.record', { invoiceId: first.invoice.id, amount: '50000.00', receivedOn: '2026-10-10', method: 'upi' });
   await env.money('venture.payment.record', { invoiceId: september.invoice.id, amount: '10000.00', receivedOn: '2026-09-30', method: 'upi' });
   const set = await env.money<GoalView>('venture.goals.set', { month: '2026-10', amountMinor: '15000000' });
@@ -126,30 +126,30 @@ test('goals.get: invoiced before tax this month, ready to issue, pace, days left
 
   const view = await get(env);
   assert.deepEqual(view, { ...set, next: view.next, briefing: view.briefing }, 'set answers with the same view get gives');
-  assert.deepEqual([view.month, view.state, view.goal?.display], ['2026-10', 'set', 'INR 150,000.00']);
-  // Invoiced: 7900000 + 3950000 = 11850000 (INR 118,500.00); 11850000 x 1000 / 15000000 = 790.
-  assert.equal(view.invoiced.display, 'INR 118,500.00');
+  assert.deepEqual([view.month, view.state, view.goal?.display], ['2026-10', 'set', '₹1,50,000']);
+  // Invoiced: 7900000 + 3950000 = 11850000 (₹1,18,500); 11850000 x 1000 / 15000000 = 790.
+  assert.equal(view.invoiced.display, '₹1,18,500');
   assert.equal(view.invoicedPermille, 790);
-  // Ready: 1975000 (INR 19,750.00); 1975000 x 1000 / 15000000 = 131.66, floored to 131.
-  assert.equal(view.ready.display, 'INR 19,750.00');
+  // Ready: 1975000 (₹19,750); 1975000 x 1000 / 15000000 = 131.66, floored to 131.
+  assert.equal(view.ready.display, '₹19,750');
   assert.equal(view.readyPermille, 131);
   // Pace: day 23 of 31, 23 x 1000 / 31 = 741.93, floored to 741. Days left: 31 - 23 = 8; not the last day.
   assert.deepEqual([view.elapsedDays, view.monthDays, view.daysLeft, view.lastDay, view.pacePermille, view.pace], [23, 31, 8, false, 741, 'ahead']);
-  // Still to invoice: 15000000 - 11850000 = 3150000 (INR 31,500.00). Received this month: INR 50,000.00.
-  assert.equal(view.stillToInvoice?.display, 'INR 31,500.00');
-  assert.equal(view.receivedSoFar.display, 'INR 50,000.00');
+  // Still to invoice: 15000000 - 11850000 = 3150000 (₹31,500). Received this month: ₹50,000.
+  assert.equal(view.stillToInvoice?.display, '₹31,500');
+  assert.equal(view.receivedSoFar.display, '₹50,000');
   assert.equal(view.lastMonth, null);
   assert.equal(view.line, '79% of your October 2026 goal invoiced, before tax. Today\'s pace is 74%, so you are ahead.');
   // 4I2: the percents as whole numbers for the screen to word (11850000 x 100 / 15000000 = 79; 741 / 10 = 74), not past
-  // the goal, and how far ahead of today's pace with the pace receipt (INR 7,209.67, worked out below).
+  // the goal, and how far ahead of today's pace with the pace receipt (₹7,209.67, worked out below).
   assert.deepEqual([view.invoicedPercent, view.pacePercent, view.past, view.pastBy], [79, 74, false, null]);
-  assert.deepEqual(view.paceBy, { display: 'INR 7,209.67', receiptId: view.paceReceiptId });
+  assert.deepEqual(view.paceBy, { display: '₹7,209.67', receiptId: view.paceReceiptId });
 
   const invoiced = await receipt(env, view.invoiced.receiptId);
   assert.deepEqual(invoiced.subject, { type: 'invoiced', month: '2026-10', which: 'issued' });
   assert.deepEqual(invoiced.addends.map(item => item.recordId), [first.invoice.id, second.invoice.id]);
   assert.deepEqual(rows(invoiced), [[`INV-0002 for ${CLIENT}`, '7900000'], [`INV-0003 for ${CLIENT}`, '3950000']]);
-  assert.equal(headline(invoiced), 'Invoiced in October 2026, before tax INR 118,500.00');
+  assert.equal(headline(invoiced), 'Invoiced in October 2026, before tax ₹1,18,500');
   assert.equal(invoiced.stale, false);
   const readyReceipt = await receipt(env, view.ready.receiptId);
   assert.deepEqual(readyReceipt.subject, { type: 'invoiced', month: '2026-10', which: 'ready' });
@@ -158,18 +158,18 @@ test('goals.get: invoiced before tax this month, ready to issue, pace, days left
   const still = await receipt(env, view.goal!.receiptId);
   assert.deepEqual(still.subject, { type: 'goal', month: '2026-10', goalId, day: null });
   assert.deepEqual(rows(still), [['Your goal for October 2026', '15000000'], [`Less INV-0002 for ${CLIENT}`, '-7900000'], [`Less INV-0003 for ${CLIENT}`, '-3950000']]);
-  assert.equal(headline(still), 'Still to invoice toward the goal INR 31,500.00');
+  assert.equal(headline(still), 'Still to invoice toward the goal ₹31,500');
   assert.equal(view.stillToInvoice?.receiptId, still.id);
   // Today's pace has its own receipt, one for each day: 15000000 x 23 / 31 = 11,129,032.26, rounded up to 11129033
-  // (whole paise, so "ahead" means at or past it); 11850000 - 11129033 = 720967 (INR 7,209.67) ahead.
+  // (whole paise, so "ahead" means at or past it); 11850000 - 11129033 = 720967 (₹7,209.67) ahead.
   const pace = await receipt(env, view.paceReceiptId);
   assert.notEqual(pace.id, still.id);
   assert.deepEqual(pace.subject, { type: 'goal', month: '2026-10', goalId, day: '2026-10-23' });
   assert.deepEqual(rows(pace), [
     [`INV-0002 for ${CLIENT}`, '7900000'], [`INV-0003 for ${CLIENT}`, '3950000'],
-    ['Less today\'s pace: day 23 of 31 of the INR 150,000.00 goal', '-11129033'],
+    ['Less today\'s pace: day 23 of 31 of the ₹1,50,000 goal', '-11129033'],
   ]);
-  assert.equal(headline(pace), 'Ahead of today\'s pace (day 23 of 31) by INR 7,209.67');
+  assert.equal(headline(pace), 'Ahead of today\'s pace (day 23 of 31) by ₹7,209.67');
   const received = await receipt(env, view.receivedSoFar.receiptId);
   assert.deepEqual(received.subject, { type: 'received', from: '2026-10-01', to: '2026-10-31' });
   assert.equal(received.totalMinor, '5000000');
@@ -182,7 +182,7 @@ test('goals.get: invoiced before tax this month, ready to issue, pace, days left
   // shows zero with no receipt, and none is written.
   assert.equal(after.invoicedPermille, 921);
   assert.equal(after.readyPermille, 0);
-  assert.deepEqual(after.ready, { display: 'INR 0.00', receiptId: null });
+  assert.deepEqual(after.ready, { display: '₹0', receiptId: null });
   assert.notEqual(after.invoiced.receiptId, view.invoiced.receiptId);
   const emptyReady = listRecords(env.store.read(), 'venture-sum-receipt').filter(item => item.subject.type === 'invoiced' && item.subject.which === 'ready' && item.addends.length === 0);
   assert.equal(emptyReady.length, 0);
@@ -195,9 +195,9 @@ test('goals.get: invoiced before tax this month, ready to issue, pace, days left
   assert.equal(past.line, 'Past the goal: 118% of your October 2026 goal invoiced, before tax.');
   // 4I2: past the goal, with how far past (17775000 - 15000000 = 2775000) and the goal's own receipt; 118 percent.
   assert.deepEqual([past.past, past.invoicedPercent], [true, 118]);
-  assert.deepEqual(past.pastBy, { display: 'INR 27,750.00', receiptId: past.goal!.receiptId });
+  assert.deepEqual(past.pastBy, { display: '₹27,750', receiptId: past.goal!.receiptId });
   const beyond = await receipt(env, past.goal!.receiptId);
-  assert.equal(headline(beyond), 'Past the goal by INR 27,750.00');
+  assert.equal(headline(beyond), 'Past the goal by ₹27,750');
   assert.deepEqual(beyond.addends.map(item => item.amount), ['7900000', '3950000', '1975000', '3950000', '-15000000']);
   assert.equal(beyond.addends.at(-1)?.label, 'Less your goal for October 2026');
 });
@@ -223,8 +223,8 @@ test('what counts: void invoices are left out; discounts and issued credit notes
   await env.money('venture.goals.set', { month: '2026-10', amountMinor: '15000000' });
 
   const view = await get(env);
-  // 7900000 + 3555000 - 395000 - 1975000 = 9085000 (INR 90,850.00); x 1000 / 15000000 = 605.66, floored to 605.
-  assert.equal(view.invoiced.display, 'INR 90,850.00');
+  // 7900000 + 3555000 - 395000 - 1975000 = 9085000 (₹90,850); x 1000 / 15000000 = 605.66, floored to 605.
+  assert.equal(view.invoiced.display, '₹90,850');
   assert.equal(view.invoicedPermille, 605);
   const invoiced = await receipt(env, view.invoiced.receiptId);
   assert.deepEqual(rows(invoiced), [
@@ -238,14 +238,14 @@ test('what counts: void invoices are left out; discounts and issued credit notes
     ['Your goal for October 2026', '15000000'], [`Less INV-0001 for ${CLIENT}`, '-7900000'], [`Less INV-0002 for ${CLIENT}`, '-3555000'],
     ['Credit note CN-0002 on INV-0001', '395000'], ['Credit note CN-0001 on INV-0001', '1975000'],
   ]);
-  assert.equal(headline(still), 'Still to invoice toward the goal INR 59,150.00');
+  assert.equal(headline(still), 'Still to invoice toward the goal ₹59,150');
   // Behind today's pace: 9085000 x 31 = 281,635,000 is less than 15000000 x 23 = 345,000,000. The pace receipt says by
-  // how much: 11129033 - 9085000 = 2044033 (INR 20,440.33).
+  // how much: 11129033 - 9085000 = 2044033 (₹20,440.33).
   assert.equal(view.pace, 'behind');
   const pace = await receipt(env, view.paceReceiptId);
-  assert.equal(headline(pace), 'Behind today\'s pace (day 23 of 31) by INR 20,440.33');
+  assert.equal(headline(pace), 'Behind today\'s pace (day 23 of 31) by ₹20,440.33');
   assert.deepEqual(rows(pace), [
-    ['Today\'s pace: day 23 of 31 of the INR 150,000.00 goal', '11129033'], [`Less INV-0001 for ${CLIENT}`, '-7900000'], [`Less INV-0002 for ${CLIENT}`, '-3555000'],
+    ['Today\'s pace: day 23 of 31 of the ₹1,50,000 goal', '11129033'], [`Less INV-0001 for ${CLIENT}`, '-7900000'], [`Less INV-0002 for ${CLIENT}`, '-3555000'],
     ['Credit note CN-0002 on INV-0001', '395000'], ['Credit note CN-0001 on INV-0001', '1975000'],
   ]);
   assert.equal(view.line, '60% of your October 2026 goal invoiced, before tax. Today\'s pace is 74%, so you are behind.');
@@ -253,16 +253,16 @@ test('what counts: void invoices are left out; discounts and issued credit notes
 
 test('goals.get with no goal: last month with its receipt, no suggestion, the bar parts left out, no receipt for an empty sum', async () => {
   const env = await goalBusiness();
-  // September: 2 months, before tax 2 x 1975000 = 3950000 (INR 39,500.00).
+  // September: 2 months, before tax 2 x 1975000 = 3950000 (₹39,500).
   await invoice(env, '2', '2026-09-30');
   const before = listRecords(env.store.read(), 'venture-sum-receipt').length;
   const view = await get(env);
   assert.equal(view.state, 'unset');
   for (const field of ['goal', 'stillToInvoice', 'invoicedPermille', 'readyPermille', 'pace', 'paceReceiptId', 'invoicedPercent', 'pastBy', 'paceBy'] as const) assert.equal(view[field], null, field);
   assert.deepEqual([view.elapsedDays, view.monthDays, view.daysLeft, view.pacePermille, view.pacePercent, view.past], [23, 31, 8, 741, 74, false]);
-  assert.deepEqual(view.invoiced, { display: 'INR 0.00', receiptId: null });
-  assert.deepEqual(view.receivedSoFar, { display: 'INR 0.00', receiptId: null });
-  assert.equal(view.lastMonth?.display, 'INR 39,500.00');
+  assert.deepEqual(view.invoiced, { display: '₹0', receiptId: null });
+  assert.deepEqual(view.receivedSoFar, { display: '₹0', receiptId: null });
+  assert.equal(view.lastMonth?.display, '₹39,500');
   const last = await receipt(env, view.lastMonth!.receiptId);
   assert.deepEqual(last.subject, { type: 'invoiced', month: '2026-09', which: 'issued' });
   assert.equal(last.totalMinor, '3950000');
@@ -294,7 +294,7 @@ test('goals.suggest: the owner\'s AI reads the plan\'s offers and prices only, a
   // 150000 whole rupees is 15000000 paise.
   assert.deepEqual(await suggest(), {
     // 4I2: typed is the same amount as the owner would type it, for the goal field.
-    amountMinor: '15000000', display: 'INR 150,000.00', estimate: true, typed: '150000.00',
+    amountMinor: '15000000', display: '₹1,50,000', estimate: true, typed: '150000.00',
     line: 'A model estimate from your offers and prices. Change it to what you aim for.',
   });
   const [task] = tasks;
@@ -338,7 +338,7 @@ test('goals.get reads the month on the owner\'s calendar: 23:30 on 31 Oct is Oct
   await invoice(env, '1', null);
   const october = await get(env);
   assert.equal(october.month, '2026-10');
-  assert.equal(october.invoiced.display, 'INR 19,750.00');
+  assert.equal(october.invoiced.display, '₹19,750');
   assert.deepEqual([october.elapsedDays, october.monthDays, october.daysLeft, october.lastDay, october.pacePermille], [31, 31, 0, true, 1000]);
   // 45 minutes later it is 00:15 on 1 November in Kolkata, though UTC still says 31 October.
   env.advance(45 * 60_000);
@@ -347,14 +347,14 @@ test('goals.get reads the month on the owner\'s calendar: 23:30 on 31 Oct is Oct
   assert.equal(november.month, '2026-11');
   // 2 x 1975000 = 3950000; x 1000 / 5000000 = 790. Day 1 of 30: 1 x 1000 / 30 = 33.3, floored to 33; 29 days left.
   // 3950000 x 30 = 118,500,000 is more than 5000000 x 1, so ahead.
-  assert.equal(november.invoiced.display, 'INR 39,500.00');
+  assert.equal(november.invoiced.display, '₹39,500');
   assert.deepEqual([november.elapsedDays, november.monthDays, november.daysLeft, november.lastDay, november.pacePermille, november.invoicedPermille, november.pace], [1, 30, 29, false, 33, 790, 'ahead']);
   // Simple first: a business not registered for tax sees no tax words.
   assert.equal(november.line, '79% of your November 2026 goal invoiced. Today\'s pace is 3%, so you are ahead.');
-  assert.equal(headline(await receipt(env, november.invoiced.receiptId)), 'Invoiced in November 2026 INR 39,500.00');
+  assert.equal(headline(await receipt(env, november.invoiced.receiptId)), 'Invoiced in November 2026 ₹39,500');
   // October is over: read whole, no pace to keep, and no next step for it.
   const over = await get(env, { month: '2026-10' });
-  assert.deepEqual([over.invoiced.display, over.daysLeft, over.lastDay, over.pace, over.next, over.briefing], ['INR 19,750.00', 0, false, null, null, null]);
+  assert.deepEqual([over.invoiced.display, over.daysLeft, over.lastDay, over.pace, over.next, over.briefing], ['₹19,750', 0, false, null, null, null]);
   // Twenty-four months back and twelve ahead of November 2026 are the furthest a goal is read.
   await get(env, { month: '2024-11' });
   await get(env, { month: '2027-11' });
@@ -369,9 +369,9 @@ test('the three goal methods through VentureHost.request: the app-only check, th
   try {
     await assert.rejects(host.request(phone, 'venture.goals.set', { month: '2026-10', amountMinor: '15000000' }), code('APP_APPROVAL_REQUIRED'));
     const set = await host.request(owner, 'venture.goals.set', { month: '2026-10', amountMinor: '15000000' }) as GoalView;
-    assert.deepEqual([set.state, set.goal?.display], ['set', 'INR 150,000.00']);
+    assert.deepEqual([set.state, set.goal?.display], ['set', '₹1,50,000']);
     const read = await host.request(phone, 'venture.goals.get', {}) as GoalView;
-    assert.deepEqual([read.month, read.goal?.display, read.pacePermille], ['2026-10', 'INR 150,000.00', 741]);
+    assert.deepEqual([read.month, read.goal?.display, read.pacePermille], ['2026-10', '₹1,50,000', 741]);
     // The engine's own model port, with no AI connected: no suggestion.
     assert.equal(await host.request(owner, 'venture.goals.suggest', { month: '2026-10' }), null);
   } finally {

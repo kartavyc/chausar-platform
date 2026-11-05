@@ -7,7 +7,6 @@ import { socialRevisionReceipt } from '../playbooks/social/revision-receipt.ts';
 // its record ('fig:<kind>:<record id>[:<call id>]') and is worked out again from that record on every read, so nothing
 // here is stored and no number comes from a model. A receipt whose record has moved on says it is stale.
 import { ChausarError, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { digest, findRecord, formatMicros, listRecords } from '../records.ts';
 import { formatMoney, formatRate, formatUsd } from '../../owner-format.ts';
 import type {
@@ -23,7 +22,8 @@ import { weekFigureReceipt } from './probe-figures.ts';
 import { shareWords } from '../money/share-price.ts';
 
 /** Money text as the screens' money rule finds it: a currency sign or code, then its digits. */
-export const MONEY_TEXT = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d[\d,]*(?:\.\d+)?/g;
+export { MONEY_TEXT } from '../../owner-format.ts';
+import { MONEY_TEXT } from '../../owner-format.ts';
 
 /** Every amount a text states, in order, as it is written there. */
 export function moneyIn(text: string | undefined | null): string[] {
@@ -50,7 +50,7 @@ export function offerPriceText(offer: Offer | undefined, currency: string): stri
   // Ink v2 wave 5 (5A2): an offer priced as a share of an amount the client confirms later (money/share-price.ts).
   if (offer?.pricing.share) return shareWords(offer.pricing.share.bps);
   const minor = offer?.pricing.unitPriceMinor ?? null;
-  return minor === null ? 'Not set' : `${formatMinor(minor, currency)} per ${offer!.pricing.quantityUnit}`;
+  return minor === null ? 'Not set' : `${formatMoney(minor, currency)} per ${offer!.pricing.quantityUnit}`;
 }
 
 const usd = (key: string, label: string, micros: string, display: Display = formatMicros(micros)): RowFigure =>

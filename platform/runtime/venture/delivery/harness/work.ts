@@ -58,7 +58,7 @@ function allowedNumbers(figures: readonly WorkFigure[]): string[] {
   const numbers = new Set<string>();
   for (const figure of figures) {
     numbers.add(figure.minor);
-    numbers.add(figure.unit === 'money' ? figure.display.slice(figure.currency.length + 1).replace(/,/g, '') : figure.display);
+    numbers.add(figure.unit === 'money' && figure.currency ? formatMinor(figure.minor, figure.currency).slice(figure.currency.length + 1).replace(/,/g, '') : figure.display); // the exact form's plain decimal (B2)
   }
   return [...numbers];
 }

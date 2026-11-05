@@ -7,9 +7,10 @@
 // Ideas from noskillish/bankmcp (MIT, Copyright (c) 2026 Nils Smed): the twin counter and the four-a-day polling limit,
 // and (Ink v2 wave 2, 2D) pairing transfers between the owner's own accounts (findOwnTransfers) and whole-word search for
 // an invoice number. These are rewrites in TypeScript on BigInt minor units, not copies.
+import { formatMoney } from '../../owner-format.ts';
 import { createHash } from 'node:crypto';
 import { check, type Context } from '../../contracts.ts';
-import { decimalMinor, formatMinor } from '../../currency.ts';
+import { decimalMinor } from '../../currency.ts';
 import type { CountryProfile, DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
 import { ownerClock } from '../local-day.ts';
 import { formatVentureDate, isAppChannel, isoDate, singleLine } from '../records.ts';
@@ -445,10 +446,10 @@ export function readAlertRules(value: unknown, currency: string): BankAlertRule[
 
 /** One rule in words, with its money as the engine formats it. */
 export function ruleLine(rule: BankAlertRule, currency: string, order: DateOrder): string {
-  if (rule.kind === 'large-debit') return `When ${formatMinor(rule.minor, currency)} or more goes out in one payment.`;
-  if (rule.kind === 'balance-below') return `When the balance falls below ${formatMinor(rule.minor, currency)}.`;
+  if (rule.kind === 'large-debit') return `When ${formatMoney(rule.minor, currency)} or more goes out in one payment.`;
+  if (rule.kind === 'balance-below') return `When the balance falls below ${formatMoney(rule.minor, currency)}.`;
   if (rule.kind === 'credit-matching') return `When money comes in that mentions ${rule.text}.`;
-  return `When no payment of ${formatMinor(rule.minor, currency)} or more that mentions ${rule.text} has come in by ${formatVentureDate(rule.by, order)}.`;
+  return `When no payment of ${formatMoney(rule.minor, currency)} or more that mentions ${rule.text} has come in by ${formatVentureDate(rule.by, order)}.`;
 }
 
 // ---------------------------------------------------------------------------

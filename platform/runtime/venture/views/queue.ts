@@ -23,9 +23,8 @@
 // Ink v2 wave 4 (package 4-0): five more row sources (proposals, follow-ups, replies, notices, run controls) whose
 // decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
 // (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
-import { formatUsd } from '../../owner-format.ts';
+import { formatUsd, formatMoney } from '../../owner-format.ts';
 import { authorize,ChausarError,check,type Context,type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { decideAgentApproval } from '../agent-runtime/approvals.ts';
 import { answerAgentFacts } from '../agent-runtime/facts.ts';
 import { routineRows } from '../agents/routine-runner.ts';
@@ -112,7 +111,7 @@ function priceText(offer: Offer | undefined, currency: string): string {
   // Ink v2 wave 5 (5A2): an offer priced as a share of an amount the client confirms later (money/share-price.ts).
   if (offer?.pricing.share) return shareWords(offer.pricing.share.bps);
   const minor = offer?.pricing.unitPriceMinor ?? null;
-  return minor === null ? 'Not set' : `${formatMinor(minor, currency)} per ${offer!.pricing.quantityUnit}`;
+  return minor === null ? 'Not set' : `${formatMoney(minor, currency)} per ${offer!.pricing.quantityUnit}`;
 }
 
 function planRows(state: State, venture: VentureRecord, business: Business): Pending[] {
@@ -404,7 +403,7 @@ function invoiceRows(state: State, venture: VentureRecord, business: Business): 
         },
         row: {
           ...base(business, 'invoice', subject, invoice.digest.slice(0, 16), invoice.at), title: `Invoice for ${client}`, line: `${invoice.documentTitle}${due}`,
-          change: { label: 'Total', after: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId },
+          change: { label: 'Total', after: formatMoney(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId },
           viewRef: { kind: 'file', id: invoice.id }, actions: [action('read', 'Read', false), action('issue', 'Issue', true, { secondAsk: true })],
         },
       };

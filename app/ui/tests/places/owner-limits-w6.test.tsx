@@ -74,7 +74,7 @@ it('new fake follow-ups keep the sending days and time chosen at the first send'
   expect(followups.later.find(row => row.cardId === card.id)?.due).toBe('2026-11-01');
   now = '2026-11-01T10:00:00.000Z';
   followups = await engine.request('venture.pipeline.followups', {});
-  expect(followups.later.find(row => row.cardId === card.id)?.line).toContain('from 17:00');
+  expect(followups.later.find(row => row.cardId === card.id)?.line).toContain('from 5:00 pm');
   now = '2026-11-01T12:00:00.000Z';
   followups = await engine.request('venture.pipeline.followups', {});
   expect(followups.due.some(row => row.cardId === card.id)).toBe(true);

@@ -8,7 +8,7 @@
  * a statement import never counts a line twice, and a preview link needs a public address.
  */
 
-import { formatUsd } from '../../../../platform/runtime/owner-format';
+import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
@@ -95,7 +95,7 @@ function rateWords(rate: SampleRupeeRate): string {
 /** Micro-dollars in rupees beside the dollars, as the engine's rupeesBeside: to the nearest paisa, a half paisa up. */
 function rupeesBeside(micros: string, rate: SampleRupeeRate): string {
   const paise = (BigInt(micros) * rate.perUsd + 50_000_000n) / 100_000_000n;
-  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')} at ${rateWords(rate)}`;
+  return `${formatMoney(paise, 'INR')} at ${rateWords(rate)}`;
 }
 /**
  * W6 6G5 (D44): each sample agent's spend this month with its sum receipt, as money/agent-meters.ts sends it: the Editor's

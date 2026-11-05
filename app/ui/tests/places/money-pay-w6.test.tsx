@@ -61,7 +61,7 @@ describe('Money w6: how clients pay', () => {
     const qr = within(pay).getByRole('img', { name: 'UPI QR code for INV-0039' });
     expect(qr.tagName.toLowerCase()).toBe('svg');
     expect(pay.textContent).toContain('lumen.studio@okaxis');
-    expect(pay.querySelector('[data-figure-group]')?.textContent).toContain('₹26,200.00');
+    expect(pay.querySelector('[data-figure-group]')?.textContent).toContain('₹26,200');
     await click(within(pay).getByRole('button', { name: 'Save file' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.invoice.pdf', { invoiceId: 'inv-0039' }]));
     expect(await within(pay).findByText('A PDF needs the desktop app.')).toBeTruthy();

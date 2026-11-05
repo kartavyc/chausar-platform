@@ -17,10 +17,10 @@ async function runFor(env: GoalEnv, orderId: string, callId: string | null) {
 }
 
 /**
- * Cafe Aroma Demo: one month invoiced on 5 Oct, 1975000 (INR 19,750.00) before tax. Its order's run made two paid
+ * Cafe Aroma Demo: one month invoiced on 5 Oct, 1975000 (₹19,750) before tax. Its order's run made two paid
  * calls: US$1.50 charged to the run, and US$0.50 by the run's model call. At 83.50 per $1:
  * 1500000 x 835000 = 1,252,500,000,000, + 50,000,000, / 100,000,000 = 12525; 500000 x 835000 = 417,500,000,000 -> 4175.
- * Spend 12525 + 4175 = 16700 (INR 167.00); margin 1975000 - 16700 = 1958300 (INR 19,583.00).
+ * Spend 12525 + 4175 = 16700 (₹167); margin 1975000 - 16700 = 1958300 (₹19,583).
  * Lotus Salon: an order with a run that spent US$1.00 (8350), nothing invoiced yet: margin 0 - 8350 = -8350.
  * One call of US$0.20 no order can claim.
  */
@@ -43,8 +43,8 @@ test('margins: per client, invoiced before tax less the spend of their orders at
   await env.money('venture.spend.policy.set', { inrPerUsd: '83.50' });
   const view = await env.money<MarginsView>('venture.money.margins', { month: '2026-10' });
   assert.deepEqual(view.rows.map(row => [row.client, row.invoiced.display, row.spend?.display, row.margin?.display, row.note]), [
-    ['Cafe Aroma Demo', 'INR 19,750.00', 'INR 167.00', 'INR 19,583.00', null],
-    ['Lotus Salon', 'INR 0.00', 'INR 83.50', 'INR -83.50', null],
+    ['Cafe Aroma Demo', '₹19,750', '₹167', '₹19,583', null],
+    ['Lotus Salon', '₹0', '₹83.50', '-₹83.50', null],
   ]);
   const aroma = view.rows[0];
   for (const figure of [aroma.invoiced, aroma.spend, aroma.margin]) assert.deepEqual([figure?.kind, figure?.source], ['calculated', { from: 'receipt', receiptId: figure?.receiptId }]);
@@ -63,8 +63,8 @@ test('margins without a rupee rate keep one currency: the spend and margin are n
   const { env } = await margins();
   const view = await env.money<MarginsView>('venture.money.margins', { month: '2026-10' });
   assert.deepEqual(view.rows.map(row => [row.invoiced.display, row.spend, row.margin, row.note]), [
-    ['INR 19,750.00', null, null, 'Not counted: no rupee rate set'],
-    ['INR 0.00', null, null, 'Not counted: no rupee rate set'],
+    ['₹19,750', null, null, 'Not counted: no rupee rate set'],
+    ['₹0', null, null, 'Not counted: no rupee rate set'],
   ]);
   assert.deepEqual(view.basis.notCounted, { count: 4, line: '4 not counted: 4 paid calls with no rupee rate set' });
   const empty = await env.money<MarginsView>('venture.money.margins', { month: '2026-08' });

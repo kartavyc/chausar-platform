@@ -18,7 +18,7 @@ describe('fake engine: push-to-talk (6I1)', () => {
   it('the notice comes first, whisper.cpp must be set up, one recording per session, the words come back unsent', async () => {
     const engine = new FakeEngine({ now: () => NOW });
     const first = await ask<TalkView>(engine, 'venture.talk.get');
-    expect([first.desktop, first.consent.given, first.sarvam.label, first.sarvam.cap, first.speak.label]).toEqual([true, false, 'fixture-tested', '₹100.00', 'planned: write']);
+    expect([first.desktop, first.consent.given, first.sarvam.label, first.sarvam.cap, first.speak.label]).toEqual([true, false, 'fixture-tested', '₹100', 'planned: write']);
     await expect(ask(engine, 'venture.talk.start')).rejects.toMatchObject({ code: 'TALK_CONSENT_REQUIRED' });
     await expect(ask(engine, 'venture.talk.consent', { digest: 'old', keepAudio: false })).rejects.toMatchObject({ code: 'APPROVAL_STALE' });
     await ask(engine, 'venture.talk.consent', { digest: TALK_CONSENT_DIGEST, keepAudio: false });

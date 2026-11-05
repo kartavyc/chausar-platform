@@ -8,13 +8,13 @@ import type { CaReceiptView, CaView, LeadView, MoneyOverviewLine, SpendPolicyVie
 /** Money at a glance per business, except "Clients owe you", which the money desk reads from its open invoices. */
 export const OVERVIEW: Record<string, MoneyOverviewLine[]> = {
   lumen: [
-    { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
+    { id: 'received', label: 'Came in this month', value: '₹86,200', receiptId: 'R-0402' },
     // The engine's shape (money/overview.ts): US dollars as providers bill, the rupees beside at the owner's rate (4A2 review).
-    { id: 'spent', label: 'AI and tools this month', value: 'USD 0.7198 (includes estimates)', receiptId: 'R-0431', estimate: true, rupees: '₹60.10 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
+    { id: 'spent', label: 'AI and tools this month', value: '$0.72 (includes estimates)', receiptId: 'R-0431', estimate: true, rupees: '₹60.10 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
   ],
   ledgerline: [
-    { id: 'received', label: 'Came in this month', value: '₹0.00', receiptId: 'R-0402' },
-    { id: 'spent', label: 'AI and tools this month', value: 'USD 0.4012', receiptId: 'R-0412', rupees: '₹33.50 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
+    { id: 'received', label: 'Came in this month', value: '₹0', receiptId: 'R-0402' },
+    { id: 'spent', label: 'AI and tools this month', value: '$0.40', receiptId: 'R-0412', rupees: '₹33.50 at ₹83.50 per $1 (your rate, set 15 Oct 2026)' },
   ],
 };
 
@@ -35,15 +35,15 @@ export const TAX_WORKINGS: Record<string, TaxWorking> = {
       {
         id: 'output', title: 'GST on your sales',
         lines: [
-          { label: 'Taxable value', value: '₹16,000.00', receiptId: 'R-0419' },
-          { label: 'CGST at 9%', value: '₹1,440.00', receiptId: 'R-0419' },
-          { label: 'SGST at 9%', value: '₹1,440.00', receiptId: 'R-0419' },
+          { label: 'Taxable value', value: '₹16,000', receiptId: 'R-0419' },
+          { label: 'CGST at 9%', value: '₹1,440', receiptId: 'R-0419' },
+          { label: 'SGST at 9%', value: '₹1,440', receiptId: 'R-0419' },
         ],
       },
-      { id: 'input', title: 'GST you paid on purchases', lines: [{ label: 'Input credit', value: '₹0.00' }], note: 'No purchase bills were uploaded for September.' },
+      { id: 'input', title: 'GST you paid on purchases', lines: [{ label: 'Input credit', value: '₹0' }], note: 'No purchase bills were uploaded for September.' },
       {
         id: 'payable', title: 'To pay',
-        lines: [{ label: 'CGST', value: '₹1,440.00', receiptId: 'R-0419' }, { label: 'SGST', value: '₹1,440.00', receiptId: 'R-0419' }],
+        lines: [{ label: 'CGST', value: '₹1,440', receiptId: 'R-0419' }, { label: 'SGST', value: '₹1,440', receiptId: 'R-0419' }],
         note: 'Rates from the GST table version 3. Your CA confirms it before anything is filed.',
       },
     ],
@@ -57,8 +57,8 @@ export const TAX_WORKINGS: Record<string, TaxWorking> = {
 export const SPEND_POLICIES: Record<string, SpendPolicyView> = {
   lumen: {
     capMicros: '20000000', askFirstMicros: '2000000', capUsd: '20.00', askFirstUsd: '2.00', cap: '$20.00 a month', askFirst: 'Asks you first above $2.00', setAt: '2026-10-15T10:00:00.000Z',
-    // USD 20 and USD 2 at 83.50: ₹1,670.00 and ₹167.00.
-    inrPerUsd: '83.50', rupeeRate: '₹83.50 per $1 (your rate, set 15 Oct 2026)', capRupees: '₹1,670.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)', askFirstRupees: '₹167.00 at ₹83.50 per $1 (your rate, set 15 Oct 2026)',
+    // $20 and $2 at 83.50: ₹1,670 and ₹167.
+    inrPerUsd: '83.50', rupeeRate: '₹83.50 per $1 (your rate, set 15 Oct 2026)', capRupees: '₹1,670 at ₹83.50 per $1 (your rate, set 15 Oct 2026)', askFirstRupees: '₹167 at ₹83.50 per $1 (your rate, set 15 Oct 2026)',
     rates: [
       {
         item: 'model:anthropic-api', unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000', microsPerCall: null,
@@ -96,19 +96,19 @@ export const CA_RECEIPTS: Record<string, Record<string, CaReceiptView>> = {
   ledgerline: {
     'w-gst-sep': {
       id: 'w-gst-sep', runId: 'd-mehta-sep', engine: 'gst-working',
-      figures: [{ key: 'output-igst', label: 'Output IGST', display: 'INR 900.00' }, { key: 'net-payable', label: 'Net payable', display: 'INR 2,825.00' }],
-      steps: [{ key: 'net-payable', label: 'Net payable', display: 'INR 2,825.00', section: '49' }],
+      figures: [{ key: 'output-igst', label: 'Output IGST', display: '₹900' }, { key: 'net-payable', label: 'Net payable', display: '₹2,825' }],
+      steps: [{ key: 'net-payable', label: 'Net payable', display: '₹2,825', section: '49' }],
       tables: [{ id: 'in-gst-rates', version: 2, title: 'GST rates and the GSTR-1 large invoice threshold', validFrom: '2025-09-22', validTo: null, confirmed: true, confirmedBy: 'Meera Joshi (ICAI 412345)' }],
       assumptions: [], openQuestions: [], rederived: 'same', differs: null, explanations: [],
     },
     'w-portal-sep': {
       id: 'w-portal-sep', runId: 'd-mehta-sep', engine: 'portal-diff',
-      figures: [{ key: 'net-payable', label: 'Net payable: the portal less ours', display: 'INR 80.00' }],
-      steps: [{ key: 'net-payable', label: 'Net payable: the portal less ours', display: 'INR 80.00', section: null }],
+      figures: [{ key: 'net-payable', label: 'Net payable: the portal less ours', display: '₹80' }],
+      steps: [{ key: 'net-payable', label: 'Net payable: the portal less ours', display: '₹80', section: null }],
       tables: [], assumptions: ['Figures are compared by key, to the paisa.'], openQuestions: [], rederived: 'differs',
       // Worked again from its inputs, the stored difference was changed after it was made: the engine's own line.
-      differs: { key: 'net-payable', line: 'Net payable: the portal less ours: the stored receipt has INR 80.00; worked again it is INR 75.00.' }, explanations: [],
-      portalDifferences: [{ key: 'net-payable', label: 'Net payable', state: 'differs', ours: 'INR 2,825.00', portal: 'INR 2,900.00', explanation: null }],
+      differs: { key: 'net-payable', line: 'Net payable: the portal less ours: the stored receipt has ₹80; worked again it is ₹75.' }, explanations: [],
+      portalDifferences: [{ key: 'net-payable', label: 'Net payable', state: 'differs', ours: '₹2,825', portal: '₹2,900', explanation: null }],
     },
   },
 };

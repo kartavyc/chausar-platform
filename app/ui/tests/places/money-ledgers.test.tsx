@@ -38,7 +38,7 @@ describe('Money: books', () => {
   it('shows billed, received and earned for the period, each with its receipt, the engine note and open invoices', async () => {
     const { calls } = start('#/money/books');
     const billed = await tileOf('Billed');
-    expect(await within(billed).findByText('₹1,12,400.00')).toBeTruthy();
+    expect(await within(billed).findByText('₹1,12,400')).toBeTruthy();
     expect(within(billed).getByRole('button', { name: receiptMark('R-0401') })).toBeTruthy();
     expect(within(await tileOf('Received')).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect((await tileOf('Earned')).textContent).toContain('₹95,254.24');
@@ -69,7 +69,7 @@ describe('Money: books', () => {
 
   it('a business without GST sees no tax working and no GST line at all (simple first)', async () => {
     const { calls } = start('#/money/books');
-    await within(await tileOf('Billed')).findByText('₹1,12,400.00');
+    await within(await tileOf('Billed')).findByText('₹1,12,400');
     await waitFor(() => expect(calls).toContainEqual(['venture.tax.working', {}]));
     await waitFor(() => expect(calls.map(([m]) => m)).toContain('venture.blueprint.get'));
     expect(screen.queryByRole('heading', { name: /Tax working/ })).toBeNull();
@@ -84,10 +84,10 @@ describe('Money: books', () => {
     expect(screen.getByText('Needs your CA to confirm')).toBeTruthy();
     expect(screen.getByRole('heading', { level: 3, name: 'GST on your sales' })).toBeTruthy();
     const cgst = screen.getAllByText('CGST at 9%')[0]!.closest('li')!;
-    expect(cgst.textContent).toContain('₹1,440.00');
+    expect(cgst.textContent).toContain('₹1,440');
     expect(within(cgst).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     const credit = screen.getByText('Input credit').closest('li')!;
-    expect(credit.textContent).toContain('₹0.00');
+    expect(credit.textContent).toContain('₹0');
     expect(credit.querySelector('[data-receipt]')).toBeNull();
     expect(screen.getByText('No purchase bills were uploaded for September.')).toBeTruthy();
   });
@@ -96,7 +96,7 @@ describe('Money: books', () => {
     start('#/money/books', {
       'venture.books.summary': () => ({
         currency: 'INR', period: { from: '2026-10-01', to: '2026-10-31' }, notes: [], openInvoices: [],
-        figures: [{ operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400.00', stale: true }],
+        figures: [{ operation: 'billed', label: 'Billed', receiptId: 'R-0401', display: '₹1,12,400', stale: true }],
       }),
     });
     expect(await within(await tileOf('Billed')).findByText('changed since')).toBeTruthy();
@@ -109,12 +109,12 @@ describe('Money: spend', () => {
     expect(await screen.findByText('₹60.10 this month (includes estimates)')).toBeTruthy();
     const billed = (await screen.findByText('Model calls for episode 14')).closest('li')!;
     expect(billed.textContent).toContain('Editor');
-    expect(billed.textContent).toContain('Reserved ₹45.00');
+    expect(billed.textContent).toContain('Reserved ₹45');
     expect(billed.textContent).toContain('Settled ₹42.10');
     expect(billed.textContent).toContain('billed');
     expect(within(billed).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     const estimate = screen.getByText('Title comparison, running').closest('li')!;
-    expect(estimate.textContent).toContain('Reserved ₹18.00');
+    expect(estimate.textContent).toContain('Reserved ₹18');
     expect(estimate.textContent).toContain('Not settled yet');
     expect(estimate.textContent).toContain('estimate');
     const refused = screen.getByText('Paid boost for the short').closest('li')!;
@@ -126,7 +126,7 @@ describe('Money: spend', () => {
   });
 
   it('a refused call the engine gave no reason for falls back to the plain note', async () => {
-    start('#/money/spend', { 'venture.spend.list': () => ({ rows: [{ id: 'sp9', connector: 'Instagram', label: 'Paid boost', reserved: 'No price', kind: 'refused' }], total: '₹0.00 this month' }) });
+    start('#/money/spend', { 'venture.spend.list': () => ({ rows: [{ id: 'sp9', connector: 'Instagram', label: 'Paid boost', reserved: 'No price', kind: 'refused' }], total: '₹0 this month' }) });
     expect((await screen.findByText(/Calls without prices are refused, never free/)).textContent).toContain('Limits and rates');
   });
 
@@ -134,26 +134,26 @@ describe('Money: spend', () => {
     const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
     start('#/money/spend', {
       'venture.spend.list': () => ({
-        rows: [{ id: 'sp1', connector: 'fal', label: 'Render', reserved: 'USD 1.0000', reservedRupees: `₹83.50 ${at}`, settled: 'USD 0.2500', settledRupees: `₹20.88 ${at}`, kind: 'billed' }],
-        total: 'USD 0.2500 this month', totalRupees: `₹20.88 ${at}`,
+        rows: [{ id: 'sp1', connector: 'fal', label: 'Render', reserved: '$1.00', reservedRupees: `₹83.50 ${at}`, settled: '$0.25', settledRupees: `₹20.88 ${at}`, kind: 'billed' }],
+        total: '$0.25 this month', totalRupees: `₹20.88 ${at}`,
       }),
     });
     const row = (await screen.findByText('Render')).closest('li')!;
-    expect(row.textContent).toContain(`USD 1.0000 · ₹83.50 ${at}`);
-    expect(row.textContent).toContain(`USD 0.2500 · ₹20.88 ${at}`);
-    expect(main().textContent).toContain(`USD 0.2500 this month · ₹20.88 ${at}`);
+    expect(row.textContent).toContain(`$1.00 · ₹83.50 ${at}`);
+    expect(row.textContent).toContain(`$0.25 · ₹20.88 ${at}`);
+    expect(main().textContent).toContain(`$0.25 this month · ₹20.88 ${at}`);
   });
 
   it('the AI spend tile at a glance shows rupees beside the dollars when the engine gives them', async () => {
     const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
-    start('#/money', { 'venture.money.overview': () => ({ lines: [{ id: 'spent', label: 'AI and tools this month', value: 'USD 0.2500', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) });
+    start('#/money', { 'venture.money.overview': () => ({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$0.25', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) });
     const spend = await tileOf('AI spend this month');
     expect(await within(spend).findByText(`₹20.88 ${at}`)).toBeTruthy();
-    expect(within(spend).getByText('USD 0.2500')).toBeTruthy();
+    expect(within(spend).getByText('$0.25')).toBeTruthy();
   });
 
   it('says so when there are no paid calls', async () => {
-    start('#/money/spend', { 'venture.spend.list': () => ({ rows: [], total: '₹0.00 this month' }) });
+    start('#/money/spend', { 'venture.spend.list': () => ({ rows: [], total: '₹0 this month' }) });
     expect(await screen.findByText('No paid calls yet.')).toBeTruthy();
     expect(screen.queryByText(/Calls without prices are refused, never free/)).toBeNull();
   });
@@ -162,10 +162,10 @@ describe('Money: spend', () => {
 describe('Money: spend settings', () => {
   it('shows the limit, the ask-first figure and the rate card in the engine words, with one quiet Change', async () => {
     start('#/money/spend');
-    expect(await within(await waitFor(settings)).findByText('₹1,670.00 a month')).toBeTruthy();
+    expect(await within(await waitFor(settings)).findByText('₹1,670 a month')).toBeTruthy();
     const region = settings();
-    expect(within(region).getByText('Asks you first above ₹167.00')).toBeTruthy();
-    expect(within(region).getByText('USD 3.0000 in and USD 15.0000 out, per million tokens')).toBeTruthy();
+    expect(within(region).getByText('Asks you first above ₹167')).toBeTruthy();
+    expect(within(region).getByText('$3.00 in and $15.00 out, per million tokens')).toBeTruthy();
     expect(within(region).getByText('Anthropic pricing page, checked 14 Oct 2026')).toBeTruthy();
     expect(within(region).getByRole('button', { name: 'Change' }).dataset.variant).toBe('quiet');
     expect(within(region).queryByRole('textbox')).toBeNull();
@@ -176,7 +176,7 @@ describe('Money: spend settings', () => {
     const engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' });
     await engine.request('venture.spend.policy.set', { inrPerUsd: null });
     const { calls } = start('#/money/spend', {}, engine);
-    await within(await waitFor(settings)).findByText('USD 20.00 a month');
+    await within(await waitFor(settings)).findByText('$20.00 a month');
     expect(within(settings()).queryByText(/per \$1/)).toBeNull();
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     const rate = within(settings()).getByLabelText('Rupees per US dollar') as HTMLInputElement;
@@ -187,8 +187,8 @@ describe('Money: spend settings', () => {
     await click(within(settings()).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
     expect(calls.find(([m]) => m === 'venture.spend.policy.set')![1]).toMatchObject({ inrPerUsd: '83.50' });
     // 4Z3: rupees lead the limits in India, the dollars after them; the rate said once, on its own line (4A2's rule).
-    expect(await within(settings()).findByText('₹1,670.00 a month')).toBeTruthy();
-    expect(within(settings()).getByText('Asks you first above ₹167.00')).toBeTruthy();
+    expect(await within(settings()).findByText('₹1,670 a month')).toBeTruthy();
+    expect(within(settings()).getByText('Asks you first above ₹167')).toBeTruthy();
     expect(within(settings()).getByText('₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
     expect(settings().textContent!.split('per $1').length - 1).toBe(1);
     await click(within(settings()).getByRole('button', { name: 'Change' }));
@@ -197,7 +197,7 @@ describe('Money: spend settings', () => {
 
   it('asks for every figure in US dollars, never in millionths of a dollar', async () => {
     start('#/money/spend');
-    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
+    await within(await waitFor(settings)).findByText('₹1,670 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     expect(settings().textContent).not.toMatch(/millionth/i);
     expect(within(settings()).getByText('In US dollars, like 20 or 12.50. Your AI bills in US dollars. Leave it empty for no limit.')).toBeTruthy();
@@ -208,7 +208,7 @@ describe('Money: spend settings', () => {
 
   it('sends the figures exactly as typed, an empty one as null and the held rate as it came, only after a second ask', async () => {
     const { calls } = start('#/money/spend');
-    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
+    await within(await waitFor(settings)).findByText('₹1,670 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     const cap = within(settings()).getByLabelText('Monthly limit') as HTMLInputElement;
     expect(cap.value).toBe('20.00');
@@ -228,14 +228,14 @@ describe('Money: spend settings', () => {
       capUsd: '30', askFirstUsd: null, inrPerUsd: '83.50', currencyLead: 'auto',
       rates: [{ item: 'model:anthropic-api', unit: 'per-million-tokens', inputUsdPerMillion: '3.00', outputUsdPerMillion: '15.00', source: 'Anthropic pricing page', checkedOn: '2026-10-14' }],
     }]]);
-    expect(await within(settings()).findByText('₹2,505.00 a month')).toBeTruthy();
+    expect(await within(settings()).findByText('₹2,505 a month')).toBeTruthy();
     expect(within(settings()).getByText('Never asks first')).toBeTruthy();
     expect(within(settings()).getByText('Saved.')).toBeTruthy();
   });
 
   it('adds a rate per call; the engine writes its price', async () => {
     const { calls } = start('#/money/spend');
-    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
+    await within(await waitFor(settings)).findByText('₹1,670 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     await click(within(settings()).getByRole('button', { name: 'Add a rate' }));
     const line = within(settings()).getByRole('group', { name: 'New rate' });
@@ -249,12 +249,12 @@ describe('Money: spend settings', () => {
     expect(sent.rates[1]).toMatchObject({ item: 'connector:instagram', unit: 'per-call', usdPerCall: '0.25', source: 'Meta ads price list' });
     expect(sent.rates[1]).not.toHaveProperty('inputUsdPerMillion');
     expect(sent.rates[1]).not.toHaveProperty('microsPerCall');
-    expect(await within(settings()).findByText('USD 0.2500 per call')).toBeTruthy();
+    expect(await within(settings()).findByText('$0.25 per call')).toBeTruthy();
   });
 
   it('shows the engine refusal in its words and keeps the form', async () => {
     start('#/money/spend');
-    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
+    await within(await waitFor(settings)).findByText('₹1,670 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     await type(within(settings()).getByLabelText('Monthly limit'), '5.001');
     await click(within(settings()).getByRole('button', { name: 'Save' }));

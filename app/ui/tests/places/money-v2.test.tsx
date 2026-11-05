@@ -49,8 +49,8 @@ const counted = async (owed: HTMLElement, words: string, count: string) => {
 /** Money at a glance as the real engine sends it: every line with its receipt. */
 const OVERVIEW: MoneyOverview = {
   lines: [
-    { id: 'owed', label: 'Clients owe you', value: '₹47,580.00', receiptId: 'R-0430' },
-    { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
+    { id: 'owed', label: 'Clients owe you', value: '₹47,580', receiptId: 'R-0430' },
+    { id: 'received', label: 'Came in this month', value: '₹86,200', receiptId: 'R-0402' },
     { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', receiptId: 'R-0431', estimate: true },
   ],
 };
@@ -58,9 +58,9 @@ const overview = (lines: MoneyOverview = OVERVIEW): Override => () => structured
 
 /** Three open invoices, in no particular order: one past due, two due after today (21 Oct 2026). */
 const OPEN: BooksSummaryLite['openInvoices'] = [
-  { invoiceId: 'inv-0041', number: 'INV-0041', clientName: 'Mehta Traders', balanceDisplay: '₹18,880.00', dueDate: '2026-11-05' },
-  { invoiceId: 'inv-0027', number: 'INV-0027', clientName: 'Iyer & Co', balanceDisplay: '₹2,500.00', dueDate: '2026-08-13' },
-  { invoiceId: 'inv-0039', number: 'INV-0039', clientName: 'Boat Audio', balanceDisplay: '₹26,200.00', dueDate: '2026-10-28' },
+  { invoiceId: 'inv-0041', number: 'INV-0041', clientName: 'Mehta Traders', balanceDisplay: '₹18,880', dueDate: '2026-11-05' },
+  { invoiceId: 'inv-0027', number: 'INV-0027', clientName: 'Iyer & Co', balanceDisplay: '₹2,500', dueDate: '2026-08-13' },
+  { invoiceId: 'inv-0039', number: 'INV-0039', clientName: 'Boat Audio', balanceDisplay: '₹26,200', dueDate: '2026-10-28' },
 ];
 const books = (open = OPEN): Override => async (params, request) => ({ ...((await request('venture.books.summary', params)) as BooksSummaryLite), openInvoices: structuredClone(open) });
 /**
@@ -99,7 +99,7 @@ describe('Money v2: the overview tiles', () => {
     const noGoal: Override = async (params, request) => ({ ...(await request('venture.goals.get', params) as GoalView), state: 'unset', goal: null, invoicedPermille: null, readyPermille: null, stillToInvoice: null, pace: null, paceReceiptId: null, invoicedPercent: null, past: false, pastBy: null, paceBy: null });
     const { calls } = start('#/money', { override: { 'venture.money.overview': overview(), 'venture.goals.get': noGoal } });
     const invoiced = await tile('Invoiced this month');
-    expect(await within(invoiced).findByText('₹1,12,400.00')).toBeTruthy();
+    expect(await within(invoiced).findByText('₹1,12,400')).toBeTruthy();
     expect(invoiced.querySelector('[data-receipt]')).not.toBeNull();
     expect(calls).toContainEqual(['venture.goals.get', {}]);
     expect(screen.queryByRole('img', { name: /goal/i })).toBeNull();
@@ -109,7 +109,7 @@ describe('Money v2: the overview tiles', () => {
   it('Received and AI spend this month come from the overview lines, each with its receipt; spend leads to each call', async () => {
     start('#/money', { override: { 'venture.money.overview': overview() } });
     const received = await tile('Received');
-    expect(await within(received).findByText('₹86,200.00')).toBeTruthy();
+    expect(await within(received).findByText('₹86,200')).toBeTruthy();
     expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     const spend = await tile('AI spend this month');
     expect(await within(spend).findByText('₹60.10')).toBeTruthy();
@@ -144,18 +144,18 @@ describe('Money v2: the overview tiles', () => {
     expect(words.closest('[data-phrase]')).toBeNull();
     // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
     expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
-    const received = await within(await tile('Received')).findByText('₹86,200.00');
+    const received = await within(await tile('Received')).findByText('₹86,200');
     expect(received.closest('[data-phrase]')).toBeNull();
     assertInkRules();
   });
 
   it('a figure a model wrote says model estimate and carries no receipt', async () => {
-    start('#/money', { override: { 'venture.money.overview': overview({ lines: [{ id: 'received', label: 'Came in this month', value: '₹40,000.00', receiptId: 'R-0402', estimate: true }] }) } });
+    start('#/money', { override: { 'venture.money.overview': overview({ lines: [{ id: 'received', label: 'Came in this month', value: '₹40,000', receiptId: 'R-0402', estimate: true }] }) } });
     const received = await tile('Received');
-    await within(received).findByText('₹40,000.00');
+    await within(received).findByText('₹40,000');
     expect(received.textContent).toContain('model estimate');
     // The tile's own figure carries no receipt (last month's, under it, has its own: W4 4J20).
-    expect(within(received).getByText('₹40,000.00').closest('[data-figure]')!.querySelector('[data-receipt]')).toBeNull();
+    expect(within(received).getByText('₹40,000').closest('[data-figure]')!.querySelector('[data-receipt]')).toBeNull();
     assertInkRules();
   });
 
@@ -163,8 +163,8 @@ describe('Money v2: the overview tiles', () => {
     // Built here: the owed and spend lines arrive with no receipt, the received line with its own.
     const bare: MoneyOverview = {
       lines: [
-        { id: 'owed', label: 'Clients owe you', value: '₹26,200.00' },
-        { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
+        { id: 'owed', label: 'Clients owe you', value: '₹26,200' },
+        { id: 'received', label: 'Came in this month', value: '₹86,200', receiptId: 'R-0402' },
         { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', estimate: true },
       ],
     };
@@ -173,14 +173,14 @@ describe('Money v2: the overview tiles', () => {
     await counted(owed, '1 open invoice', '1');
     await within(owed).findByText('Boat Audio');
     // Neither the owed sum nor the open balance it would prove is shown.
-    expect(main().textContent).not.toContain('₹26,200.00');
+    expect(main().textContent).not.toContain('₹26,200');
     expect(owed.querySelector('[data-receipt]')).toBeNull();
     const spend = await tile('AI spend this month');
     await waitFor(() => expect(within(spend).getByRole('link', { name: 'Each call' })).toBeTruthy());
     expect(spend.textContent).not.toContain('₹60.10');
     expect(spend.querySelector('[data-receipt]')).toBeNull();
     const received = await tile('Received');
-    await within(received).findByText('₹86,200.00');
+    await within(received).findByText('₹86,200');
     expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     assertInkRules();
   });
@@ -191,7 +191,7 @@ describe('Money v2: the overview tiles', () => {
     const owed = await tile('Owed to you');
     await waitFor(() => expect(within(owed).getByRole('button', { name: receiptMark('R-0430') })).toBeTruthy());
     const owedFigure = within(owed).getByRole('button', { name: receiptMark('R-0430') }).closest('[data-figure-group]');
-    expect(owedFigure?.textContent).toContain('₹26,200.00');
+    expect(owedFigure?.textContent).toContain('₹26,200');
     await counted(owed, '1 open invoice', '1');
     const spend = await tile('AI spend this month');
     // 4Z3: a business in India with a rupee rate leads with rupees, the dollars beneath with two decimals and the rate.
@@ -207,14 +207,14 @@ describe('Money v2: owed and due next', () => {
   it('without the aging view, Owed to you: the figure with its receipt, the open invoices as a count, and each one oldest due first', async () => {
     start('#/money', { override: { ...OLDER, 'venture.money.overview': overview(), 'venture.books.summary': books() } });
     const owed = await tile('Owed to you');
-    expect(await within(owed).findByText('₹47,580.00')).toBeTruthy();
+    expect(await within(owed).findByText('₹47,580')).toBeTruthy();
     expect(within(owed).getByRole('button', { name: receiptMark('R-0430') })).toBeTruthy();
     await counted(owed, '3 open invoices', '3');
     const items = within(within(owed).getByRole('list')).getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('[data-client]')?.textContent)).toEqual(['Iyer & Co', 'Boat Audio', 'Mehta Traders']);
     expect(items[0]!.textContent).toContain('INV-0027');
     expect(items[0]!.textContent).toContain('Due 13 Aug 2026');
-    expect(items[0]!.textContent).toContain('₹2,500.00');
+    expect(items[0]!.textContent).toContain('₹2,500');
     expect(within(items[1]!).getByRole('button', { name: 'Invoice INV-0039' })).toBeTruthy();
     expect(screen.queryByRole('img', { name: /owed by age/i })).toBeNull();
     expect(within(owed).queryByRole('button', { name: /remind/i })).toBeNull();
@@ -227,7 +227,7 @@ describe('Money v2: owed and due next', () => {
     await within(next).findByText('Boat Audio');
     const items = within(within(next).getByRole('list')).getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('[data-client]')?.textContent)).toEqual(['Boat Audio', 'Mehta Traders']);
-    expect(items[0]!.textContent).toContain('₹26,200.00');
+    expect(items[0]!.textContent).toContain('₹26,200');
     expect(items[0]!.textContent).toContain('Due 28 Oct 2026');
     expect(within(next).getByRole('button', { name: receiptMark('R-0430') })).toBeTruthy();
     expect(next.textContent).not.toMatch(/cost/i);
@@ -243,7 +243,7 @@ describe('Money v2: owed and due next', () => {
 
   it('from an engine without the W4 money views, draws no in-and-out chart and no cash line, and no sentence promises them', async () => {
     start('#/money', { override: { ...OLDER, 'venture.money.overview': overview() } });
-    await within(await tile('Owed to you')).findByText('₹47,580.00');
+    await within(await tile('Owed to you')).findByText('₹47,580');
     // The goal bar on Invoiced this month is the only chart the engine sends data for here (W4 4I2).
     expect(within(main()).queryAllByRole('img').filter((img) => !/of the goal invoiced|by department/.test(img.getAttribute('aria-label') ?? ''))).toEqual([]);
     expect(main().textContent).not.toMatch(/in and out|cash|13 weeks|coming soon/i);
@@ -300,7 +300,7 @@ describe('Money v2: the charts, once W4 sends their data', () => {
     expect(within(await tile('In and out by month')).getByRole('img', { name: /Money in and out by month/ })).toBeTruthy();
     expect(within(await tile('Cash, next 13 weeks')).getByRole('img', { name: /Cash in the bank by week/ })).toBeTruthy();
     expect(await tile('Due to you next')).toBeTruthy();
-    await within(owed).findByText('₹47,580.00');
+    await within(owed).findByText('₹47,580');
     assertInkRules();
   });
 });
@@ -312,7 +312,7 @@ describe('Money v2: the invoices table', () => {
     expect(within(table).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['Invoice', 'Client', 'Amount', 'Status', 'Due', 'Receipt', 'Action']);
     const open = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
     expect(open.textContent).toContain('Boat Audio');
-    expect(open.textContent).toContain('₹26,200.00');
+    expect(open.textContent).toContain('₹26,200');
     expect(open.textContent).toContain('Issued');
     expect(open.textContent).toContain('28 Oct 2026');
     expect(within(open).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
@@ -357,7 +357,7 @@ describe('Money v2: books, simple first', () => {
   it('billed, received and earned are tiles with their receipts; the period is a row of chips held in the address', async () => {
     start('#/money/books');
     const billed = await tile('Billed');
-    expect(await within(billed).findByText('₹1,12,400.00')).toBeTruthy();
+    expect(await within(billed).findByText('₹1,12,400')).toBeTruthy();
     expect(within(billed).getByRole('button', { name: receiptMark('R-0401') })).toBeTruthy();
     expect(within(await tile('Earned')).getByRole('button', { name: receiptMark('R-0403') })).toBeTruthy();
     const periods = screen.getByRole('group', { name: 'Period' });
@@ -382,7 +382,7 @@ describe('Money v2: books, simple first', () => {
       return { ...view, notes: view.notes.map((note) => (note.includes('GSTIN') ? 'To make this a tax invoice, add: the registration details your country needs.' : note)) };
     };
     const { calls } = start('#/money/books', { override: { 'venture.tax.working': () => structuredClone(plain), 'venture.invoice.get': realNotes } });
-    await within(await tile('Billed')).findByText('₹1,12,400.00');
+    await within(await tile('Billed')).findByText('₹1,12,400');
     await waitFor(() => expect(calls.map(([m]) => m)).toContain('venture.tax.working'));
     await waitFor(() => expect(calls.map(([m]) => m)).toContain('venture.blueprint.get'));
     expect(screen.queryByRole('button', { name: 'Tax details' })).toBeNull();
@@ -400,7 +400,7 @@ describe('Money v2: books, simple first', () => {
     expect(invoice.textContent).not.toMatch(/GST/);
     await go('#/money/invoices?sheet=payment:inv-0039');
     const payment = await screen.findByRole('complementary', { name: 'Record a payment' });
-    await waitFor(() => expect(payment.textContent).toContain('₹26,200.00'));
+    await waitFor(() => expect(payment.textContent).toContain('₹26,200'));
     expect(payment.textContent).not.toMatch(/GST/);
   });
 
@@ -449,7 +449,7 @@ describe('Money v2: spend', () => {
     await click(within(settings).getByRole('button', { name: 'Save' }));
     await click(within(settings).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
     // 4Z3: rupees lead the limit in India, the rate said once on its own line.
-    await within(settings).findByText('₹1,670.00 a month');
+    await within(settings).findByText('₹1,670 a month');
     expect(within(settings).getByText('₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
     assertInkRules();
   });
@@ -472,7 +472,7 @@ describe('Money v2: the sheets', () => {
   it('the payment sheet shows what is still owed as a figure with the invoice receipts, not as engine words', async () => {
     start('#/money/invoices?sheet=payment:inv-0039');
     const sheet = await screen.findByRole('complementary', { name: 'Record a payment' });
-    const balance = await within(sheet).findByText('₹26,200.00');
+    const balance = await within(sheet).findByText('₹26,200');
     const group = balance.closest('[data-figure-group]');
     expect(group?.textContent).toContain('Still owed');
     expect(group?.querySelector('[data-receipt="R-0416"]')).toBeTruthy();
@@ -504,9 +504,9 @@ describe('Money v2: the invoices table on a phone', () => {
     for (const head of table.querySelectorAll('th')) expect(head.getAttribute('role')).toBe('columnheader');
     for (const cell of table.querySelectorAll('td')) expect(cell.getAttribute('role')).toBe('cell');
     const row = (await within(table).findByRole('button', { name: 'Invoice INV-0039' })).closest('tr')!;
-    await waitFor(() => expect(row.textContent).toContain('₹26,200.00'));
+    await waitFor(() => expect(row.textContent).toContain('₹26,200'));
     const cells = within(row).getAllByRole('cell');
-    const amount = cells.find((cell) => cell.textContent?.includes('₹26,200.00'))!;
+    const amount = cells.find((cell) => cell.textContent?.includes('₹26,200'))!;
     expect(amount.querySelector('[data-phone-label]')?.textContent).toBe('Amount');
     const due = cells.find((cell) => cell.textContent?.includes('28 Oct 2026'))!;
     expect(due.querySelector('[data-phone-label]')?.textContent).toBe('Due 28 Oct 2026');
@@ -516,9 +516,9 @@ describe('Money v2: the invoices table on a phone', () => {
 
 describe('Money v2: Amount', () => {
   it('sets an amount in DM Mono, a currency code in front included, and words the engine wrote in the body face', () => {
-    render(<p><Amount text="$0.25" /> <Amount text="₹45.00" /> <Amount text="No price" /> <Amount text="$0.25 this month (includes estimates)" /> <Amount text="कोई कीमत नहीं" /></p>);
+    render(<p><Amount text="$0.25" /> <Amount text="₹45" /> <Amount text="No price" /> <Amount text="$0.25 this month (includes estimates)" /> <Amount text="कोई कीमत नहीं" /></p>);
     expect(screen.getByText('$0.25').className).toBe('mono');
-    expect(screen.getByText('₹45.00').className).toBe('mono');
+    expect(screen.getByText('₹45').className).toBe('mono');
     expect(screen.getByText('No price').className).toBe('');
     expect(screen.getByText('$0.25 this month (includes estimates)').className).toBe('');
     expect(screen.getByText('कोई कीमत नहीं').className).toBe('');

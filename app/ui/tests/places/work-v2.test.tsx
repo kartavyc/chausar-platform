@@ -339,7 +339,7 @@ describe('Work v2: orders by client', () => {
     expect(boat.querySelector('[aria-hidden="true"][data-size]')?.textContent).toBe('BA');
     expect(within(boat).getByText(/^Client since 2 Sept? · 2 orders$/)).toBeTruthy();
     const owes = within(boat).getByText('Owes you').parentElement!;
-    const owed = within(owes).getByText('₹26,200.00').closest('[data-figure]') as HTMLElement;
+    const owed = within(owes).getByText('₹26,200').closest('[data-figure]') as HTMLElement;
     expect(within(owed).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     await click(within(boat).getByRole('button', { name: 'Boat Audio' }));
     expect(window.location.hash).toBe('#/work?sheet=client%3Ac-boat');
@@ -362,7 +362,7 @@ describe('Work v2: orders by client', () => {
     expect(within(ep12).getByText('INV-0039')).toBeTruthy();
     expect(within(ep12).getByText(/^due 28 Oct/)).toBeTruthy();
     // Its price and its invoice total, each with its receipt (the sample bills the order at its price, R-0416).
-    const total = within(ep12).getByText('₹26,200.00').closest('[data-figure]') as HTMLElement;
+    const total = within(ep12).getByText('₹26,200').closest('[data-figure]') as HTMLElement;
     expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     expect(within(ep12).getAllByRole('button', { name: receiptMark('R-0416') })).toHaveLength(2);
     expect(within(ep12).queryByRole('link', { name: 'Open on Today' })).toBeNull();
@@ -387,7 +387,7 @@ describe('Work v2: the orders head and a failed verdict', () => {
       servedBy: 'model', deliverable: { title: 'Sponsor script for episode 14' }, verdict: null, awaitingYou: true,
       checks: [{ check: 'no-numeric-prose', passed: true, detail: 'No numbers in the prose.' }, { check: 'rules-judge', passed: false, detail: FAILED }],
       canAccept: false, acceptBlocked: `This draft failed a check: ${FAILED}`,
-      judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: null, draftDigest: 'f'.repeat(64) },
+      judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'under $0.01 (estimate)', line: null, draftDigest: 'f'.repeat(64) },
     };
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [failed] } });
     const judge = await screen.findByRole('region', { name: 'Quality check' });

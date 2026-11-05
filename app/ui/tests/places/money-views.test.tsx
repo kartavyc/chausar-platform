@@ -54,21 +54,21 @@ describe('Money w4: owed by age and reminders', () => {
   it('the owed tile draws the five ages at rest as the bar, each age in words in its name and its table, all under the one aging receipt', async () => {
     const { calls } = start('#/money', { now: NOV_10 });
     const owed = await tile('Owed to you');
-    const bar = await within(owed).findByRole('img', { name: /^Owed by age, ₹26,200\.00 in all/ });
+    const bar = await within(owed).findByRole('img', { name: /^Owed by age, ₹26,200 in all/ });
     const chart = bar.closest('[data-chart]') as HTMLElement;
     // At rest the legend names the ages that hold money, with count and amount, so colour never carries the meaning alone.
-    expect([...chart.querySelectorAll('li[data-bucket]')].map((row) => row.textContent)).toEqual(['1 to 30 days late1 invoice₹26,200.00']);
-    expect(bar.getAttribute('aria-label')).toBe('Owed by age, ₹26,200.00 in all: 1 to 30 days late ₹26,200.00');
+    expect([...chart.querySelectorAll('li[data-bucket]')].map((row) => row.textContent)).toEqual(['1 to 30 days late1 invoice₹26,200']);
+    expect(bar.getAttribute('aria-label')).toBe('Owed by age, ₹26,200 in all: 1 to 30 days late ₹26,200');
     const rows = [...chart.querySelectorAll('tbody tr')].map((row) => row.textContent);
     expect(rows).toEqual([
-      'Not due yetNone₹0.00', '1 to 30 days late1 invoice₹26,200.00', '31 to 60 days lateNone₹0.00', '61 to 90 days lateNone₹0.00', 'Over 90 days lateNone₹0.00',
+      'Not due yetNone₹0', '1 to 30 days late1 invoice₹26,200', '31 to 60 days lateNone₹0', '61 to 90 days lateNone₹0', 'Over 90 days lateNone₹0',
     ]);
     // One receipt: the figure's and the chart's are the same aging sum.
     const figure = owed.querySelector('[data-figure] [data-receipt]')!.getAttribute('data-receipt');
     expect(within(chart).getAllByRole('button', { name: receiptMark(figure!) }).length).toBeGreaterThan(0);
     // 4J20: what the late ones owe, with its own receipt (here the one late invoice), beside the words.
     const late = owed.querySelector('[data-late-figure]') as HTMLElement;
-    expect(late.textContent).toContain('₹26,200.00');
+    expect(late.textContent).toContain('₹26,200');
     expect(late.textContent).toContain('of it is late');
     expect(within(late).getByRole('button', { name: receiptMark(/^R-/) }).getAttribute('data-receipt')).not.toBe(figure);
     // The bar is at rest, not in a fold; the tile is sized to what it holds.
@@ -109,8 +109,8 @@ describe('Money w4: in and out by month', () => {
     const chart = await within(flow).findByRole('img', { name: 'Money in and out for the last 6 months' });
     expect(within(flow).getByText('May to Oct')).toBeTruthy();
     const october = chart.querySelector('[data-key="2026-10"]') as HTMLElement;
-    expect(october.querySelector('[data-cap]')?.textContent).toBe('₹86,200.00');
-    expect(october.querySelector('[data-note]')?.textContent).toBe('₹86,200.00');
+    expect(october.querySelector('[data-cap]')?.textContent).toBe('₹86,200');
+    expect(october.querySelector('[data-note]')?.textContent).toBe('₹86,200');
     expect(october.textContent).toContain('Oct, so far');
     // A month with nothing recorded draws no bar, never a zero.
     expect(chart.querySelector('[data-key="2026-09"] [data-bar]')).toBeNull();
@@ -134,7 +134,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
     const today = within(cash).getByText('In the bank').closest('div') as HTMLElement;
     // The statement's day is in the receipt, not said at rest.
     expect(today.textContent).not.toMatch(/statement/i);
-    expect(today.textContent).toContain('₹2,18,750.00');
+    expect(today.textContent).toContain('₹2,18,750');
     expect(within(today).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     const lowest = within(cash).getByText('Lowest week').closest('div') as HTMLElement;
     expect(within(lowest).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
@@ -163,7 +163,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
     const line = await waitFor(() => cash.querySelector('[data-if-issued]') as HTMLElement);
     // A draft of 15 days' terms issued on 21 Oct is due 5 Nov, in the week to 11 Nov.
     expect(line.textContent).toContain('Issuing the draft for Boat Audio today adds');
-    expect(line.textContent).toContain('₹30,000.00');
+    expect(line.textContent).toContain('₹30,000');
     expect(line.textContent).toContain('in the week to 28 Oct.'); // due in 7 days, the default since wave 6 (6D1)
     expect(within(line).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     expect(within(line).getByRole('link', { name: 'Open on Today' }).getAttribute('href')).toBe('#/today');
@@ -194,7 +194,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
     const item = await within(next).findByText('Due from Boat Audio on 28 Oct 2026');
     const row = item.closest('li') as HTMLElement;
     expect(row.textContent).toContain('Coming in');
-    expect(row.textContent).toContain('₹26,200.00');
+    expect(row.textContent).toContain('₹26,200');
     expect(within(row).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     // Every amount the engine marks projected says so.
     expect(row.querySelector('[data-projected]')?.textContent).toBe('Projected');

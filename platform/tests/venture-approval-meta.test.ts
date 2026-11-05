@@ -35,7 +35,7 @@ function sealedDigest(row: QueueRow): string {
 
 const PREVIEW = {
   callId: 'call_1', payloadText: '{"system":"..."}', digest: 'c'.repeat(64), presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5',
-  endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
+  endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'under $0.01',
 };
 const FAL: SpendRate = {
   item: 'connector:fal', unit: 'per-call', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: '150000',
@@ -239,18 +239,18 @@ test('amounts: an invoice total keeps its price receipt; a price change gets the
   const { order } = await seedOrder(env, plan);
   const prepared = await money['venture.invoice.prepare']!(env.deps, owner, { orderId: order.id, dueInDays: 15 }) as InvoiceView;
   const [invoice] = kindOf(await list(env), 'invoice');
-  assert.deepEqual(invoice.amounts, [{ text: 'INR 2,948.82', where: 'change.after', start: 0, length: 12, receiptId: prepared.invoice.priceReceiptId }]);
+  assert.deepEqual(invoice.amounts, [{ text: '₹2,948.82', where: 'change.after', start: 0, length: 9, receiptId: prepared.invoice.priceReceiptId }]);
   await assertAmountsProved(env, invoice);
 
   const draft = await seedBlueprint(env, { status: 'draft', version: 2, price1: '299900', price2: '1500000' });
   const [price] = kindOf(await list(env), 'price');
   const id = `fig:plan:${draft.id}`;
   assert.deepEqual(price.amounts?.filter(amount => amount.where.startsWith('change')), [
-    { text: 'INR 2,499.00', where: 'change.before', start: 0, length: 12, receiptId: id }, { text: 'INR 2,999.00', where: 'change.after', start: 0, length: 12, receiptId: id },
+    { text: '₹2,499', where: 'change.before', start: 0, length: 6, receiptId: id }, { text: '₹2,999', where: 'change.after', start: 0, length: 6, receiptId: id },
   ]);
   // The folded detail states both prices again: each is its own span, on its own detail line.
   assert.deepEqual(price.amounts?.filter(amount => amount.where === 'details').map(amount => [amount.index, amount.start, amount.text]), [
-    [0, 15, 'INR 2,499.00'], [0, 41, 'INR 2,999.00'],
+    [0, 15, '₹2,499'], [0, 35, '₹2,999'],
   ]);
   await assertAmountsProved(env, price);
   const served = await receipt(env, id);
@@ -325,7 +325,7 @@ test('changeCount: a changed plan says what changed, counted in code, with the d
   const [price] = kindOf(await list(env), 'price');
   assert.deepEqual(price.changeCount, {
     line: '1 price changed · 1 offer added · 1 step added',
-    details: ['Monthly books: INR 2,499.00 per month to INR 2,999.00 per month', 'Offer added: Year end pack', 'Step added: Review with the owner'],
+    details: ['Monthly books: ₹2,499 per month to ₹2,999 per month', 'Offer added: Year end pack', 'Step added: Review with the owner'],
     coverage: "This comparison doesn't cover wording changes.",
   });
   await assertAmountsProved(env, price);
@@ -354,7 +354,7 @@ test('a decide on an old digest ran nothing, says so, and returns the new versio
   const stale = await decide(env, price, 'approve');
   assert.equal(stale.outcome, 'stale');
   assert.equal(stale.line, 'This click did not run anything. Here is the new version.');
-  assert.equal(stale.latest?.change?.after, 'INR 3,499.00 per month');
+  assert.equal(stale.latest?.change?.after, '₹3,499 per month');
   assert.ok(stale.latest?.meta, 'the new version comes with its meta');
   assert.equal(listRecords(env.store.read(), 'venture-queue-decision').length, 0);
 });

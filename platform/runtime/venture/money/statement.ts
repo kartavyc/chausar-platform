@@ -4,8 +4,8 @@
 // paid), and the credit notes issued. Each total has a sum receipt plan; statementReceipts seals them. The 'statement'
 // subject's plans live here (money/sums.ts currentPlan calls statementPlan), and so does one invoice's balance, which a
 // reminder's amount rests on: its total less what was paid (with any TDS) and credited. Money in BigInt minor units.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { currentVenture, formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { invoiceCountry } from '../core/country-history.ts';
@@ -33,7 +33,7 @@ export type ClientStatement = {
   plans: { owed: SumPlan; paid: SumPlan; credited: SumPlan };
 };
 
-const money = (minor: bigint, currency: string): StatementMoney => ({ minor: String(minor), display: formatMinor(minor, currency) });
+const money = (minor: bigint, currency: string): StatementMoney => ({ minor: String(minor), display: formatMoney(minor, currency) });
 const planSum = (plan: SumPlan) => plan.addends.reduce((total, addend) => total + BigInt(addend.amount), 0n);
 
 /** The client's numbered invoices the statement can show, oldest first. */
@@ -59,7 +59,7 @@ export function statementPlan(state: State, venture: VentureRecord, subject: Ext
     .filter(payment => ids.has(payment.invoiceId) && paymentState(payment) === 'cleared')
     .sort((a, b) => a.receivedOn.localeCompare(b.receivedOn) || a.at.localeCompare(b.at));
   const credits = listRecords(state, 'venture-credit-note', venture.id);
-  const line = (recordId: string, label: string, amount: bigint): Addend => ({ recordId, label, amount: String(amount), display: formatMinor(amount, currency), estimate: false });
+  const line = (recordId: string, label: string, amount: bigint): Addend => ({ recordId, label, amount: String(amount), display: formatMoney(amount, currency), estimate: false });
   const paidLines = (sign: bigint): Addend[] => payments.flatMap(payment => {
     const number = numbers.get(payment.invoiceId) as string;
     check(payment.currency === currency, 'CURRENCY_CONFLICT', 'A payment must use its invoice currency.');
@@ -109,23 +109,23 @@ export function clientStatement(state: State, clientId: string, asOf: IsoDate): 
     const late = invoice.dueDate !== null && daysFrom(invoice.dueDate, asOf) > 0 ? lateWords(daysFrom(invoice.dueDate, asOf)) : null;
     return {
       invoiceId: invoice.id, number: invoice.number as string, issueDate: invoice.issueDate, dueDate: invoice.dueDate,
-      total: formatMinor(invoice.totalMinor, currency), paid: formatMinor(invoice.paidMinor, currency),
-      credited: formatMinor(creditedOn(invoice.id, credits), currency), balance: formatMinor(invoice.balanceMinor, currency), late, receiptId: invoice.priceReceiptId,
+      total: formatMoney(invoice.totalMinor, currency), paid: formatMoney(invoice.paidMinor, currency),
+      credited: formatMoney(creditedOn(invoice.id, credits), currency), balance: formatMoney(invoice.balanceMinor, currency), late, receiptId: invoice.priceReceiptId,
     };
   });
   const paid = payments.filter(payment => paymentState(payment) === 'cleared').map(payment => ({
     paymentId: payment.id, invoiceId: payment.invoiceId, number: numbers.get(payment.invoiceId) as string, receivedOn: payment.receivedOn,
-    amount: formatMinor(payment.amountMinor, currency), method: METHOD_WORDS[payment.method],
-    tds: payment.tds ? `TDS ${formatMinor(payment.tds.amountMinor, currency)} under ${payment.tds.section}` : null, receiptId: books.get(payment.id) ?? null,
+    amount: formatMoney(payment.amountMinor, currency), method: METHOD_WORDS[payment.method],
+    tds: payment.tds ? `TDS ${formatMoney(payment.tds.amountMinor, currency)} under ${payment.tds.section}` : null, receiptId: books.get(payment.id) ?? null,
   }));
   const waiting = payments.filter(payment => paymentState(payment) === 'pending').map(payment => ({
     paymentId: payment.id, invoiceId: payment.invoiceId, number: numbers.get(payment.invoiceId) as string,
-    amount: formatMinor(payment.amountMinor, currency), tds: payment.tds ? `TDS ${formatMinor(payment.tds.amountMinor, currency)} under ${payment.tds.section}` : null,
+    amount: formatMoney(payment.amountMinor, currency), tds: payment.tds ? `TDS ${formatMoney(payment.tds.amountMinor, currency)} under ${payment.tds.section}` : null,
     line: `Cheque received on ${date(payment.receivedOn)}, waiting to clear.`,
   }));
   const notes = invoices.flatMap(invoice => issuedCredits(invoice.id, credits).map(note => ({
     creditNoteId: note.id, number: note.number as string, invoiceId: invoice.id, invoiceNumber: invoice.number as string,
-    issuedOn: localDayAt(note.issuedAt as string, venture.country), amount: formatMinor(note.amountMinor, currency), reason: note.reason,
+    issuedOn: localDayAt(note.issuedAt as string, venture.country), amount: formatMoney(note.amountMinor, currency), reason: note.reason,
   })));
   const plans = {
     owed: owedPlan(state, venture, client.id),

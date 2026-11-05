@@ -7,7 +7,7 @@ import type { BillingView, InvoicePdfView, InvoiceViewLite } from '../../src/eng
  * total (money/invoice-parts.ts), due in 7 days by default, the owner's billing settings with the engine's checks
  * (billing-rules.ts), the UPI link and QR code from the exact balance (upi.ts), the file and its share links
  * (invoice-pdf.ts), and Razorpay links on the exact approval (razorpay.ts, fixture-tested). Boat Audio's order o-boat-14
- * is ₹30,000.00 with no tax.
+ * is ₹30,000 with no tax.
  */
 const NOW = '2026-10-23T10:00:00.000Z';
 const ask = <T>(engine: FakeEngine, method: string, params: Record<string, unknown> = {}) => engine.request(method, params) as Promise<T>;
@@ -16,18 +16,18 @@ describe('fake engine: configurable invoices and how to pay (6D)', () => {
   it('an advance and the final invoice add up to the order; nothing bills past it; the default is due in 7 days', async () => {
     const engine = new FakeEngine({ now: () => NOW });
     await expect(ask(engine, 'venture.invoice.prepare', { orderId: 'o-boat-14', part: { kind: 'advance', percent: '100' } })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });
-    // 40% of 3000000 = 1200000 (₹12,000.00).
+    // 40% of 3000000 = 1200000 (₹12,000).
     const advance = await ask<InvoiceViewLite>(engine, 'venture.invoice.prepare', { orderId: 'o-boat-14', part: { kind: 'advance', percent: '40' } });
     expect(advance.invoice.part).toEqual({ kind: 'advance', label: 'Advance' });
     expect(advance.invoice.dueInDays).toBe(7);
-    expect(advance.figures.find((figure) => figure.key === 'total')?.display).toBe('₹12,000.00');
+    expect(advance.figures.find((figure) => figure.key === 'total')?.display).toBe('₹12,000');
     const issued = await ask<InvoiceViewLite>(engine, 'venture.invoice.issue', { invoiceId: advance.invoice.id, digest: advance.invoice.digest });
     expect(issued.invoice.dueDate).toBe('2026-10-30');
-    expect(issued.billed).toEqual({ orderTotal: '₹30,000.00', billed: '₹12,000.00', left: '₹18,000.00', invoices: 1 });
+    expect(issued.billed).toEqual({ orderTotal: '₹30,000', billed: '₹12,000', left: '₹18,000', invoices: 1 });
     await expect(ask(engine, 'venture.invoice.prepare', { orderId: 'o-boat-14', part: { kind: 'partial', amount: '18000.01' } })).rejects.toMatchObject({ code: 'ORDER_OVER_INVOICED' });
     const rest = await ask<InvoiceViewLite>(engine, 'venture.invoice.prepare', { orderId: 'o-boat-14' });
     expect(rest.invoice.part).toEqual({ kind: 'final', label: 'Final invoice' });
-    expect(rest.figures.find((figure) => figure.key === 'total')?.display).toBe('₹18,000.00');
+    expect(rest.figures.find((figure) => figure.key === 'total')?.display).toBe('₹18,000');
     await ask(engine, 'venture.invoice.issue', { invoiceId: rest.invoice.id, digest: rest.invoice.digest });
     await expect(ask(engine, 'venture.invoice.prepare', { orderId: 'o-boat-14' })).rejects.toMatchObject({ code: 'QUOTE_ALREADY_INVOICED', message: 'This order is billed in full already. Change the order before you bill more.' });
   });
@@ -57,11 +57,11 @@ describe('fake engine: configurable invoices and how to pay (6D)', () => {
     const file = await ask<InvoicePdfView>(engine, 'venture.invoice.pdf', { invoiceId: sample.id });
     expect(file).toMatchObject({ format: 'html', fileName: 'INV-0039.html', note: 'A PDF needs the desktop app.' });
     expect(file.share.whatsappUrl.startsWith('https://wa.me/?text=')).toBe(true);
-    expect(decodeURIComponent(file.share.whatsappUrl)).toMatch(/Here is invoice INV-0039 for ₹26,200\.00, due on 2026-10-28\. The PDF is attached\./);
+    expect(decodeURIComponent(file.share.whatsappUrl)).toMatch(/Here is invoice INV-0039 for INR 26,200\.00, due on 2026-10-28\. The PDF is attached\./);
     await expect(ask(engine, 'venture.invoice.payLink', { invoiceId: sample.id, action: 'check' })).rejects.toMatchObject({ code: 'RAZORPAY_NOT_CONNECTED' });
     await ask(engine, 'venture.billing.set', { razorpayKeys: { keyId: ['rzp', 'test', 'Sample0Key9'].join('_'), keySecret: 'samplesecretvalue1' } });
     const offered = await ask<InvoiceViewLite>(engine, 'venture.invoice.get', { invoiceId: sample.id });
-    expect(offered.howToPay?.payLinkOffer).toMatchObject({ amount: '₹26,200.00', label: 'fixture-tested' });
+    expect(offered.howToPay?.payLinkOffer).toMatchObject({ amount: '₹26,200', label: 'fixture-tested' });
     await expect(ask(engine, 'venture.invoice.payLink', { invoiceId: sample.id, action: 'create', digest: 'other0' })).rejects.toMatchObject({ code: 'APPROVAL_STALE' });
     const made = await ask<InvoiceViewLite>(engine, 'venture.invoice.payLink', { invoiceId: sample.id, action: 'create', digest: offered.howToPay!.payLinkOffer!.digest });
     expect(made.howToPay?.payLink).toMatchObject({ status: 'created', label: 'fixture-tested' });

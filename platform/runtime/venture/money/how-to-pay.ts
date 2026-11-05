@@ -3,6 +3,7 @@
 // a Razorpay Payment Link already made, and what making one would ask the owner to approve. The client's copy of the
 // invoice lists the ways to pay without any internal receipt id; the owner's screen keeps the receipt mark.
 import { formatMinor } from '../../currency.ts';
+import { formatMoney } from '../../owner-format.ts';
 import { digest } from '../records.ts';
 import { billingOf } from './billing.ts';
 import { upiPayment } from './upi.ts';
@@ -42,21 +43,21 @@ export function howToPayOf(state: State, venture: VentureRecord, invoice: Invoic
       const payeeName = billing.payeeName ?? sellerName;
       const reference = invoice.number as string;
       const made = upiPayment({ upiId: billing.upiId, payeeName, amountMinor: invoice.balanceMinor, reference });
-      upi = { id: billing.upiId, payeeName, link: made.link, qr: made.qr, amountMinor: invoice.balanceMinor, amount: formatMinor(invoice.balanceMinor, 'INR'), reference, receiptId: invoice.priceReceiptId };
+      upi = { id: billing.upiId, payeeName, link: made.link, qr: made.qr, amountMinor: invoice.balanceMinor, amount: formatMoney(invoice.balanceMinor, 'INR'), reference, receiptId: invoice.priceReceiptId };
     }
   }
   const offer = billing.razorpay && payLinkOpen(invoice)
-    ? { amountMinor: invoice.balanceMinor, amount: formatMinor(invoice.balanceMinor, invoice.currency), currency: invoice.currency, digest: payLinkDigest(invoice), label: 'fixture-tested' as const }
+    ? { amountMinor: invoice.balanceMinor, amount: formatMoney(invoice.balanceMinor, invoice.currency), currency: invoice.currency, digest: payLinkDigest(invoice), label: 'fixture-tested' as const }
     : null;
   return { upi, bank: billing.bank, upiNote, payLink: invoice.payLink ? { ...invoice.payLink, label: 'fixture-tested' } : null, payLinkOffer: offer };
 }
 
-/** The "How to pay" lines of the client's copy: no receipt ids, only what the client needs to pay. */
+/** The "How to pay" lines of the client's copy: no receipt ids, only what the client needs to pay, in the exact form (it leaves the app). */
 export function howToPayLines(view: HowToPayView | null, country: CountryProfile): string[] {
   void country;
   if (!view) return [];
   const lines: string[] = [];
-  if (view.upi) lines.push(`UPI ID: ${view.upi.id}`, `Pay ${view.upi.amount} by UPI: ${view.upi.link}`);
+  if (view.upi) lines.push(`UPI ID: ${view.upi.id}`, `Pay ${formatMinor(view.upi.amountMinor, 'INR')} by UPI: ${view.upi.link}`);
   if (view.payLink && (view.payLink.status === 'created' || view.payLink.status === 'partially_paid')) lines.push(`Pay online: ${view.payLink.shortUrl}`);
   if (view.bank) {
     const bank = view.bank;

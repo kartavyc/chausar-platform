@@ -119,7 +119,7 @@ describe('Money w4: cheques, TDS and credit notes', () => {
     // The note lists as waiting, with the way to Today.
     const note = (await within(panel).findByText('Waiting on Today')).closest('li') as HTMLElement;
     // 4J20: its amount, with the receipt that names it.
-    expect(note.textContent).toContain('₹500.00');
+    expect(note.textContent).toContain('₹500');
     expect(within(note).getByRole('button', { name: receiptMark('credit-note:cn-1') })).toBeTruthy();
     assertInkRules(panel);
   });
@@ -172,7 +172,7 @@ describe('Money w4: bills', () => {
     const row = await waitFor(() => rowOf('Cloud Host'));
     expect(within(row).getByText('To pay')).toBeTruthy();
     // 4J20: what is left on the bill, with the receipt of its balance.
-    expect(row.textContent).toContain('₹1,180.00');
+    expect(row.textContent).toContain('₹1,180');
     expect(within(row).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     expect(screen.getByText('Owed on bills')).toBeTruthy();
     assertInkRules();

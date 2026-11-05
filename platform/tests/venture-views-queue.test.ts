@@ -84,7 +84,7 @@ test('queue.decide: a changed row is stale and comes back as the latest version;
   const [price] = (await list(env)).rows;
   assert.equal(price.kind, 'price');
   assert.equal(price.title, 'New price for Monthly books');
-  assert.deepEqual(price.change, { label: 'Monthly books', before: 'INR 2,499.00 per month', after: 'INR 2,999.00 per month' });
+  assert.deepEqual(price.change, { label: 'Monthly books', before: '₹2,499 per month', after: '₹2,999 per month' });
   assert.deepEqual(price.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['approve', true, true]]);
 
   // The owner changed the price again while the row was open: the old version is stale, the new one comes back.
@@ -93,7 +93,7 @@ test('queue.decide: a changed row is stale and comes back as the latest version;
   assert.equal(stale.outcome, 'stale');
   assert.equal(stale.line, 'This click did not run anything. Here is the new version.');
   assert.ok(stale.latest);
-  assert.equal(stale.latest.change?.after, 'INR 3,499.00 per month');
+  assert.equal(stale.latest.change?.after, '₹3,499 per month');
   assert.equal(stale.latest.viewRef?.id, v3.id);
   // A wrong digest on the current id is stale too.
   const wrong = await call<QueueDecision>(env, 'venture.queue.decide', { id: stale.latest.id, digest: 'a'.repeat(64), action: 'approve', viewed: true });
@@ -138,7 +138,7 @@ test('queue: an invoice draft is a row with its receipted total; Issue takes the
   assert.equal(invoice.title, `Invoice for ${CLIENT_NAME}`);
   assert.equal(invoice.line, 'TAX INVOICE, due 30 Oct 2026');
   // Total from the price receipt: INR 2,948.82 (see venture-views-env.ts for the working).
-  assert.deepEqual(invoice.change, { label: 'Total', after: 'INR 2,948.82', receiptId: prepared.invoice.priceReceiptId });
+  assert.deepEqual(invoice.change, { label: 'Total', after: '₹2,948.82', receiptId: prepared.invoice.priceReceiptId });
   assert.deepEqual(invoice.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['issue', true, true]]);
   const issued = await decide(env, invoice, 'issue');
   assert.equal(issued.outcome, 'done');

@@ -6,6 +6,7 @@
 // checked is spoken: a figure part is read by its receipt's display, a number the AI wrote (an estimate part, or a
 // number left in its words) is never read aloud. A spoken "yes" is text in the box and nothing more: every approval is
 // still a tap on its card. Written for Chausar; nothing here is learned from an outside source.
+import { formatMoney } from '../../owner-format.ts';
 import { check, digest } from '../../portable.ts';
 
 /** The notice shown before the microphone first turns on; agreeing sends its digest, so a changed notice asks again. */
@@ -97,11 +98,10 @@ export const SARVAM_RATE_DIGEST = digest(SARVAM_STT_PRICE);
 /** The monthly limit shown first, in paise (rupees 100). An owner setting: any whole number of paise. */
 export const SARVAM_DEFAULT_CAP_MINOR = '10000';
 
-/** Paise as rupees for the screen: 49 is "₹0.49", 10000 is "₹100.00". Code-computed, BigInt only. */
+/** Paise as rupees for the screen in the owner form (B2): 49 is "₹0.49", 10000 is "₹100". Code-computed, BigInt only. */
 export function rupees(minor: string): string {
   check(/^\d{1,15}$/.test(minor), 'INVALID_AMOUNT', 'Give an amount in whole paise.');
-  const value = BigInt(minor);
-  return `₹${value / 100n}.${String(value % 100n).padStart(2, '0')}`;
+  return formatMoney(minor, 'INR');
 }
 
 /** What one recording of this length costs at Sarvam's price, rounded up to the next paisa. */

@@ -53,7 +53,7 @@ const READY: DeliveryLite = {
 };
 const withVerdict = (check: NonNullable<DeliveryLite['checks']>[number], extra: Partial<DeliveryLite> = {}): DeliveryLite => ({
   ...READY, checks: [...READY.checks!, check],
-  judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: null, draftDigest: 'f'.repeat(64) },
+  judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'under $0.01 (estimate)', line: null, draftDigest: 'f'.repeat(64) },
   ...extra,
 });
 
@@ -72,7 +72,7 @@ describe('Work: asking the judge about a ready draft', () => {
     const { calls } = await start('#/work?order=o-boat-14', { engine: await withAi() });
     const line = await lineOf(await judgeRegion(), 'Sponsor script for episode 14');
     await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Check quality' })); });
-    await within(line).findByText('The quality check uses your own AI. It costs at most USD 0.0031 (estimate, price unconfirmed).');
+    await within(line).findByText('The quality check uses your own AI. It costs at most under $0.01 (estimate).');
     expect(within(line).getByText("Your client's words go to your AI with the draft.")).toBeTruthy();
     expect(calls.some((c) => c.method === 'venture.delivery.judgeSend')).toBe(false);
     await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Send for quality check' })); });
@@ -129,7 +129,7 @@ describe('Work: asking the judge about a ready draft', () => {
     const why = 'Quality check did not finish: Check quality again; the call you read is no longer available. Check quality again.';
     const waiting: DeliveryLite = {
       ...READY,
-      judge: { status: 'waiting', auto: false, line: null, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)' } },
+      judge: { status: 'waiting', auto: false, line: null, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)', preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)' } },
     };
     const failedNow: DeliveryLite = { ...READY, judge: { status: 'failed', preview: null, auto: false, line: why, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: null } };
     let stale = false;
@@ -137,7 +137,7 @@ describe('Work: asking the judge about a ready draft', () => {
       engine: await withAi(),
       intercept: {
         'venture.delivery.list': () => [stale ? failedNow : waiting],
-        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', containsClientData: true }),
+        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)', containsClientData: true }),
         'venture.delivery.judgeSend': () => { stale = true; throw new EngineError('APPROVAL_STALE', 'Check quality again; the call you read is no longer available.'); },
       },
     });
@@ -156,7 +156,7 @@ describe('Work: asking the judge about a ready draft', () => {
       engine: await withAi(),
       intercept: {
         'venture.delivery.list': () => [stale ? failedNow : READY],
-        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', containsClientData: true }),
+        'venture.delivery.judge': () => ({ runId: 'd-ep14-script', digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)', containsClientData: true }),
         'venture.delivery.judgeSend': () => { stale = true; throw new EngineError('APPROVAL_STALE', 'Check quality again; the call you read is no longer available.'); },
       },
     });
@@ -197,8 +197,8 @@ describe('Work: the judge on its own', () => {
     const waiting: DeliveryLite = {
       ...READY,
       judge: {
-        status: 'waiting', auto: true, line: JUDGE_ON, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)',
-        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)' },
+        status: 'waiting', auto: true, line: JUDGE_ON, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)',
+        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)' },
       },
     };
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [waiting] } });
@@ -222,8 +222,8 @@ describe('Work: the judge on its own', () => {
     const waiting: DeliveryLite = {
       ...READY,
       judge: {
-        status: 'waiting', auto: true, line: capped, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)',
-        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)' },
+        status: 'waiting', auto: true, line: capped, draftDigest: 'e'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)',
+        preview: { digest: 'd'.repeat(64), estimatedMaxCostDisplay: 'under $0.01 (estimate)' },
       },
     };
     const { calls } = await start('#/work?order=o-boat-14', {
@@ -231,7 +231,7 @@ describe('Work: the judge on its own', () => {
     });
     const line = await lineOf(await judgeRegion(), 'Sponsor script for episode 14');
     expect(within(line).getByText(capped)).toBeTruthy();
-    expect(within(line).getByText('The quality check uses your own AI. It costs at most USD 0.0031 (estimate, price unconfirmed).')).toBeTruthy();
+    expect(within(line).getByText('The quality check uses your own AI. It costs at most under $0.01 (estimate).')).toBeTruthy();
     await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Send for quality check' })); });
     expect(calls.find((c) => c.method === 'venture.delivery.judgeSend')?.params).toEqual({ runId: 'd-ep14-script', digest: 'd'.repeat(64) });
     await waitFor(() => expect(within(line).getByText(`Quality check passed: ${PASSED}`)).toBeTruthy());

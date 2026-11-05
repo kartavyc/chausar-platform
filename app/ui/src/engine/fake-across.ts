@@ -84,9 +84,15 @@ export class FakeAcross {
     const overview = this.read<MoneyOverview>('venture.money.overview');
     const goals = this.read<GoalView>('venture.goals.get');
     const aging = this.read<AgingView>('venture.money.aging');
-    const paise = (display: string | undefined) => (display ? Number(display.replace(/[^\d-]/g, '')) : 0);
+    // B2: the owner form shows paise only when there are some ("₹1,12,400"), so both forms are read.
+    const paise = (display: string | undefined) => {
+      const found = display ? /(-?)[^\d-]*([\d,]+)(?:\.(\d{2}))?/.exec(display) : null;
+      return found ? Number(`${found[1]}${found[2]!.replace(/,/g, '')}${found[3] ?? '00'}`) : 0;
+    };
     const line = (id: 'owed' | 'received' | 'spent') => overview?.lines.find((item) => item.id === id)?.value;
-    const usd = /USD\s?(\d+)\.(\d{4})/.exec(line('spent') ?? '');
+    // B2: the spent line is in the owner form, "$0.72" (whole cents), so the fake reads its cents back as micros.
+    const cents = /\$(\d+)\.(\d{2})\b/.exec(line('spent') ?? '');
+    const usd = cents ? [cents[0], cents[1]!, `${cents[2]}00`] : null;
     return {
       ...(goals ? { invoiced: paise(goals.invoiced.display) } : {}), ...(line('received') ? { received: paise(line('received')) } : {}),
       ...(line('owed') ? { owed: paise(line('owed')) } : {}), ...(aging ? { late: aging.invoices.filter((item) => item.late !== null).length } : {}),

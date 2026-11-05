@@ -110,7 +110,9 @@ function words(root: Element): string[] {
     const option = parent.closest('option');
     if (option && !option.selected) continue;
     if (closedAround(parent)) continue;
-    out.push(...(node.textContent ?? '').split(/\s+/).filter(Boolean));
+    // One-shot B2: a time or a duration is one figure, as "00:41" and "4m" were: "12:41 am" and "4 min" count once.
+    const figures = (node.textContent ?? '').replace(/\b(\d{1,2}:\d{2}) (am|pm)\b/g, '$1_$2').replace(/\b(\d+) (min|s|h|days?)\b/g, '$1_$2');
+    out.push(...figures.split(/\s+/).filter(Boolean));
   }
   return out;
 }

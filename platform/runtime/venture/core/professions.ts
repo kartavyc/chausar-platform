@@ -9,6 +9,7 @@
 // against the official page yet". No section number here was taken from anywhere but the official text read.
 //
 // Pure: no clock, no store, no engine import. The fake engine reads this file too.
+import { formatCount } from '../../owner-format.ts';
 import type { FamilyId } from './first-run-types.ts';
 
 /**
@@ -319,7 +320,7 @@ export function rupeeWords(minor: string): string {
   };
   if (rupees >= 10_000_000n) return scaled(10_000_000n, 'crore');
   if (rupees >= 100_000n) return scaled(100_000n, 'lakh');
-  return `₹${new Intl.NumberFormat('en-IN').format(rupees)}`;
+  return `₹${formatCount(rupees, 'IN')}`;
 }
 
 /**

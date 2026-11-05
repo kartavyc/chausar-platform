@@ -47,7 +47,7 @@ describe('Business: plan and playbook', () => {
     expect(screen.getByText(/Version 2, accepted/)).toBeTruthy();
     expect(screen.getByText('Weekly audio gear reviews on YouTube, cut into shorts, with sponsor slots.')).toBeTruthy();
     const sponsor = await offerRow('Sponsor slot');
-    expect(sponsor.textContent).toContain('₹15,000.00');
+    expect(sponsor.textContent).toContain('₹15,000');
     expect(within(sponsor).getByRole('button', { name: receiptMark('R-0408') })).toBeTruthy();
     const shorts = await offerRow('Shorts from your long video');
     expect(shorts.textContent).toContain('Price not set');
@@ -210,10 +210,10 @@ describe('Business: prices', () => {
     const engine = await ledgerline();
     start('#/business/prices', engine);
     const books = await offerRow('Monthly books');
-    for (const text of ['₹16,000.00', 'CGST at 9%', '₹1,440.00', '₹18,880.00']) expect(books.textContent).toContain(text);
+    for (const text of ['₹16,000', 'CGST at 9%', '₹1,440', '₹18,880']) expect(books.textContent).toContain(text);
     const gst = await offerRow('GST working');
     await act(async () => { fireEvent.click(within(gst).getByRole('button', { name: 'Work out the price' })); });
-    await waitFor(() => expect(gst.textContent).toContain('₹5,000.00'));
+    await waitFor(() => expect(gst.textContent).toContain('₹5,000'));
     expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
@@ -222,7 +222,7 @@ describe('Business: prices', () => {
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
-    await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000.00'));
+    await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000'));
     const waiting = await region('Waiting on you');
     const row = within(waiting).getByText('New price for Shorts from your long video').closest('li')!;
     expect(row.textContent).toContain('Not set');
@@ -559,7 +559,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     await waitFor(() => expect(gst.textContent).toContain('Recomputed: same'));
     const portal = (await within(receipts).findByText("The portal's figures against the receipts")).closest('li')!;
     // The engine's own words for a stored portal diff whose figure was changed after it was made.
-    await waitFor(() => expect(portal.textContent).toContain('Recomputed: differs. Net payable: the portal less ours: the stored receipt has INR 80.00; worked again it is INR 75.00.'));
+    await waitFor(() => expect(portal.textContent).toContain('Recomputed: differs. Net payable: the portal less ours: the stored receipt has ₹80; worked again it is ₹75.'));
     expect(spy.mock.calls.filter(([method]) => method === 'venture.ca.receipt').map(([, params]) => params)).toEqual([{ id: 'w-gst-sep' }, { id: 'w-portal-sep' }]);
   });
 
@@ -567,7 +567,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     const engine = await ledgerline();
     start('#/business/ca', engine);
     const receipts = await screen.findByRole('region', { name: 'Receipts of the latest papers' });
-    const row = (await within(receipts).findByText('Net payable: ours INR 2,825.00, the portal INR 2,900.00')).closest('li')!;
+    const row = (await within(receipts).findByText('Net payable: ours ₹2,825, the portal ₹2,900')).closest('li')!;
     fireEvent.click(within(row).getByRole('button', { name: 'Explain' }));
     const note = 'The portal rounds the payable; the CA accepts the portal figure.';
     fireEvent.change(within(row).getByLabelText("Your CA's explanation"), { target: { value: note } });

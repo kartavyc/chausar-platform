@@ -5,8 +5,8 @@
 // it was charged to, or the run whose model call, judge or turn it paid for), the run to its order, the order to its
 // client. The margin is in one currency only: the spend in rupees at the owner's own rate, labelled with it, or "Not
 // counted: no rupee rate set". Calls no order can claim are left out and the total says how many. Money in BigInt.
+import { formatMoney } from '../../owner-format.ts';
 import type { Context, State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { exactPayload, listRecords, readVenture } from '../records.ts';
 import type { MarginRowView, MarginsView, SpendRecord, SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
 import { beforeTax, creditBeforeTax, creditNotesOf, invoicesOf, monthText, monthWords } from './goal-plans.ts';
@@ -56,13 +56,13 @@ function invoicedAddends(state: State, venture: VentureRecord, month: string, cl
   const currency = venture.country.currency;
   const invoices = listRecords(state, 'venture-invoice', venture.id);
   const issued = invoicesOf(state, venture, month, 'issued').filter(invoice => invoice.clientId === clientId).map(invoice => ({
-    recordId: invoice.id, label: `${invoice.number}, before tax`, amount: String(beforeTax(invoice)), display: formatMinor(beforeTax(invoice), currency), estimate: false,
+    recordId: invoice.id, label: `${invoice.number}, before tax`, amount: String(beforeTax(invoice)), display: formatMoney(beforeTax(invoice), currency), estimate: false,
   }));
   const credits = creditNotesOf(state, venture, month).flatMap(note => {
     const invoice = invoices.find(item => item.id === note.invoiceId);
     if (!invoice || invoice.clientId !== clientId) return [];
     const minor = creditBeforeTax(note, invoice);
-    return [{ recordId: note.id, label: `Credit note${note.number ? ` ${note.number}` : ''} on ${invoice.number ?? 'an invoice'}, before tax`, amount: String(-minor), display: formatMinor(-minor, currency), estimate: false }];
+    return [{ recordId: note.id, label: `Credit note${note.number ? ` ${note.number}` : ''} on ${invoice.number ?? 'an invoice'}, before tax`, amount: String(-minor), display: formatMoney(-minor, currency), estimate: false }];
   });
   return [...issued, ...credits];
 }
@@ -79,7 +79,7 @@ export function marginPlan(state: State, venture: VentureRecord, subject: Extrac
   const country = moneyCountry(venture);
   const invoiced = invoicedAddends(state, venture, subject.month, subject.clientId);
   const spend = spendAddends(state, venture, subject.month, subject.clientId) ?? [];
-  const negate = (addend: Addend): Addend => ({ ...addend, amount: String(-BigInt(addend.amount)), display: formatMinor(-BigInt(addend.amount), country.currency) });
+  const negate = (addend: Addend): Addend => ({ ...addend, amount: String(-BigInt(addend.amount)), display: formatMoney(-BigInt(addend.amount), country.currency) });
   const addends = subject.part === 'invoiced' ? invoiced : subject.part === 'spend' ? spend : [...invoiced, ...spend.map(negate)];
   const words = {
     invoiced: { label: `Invoiced before tax, ${monthWords(subject.month)}`, one: 'invoice', many: 'invoices and credit notes', none: 'Nothing was invoiced this month.' },

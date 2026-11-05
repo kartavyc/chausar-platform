@@ -91,7 +91,7 @@ describe('the agent panel: Persona (W4 4J22b, from 4J17)', () => {
     expect(within(results).getAllByRole('listitem')).toHaveLength(3);
     expect(results.textContent).toContain('A clear request');
     expect(results.textContent).toContain('Hi there.');
-    expect(tab.querySelector('[data-persona-cost]')!.textContent).toBe('It cost USD 0.0000.');
+    expect(tab.querySelector('[data-persona-cost]')!.textContent).toBe('Cost: Free.');
     expect(tab.textContent).toContain('Tried on 3 practice clients with built-in templates. Nothing was saved.');
     expect(calls(spy, 'venture.persona.set')).toEqual([]);
     assertInkRules(document.body);
@@ -230,7 +230,7 @@ describe('Team: helpers nested under their parent (W4 4J22b, from 4J12)', () => 
     return {
       ...view,
       agents: view.agents.map((agent) => (agent.id === 'researcher' ? { ...agent, department: 'production' as const, parentId: 'editor' }
-        : agent.id === 'editor' ? { ...agent, spend: 'USD 0.0420 with its helpers' } : agent)),
+        : agent.id === 'editor' ? { ...agent, spend: '$0.04 with its helpers' } : agent)),
     };
   };
 

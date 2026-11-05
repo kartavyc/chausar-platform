@@ -19,6 +19,7 @@
  * view carries its next step, its timeline and its credit notes, as the engine's does.
  */
 
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
 import { BUSINESSES, RECEIPTS } from './fixtures';
@@ -123,7 +124,7 @@ const PAYMENT_SEED: HeldPayment[] = [
 const OWN_RECEIPTS: ReceiptLite[] = [
   {
     id: 'R-0391', at: '2026-10-01T10:00:00.000Z', explanation: 'Four mentions at ₹21,550 each, no discount, priced before tax.', stale: false,
-    figures: [{ key: 'unit', label: 'Per mention', display: '₹21,550.00' }, { key: 'subtotal', label: 'Four mentions', display: '₹86,200.00' }, { key: 'total', label: 'Total before tax', display: '₹86,200.00' }],
+    figures: [{ key: 'unit', label: 'Per mention', display: '₹21,550' }, { key: 'subtotal', label: 'Four mentions', display: '₹86,200' }, { key: 'total', label: 'Total before tax', display: '₹86,200' }],
   },
 ];
 
@@ -135,16 +136,9 @@ export const BOOK_PERIODS: { key: BooksPeriodKey; label: string; from: string; t
   { key: 'this-year', label: 'This year', from: '2026-01-01', to: '2026-12-31' },
 ];
 
-/** Paise as rupees with Indian digit grouping, the way the sample figures are written: ₹1,12,400.00. */
+/** Paise as rupees in the owner form, as the engine writes them on a screen (B2): ₹1,12,400, ₹2,000.50. */
 export function inr(minor: number): string {
-  const negative = minor < 0;
-  const absolute = Math.abs(minor);
-  const rupees = String(Math.floor(absolute / 100));
-  const paise = String(absolute % 100).padStart(2, '0');
-  const last = rupees.slice(-3);
-  const rest = rupees.slice(0, -3);
-  const grouped = rest ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${last}` : last;
-  return `${negative ? '-' : ''}₹${grouped}.${paise}`;
+  return formatMoney(String(Math.trunc(minor)), 'INR');
 }
 
 function digest(value: unknown): string {
@@ -446,7 +440,7 @@ export class FakeMoney {
     return { id: credit.id, invoiceId: credit.invoiceId, amount: this.show(invoice ?? { currency: 'INR' }, credit.amount), reason: credit.reason, state: credit.status, number: credit.number, rowId: credit.status === 'waiting' ? `credit:${credit.id}:open` : null, line, receiptId };
   }
 
-  private show(invoice: { currency: string }, amount: number): string { return invoice.currency === 'INR' ? inr(amount) : formatMinor(BigInt(amount), invoice.currency); }
+  private show(invoice: { currency: string }, amount: number): string { return invoice.currency === 'INR' ? inr(amount) : formatMoney(BigInt(amount), invoice.currency); }
 
   private view(invoice: HeldInvoice): InvoiceViewLite {
     const name = this.clientName(invoice.clientId);
@@ -507,7 +501,8 @@ export class FakeMoney {
     const view = this.view(invoice);
     const html = fakeInvoiceHtml(`${invoice.documentTitle} ${invoice.number}`, view.documentText);
     const client = this.host.clients().find((c) => c.id === invoice.clientId);
-    const share = shareWords({ client: view.client.name, number: invoice.number, balance: this.show(invoice, this.balance(invoice)), due: invoice.dueDate, seller: this.sellerName(), email: client?.email ?? null, howToPay: view.howToPay ?? null });
+    const share = shareWords({ client: view.client.name, number: invoice.number, balance: formatMinor(String(this.balance(invoice)), invoice.currency), // the client's words leave the app in the exact form (B2)
+      due: invoice.dueDate, seller: this.sellerName(), email: client?.email ?? null, howToPay: view.howToPay ?? null });
     return { fileName: `${invoice.number.replace(/[^A-Za-z0-9-]/g, '-')}.html`, format: 'html' as const, mimeType: 'text/html' as const, contentBase64: base64Utf8(html), note: 'A PDF needs the desktop app.', share };
   }
 

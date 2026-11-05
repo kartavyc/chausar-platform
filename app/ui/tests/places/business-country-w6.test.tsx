@@ -43,7 +43,7 @@ it('new prices use the draft country before acceptance and old invoices keep the
   await changeCountry(engine, 'US');
   const priced = await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_sponsor', unitPrice: '201.50' }] } });
   const quote = await engine.request('venture.price.quote', { offerId: 'offer_sponsor' });
-  expect(quote.figures.find(figure => figure.key === 'total')?.display).toMatch(/USD.*201\.50/);
+  expect(quote.figures.find(figure => figure.key === 'total')?.display).toMatch(/^\$201\.50$/);
   expect((await engine.request('venture.get', {}))?.venture.country?.code).toBe('IN');
   await accept(engine, priced.blueprint.id);
   const second = await changeCountry(engine, 'GB');

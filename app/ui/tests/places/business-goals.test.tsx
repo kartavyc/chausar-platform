@@ -54,8 +54,8 @@ describe('Business > Goals', () => {
   it("shows this month's goal in use with its receipt, what was invoiced toward it and the bar", async () => {
     await start();
     const goal = await tile('October 2026 goal');
-    await waitFor(() => expect(goal.textContent).toContain('₹1,50,000.00'));
-    expect(goal.textContent).toContain('₹1,12,400.00');
+    await waitFor(() => expect(goal.textContent).toContain('₹1,50,000'));
+    expect(goal.textContent).toContain('₹1,12,400');
     expect(goal.textContent).toContain('74%');
     expect(within(goal).getByRole('img').getAttribute('aria-label')).toBe("74% of the goal invoiced. Today's pace is 74%.");
     // A goal is set: no suggestion is offered, and none is ever asked for.
@@ -94,7 +94,7 @@ describe('Business > Goals', () => {
       expect(calls).toContainEqual(['venture.goals.set', { month: '2026-10', amount: typed }]);
       expect(within(goal).getByRole('alert').textContent).toBe('Type the goal like 150000 or 150000.50.');
     }
-    expect(goal.textContent).toContain('₹1,50,000.00');
+    expect(goal.textContent).toContain('₹1,50,000');
   });
 
   it("the engine's refusals are worded here: a month that is over", async () => {
@@ -107,14 +107,14 @@ describe('Business > Goals', () => {
   });
 
   it('with no goal, Suggest a goal asks the engine on the press; its figure is a model estimate with its words; Use this types it for the engine to read', async () => {
-    const suggestion: GoalSuggestion = { amountMinor: '20000000', display: '₹2,00,000.00', estimate: true, line: 'A model estimate from your offers and prices. Change it to what you aim for.', typed: '200000.00' };
+    const suggestion: GoalSuggestion = { amountMinor: '20000000', display: '₹2,00,000', estimate: true, line: 'A model estimate from your offers and prices. Change it to what you aim for.', typed: '200000.00' };
     const { calls } = await start({ folder: 'ledgerline', override: { 'venture.goals.suggest': () => suggestion } });
     const goal = await tile('October 2026 goal');
     await waitFor(() => expect(within(goal).getByRole('button', { name: 'Suggest a goal' })).toBeTruthy());
     expect(calls.some(([method]) => method === 'venture.goals.suggest')).toBe(false);
     await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Suggest a goal' })); });
     await settle();
-    const suggested = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹2,00,000.00'))!;
+    const suggested = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹2,00,000'))!;
     expect(suggested.querySelector('[data-estimate]')?.textContent).toBe('model estimate');
     expect(goal.textContent).toContain(suggestion.line);
     await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Use this' })); });

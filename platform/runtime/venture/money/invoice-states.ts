@@ -2,8 +2,8 @@
 // short timeline, both from records only: issued on, viewed (once 4J7's statement links record a view), each payment
 // (a cheque waiting apart, TDS beside the cash), each credit note, each reminder, then where it stands now. A draft is
 // issued next; a waiting cheque is cleared next; an open one waits, or is reminded on its reminder days (reminders.ts).
+import { formatMoney } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { invoiceCountry } from '../core/country-history.ts';
@@ -31,11 +31,11 @@ export function invoiceNext(state: State, venture: VentureRecord, invoice: Invoi
   const waiting = paymentsOn(state, venture, invoice.id).filter(payment => paymentState(payment) === 'pending');
   if (waiting.length) {
     // The cheques' own amounts; any TDS the client deducted is named apart, never added into a cheque.
-    const cheques = formatMinor(waiting.reduce((total, payment) => total + BigInt(payment.amountMinor), 0n), invoice.currency);
+    const cheques = formatMoney(waiting.reduce((total, payment) => total + BigInt(payment.amountMinor), 0n), invoice.currency);
     const withheld = waiting.filter(payment => payment.tds);
     const tds = withheld.length === 1 && withheld[0].tds
-      ? `, with TDS ${formatMinor(withheld[0].tds.amountMinor, invoice.currency)} under ${withheld[0].tds.section}`
-      : withheld.length > 1 ? `, with TDS of ${formatMinor(withheld.reduce((total, payment) => total + BigInt(payment.tds?.amountMinor ?? '0'), 0n), invoice.currency)}` : '';
+      ? `, with TDS ${formatMoney(withheld[0].tds.amountMinor, invoice.currency)} under ${withheld[0].tds.section}`
+      : withheld.length > 1 ? `, with TDS of ${formatMoney(withheld.reduce((total, payment) => total + BigInt(payment.tds?.amountMinor ?? '0'), 0n), invoice.currency)}` : '';
     return waiting.length === 1
       ? { action: 'clear', line: `A cheque for ${cheques} is waiting to clear${tds}. Mark it cleared once it is in your bank.` }
       : { action: 'clear', line: `${waiting.length} cheques for ${cheques} are waiting to clear${tds}. Mark each cleared once it is in your bank.` };
@@ -60,7 +60,7 @@ export function invoiceTimeline(state: State, venture: VentureRecord, invoice: I
   venture = { ...venture, country: invoiceCountry(state, venture, invoice) };
   if (invoice.status === 'draft' || invoice.issueDate === null) return [];
   const date = (iso: IsoDate) => formatVentureDate(iso, venture.country.dateOrder);
-  const money = (minor: string | bigint) => formatMinor(minor, invoice.currency);
+  const money = (minor: string | bigint) => formatMoney(minor, invoice.currency);
   const day = (instant: string) => localDayAt(instant, venture.country);
   const events: InvoiceTimelineEntry[] = [{ what: 'issued', on: invoice.issueDate, line: `Issued on ${date(invoice.issueDate)}` }];
   const viewed = viewedOn(state, venture, invoice);

@@ -34,7 +34,7 @@ test('a client abroad is billed in their currency, zero-rated under the LUT, and
   await assert.rejects(env.money('venture.order.create', { ...ask, unitPrice: undefined }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(env.money('venture.order.create', { ...ask, clientId: env.client.id }), code('INVALID_VENTURE_REQUEST'));
 
-  // 2 x USD 1,200.50 = USD 2,401.00, zero-rated: total 240100 cents.
+  // 2 x $1,200.50 = $2,401.00, zero-rated: total 240100 cents.
   const order = await env.money<OrderRecord>('venture.order.create', ask);
   assert.deepEqual(order.foreignPrice, { currency: 'USD', unitPriceMinor: '120050' });
   const priced = listRecords(env.store.read(), 'venture-price-receipt').find(r => r.id === order.priceReceiptId) as PriceReceiptRecord;
@@ -60,7 +60,7 @@ test('a foreign invoice shows bank details with SWIFT, never a rupee UPI link, a
   await env.money('venture.billing.set', { upiId: 'ledger.cafe@okaxis', bank: { accountName: 'Ledger Cafe Books', accountNumber: '000123456789', ifsc: 'HDFC0001234', swift: 'HDFCINBB' } });
   const client = await usClient(env);
   const order = await env.money<OrderRecord>('venture.order.create', { clientId: client.id, offerId: 'offer_1', request: 'Close our books for October.', currency: 'USD', unitPrice: '2401' });
-  // Advance 50% of USD 2,401.00: 240100 x 5000 / 10000 = 120050, no tax under the LUT.
+  // Advance 50% of $2,401.00: 240100 x 5000 / 10000 = 120050, no tax under the LUT.
   const advance = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: order.id, part: { kind: 'advance', percent: '50' } });
   assert.equal(advance.invoice.totalMinor, '120050');
   assert.equal(advance.invoice.currency, 'USD');

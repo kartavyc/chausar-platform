@@ -1,6 +1,6 @@
+import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
-import { formatMinor } from '../../../../platform/runtime/currency';
 import { incomeTaxTable } from '../../../../platform/runtime/venture/playbooks/ca-firm/income-tax';
 import { rateTableFor } from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import type { MoneyLedger } from './fake-money';
@@ -57,8 +57,7 @@ export class FakeCountryMoney {
   private prove(label: string, currency: string, read: () => Calculation, explanation: string, unit: 'minor' | 'micros' = 'minor'): string {
     const computed = read();
     const id = `R-country-${this.host.current()}-${++this.serial}`;
-    const tenThousandths = (computed.minor + 50n) / 100n;
-    const display = unit === 'micros' ? `${currency} ${tenThousandths / 10000n}.${String(tenThousandths % 10000n).padStart(4, '0')}` : formatMinor(computed.minor, currency);
+    const display = unit === 'micros' ? formatUsd(String(computed.minor)) : formatMoney(computed.minor, currency);
     const receipt: ReceiptLite = { id, at: this.host.now(), stale: false, totalMinor: String(computed.minor), figures: [{ key: 'total', label, display }], explanation };
     this.receipts.set(id, { business: this.host.current(), fingerprint: this.host.digest(computed.evidence), read, receipt });
     return id;
@@ -120,7 +119,7 @@ export class FakeCountryMoney {
             notes.push(`Your CA has not confirmed "${table.title}" (version ${table.version}) yet.`);
           }
         } catch (error) { unconfirmed = true; notes.push(error instanceof Error ? error.message : 'The GST engine could not work this period.'); }
-        sections.push({ id: 'income-tax', title: `Income tax for ${period.display}`, lines: [{ label: 'Billed in the year, without tax', value: formatMinor(billed, 'INR') }], note: notes.join(' ') });
+        sections.push({ id: 'income-tax', title: `Income tax for ${period.display}`, lines: [{ label: 'Billed in the year, without tax', value: formatMoney(billed, 'INR') }], note: notes.join(' ') });
       }
       return { period: period.display, sections, needsCaConfirmation: unconfirmed };
     }
@@ -132,7 +131,7 @@ export class FakeCountryMoney {
     const invoices = issued();
     for (const invoice of invoices) {
       const label = countryProfile(invoice.countryCode).tax.label;
-      lines.push({ label: `${invoice.number}, ${invoice.client}`, value: `${label} ${formatMinor(BigInt(invoice.tax), invoice.currency)} on ${formatMinor(BigInt(invoice.subtotal), invoice.currency)}`, receiptId: invoice.priceReceiptId });
+      lines.push({ label: `${invoice.number}, ${invoice.client}`, value: `${label} ${formatMoney(BigInt(invoice.tax), invoice.currency)} on ${formatMoney(BigInt(invoice.subtotal), invoice.currency)}`, receiptId: invoice.priceReceiptId });
       groups.set(JSON.stringify([label, invoice.currency]), { label, currency: invoice.currency });
     }
     for (const group of groups.values()) {

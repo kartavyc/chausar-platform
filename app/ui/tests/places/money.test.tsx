@@ -29,8 +29,8 @@ const click = async (element: Element) => { await act(async () => { fireEvent.cl
 /** Money at a glance as the real engine sends it: every line with its receipt (platform/runtime/venture/money/overview.ts). */
 const RECEIPTED = {
   lines: [
-    { id: 'owed', label: 'Clients owe you', value: '₹26,200.00', receiptId: 'R-0430' },
-    { id: 'received', label: 'Came in this month', value: '₹86,200.00', receiptId: 'R-0402' },
+    { id: 'owed', label: 'Clients owe you', value: '₹26,200', receiptId: 'R-0430' },
+    { id: 'received', label: 'Came in this month', value: '₹86,200', receiptId: 'R-0402' },
     { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', receiptId: 'R-0431', estimate: true },
   ],
 };
@@ -42,12 +42,12 @@ describe('Money overview', () => {
     start('#/money', { override: { 'venture.money.overview': receipted } });
     expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeTruthy();
     const owed = await tileOf('Owed to you');
-    await waitFor(() => expect(owed.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200.00'));
+    await waitFor(() => expect(owed.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200'));
     // W4 4J20: the engine's aging total, under the aging receipt that also proves the five ages drawn under it.
     expect(owed.querySelector('[data-figure] [data-receipt]')).not.toBeNull();
     expect(within(owed).getByRole('img', { name: /^Owed by age/ })).toBeTruthy();
     const received = await tileOf('Received');
-    expect(await within(received).findByText('₹86,200.00')).toBeTruthy();
+    expect(await within(received).findByText('₹86,200')).toBeTruthy();
     expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     const spent = await tileOf('AI spend this month');
     expect(await within(spent).findByText('₹60.10')).toBeTruthy();
@@ -56,19 +56,19 @@ describe('Money overview', () => {
     expect(spent.textContent).not.toContain('model estimate');
     // With the month's goal (W4 4I2) the invoiced figure is the goals view's, with its own receipt (money-goal.test.tsx).
     const invoiced = await tileOf('Invoiced this month');
-    await waitFor(() => expect(invoiced.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400.00'));
+    await waitFor(() => expect(invoiced.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400'));
     expect(invoiced.querySelector('[data-ui-number] ~ [data-receipt], [data-figure] [data-receipt]')).not.toBeNull();
   });
 
   it('reads two engine views and adds nothing up; every figure on it carries its proof', async () => {
     const { calls } = start('#/money', { override: { 'venture.money.overview': receipted } });
-    await within(await tileOf('Received')).findByText('₹86,200.00');
+    await within(await tileOf('Received')).findByText('₹86,200');
     await screen.findByText('₹60.10');
     // The W4 views have landed (4J20): the cash figures and the next three weeks.
     await within(await tileOf('Cash, next 13 weeks')).findByText('In the bank');
     await within(await tileOf('Next three weeks')).findByText(/Due from Boat Audio/);
-    await screen.findByText('₹1,12,400.00');
-    await screen.findByText('₹1,50,000.00');
+    await screen.findByText('₹1,12,400');
+    await screen.findByText('₹1,50,000');
     expect(calls.map(([m]) => m)).toContain('venture.money.overview');
     expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
     expect(calls.map(([m]) => m)).not.toContain('venture.spend.list');
@@ -79,19 +79,19 @@ describe('Money overview', () => {
   });
 
   it('a figure a model wrote says so and never carries a receipt', async () => {
-    start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'received', label: 'Came in this month', value: '₹40,000.00', receiptId: 'R-0402', estimate: true }] }) } });
+    start('#/money', { override: { 'venture.money.overview': () => ({ lines: [{ id: 'received', label: 'Came in this month', value: '₹40,000', receiptId: 'R-0402', estimate: true }] }) } });
     const received = await tileOf('Received');
-    await within(received).findByText('₹40,000.00');
+    await within(received).findByText('₹40,000');
     expect(received.textContent).toContain('model estimate');
     // The tile's own figure carries no receipt (last month's, under it, has its own: W4 4J20).
-    expect(within(received).getByText('₹40,000.00').closest('[data-figure]')!.querySelector('[data-receipt]')).toBeNull();
+    expect(within(received).getByText('₹40,000').closest('[data-figure]')!.querySelector('[data-receipt]')).toBeNull();
   });
 
   it('shows what the engine says when nothing is owed, with no aging bar', async () => {
-    const none = { kind: 'calculated' as const, display: '₹0.00', receiptId: 'R-0430', source: { from: 'receipt' as const, receiptId: 'R-0430' } };
+    const none = { kind: 'calculated' as const, display: '₹0', receiptId: 'R-0430', source: { from: 'receipt' as const, receiptId: 'R-0430' } };
     start('#/money', {
       override: {
-        'venture.money.overview': () => ({ lines: [{ id: 'owed', label: 'Clients owe you', value: '₹0.00', receiptId: 'R-0430' }] }),
+        'venture.money.overview': () => ({ lines: [{ id: 'owed', label: 'Clients owe you', value: '₹0', receiptId: 'R-0430' }] }),
         'venture.money.aging': () => ({
           asOf: '2026-10-21', total: none, invoices: [], line: 'Nothing is owed on open invoices.',
           buckets: (['not-due', '1-30', '31-60', '61-90', 'over-90'] as const).map((id) => ({ id, label: id, count: 0, countLine: 'None', amount: none, permille: 0 })),
@@ -99,7 +99,7 @@ describe('Money overview', () => {
       },
     });
     const owed = await tileOf('Owed to you');
-    expect(await within(owed).findByText('₹0.00')).toBeTruthy();
+    expect(await within(owed).findByText('₹0')).toBeTruthy();
     expect(await within(owed).findByText('Nobody owes you anything right now.')).toBeTruthy();
     expect(within(owed).queryByRole('img')).toBeNull();
   });

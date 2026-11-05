@@ -9,15 +9,16 @@
  * owner's calendar in Kolkata, as the sample businesses are in India. Unlike the engine the fake keeps no credit notes
  * against a goal and no discount on an invoice; its samples have neither.
  *
- * The sample: Lumen Studio aims to invoice ₹1,50,000.00 in October 2026; the other businesses have no goal yet.
+ * The sample: Lumen Studio aims to invoice ₹1,50,000 in October 2026; the other businesses have no goal yet.
  */
 
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, type BlueprintViewLite, type BooksSummaryLite, type GoalFigure, type GoalSuggestion, type GoalView, type InvoiceLite, type InvoiceViewLite, type ModelStatusLite, type NextBestStep, type QueueRow, type ReceiptLite } from './types';
 import { BOOKS, RECEIPTS } from './fixtures';
 import { inr } from './fake-money';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
-import { decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
 import type { VentureViewLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 
@@ -43,8 +44,15 @@ const previousMonth = (month: string) => {
   const year = Number(month.slice(0, 4)), index = Number(month.slice(5, 7)) - 1;
   return index === 0 ? `${year - 1}-12` : `${year}-${String(index).padStart(2, '0')}`;
 };
-/** Paise from the fake's own formatted text ("₹1,12,400.00"). The fake only: the screens never read an amount back. */
-const paise = (display: string) => Number(display.replace(/[^\d-]/g, ''));
+/**
+ * Paise from the fake's own formatted text, in the owner form since B2 ("₹1,12,400", "₹2,000.50"): paise show only when
+ * there are some. The fake only: the screens never read an amount back.
+ */
+const paise = (display: string, currency = 'INR') => {
+  const digits = currencyMinorDigits(currency);
+  const found = /(-?)[^\d-]*([\d,]+)(?:\.(\d+))?/.exec(display);
+  return found ? Number(`${found[1]}${found[2]!.replace(/,/g, '')}${(found[3] ?? '').padEnd(digits, '0')}`) : 0;
+};
 
 function monthText(value: unknown): string {
   if (typeof value !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value) || Number(value.slice(0, 4)) < 2000 || Number(value.slice(0, 4)) > 2100) throw invalid('Use a month like 2026-10.');
@@ -76,7 +84,7 @@ export class FakeGoals {
   /** A receipt this desk made, for venture.receipt.get. */
   private venture() { return this.host.ask('venture.get', {}) as VentureViewLite | null; }
   private country() { return countryProfile(this.venture()?.venture.country?.code ?? 'IN'); }
-  private money(minor: number) { const currency = this.country().currency; return currency === 'INR' ? inr(minor) : formatMinor(String(minor), currency); }
+  private money(minor: number) { const currency = this.country().currency; return currency === 'INR' ? inr(minor) : formatMoney(String(minor), currency); }
   receipt(id: string): ReceiptLite | undefined {
     const found = this.receipts.find((receipt) => receipt.id === id);
     return found ? structuredClone(found) : undefined;
@@ -127,7 +135,7 @@ export class FakeGoals {
       .map((invoice) => {
         const view = this.host.ask('venture.invoice.get', { invoiceId: invoice.id }) as InvoiceViewLite;
         const subtotal = view.figures.find((figure) => figure.key === 'subtotal')?.display ?? '0';
-        return { invoice, minor: paise(subtotal), client: view.client.name, currency: view.invoice.currency };
+        return { invoice, minor: paise(subtotal, view.invoice.currency), client: view.client.name, currency: view.invoice.currency };
       }).filter(item => item.currency === this.country().currency);
   }
 
@@ -230,7 +238,7 @@ export class FakeGoals {
       const total = receipt.figures.find((figure) => figure.key === 'total') ?? receipt.figures.at(-1);
       const currency = total?.display.startsWith('₹') ? 'INR' : /^([A-Z]{3})\s/.exec(total?.display ?? '')?.[1];
       if (currency !== this.country().currency) continue;
-      const minor = total ? paise(total.display) : 0;
+      const minor = total ? paise(total.display, currency) : 0;
       if (minor > 0) return { minor, display: this.money(minor), receiptId: id };
     }
     return null;

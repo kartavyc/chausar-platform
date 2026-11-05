@@ -34,7 +34,7 @@ const rowOf = (view: BankLedgerView, description: string) => {
 
 /**
  * One issued invoice, INV-0007: 10,000.00 a month with GST at 18% split CGST and SGST in Maharashtra (state 27 on both
- * sides). Each half = 1000000 x 900 / 10000 = 90000; tax 180000; total 1000000 + 180000 = 1180000 (INR 11,800.00).
+ * sides). Each half = 1000000 x 900 / 10000 = 90000; tax 180000; total 1000000 + 180000 = 1180000 (₹11,800).
  */
 async function invoiceSeven(env: Env): Promise<InvoiceRecord> {
   await seedBlueprint(env, { price1: '1000000' });
@@ -76,7 +76,7 @@ test('own transfers: opposite amounts in two own accounts at most two days apart
   assert.deepEqual([out.classification, into.classification], ['own-transfer', 'own-transfer']);
   assert.equal(out.pairedWith, into.id);
   assert.equal(into.pairedWith, out.id);
-  assert.deepEqual([out.direction, out.amount, out.dateDisplay, into.direction, into.amount], ['out', 'INR 20,000.00', '3 Oct 2026', 'in', 'INR 20,000.00']);
+  assert.deepEqual([out.direction, out.amount, out.dateDisplay, into.direction, into.amount], ['out', '₹20,000', '3 Oct 2026', 'in', '₹20,000']);
   // The second 20,000.00 has nothing left to pair with: the one it could have paired with is taken.
   const later = rowOf(view, 'TRANSFER IN AGAIN');
   assert.deepEqual([later.classification, later.pairedWith], ['money-in', null]);
@@ -141,13 +141,13 @@ test('a part payment the owner typed is not suggested again when the same money 
   assert.deepEqual([typed.classification, typed.suggestion], ['money-in', null]);
   assert.equal(typed.flag, 'Already recorded as a payment of INV-0007.');
   // One typed payment covers one statement row: the second 5,000.00 is a payment of its own.
-  // 1180000 - 500000 = 680000 left, so 500000 more leaves 180000 (INR 1,800.00).
+  // 1180000 - 500000 = 680000 left, so 500000 more leaves 180000 (₹1,800).
   const again = rowOf(view, 'UPI INV-0007 ASHA AGAIN');
   assert.equal(again.classification, 'suggested-payment');
-  assert.equal(again.suggestion?.line, 'Pays part of INV-0007. INR 1,800.00 would be left.');
+  assert.equal(again.suggestion?.line, 'Pays part of INV-0007. ₹1,800 would be left.');
   const today = (await run<QueueList>(env, 'venture.queue.list', {})).rows.filter(row => row.kind === 'bank');
   assert.equal(today.length, 1, 'only the second row asks to be recorded');
-  assert.match(today[0].title, /INR 5,000\.00 from 5 Oct 2026/);
+  assert.match(today[0].title, /₹5,000 from 5 Oct 2026/);
 });
 
 test('the same statement file is never imported into a second account; one row both files share keeps its own id per account', async () => {
@@ -177,7 +177,7 @@ test('off the app channel the ledger leaves out descriptions and counterparties'
   assert.deepEqual([inApp.rows[0].description, inApp.rows[0].counterparty], ['RENT TO MR SHARMA', 'R Sharma']);
   for (const ctx of [phone, { ...owner, channel: 'mcp' as const }, { ...owner, sourceTainted: true }]) {
     const away = await run<BankLedgerView>(env, 'venture.bank.ledger', {}, ctx);
-    assert.deepEqual([away.rows[0].description, away.rows[0].counterparty, away.rows[0].amount], [null, null, 'INR 25,000.00']);
+    assert.deepEqual([away.rows[0].description, away.rows[0].counterparty, away.rows[0].amount], [null, null, '₹25,000']);
     assert.ok(!JSON.stringify(away).includes('Sharma'));
   }
 });
@@ -196,10 +196,10 @@ test('invoice match by whole word: full and part payments are suggested, a longe
   assert.equal(full.classification, 'suggested-payment');
   assert.deepEqual(full.suggestion, { invoiceId: invoice.id, number: 'INV-0007', line: 'Pays INV-0007 in full.' });
   assert.deepEqual([rowOf(view, 'NEFT/INV-00071/Someone Else').classification, rowOf(view, 'NEFT/INV-00071/Someone Else').suggestion], ['money-in', null]);
-  // 1180000 - 500000 = 680000 (INR 6,800.00) would be left.
+  // 1180000 - 500000 = 680000 (₹6,800) would be left.
   const part = rowOf(view, 'UPI part payment');
   assert.equal(part.classification, 'suggested-payment');
-  assert.equal(part.suggestion?.line, 'Pays part of INV-0007. INR 6,800.00 would be left.');
+  assert.equal(part.suggestion?.line, 'Pays part of INV-0007. ₹6,800 would be left.');
   const refund = rowOf(view, 'REFUND INV-0007');
   assert.deepEqual([refund.classification, refund.suggestion], ['money-out', null]);
   assert.equal(view.line, '4 transactions in 1 account. 2 transactions look like an invoice payment.');
@@ -232,7 +232,7 @@ test('venture.bank.apply as payment goes through the payment path once; the book
   const [match] = listRecords(state, 'venture-bank-match');
   assert.deepEqual([match.transactionId, match.as, match.invoiceId, match.paymentId], [full.id, 'payment', invoice.id, payment.id]);
 
-  // Received goes up by exactly 1180000 (INR 11,800.00), with the calculator's receipt.
+  // Received goes up by exactly 1180000 (₹11,800), with the calculator's receipt.
   const after = await run<BooksSummary>(env, 'venture.books.summary', { from: '2026-10-01', to: '2026-10-31' });
   const received = after.figures.find(f => f.operation === 'received')!;
   assert.equal(BigInt(received.minor) - receivedBefore, 1180000n);
@@ -262,7 +262,7 @@ test('venture.bank.apply as cost writes one cost fact the calculator counts; ski
   assert.deepEqual([cost.row.classification, cost.row.decided], ['applied', 'cost']);
   const facts = env.store.read().facts.filter(fact => fact.kind === 'cost');
   assert.equal(facts.length, 1);
-  // The statement's -2500000 is a cost of +2500000 (INR 25,000.00) on the row's date.
+  // The statement's -2500000 is a cost of +2500000 (₹25,000) on the row's date.
   assert.deepEqual([facts[0].validFrom, facts[0].fields.amountMinor, facts[0].fields.currency, facts[0].fields.description], ['2026-10-06', '2500000', 'INR', 'RENT OCTOBER']);
   const counted = await env.deps.services.calculator.calculate(owner, { operation: 'costs', period: { from: '2026-10-06', to: '2026-10-06' } });
   assert.equal(counted.totalMinor, '2500000');
@@ -289,7 +289,7 @@ test('Today: each suggested match is one bank row, decided through venture.queue
   const bank = today.rows.filter(row => row.kind === 'bank');
   assert.equal(bank.length, 1, 'the transfer pair makes no row');
   const [row] = bank;
-  assert.equal(row.title, 'Record INR 11,800.00 from 4 Oct 2026 as payment of INV-0007?');
+  assert.equal(row.title, 'Record ₹11,800 from 4 Oct 2026 as payment of INV-0007?');
   assert.equal(row.line, 'Pays INV-0007 in full.');
   assert.deepEqual(row.actions.map(item => [item.id, item.label, item.primary]), [['deny', 'Not this', false], ['approve', 'Record payment', true]]);
 
@@ -324,7 +324,7 @@ test('money in that names no invoice: the owner picks one; more than its balance
   // 1200000 is more than INV-0007's balance of 1180000.
   await assert.rejects(run(env, 'venture.bank.apply', { transactionId: large.id, as: 'payment', invoiceId: invoice.id }), (error: any) => {
     assert.equal(error.code, 'PAYMENT_TOO_LARGE');
-    assert.match(error.message, /INR 11,800\.00/);
+    assert.match(error.message, /₹11,800\./);
     return true;
   });
   assert.equal(listRecords(env.store.read(), 'venture-bank-match').length, 0, 'a refusal records nothing');
@@ -332,7 +332,7 @@ test('money in that names no invoice: the owner picks one; more than its balance
   const paid = await run<BankApplyResult>(env, 'venture.bank.apply', { transactionId: small.id, as: 'payment', invoiceId: invoice.id });
   assert.deepEqual([paid.row.classification, paid.row.decided], ['applied', 'payment']);
   assert.ok(paid.receiptId);
-  // 1180000 - 80000 = 1100000 (INR 11,000.00) left on the invoice.
+  // 1180000 - 80000 = 1100000 (₹11,000) left on the invoice.
   assert.equal(listRecords(env.store.read(), 'venture-invoice').find(item => item.id === invoice.id)!.balanceMinor, '1100000');
   const skipped = await run<BankApplyResult>(env, 'venture.bank.apply', { transactionId: large.id, as: 'skip' });
   assert.equal(skipped.row.classification, 'skipped');

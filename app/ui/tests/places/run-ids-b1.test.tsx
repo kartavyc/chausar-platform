@@ -28,7 +28,7 @@ describe('no raw run ids on screen (B1)', () => {
     const main = screen.getByRole('main');
     expect(await within(main).findByRole('button', { name: 'Stop: Cutting shorts from episode 13' })).toBeTruthy();
     expect(within(main).getByRole('button', { name: 'Stop: Checking titles against the last 30 videos' })).toBeTruthy();
-    expect(within(main).getAllByText('Started 4m ago').length).toBeGreaterThan(0);
+    expect(within(main).getAllByText('Started 4 min ago').length).toBeGreaterThan(0);
     expect(main.textContent).not.toMatch(RAW_ID);
     for (const button of within(main).getAllByRole('button')) expect(button.getAttribute('aria-label') ?? '', 'a label').not.toMatch(RAW_ID);
   });

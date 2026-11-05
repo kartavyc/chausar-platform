@@ -1,5 +1,6 @@
 // Price receipts: the proof behind every price Chausar shows. Built inside a venture transaction from the
 // owner's own price and tax settings by pure arithmetic; the explanation is an engine template, never model text.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context } from '../../contracts.ts';
 import { numberGuard } from '../../calculator.ts';
 import { currencyMinorDigits, formatMinor } from '../../currency.ts';
@@ -20,7 +21,7 @@ import type { ForeignPrice } from './billing-types.ts';
 export type PriceSubject = PriceReceiptRecord['subject'];
 
 function figure(key: PriceFigure['key'], label: string, minor: MinorString, currency: string): PriceFigure {
-  return { key, label, minor, display: formatMinor(minor, currency), currency };
+  return { key, label, minor, display: formatMoney(minor, currency), currency };
 }
 
 /** The tax figures for a treatment, in the order a document lists them. */
@@ -98,7 +99,8 @@ export function priceAllowedNumbers(figures: PriceFigure[], quantity: string, de
   const numbers: string[] = [];
   for (const f of figures) {
     numbers.push(f.minor);
-    numbers.push(f.display.slice(f.currency.length + 1).replace(/,/g, ''));
+    // The plain decimal from the exact form (B2: the display is the owner form, "₹1,00,000", which this never parses).
+    numbers.push(formatMinor(f.minor, f.currency).slice(f.currency.length + 1).replace(/,/g, ''));
   }
   numbers.push(quantity, ratePercent(decision.rateBps));
   if (decision.treatment === 'cgst-sgst') numbers.push(halfRatePercent(decision.rateBps));

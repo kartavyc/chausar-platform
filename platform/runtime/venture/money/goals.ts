@@ -7,6 +7,7 @@
 // venture.goals.set keeps a goal inside the app, for the owner; a newer goal for the same month is the one in use and
 // the older stays as history. venture.goals.suggest asks the owner's own AI for a figure from the plan's offers and
 // prices only (no client data), labelled a model estimate; it never becomes a goal unless the owner sets it.
+import { formatMoney } from '../../owner-format.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currencyMinorDigits, decimalMinor, formatMinor } from '../../currency.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
@@ -138,7 +139,7 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
     const goalMinor = BigInt(goal.amountMinor);
     // Still to invoice, or past the goal by: never empty, the goal in use is always one of its lines.
     const steps = await sumReceipt(deps, ctx, venture.id, goalPlan(state, venture, { type: 'goal', month: chosen, goalId: goal.id, day: null }));
-    goalFigure = { display: formatMinor(goalMinor, currency), receiptId: steps.id };
+    goalFigure = { display: formatMoney(goalMinor, currency), receiptId: steps.id };
     stillToInvoice = invoicedMinor < goalMinor ? { display: steps.figures[0].display, receiptId: steps.id } : null;
     // 4I2: past the goal, the same receipt says by how much ("Past the goal by").
     pastBy = invoicedMinor > goalMinor ? { display: steps.figures[0].display, receiptId: steps.id } : null;
@@ -272,7 +273,7 @@ export async function suggestGoal(deps: VentureDeps, ctx: Context, payload: unkn
     if (code === 'NO_MODEL_CONNECTED' || code === REJECTED) return null;
     throw error;
   }
-  // typed: the amount without the currency code or grouping, as the goal field takes it back ("150000.00").
+  // typed: the amount without the currency code or grouping, as the goal field takes it back ("150000.00"), from the exact form.
   const typed = formatMinor(amountMinor, currency).slice(currency.length + 1).replace(/,/g, '');
-  return { amountMinor, display: formatMinor(amountMinor, currency), estimate: true, line: SUGGEST_LINE, typed };
+  return { amountMinor, display: formatMoney(amountMinor, currency), estimate: true, line: SUGGEST_LINE, typed };
 }

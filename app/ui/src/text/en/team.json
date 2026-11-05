@@ -227,7 +227,7 @@
   "team.persona.test": "Test",
   "team.persona.save": "Save",
   "team.persona.results": "How it would reply",
-  "team.persona.cost": "It cost {cost}.",
+  "team.persona.cost": "Cost: {cost}.",
   "team.persona.file.title": "The agent file",
   "team.persona.file.line": "The file holds its steps, persona and standing orders, never its notes. To make a copy of {name} in another business, import it there.",
   "team.persona.file.export": "Export",

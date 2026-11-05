@@ -144,10 +144,10 @@ test('previews: an invoice shows its paper lines, tax lines and total with the p
   const paper = preview(await rowOf(env, 'invoice'), 'paper');
   assert.deepEqual(paper, {
     kind: 'paper', paper: 'invoice', title: 'TAX INVOICE (draft)', from: 'Ledger Cafe Books', to: CLIENT_NAME,
-    lines: [{ label: 'Monthly books', quantity: '1', unit: 'INR 2,499.00', value: 'INR 2,499.00', receiptId, receiptKind }],
-    subtotal: { label: 'Subtotal', value: 'INR 2,499.00', receiptId, receiptKind },
-    taxLines: [{ label: 'CGST at 9%', value: 'INR 224.91', receiptId, receiptKind }, { label: 'SGST at 9%', value: 'INR 224.91', receiptId, receiptKind }],
-    total: { label: 'Total', value: 'INR 2,948.82', receiptId, receiptKind },
+    lines: [{ label: 'Monthly books', quantity: '1', unit: '₹2,499', value: '₹2,499', receiptId, receiptKind }],
+    subtotal: { label: 'Subtotal', value: '₹2,499', receiptId, receiptKind },
+    taxLines: [{ label: 'CGST at 9%', value: '₹224.91', receiptId, receiptKind }, { label: 'SGST at 9%', value: '₹224.91', receiptId, receiptKind }],
+    total: { label: 'Total', value: '₹2,948.82', receiptId, receiptKind },
     due: { days: 15, date: '2026-10-30', display: 'Due in 15 days' },
   });
   await opensEach(env, paper);
@@ -193,8 +193,8 @@ test('previews: a CA sign-off shows the working figures, each with its receipt a
   const engine = await put(env, tx => record<WorkReceiptRecord>(tx, 'venture-work-receipt', {
     operation: 'ca.engine', runRef: { kind: 'delivery', runId: 'delivery_x' }, currency: 'INR', inputs: { tables: [], columns: {}, rowIds: [] }, steps: [],
     figures: [
-      { key: 'taxable', label: 'Taxable value', minor: '1600000', display: 'INR 16,000.00', currency: 'INR', unit: 'money' },
-      { key: 'cgst', label: 'CGST at 9%', minor: '144000', display: 'INR 1,440.00', currency: 'INR', unit: 'money' },
+      { key: 'taxable', label: 'Taxable value', minor: '1600000', display: '₹16,000', currency: 'INR', unit: 'money' },
+      { key: 'cgst', label: 'CGST at 9%', minor: '144000', display: '₹1,440', currency: 'INR', unit: 'money' },
     ],
     reconciliation: null, allowedNumbers: [], explanation: 'GST on sales.', digest: 'receipt-digest',
     ca: { engine: 'gst-working', inputs, inputsDigest: digest(inputs), caReceiptId: 'ca-receipt', table: null, tables: [], sections: [], assumptions: [], openQuestions: [], working: {} },
@@ -202,7 +202,7 @@ test('previews: a CA sign-off shows the working figures, each with its receipt a
   // A calculator work receipt with no engine on it: venture.work.get opens it.
   const work = await put(env, tx => record<WorkReceiptRecord>(tx, 'venture-work-receipt', {
     operation: 'work.totals', runRef: { kind: 'delivery', runId: 'delivery_x' }, currency: 'INR', inputs: { tables: [], columns: {}, rowIds: [] }, steps: [],
-    figures: [{ key: 'total', label: 'Sales register total', minor: '1600000', display: 'INR 16,000.00', currency: 'INR', unit: 'money' }],
+    figures: [{ key: 'total', label: 'Sales register total', minor: '1600000', display: '₹16,000', currency: 'INR', unit: 'money' }],
     reconciliation: null, allowedNumbers: [], explanation: 'Sales register.', digest: 'work-digest',
   }));
   await put(env, tx => {
@@ -215,9 +215,9 @@ test('previews: a CA sign-off shows the working figures, each with its receipt a
   assert.deepEqual(shown, {
     kind: 'paper', paper: 'working', title: 'GST working for September', client: 'Mehta Traders',
     working: [
-      { label: 'Taxable value', value: 'INR 16,000.00', receiptId: engine.id, receiptKind: 'ca' },
-      { label: 'CGST at 9%', value: 'INR 1,440.00', receiptId: engine.id, receiptKind: 'ca' },
-      { label: 'Sales register total', value: 'INR 16,000.00', receiptId: work.id, receiptKind: 'work' },
+      { label: 'Taxable value', value: '₹16,000', receiptId: engine.id, receiptKind: 'ca' },
+      { label: 'CGST at 9%', value: '₹1,440', receiptId: engine.id, receiptKind: 'ca' },
+      { label: 'Sales register total', value: '₹16,000', receiptId: work.id, receiptKind: 'work' },
     ],
     more: 0, signer: { name: 'Meera Joshi', state: 'to-send' },
   });

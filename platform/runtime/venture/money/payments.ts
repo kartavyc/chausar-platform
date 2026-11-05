@@ -6,8 +6,9 @@
 // holds its amount so nothing else takes it. One payment can be split across invoices: each part is its own record,
 // the parts add up to the payment exactly, and none goes over its invoice's free balance. TDS the client deducted (India
 // only) is kept on the payment with its section and settles the invoice beside the cash; it is not money received.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context } from '../../contracts.ts';
-import { decimalMinor, formatMinor } from '../../currency.ts';
+import { decimalMinor } from '../../currency.ts';
 import { activateTerm, amountText, exactPayload, isoDate, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { booksReceiptFor, RECEIVED_COVERS_MORE } from './books.ts';
@@ -54,7 +55,7 @@ function factOf(paymentId: string, invoice: InvoiceRecord, amountMinor: MinorStr
 /** Moves an invoice's paid and balance figures by what a payment settles. */
 function settleInvoice(tx: VentureTx, invoice: InvoiceRecord, settles: bigint): void {
   const left = BigInt(invoice.balanceMinor) - settles;
-  check(left >= 0n, 'PAYMENT_TOO_LARGE', `This is more than the balance of ${formatMinor(invoice.balanceMinor, invoice.currency)}.`);
+  check(left >= 0n, 'PAYMENT_TOO_LARGE', `This is more than the balance of ${formatMoney(invoice.balanceMinor, invoice.currency)}.`);
   tx.replace<InvoiceRecord>({ ...invoice, paidMinor: String(BigInt(invoice.paidMinor) + settles), balanceMinor: String(left), status: left === 0n ? 'paid' : 'part-paid' });
 }
 
@@ -121,8 +122,8 @@ export function recordPaymentMinor(tx: VentureTx, deps: VentureDeps, input: Paym
   const balance = BigInt(invoice.balanceMinor);
   const free = freeBalance(invoice, payments, tx.list('venture-credit-note'));
   check(settles <= free, 'PAYMENT_TOO_LARGE', free === balance
-    ? `This is more than the balance of ${formatMinor(balance, invoice.currency)}.`
-    : `This is more than the ${formatMinor(free, invoice.currency)} free to pay: a cheque or a credit note waiting holds the rest of the ${formatMinor(balance, invoice.currency)} balance.`);
+    ? `This is more than the balance of ${formatMoney(balance, invoice.currency)}.`
+    : `This is more than the ${formatMoney(free, invoice.currency)} free to pay: a cheque or a credit note waiting holds the rest of the ${formatMoney(balance, invoice.currency)} balance.`);
 
   const pending = method === 'cheque' && !input.bankTransactionId;
   const base = tx.base('venture-payment');
@@ -212,8 +213,8 @@ export async function recordPayment(deps: VentureDeps, ctx: Context, payload: un
     const total = BigInt(decimalMinor(typed, currency));
     const minors = parts.map(part => ({ invoiceId: part.invoiceId, minor: BigInt(decimalMinor(part.typed, currency)) }));
     const sum = minors.reduce((added, part) => added + part.minor, 0n);
-    check(sum <= total, 'PAYMENT_TOO_LARGE', `The parts add up to ${formatMinor(sum, currency)}, more than the payment of ${formatMinor(total, currency)}.`);
-    check(sum === total, 'INVALID_AMOUNT', `The parts add up to ${formatMinor(sum, currency)}; the payment is ${formatMinor(total, currency)}. Give every part of it an invoice.`);
+    check(sum <= total, 'PAYMENT_TOO_LARGE', `The parts add up to ${formatMoney(sum, currency)}, more than the payment of ${formatMoney(total, currency)}.`);
+    check(sum === total, 'INVALID_AMOUNT', `The parts add up to ${formatMoney(sum, currency)}; the payment is ${formatMoney(total, currency)}. Give every part of it an invoice.`);
     const split = { groupId: tx.base('venture-payment').id, totalMinor: String(total) };
     return minors.map(part => {
       const invoice = tx.find('venture-invoice', part.invoiceId);
