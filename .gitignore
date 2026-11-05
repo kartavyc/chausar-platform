@@ -8,6 +8,7 @@ coverage/
 *.log
 *.vault
 *.backup
+# This matches yarn and other lock files only, not package-lock.json, which is committed (install with npm ci).
 *.lock
 data/
 vaults/
