@@ -51,7 +51,7 @@ const SCREEN_SOURCES = [
 const QUOTED = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
 function sentences(file: string): string[] {
   const source = readFileSync(join(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
-  return [...source.matchAll(QUOTED)].map((match) => (match[1] ?? match[2] ?? match[3]).replace(/\$\{[^}]*\}/g, 'X')).filter((text) => /^[A-Z]/.test(text) && /\s/.test(text));
+  return [...source.matchAll(QUOTED)].map((match) => (match[1] ?? match[2] ?? match[3] ?? '').replace(/\$\{[^}]*\}/g, 'X')).filter((text) => /^[A-Z]/.test(text) && /\s/.test(text));
 }
 
 describe('B1 fix round 2: the engine and the fake engine say job too', () => {
