@@ -41,10 +41,10 @@ describe('Business > Routines (4J22a)', () => {
     const nav = screen.getByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getByRole('link', { name: 'Routines' }).getAttribute('aria-current')).toBe('page');
     const item = await screen.findByRole('article', { name: 'Weekly review' });
-    expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 09:00, Asia/Kolkata');
+    expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 9:00 am, Asia/Kolkata');
     expect(item.querySelector('[data-asks]')!.textContent).toBe('Asks Chausar');
     // Worded by the screen from routine.on and routine.next, in the routine's own time zone.
-    expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next time 26 Oct, 09:00');
+    expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next time 26 Oct, 9:00 am');
     assertInkRules();
   });
 
@@ -83,7 +83,7 @@ describe('Business > Routines (4J22a)', () => {
       schedule: { kind: 'calendar', weekdays: [1, 3], time: '08:30', timeZone: 'Asia/Kolkata' },
     } });
     const added = await screen.findByRole('article', { name: 'Morning check' });
-    expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday 08:30, Asia/Kolkata');
+    expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday 8:30 am, Asia/Kolkata');
   });
 
   it('a prompt that leans on the chat is refused in the engine words', async () => {

@@ -217,3 +217,11 @@ export function weekdayIn(value: When, zone: string): string {
   const local = localIn(value, zone);
   return local ? WEEKDAY_SHORT[local.weekday]! : '';
 }
+
+/** A wall-clock time as a time field keeps it ('09:00', a routine's or a quiet hour's setting) on the 12-hour clock: "9:00 am". */
+export function formatClock(hhmm: string): string {
+  const found = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!found) return hhmm;
+  const hour = Number(found[1]);
+  return `${hour % 12 || 12}:${found[2]} ${hour < 12 ? 'am' : 'pm'}`;
+}

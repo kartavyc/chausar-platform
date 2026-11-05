@@ -66,3 +66,10 @@ test('the same strings in a process whose own zone is New York, so nothing reads
     assert.deepEqual(JSON.parse(child.stdout), EXPECTED, zone);
   }
 });
+
+test('a time a field keeps (HH:MM) reads on the 12-hour clock; anything else comes back as it came', async () => {
+  const { formatClock } = await import('../runtime/owner-format.ts');
+  for (const [value, words] of [['09:00', '9:00 am'], ['00:05', '12:05 am'], ['12:30', '12:30 pm'], ['23:59', '11:59 pm'], ['9:00', '9:00'], ['24:00', '24:00']]) {
+    assert.equal(formatClock(value), words, value);
+  }
+});

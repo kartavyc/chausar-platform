@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { useOwnerZone } from '../../shell/clock';
+import { formatClock, formatDay, formatTime } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { stateText } from '../../parts/states';
@@ -24,25 +25,23 @@ function whenOf(routine: RoutineView, t: T): string {
   const days = schedule.weekdays.length === 7 ? t('business.routines.everyDay')
     : schedule.weekdays.join() === '1,2,3,4,5' ? t('business.routines.weekdays')
       : listOf(schedule.weekdays.map((day) => t(`business.routines.day.${day}`)), t);
-  return t('business.routines.when', { days, time: schedule.time, zone: schedule.timeZone });
+  return t('business.routines.when', { days, time: formatClock(schedule.time), zone: schedule.timeZone });
 }
 
 /**
  * The routine's next run in the reader's language, from the engine's codes (routine.on and routine.next), in the
- * routine's own time zone: "Next run 26 Oct, 09:00", "Off. Nothing runs." or "No more times to run."
+ * routine's own time zone: "Next run 26 Oct, 9:00 am", "Off. Nothing runs." or "No more times to run." A zone the computer
+ * cannot read falls back to the owner's zone (B2), never to the raw ISO text.
  */
-function nextOf(routine: RoutineView, t: T, language: string): string {
+function nextOf(routine: RoutineView, t: T, ownerZone: string): string {
   if (!routine.on) return t('business.routines.offLine');
   if (!routine.next) return t('business.routines.noMore');
   const timeZone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : FIRST_ZONE;
-  const locale = 'en-IN';
   const at = new Date(routine.next);
   try {
-    const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone }).format(at);
-    const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(at);
-    return t('business.routines.nextRun', { day, time });
+    return t('business.routines.nextRun', { day: formatDay(at, timeZone, 'short'), time: formatTime(at, timeZone) });
   } catch {
-    return t('business.routines.nextRun', { day: routine.next.slice(0, 10), time: routine.next.slice(11, 16) });
+    return t('business.routines.nextRun', { day: formatDay(at, ownerZone, 'short'), time: formatTime(at, ownerZone) });
   }
 }
 
@@ -127,7 +126,7 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
   });
   const remove = () => act(async () => (await client.request('venture.routines.remove', { id: routine.id })).line);
   const offOrOn = routine.on ? 'business.routines.off' : 'business.routines.on';
-  const language = useLanguage();
+  const ownerZone = useOwnerZone();
   // A role that may not change routines reads no prompt (the engine leaves it out), so it gets no way to change one.
   const mayChange = routine.prompt !== undefined;
 
@@ -136,7 +135,7 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
       <TileHead id={titleId} title={routine.name} />
       <p className={s.strong} data-when="">{whenOf(routine, t)}</p>
       <p className={s.note} data-asks="">{t('business.routines.asks', { who })}</p>
-      <p className={s.line} data-routine-line="">{nextOf(routine, t, language)}</p>
+      <p className={s.line} data-routine-line="">{nextOf(routine, t, ownerZone)}</p>
       <History id={routine.id} />
       {changing ? (
         <RoutineForm agents={agents} zone={zone} initial={routine} onSaved={() => { setChanging(false); onChanged(); }} onCancel={() => setChanging(false)} />
