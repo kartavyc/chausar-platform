@@ -121,7 +121,7 @@ export function fakeBookkeepingCfoDesk(host: W4DeskHost): FakePlaybookDesk {
         const body = exact(p, ['playbook', 'kind', 'id', 'action', 'payload', 'digest'], ['playbook', 'kind', 'id', 'action', 'payload']);
         if (!['record', 'reminder'].includes(String(body.action))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a supported collections action.');
         if (body.action === 'record') {
-          if (body.id !== 'new' || body.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Record a new promise without a prior digest.');
+          if (body.id !== 'new' || body.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Record a new promise without an earlier version.');
           const input = exact(body.payload, ['clientId', 'serviceOrderId', 'sourceName', 'invoiceIds', 'amountRupees', 'promisedOn', 'method', 'statedBy'], ['clientId', 'serviceOrderId', 'sourceName', 'invoiceIds', 'amountRupees', 'promisedOn', 'method', 'statedBy']);
           const clientId = id(input.clientId, 'Client');
           if (!clients().some(client => client.id === clientId)) throw new EngineError('CLIENT_NOT_FOUND', 'That client was not found.');

@@ -1,6 +1,6 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
 import { ownerError } from './owner-errors';
-import { INTERNAL_LINE_CODES, bannedIn, refusalTravel } from '../../../../platform/runtime/owner-flag';
+import { INTERNAL_LINE_CODES, refusalTravel } from '../../../../platform/runtime/owner-flag';
 import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
@@ -644,7 +644,7 @@ export class FakeEngine {
         if (this.wiring.handles(method)) return this.wiring.request(method, p);
         if (this.network.handles(method)) return this.networkAnswer(method, p);
         for (const desk of [this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) if (desk.handles(method)) return desk.request(method, p);
-        throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+        throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -832,7 +832,7 @@ export class FakeEngine {
     for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) {
       if (desk.handles(method)) return desk.request(method, p);
     }
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /** 5A2: drafts follow the engine's Forget and import Undo, only after the network change succeeds. */
@@ -1483,12 +1483,13 @@ export class FakeEngine {
  * B1 fix round 2 (quality findings 2 and 6): the fake flags a refusal by the engine's rule (owner-flag.ts refusalTravel).
  * It has no vault of its own, so a code the engine throws only from its vault, sync and storage internals
  * (INTERNAL_LINE_CODES: a short passphrase, a missing name) travels as the engine's does, without the flag, and the app
- * says its line. Its own refusals are read too: one in developer words ("The fake engine does not answer ...", "Send the
- * digest of the invoice you checked.") is never flagged, so the app says its general line.
+ * says its line. B1 fix round 3 (review 3, finding 1c): that rule exactly, with nothing of the fake's own on top, so a
+ * test on the fake sees what the engine would show; the fake's own refusals say plain words instead
+ * (tests/engine/fake-refusals-b1.test.ts).
  */
-function fakeFlags(error: EngineError): boolean {
+export function fakeFlags(error: EngineError): boolean {
   const internal = INTERNAL_LINE_CODES.includes(error.code) ? false : undefined;
-  return refusalTravel(error.code, error.message, internal) === 'owner' && bannedIn(error.message).length === 0;
+  return refusalTravel(error.code, error.message, internal) === 'owner';
 }
 
 /** An EngineClient over the fake engine. Its status line says the data is a sample. */

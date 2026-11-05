@@ -166,7 +166,7 @@ export class FakeAgentsDesk {
       case 'venture.agents.notes.edit': return this.notesEdit(p);
       case 'venture.agents.notes.forget': return this.notesForget(p);
       case 'venture.agents.notes.undo': return this.notesUndo(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -357,7 +357,7 @@ export class FakeAgentsDesk {
 
   private consent(p: Record<string, unknown>): ChatConsentView {
     const body = exact(p, ['digest'], ['digest']);
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Send the digest of the consent you read.');
+    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
     const view = this.consentView();
     const route = this.route();
     if (!route) return view;
@@ -586,7 +586,7 @@ export class FakeAgentsDesk {
   private decide(p: Record<string, unknown>): { proposal: AgentProposalView; line: string; playbook?: { id: string; version: number } } {
     const body = exact(p, ['id', 'digest', 'decision'], ['id', 'digest', 'decision']);
     const proposalId = id(body.id, 'Proposal');
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Send the digest of the change you read.');
+    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
     if (body.decision !== 'accept' && body.decision !== 'reject') throw invalid('Choose accept or reject.');
     const book = this.book();
     const prop = book.proposals.find((x) => x.id === proposalId);
@@ -676,7 +676,7 @@ export class FakeAgentsDesk {
   private undoVersion(p: Record<string, unknown>): { playbookId: string; version: number; line: string } {
     const body = exact(p, ['agent', 'digest'], ['agent', 'digest']);
     const agent = this.agent(id(body.agent, 'Agent'));
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Send the digest of the version you saw in use.');
+    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
     const book = this.book();
     const current = this.current(book);
     const changes = (current?.patches ?? []).filter((patch) => patch.agent === agent.id);

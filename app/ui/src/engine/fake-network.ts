@@ -83,6 +83,6 @@ export class FakeNetworkDesk {
     if (method === 'venture.network.sources') return { ...(this.people.request(method, p) as NetworkSourcesView), ...this.pipeline.reads() };
     if (FAKE_4D4_METHODS.includes(method)) return this.people.request(method, p);
     if (FAKE_4E4_METHODS.includes(method)) return this.pipeline.request(method, p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 }

@@ -146,7 +146,7 @@ export class FakeTeamDesk {
   request(method: string, p: Record<string, unknown>): unknown {
     if (method === 'venture.team.keeper') return { jobs: structuredClone(this.sample().keeper) };
     if (method === 'venture.team.clearQuarantine') return this.clear(p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /** venture.team.list: the fake's agents (fake.ts) as the engine lists them, with the departments and totals. */

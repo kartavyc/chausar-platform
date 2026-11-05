@@ -106,7 +106,7 @@ export class FakeBankDesk {
       case 'venture.bank.apply': return this.apply(p);
       case 'venture.bank.alerts.get': return this.alertsView();
       case 'venture.bank.alerts.set': return this.alertsSet(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

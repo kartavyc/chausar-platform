@@ -233,7 +233,7 @@ export class FakePipelineDesk {
       case 'venture.inbound.confirm': return this.confirm(p);
       case 'venture.network.calendar': return this.calendar(p);
       case 'venture.meeting.digest': return this.digest(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

@@ -289,7 +289,7 @@ export class FakePeopleDesk {
       case 'venture.network.research': return this.research(p);
       case 'venture.pipeline.add': return this.addCard(p);
       case 'workspace.custody.neverContactReset': return this.neverContactReset(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

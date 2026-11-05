@@ -225,7 +225,7 @@ export class FakeMoney {
       case 'venture.billing.set': { const view = this.billing.set(this.host.business(), p, this.host.now()); this.host.changed(); return view; }
       case 'venture.invoice.pdf': return this.pdf(p);
       case 'venture.invoice.payLink': return this.payLink(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -512,7 +512,7 @@ export class FakeMoney {
   private payLink(p: Record<string, unknown>): InvoiceViewLite {
     if (Object.keys(p).some((key) => !['invoiceId', 'action', 'digest'].includes(key)) || p.invoiceId === undefined || p.action === undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (p.action !== 'create' && p.action !== 'check') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say create or check.');
-    if (p.action === 'create' ? typeof p.digest !== 'string' || !/^[A-Za-z0-9]{1,200}$/.test(p.digest) : p.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the link you checked, only to create one.');
+    if (p.action === 'create' ? typeof p.digest !== 'string' || !/^[A-Za-z0-9]{1,200}$/.test(p.digest) : p.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at the link again before creating it.');
     if (!this.billing.of(this.host.business()).razorpay) throw new EngineError('RAZORPAY_NOT_CONNECTED', 'Add your Razorpay keys in How clients pay first.');
     const invoice = this.find(p.invoiceId);
     const input = { id: invoice.id, number: invoice.number, status: invoice.status, balance: this.balance(invoice), currency: invoice.currency, digest, ...(invoice.payLink ? { payLink: invoice.payLink } : {}) };
@@ -568,7 +568,7 @@ export class FakeMoney {
     const snapshot = this.host.orderSnapshot?.(order.id);
     const priced = snapshot ? { price: { subtotal: Number(snapshot.subtotal), taxes: snapshot.taxes.map(tax => ({ ...tax, minor: Number(tax.minor) })) }, title: snapshot.taxes.length ? 'TAX INVOICE' : NOT_TAX, notes: [] } : ORDER_PRICES[order.id];
     const currency = snapshot?.currency ?? 'INR';
-    if (!priced) throw new EngineError('ORDER_NOT_PRICED', 'The sample engine has no price for this order.');
+    if (!priced) throw new EngineError('ORDER_NOT_PRICED', 'This sample order has no price yet.');
     const settings = this.billing.of(this.host.business());
     let dueInDays: number;
     let reminderDays: number[] | undefined;
@@ -629,7 +629,7 @@ export class FakeMoney {
 
   private issue(p: Record<string, unknown>): InvoiceViewLite {
     const invoice = this.find(p.invoiceId);
-    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at it again first.');
     if (invoice.status !== 'draft') throw new EngineError('INVOICE_NOT_DRAFT', 'This invoice was already issued.');
     if (invoice.digest !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again, then issue it.');
     // 6D1: nothing issues past the order's total, whatever was issued since this draft was made.
@@ -749,7 +749,7 @@ export class FakeMoney {
     if (p.amountMinor !== undefined && (typeof p.amountMinor !== 'string' || !/^(0|[1-9]\d{0,13})$/.test(p.amountMinor) || p.amountMinor === '0')) throw new EngineError('INVALID_AMOUNT', 'The credit must be a whole amount in minor units, above zero.');
     const reason = typeof p.reason === 'string' ? p.reason.trim().replace(/\s+/g, ' ') : '';
     if (reason.length < 3 || reason.length > 300) throw new EngineError('INVALID_VENTURE_REQUEST', 'The reason must be between 3 and 300 characters.');
-    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at it again first.');
     if (invoice.status === 'draft' || !invoice.number) throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice is still a draft. Change the draft instead of crediting it.');
     if (invoice.digest !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again.');
     const amount = typed ?? Number.parseInt(p.amountMinor as string, 10);

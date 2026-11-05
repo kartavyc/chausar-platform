@@ -240,7 +240,7 @@ export class FakeBusinessDesk {
         (this.exports[biz] ??= []).push(path);
         return { path, encrypted: !plaintext };
       }
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -374,7 +374,7 @@ export class FakeBusinessDesk {
     // 4J8: a suggestion's patch is bound to the plan it read (core/blueprint.ts blueprintUpdate).
     if (basedOn !== undefined) {
       const bound = (basedOn && typeof basedOn === 'object' ? basedOn : {}) as Record<string, unknown>;
-      if (typeof bound.blueprintId !== 'string' || typeof bound.digest !== 'string') throw invalid('Send the id and digest of the plan the change was made from.');
+      if (typeof bound.blueprintId !== 'string' || typeof bound.digest !== 'string') throw invalid('Look at the plan again first.');
       if (bound.blueprintId !== view.blueprint.id || bound.digest !== view.blueprint.digest) throw new EngineError('APPROVAL_STALE', 'Your plan changed since this was suggested. Ask again, then apply it.');
     }
     const text = (value: unknown, max: number, what: string) => {

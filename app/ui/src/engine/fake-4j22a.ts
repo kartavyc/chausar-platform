@@ -261,7 +261,7 @@ export class FakeQualityDesk {
       case 'venture.auto.readiness': return this.readiness(p);
       case 'venture.shadow.summary': return this.shadow(p);
       case 'venture.playbook.guidance': exact(p, []); return this.guidance();
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -286,7 +286,7 @@ export class FakeQualityDesk {
 
   private acceptBreak(p: Record<string, unknown>): JournalChainView {
     exact(p, ['digest'], ['digest']);
-    if (typeof p.digest !== 'string' || !DIGEST.test(p.digest)) throw invalid('Send the digest of the break you saw.');
+    if (typeof p.digest !== 'string' || !DIGEST.test(p.digest)) throw invalid('Look at it again first.');
     if (this.host.hosted()) throw new EngineError('APP_APPROVAL_REQUIRED', 'Accept this inside the Chausar app.');
     const seen = this.chain();
     if (seen.state !== 'corrupt') throw invalid("Chausar's record of outside actions adds up. There is no break to accept.");

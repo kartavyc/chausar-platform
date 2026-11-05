@@ -37,7 +37,7 @@ export function fakeSeoWebsiteKind(host: W4DeskHost): FakeDeskKind {
                 const body = exact(p, ['playbook', 'kind', 'id', 'action', 'payload', 'digest'], ['playbook', 'kind', 'id', 'action', 'payload']);
                 let value: SeoWebsiteItem;
                 if (body.action === 'import') {
-                    need(body.id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new website check has no prior digest.');
+                    need(body.id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new website check has no earlier version.');
                     const input = exact(body.payload, ['url', 'report']);
                     need(typeof input.url === 'string', 'SITE_CHECK_INVALID', 'Choose the client site URL.');
                     const report = parseWebsiteReport(input.url as string, input.report, host.digest);

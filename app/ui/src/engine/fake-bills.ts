@@ -68,7 +68,7 @@ export class FakeBills {
       case 'venture.bills.pay': return this.pay(p);
       case 'venture.bills.list': return this.list();
       case 'venture.bills.stop': return this.stop(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

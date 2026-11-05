@@ -208,7 +208,7 @@ export class FakeChiefDesk {
       case 'venture.chief.fit': return this.fit(p);
       case 'venture.proposals.raise': return this.raise(p);
       case 'venture.proposals.dismiss': return this.dismiss(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

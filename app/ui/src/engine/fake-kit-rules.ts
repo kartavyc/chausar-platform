@@ -126,7 +126,7 @@ export class FakeKitRulesDesk {
     if (method === 'venture.ideas.add') return this.add(p);
     if (method === 'venture.ideas.move') return this.move(p);
     if (method === 'venture.ideas.grade') return this.gradeIdea(p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /** The open business's pipeline, newest first, as venture.ideas.list adds it; Today's grade rows follow it. */

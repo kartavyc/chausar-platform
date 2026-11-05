@@ -112,7 +112,7 @@ export class FakeSets {
   /** venture.queue.set { rowIds, digest, secondAsk? }. */
   set(p: Record<string, unknown>): { decisions: QueueDecision[]; line: string; receiptId?: string } {
     const ids = this.ids(p.rowIds);
-    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the set you saw.');
+    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at it again first.');
     const worked = this.work(ids);
     const [first] = worked.refusals;
     if (first) throw new EngineError(first.reason, first.line);

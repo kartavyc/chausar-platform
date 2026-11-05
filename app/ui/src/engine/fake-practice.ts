@@ -160,7 +160,7 @@ export class FakePracticeDesk {
       case 'venture.delivery.judgeSend': return this.judgeSend(biz, p);
       case 'venture.judge.auto.get': exact(p, []); return this.autoView(biz);
       case 'venture.judge.auto.set': return this.setAuto(biz, p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -363,7 +363,7 @@ export class FakePracticeDesk {
   private adopt(biz: string, p: Record<string, unknown>): PlaybookLite {
     const body = exact(p, ['runId', 'digest'], ['runId', 'digest']);
     const runId = identifier(body.runId, 'Improvement run');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the change you approved.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const run = (this.improvements[biz] ?? []).find((r) => r.id === runId);
     if (!run) throw new EngineError('IMPROVEMENT_NOT_FOUND', 'That improvement run was not found.');
     if (run.status !== 'kept-candidate' || !run.candidatePlaybookId) throw invalid('This run kept the old version, so there is nothing to adopt.');
@@ -380,7 +380,7 @@ export class FakePracticeDesk {
   private rollback(biz: string, p: Record<string, unknown>): PlaybookLite {
     const body = exact(p, ['playbookId', 'digest'], ['playbookId', 'digest']);
     const playbookId = identifier(body.playbookId, 'How the work is done');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the version you saw in use.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const current = this.find(biz, this.inUse[biz]);
     const parent = this.find(biz, playbookId);
     if (!current || current.origin !== 'improvement' || current.parentId !== playbookId || !parent) {
@@ -466,7 +466,7 @@ export class FakePracticeDesk {
   private judgeSend(biz: string, p: Record<string, unknown>): DeliveryLite {
     const body = exact(p, ['runId', 'digest'], ['runId', 'digest']);
     const runId = identifier(body.runId, 'Draft reply');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the quality check call you read.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const run = this.run(runId);
     const held = run.judge;
     if (held?.status === 'done') throw new EngineError('JUDGE_ALREADY_SENT', PRACTICE_WORDS.already);

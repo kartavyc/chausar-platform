@@ -146,7 +146,7 @@ export class FakeMoneyViews {
       case 'venture.money.cash': return this.cash(p);
       case 'venture.money.margins': return this.margins(p);
       case 'venture.money.export': return this.export(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

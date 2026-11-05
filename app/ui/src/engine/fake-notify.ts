@@ -148,7 +148,7 @@ export class FakeNotifyDesk {
       case 'venture.notify.relay': return this.relay(p);
       case 'venture.notify.telegram': return this.telegram(p);
       case 'venture.phone.access': return this.phoneAccess(p);
-      default: return refuse('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: return refuse('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

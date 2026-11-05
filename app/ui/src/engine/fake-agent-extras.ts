@@ -261,7 +261,7 @@ export class FakeAgentExtras {
       case 'venture.ideas.start': return this.ideaStart(p);
       case 'venture.ideas.dismiss': return this.ideaDismiss(p);
       case 'venture.agents.capabilities': { const body = exact(p, ['agent']); return this.capabilities(id(body.agent, 'Agent')); }
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -559,7 +559,7 @@ export class FakeAgentExtras {
     const current = this.personaView(agent).persona;
     const change = JSON.stringify(current) === JSON.stringify(persona) ? null : persona;
     if (!kept.length && !change) throw invalid(`This file holds nothing new for ${agent.name}.${skipped.length ? ` ${skipped[0]}` : ''}`);
-    if (!this.hooks.draftImport) throw new EngineError('METHOD_NOT_ALLOWED', 'The fake engine does not answer venture.agents.import.');
+    if (!this.hooks.draftImport) throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     const parts = change ? [
       change.tone ? `tone "${change.tone}"` : null, change.replyLength ? `${change.replyLength} replies` : null, change.greeting ? `greeting "${change.greeting}"` : null,
       change.handOffLine ? `hand-off line "${change.handOffLine}"` : null, change.blockedTopics.length ? `stays away from ${change.blockedTopics.join(', ')}` : null,

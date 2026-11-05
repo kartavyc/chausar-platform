@@ -101,13 +101,13 @@ describe('B1 fix round 1: the table speaks only for unflagged developer text', (
   });
 
   // B1 fix round 2 (quality findings 2 and 6): the fake follows the engine's rule. Its stand-ins for vault refusals go
-  // unflagged like the engine's, and a refusal of its own in developer words is never flagged.
-  it('B1 fix round 2: the fake\'s short passphrase says the table\'s line, and its developer words say the general line', async () => {
+  // unflagged like the engine's. B1 fix round 3: its own refusals are flagged as the engine's are, in plain words.
+  it('B1 fix round 2: the fake\'s short passphrase says the table\'s line, and its own refusals say plain words', async () => {
     const client = createFakeClient(new FakeEngine({ closed: true }));
     const weak = await refusedBy(client.request('workspace.create', { name: 'Sitara Studio', passphrase: 'short' } as never));
     expect(weak).toMatchObject({ code: 'WEAK_PASSPHRASE', message: words['errors.WEAK_PASSPHRASE'] });
     const unknown = await refusedBy(createFakeClient(new FakeEngine()).request('venture.nothing.here' as never, {} as never));
-    expect(unknown).toMatchObject({ code: 'METHOD_NOT_ALLOWED', message: words['errors.general'], owner: true });
+    expect(unknown).toMatchObject({ code: 'METHOD_NOT_ALLOWED', message: 'The sample business can\'t do that yet.', owner: true });
     const plain = await refusedBy(createFakeClient(new FakeEngine()).request('workspace.delete', { confirmation: 'not the name' } as never));
     expect(plain).toMatchObject({ code: 'CONFIRMATION_REQUIRED', message: 'Type the business name to delete it.', owner: true });
   });

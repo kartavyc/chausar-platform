@@ -84,7 +84,7 @@ export class FakeRetireDesk {
       case 'venture.agents.retire.check': { const body = exact(p, ['agent'], ['agent']); return this.check(id(body.agent, 'Agent')); }
       case 'venture.agents.retire': return this.retire(p);
       case 'venture.agents.restore': return this.restore(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

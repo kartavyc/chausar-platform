@@ -65,7 +65,7 @@ export class FakeAcross {
     if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (method === 'venture.money.across') return this.money();
     if (method === 'venture.runs.across') return this.runs();
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   private newReceipt(label: string, display: string, explanation: string): string {

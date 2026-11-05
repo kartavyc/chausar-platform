@@ -136,7 +136,7 @@ export class FakePostingDesk {
       case 'venture.posting.checkSteps': return this.checkSteps(p);
       case 'venture.posting.limits.get': limitsObject(p, []); return this.limitsView(biz);
       case 'venture.posting.limits.set': return this.setLimits(biz, p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

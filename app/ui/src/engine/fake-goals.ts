@@ -99,7 +99,7 @@ export class FakeGoals {
     }
     if (method === 'venture.goals.set') return this.set(p);
     if (method === 'venture.goals.suggest') return this.suggest(p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /** Today on the owner's calendar in Kolkata (UTC+05:30). */

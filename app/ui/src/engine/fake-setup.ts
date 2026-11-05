@@ -92,7 +92,7 @@ export class FakeSetupDesk {
       case 'venture.share.request': return this.fileRequest(p);
       case 'venture.settings.draft': return this.keepDraft(p);
       case 'venture.settings.drafts': exact(p, []); return this.listDrafts();
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

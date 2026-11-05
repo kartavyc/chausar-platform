@@ -94,7 +94,7 @@ export class FakeWiringDesk {
     if (method === 'venture.transcription.get') return this.whisperView();
     if (method === 'venture.transcription.set') return this.setWhisper(_p);
     if (method === 'venture.social.calendar') return this.calendar(_p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /**
@@ -168,7 +168,7 @@ export class FakeWiringDesk {
     if (files.some((f) => f.format === 'transcript')) throw new EngineError('TRANSCRIPT_EXISTS', 'This order already has a transcript.');
     const name = `${(cut.split(/[\\/]/).pop() ?? '').replace(/\.[^.]*$/, '').slice(0, 100) || 'transcript'}.srt`;
     // Kept with its origin on the file itself, as the engine keeps it, through the work desk directly.
-    if (!this.host.keepMadeTranscript) throw new EngineError('METHOD_NOT_ALLOWED', 'The fake engine does not answer venture.files.transcribe here.');
+    if (!this.host.keepMadeTranscript) throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     return this.host.keepMadeTranscript({ orderId: order.id, name, contentBase64: btoa(SAMPLE_TRANSCRIPT) });
   }
 

@@ -209,6 +209,6 @@ export class FakeW4Desk {
     if (FAKE_4J21_METHODS.includes(method)) return this.setup.request(method, p);
     if (FAKE_4J22B_METHODS.includes(method)) return this.extras.request(method, p);
     if (FAKE_4J22A_METHODS.includes(method)) return this.quality.request(method, p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 }

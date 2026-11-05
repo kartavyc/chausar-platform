@@ -45,7 +45,7 @@ export function fakeSeoVisibilityDesk(host: W4DeskHost): FakePlaybookDesk {
                         need(typeof body.id === 'string' && typeof body.action === 'string', 'INVALID_VENTURE_REQUEST', 'Choose a panel and an action.');
                         let id = body.id as string;
                         if (body.action === 'create') {
-                            need(id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new panel has no prior digest.');
+                            need(id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new panel has no earlier version.');
                             const input = exact(body.payload, ['spec', 'orderId']);
                             need(input.orderId === null || typeof input.orderId === 'string', 'INVALID_VENTURE_REQUEST', 'Choose an order or no order.');
                             if (input.orderId !== null) {

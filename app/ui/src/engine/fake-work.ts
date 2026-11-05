@@ -274,7 +274,7 @@ export class FakeWorkDesk {
       return this.r5Delivery.handles(p.runId)?this.r5Delivery.request(method,p):this.phoneDelivery.handles(p.runId)?this.phoneDelivery.request(method,p):this.devDelivery.handles(p.runId)?this.devDelivery.request(method,p):this.careerDelivery.handles(p.runId)?this.careerDelivery.request(method,p):this.vaDelivery.handles(p.runId)?this.vaDelivery.request(method,p):this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

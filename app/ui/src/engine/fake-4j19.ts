@@ -119,7 +119,7 @@ export class FakeApprovalsDesk {
         throw new EngineError('WORK_RECEIPT_NOT_FOUND', 'That work receipt was not found.');
       }
       case 'venture.decisions.list': return { decisions: structuredClone(this.decisions).reverse() };
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -138,7 +138,7 @@ export class FakeApprovalsDesk {
   /** The row the owner saw, or what the engine answers instead: stale with the latest, or resolved elsewhere. */
   private seen(p: Record<string, unknown>): QueueRow | QueueDecision {
     if (!ID_OK(p.rowId)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the row you decided on.');
-    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
+    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at it again first.');
     const row = this.host.rows().find((item) => item.id === p.rowId);
     if (!row) {
       // As the engine's staleOrGone (views/queue-actions.ts): the same subject under a new version id is stale, with it.
