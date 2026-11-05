@@ -73,8 +73,8 @@ test('set approval: the server works out the set, then the picked drafts are app
   const { env, runs, rows } = await threeDrafts();
   const picked = [rows[2], rows[0]];
   const { shown, result } = await approveSet(env, picked);
-  assert.deepEqual(shown.items.map(item => [item.rowId, item.cost]), picked.map(row => [row.id, 'USD 0.0000']));
-  assert.equal(shown.total.display, 'USD 0.0000');
+  assert.deepEqual(shown.items.map(item => [item.rowId, item.cost]), picked.map(row => [row.id, '$0.00']));
+  assert.equal(shown.total.display, '$0.00');
   assert.deepEqual([shown.secondAsk, shown.refusals], [false, []]);
   assert.match(shown.digest, /^[a-f0-9]{64}$/);
   assert.deepEqual(result.decisions.map(item => item.outcome), ['done', 'done']);

@@ -136,7 +136,7 @@ test('a Proposal card shows the quote it rests on with its receipt; a Won card n
   await seedBlueprint(env);
   const quote = await moneyCall<PriceReceiptRecord>(env, 'venture.price.quote', { offerId: 'offer_1' });
   const proposal = await pipelineMove(env, card.id, 'proposal', { evidence: { kind: 'quote', id: quote.id } });
-  assert.deepEqual(proposal.card.quote, { value: 'INR 2,499.00', receiptId: quote.id });
+  assert.deepEqual(proposal.card.quote, { value: '₹2,499', receiptId: quote.id });
   assert.equal(proposal.card.client, null);
   const byNote = await pipelineMove(env, (await add(env, rahul)).card.id, 'proposal', { evidence: { kind: 'note', text: 'Sent the price list' } });
   assert.equal(byNote.card.quote, null, 'a note carries no amount');
@@ -156,14 +156,14 @@ test('the board lists the quotes the business made, newest first, for a Proposal
   const two = await moneyCall<PriceReceiptRecord>(env, 'venture.price.quote', { offerId: 'offer_1', quantity: '2' });
   const quotes = (await board(env)).quotes;
   assert.deepEqual(quotes.map(item => [item.receiptId, item.offer, item.quantity, item.value]), [
-    [two.id, 'Monthly books', '2', 'INR 4,998.00'],
-    [one.id, 'Monthly books', '1', 'INR 2,499.00'],
+    [two.id, 'Monthly books', '2', '₹4,998'],
+    [one.id, 'Monthly books', '1', '₹2,499'],
   ]);
   assert.equal(quotes[0].at, two.at);
   // Each one is evidence a Proposal move takes as it is.
   const { card } = await add(env, personNamed(env, 'Asha Rao'));
   const moved = await pipelineMove(env, card.id, 'proposal', { evidence: { kind: 'quote', id: quotes[0].receiptId } });
-  assert.deepEqual(moved.card.quote, { value: 'INR 4,998.00', receiptId: two.id });
+  assert.deepEqual(moved.card.quote, { value: '₹4,998', receiptId: two.id });
 });
 
 test('a Proposal move takes only a quote: an order\'s or an invoice\'s price receipt is refused', async () => {

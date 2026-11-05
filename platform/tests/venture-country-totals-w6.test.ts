@@ -50,7 +50,7 @@ test('an unset goal discloses other currencies excluded from its previous-month 
   await ventureAction(env.deps, owner, 'admin', 'test.country', tx => { tx.touch({ originalCountry: tx.venture!.country, country: countryProfile('US') }); });
   const view = await goalView(env.deps, owner, '2026-10');
   assert.equal(view.state, 'unset');
-  assert.match(view.lastMonth!.display, /USD/);
+  assert.match(view.lastMonth!.display, /^\$\d/);
   assert.match(view.line, /other currencies.*excluded/i);
 });
 
@@ -63,7 +63,7 @@ test('current plan tax words never relabel tax on a historical invoice', async (
   });
   const view = await taxWorking(env.deps, owner, { period: '2026-10' });
   const line = view.sections.flatMap(section => section.lines).find(row => row.label.includes(env.original.invoice.number!))!;
-  assert.match(line.value, /^GST INR/);
+  assert.match(line.value, /^GST ₹/);
   assert.doesNotMatch(line.value, /Sales tax/);
   assert.equal(view.sections[0].title, 'Tax');
   const total = view.sections[0].lines.find(row => row.label.startsWith('GST on invoices'))!;

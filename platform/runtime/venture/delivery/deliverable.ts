@@ -2,6 +2,7 @@
 // The model writes words and picks references; the engine fills every price and date from receipts and its clock.
 // A draft reply is never called a deliverable on screen: an agent in this build only has the client's message.
 import { check, type State } from '../../contracts.ts';
+import { formatMinor } from '../../currency.ts';
 import { copiedTokens, formatVentureDate, modelNumbers, modelWords } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
@@ -280,7 +281,18 @@ export type AnyReceipt = PriceReceiptRecord | WorkReceiptRecord;
 
 function findFigure(receipts: readonly AnyReceipt[], part: { receiptId: string; figureKey: string }): { label: string; display: string } | null {
   const receipt = receipts.find(item => item.id === part.receiptId);
-  return (receipt?.figures as readonly { key: string; label: string; display: string }[] | undefined)?.find(figure => figure.key === part.figureKey) ?? null;
+  const found = (receipt?.figures as readonly ExactFigure[] | undefined)?.find(figure => figure.key === part.figureKey);
+  return found ? { label: found.label, display: exactDisplay(found) } : null;
+}
+
+type ExactFigure = { key: string; label: string; display: string; minor?: string; currency?: string; unit?: string };
+/**
+ * One-shot B2: a deliverable goes to the client, so an amount in it keeps the exact form ("INR 2,948.82"), worked out
+ * from the figure's minor units; the receipt itself shows the owner form on the owner's screens.
+ */
+function exactDisplay(figure: ExactFigure): string {
+  const money = figure.unit === undefined || figure.unit === 'money';
+  return money && figure.currency && typeof figure.minor === 'string' && /^-?\d+$/.test(figure.minor) ? formatMinor(figure.minor, figure.currency) : figure.display;
 }
 
 /** A text part that is one social post ("LinkedIn: ...", playbooks/social/post-lines.ts). */
@@ -339,7 +351,7 @@ export function reconciliationBlock(receipt: AnyReceipt | undefined, country: Pi
   const rec = receipt && 'reconciliation' in receipt ? receipt.reconciliation : null;
   if (!receipt || !rec) return '## Reconciliation\n[the reconciliation receipt was not found]';
   const blocks = ["## Reconciliation\nWorked out by Chausar's calculator from the files you sent. Every amount comes from a receipt."];
-  blocks.push((receipt.figures as readonly { key: string; label: string; display: string; unit?: string }[]).filter(figure => figure.unit === 'money').map(figure => `${figure.label}: ${figure.display}`).join('\n'));
+  blocks.push((receipt.figures as readonly ExactFigure[]).filter(figure => figure.unit === 'money').map(figure => `${figure.label}: ${exactDisplay(figure)}`).join('\n'));
   blocks.push(!rec.statementClosing ? 'The statement has no balance column, so the closing balance was not checked.'
     : rec.balanced ? 'The statement balances.' : 'The statement does not balance. The difference above needs your answer.');
   const day = (iso: string | null) => (iso ? `${formatVentureDate(iso, country.dateOrder)} ` : '');
