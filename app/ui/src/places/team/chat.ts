@@ -1,4 +1,4 @@
-import type { Language } from '../../text';
+import { formatDay } from '../../../../../platform/runtime/owner-format';
 import type { AgentThreadItem, AgentView, ChatPart, DiffLine, VentureRunEvent } from '../../engine/types';
 import type { DiffLine as CardLine } from '../../parts/DiffCard';
 import { isKeeper } from './departments';
@@ -41,9 +41,7 @@ export function cardLines(diff: readonly DiffLine[]): CardLine[] {
   return diff.map((line) => ({ kind: line.op === 'add' ? 'added' : line.op === 'remove' ? 'removed' : 'same', text: line.text }));
 }
 
-/** An ISO day or time as a short date in the UI's language ("23 Oct"), or the text as it came when it is not one. */
-export function dayWords(at: string, language: Language): string {
-  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T00:00:00.000Z` : at);
-  if (Number.isNaN(date.getTime())) return at;
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: /^\d{4}-\d{2}-\d{2}$/.test(at) ? 'UTC' : undefined }).format(date);
+/** An ISO day or time as a short date ("23 Oct"), a time read in the owner's zone (B2), or the text as it came when it is not one. */
+export function dayWords(at: string, zone: string): string {
+  return formatDay(at, zone, 'short');
 }

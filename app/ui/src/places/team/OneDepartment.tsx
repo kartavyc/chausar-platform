@@ -1,7 +1,8 @@
 import { useId } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
 import type { RunSummary } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
+import { formatDay } from '../../../../../platform/runtime/owner-format';
 import { Inner, Lift } from '../../parts/Card';
 import { BarChart } from '../../parts/charts/BarChart';
 import { Chip, StateChip } from '../../parts/Chip';
@@ -36,7 +37,6 @@ export interface OneDepartmentProps {
  */
 export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
   const t = useT();
-  const language = useLanguage();
   const heroId = useId();
   const agentsId = useId();
   const flowId = useId();
@@ -51,7 +51,7 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
   const proof = data.spend ? proofOf({ receiptId: data.spend.receiptId }) : null;
   const recent = (data.runs ?? []).slice(0, MOST_RECENT);
   // A chart only with a week that has jobs: weeks with none carry no value (null, never 0), so all-empty draws nothing.
-  const chart = data.jobsByWeek && data.jobsByWeek.some((point) => point.valuePermille !== null) ? weeksOf(data, language) : null;
+  const chart = data.jobsByWeek && data.jobsByWeek.some((point) => point.valuePermille !== null) ? weeksOf(data) : null;
   const { counts } = data;
 
   return (
@@ -165,22 +165,21 @@ function RecentRun({ run }: { run: RunSummary }) {
   );
 }
 
-/** A week's key (its Monday, ISO) as a short date in the UI's language ("14 Sep"); any other key as the engine labelled it. */
-function shortWeek(key: string, label: string, language: 'en' | 'hi'): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return label;
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${key}T00:00:00.000Z`));
+/** A week's key (its Monday, ISO) as a short date ("14 Sep"), a calendar day that reads as itself in any zone; any other key as the engine labelled it. */
+function shortWeek(key: string, label: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(key) ? formatDay(key, 'UTC', 'short') : label;
 }
 
 /**
  * The department's weeks as the chart draws them: the jobs as bars under short dates and, when the engine sends the
  * spend series, each week's spend as the note under its bar with that week's own receipt (`spend` true).
  */
-function weeksOf(data: DepartmentData, language: 'en' | 'hi'): { points: BarPoint[]; spend: boolean } {
+function weeksOf(data: DepartmentData): { points: BarPoint[]; spend: boolean } {
   const spend = new Map((data.spendByWeek ?? []).map((week) => [week.key, week]));
   const withSpend = [...spend.values()].some((week) => week.value !== null && week.receiptId !== null);
   const points = (data.jobsByWeek ?? []).map((point): BarPoint => {
     const week = spend.get(point.key);
-    const label = shortWeek(point.key, point.label, language);
+    const label = shortWeek(point.key, point.label);
     if (!withSpend) return { ...point, label };
     return { ...point, label, note: week?.value ?? undefined, receiptId: week?.value && week.receiptId ? week.receiptId : undefined };
   });
