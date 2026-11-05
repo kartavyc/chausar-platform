@@ -6,7 +6,7 @@
 // screen. The answers are built here from the public API docs' shapes; no request leaves this process.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { confirmCalBooking, confirmEvent, confirmRazorpayPayment, type InvoiceLink, type KnownClient } from '../runtime/venture/build/event-confirm.ts';
+import { CONFIRM_ANSWER_BYTES, confirmCalBooking, confirmEvent, confirmFetch, confirmRazorpayPayment, type InvoiceLink, type KnownClient } from '../runtime/venture/build/event-confirm.ts';
 
 const keys = { keyId: ['rzp', 'test', 'Ab12Cd34Ef56Gh'].join('_'), keySecret: 'a'.repeat(24) };
 const calKey = ['cal', 'test', 'b'.repeat(32)].join('_');
@@ -92,4 +92,22 @@ test('confirmEvent routes by source and never asks any other address', async () 
   const odd = await confirmEvent(http, { razorpay: keys, calcom: calKey }, { source: 'razorpay', kind: 'payment', ref: '../../v1/orders' }, { invoices, clients });
   assert.equal(odd.state, 'refused');
   assert.ok(asked.every(request => request.url.startsWith('https://api.razorpay.com/v1/') || request.url.startsWith('https://api.cal.com/v2/bookings/')));
+});
+
+// Fix round 1 (review LOW-6): the real call reads at most 1 MB of an answer, and asks only the two services. The
+// global fetch is a stand-in here, so nothing leaves the process.
+test('confirmFetch reads at most 1 MB and asks only Razorpay and Cal.com', async t => {
+  let answer: () => Response = () => new Response('{"ok":true}', { status: 200 });
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return answer(); });
+  const ask = (url: string) => confirmFetch({ method: 'GET', url, headers: {} });
+  assert.deepEqual(await ask('https://api.razorpay.com/v1/payments/pay_Q1w2e3r4t5y6u7'), { status: 200, body: '{"ok":true}' });
+  answer = () => new Response('x'.repeat(CONFIRM_ANSWER_BYTES + 1), { status: 200 });
+  await assert.rejects(ask('https://api.cal.com/v2/bookings/bk_8hJ2kL9mN3'), (error: any) => error.code === 'EVENT_ANSWER_TOO_BIG');
+  answer = () => new Response('{}', { status: 200, headers: { 'content-length': String(CONFIRM_ANSWER_BYTES * 4) } });
+  await assert.rejects(ask('https://api.cal.com/v2/bookings/bk_8hJ2kL9mN3'), (error: any) => error.code === 'EVENT_ANSWER_TOO_BIG');
+  const before = calls;
+  await assert.rejects(ask('https://evil.example/v1/payments/pay_x'));
+  assert.equal(calls, before);
+  assert.equal(CONFIRM_ANSWER_BYTES, 1024 * 1024);
 });

@@ -38,6 +38,9 @@ const MAX_LINKS = 20;
 const MAX_TITLE = 200;
 export const NEW_PERSON = 'a new person';
 const TIMEOUT_MS = 20_000;
+/** The most of one answer the real call reads (review round 1, LOW-6). */
+export const CONFIRM_ANSWER_BYTES = 1024 * 1024;
+const tooBig = () => Object.assign(new Error('The service answered more than Chausar reads.'), { code: 'EVENT_ANSWER_TOO_BIG' });
 
 export const CONFIRM_WORDS = Object.freeze({
   noRazorpay: 'Razorpay is not connected, so this payment could not be checked. Nothing ran.',
@@ -56,7 +59,20 @@ export const CONFIRM_WORDS = Object.freeze({
 export const confirmFetch: ConfirmHttp = async request => {
   if (!request.url.startsWith(`${RAZORPAY}/`) && !request.url.startsWith(`${CALCOM}/`)) throw new Error('Only Razorpay and Cal.com are asked.');
   const answer = await fetch(request.url, { method: request.method, headers: request.headers, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: 'error' });
-  return { status: answer.status, body: await answer.text() };
+  const declared = answer.headers.get('content-length');
+  if (declared && (!/^\d+$/.test(declared) || Number(declared) > CONFIRM_ANSWER_BYTES)) { await answer.body?.cancel().catch(() => {}); throw tooBig(); }
+  const reader = answer.body?.getReader(), chunks: Uint8Array[] = [];
+  let size = 0;
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > CONFIRM_ANSWER_BYTES) { await reader.cancel().catch(() => {}); throw tooBig(); }
+      chunks.push(value);
+    }
+  }
+  return { status: answer.status, body: Buffer.concat(chunks).toString('utf8') };
 };
 
 const refuse = (source: EventSource, kind: EventKind, ref: string, line: string, held = false): Refused => ({ state: 'refused', source, kind, ref, code: 'EVENT_NOT_CONFIRMED', line, held });
