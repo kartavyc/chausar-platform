@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import vm from 'node:vm';
 import { ChausarError } from '../runtime/contracts.ts';
 import { ownerError, UNEXPECTED_WORDS } from '../runtime/owner-error.ts';
-import { DEVELOPER_TEXT_CODES } from '../runtime/owner-flag.ts';
+import { DEVELOPER_TEXT_CODES, bannedIn } from '../runtime/owner-flag.ts';
 import { refusalError } from '../runtime/venture/refusal-brand.ts';
 import { asRefusal } from '../runtime/venture/refusals.ts';
 import { validateExternalServers } from '../runtime/venture/agent-runtime/external-config.ts';
@@ -116,4 +116,24 @@ test('B1 fix 1: over the local server, a refusal and a 401 both carry the flag',
   assert.equal(body.error.owner, true, body.error.message);
   const ended = await call('a'.repeat(64)); const endedBody = await ended.json() as { error: { code: string; owner?: unknown } };
   assert.deepEqual([ended.status, endedBody.error.code, endedBody.error.owner], [401, 'UNAUTHENTICATED', true]);
+});
+
+/**
+ * B1 fix round 2 (spec finding 2): CREDENTIAL_UNAVAILABLE is said in owner words wherever it is thrown (the AI key, a
+ * server's token, protected key storage), so it travels flagged and the app keeps each line; a table line for the code
+ * would put "the saved key for this server" over the AI key's own words.
+ */
+test('B1 fix round 2: every CREDENTIAL_UNAVAILABLE line is the owner\'s and keeps its words', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const root = new URL('../runtime/', import.meta.url);
+  const files = (await readdir(root, { recursive: true })).filter(name => name.endsWith('.ts'));
+  const lines = new Set<string>();
+  for (const name of files) for (const match of (await readFile(new URL(name.replace(/\\/g, '/'), root), 'utf8')).matchAll(/'CREDENTIAL_UNAVAILABLE',\s*'((?:[^'\\]|\\.)*)'/g)) lines.add(match[1]);
+  assert.ok(lines.size >= 4, [...lines].join(' | '));
+  assert.ok(lines.has('The saved key could not be restored. Reconnect this AI before using it.'));
+  assert.equal(DEVELOPER_TEXT_CODES.includes('CREDENTIAL_UNAVAILABLE'), false);
+  for (const line of lines) {
+    assert.deepEqual(bannedIn(line), [], line);
+    assert.deepEqual(ownerError(new ChausarError('CREDENTIAL_UNAVAILABLE', line)), { code: 'CREDENTIAL_UNAVAILABLE', message: line, owner: true });
+  }
 });

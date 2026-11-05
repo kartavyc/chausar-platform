@@ -7,7 +7,7 @@
  * text/en/errors.json). No imports, so the app's copy reads this one.
  */
 export const DEVELOPER_TEXT_CODES: readonly string[] = Object.freeze([
-  'UNLOCK_FAILED', 'VAULT_CLOSED', 'VAULT_EXISTS', 'REENTRANT_TRANSACTION', 'CUSTODY_SNAPSHOT_REQUIRED', 'BOOTSTRAP_STATE_CHANGED', 'UI_NOT_BUILT', 'CREDENTIAL_UNAVAILABLE',
+  'UNLOCK_FAILED', 'VAULT_CLOSED', 'VAULT_EXISTS', 'REENTRANT_TRANSACTION', 'CUSTODY_SNAPSHOT_REQUIRED', 'BOOTSTRAP_STATE_CHANGED', 'UI_NOT_BUILT',
 ]);
 
 /** True when a refusal with this code is sent in words written for the owner. */

@@ -32,7 +32,7 @@ export async function setMcpCredential(deps: VentureDeps, ctx: Context, raw: unk
       });
     } catch (error) {
       if (attempted) try { if (previous === null) await host.delete(workspace, name); else await host.set(workspace, name, previous); }
-      catch { throw new ChausarError('CREDENTIAL_UNAVAILABLE', 'The saved credential could not be restored. Save it again before using this server.'); }
+      catch { throw new ChausarError('CREDENTIAL_UNAVAILABLE', 'The saved key for this server could not be put back. Save it again before using this server.'); }
       throw error;
     }
     return { serverId, saved: token !== null };

@@ -7,7 +7,6 @@
   "errors.CUSTODY_SNAPSHOT_REQUIRED": "Chausar was still saving something. Wait a moment and try again.",
   "errors.BOOTSTRAP_STATE_CHANGED": "Something went wrong inside Chausar. Try again; if it happens again, send a report from the business menu.",
   "errors.UI_NOT_BUILT": "Phone access isn't ready in this copy of Chausar. Reinstall Chausar, then try again.",
-  "errors.CREDENTIAL_UNAVAILABLE": "Chausar couldn't read the saved key for this server on this computer. Save it again, then try.",
   "errors.client.offline": "Chausar isn't answering right now. Try again in a moment.",
   "errors.client.phoneOffline": "The computer isn't answering. Check that this phone is on the same Wi-Fi.",
   "errors.client.unpaired": "This browser isn't connected to Chausar. Open the link from your Chausar app again.",

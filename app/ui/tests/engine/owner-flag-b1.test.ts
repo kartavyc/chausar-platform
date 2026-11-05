@@ -81,7 +81,14 @@ describe('B1 fix round 1: the table speaks only for unflagged developer text', (
   });
 
   it('a flagged refusal keeps its words even under a code in the table', () => {
-    expect(ownerError({ code: 'CREDENTIAL_UNAVAILABLE', message: 'Protected key storage is unavailable on this computer.', owner: true }).message).toBe('Protected key storage is unavailable on this computer.');
+    expect(ownerError({ code: 'UNLOCK_FAILED', message: 'Type the passphrase again.', owner: true }).message).toBe('Type the passphrase again.');
+  });
+
+  it('B1 fix round 2: CREDENTIAL_UNAVAILABLE is not in the table, so the AI key\'s own line is kept', () => {
+    expect(words['errors.CREDENTIAL_UNAVAILABLE']).toBeUndefined();
+    for (const message of ['The saved key could not be restored. Reconnect this AI before using it.', 'Protected key storage is unavailable on this computer.']) {
+      expect(ownerError({ code: 'CREDENTIAL_UNAVAILABLE', message, owner: true }).message).toBe(message);
+    }
   });
 
   it('an unflagged message with a developer word says the general line; any other stays as it is', () => {
