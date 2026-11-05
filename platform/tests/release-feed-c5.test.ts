@@ -46,6 +46,8 @@ test('the feed it writes verifies with the matching public key, carries the data
   assert.equal(done.status, 0, done.stderr);
   const text = await readFile(output, 'utf8'), signature = (await readFile(`${output}.sig`, 'utf8')).trim(), feed = JSON.parse(text);
   assert.equal(feed.channel, 'stable'); assert.equal(feed.rolloutPercent, 100);
+  const days = (Date.parse(feed.expiresAt) - Date.now()) / 86_400_000;
+  assert.ok(days > 89 && days <= 90, `the feed expires in ${days} days`);
   assert.deepEqual(feed.releases.map((release: any) => `${release.manifest.platform}/${release.manifest.architecture}`).sort(), ['linux/x64', 'win32/x64']);
   for (const { manifest } of feed.releases) {
     assert.equal(manifest.dataSchemaVersion, CURRENT_SCHEMA);
@@ -72,6 +74,11 @@ test('a prerelease goes to the beta channel, the rollout is set, and a name with
   assert.equal(done.status, 0, done.stderr);
   const feed = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(feed.channel, 'beta'); assert.equal(feed.rolloutPercent, 25);
+  const week = run(FEED, ['--artifacts', dist, '--private-key', key.path, '--output', join(root, 'week.json'), '--version', '0.2.0-preview.2', '--valid-days', '7']);
+  assert.equal(week.status, 0, week.stderr);
+  const days = (Date.parse(JSON.parse(await readFile(join(root, 'week.json'), 'utf8')).expiresAt) - Date.now()) / 86_400_000;
+  assert.ok(days > 6 && days <= 7, `${days}`);
+  assert.equal(run(FEED, ['--artifacts', dist, '--private-key', key.path, '--output', join(root, 'never.json'), '--version', '0.2.0-preview.2', '--valid-days', '400']).status, 1);
   assert.equal(feed.releases[0].manifest.url, `https://github.com/${REPO}/releases/download/v0.2.0-preview.2/Chausar.Preview.Setup.0.2.0-preview.2.exe`);
 });
 

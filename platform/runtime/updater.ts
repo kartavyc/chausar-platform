@@ -74,7 +74,8 @@ export function canonicalReleaseManifest(manifest:ReleaseManifest):string { retu
 // twice and staged exactly as before. The install's bucket, sha256(installId + version) mod 100, decides a staged rollout.
 export type ReleaseChannel = 'beta'|'stable';
 export type FeedRelease = { manifest:ReleaseManifest; signature:string };
-export type ReleaseFeed = { schemaVersion:1; channel:ReleaseChannel; rolloutPercent:number; releases:FeedRelease[] };
+/** expiresAt (review round 1): signed with the rest, so a replayed old feed is refused once it expires. */
+export type ReleaseFeed = { schemaVersion:1; channel:ReleaseChannel; rolloutPercent:number; expiresAt:string; releases:FeedRelease[] };
 export type FeedChoice = Readonly<{ offer:FeedRelease|null; reason:'offered'|'up-to-date'|'no-release'|'not-in-rollout' }>;
 const MAX_FEED_BYTES = 1024 * 1024, MAX_FEED_RELEASES = 64;
 export const RELEASE_CHANNELS: readonly ReleaseChannel[] = Object.freeze(['beta','stable']);
@@ -201,15 +202,16 @@ export class ReleaseUpdater {
    * that this engine may install. A changed byte, another key, another channel or a bad release refuses the feed; a
    * feed with nothing newer here, or a rollout this install is outside, offers nothing.
    */
-  verifyFeed(feed:ReleaseFeed|string,signature:string,options:{channel:ReleaseChannel;installId:string}):FeedChoice {
+  verifyFeed(feed:ReleaseFeed|string,signature:string,options:{channel:ReleaseChannel;installId:string;now?:Date}):FeedChoice {
     check(RELEASE_CHANNELS.includes(options?.channel)&&typeof options.installId==='string'&&options.installId.length>0&&options.installId.length<=100,'INVALID_FEED','Name this install\'s channel and id before reading a feed.');
     check(typeof feed!=='string'||Buffer.byteLength(feed)<=MAX_FEED_BYTES,'INVALID_FEED','The update feed exceeds its byte limit.');
     let value:any;try{value=typeof feed==='string'?JSON.parse(feed):structuredClone(feed);}catch{check(false,'INVALID_FEED','The update feed is not valid JSON data.');}
-    check(hasExactKeys(value,['schemaVersion','channel','rolloutPercent','releases'])&&value.schemaVersion===1&&RELEASE_CHANNELS.includes(value.channel)&&Number.isSafeInteger(value.rolloutPercent)&&value.rolloutPercent>=0&&value.rolloutPercent<=100&&Array.isArray(value.releases)&&value.releases.length>0&&value.releases.length<=MAX_FEED_RELEASES&&value.releases.every((release:any)=>hasExactKeys(release,['manifest','signature'])),'INVALID_FEED','The update feed has unexpected or missing fields.');
+    check(hasExactKeys(value,['schemaVersion','channel','rolloutPercent','expiresAt','releases'])&&value.schemaVersion===1&&typeof value.expiresAt==='string'&&Number.isFinite(Date.parse(value.expiresAt))&&new Date(value.expiresAt).toISOString()===value.expiresAt&&RELEASE_CHANNELS.includes(value.channel)&&Number.isSafeInteger(value.rolloutPercent)&&value.rolloutPercent>=0&&value.rolloutPercent<=100&&Array.isArray(value.releases)&&value.releases.length>0&&value.releases.length<=MAX_FEED_RELEASES&&value.releases.every((release:any)=>hasExactKeys(release,['manifest','signature'])),'INVALID_FEED','The update feed has unexpected or missing fields.');
     const payload=canonical(value);
     check(typeof feed!=='string'||feed===payload,'NONCANONICAL_FEED','Verify the exact canonical feed, without duplicate keys or alternate encodings.');
     const bytes=signatureBytes(signature,'INVALID_FEED_SIGNATURE','A feed requires a detached base64url Ed25519 signature.');
     check(verifySignature(null,Buffer.from(payload),this.#key,bytes),'INVALID_FEED_SIGNATURE','The update feed signature is invalid.');
+    check(Date.parse(value.expiresAt)>(options.now??new Date()).getTime(),'FEED_EXPIRED','This update feed has expired. Chausar checks for a newer one later.');
     check(value.channel===options.channel,'FEED_CHANNEL_MISMATCH','This feed is for another release channel.');
     const releases:FeedRelease[]=value.releases.map((release:any)=>({manifest:this.#authenticate(release.manifest,release.signature,false),signature:release.signature}));
     const seen=new Map<string,string>();

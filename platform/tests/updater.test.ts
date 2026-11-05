@@ -130,7 +130,7 @@ test('a crashed recovery claim advances safely and concurrent release is idempot
 // C5 task 30: the signed feed. One file lists the releases, signed whole with the same pinned key; the app picks this
 // platform's newest release and offers it only to installs whose bucket is below the rollout percent.
 type FeedRelease={manifest:ReleaseManifest;signature:string};
-function feedOf(releases:ReleaseManifest[],extra:Partial<{channel:'beta'|'stable';rolloutPercent:number}>={}){return{schemaVersion:1 as const,channel:extra.channel??'beta',rolloutPercent:extra.rolloutPercent??100,releases:releases.map(manifest=>({manifest,signature:signature(manifest)})) as FeedRelease[]};}
+function feedOf(releases:ReleaseManifest[],extra:Partial<{channel:'beta'|'stable';rolloutPercent:number;expiresAt:string}>={}){return{schemaVersion:1 as const,channel:extra.channel??'beta',rolloutPercent:extra.rolloutPercent??100,expiresAt:extra.expiresAt??'2099-01-01T00:00:00.000Z',releases:releases.map(manifest=>({manifest,signature:signature(manifest)})) as FeedRelease[]};}
 function feedSignature(feed:any,key=keys.privateKey){return sign(null,Buffer.from(canonicalReleaseFeed(feed)),key).toString('base64url');}
 const otherPlatform=(process.platform==='win32'?'linux':'win32') as ReleaseManifest['platform'];
 
@@ -259,4 +259,16 @@ test('an endless body stops at the signed size, never grows the part file past i
   assert.ok(asked<=bytes.length+step,`the stager asked for ${asked} bytes of a ${bytes.length} byte release`);
   assert.ok(largestPart<=bytes.length,`the part file grew to ${largestPart} bytes`);
   assert.deepEqual(await readdir(stageDirectory),[]);
+});
+
+// Fix round 1 (review LOW-2): the feed carries a signed expiry. An old feed replayed after it expires is refused, so a
+// replay cannot hide a newer release for longer than one feed's life.
+test('an expired feed is refused, and the expiry is part of what is signed',async t=>{
+  const updater=new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory:await directory(t)}),options={channel:'beta' as const,installId:'f'.repeat(32)};
+  const feed=feedOf([manifest('1.1.0')],{expiresAt:'2026-12-01T00:00:00.000Z'}),signed=feedSignature(feed);
+  assert.equal(updater.verifyFeed(feed,signed,{...options,now:new Date('2026-11-30T23:59:59.000Z')}).reason,'offered');
+  assert.throws(()=>updater.verifyFeed(feed,signed,{...options,now:new Date('2026-12-01T00:00:00.000Z')}),code('FEED_EXPIRED'));
+  assert.throws(()=>updater.verifyFeed({...feed,expiresAt:'2099-01-01T00:00:00.000Z'},signed,options),code('INVALID_FEED_SIGNATURE'));
+  const {expiresAt:_dropped,...noExpiry}=feed;assert.throws(()=>updater.verifyFeed(noExpiry as any,feedSignature(noExpiry),options),code('INVALID_FEED'));
+  const loose={...feed,expiresAt:'2099-01-01'};assert.throws(()=>updater.verifyFeed(loose,feedSignature(loose),options),code('INVALID_FEED'));
 });

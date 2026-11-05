@@ -6,9 +6,12 @@
 // D11f task 32: each manifest's dataSchemaVersion is the build's own CURRENT_SCHEMA from the migration ladder.
 // Usage: node scripts/release-feed.mjs --artifacts <dir> --private-key <file> --output <feed.json>
 //          [--version <x.y.z>] [--channel beta|stable] [--rollout <0-100>] [--base-url <https url/>] [--min-engine <x.y.z>]
+//          [--valid-days <1-365>]
 //   --version     defaults to package.json's version
 //   --channel     defaults to beta for a prerelease version, stable otherwise
 //   --base-url    defaults to https://github.com/<GITHUB_REPOSITORY or kartavyc/chausar-platform>/releases/download/v<version>/
+//   --valid-days  how long the signed feed is good for, 90 by default; the app refuses it after that, so a replayed
+//                 old feed cannot hide a newer release for longer (re-sign the feed before it runs out)
 //   --output      a file outside the checkout (D3)
 import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -20,8 +23,8 @@ import { refuseInsideRepo, runRoot } from '../platform/runtime/run-root.mjs';
 import { ReleaseUpdater, canonicalReleaseFeed, canonicalReleaseManifest } from '../platform/runtime/updater.ts';
 import { CURRENT_SCHEMA } from '../platform/runtime/migrations/ladder.ts';
 
-const USAGE = 'Usage: node scripts/release-feed.mjs --artifacts <dir> --private-key <file> --output <feed.json> [--version <x.y.z>] [--channel beta|stable] [--rollout <0-100>] [--base-url <https url/>] [--min-engine <x.y.z>]';
-const OPTIONS = ['--artifacts', '--private-key', '--output', '--version', '--channel', '--rollout', '--base-url', '--min-engine'];
+const USAGE = 'Usage: node scripts/release-feed.mjs --artifacts <dir> --private-key <file> --output <feed.json> [--version <x.y.z>] [--channel beta|stable] [--rollout <0-100>] [--base-url <https url/>] [--min-engine <x.y.z>] [--valid-days <1-365>]';
+const OPTIONS = ['--artifacts', '--private-key', '--output', '--version', '--channel', '--rollout', '--base-url', '--min-engine', '--valid-days'];
 
 /** Which update target a built file is, by its name: [platform, architecture], or null for anything else. */
 function targetOf(name) {
@@ -42,10 +45,11 @@ async function sha256Of(path) {
 }
 
 /** The feed object and its signature, every manifest signed by the same key. Throws with plain words on a refusal. */
-export async function buildFeed({ artifacts, privateKey, version, channel, rollout = 100, baseUrl, minEngine = '0.0.0', publishedAt = new Date().toISOString() }) {
+export async function buildFeed({ artifacts, privateKey, version, channel, rollout = 100, baseUrl, minEngine = '0.0.0', publishedAt = new Date().toISOString(), validDays = 90 }) {
   const key = createPrivateKey(privateKey);
   if (key.asymmetricKeyType !== 'ed25519') throw new Error('The release key must be an Ed25519 private key (make one with scripts/release-key.mjs).');
   if (!Number.isInteger(rollout) || rollout < 0 || rollout > 100) throw new Error('--rollout must be a whole number from 0 to 100.');
+  if (!Number.isInteger(validDays) || validDays < 1 || validDays > 365) throw new Error('--valid-days must be a whole number from 1 to 365.');
   const pick = channel ?? (version.includes('-') ? 'beta' : 'stable');
   if (!['beta', 'stable'].includes(pick)) throw new Error('--channel must be beta or stable.');
   const base = baseUrl ?? `https://github.com/${process.env.GITHUB_REPOSITORY || 'kartavyc/chausar-platform'}/releases/download/v${version}/`;
@@ -65,7 +69,7 @@ export async function buildFeed({ artifacts, privateKey, version, channel, rollo
     releases.push({ manifest, signature: sign(null, Buffer.from(canonicalReleaseManifest(manifest)), key).toString('base64url') });
   }
   if (!releases.length) throw new Error(`No installer (.exe or .AppImage) in ${artifacts}.`);
-  const feed = { schemaVersion: 1, channel: pick, rolloutPercent: rollout, releases };
+  const feed = { schemaVersion: 1, channel: pick, rolloutPercent: rollout, expiresAt: new Date(Date.parse(publishedAt) + validDays * 86_400_000).toISOString(), releases };
   const text = canonicalReleaseFeed(feed), signature = sign(null, Buffer.from(text), key).toString('base64url');
   // The app's own reader checks what was written: every manifest's fields, both signatures and the feed's shape.
   new ReleaseUpdater({ publicKey: createPublicKey(key), version: '0.0.0', stageDirectory: tmpdir() }).verifyFeed(text, signature, { channel: pick, installId: 'release-feed-check' });
@@ -87,7 +91,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const { text, signature } = await buildFeed({
       artifacts: resolve(options.artifacts), privateKey: await readFile(options['private-key'], 'utf8'), version,
       channel: options.channel, rollout: options.rollout === undefined ? 100 : Number(options.rollout),
-      baseUrl: options['base-url'], minEngine: options['min-engine'],
+      baseUrl: options['base-url'], minEngine: options['min-engine'], validDays: options['valid-days'] === undefined ? 90 : Number(options['valid-days']),
     });
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, text);
