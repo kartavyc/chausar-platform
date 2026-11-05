@@ -39,8 +39,14 @@ const VERB_PLACE = new Set(['and', 'then', 'to', 'also', 'will', 'can']);
  * "Reminds clients to pay" is not owner-first.
  */
 const OWNER_FIRST = /\b(?:draft\w*|approv\w*|ask(?:s|ing)?|suggest\w*|propos\w*|prepar\w*|review\w*|for\s+me\s+to|(?:send|sends|email|emails|message|messages|tell|tells|share|shares|forward|forwards)\s+(?:it\s+|them\s+)?(?:to\s+)?me|(?:remind|reminds|notify|notifies|alert|alerts|warn|warns|ping|pings|show|shows|tell|tells)\s+me|with\s+me)\b/;
-/** A duty read as clauses, so "Drafts and sends invoices" is two acts and the send is judged on its own. */
-const CLAUSES = /\s*(?:,|;|\band\b|\bthen\b|\bbut\b)\s*/;
+/**
+ * A duty read as clauses, so "Drafts and sends invoices" is two acts and the send is judged on its own. Review round 3:
+ * a period, semicolon, ampersand, slash, spaced dash, new line, "plus", "also" or "while" starts a clause too, so
+ * "Pays vendors. Reminds me on Fridays." is judged on "pays vendors".
+ */
+const CLAUSES = /\s*(?:[.,;&/\n]|\s-\s|\band\b|\bthen\b|\bbut\b|\bplus\b|\balso\b|\bwhile\b)\s*/;
+/** Reminding, notifying or messaging anyone but the owner is an outward message (review round 3). */
+const OUTWARD_VERBS = new Set(['remind', 'reminds', 'notify', 'notifies', 'alert', 'alerts', 'warn', 'warns', 'ping', 'pings', 'tell', 'tells', 'text', 'texts', 'call', 'calls', 'contact', 'contacts', 'invite', 'invites', 'greet', 'greets', 'thank', 'thanks', 'follow', 'follows', 'chase', 'chases', 'nudge', 'nudges', 'whatsapp', 'whatsapps', 'dm', 'dms']);
 /** True when the words have the agent send, pay, post, delete or change a price without the owner. */
 function actsWithoutOwner(words: string): boolean {
   const flat = words.toLowerCase(), tokens = flat.split(/[^a-z0-9]+/).filter(Boolean);
@@ -51,6 +57,7 @@ function actsWithoutOwner(words: string): boolean {
     return words.some((word, index) => {
       if (index > 0 && !VERB_PLACE.has(words[index - 1])) return false;
       if (FLOOR_VERBS.has(word)) return true;
+      if (OUTWARD_VERBS.has(word) && words[index + 1] !== undefined && !['me', 'myself'].includes(words[index + 1])) return true;
       return PRICE_VERBS.has(word) && words.slice(index + 1, index + 4).some(next => PRICE_WORDS.has(next));
     });
   });
@@ -71,7 +78,8 @@ export function checkHire(role: HireRole, context: { agentNames: readonly string
     const stop = hardStopIn(words);
     if (stop) throw new ChausarError('HIRE_HARD_STOP', `${stop.line} ${HARD_STOP_WORDS}`);
   }
-  for (const words of [job, ...duties]) {
+  // The raw words, so a new line still separates two acts (the stored fields have their spaces collapsed).
+  for (const words of [role.job, ...role.duties]) {
     if (actsWithoutOwner(words)) throw new ChausarError('HIRE_FLOOR', 'A hired agent asks you before anything is sent, paid, posted, deleted or priced. Write that duty so it drafts for your approval.');
   }
   return { name, job, duties, reads: [...role.reads], department: role.department };

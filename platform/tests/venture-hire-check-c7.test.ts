@@ -116,3 +116,15 @@ test('reminders and notes to the owner pass; to a client they refuse unless draf
     assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), duty);
   }
 });
+
+// Fix round 3 (review 2 LOW-3, raised to blocking): a period, an ampersand, a dash or a slash no longer lets a paying or
+// sending duty through, and reminding, notifying or messaging clients, customers or anyone else is outward, so it needs
+// a draft or an ask first. Over-refusal is the safe side; the refusal words show the rewrite.
+test('punctuation never hides a floor act, and reminding or messaging a third party is outward', () => {
+  for (const duty of ['Pays vendors. Reminds me on Fridays.', 'Emails clients & shows me the replies', 'Sends invoices to clients - reminds me weekly', 'Reminds customers of their bookings', 'Pays the rent; tells me after', 'Messages leads / alerts me when they answer', 'Posts offers plus shows me the likes', 'Notifies clients while I am away', 'Texts customers when an order ships', 'Pays vendors\nReminds me on Fridays']) {
+    assert.throws(() => checkHire({ ...clean, duties: [duty] }, others), refusal('HIRE_FLOOR'), JSON.stringify(duty));
+  }
+  for (const duty of ['Notifies customers after I approve', 'Drafts booking reminders for customers', 'Reminds me to send invoices', 'Tells me when a client has not paid', 'Alerts me before a payment is due. Shows me which posts did well.', 'Notifies me when a booking is cancelled & drafts a reply']) {
+    assert.equal(checkHire({ ...clean, duties: [duty] }, others).duties[0], duty.replace(/\s+/g, ' '), duty);
+  }
+});
