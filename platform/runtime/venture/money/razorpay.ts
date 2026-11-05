@@ -9,7 +9,7 @@
 // Keys come from the computer's protected storage (billing.ts razorpayKeys) and are never written to a record or a log.
 // Built and tested against responses recorded from Razorpay's public API docs; not yet run on a real account, so every
 // screen labels it fixture-tested.
-import { check, ChausarError, type Context } from '../../contracts.ts';
+import { check, ChausarError, type Context, internalCheck } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { digestOf, journalled, type ApplyResult } from '../journal/journal.ts';
@@ -99,7 +99,7 @@ export async function invoicePayLink(deps: VentureDeps, ctx: Context, payload: u
   const body = exactPayload(payload, ['invoiceId', 'action', 'digest'], ['invoiceId', 'action']);
   const invoiceId = recordId(body.invoiceId, 'Invoice');
   check(body.action === 'create' || body.action === 'check', 'INVALID_VENTURE_REQUEST', 'Say create or check.');
-  check(body.action === 'create' ? typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest) : body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'Send the digest of the link you checked, only to create one.');
+  internalCheck(body.action === 'create' ? typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest) : body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'Send the digest of the link you checked, only to create one.');
   const keys = await razorpayKeys(deps, deps.store.read().workspace.id);
   check(keys, 'RAZORPAY_NOT_CONNECTED', 'Add your Razorpay keys in How clients pay first.');
   const http = deps.paymentHttp ?? fetchHttp;

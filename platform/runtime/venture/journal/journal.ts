@@ -13,7 +13,7 @@
 // cloudflare/cloudflare-os (Apache-2.0, packages/gatekeeper-kit/src/actions.ts); the approval token follows
 // useopendesk/opendesk (Apache-2.0); the idempotency key on apply follows HelixDB/helix-foundry (Apache-2.0,
 // apps/api/src/routes/ontology.ts). These are rewrites in TypeScript, not copies.
-import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context, internalCheck } from '../../contracts.ts';
 import { JOURNAL_ACTION_IDS } from '../contracts.ts';
 import type { ApprovalSeal, ConnectorPostRecord, IsoTime, JournalActionId, JournalRecord, JournalState, JournalTargetOutcome, VentureDeps } from '../contracts.ts';
 import { isAppChannel, ventureAction, type VentureTx } from '../records.ts';
@@ -160,7 +160,7 @@ export function normalizeProposal(input: ProposeInput): Required<ProposeInput> {
   // 4J10 (H28): an action that would keep working after the session is refused before anything is recorded.
   refuseDenylisted(input.action, input.operation);
   check((JOURNAL_ACTION_IDS as readonly string[]).includes(input.action), 'INVALID_VENTURE_REQUEST', 'This is not an action the journal knows.');
-  check(typeof input.actionDigest === 'string' && /^[A-Za-z0-9]{1,200}$/.test(input.actionDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of what is approved.');
+  internalCheck(typeof input.actionDigest === 'string' && /^[A-Za-z0-9]{1,200}$/.test(input.actionDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of what is approved.');
   const quote = input.quote ?? null;
   if (quote) check(/^\d{1,30}$/.test(String(quote.figure)) && typeof quote.payer === 'string' && quote.payer.length > 0 && quote.payer.length <= 120, 'INVALID_VENTURE_REQUEST', 'A quote needs its figure and who pays.');
   const notAfter = input.notAfter ?? null;
@@ -290,7 +290,7 @@ function requireId(value: unknown, field: string): string {
 export async function approveAction(deps: VentureDeps, ctx: Context, input: ApproveInput): Promise<{ entry: Journalled; token: string }> {
   requireApp(ctx);
   requireId(input?.entryId, 'entryId');
-  check(typeof input.digest === 'string' && input.digest.length > 0 && input.digest.length <= 200, 'INVALID_VENTURE_REQUEST', 'Send the digest you saw.');
+  internalCheck(typeof input.digest === 'string' && input.digest.length > 0 && input.digest.length <= 200, 'INVALID_VENTURE_REQUEST', 'Send the digest you saw.');
   // A person approves through this method, so it never makes a standing approval (journalled sets that for the judge).
   const { standing: _person, ...asked } = input;
   return ventureAction(deps, ctx, 'approve', 'journal.approve', tx => {

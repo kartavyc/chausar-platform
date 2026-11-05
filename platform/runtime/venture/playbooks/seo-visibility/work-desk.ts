@@ -1,5 +1,5 @@
 // Persisted SEO monthly desk. Original Chausar implementation, SEO4-SEO8 research ideas only.
-import {check} from '../../../contracts.ts';
+import {check,internalCheck} from '../../../contracts.ts';
 import type {State} from '../../../contracts.ts';
 import type {SeoFindingRecord,VentureRecord} from '../../contracts.ts';
 import {digest,listRecords,readVenture,requireAppChannel,ventureAction} from '../../records.ts';
@@ -18,7 +18,7 @@ export const SEO_WORK_DESK:DeskHandlers={work:{
  async act(deps,ctx,payload){requireAppChannel(ctx,'venture.desk.act');const p=seoExact(payload,['playbook','kind','id','action','payload','digest'],['playbook','kind','id','action','payload']);
   if(p.action==='create'||p.action==='rescan'){
    const input=seoExact(p.payload,['orderId','operation','uploadId']);check(typeof input.orderId==='string'&&typeof input.uploadId==='string','SEO_SOURCE_REQUIRED','Choose an evidence file uploaded to this order.');const operation=seoOperation(input.operation);const {state,venture}=readVenture(deps,ctx);let prior:SeoFindingRecord|null=null;
-   if(p.action==='create')check(p.id==='new'&&p.digest===undefined,'INVALID_VENTURE_REQUEST','New search work has no prior digest.');else{prior=find(state,venture,p.id);check(p.digest===digest(item(state,venture,prior)),'APPROVAL_STALE','This search work changed. Read it again.');check(prior.work!.orderId===input.orderId&&prior.work!.operation===operation,'SEO_INPUT_INVALID','Rescan the same order and check.');}
+   if(p.action==='create')internalCheck(p.id==='new'&&p.digest===undefined,'INVALID_VENTURE_REQUEST','New search work has no prior digest.');else{prior=find(state,venture,p.id);check(p.digest===digest(item(state,venture,prior)),'APPROVAL_STALE','This search work changed. Read it again.');check(prior.work!.orderId===input.orderId&&prior.work!.operation===operation,'SEO_INPUT_INVALID','Rescan the same order and check.');}
    const source=boundSource(state,venture,input.orderId,input.uploadId);const result=await refusals(()=>runSeoWork(operation,Buffer.from(source.file.contentBase64,'base64').toString('utf8'),deps.net));
    return ventureAction(deps,ctx,'approve','seo.work.check',tx=>{check(tx.venture!.id===venture.id,'APPROVAL_STALE','The business changed. Start the check again.');check(boundSource(tx.state,tx.venture!,input.orderId,input.uploadId).sourceDigest===source.sourceDigest,'SEO_SOURCE_CHANGED','The order or source file changed. Run this check again before approving it.');
     if(prior)check(p.digest===digest(item(tx.state,tx.venture!,find(tx.state,tx.venture!,prior.id))),'APPROVAL_STALE','This search work changed. Read it again.');

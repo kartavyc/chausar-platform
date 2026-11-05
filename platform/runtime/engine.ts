@@ -64,7 +64,7 @@ import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
-import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
+import { authorize, audit, check, ChausarError, hash, InternalError, internalCheck, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
@@ -563,7 +563,7 @@ export class Engine {
   private currentWorkspaceOwner(vault: Vault) {
     const state = vault.read(), authority = this.options.workspaceAuthority;
     check(!authority || state.workspace.id === authority.workspaceId, 'WORKSPACE_AUTHORITY_CHANGED', 'The trusted launch workspace differs from actual encrypted custody.');
-    check(!authority?.vaultId || vault.vaultId === authority.vaultId, 'WORKSPACE_AUTHORITY_CHANGED', 'The actual Vault differs from the independently pinned launch identity.');
+    internalCheck(!authority?.vaultId || vault.vaultId === authority.vaultId, 'WORKSPACE_AUTHORITY_CHANGED', 'The actual Vault differs from the independently pinned launch identity.');
     return state.members.find(m => m.id === (authority?.ownerId ?? 'owner') && m.active && m.role === 'owner');
   }
   /** Local host launch only: a separately paired Engine/server, explicit fresh
@@ -608,13 +608,13 @@ export class Engine {
       // A trusted host's own file store (the hosted server's capped one, 4J23); the same folder-name check first.
       this.workspacePath(folder);
       const adapter = await this.options.vaultStorage(folder);
-      if (adapter.kind !== 'experimental-file') { await adapter.close?.(); throw new ChausarError('STORAGE_REQUIRED', 'Experimental file storage needs a file vault adapter.'); }
+      if (adapter.kind !== 'experimental-file') { await adapter.close?.(); throw new InternalError('STORAGE_REQUIRED', 'Experimental file storage needs a file vault adapter.'); }
       return adapter;
     }
     if (this.options.storage === 'postgres' && this.options.vaultStorage) {
       this.workspacePath(folder); // the same folder-name check as the other storage paths
       const adapter = await this.options.vaultStorage(folder);
-      if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new ChausarError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
+      if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new InternalError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
       return adapter;
     }
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Use the desktop encrypted file store or configure PostgreSQL for this host.');
@@ -891,7 +891,7 @@ export class Engine {
     return this.#searchAdapter;
   }
   async shutdown(timeoutMs = 70000) {
-    check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
+    internalCheck(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
     this.#closing = true;
     // Quitting stops a transcript being made: whisper.cpp and ffmpeg never outlive the engine, nor their temp folders.
     this.#stopWork.abort();
@@ -2310,7 +2310,7 @@ export class Engine {
     return this.services.backupV2;
   }
   private activationHost(): EngineWorkspaceActivation {
-    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
+    internalCheck(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
       'Install the reviewed synthetic local activation, actual encrypted journal and fresh credential capability in the trusted host.');
     return this.services.workspaceActivation;
   }

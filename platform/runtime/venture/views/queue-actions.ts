@@ -8,7 +8,7 @@
 // decided on its own (its own decision, journal entry and charge record); a changed item makes the whole set stale,
 // and there is no "approve all". Every click is recorded once per row id, so it reaches venture.decisions.list.
 import { formatUsd } from '../../owner-format.ts';
-import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { currentVenture, digest, exactPayload, findRecord, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { viewedExactly } from './view-marks.ts';
 import type {
@@ -116,7 +116,7 @@ async function answered(deps: VentureDeps, ctx: Context, subject: string, work: 
 function rowPayload(payload: unknown): { rowId: string; digest: string; text: unknown } {
   const body = exactPayload(payload, ['rowId', 'digest', 'text'], ['rowId', 'digest', 'text']);
   check(idOk(body.rowId), 'INVALID_VENTURE_REQUEST', 'Send the id of the row you decided on.');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
   return { rowId: body.rowId, digest: body.digest, text: body.text };
 }
 
@@ -386,7 +386,7 @@ export async function queueSetHandler(deps: VentureDeps, ctx: Context, payload: 
   requireAppChannel(ctx, 'venture.queue.set');
   const body = exactPayload(payload, ['rowIds', 'digest', 'secondAsk'], ['rowIds', 'digest']);
   const ids = pickedIds(body.rowIds);
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the set you saw.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the set you saw.');
   check(body.secondAsk === undefined || body.secondAsk === true, 'INVALID_VENTURE_REQUEST', 'secondAsk is true when the owner answered the second ask.');
   authorize(deps.store, ctx, 'approve');
   const worked = await workSet(deps, ctx, ids);

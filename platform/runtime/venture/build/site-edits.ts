@@ -14,7 +14,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
 import type { GitHubTransport, IsoTime, RepoRef, SiteEditRecord, SiteEditState, VentureDeps } from '../contracts.ts';
 import { MAX_STORED_PAYLOAD, currentVenture, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
 import { ownerToday } from '../local-day.ts';
@@ -167,7 +167,7 @@ function findEdit(state: State, id: string): SiteEditRecord | undefined {
 
 function decision(payload: unknown): { editId: string; planDigest: string } {
   const body = exactPayload(payload, ['editId', 'planDigest'], ['editId', 'planDigest']);
-  check(typeof body.planDigest === 'string' && body.planDigest.length > 0 && body.planDigest.length <= 128, 'INVALID_VENTURE_REQUEST', 'Send the plan digest you reviewed.');
+  internalCheck(typeof body.planDigest === 'string' && body.planDigest.length > 0 && body.planDigest.length <= 128, 'INVALID_VENTURE_REQUEST', 'Send the plan digest you reviewed.');
   return { editId: identifier(body.editId, 'editId'), planDigest: body.planDigest };
 }
 

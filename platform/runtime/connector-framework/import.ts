@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { audit, authorize, check, newId, type Context, type State, type StateStore } from '../contracts.ts';
+import { audit, authorize, check, newId, type Context, type State, type StateStore, internalCheck } from '../contracts.ts';
 import { digest } from '../actions.ts';
 import { ImportService, parseIndianMoney, type ImportPreview, type MappingRecipe } from '../ingest.ts';
 import { sumMoney } from '../calculator.ts';
@@ -89,7 +89,7 @@ function domainCheck(domain: ImportDomain) {
   validatePeriod(domain.period);
 }
 function decoderCheck(decoder: QualifiedDecoder) {
-  check(boundedText(decoder.id) && boundedText(decoder.version) && boundedText(decoder.identityNamespace) && /^[a-f0-9]{64}$/.test(decoder.schemaSha256) && typeof decoder.decode === 'function', 'INVALID_DECODER', 'Register a versioned decoder with a wire schema digest and stable identity namespace.');
+  internalCheck(boundedText(decoder.id) && boundedText(decoder.version) && boundedText(decoder.identityNamespace) && /^[a-f0-9]{64}$/.test(decoder.schemaSha256) && typeof decoder.decode === 'function', 'INVALID_DECODER', 'Register a versioned decoder with a wire schema digest and stable identity namespace.');
   const fields = [...decoder.businessFields, ...decoder.deliveryFields];
   check(decoder.identityFields.length > 0 && decoder.resourceIdentityFields.length > 0 && decoder.businessFields.length > 0 && fields.every(f => boundedText(f) && !['__proto__', 'constructor', 'prototype'].includes(f)) && new Set(fields).size === fields.length && [...decoder.identityFields, ...decoder.resourceIdentityFields].every(f => decoder.businessFields.includes(f)), 'INVALID_DECODER', 'Every identity and business field needs one declared meaning.');
   check(decoder.revisionOrder?.kind === 'unqualified' || decoder.revisionOrder?.kind === 'monotonic-integer' && decoder.identityFields.includes(decoder.revisionOrder.field) && !decoder.resourceIdentityFields.includes(decoder.revisionOrder.field), 'INVALID_DECODER', 'Correction ordering needs a qualified monotonic source revision field.');
@@ -164,7 +164,7 @@ export class CursorImportService {
     domainCheck(input.domain); this.#qualified(input.scope);
     check(input.recipe.scope.company === input.domain.company && digest(input.recipe.scope.branches) === digest(input.domain.branches), 'MAPPING_SCOPE_MISMATCH', 'Review the recipe for this exact company and branches.');
     check(input.recipe.onUnmapped === 'reject' && input.recipe.bindings.every(b => b.nulls !== 'zero'), 'UNSAFE_MISSING_VALUE_POLICY', 'Unknown fields require review and missing values cannot become zero.');
-    check(boundedText(input.evidence.reportId) && /^[a-f0-9]{64}$/.test(input.evidence.sha256), 'MAPPING_EVIDENCE_REQUIRED', 'Review needs a named source report and its digest.');
+    internalCheck(boundedText(input.evidence.reportId) && /^[a-f0-9]{64}$/.test(input.evidence.sha256), 'MAPPING_EVIDENCE_REQUIRED', 'Review needs a named source report and its digest.');
     const mapped = input.recipe.bindings.flatMap(b => b.source ? [b.source] : []);
     check(mapped.every(f => this.#decoder.businessFields.includes(f)), 'MAPPING_FIELDS_UNQUALIFIED', 'Bindings must use qualified business fields.');
     return this.#store.update(state => {
@@ -178,7 +178,7 @@ export class CursorImportService {
     ctx = structuredClone(ctx); request = structuredClone(request);
     domainCheck(request.domain); this.#qualified(request.scope);
     check(boundedText(request.sourceId) && boundedText(request.idempotencyKey) && request.idempotencyKey.length >= 8, 'INVALID_CAPTURE_IDENTITY', 'Captures require a stable named source and idempotency key.');
-    check(request.snapshot.kind === 'source-snapshot' ? boundedText(request.snapshot.id) : request.snapshot.kind === 'unverified' && boundedText(request.snapshot.limitation, 1000), 'INVALID_SNAPSHOT', 'State the source snapshot or its consistency limitation.');
+    internalCheck(request.snapshot.kind === 'source-snapshot' ? boundedText(request.snapshot.id) : request.snapshot.kind === 'unverified' && boundedText(request.snapshot.limitation, 1000), 'INVALID_SNAPSHOT', 'State the source snapshot or its consistency limitation.');
     return this.#store.update(state => {
       this.#access(state, ctx, request.sourceId, request.domain.branches); this.#qualified(request.scope);
       this.#sourceBinding(state, request.sourceId, request.domain);

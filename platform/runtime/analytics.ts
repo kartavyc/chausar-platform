@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ChausarError, check, hash } from './contracts.ts';
+import { ChausarError, check, hash, internalCheck } from './contracts.ts';
 import type { CalculationReceipt } from './calculator.ts';
 import { assertCompiledSingleSum } from './compiled-calculation.ts';
 
@@ -174,7 +174,7 @@ export class DatabaseCalculator {
   options: Required<Pick<DatabaseCalculatorOptions,'operationTimeoutMs'|'maxRows'|'sqlDialect'>> & Pick<DatabaseCalculatorOptions,'connectionFactory'>;
   constructor(options: DatabaseCalculatorOptions = {}) {
     this.options = { ...options, sqlDialect: options.sqlDialect ?? 'duckdb', operationTimeoutMs: options.operationTimeoutMs ?? 15000, maxRows: options.maxRows ?? 50000 };
-    check(['duckdb','postgres'].includes(this.options.sqlDialect) && (this.options.sqlDialect === 'duckdb' || !!this.options.connectionFactory), 'SQL_DIALECT_UNSUPPORTED', 'PostgreSQL requires an explicit trusted connection adapter.');
+    internalCheck(['duckdb','postgres'].includes(this.options.sqlDialect) && (this.options.sqlDialect === 'duckdb' || !!this.options.connectionFactory), 'SQL_DIALECT_UNSUPPORTED', 'PostgreSQL requires an explicit trusted connection adapter.');
     check(Number.isInteger(this.options.operationTimeoutMs) && this.options.operationTimeoutMs >= 50 && this.options.operationTimeoutMs <= 30000 && Number.isInteger(this.options.maxRows) && this.options.maxRows > 0 && this.options.maxRows <= 100000, 'SQL_LIMIT_INVALID', 'Set bounded SQL execution and projection limits.');
   }
   async verify(receipt: CalculationReceipt): Promise<DatabaseVerification> {

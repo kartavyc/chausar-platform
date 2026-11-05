@@ -24,7 +24,7 @@
 // decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
 // (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
 import { formatUsd, formatMoney } from '../../owner-format.ts';
-import { authorize,ChausarError,check,type Context,type State } from '../../contracts.ts';
+import { authorize,ChausarError,check,type Context,type State,internalCheck } from '../../contracts.ts';
 import { decideAgentApproval } from '../agent-runtime/approvals.ts';
 import { answerAgentFacts } from '../agent-runtime/facts.ts';
 import { routineRows } from '../agents/routine-runner.ts';
@@ -753,7 +753,7 @@ export async function queueDecideHandler(deps: VentureDeps, ctx: Context, payloa
   requireAppChannel(ctx, 'venture.queue.decide');
   const body = exactPayload(payload, ['id', 'digest', 'action', 'answer', 'viewed'], ['id', 'digest', 'action']);
   check(typeof body.id === 'string' && /^[A-Za-z0-9_.:-]{3,400}$/.test(body.id) && body.id.includes(':'), 'INVALID_VENTURE_REQUEST', 'Send the id of the row you decided on.');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
   check(typeof body.action === 'string' && (QUEUE_ACTION_IDS as readonly string[]).includes(body.action), 'INVALID_VENTURE_REQUEST', 'Choose one of the row\'s actions.');
   check(body.viewed === undefined || typeof body.viewed === 'boolean', 'INVALID_VENTURE_REQUEST', 'viewed must be true or false.');
   const answer = body.answer === undefined ? null : plainText(body.answer, 'Answer', { min: 0, max: 2000 });

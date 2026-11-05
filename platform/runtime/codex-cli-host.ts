@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { check, ChausarError } from './contracts.ts';
+import { check, ChausarError, internalCheck } from './contracts.ts';
 import { defaultProcess, type GatewayOptions } from './gateway.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, type CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 
@@ -44,7 +44,7 @@ function invalid(message: string): never { throw new ChausarError('CLI_HOST_EVID
 /** Reads regular files with a hard byte bound, without running any executable. */
 async function boundedFile(path: string, maximumBytes: number): Promise<Uint8Array> {
   const entry = await lstat(path);
-  check(entry.isFile() && !entry.isSymbolicLink(), 'CLI_HOST_EVIDENCE_INVALID', 'CLI snapshots must be regular evidence files, not links.');
+  internalCheck(entry.isFile() && !entry.isSymbolicLink(), 'CLI_HOST_EVIDENCE_INVALID', 'CLI snapshots must be regular evidence files, not links.');
   const file = await open(path, 'r');
   try {
     const info = await file.stat();
@@ -85,8 +85,8 @@ function artifact(value: unknown, kind: keyof typeof ARTIFACT_NAMES, directory: 
   check(record(value), 'CLI_HOST_EVIDENCE_INVALID', 'Supply all version-matched CLI evidence artifacts.');
   check(typeof value.file === 'string' && value.file.length <= 4096 && !/[\0\r\n]/.test(value.file), 'CLI_HOST_EVIDENCE_INVALID', 'Use a recorded CLI evidence artifact path.');
   const path = resolve(directory, value.file); const child = relative(directory, path);
-  check(child !== '' && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child) && ARTIFACT_NAMES[kind].has(basename(path)), 'CLI_HOST_EVIDENCE_INVALID', 'CLI artifacts must be named evidence files within the manifest directory.');
-  check(digest(value.sha256) && value.executableSha256 === executable.sha256 && value.version === executable.version && value.exitCode === 0, 'CLI_HOST_EVIDENCE_INVALID', 'CLI evidence must record successful probes of the exact selected executable and version.');
+  internalCheck(child !== '' && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child) && ARTIFACT_NAMES[kind].has(basename(path)), 'CLI_HOST_EVIDENCE_INVALID', 'CLI artifacts must be named evidence files within the manifest directory.');
+  internalCheck(digest(value.sha256) && value.executableSha256 === executable.sha256 && value.version === executable.version && value.exitCode === 0, 'CLI_HOST_EVIDENCE_INVALID', 'CLI evidence must record successful probes of the exact selected executable and version.');
   return { file: path, sha256: value.sha256, executableSha256: executable.sha256, version: executable.version, exitCode: 0 };
 }
 function support(help: string, features: string, review: unknown): Pick<CodexCliCapabilityProfile, 'flags' | 'configKeys' | 'stdinPrompt' | 'sandboxModes'> {
@@ -117,12 +117,12 @@ export async function loadCodexCliHostGateway(environment: NodeJS.ProcessEnv, de
   const executableSha256 = dependencies.executableSha256 ?? binaryDigest;
   try {
     const bytes = await read(manifestPath, ARTIFACT_LIMIT);
-    check(bytes instanceof Uint8Array && bytes.byteLength <= ARTIFACT_LIMIT && sha256(bytes) === manifestDigest, 'CLI_HOST_EVIDENCE_INVALID', 'The host manifest does not match its SHA256 pin.');
+    internalCheck(bytes instanceof Uint8Array && bytes.byteLength <= ARTIFACT_LIMIT && sha256(bytes) === manifestDigest, 'CLI_HOST_EVIDENCE_INVALID', 'The host manifest does not match its SHA256 pin.');
     let manifest: unknown;
     try { manifest = JSON.parse(decode(bytes)); } catch { return invalid('The pinned CLI host manifest is not valid JSON.'); }
-    check(record(manifest) && manifest.schemaVersion === 1 && timestamp(manifest.recordedAt) && record(manifest.executable), 'CLI_HOST_EVIDENCE_INVALID', 'Use a versioned CLI host evidence manifest.');
+    internalCheck(record(manifest) && manifest.schemaVersion === 1 && timestamp(manifest.recordedAt) && record(manifest.executable), 'CLI_HOST_EVIDENCE_INVALID', 'Use a versioned CLI host evidence manifest.');
     const native = manifest.executable;
-    check(typeof native.path === 'string' && isAbsolute(native.path) && /(?:^|[\\/])codex(?:\.exe)?$/i.test(native.path) && !/[\0\r\n]/.test(native.path) && digest(native.sha256) && typeof native.version === 'string' && /^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(native.version), 'CLI_HOST_EVIDENCE_INVALID', 'Bind evidence to one exact native Codex executable, digest and version.');
+    internalCheck(typeof native.path === 'string' && isAbsolute(native.path) && /(?:^|[\\/])codex(?:\.exe)?$/i.test(native.path) && !/[\0\r\n]/.test(native.path) && digest(native.sha256) && typeof native.version === 'string' && /^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(native.version), 'CLI_HOST_EVIDENCE_INVALID', 'Bind evidence to one exact native Codex executable, digest and version.');
     const executable = { path: native.path, sha256: native.sha256, version: native.version };
     const directory = dirname(manifestPath);
     const version = artifact(manifest.versionOutput, 'versionOutput', directory, executable);
@@ -132,7 +132,7 @@ export async function loadCodexCliHostGateway(environment: NodeJS.ProcessEnv, de
     async function text(proof: CodexCliHostArtifact): Promise<string> {
       if (physicalDirectory !== undefined) {
         const child = relative(physicalDirectory, await realpath(proof.file));
-        check(child !== '' && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child), 'CLI_HOST_EVIDENCE_INVALID', 'CLI artifacts must remain within the physical manifest directory.');
+        internalCheck(child !== '' && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child), 'CLI_HOST_EVIDENCE_INVALID', 'CLI artifacts must remain within the physical manifest directory.');
       }
       const content = await read(proof.file, ARTIFACT_LIMIT);
       check(content instanceof Uint8Array && content.byteLength <= ARTIFACT_LIMIT && sha256(content) === proof.sha256, 'CLI_HOST_EVIDENCE_INVALID', 'A recorded CLI artifact does not match its SHA256 pin.');

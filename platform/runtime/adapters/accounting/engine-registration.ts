@@ -1,4 +1,4 @@
-import { check, type Context } from '../../contracts.ts';
+import { check, type Context, internalCheck } from '../../contracts.ts';
 import { current, digest } from '../../actions.ts';
 import { assertSourceAccess, trustFingerprint } from '../../trust.ts';
 import { validatePeriod } from '../../memory.ts';
@@ -30,10 +30,10 @@ export function createAccountingConnectorCandidate(input: AccountingEngineRegist
     && imported.connectorId === readOperation.connectorId && imported.connectorVersion === readOperation.connectorVersion
     && digest(imported.applicability) === digest(readOperation.applicability),
   'ACCOUNTING_OPERATION_SCOPE_MISMATCH', 'Pin the exact same accounting product/version/edition/module/configuration for acquisition and captured import.');
-  check(input.reader.environment === input.environment && Object.hasOwn(minimums, input.environment)
+  internalCheck(input.reader.environment === input.environment && Object.hasOwn(minimums, input.environment)
     && (input.environment !== 'synthetic' || input.syntheticFixture === true),
   'ACCOUNTING_ENVIRONMENT_MISMATCH', 'Use the native reader environment and explicitly label authored synthetic fixtures.');
-  check(hash(input.readImplementationDigest) && hash(input.importImplementationDigest), 'ACCOUNTING_IMPLEMENTATION_REQUIRED', 'Supply independent exact read and import implementation digests.');
+  internalCheck(hash(input.readImplementationDigest) && hash(input.importImplementationDigest), 'ACCOUNTING_IMPLEMENTATION_REQUIRED', 'Supply independent exact read and import implementation digests.');
   check(input.domain.company === input.companyId && input.decoder.company === input.companyId
     && input.decoder.dataset === input.domain.dataset && input.domain.branches.length === 1
     && input.domain.branches[0] === input.decoder.branch,

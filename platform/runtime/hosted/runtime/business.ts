@@ -5,7 +5,7 @@
 // actor would keep one in its per-instance vars.
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { join, relative, resolve, isAbsolute } from 'node:path';
-import { check, type Context } from '../../contracts.ts';
+import { check, type Context, internalCheck } from '../../contracts.ts';
 import { Engine, type EngineOptions } from '../../engine.ts';
 import { PostgresSnapshotAdapter, type PostgresPool } from '../../postgres.ts';
 import { ExperimentalFileSnapshotAdapter, type EncryptedSnapshotAdapter, type VaultEnvelope } from '../../vault.ts';
@@ -66,14 +66,14 @@ export class BusinessEngine {
     if (!pool) {
       check(extra.storage === 'experimental-file' && extra.demo === true && extra.vaultStorage === undefined, 'HOSTED_STORAGE_INVALID', 'Hosted businesses use experimental file storage in demo mode, or PostgreSQL through the server pool.');
       return new Engine({ ...extra, directory, vaultStorage: async folder => {
-        check(folder === key[1], 'INVALID_ACTOR_KEY', 'A business opens only its own vault.');
+        internalCheck(folder === key[1], 'INVALID_ACTOR_KEY', 'A business opens only its own vault.');
         return cappedSnapshotAdapter(new ExperimentalFileSnapshotAdapter(join(directory, folder)), cap);
       } });
     }
-    check(extra.storage === 'postgres' && extra.postgresUrl === undefined && extra.vaultStorage === undefined, 'HOSTED_STORAGE_INVALID', 'With the server pool, every hosted business vault is in PostgreSQL.');
+    internalCheck(extra.storage === 'postgres' && extra.postgresUrl === undefined && extra.vaultStorage === undefined, 'HOSTED_STORAGE_INVALID', 'With the server pool, every hosted business vault is in PostgreSQL.');
     const slot = hostedVaultSlot(key);
     return new Engine({ ...extra, directory, vaultStorage: async folder => {
-      check(folder === key[1], 'INVALID_ACTOR_KEY', 'A business opens only its own vault.');
+      internalCheck(folder === key[1], 'INVALID_ACTOR_KEY', 'A business opens only its own vault.');
       return cappedSnapshotAdapter(await PostgresSnapshotAdapter.fromPool(pool, slot), cap);
     } });
   }

@@ -3,7 +3,7 @@ import { statSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
-import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
+import { authorize, audit, check, ChausarError, hash, newId, now, internalCheck } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { assertSourceAccess, isNoResend, trustFingerprint } from './trust.ts';
 import { defaultProcess, validateEndpoint } from './gateway.ts';
@@ -100,7 +100,7 @@ export class SpeechService {
     // Full local paths only (never a network share), and the program Windows or this computer would really start.
     if (config.kind === 'local-command') check(this.#localPaths(config), 'INVALID_SPEECH_PROVIDER', 'Choose absolute paths to your installed whisper.cpp whisper-cli executable and model file.');
     for (const key of ['ratePerMinuteMinor', 'budgetMinor'] as const) if (config[key] !== undefined) check(typeof config[key] === 'string' && /^\d{1,30}$/.test(config[key]), 'INVALID_BUDGET', 'Speech costs use integer paise strings.');
-    if (config.credentialEnv) check(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_CREDENTIAL', 'Use a dedicated CHAUSAR credential environment variable.');
+    if (config.credentialEnv) internalCheck(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_CREDENTIAL', 'Use a dedicated CHAUSAR credential environment variable.');
     if (secret !== undefined) check(config.kind === 'api-upload' && typeof secret === 'string' && secret.length <= 8192 && !/[\r\n]/.test(secret), 'INVALID_CREDENTIAL', 'Only API upload takes an API key.');
     const id = config.id || newId('speech_provider'); const previous = this.#providers.get(id);
     const provider = { ...structuredClone(config), id, revision: (previous?.revision || 0) + 1, enabled: config.enabled ?? true, budgetMinor: config.budgetMinor || '10000', ratePerMinuteMinor: config.ratePerMinuteMinor || '0' };

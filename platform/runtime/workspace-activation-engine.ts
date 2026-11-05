@@ -2,7 +2,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {createHash,randomUUID} from 'node:crypto';
 import {lstat,mkdir,readdir,readFile,open} from 'node:fs/promises';
 import {join,relative,resolve,isAbsolute,sep} from 'node:path';
-import {check,authorize,hash,ChausarError,type Context,type State} from './contracts.ts';
+import {check,authorize,hash,ChausarError,type Context,type State,internalCheck} from './contracts.ts';
 import {Vault,safeDirectory,type PrivateArtifactRef,type VaultEncryptedCustodyCapture} from './vault.ts';
 import {acquireProcessLock} from './process-lock.ts';
 import {WorkspaceBackupV2LocalCustody} from './workspace-backup-local.ts';
@@ -52,7 +52,7 @@ export class EngineWorkspaceActivation {
   readonly #o:Options;
   readonly #scope=new AsyncLocalStorage<{context:Context;assertCurrent:()=>Promise<void>}>();
   constructor(options:Options){
-    check(options.sourceVault instanceof Vault&&options.journalVault instanceof Vault&&options.sourceVault!==options.journalVault
+    internalCheck(options.sourceVault instanceof Vault&&options.journalVault instanceof Vault&&options.sourceVault!==options.journalVault
       && options.sourceVault.storageKind==='experimental-file'&&options.journalVault.storageKind==='experimental-file'
       &&typeof options.targetPassphrase==='function','ACTIVATION_ROOT_REQUIRED','Install separate actual source/journal custody and an explicit fresh credential capability.');
     this.#o={...options,applicationDirectory:resolve(options.applicationDirectory),policy:structuredClone(options.policy),backupPolicy:structuredClone(options.backupPolicy)};
@@ -238,7 +238,7 @@ export class EngineWorkspaceActivation {
   }));}
   async #authenticateMaterial(capture:WorkspaceBackupV2Capture,material:WorkspaceInterchangeCustodyRecord):Promise<WorkspaceBackupActivationMaterialRefs>{
     const parts=['archive','pin','commit'] as const,id=material.pin.recordId;
-    const items=parts.map(part=>{const item=capture.artifacts.find(v=>v.ref.id===exportId(id,part)&&v.ref.purpose==='workspace-interchange');check(item,'BACKUP_ACTIVATION_MATERIAL','The original capture lacks an exact independently issued semantic-export envelope.');return item;});
+    const items=parts.map(part=>{const item=capture.artifacts.find(v=>v.ref.id===exportId(id,part)&&v.ref.purpose==='workspace-interchange');internalCheck(item,'BACKUP_ACTIVATION_MATERIAL','The original capture lacks an exact independently issued semantic-export envelope.');return item;});
     const values=await this.#o.sourceVault.authenticateArchivedArtifacts({sourceVaultId:capture.source.vaultId,artifacts:items},encryptedBudgets);
     const [a,p,c]=values,v=a.value as any,pv=p.value as any,b=c.value as any;
     check(v.format==='chausar.interchange-local-archive.v1'&&pv.format==='chausar.interchange-local-pin.v1'&&b.format==='chausar.interchange-local-binding.v1'
@@ -284,7 +284,7 @@ export class EngineWorkspaceActivation {
     const summary=await this.activation.resolve(ctx,{activationId});
     check(summary.status==='committed','ACTIVATION_COMMIT_UNKNOWN','Only exact committed readback may select an activated target.');
     const retained=await this.#find('wal_root_live_'+sha(activationId)),pin=retained?.value as any;
-    check(pin?.format==='chausar.root-live-bootstrap.v1'&&pin.stateDigest===summary.stateDigest&&pin.authority?.workspaceId===summary.workspaceId
+    internalCheck(pin?.format==='chausar.root-live-bootstrap.v1'&&pin.stateDigest===summary.stateDigest&&pin.authority?.workspaceId===summary.workspaceId
       &&pin.authority.owner.id===summary.ownerContext.memberId&&typeof pin.vaultId==='string','ACTIVATION_LIVE_CUSTODY','Trusted launch must retain the independently authenticated fresh Vault identity.');
     return{directory:join(this.targetPath(summary.targetId),'live'),workspaceId:summary.workspaceId,ownerId:summary.ownerContext.memberId,vaultId:pin.vaultId as string};
   }
@@ -307,7 +307,7 @@ export class EngineWorkspaceActivation {
   }
   async #inspectLive(targetDirectory:string,publication:WorkspaceActivationCommit){
     const pin=await this.#find('wal_root_live_'+sha(publication.record.activationId)),binding=pin?.value as any;
-    check(binding?.format==='chausar.root-live-bootstrap.v1'&&binding.recordDigest===interchangeDigest(publication.record)
+    internalCheck(binding?.format==='chausar.root-live-bootstrap.v1'&&binding.recordDigest===interchangeDigest(publication.record)
       &&binding.stateDigest===publication.record.stateDigest&&equal(binding.authority,publication.authority),'ACTIVATION_LIVE_CUSTODY','Independent fresh-Vault bootstrap binding differs.');
     const passphrase=await this.#o.targetPassphrase(structuredClone(publication.authority));
     const vault=await Vault.open({directory:join(targetDirectory,'live','main'),storage:'experimental-file',passphrase});

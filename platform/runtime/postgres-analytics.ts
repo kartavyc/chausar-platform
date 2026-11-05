@@ -1,6 +1,6 @@
 import { DatabaseCalculator, type DatabaseCalculatorOptions, type DatabaseVerification, type SQLConnection } from './analytics.ts';
 import type { CalculationReceipt } from './calculator.ts';
-import { ChausarError, check } from './contracts.ts';
+import { ChausarError, check, internalCheck } from './contracts.ts';
 import type { PostgresOptions } from './postgres.ts';
 
 type QueryResult = { rows: Record<string, unknown>[] };
@@ -22,7 +22,7 @@ export class PostgresDatabaseCalculator {
     this.#calculator = new DatabaseCalculator({ ...limits, sqlDialect: 'postgres', connectionFactory: signal => this.connection(signal) });
   }
   static async connect(options: PostgresAnalyticalOptions): Promise<PostgresDatabaseCalculator> {
-    check(['127.0.0.1', '::1'].includes(options.host) && Number.isInteger(options.port) && options.port >= 1024 && options.port <= 65535 && options.user && options.database && options.password, 'INVALID_POSTGRES_CONFIG', 'Provide explicit loopback analytical database configuration and credentials.');
+    internalCheck(['127.0.0.1', '::1'].includes(options.host) && Number.isInteger(options.port) && options.port >= 1024 && options.port <= 65535 && options.user && options.database && options.password, 'INVALID_POSTGRES_CONFIG', 'Provide explicit loopback analytical database configuration and credentials.');
     check(options.maxConnections === undefined || (Number.isInteger(options.maxConnections) && options.maxConnections >= 1 && options.maxConnections <= 8), 'INVALID_POSTGRES_CONFIG', 'Use one to eight analytical connections.');
     let pg: any;
     try { const moduleName = 'pg'; pg = await import(moduleName); }
@@ -37,7 +37,7 @@ export class PostgresDatabaseCalculator {
     return new PostgresDatabaseCalculator(pool, limits, false);
   }
   private async connection(signal: AbortSignal): Promise<SQLConnection> {
-    check(!this.#closed, 'POSTGRES_CLOSED', 'The analytical database adapter is closed.');
+    internalCheck(!this.#closed, 'POSTGRES_CLOSED', 'The analytical database adapter is closed.');
     let client: ProjectionClient | undefined; let released = false;
     const discard = () => { if (client && !released) { released = true; client.release(new Error('Analytical query interrupted.')); } };
     let onAbort: () => void;

@@ -1,4 +1,4 @@
-import { authorize, ChausarError, newId, type Context, type State } from './contracts.ts';
+import { authorize, ChausarError, newId, type Context, type State, internalCheck } from './contracts.ts';
 import {
   canonicalInterchangeJson, captureWorkspaceInterchange, encodeWorkspaceInterchange,
   interchangeDigest, readHistoricalWorkspaceState, validateWorkspaceInterchange,
@@ -301,7 +301,7 @@ export class WorkspaceInterchangeHost {
     exact(input, ['candidateId', 'reviewedDigest']);
     const payload = structuredClone(input);
     const context = structuredClone(contextInput), retained = await this.#read(context, payload.candidateId);
-    requireValue(retained.pin.kind === 'candidate' && payload.reviewedDigest === retained.pin.candidateDigest,
+    internalCheck(retained.pin.kind === 'candidate' && payload.reviewedDigest === retained.pin.candidateDigest,
       'INTERCHANGE_REVIEW_CHANGED', 'Review the exact privately retained candidate digest.');
     const pin = retained.pin;
     return this.#source(context, pin.inventory, async (_capture, lease, sourceCurrent) => {

@@ -1,4 +1,4 @@
-import { authorize, check, ChausarError, hash, type Context, type Member, type State } from './contracts.ts';
+import { authorize, check, ChausarError, hash, type Context, type Member, type State, internalCheck } from './contracts.ts';
 import { compileDictionary, type Dictionary, type DictionaryDraft } from './ontology.ts';
 import { canSeeFact } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
@@ -178,7 +178,7 @@ export class WorkspaceActivationHost {
     }).prepare(context, { text: canonicalInterchangeJson(candidate.archive), targetId: pin.target.targetId });
     check(equal(candidate, rebuilt) && interchangeDigest(candidate) === pin.candidateDigest && candidate.packageDigest === pin.packageDigest,
       'ACTIVATION_CANDIDATE', 'Candidate content differs from its independent issued inventory, target or review pin.');
-    check(this.#policy.approvedSyntheticWorkspaceIds.includes(pin.inventory.generation.workspaceId), 'ACTIVATION_SYNTHETIC_ONLY', 'Root has not approved this exact source workspace as a synthetic fixture.');
+    internalCheck(this.#policy.approvedSyntheticWorkspaceIds.includes(pin.inventory.generation.workspaceId), 'ACTIVATION_SYNTHETIC_ONLY', 'Root has not approved this exact source workspace as a synthetic fixture.');
     const records = pin.inventory.stores.reduce((count, store) => count + store.records, 0);
     check(pin.inventory.artifacts.length <= this.#policy.budgets.maxArtifacts && records <= this.#policy.budgets.maxRecords
       && pin.inventory.artifacts.reduce((bytes, item) => bytes + item.bytes, 0) <= this.#policy.budgets.maxArtifactBytes,
@@ -284,7 +284,7 @@ export class WorkspaceActivationHost {
   async review(contextInput: Context, input: { candidateId: string; reviewedDigest: string }): Promise<WorkspaceActivationReview> {
     exact(input, ['candidateId', 'reviewedDigest']); const context = structuredClone(contextInput);
     const checked = this.#checked(context, input.candidateId, await this.#ports.custody.read(structuredClone(context), input.candidateId));
-    check(input.reviewedDigest === checked.pin.candidateDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Acknowledge the exact candidate review digest.');
+    internalCheck(input.reviewedDigest === checked.pin.candidateDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Acknowledge the exact candidate review digest.');
     return this.#transaction(context, checked, async (_lease, projection, current) => {
       await current();
       return { candidateId: checked.pin.recordId, reviewedDigest: checked.pin.candidateDigest, projectionDigest: interchangeDigest(projection),
@@ -328,7 +328,7 @@ export class WorkspaceActivationHost {
     check(input.confirmed === true && custodyId(input.activationId) && digest(input.projectionDigest), 'CONFIRMATION_REQUIRED', 'Confirm one exact reviewed business projection and a single-use activation identity.');
     const context = structuredClone(contextInput), payload = structuredClone(input);
     const checked = this.#checked(context, payload.candidateId, await this.#ports.custody.read(structuredClone(context), payload.candidateId));
-    check(payload.reviewedDigest === checked.pin.candidateDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Acknowledge the exact independently issued candidate review digest.');
+    internalCheck(payload.reviewedDigest === checked.pin.candidateDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Acknowledge the exact independently issued candidate review digest.');
     let commitAttempted = false;
     try {
       return await this.#transaction(context, checked, async (lease, projection, current) => {

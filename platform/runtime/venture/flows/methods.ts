@@ -8,7 +8,7 @@
 // the controls on the page then; a repair (the owner's AI tool may propose it) picks one and becomes a new draft
 // version that needs its own dry run and approval. stop closes the window. Only the desktop has the window.
 import { createHash, randomUUID } from 'node:crypto';
-import { authorize, check, type Context } from '../../contracts.ts';
+import { authorize, check, type Context, internalCheck } from '../../contracts.ts';
 import type { VentureDeps } from '../contracts.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, ventureAction } from '../records.ts';
 import { journalled } from '../journal/journal.ts';
@@ -248,7 +248,7 @@ export async function flowsAct(deps: VentureDeps, ctx: Context, payload: unknown
     const flow = versionOf(deps, run.flowId, run.version);
     check(flow.digest === run.recipeDigest, 'APPROVAL_STALE', 'This flow changed.');
     if (run.state === 'held') return await continueHeld(deps, ctx, port, flow, run, body.digest);
-    check(body.digest === undefined || body.digest === null, 'INVALID_VENTURE_REQUEST', 'A stop for you needs no digest.');
+    internalCheck(body.digest === undefined || body.digest === null, 'INVALID_VENTURE_REQUEST', 'A stop for you needs no digest.');
     const stop = await replayFlow({ port, runId: run.id, recipe: recipeOf(flow), values: session!.values, mode: run.mode, from: run.step });
     return await settle(deps, ctx, port, flow, run, stop);
   } finally {

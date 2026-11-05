@@ -10,7 +10,7 @@
 // again from the records on every read ('credit-balance:<note id>', served by venture.receipt.get). A payment that came
 // in shows as "<client> paid <invoice>" for a week, until the owner marks it seen; a cheque only once it clears.
 import { formatMoney } from '../../owner-format.ts';
-import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { decimalMinor } from '../../currency.ts';
 import { amountText, digest, exactPayload, formatVentureDate, listRecords, plainText, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
@@ -120,7 +120,7 @@ export async function creditIssue(deps: VentureDeps, ctx: Context, payload: unkn
   check((body.amount === undefined) !== (body.amountMinor === undefined), 'INVALID_AMOUNT', 'Give the credit once, as you would type it, like 1500 or 1500.50.');
   if (body.amountMinor !== undefined) minorAmount(body.amountMinor, 'The credit');
   const reason = plainText(body.reason, 'The reason', { min: 3, max: 300 }).replace(/\s+/g, ' ');
-  check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
   const checked = body.digest;
   return ventureAction(deps, ctx, 'approve', 'credit.ask', tx => {
     const venture = tx.venture;

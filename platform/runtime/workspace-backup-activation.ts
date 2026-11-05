@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { authorize, check, ChausarError, type Context, type State } from './contracts.ts';
+import { authorize, check, ChausarError, type Context, type State, internalCheck } from './contracts.ts';
 import { canSeeFact } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
 import { proveEmptyWorkspaceTarget, WorkspaceImportCandidateService } from './workspace-import-candidate.ts';
@@ -210,7 +210,7 @@ export class WorkspaceBackupActivationHost {
       'BACKUP_ACTIVATION_LIMIT', 'Complete retained candidate exceeds its constructor byte budget.');
     let candidate: WorkspaceImportCandidate;
     try { candidate = JSON.parse(read.content); } catch { throw new ChausarError('BACKUP_ACTIVATION_CUSTODY', 'Retained candidate is incomplete JSON.'); }
-    check(canonicalInterchangeJson(candidate) === read.content && interchangeDigest(candidate) === read.pin.candidateDigest,
+    internalCheck(canonicalInterchangeJson(candidate) === read.content && interchangeDigest(candidate) === read.pin.candidateDigest,
       'BACKUP_ACTIVATION_CUSTODY', 'Candidate differs from its independent authenticated digest.');
     const rebuilt = new WorkspaceImportCandidateService({ source: () => ({ ready: true, inventory: pin.inventory }), target: () => pin.target,
       assertCompleteRead: (ctx, state) => owner(ctx, state) }).prepare(context, { text: canonicalInterchangeJson(candidate.archive), targetId: pin.target.targetId });
@@ -223,7 +223,7 @@ export class WorkspaceBackupActivationHost {
     exact(provenance, ['format', 'backup', 'material', 'inert', 'materialRefs', 'custodyQualification']);
     exact(provenance.backup, ['content', 'pin']); exact(provenance.material, ['content', 'pin']);
     check(provenance.format === PROVENANCE && canonicalInterchangeJson(provenance) === item.text, 'BACKUP_ACTIVATION_CUSTODY', 'Use the exact complete bridge provenance format.');
-    check(['test-fixture', 'encrypted-local-host'].includes(provenance.custodyQualification)
+    internalCheck(['test-fixture', 'encrypted-local-host'].includes(provenance.custodyQualification)
       && (provenance.custodyQualification !== 'test-fixture' || read.measurement.qualification === 'test-fixture'),
     'BACKUP_ACTIVATION_CUSTODY', 'Fixture evidence cannot be promoted to qualified local custody.');
     const chosen = { backupId: provenance.backup.pin.recordId, materialId: provenance.material.pin.recordId, inertTargetId: provenance.inert.receipt.targetId,
@@ -291,14 +291,14 @@ export class WorkspaceBackupActivationHost {
     let attempted = false;
     try {
       return await this.#transaction(context, chosen, 'prepare', async (lease, derived, current, provenance) => {
-        check(provenance.backup.pin.archiveDigest === reviewedArchiveDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Review the exact independently issued archive digest.');
+        internalCheck(provenance.backup.pin.archiveDigest === reviewedArchiveDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Review the exact independently issued archive digest.');
         const record: WorkspaceInterchangeCustodyRecord = { content: derived.content,
           pin: { format: 'chausar.interchange-custody-pin.v1', kind: 'candidate', recordId: chosen.candidateId, creationId: `bridge_${randomUUID()}`,
             contextDigest: interchangeDigest(context), inventory: derived.capture.inventory, packageDigest: derived.candidate.packageDigest,
             candidateDigest: interchangeDigest(derived.candidate), target: structuredClone(lease.target) } };
         await current(); let publicationChecks = 0; attempted = true;
         const measurement = await lease.createCandidate(structuredClone(record), async () => { await current(); publicationChecks++; }); measured(measurement, false);
-        check(provenance.custodyQualification !== 'test-fixture' || measurement.qualification === 'test-fixture',
+        internalCheck(provenance.custodyQualification !== 'test-fixture' || measurement.qualification === 'test-fixture',
           'BACKUP_ACTIVATION_CUSTODY', 'Fixture original custody cannot become qualified local evidence.');
         check(publicationChecks > 0, 'BACKUP_ACTIVATION_GUARD', 'Root must check the held physical and current admission fences at actual publication.');
         const read = structuredClone(await lease.readCandidate()); this.#candidate(context, chosen.candidateId, read);

@@ -1,6 +1,6 @@
 // SEO7 persisted strategy chain. Every link is derived from records, never uploaded digest claims.
 import {localDayAt} from '../../local-day.ts';
-import {check,type State} from '../../../contracts.ts';
+import {check,type State,internalCheck} from '../../../contracts.ts';
 import type {SeoFindingRecord,VentureRecord} from '../../contracts.ts';
 import {digest,listRecords,readVenture,requireAppChannel,ventureAction} from '../../records.ts';
 import {seoExact} from './work-core.ts';
@@ -23,7 +23,7 @@ export const SEO_STRATEGY_DESK:DeskHandlers={strategy:{
  async get(deps,ctx,p){seoExact(p,['playbook','kind','id']);const {state,venture}=readVenture(deps,ctx),record=listRecords(state,'venture-seo-finding',venture.id).find(r=>r.id===p.id&&r.strategy);check(record,'SEO_STRATEGY_NOT_FOUND','That experiment was not found.');return {playbook:'seo-visibility',kind:'strategy',item:currentView(state,venture,record),digest:digest(record.strategy)};},
  async act(deps,ctx,p){requireAppChannel(ctx,'venture.desk.act');seoExact(p,['playbook','kind','id','action','payload','digest'],['playbook','kind','id','action','payload']);
   if(p.action==='create'){
-   const b=seoExact(p.payload,['workId','panelId']);check(p.id==='new'&&p.digest===undefined,'INVALID_VENTURE_REQUEST','A new experiment has no previous digest.');
+   const b=seoExact(p.payload,['workId','panelId']);internalCheck(p.id==='new'&&p.digest===undefined,'INVALID_VENTURE_REQUEST','A new experiment has no previous digest.');
    const work=(await SEO_WORK_DESK.work!.get!(deps,ctx,{playbook:'seo-visibility',kind:'work',id:b.workId})).item as SeoWorkItem;
    check(!work.stale&&work.state==='approved'&&work.operation==='content'&&work.result.pass===true,'SEO_CHECK_FAILED','Approve a passing article evidence check first.');
    return ventureAction(deps,ctx,'approve','seo.strategy.create',tx=>{const current=tx.find('venture-seo-finding',b.workId),panel=tx.find('venture-seo-panel',b.panelId);check(current?.ventureId===tx.venture!.id&&digest(current.work)===digest(Object.fromEntries(Object.entries(work).filter(([key])=>key!=='id'&&key!=='stale'))),'APPROVAL_STALE','The checked work changed. Read it again.');check(panel?.ventureId===tx.venture!.id&&panel.state==='approved'&&panel.approvedDigest&&panel.orderId===work.orderId,'PANEL_APPROVAL_REQUIRED','Choose a frozen panel for this same order.');

@@ -1,5 +1,5 @@
 import { digest } from '../../actions.ts';
-import { check } from '../../contracts.ts';
+import { check,internalCheck } from '../../contracts.ts';
 import type { MappingRecipe } from '../../ingest.ts';
 import type { QualifiedDecoder, DecodedSourceRow, IndependentSourceTotals, ImportDomain, CaptureSnapshot } from '../../connector-framework/import.ts';
 import { reconcileSourceTotals } from '../../connector-framework/import.ts';
@@ -33,7 +33,7 @@ export function createAccountingDecoder(input: AccountingDecoderConfig): Qualifi
     revisionOrder: { kind: 'unqualified' }, businessFields: ACCOUNTING_FIELDS, deliveryFields: [],
     decode(content: string): DecodedSourceRow[] {
       const page = config.parse(content);
-      check(!page.warnings.includes('SOURCE_VALIDATION_ERRORS'), 'ACCOUNTING_SOURCE_VALIDATION_ERRORS', 'Source envelope validation errors must be resolved before accounting publication.');
+      internalCheck(!page.warnings.includes('SOURCE_VALIDATION_ERRORS'), 'ACCOUNTING_SOURCE_VALIDATION_ERRORS', 'Source envelope validation errors must be resolved before accounting publication.');
       return page.records.map(record => {
         check(!record.warnings.includes('SOURCE_VALIDATION_ERRORS'), 'ACCOUNTING_SOURCE_VALIDATION_ERRORS', 'Source validation errors must be resolved before accounting publication.');
         requiredText(record.id); const accounting = JSON.stringify(record);

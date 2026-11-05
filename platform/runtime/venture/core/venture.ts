@@ -6,7 +6,7 @@ import { prepareAdoptedCredentials } from '../models/credential-adoption.ts';
 // Onboarding v2: when the owner composed a plan or connected an AI before the vault, the same one action adopts the
 // draft (the composition, an answered interview, blueprint version 1, the AI connections and their calls); the keys
 // move to the vault's memory-only shelf only after that commit, and the draft is then wiped.
-import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
 import { starterPacks, type DictionaryDraft } from '../../ontology.ts';
 import { bpsPercent, currentVenture, digest, exactPayload, listRecords, plainText, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
 import { INTERVIEW_IDS } from '../contracts.ts';
@@ -76,10 +76,10 @@ export function minorText(minor: string, digits: number): string {
 /** The held plan venture.create may adopt: the engine's own copy, checked again; never anything the renderer sent. */
 function heldPlan(deps: VentureDeps, body: Record<string, unknown>, idea: string, countryCode: unknown): { held: DraftCompose; plan: ComposedPlan } | null {
   const hasId = Object.hasOwn(body, 'composeId'), hasDigest = Object.hasOwn(body, 'composedDigest');
-  check(hasId === hasDigest, 'INVALID_VENTURE_REQUEST', 'Send the plan id and its digest together.');
+  internalCheck(hasId === hasDigest, 'INVALID_VENTURE_REQUEST', 'Send the plan id and its digest together.');
   if (!hasId) return null;
   check(typeof body.composeId === 'string' && COMPOSE_ID.test(body.composeId), 'INVALID_VENTURE_REQUEST', 'Send the id of the plan you kept.');
-  check(typeof body.composedDigest === 'string' && DIGEST.test(body.composedDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you kept.');
+  internalCheck(typeof body.composedDigest === 'string' && DIGEST.test(body.composedDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you kept.');
   const held = deps.draft?.compose(body.composeId) ?? null;
   check(held, 'COMPOSE_NOT_FOUND', 'Your plan was only kept in memory, and it is gone. Make it again.');
   check(held.plan.digest === body.composedDigest, 'APPROVAL_STALE', 'Your plan changed since you read it. Read it again, then keep it.');

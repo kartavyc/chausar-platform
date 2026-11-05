@@ -12,7 +12,7 @@ import { formatRate, formatUsd } from '../../owner-format.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
 import type {
   CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
@@ -774,7 +774,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
 
     async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' | 'client-ai'; clientAi?: { clientId: string; consentId: string; consentRevision: number }; beforeDispatch?: () => void }): Promise<ModelOutcome<T>> {
       check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
-      check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
+      internalCheck(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
       // The rules judge's call going on its own (delivery/judge-run.ts) is recorded under the business's standing
       // consent, never as the owner's approval of that call. Only a judge call can go that way.
       const standing = options?.consent === 'standing-judge';

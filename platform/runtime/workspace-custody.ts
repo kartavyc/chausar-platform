@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { appendFile, lstat, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ChausarError, check } from './contracts.ts';
+import { ChausarError, check, internalCheck } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory, wrappersDigestOf } from './vault.ts';
 import type { DeviceKeyRecord } from './device-custody.ts';
 import {
@@ -118,7 +118,7 @@ export class CustodyFiles {
     const value = await this.#readJson(this.keys, `${vaultId}.json`);
     return value && value.format === 'chausar.device-key.v1' && value.vaultId === vaultId ? value : null;
   }
-  async writeKey(record: DeviceKeyRecord) { check(VAULT_ID.test(record.vaultId), 'INVALID_KEY_RECORD', 'A key record needs its vault id.'); await this.#write(this.keys, `${record.vaultId}.json`, record); }
+  async writeKey(record: DeviceKeyRecord) { internalCheck(VAULT_ID.test(record.vaultId), 'INVALID_KEY_RECORD', 'A key record needs its vault id.'); await this.#write(this.keys, `${record.vaultId}.json`, record); }
   async removeKey(vaultId: string) { if (VAULT_ID.test(vaultId)) await this.#remove(this.keys, `${vaultId}.json`); }
   /** The vault id of an old file-storage folder, read from its envelope header (public metadata). */
   async folderVaultId(folder: string): Promise<string | null> {

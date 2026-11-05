@@ -23,7 +23,7 @@ import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
 //   is made, its view the invoices' Viewed line) and 'books' (one month's invoices and payments for the accountant).
 import { createHash } from 'node:crypto';
 import {roomLinkCurrent,roomClientText,appendRoomRequest} from '../playbooks/kit/client-room-state.ts';
-import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
   currentVenture, exactPayload, formatVentureDate, identifier, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx,
@@ -484,7 +484,7 @@ export async function sharePage(deps: VentureDeps, ctx: Context, token: unknown,
  */
 export async function shareDecide(deps: VentureDeps, ctx: Context, token: unknown, input: { decision: unknown; comment?: unknown; digest: unknown }): Promise<SharePage | null> {
   check(input.decision === 'approved' || input.decision === 'changes', 'INVALID_VENTURE_REQUEST', 'Choose approve or ask for changes.');
-  check(typeof input.digest === 'string' && /^[a-f0-9]{64}$/.test(input.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the draft you read.');
+  internalCheck(typeof input.digest === 'string' && /^[a-f0-9]{64}$/.test(input.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the draft you read.');
   check(input.comment === undefined || input.comment === null || (typeof input.comment === 'string' && input.comment.length <= SHARE_COMMENT_CHARS), 'INVALID_VENTURE_REQUEST', `Write a comment of at most ${SHARE_COMMENT_CHARS} characters.`);
   const said = typeof input.comment === 'string' && input.comment.trim() ? screenedClientWords(input.comment) : null;
   return ventureAction(deps, ctx, 'prepare', 'share.decide', tx => {

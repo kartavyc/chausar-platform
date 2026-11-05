@@ -1,5 +1,5 @@
 // Chausar SEO desk: persisted panels and captured answers. GEOHub (AGPL ideas only); no source copied.
-import { check, type State } from '../../../contracts.ts';
+import { check, type State, internalCheck } from '../../../contracts.ts';
 import type { SeoObservationRecord, SeoPanelRecord, VentureRecord } from '../../contracts.ts';
 import { digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
 import type { DeskHandlers } from '../desk-types.ts';
@@ -74,7 +74,7 @@ export const SEO_VISIBILITY_DESK: DeskHandlers = Object.freeze({ ...SEO_EDGE_DES
                 const venture = tx.venture!;
                 let record: SeoPanelRecord;
                 if (payload.action === 'create') {
-                    check(payload.id === 'new' && p.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new panel has no prior digest.');
+                    internalCheck(payload.id === 'new' && p.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new panel has no prior digest.');
                     const input = exactPayload(payload.payload, ['spec', 'orderId'], ['spec', 'orderId']);
                     check(input.orderId === null || typeof input.orderId === 'string', 'INVALID_VENTURE_REQUEST', 'Choose an order or no order.');
                     if (input.orderId !== null)

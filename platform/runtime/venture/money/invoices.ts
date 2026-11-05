@@ -8,7 +8,7 @@
 // draftInvoiceIn; the view adds the invoice's next step, its timeline (invoice-states.ts), its credit notes, the TDS
 // the client deducted and, on a draft whose rate is no longer the plan's, the rate change, which only the owner acts on.
 import { formatMoney, plainMoney } from '../../owner-format.ts';
-import { check, type Context, type State } from '../../contracts.ts';
+import { check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
 import {
   activateTerm, digest, exactPayload, isoDate, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx,
@@ -447,7 +447,7 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
   requireAppChannel(ctx, 'venture.invoice.issue');
   const body = exactPayload(payload, ['invoiceId', 'digest'], ['invoiceId', 'digest']);
   const invoiceId = recordId(body.invoiceId, 'Invoice');
-  check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
   const approved = body.digest;
 
   // Checked before anything is journalled, with the same refusals the issue commit gives.

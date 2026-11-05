@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { CalculatorService, type CalculationReceipt, type CalculationRequest } from './calculator.ts';
-import { ChausarError, authorize, check, hash, newId, type Context, type Fact, type State, type StateStore } from './contracts.ts';
+import { ChausarError, authorize, check, hash, newId, type Context, type Fact, type State, type StateStore, internalCheck } from './contracts.ts';
 import { ImportService, type ImportPreview, type MappingRecipe } from './ingest.ts';
 import { canSeeFact, currentAccess, type FactInput } from './memory.ts';
 import { compileDictionary, type Dictionary, type DictionaryDraft } from './ontology.ts';
@@ -258,7 +258,7 @@ export class PrivateTrialService {
     authorize(readOnly(this.#live.read()), ctx, 'prepare');
     const retained = structuredClone(this.#host.resolveTrial(ctx, trialId));
     const fork = retained?.fork;
-    check(fork?.type === 'private-trial-fork-v1' && fork.version === 1 && fork.id === trialId && hash(withoutDigest(fork)) === fork.digest,
+    internalCheck(fork?.type === 'private-trial-fork-v1' && fork.version === 1 && fork.id === trialId && hash(withoutDigest(fork)) === fork.digest,
       'TRIAL_INTEGRITY_CHANGED', 'The authenticated retained fork must match its exact digest.');
     completedSync(this.#host.assertArtifactAuthentic(ctx, 'fork', fork.digest));
     check(hash(fork.change) === fork.changeDigest && hash(fork.savedRequests) === fork.requestsDigest
@@ -267,7 +267,7 @@ export class PrivateTrialService {
     'TRIAL_INTEGRITY_CHANGED', 'Retained requests, change and both version pins must still match the fork.');
     this.#current(ctx, fork);
     validateChange(fork.change, fork.baseline);
-    check(authorityDigest(fork.baseline) === authorityDigest(isolate(this.#live.read()))
+    internalCheck(authorityDigest(fork.baseline) === authorityDigest(isolate(this.#live.read()))
       && fork.workspaceId === fork.baseline.workspace.id && Array.isArray(fork.savedRequests) && fork.savedRequests.length > 0 && fork.savedRequests.length <= 32
       && new Set(fork.savedRequests.map(saved => saved.answerId)).size === fork.savedRequests.length
       && fork.savedRequests.every(saved => hash(saved.request) === saved.requestDigest && typeof saved.request.asOf === 'string' && Number.isFinite(Date.parse(saved.request.asOf))),

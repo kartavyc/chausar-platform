@@ -1,4 +1,4 @@
-import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
+import { authorize, audit, check, hash, newId, now, type Context, type StateStore, internalCheck } from './contracts.ts';
 import { currentAccess, insertFacts, validDate, type FactInput } from './memory.ts';
 import { OntologyService } from './ontology.ts';
 import { isNoResend } from './trust.ts';
@@ -311,7 +311,7 @@ export class ImportService {
   }
 }
 export async function seedDemo(store: StateStore, ctx: Context) {
-  check(store.read().workspace.demo, 'DEMO_ONLY', 'Synthetic demo fixtures can only be seeded in a labelled demo workspace.');
+  internalCheck(store.read().workspace.demo, 'DEMO_ONLY', 'Synthetic demo fixtures can only be seeded in a labelled demo workspace.');
   const ontology = new OntologyService(store); if (!ontology.current(ctx)) await ontology.publish(ctx, 'ecommerce');
   return new ImportService(store).commit(ctx, { sourceId: 'demo-export', format: 'csv', content: demoCsv, recipe: structuredClone(demoRecipe), expectedTotals: { rowCount: 10, amountMinor: '1230000' } });
 }

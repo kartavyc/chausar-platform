@@ -6,7 +6,7 @@
 // reject stores the decision and changes nothing; a proposal drafted against an older version is stale. A note proposal
 // (4B2) is drafted by code from the owner's own words, quoting them, and accept keeps the note (notes.ts); words the
 // owner said no to are never proposed again. An agent never proposes on its own: only the owner's words start one.
-import { check, newId, type Context, type State } from '../../contracts.ts';
+import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import type {
   AgentProposalDecision, AgentProposalRecord, AgentProposalView, DiffLine, Json, ModelTask, PlaybookPatch, PlaybookRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -259,7 +259,7 @@ export async function proposalDecideHandler(deps: VentureDeps, ctx: Context, pay
   requireAppChannel(ctx, 'venture.agents.proposal.decide');
   const body = exactPayload(payload, ['id', 'digest', 'decision'], ['id', 'digest', 'decision']);
   const id = identifier(body.id, 'Proposal');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you read.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you read.');
   check(body.decision === 'accept' || body.decision === 'reject', 'INVALID_VENTURE_REQUEST', 'Choose accept or reject.');
   const seen = body.digest, decision = body.decision;
   const { state } = readAs(deps, ctx, 'approve');

@@ -4,7 +4,7 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, rmdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { authorize, check, ChausarError, hash, type Context, type State } from './contracts.ts';
+import { authorize, check, ChausarError, hash, type Context, type State, internalCheck } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef } from './vault.ts';
@@ -118,14 +118,14 @@ export class WorkspaceInterchangeLocalCustody {
   #measurements = new Map<string, WorkspaceInterchangeLocalMeasurement>();
 
   constructor(options: WorkspaceInterchangeLocalOptions) {
-    check(options?.vault instanceof Vault && typeof options.assertCompleteOwner === 'function'
+    internalCheck(options?.vault instanceof Vault && typeof options.assertCompleteOwner === 'function'
       && typeof options.applicationDirectory === 'string' && isAbsolute(options.applicationDirectory),
     'INTERCHANGE_HOST_REQUIRED', 'Supply an open Vault, explicit root-owned application directory and current complete-owner guard.');
     const applicationDirectory = resolve(options.applicationDirectory);
     const child = relative(applicationDirectory, options.vault.directory);
-    check(child !== '' && !isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`)
+    internalCheck(child !== '' && !isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`)
       && !child.includes(sep), 'INTERCHANGE_SOURCE_SCOPE', 'The Vault must be one direct managed workspace below the application directory.');
-    check(options.qualification === undefined || ['test-fixture', 'encrypted-local-host'].includes(options.qualification),
+    internalCheck(options.qualification === undefined || ['test-fixture', 'encrypted-local-host'].includes(options.qualification),
       'INTERCHANGE_HOST_REQUIRED', 'Use the explicit local or test-fixture custody classification.');
     this.#options = { ...options, applicationDirectory };
     this.ports = {
@@ -479,7 +479,7 @@ export class WorkspaceInterchangeLocalCustody {
       if (expected) check(same(expected, capture.inventory), 'INTERCHANGE_AUTHORITY_CHANGED', 'The actual current source inventory differs from its independently retained pin.');
       const assertCurrent = async () => {
         await this.#guard(context, state);
-        check(same(this.#options.vault.read(), state) && (await this.#capture(context, state)).fence === source.fence,
+        internalCheck(same(this.#options.vault.read(), state) && (await this.#capture(context, state)).fence === source.fence,
           'INTERCHANGE_AUTHORITY_CHANGED', 'Source authority, access or retained business files changed during the held snapshot.');
       };
       const result = await this.#sourceScope.run({ context: structuredClone(context), inventory: capture.inventory }, () => work({
@@ -505,7 +505,7 @@ export class WorkspaceInterchangeLocalCustody {
   }
   async #withTarget<T>(context: Context, input: { targetId: string; mode: 'allocate' | 'existing' },
     work: (lease: WorkspaceInterchangeTargetLease) => Promise<T>): Promise<T> {
-    check(this.#sourceScope.getStore() && same(this.#sourceScope.getStore()!.context, context),
+    internalCheck(this.#sourceScope.getStore() && same(this.#sourceScope.getStore()!.context, context),
       'INTERCHANGE_SOURCE_LEASE_REQUIRED', 'Hold the current source snapshot before allocating or inspecting a target.');
     const path = this.targetPath(input.targetId);
     return this.#locked('targets', path, async () => {
@@ -663,12 +663,12 @@ export class WorkspaceInterchangeLocalCustody {
   }
   async #remove(context: Context, input: { recordId: string; expectedPinDigest: string; expectedContentDigest: string }) {
     const started = performance.now();
-    check(plainId.test(input.recordId) && digestPattern.test(input.expectedPinDigest) && digestPattern.test(input.expectedContentDigest),
+    internalCheck(plainId.test(input.recordId) && digestPattern.test(input.expectedPinDigest) && digestPattern.test(input.expectedContentDigest),
       'INTERCHANGE_HOST_RECORD', 'Discard requires the exact owned record and both reviewed digests.');
     // Exact private cleanup can revoke only the original issuance, even after source access changed.
     const work = () => this.#locked('records', `${this.#options.vault.vaultId}:${input.recordId}`, async () => {
       const retained = await this.#readUnlocked(context, input.recordId);
-      check(retained.binding.pinDigest === input.expectedPinDigest && retained.binding.contentDigest === input.expectedContentDigest,
+      internalCheck(retained.binding.pinDigest === input.expectedPinDigest && retained.binding.contentDigest === input.expectedContentDigest,
         'INTERCHANGE_REVIEW_CHANGED', 'Discard compares both actual independently bound ciphertext digests.');
       const vault = this.#options.vault;
       const tombstone = await vault.writeArtifact({ id: retained.commit.id, purpose: 'workspace-interchange', expectedDigest: retained.commit.valueDigest,

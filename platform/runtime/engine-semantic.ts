@@ -1,4 +1,4 @@
-import { check, type Context, type State, type StateStore } from './contracts.ts';
+import { check, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { digest, current } from './actions.ts';
 import { assertSourceAccess, trustFingerprint } from './trust.ts';
 import { ImportService } from './ingest.ts';
@@ -62,7 +62,7 @@ export class EngineSemanticService implements ConnectorSemanticPort {
     // The producer and this adapter may read a moving clock on different ticks.
     // All decisions below derive their time exclusively from the installed host clock.
     check(input.registry === this.#options.registry, 'SEMANTIC_HOST_CHANGED', 'Use the actual installed registry; payload timestamps cannot select the decision time.');
-    check(input.profile.environment === 'synthetic' && input.profile.syntheticFixture === true, 'EXTERNAL_SEMANTICS_UNQUALIFIED', 'This semantic adapter qualifies explicit synthetic fixtures only.');
+    internalCheck(input.profile.environment === 'synthetic' && input.profile.syntheticFixture === true, 'EXTERNAL_SEMANTICS_UNQUALIFIED', 'This semantic adapter qualifies explicit synthetic fixtures only.');
     const dossiers = typeof this.#options.dossiers === 'function' ? this.#options.dossiers(view(input.state).read()) : this.#options.dossiers;
     const matches = dossiers.filter(dossier => dossier.profileId === input.profile.id && dossier.sourceId === input.capture.sourceId);
     check(matches.length === 1, 'SEMANTIC_DOSSIER_REQUIRED', 'Install exactly one rights-reviewed authored dossier for this profile and source.');
@@ -105,14 +105,14 @@ export class EngineSemanticService implements ConnectorSemanticPort {
       && review.decoderId === capture.decoderId && review.decoderVersion === capture.decoderVersion && review.schemaSha256 === capture.schemaSha256,
     'SEMANTIC_REVIEW_CHANGED', 'The exact reviewed mapping and its current human reviewer authority are required.');
     const persisted = state.imports.find(item => item.type === 'connector-read-import-link-v1' && item.id === readLink.id);
-    check(persisted && digest(persisted) === digest(readLink), 'SEMANTIC_CUSTODY_REQUIRED', 'Read custody must come from the persisted Engine-owned bridge link.');
+    internalCheck(persisted && digest(persisted) === digest(readLink), 'SEMANTIC_CUSTODY_REQUIRED', 'Read custody must come from the persisted Engine-owned bridge link.');
   }
   #custody(ctx: Context, input: EngineSemanticInput) {
     this.#access(ctx, input);
     const { state, capture, profile, readLink: link, decoderDescriptor: decoder } = input;
     const authority = { tenantId: state.workspace.id, sourceId: profile.sourceId, companyId: profile.companyId, ...(profile.organizationId ? { organizationId: profile.organizationId } : {}) };
     const authorityHash = readAuthorityScopeHash(authority), domainHash = digest(capture.domain), readKey = connectorOperationKey(profile.readOperation);
-    check(capture.snapshot.kind === 'source-snapshot' && capture.terminal && capture.gaps.length === 0
+    internalCheck(capture.snapshot.kind === 'source-snapshot' && capture.terminal && capture.gaps.length === 0
       && capture.pages.length > 0 && capture.pages.length === link.pages.length
       && link.captureId === capture.id && link.sourceId === capture.sourceId && link.importOperationKey === capture.operationKey
       && capture.operationKey === connectorOperationKey(profile.importOperation)
@@ -160,7 +160,7 @@ export class EngineSemanticService implements ConnectorSemanticPort {
   #source(input: EngineSemanticInput, dossier: EngineSemanticDossier, translation?: SemanticTranslationResult): QualificationInput {
     const configured = structuredClone(dossier.current); const rows = translation?.rows ?? rowsOf(input.capture);
     const { capture, sourceTotals: totals } = input;
-    check(configured.batch.rowsHash === hashData(rows) && hashData(configured.batch.rows) === hashData(rows)
+    internalCheck(configured.batch.rowsHash === hashData(rows) && hashData(configured.batch.rows) === hashData(rows)
       && configured.batch.company === capture.domain.company && hashData(configured.compiled.rules.branches) === hashData(capture.domain.branches)
       && hashData(configured.compiled.rules.period) === hashData(capture.domain.period)
       && capture.snapshot.kind === 'source-snapshot' && capture.snapshot.id === configured.batch.snapshotId,
@@ -226,7 +226,7 @@ export class EngineSemanticService implements ConnectorSemanticPort {
   }
   #anchor(input: EngineSemanticInput): Anchor {
     const anchor = input.state.imports.find(item => item.type === 'engine-semantic-anchor-v1' && item.id === anchorId(input.capture.id)) as Anchor | undefined;
-    check(anchor && anchor.captureId === input.capture.id && anchor.sourceId === input.capture.sourceId && anchor.generation === input.capture.generation
+    internalCheck(anchor && anchor.captureId === input.capture.id && anchor.sourceId === input.capture.sourceId && anchor.generation === input.capture.generation
       && sha(anchor.head), 'SEMANTIC_ANCHOR_REQUIRED', 'Use the separately retained Engine-owned ledger anchor, never a supplied ledger head.');
     return anchor;
   }
