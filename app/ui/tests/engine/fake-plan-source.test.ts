@@ -82,8 +82,8 @@ describe("fake plan draft: the kept card's one line", () => {
     for (const question of view.interview.questions) view = await client.request('venture.interview.answer', { questionId: question.id, answer: question.required ? (question.kind === 'yesno' ? { yes: false } : { choiceId: question.choices[0]!.id }) : { skipped: true } } as never);
     const shown = { name: 'Pune Frames Studio', by: 'template' as const, offers: [{ name: 'Birthday party photography', line: 'Photos of the party.' }, { name: 'Shop product photos', line: '' }] };
     const plan = (await client.request('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
-    expect(plan.oneLiner.value).toBe('Birthday party photography and shop product photos.');
+    expect(plan.oneLiner.value).toBe('Birthday party photography and Shop product photos.');
     const rows = (await client.request('venture.queue.list', {})).rows;
-    expect(rows.find((row) => row.kind === 'plan')?.line).toBe('Birthday party photography and shop product photos.');
+    expect(rows.find((row) => row.kind === 'plan')?.line).toBe('Birthday party photography and Shop product photos.');
   });
 });

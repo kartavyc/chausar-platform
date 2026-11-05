@@ -1461,7 +1461,8 @@ export class FakeEngine {
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);
       // One-shot B1 (A3 notes line 51), as applyShown: the one line from the kept offers, on the plan and its Today row.
-      view.blueprint.oneLiner = words(shownLine(shown.offers.map((kept) => kept.name)));
+      const line = shownLine(shown.offers.map((kept) => kept.name));
+      if (line) view.blueprint.oneLiner = words(line);
       const planRow = this.rows.find((row) => row.id === `q-plan-${business.id}`);
       if (planRow) { planRow.line = view.blueprint.oneLiner.value; const { digest: _was, ...seed } = planRow; planRow.digest = digestOf(seed); }
       (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({

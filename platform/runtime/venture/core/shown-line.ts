@@ -7,24 +7,30 @@
 /** The most a plan's one line may hold (blueprint.ts singleLine max for oneLiner). */
 export const SHOWN_LINE_MAX = 160;
 
-/** A later name starts lower case, unless its first word is an acronym ("GST returns"). */
-function midSentence(name: string): string {
-  const first = name.split(/\s+/)[0] ?? '';
-  return first.length > 1 && first === first.toUpperCase() ? name : name.charAt(0).toLowerCase() + name.slice(1);
-}
-
+/** The names in one sentence, each as the owner kept it (B1 fix round 1: "Shopify store setup" stays capitalised). */
 function sentence(names: readonly string[]): string {
-  const parts = names.map((name, index) => (index === 0 ? name : midSentence(name)));
-  const body = parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+  const body = names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
   return `${body.replace(/[.\s]+$/, '')}.`;
 }
 
-/** "Birthday party photography, shop product photos and monthly photo support." Later offers go first if it is long. */
+/** One name too long for the line, cut at the last whole word that fits. */
+function cutAtWord(name: string): string {
+  const room = SHOWN_LINE_MAX - 1;
+  if (name.length <= room) return sentence([name]);
+  const space = name.lastIndexOf(' ', room);
+  return sentence([name.slice(0, space > 0 ? space : room)]);
+}
+
+/**
+ * "Birthday party photography, Shop product photos and Monthly photo support." Later offers go first if it is long.
+ * No offers make no line (''), and the caller keeps the line it had.
+ */
 export function shownLine(names: readonly string[]): string {
   const clean = names.map(name => name.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  if (clean.length === 0) return '';
   for (let count = clean.length; count > 1; count--) {
     const line = sentence(clean.slice(0, count));
     if (line.length <= SHOWN_LINE_MAX) return line;
   }
-  return sentence(clean.slice(0, 1)).slice(0, SHOWN_LINE_MAX);
+  return cutAtWord(clean[0]!);
 }

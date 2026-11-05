@@ -898,7 +898,8 @@ function applyShown(record: BlueprintRecord, shown: Shown): void {
   const owned = record.offers.filter(offer => offer.addedByOwner);
   record.name = words(shown.name);
   // One-shot B1 (A3 notes line 51): the one line is the kept card's offers, never the template's line.
-  record.oneLiner = words(shownLine(shown.offers.map(kept => kept.name)));
+  const line = shownLine(shown.offers.map(kept => kept.name));
+  if (line) record.oneLiner = words(line);
   record.offers = [...shown.offers.map((kept, index) => {
     const was = template[index];
     return {
