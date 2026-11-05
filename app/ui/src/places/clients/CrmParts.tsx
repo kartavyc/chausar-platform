@@ -12,11 +12,6 @@ import type { FieldChangeView, TimelineEntryView } from '../../engine/types';
 import { useDay } from '../money/words';
 import s from './Crm.module.css';
 
-/** A moment ('2026-10-22T10:00:00Z') as its day on this computer's calendar ('2026-10-22'). */
-export const dayOfMoment = (at: string) => {
-  const when = new Date(at);
-  return Number.isNaN(when.getTime()) ? at : new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(when);
-};
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 export function Fold({ summary, open, onToggle, children }: { summary: string; open?: boolean; onToggle?: (open: boolean) => void; children: ReactNode }) {
@@ -41,7 +36,7 @@ export function HistoryList({ rows }: { rows: readonly FieldChangeView[] }) {
             {row.after !== null && <>{': '}<span data-content="" className={s.words}>{row.after}</span></>}
             {row.before !== null && <>{' ('}{t('crm.history.was')}{' '}<span data-content="" className={s.words}>{row.before}</span>{')'}</>}
           </span>
-          <span className={s.when}>{day(dayOfMoment(row.at))}</span>
+          <span className={s.when}>{day(row.at)}</span>
         </li>
       ))}
     </ul>

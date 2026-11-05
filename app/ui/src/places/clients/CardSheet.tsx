@@ -182,12 +182,6 @@ function NextForm({ card, reload }: { card: PipelineCardView; reload: () => void
   );
 }
 
-/** A moment as its day on this computer's calendar ('2026-10-22'), for the day words. */
-const dayOf = (at: string) => {
-  const when = new Date(at);
-  return Number.isNaN(when.getTime()) ? at : new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(when);
-};
-
 /**
  * Move forward, with what the stage rests on (venture.pipeline.move). Proposal rests on one of the business's quotes
  * (newest first) or a note of what was offered; Lost starts with no reason, so the owner says why. Move stays locked
@@ -251,7 +245,7 @@ function MoveForm({ card, quotes, reload, picked, onSaid }: {
             <option value="" disabled>{t('clients.pipeline.card.quotePick')}</option>
             {quotes.map((quote) => (
               <option key={quote.receiptId} value={quote.receiptId}>
-                {t(quote.quantity === '1' ? 'clients.pipeline.card.quoteOption' : 'clients.pipeline.card.quoteOptionMany', { offer: quote.offer, quantity: quote.quantity, value: quote.value, day: day(dayOf(quote.at)) })}
+                {t(quote.quantity === '1' ? 'clients.pipeline.card.quoteOption' : 'clients.pipeline.card.quoteOptionMany', { offer: quote.offer, quantity: quote.quantity, value: quote.value, day: day(quote.at) })}
               </option>
             ))}
             <option value="note">{t('clients.pipeline.card.noteOption')}</option>

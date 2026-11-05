@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useState } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useEffect, useId, useState } from 'react';
+import { useT } from '../../text';
+import { useDay, useMoment } from '../../parts/when';
 import { useEngine } from '../../engine/context';
 import { useClock } from '../../shell/clock';
 import { openSheet } from '../../shell/navigation';
@@ -12,12 +13,6 @@ import c from './ChecksTile.module.css';
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const TONE: Readonly<Record<ConnectorCheckRow['outcome'], StatusTone>> = { answered: 'ok', failed: 'fail', skipped: 'question' };
-
-/** A day the engine sent ("2027-01-13") as "13 Jan 2027" in the reader's language. */
-function dayOf(day: string, language: string): string {
-  const at = new Date(`${day}T00:00:00.000Z`);
-  return Number.isNaN(at.getTime()) ? day : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(at);
-}
 
 /** Where a connection is set up again: Your AI for a key or a tool, the bank sheet, Website build for GitHub. */
 function reconnect(row: ConnectorCheckRow): { href: string } | { sheet: [string, string] } {
@@ -36,7 +31,8 @@ function reconnect(row: ConnectorCheckRow): { href: string } | { sheet: [string,
  */
 export function ChecksTile() {
   const t = useT();
-  const language = useLanguage();
+  const day = useDay();
+  const moment = useMoment('short');
   const client = useEngine();
   // Today on this computer's calendar (not the UTC day), as 'YYYY-MM-DD', to compare with the day access ends.
   const now = useClock()();
@@ -53,11 +49,7 @@ export function ChecksTile() {
     client.request('venture.connectors.check', { last: true }).then((last) => { if (live && last) setView((now) => now ?? last); }, () => {});
     return () => { live = false; };
   }, [client]);
-  const when = useMemo(() => {
-    const day = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' });
-    const time = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-    return (iso: string) => `${day.format(new Date(iso))}, ${time.format(new Date(iso))}`;
-  }, [language]);
+  const when = (iso: string) => moment(iso);
 
   async function check() {
     setBusy(true);
@@ -102,7 +94,7 @@ export function ChecksTile() {
                         {row.fix && <p className={c.fix}>{row.fix}</p>}
                         {row.expiresOn && (
                           <p className={c.ends} data-ended={ended ? '' : undefined}>
-                            {t(ended ? 'connections.checks.ended' : 'connections.checks.ends', { day: dayOf(row.expiresOn, language) })}
+                            {t(ended ? 'connections.checks.ended' : 'connections.checks.ends', { day: day(row.expiresOn) })}
                           </p>
                         )}
                       </div>

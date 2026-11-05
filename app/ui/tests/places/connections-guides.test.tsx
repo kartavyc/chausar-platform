@@ -137,7 +137,7 @@ describe('Connections: Check connections', () => {
     const tile = await screen.findByRole('region', { name: 'Check connections' });
     const rows = await within(tile).findByRole('list', { name: 'What each check found' });
     expect(within(rows).getAllByRole('listitem').map((item) => item.querySelector('[data-check-name]')?.textContent)).toEqual(['Bank: HDFC current']);
-    expect(tile.querySelector('[data-checked-at]')?.textContent).toMatch(/^Last checked /);
+    expect(tile.querySelector('[data-checked-at]')?.textContent).toMatch(/^Last checked \d{1,2} [A-Z][a-z]{2}, \d{1,2}:\d{2} [ap]m$/); // B2: the owner's zone, 12-hour clock
     expect(calls).toEqual([{ last: true }]);
   });
 
