@@ -22,8 +22,7 @@ export const RECEIPT_WORDS = Object.freeze({
   tier: { main: 'Main model', fast: 'Quick model' } as Readonly<Record<ModelTier, string>>,
 });
 const SEPARATOR = ' · ';
-// B2: counts group as the owner's country does; India first when no business is at hand.
-const count = (value: number) => formatCount(value, 'IN');
+
 
 /** The tool in the owner's words: Codex and Claude Code on their plan, a model on their key, templates. */
 export function toolWords(presetId: ModelPresetId): Display {
@@ -36,8 +35,10 @@ export function toolWords(presetId: ModelPresetId): Display {
 }
 
 /** The tokens a provider reported, or that it reported none. */
-export function usageWords(usage: Pick<AgentUsage, 'inputTokens' | 'outputTokens'> | null | undefined): Display {
+export function usageWords(usage: Pick<AgentUsage, 'inputTokens' | 'outputTokens'> | null | undefined, country: string | null | undefined): Display {
   if (!usage) return RECEIPT_WORDS.tokensNotReported;
+  // B2 fix round 1: grouped as the business's country groups a count ("441,000" in the US); India when none is known.
+  const count = (value: number) => formatCount(value, country ?? 'IN');
   return `${count(usage.inputTokens)} tokens in, ${count(usage.outputTokens)} out`;
 }
 
@@ -72,7 +73,7 @@ export function callsModelReceipt(state: State, venture: VentureRecord, calls: r
   const tier = unique(calls.map(call => RECEIPT_WORDS.tier[call.tier] ?? RECEIPT_WORDS.tier.main));
   const reported = calls.filter(call => call.usage);
   const usage = !reported.length ? RECEIPT_WORDS.tokensNotReported
-    : usageWords({ inputTokens: reported.reduce((sum, call) => sum + call.usage!.inputTokens, 0), outputTokens: reported.reduce((sum, call) => sum + call.usage!.outputTokens, 0) })
+    : usageWords({ inputTokens: reported.reduce((sum, call) => sum + call.usage!.inputTokens, 0), outputTokens: reported.reduce((sum, call) => sum + call.usage!.outputTokens, 0) }, venture.country?.code)
       + (reported.length < calls.length ? RECEIPT_WORDS.someNotReported : '');
   const base = { tool, model, tier, usage, ...(agent ? { agent } : {}) };
   if (calls.every(planCall)) return finish({ ...base, cost: RECEIPT_WORDS.plan, state: 'plan' });
@@ -100,7 +101,7 @@ export function runModelReceipt(state: State, venture: VentureRecord, run: Deliv
     const presetId = job.route?.presetId;
     const plan = planJob(state, run);
     const tool = presetId ? toolWords(presetId) : plan ? RECEIPT_WORDS.yourTool : RECEIPT_WORDS.yourKey;
-    const base = { tool, model: job.model ?? job.route?.model ?? RECEIPT_WORDS.notReported, tier: RECEIPT_WORDS.tier[job.route?.tier ?? 'main'], usage: usageWords(job.usage), agent };
+    const base = { tool, model: job.model ?? job.route?.model ?? RECEIPT_WORDS.notReported, tier: RECEIPT_WORDS.tier[job.route?.tier ?? 'main'], usage: usageWords(job.usage, venture.country?.code), agent };
     if (plan) return finish({ ...base, cost: RECEIPT_WORDS.plan, state: 'plan' });
     if (job.cost?.state !== 'priced') return finish({ ...base, cost: RECEIPT_WORDS.unknown, state: 'unknown' });
     const total = settledTotal(deliveryRunSpends(state, run));

@@ -291,7 +291,7 @@ function sourceView(state: State, venture: VentureRecord, record: KnowledgeRecor
   const held = sourceHeld(record);
   const line = [
     lead, ...screenWords(record.screen),
-    ...(record.text.length >= MAX_SOURCE_CHARS ? [`Chausar keeps the first ${formatCount(MAX_SOURCE_CHARS, 'IN')} characters.`] : []),
+    ...(record.text.length >= MAX_SOURCE_CHARS ? [`Chausar keeps the first ${formatCount(MAX_SOURCE_CHARS, venture.country?.code ?? 'IN')} characters.`] : []),
     ...(erased ? [ERASED_LINE] : []),
     ...(held.length ? [`Held: it has ${listWords(held)}, so agents never read the parts that hold them.`] : []),
   ].join(' ');

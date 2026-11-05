@@ -467,8 +467,8 @@ function runQuality(state: State, venture: VentureRecord, record: DeliveryRunRec
     const upload = findRecord(state, 'venture-upload', id);
     return upload && upload.ventureId === venture.id ? [upload] : [];
   });
-  const read = files.length === harness.uploadIds.length ? readCoverage(files, harness.toolCalls)
-    : { coverage: coverageView(null, null, 'items', 'read'), files: [] };
+  const read = files.length === harness.uploadIds.length ? readCoverage(files, harness.toolCalls, venture.country?.code)
+    : { coverage: coverageView(null, null, 'items', 'read', undefined, venture.country?.code), files: [] };
   return { files, read };
 }
 

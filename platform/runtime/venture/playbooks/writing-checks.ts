@@ -164,7 +164,8 @@ const SUMMARY_PATTERNS: Readonly<Record<WritingLanguage, readonly { label: strin
 });
 
 const LANGUAGE_WORDS: Readonly<Record<WritingLanguage, string>> = { en: 'English', hi: 'Hindi' };
-const plural = (count: number, one: string, many: string) => `${formatCount(count, 'IN')} ${count === 1 ? one : many}`;
+// A count of phrases or hidden characters in one draft: far under 1,00,000, where every country's grouping writes the same digits.
+const plural = (count: number, one: string, many: string) => `${formatCount(count, 'XX')} ${count === 1 ? one : many}`;
 const listed = (items: readonly string[]) => [...new Set(items)].slice(0, 6).join(', ');
 
 function bans(text: string, copy: string, removed: number, language: WritingLanguage, characters: number): WritingResult {

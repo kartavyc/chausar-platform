@@ -146,11 +146,11 @@ export function packSkills(state: State, ventureId: string): { id: string; title
 }
 export const isPackOperation = (operation: string) => operation.startsWith('pack_');
 
-function display(minor: string, unit: PackCalculator['output']['unit'], currency: string): { display: string; unit: 'money' | 'count' | 'percent' } {
+function display(minor: string, unit: PackCalculator['output']['unit'], currency: string, country: string | null | undefined): { display: string; unit: 'money' | 'count' | 'percent' } {
   const value = BigInt(minor);
   if (unit === 'money') return { display: money(value, currency), unit: 'money' };
   if (unit === 'bps') { const sign = value < 0n ? '-' : '', abs = value < 0n ? -value : value; return { display: `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}%`, unit: 'percent' }; }
-  return { display: formatCount(value, 'IN'), unit: 'count' };
+  return { display: formatCount(value, country ?? 'IN'), unit: 'count' };
 }
 
 /**
@@ -166,7 +166,7 @@ export async function calculatePack(deps: VentureDeps, ctx: Context, run: Delive
   return ventureAction(deps, ctx, 'prepare', 'agent.job.packCalculate', tx => {
     guard(tx.state);
     check(tx.list('venture-pack').some(item => item.id === row.id && item.digest === row.digest), 'PACK_NOT_FOUND', 'This pack changed or was removed. Calculate again.');
-    const shown = display(minor, calc.output.unit, currency);
+    const shown = display(minor, calc.output.unit, currency, tx.venture?.country?.code);
     const given = calc.inputs.map(input => `${input.label} ${args[input.name]}`).join(', ');
     const body = { operation: 'pack.calc' as const, runRef: { kind: 'delivery' as const, runId: run.id }, currency,
       inputs: { tables: [{ id: `pack:${row.packId}:${calc.id}`, name: `${row.doc.name}: ${calc.name}`, digest: calc.moduleDigest }],

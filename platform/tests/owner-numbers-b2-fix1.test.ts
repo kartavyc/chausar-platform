@@ -37,3 +37,27 @@ test('a deliverable quotes the exact form: "SGD 5,000" is rebuilt as "SGD 5,000.
   assert.match(render(receipt('INR 1,180.00', '0', 'INR')), /Total: INR 1,180\.00/);
   assert.match(render(receipt('JPY 5,000', '5000', 'JPY')), /Total: JPY 5,000/);
 });
+
+// Quality 1: a count groups as the business's country does. A US business reads "441,000 tokens", never "4,41,000".
+test('model receipt usage words group by the business country: "441,000 tokens" in the US, "4,41,000" in India', async () => {
+  const { usageWords } = await import('../runtime/venture/money/model-receipt.ts');
+  assert.equal(usageWords({ inputTokens: 441000, outputTokens: 1200 }, 'US'), '441,000 tokens in, 1,200 out');
+  assert.equal(usageWords({ inputTokens: 441000, outputTokens: 1200 }, 'IN'), '4,41,000 tokens in, 1,200 out');
+  const { coverageView } = await import('../runtime/venture/delivery/coverage.ts');
+  assert.equal(coverageView(120000, 150000, 'rows', 'read', undefined, 'US').line, '120,000 of 150,000 rows read');
+  assert.equal(coverageView(120000, 150000, 'rows', 'read', undefined, 'IN').line, '1,20,000 of 1,50,000 rows read');
+});
+
+test("under venture/, a count names the business's country: no formatCount(..., 'IN') outside rupee amounts", async () => {
+  const { readdirSync, readFileSync, statSync } = await import('node:fs');
+  const { join, relative, sep } = await import('node:path');
+  const root = join(import.meta.dirname, '../runtime/venture');
+  const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? walk(path) : path.endsWith('.ts') ? [path] : []; });
+  // Rupee amounts group the Indian way wherever the business is, as formatMoney does.
+  const RUPEES: Record<string, string> = {
+    'core/professions.ts': 'a rupee amount', 'core/ways.ts': 'a rupee amount', 'money/spend.ts': 'the rupee rate per dollar',
+  };
+  const found = walk(root).map(path => relative(root, path).split(sep).join('/')).filter(f => !Object.hasOwn(RUPEES, f))
+    .filter(f => readFileSync(join(root, f), 'utf8').split('\n').some(line => /formatCount\(.*,\s*'IN'\)/.test(line)));
+  assert.deepEqual(found, []);
+});
