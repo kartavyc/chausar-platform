@@ -140,8 +140,8 @@ test('Keeper on the team: code in Operations, no steps, no chat; its gates and p
   const keeperAgent = agents.at(-1) as AgentView;
   assert.deepEqual({ id: keeperAgent.id, name: keeperAgent.name, kind: keeperAgent.kind, department: keeperAgent.department, steps: keeperAgent.steps, chat: keeperAgent.chat, state: keeperAgent.state },
     { id: 'keeper', name: 'Keeper', kind: 'code', department: 'operations', steps: [], chat: false, state: 'idle' });
-  assert.match(keeperAgent.role, /code, not AI/);
-  assert.equal(keeperAgent.spend, 'USD 0.0000', 'code spends nothing on AI');
+  assert.match(keeperAgent.role, /fixed rules, not AI/); // B1: the Keeper's role says "fixed rules", not "code"
+  assert.equal(keeperAgent.spend, '$0.00', 'code spends nothing on AI'); // B2's owner form
   await assert.rejects(call(env, 'venture.team.gate', { agentId: 'keeper', stepId: 'backups', gate: 'auto' }), code('AGENT_IS_CODE'));
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'keeper', posture: 'rehearsal' }), code('AGENT_IS_CODE'));
 });
