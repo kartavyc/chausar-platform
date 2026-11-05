@@ -36,3 +36,5 @@ app/ui/results/
 *.key
 tenants/
 *.encrypted.json
+# D7: the engine bundle, its source maps and the bundle test folders (scripts/bundle-engine.mjs).
+app/engine/

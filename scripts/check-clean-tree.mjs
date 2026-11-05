@@ -48,7 +48,7 @@ const KNOWN = [
 
 /** Folders a run, a build or an install may leave in the checkout (layer B; any nested node_modules/ too, such as
  * app/ui/node_modules/.vite, vitest's cache), and files npm may rewrite. */
-const RUN_ALLOWED = ['node_modules/', 'app/ui/dist/', 'release/', 'vendor/codex-bundle/', 'vendor/feedback/'];
+const RUN_ALLOWED = ['node_modules/', 'app/ui/dist/', 'app/engine/', 'release/', 'vendor/codex-bundle/', 'vendor/feedback/'];
 const RUN_ALLOWED_FILES = ['package-lock.json'];
 
 function git(args) {
