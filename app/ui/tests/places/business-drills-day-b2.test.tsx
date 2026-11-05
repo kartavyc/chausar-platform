@@ -8,7 +8,7 @@ import type { MethodName } from '../../src/engine/types';
 /*
  * One-shot B2 task 3 (REPORT row 37, bug 6): a drill run at 00:50 in India on 3 Nov is a 3 Nov drill. The day reads
  * in the business's zone (its country's zone), not in UTC and not in the computer's zone, so the test reads the same
- * under TZ=UTC and TZ=America/New_York. A calendar day ('2026-11-03') is a day on every calendar and never shifts.
+ * on the CI runners (UTC) and on this laptop (India). A calendar day ('2026-11-03') never shifts.
  */
 
 const DRILL = {

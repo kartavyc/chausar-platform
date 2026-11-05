@@ -32,7 +32,7 @@ describe('rules the UI keeps (spec section 6)', () => {
   it('dates and times go through parts/when.ts: no own date formats, 24-hour clocks, UTC pins or raw ISO days (one-shot B2)', () => {
     // parts/when.ts writes every day and time in the owner's zone; onboarding/flow.ts guesses the country from the
     // computer's zone, which is not a date shown to anyone. The fake engine answers as the engine does.
-    const exempt = (f: string) => f.startsWith('engine/fake') || f === 'parts/when.ts' || f === 'places/onboarding/flow.ts';
+    const exempt = (f: string) => f.startsWith('engine/fake') || f === 'places/onboarding/flow.ts';
     const found: string[] = [];
     for (const { f, text } of code.filter((c) => /\.tsx?$/.test(c.f) && !exempt(c.f))) {
       if (/Intl\.DateTimeFormat/.test(text)) found.push(`${f}: Intl.DateTimeFormat`);

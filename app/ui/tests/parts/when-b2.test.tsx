@@ -5,8 +5,8 @@ import { useDay, useDayKey, useLocalToday, useMoment, useMonth, useOwnerHour, us
 
 /*
  * One-shot B2 task 4: every day and time on a screen goes through parts/when.ts, which reads the owner zone and the
- * app's one clock. Under a fixed zone and clock each hook writes the same words on any computer (the gate runs this
- * file with TZ=UTC and TZ=America/New_York too).
+ * app's one clock. Under a fixed zone and clock each hook writes the same words on any computer: the zone is pinned
+ * here, and the CI runners (UTC) and this laptop (India) both run the file.
  */
 
 const NOW = '2026-11-02T19:11:00.000Z'; // 12:41 am on 3 Nov in India; still 2 Nov in UTC and New York

@@ -119,7 +119,7 @@ it('forecasts exclude old-currency quotes and accept a new quote after enough hi
   await engine.request('venture.pipeline.move', { id: 'opp_seed_vikram', stage: 'proposal', evidence: { kind: 'quote', id: quote.id } });
   const forecast = (await engine.request('venture.pipeline.list', {})).forecast;
   expect(forecast).toMatchObject({ label: 'forecast in USD only, from your last 90 days' });
-  expect(forecast && 'value' in forecast && forecast.value).toMatch(/^USD /);
+  expect(forecast && 'value' in forecast && forecast.value).toMatch(/^[$][0-9]/); // the owner form, as the engine's planDisplay writes it (B2)
   const receipt = await engine.request('venture.receipt.get', { id: forecast && 'receiptId' in forecast ? forecast.receiptId : '' });
   expect(receipt.explanation).toContain('Other currencies are excluded.');
   await engine.request('workspace.open', { folder: 'ledgerline' });

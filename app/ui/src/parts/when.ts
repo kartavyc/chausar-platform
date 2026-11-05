@@ -8,7 +8,7 @@
 import { useMemo } from 'react';
 import type { Language } from '../text';
 import { useClock, useOwnerZone } from '../shell/clock';
-import { dayKeyIn, formatDay, formatElapsed, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, type When } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatDay, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, type When } from '../../../../platform/runtime/owner-format';
 
 /** The one language-to-locale map. Every language writes the English forms until the Hindi pack returns (C5). */
 export const LOCALE: Record<Language, string> = { en: 'en-IN' };
@@ -59,6 +59,3 @@ export function useDayKey(): (value: When) => string {
 export function useOwnerHour(): number {
   return hourIn(useClock()(), useOwnerZone());
 }
-
-/** How long something took ("1 min 20 s"); nothing for under a second. */
-export const elapsedWords = formatElapsed;
