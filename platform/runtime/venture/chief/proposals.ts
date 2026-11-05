@@ -292,7 +292,7 @@ export async function decideProposal(deps: VentureDeps, ctx: Context, decision: 
     check(/^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(Date.parse(`${day}T00:00:00Z`)) && new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) === day,
       'INVALID_VENTURE_REQUEST', 'Pick the day for this step first.');
     const country = currentVenture(deps.store.read())?.country;
-    const today = country ? localDayAt(deps.clock(), country) : deps.clock().toISOString().slice(0, 10);
+    const today = localDayAt(deps.clock(), country);
     check(day >= today, 'INVALID_VENTURE_REQUEST', 'Pick today or a later day for this step.');
   }
   const { claimed, runsBefore } = await ventureAction(deps, ctx, 'approve', 'proposals.decide', tx => {

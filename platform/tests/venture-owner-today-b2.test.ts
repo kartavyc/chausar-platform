@@ -3,10 +3,10 @@
 // India on 22 Oct, UTC still says 21 Oct; the owner's day is 22 Oct.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
 import type { VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
@@ -65,5 +65,90 @@ test('none of the listed spots reads the UTC day or a fixed India offset any mor
     assert.ok(!/(?:clock\(\)|new Date\(\)|Date\.now\(\)[^;]*)\.toISOString\(\)\.slice\(0, ?10\)/.test(text), file);
     assert.ok(!/tx\.now\.slice\(0, ?10\)/.test(text), file);
     assert.ok(!/19800000|330 \* 60/.test(text), file);
+  }
+});
+
+// B2 fix round 1 (spec 5, quality 7): one owner-day rule across venture/ (build/ included). A day or month the owner
+// reads comes from the injected clock in the business's zone (local-day.ts localDayAt, ownerToday, todayLocal). These
+// shapes read the UTC day of an instant or the computer's own clock instead; each place left is listed with its reason.
+const UTC_DAY = /\bnow\.slice\(0, ?(?:7|10)\)|(?:clock\(\)|new Date\(\)|Date\.now\(\)\))\.toISOString\(\)\.slice\(0, ?(?:7|10)\)|(?:\bat|\.at|At|Iso|iso)\.slice\(0, ?(?:7|10)\)|\bDate\.now\(\)|localDayAt\(new Date\(\)/g;
+const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: string]>> = {
+  // The spend calendar: every AI spend cap, meter and spend line counts by the UTC month of each spend, one rule for
+  // the engine and the fake. Moving it to the owner's month is a separate decision (caps would reset at the owner's
+  // midnight on the 1st); see the B2 fix round 1 notes.
+  'agent-runtime/billing.ts': [3, 'the spend calendar (UTC month)'],
+  'models/budget.ts': [2, 'the spend calendar (UTC month)'],
+  'models/port.ts': [1, 'the spend calendar (UTC month)'],
+  'money/agent-meters.ts': [1, 'the spend calendar (UTC month)'],
+  'money/spend-meter.ts': [1, 'the spend calendar (UTC month)'],
+  'money/spend.ts': [1, 'the spend calendar (UTC month)'],
+  'money/across.ts': [1, "the summary's AI spend line, on the spend calendar (UTC month)"],
+  'money/overview.ts': [1, "Money's spend line, on the spend calendar (UTC month)"],
+  'views/team-series.ts': [1, "Team's spend series, on the spend calendar (UTC month)"],
+  'build/storefront-assistant-model.ts': [1, "the shop assistant's model budget, on the spend calendar (UTC month)"],
+  'money/department-spend.ts': [1, "the department spend split, on the spend calendar (its comment says so)"],
+  'agents/talk-core.ts': [1, "the voice provider's monthly spend, on the spend calendar (UTC month)"],
+  'playbooks/kit/define.ts': [1, "a playbook's dated rules checked once when it loads, before any business is open"],
+  // Elapsed time and deadlines, never a day.
+  'agent-runtime/runner.ts': [6, 'elapsed time and timeouts'],
+  'build/browser.ts': [5, 'elapsed time and timeouts'],
+  'build/fetch-policy.ts': [3, 'elapsed time and timeouts'],
+  'build/monitors.ts': [2, 'elapsed time and timeouts'],
+  'build/posting.ts': [1, 'a click deadline'],
+  'build/storefront-widget-page.ts': [1, "the buyer's own browser clock in the widget page script"],
+  'core/net-guard.ts': [4, 'elapsed time and timeouts'],
+  'models/login.ts': [5, 'elapsed time and timeouts'],
+  'playbooks/monitored-data/schedule.ts': [2, 'a time budget for one round of looks'],
+  'playbooks/seo-visibility/monitor-desk.ts': [3, 'a request deadline'],
+  'web/reader.ts': [1, "the page cache's age"],
+  'network/extract-calendar.ts': [1, 'the fallback when the caller gives no day; the callers pass the owner day'],
+  // A stamp's own calendar day, or a day written into text the AI and the client read.
+  'delivery/research-rules.ts': [2, "a citation's read-on day in research text (review spec 7)"],
+  'build/bank.ts': [2, "the bank consent's own expiry day as the bank stamped it"],
+  'build/connector-check.ts': [1, "the bank consent's own expiry day as the bank stamped it"],
+  'build/share-links.ts': [2, "a link's own expiry day as it was stamped"],
+  'playbooks/kit/report/share.ts': [2, 'a calendar day already written YYYY-MM-DD, formatted'],
+  'playbooks/youtube/data-api.ts': [1, "YouTube's own published day"],
+  'money/dates.ts': [1, 'calendar arithmetic on a day string'],
+  'playbooks/social/risk-gate.ts': [1, "a platform rule's checked-on age, not a business day"],
+  // LEFT in this round (B2 fix round 1 notes): each still takes the transaction's UTC day.
+  'agent-runtime/desk-context.ts': [2, "LEFT: a run's own day for its seller and recruiting report"],
+  'delivery/deliverable.ts': [1, "LEFT: the order's day on a draft's date line"],
+  'playbooks/monitored-data/extract.ts': [4, 'LEFT: a watched page read day'],
+  'playbooks/monitored-data/check.ts': [1, 'LEFT: a watched page read day'],
+  'playbooks/monitored-data/state.ts': [2, 'LEFT: a watched page read day'],
+  'playbooks/recruiting-desk/ledger.ts': [2, 'LEFT: a touch day in the recruiting ledger'],
+  'playbooks/recruiting-desk/round-core.ts': [1, 'LEFT: the recruiting report day'],
+  'playbooks/narration-studio/runtime.ts': [1, 'LEFT: the narration source rights day'],
+  'playbooks/app-testing/demo-source.ts': [1, 'LEFT: the demo narration rights day'],
+  'playbooks/online-seller/shopify-state.ts': [2, 'LEFT: the Shopify change day'],
+  'playbooks/online-seller/model.ts': [1, 'LEFT: a pure seller calculator called with no day (the desk and the harness now pass the owner day)'],
+  'playbooks/trading-journal/desk.ts': [1, 'LEFT: the trading journal as-of day'],
+  'delivery/harness/tools-translation-studio.ts': [1, 'LEFT: the translation rights day in the harness'],
+};
+
+test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {
+  const root = join(import.meta.dirname, '../runtime/venture');
+  const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? walk(path) : path.endsWith('.ts') ? [path] : []; });
+  const found = walk(root).map(path => [relative(root, path).split(sep).join('/'), (readFileSync(path, 'utf8').match(UTC_DAY) ?? []).length] as const)
+    .filter(([f, count]) => count !== (UTC_DAY_PLACES[f]?.[0] ?? 0)).map(([f, count]) => `${f}: ${count}, listed ${UTC_DAY_PLACES[f]?.[0] ?? 0}`);
+  assert.deepEqual(found, []);
+});
+
+test("a run's consent check at 00:30 in India reads the owner's day: a consent until 21 Oct no longer holds on 22 Oct", async () => {
+  const { requireOrderPeopleConsent, todayOf } = await import('../runtime/venture/playbooks/kit/voice-consent.ts');
+  for (const [code, holds] of [['IN', false], ['US', true]] as const) {
+    const deps = await seeded({ code });
+    await ventureAction(deps, owner, 'admin', 'consent', tx => tx.put({
+      ...tx.base('venture-voice-consent'), speaker: 'Asha', version: 1, until: '2026-10-21', revokedAt: null, updatedAt: tx.now,
+    } as any), { create: true });
+    const state = deps.store.read(), venture = listRecords(state, 'venture-record')[0]!;
+    const consentId = listRecords(state, 'venture-voice-consent', venture.id)[0]!.id;
+    const order = { intake: { fields: { people: [{ name: 'Asha', consentId }] } } } as any;
+    // The day the run guard is given (delivery/runs.ts: todayOf(venture, deps.clock())).
+    const today = todayOf(venture, deps.clock());
+    assert.equal(today, code === 'IN' ? '2026-10-22' : '2026-10-21');
+    const check = () => requireOrderPeopleConsent(state, venture, order, today);
+    if (holds) assert.doesNotThrow(check); else assert.throws(check, { code: 'CONSENT_REQUIRED' });
   }
 });

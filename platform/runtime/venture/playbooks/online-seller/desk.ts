@@ -4,6 +4,7 @@ import {SELLER_STOREFRONT_DESK,type SellerStorefrontDeskTypes} from './storefron
 // Chausar seller desk. No outside effect; research ideas from sealeap/listing-doctor (MIT), independent code.
 import { check } from '../../../contracts.ts';
 import { digest, exactPayload, findRecord, listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
+import { localDayAt } from '../../local-day.ts';
 import type { DeskHandlers, DeskKindTypes } from '../desk-types.ts';
 import type { Json, SellerSkuRecord } from '../../contracts.ts';
 import type { SellerSkuBody } from './records.ts';
@@ -42,7 +43,7 @@ export const ONLINE_SELLER_DESK: DeskHandlers = Object.freeze({ ...SELLER_OPERAT
     check(body.mode === 'ads' || !economics, 'SELLER_INPUT_INVALID', 'An economics export belongs only on an ads check.');
     const images = sellerCall(() => sellerImageFiles(body.images));
     check(body.mode === 'listing' || images.length === 0, 'SELLER_INPUT_INVALID', 'Photos belong only on a listing check.');
-    const result = sellerCall(() => analyseSellerRows(body.mode as SellerMode, sellerCsv(file.text), { rehearsal: false, ...sellerIndiaRule() }, sellerTaxSources(), images.map(image => ({ name: image.name, ...image.dimensions, source: image.name })), economics ? sellerCsv(economics.text) : undefined));
+    const result = sellerCall(() => analyseSellerRows(body.mode as SellerMode, sellerCsv(file.text), { rehearsal: false, ...sellerIndiaRule(), today: localDayAt(deps.clock(), venture.country) }, sellerTaxSources(), images.map(image => ({ name: image.name, ...image.dimensions, source: image.name })), economics ? sellerCsv(economics.text) : undefined));
     const added = await filesAddHandler(deps, ctx, { orderId: order.id, name: file.name, contentBase64: file.contentBase64 });
     const economicsAdded = economics ? await filesAddHandler(deps, ctx, { orderId: order.id, name: economics.name, contentBase64: economics.contentBase64 }) : null;
     for (const image of images) await filesAddHandler(deps, ctx, { orderId: order.id, name: image.name, contentBase64: image.contentBase64 });

@@ -88,7 +88,7 @@ function scrubForgotten(text: string, index: ForgottenIndex | null): string {
 
 /** The owner's day of a time, in the country's date order; the plain date while the business has no country yet. */
 function dayOf(venture: VentureRecord, at: string): string {
-  return venture.country ? formatVentureDate(localDayAt(at, venture.country), venture.country.dateOrder) : at.slice(0, 10);
+  return venture.country ? formatVentureDate(localDayAt(at, venture.country), venture.country.dateOrder) : localDayAt(at, null);
 }
 
 // ---------------------------------------------------------------------------

@@ -72,7 +72,7 @@ test('native revisions count per post, started rounds cannot be undone, and the 
     // Seed two completed rounds: the next action must stop before any model preview.
     await ventureAction(f.env.deps, owner, 'prepare', 'fixture.rounds', tx => { const order = tx.find('venture-order', f.order.id)!; tx.replace({ ...order, socialGhostwriting: { rounds: { 'post-1': 2 }, decisions: {}, charges: [] } }); });
     const before = f.env.models.previewed.length;
-    await assert.rejects(f.act('revise'), (e: any) => e.code === 'OFFER_EXTRA_ROUND' && e.message.includes('250.00'));
+    await assert.rejects(f.act('revise'), (e: any) => e.code === 'OFFER_EXTRA_ROUND' && e.message.includes('₹250.'));
     assert.equal(f.env.models.previewed.length, before);
     const quote = (await f.act('quote')).result as any;
     assert.equal(quote.amountMinor, '25000');

@@ -187,7 +187,7 @@ export async function moneyAcross(deps: VentureDeps, ctx: Context, payload: unkn
   };
   const own = await businessSnapshot(deps, ctx);
   const money = own?.snapshot.money ?? null;
-  const month = money?.month ?? deps.clock().toISOString().slice(0, 7);
+  const month = money?.month ?? todayLocal(deps.clock, venture.country).slice(0, 7);
   const rows: MoneyRow[] = [{
     businessId, name: venture.workingName, open: true, locked: false, asOf: null, line: money ? OPEN_LINE : NO_COUNTRY_LINE, lineKey: money ? 'open' : 'no-country',
     invoiced: savedWords(money?.invoiced), received: savedWords(money?.received), owed: savedWords(money?.owed),
