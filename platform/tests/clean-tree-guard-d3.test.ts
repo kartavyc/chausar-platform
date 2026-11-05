@@ -28,7 +28,8 @@ async function repo(t: TestContext, edit: (source: string) => string = source =>
   await writeFile(join(directory, '.gitignore'), 'node_modules/\nresults/\n');
   git('add', '.'); git('commit', '-q', '-m', 'synthetic start');
   const put = async (path: string, content: string | Buffer) => { await mkdir(dirname(join(directory, path)), { recursive: true }); await writeFile(join(directory, path), content); };
-  const track = async (path: string, content: string | Buffer) => { await put(path, content); git('add', path); git('commit', '-q', '-m', `add ${path}`); };
+  // -f: a file tracked although .gitignore names it (results/ here) is exactly what layer A must catch.
+  const track = async (path: string, content: string | Buffer) => { await put(path, content); git('add', '-f', path); git('commit', '-q', '-m', `add ${path}`); };
   const check = (mode: '--tracked' | '--after-run') => spawnSync(process.execPath, [join(directory, 'scripts', 'check-clean-tree.mjs'), mode], { cwd: directory, env, encoding: 'utf8', windowsHide: true });
   return { directory, put, track, check };
 }
@@ -50,7 +51,8 @@ test('layer A: tracked data fails, named with its kind; a docs/verification .tap
   assert.equal(result.status, 1);
   assert.match(result.stderr, /data\/x\.json: runtime data \(data\/\)/);
   assert.match(result.stderr, /Data is tracked in the repo\./);
-  for (const path of ['app/ui/.shots/a.png', 'logs/run.tap', 'vaults/b.vault', 'hosted/dev-custody.key', 'hosted/tenants/t.json', 'reports/r.vitest.json', 'x.encrypted.json', 'b.backup']) {
+  // D3 fix (review 1, LOW 1): results/ and custody/ too, so dropping either pattern from the script turns this red.
+  for (const path of ['app/ui/.shots/a.png', 'logs/run.tap', 'vaults/b.vault', 'hosted/dev-custody.key', 'hosted/tenants/t.json', 'reports/r.vitest.json', 'x.encrypted.json', 'b.backup', 'results/r.json', 'custody/c.json']) {
     const one = await repo(t);
     await one.track(path, 'x');
     assert.equal(one.check('--tracked').status, 1, path);
