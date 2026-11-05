@@ -88,6 +88,20 @@ test('every reviewed entry still names a fixed temp path in its file, so the lis
   }
 });
 
+// D2 task 6: `bench.mjs --isolation=none` keeps a process for each file that changes shared process state. The list in
+// tiers.json must be exactly the files that do it, found the same way as at the task.
+const SHARED_STATE = /process\.env(?:\.\w+|\[[^\]]+\])\s*=[^=]|delete process\.env|Object\.assign\(process\.env|process\.chdir\(|globalThis(?:\.\w+|\[[^\]]+\])\s*=[^=]|Object\.defineProperty\(globalThis|mock\.timers/;
+
+test('tiers.json isolated lists exactly the engine test files that change process.env, the folder, globalThis or timers', async () => {
+  const tiers = JSON.parse(await readFile(join(TESTS, 'tiers.json'), 'utf8')) as { isolated: string[] };
+  const found: string[] = [];
+  for (const name of (await readdir(TESTS)).filter(name => name.endsWith('.test.ts')).sort()) {
+    if (name === 'test-isolation-d2.test.ts') continue; // the pattern above is text here, not a change of state
+    if (SHARED_STATE.test(await readFile(join(TESTS, name), 'utf8'))) found.push(`platform/tests/${name}`);
+  }
+  assert.deepEqual([...tiers.isolated].sort(), found);
+});
+
 test('the scan itself: created fixed names fail even when reviewed, unique and mkdtemp names pass, fixed ports fail', () => {
   const reviewed = [{ file: 'a.test.ts', name: 'chausar-bin', reason: 'reviewed for the self-test' }];
   const check = (text: string) => scan('a.test.ts', text, reviewed).map(found => found.problem);

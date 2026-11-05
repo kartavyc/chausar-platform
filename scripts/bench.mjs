@@ -6,15 +6,15 @@ import { dirname, isAbsolute, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all';
-const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--tier=fast|heavy|all] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
+const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null; let requestedWorkers = null; let weightSources = null; let tier = 'all'; let isolation = 'process';
+const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--workers=N] [--tier=fast|heavy|all] [--isolation=none] [--shard=I/N, N from 1 to 8] [--list] | --write-weights=<receipt.json>[,<receipt.json>...]';
 const seen = new Set(); let list = false;
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
   // --list prints the files this run would pick (and the shard plan) and runs nothing.
   if (argument === '--list') { if (list) throw new Error(usage); list = true; continue; }
   const option = argument.split('=', 1)[0];
-  if (!['--output', '--shard', '--workers', '--write-weights', '--tier'].includes(option) || seen.has(option)) throw new Error(usage);
+  if (!['--output', '--shard', '--workers', '--write-weights', '--tier', '--isolation'].includes(option) || seen.has(option)) throw new Error(usage);
   seen.add(option);
   const value = argument.includes('=') ? argument.slice(option.length + 1) : args[++index];
   if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
@@ -23,7 +23,10 @@ for (let index = 0; index < args.length; index++) {
     if (!/^[1-9]\d?$/.test(value) || Number(value) > 64) throw new Error('Workers must be a whole number from 1 to 64.');
     requestedWorkers = Number(value);
   } else if (option === '--write-weights') weightSources = value.split(',');
-  else if (option === '--tier') {
+  else if (option === '--isolation') {
+    if (!['none', 'process'].includes(value)) throw new Error('Isolation must be none or process.');
+    isolation = value;
+  } else if (option === '--tier') {
     if (!['fast', 'heavy', 'all'].includes(value)) throw new Error('The tier must be fast, heavy or all.');
     tier = value;
   } else {
@@ -63,9 +66,9 @@ for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.
 discoveredFiles.sort();
 // D2: platform/tests/tiers.json names the heavy files (over 20 s). --tier=fast runs every other file, --tier=heavy only
 // those, --tier=all (the default) every file. A name there that no longer exists fails the run, so the list stays true.
-let tiers = { heavy: [] };
+let tiers = { heavy: [], isolated: [] };
 try { tiers = JSON.parse(await readFile(resolve(root, 'platform/tests/tiers.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-for (const file of tiers.heavy ?? []) {
+for (const file of [...(tiers.heavy ?? []), ...(tiers.isolated ?? [])]) {
   if (!discoveredFiles.includes(file)) throw new Error(`platform/tests/tiers.json names a test file that does not exist: ${file}`);
 }
 const tierFiles = tier === 'all' ? discoveredFiles : discoveredFiles.filter(file => (tier === 'heavy') === (tiers.heavy ?? []).includes(file));
@@ -123,42 +126,69 @@ if (tempFreeBytes < 6 * GIB && workers > 2) {
   process.stderr.write(`Free space on ${drive} is ${gigabytes} GB, so the engine tests run with 2 workers.\n`);
 }
 const startedAt = new Date().toISOString();
-// Each shard has a twenty-minute deadline; the worker count above bounds the files running at once.
+// Each run has a twenty-minute deadline; the worker count above bounds the files running at once.
 // Run every test in each selected file; no case filters or skip patterns.
 // A second reporter (D2) adds up each file's top-level test time into a lines file beside the receipt; the receipt
 // keeps it as fileTimings and the lines file is removed.
-const timingsPath = destination.replace(/\.json$/, '.timings.jsonl');
-const timingsInside = relative(root, timingsPath).replaceAll('\\', '/');
-await mkdir(dirname(destination), { recursive: true }); await rm(timingsPath, { force: true });
-const command = ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
-  '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${timingsInside}`, `--test-concurrency=${workers}`,
-  ...(selectedFiles ?? [discoveryPattern])];
+// D2 task 6: --isolation=none runs the selected files in one process (Node's --test-isolation=none), except the files
+// tiers.json lists as isolated (they set process.env, chdir, assign globalThis or mock timers), which then run in a
+// second invocation with a process each. Both feed the same receipt. Without the flag nothing changes.
+await mkdir(dirname(destination), { recursive: true });
+const inRepository = path => relative(root, path).replaceAll('\\', '/');
+const commandFor = (files, timings, shared) => ['--test', '--test-reporter=tap', '--test-reporter-destination=stdout',
+  '--test-reporter=./scripts/test-timing-reporter.mjs', `--test-reporter-destination=${inRepository(timings)}`,
+  ...(shared ? ['--test-isolation=none'] : []), `--test-concurrency=${workers}`, ...files];
+const phases = [];
+if (isolation === 'none') {
+  const chosen = selectedFiles ?? tierFiles;
+  const separate = chosen.filter(file => (tiers.isolated ?? []).includes(file)), together = chosen.filter(file => !separate.includes(file));
+  if (together.length) phases.push({ command: commandFor(together, destination.replace(/\.json$/, '.timings.jsonl'), true), timings: destination.replace(/\.json$/, '.timings.jsonl') });
+  if (separate.length) phases.push({ command: commandFor(separate, destination.replace(/\.json$/, '.isolated-timings.jsonl'), false), timings: destination.replace(/\.json$/, '.isolated-timings.jsonl') });
+} else {
+  phases.push({ command: commandFor(selectedFiles ?? [discoveryPattern], destination.replace(/\.json$/, '.timings.jsonl'), false), timings: destination.replace(/\.json$/, '.timings.jsonl') });
+}
+const command = phases[0].command; const isolatedCommand = phases[1]?.command ?? null;
 const fullSuite = shard === null && tier === 'all';
 const scopeParts = [...(tier === 'all' ? [] : [`${tier} tier`]), ...(shard ? [`shard ${shard.index}/${shard.total}`] : [])];
-const outcome = await new Promise((fulfill) => {
-  const child = spawn(process.execPath, command, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+const deadlineAt = Date.now() + 20 * 60 * 1000;
+const runPhase = (args) => new Promise((fulfill) => {
+  const child = spawn(process.execPath, args, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = ''; let truncated = false; let settled = false; let timeout = false;
   const finish = (exitCode, signal, error) => { if (settled) return; settled = true; clearTimeout(deadline); fulfill({ stdout, stderr, truncated, timeout, exitCode, signal, error }); };
   const capture = (current, chunk) => { if (current.length + chunk.length > 16 * 1024 * 1024) { truncated = true; return current; } return current + chunk; };
   child.stdout.on('data', data => { stdout = capture(stdout, data.toString()); });
   child.stderr.on('data', data => { stderr = capture(stderr, data.toString()); });
   child.once('error', error => finish(null, null, error.message)); child.once('close', (code, signal) => finish(code, signal));
-  const deadline = setTimeout(() => { timeout = true; child.kill(); }, 20 * 60 * 1000);
+  const deadline = setTimeout(() => { timeout = true; child.kill(); }, Math.max(0, deadlineAt - Date.now()));
 });
+const results = [];
+for (const phase of phases) { await rm(phase.timings, { force: true }); results.push(await runPhase(phase.command)); }
+const outcome = {
+  stdout: results.map(result => result.stdout).join('\n'), stderr: results.map(result => result.stderr).join('\n'),
+  truncated: results.some(result => result.truncated), timeout: results.some(result => result.timeout),
+  exitCode: results.find(result => result.exitCode !== 0)?.exitCode ?? 0, signal: results.find(result => result.signal)?.signal ?? null,
+  error: results.find(result => result.error)?.error,
+};
+// Counts come from each run's own TAP summary and are added together.
 const counts = {};
-for (const name of ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']) { const matches = [...outcome.stdout.matchAll(new RegExp(`^# ${name} (\\d+)\\r?$`, 'gm'))]; counts[name] = matches.length ? Number(matches.at(-1)[1]) : null; }
+for (const name of ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']) {
+  const each = results.map(result => { const matches = [...result.stdout.matchAll(new RegExp(`^# ${name} (\\d+)\\r?$`, 'gm'))]; return matches.length ? Number(matches.at(-1)[1]) : null; });
+  counts[name] = each.every(value => value !== null) ? each.reduce((sum, value) => sum + value, 0) : null;
+}
 const hasSummary = ['tests', 'pass', 'fail', 'cancelled', 'skipped', 'todo'].every(name => Number.isSafeInteger(counts[name]));
 const fileTimings = {};
-for (const line of (await readFile(timingsPath, 'utf8').catch(() => '')).split('\n').filter(Boolean)) {
-  const { file, ms } = JSON.parse(line);
-  fileTimings[relative(root, file).replaceAll('\\', '/')] = Math.round(ms) / 1000;
+for (const phase of phases) {
+  for (const line of (await readFile(phase.timings, 'utf8').catch(() => '')).split('\n').filter(Boolean)) {
+    const { file, ms } = JSON.parse(line);
+    fileTimings[inRepository(file)] = Math.round(ms) / 1000;
+  }
+  await rm(phase.timings, { force: true });
 }
-await rm(timingsPath, { force: true });
 const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && counts.fail === 0 && counts.cancelled === 0 && counts.skipped === 0 && counts.todo === 0 && !outcome.timeout && !outcome.truncated;
 const report = {
   schema: 'chausar.factory-bench.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
   command: ['node', ...command], scope: scopeParts.length ? `Repository open tests (${scopeParts.join(', ')})` : 'Repository open tests', counts, passed,
-  shard, tier, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
+  shard, tier, isolation, isolatedCommand: isolatedCommand ? ['node', ...isolatedCommand] : null, fullSuite, workers, tempFreeBytes, testFiles, fileTimings,
   exitCode: outcome.exitCode, signal: outcome.signal ?? null, timeout: outcome.timeout, outputTruncated: outcome.truncated,
   productionQualified: false,
   qualification: { openTests: passed ? 'passed' : 'failed', testRunComplete: hasSummary && counts.skipped === 0 && counts.todo === 0, specificationCoverageCertified: false, hiddenBusinessAcceptance: 'not-run', sealedBusinessAcceptance: 'not-run', releaseSigning: 'not-run', realConnectorQualification: 'not-run' },

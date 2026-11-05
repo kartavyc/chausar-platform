@@ -19,6 +19,8 @@ interface BenchmarkReport {
   fileTimings: Record<string, number>;
   tempFreeBytes: number;
   tier: 'fast' | 'heavy' | 'all';
+  isolation: 'process' | 'none';
+  isolatedCommand: string[] | null;
   exitCode: number | null;
   productionQualified: boolean;
   timeout: boolean;
@@ -308,6 +310,44 @@ test('D2: a heavy entry naming a missing file fails the run with its name before
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /platform\/tests\/tiers\.json names a test file that does not exist: platform\/tests\/renamed-away\.test\.ts/);
   await assert.rejects(readFile(join(f.directory, 'executed.jsonl')), { code: 'ENOENT' });
+});
+
+// D2 task 6: --isolation=none runs the files that share no process state in one process; the files in tiers.json
+// `isolated` (they set process.env, chdir, assign globalThis or mock timers) still get a process each, in the same receipt.
+test('D2: --isolation=none reaches the command for the unlisted files only; the isolated ones keep their own processes', async t => {
+  const f = await fixture(t, false, false, 4);
+  await f.tiers({ isolated: ['platform/tests/fixture-3.test.ts'] });
+  assert.equal(f.invoke(['--isolation=none', '--workers=2']).status, 0);
+  const report = await f.report();
+  assertCompleteRun(report, 4, files(4));
+  assert.equal(report.isolation, 'none');
+  assert.deepEqual(withoutReporters(report.command), ['node', '--test', '--test-isolation=none', '--test-concurrency=2',
+    'platform/tests/fixture-1.test.ts', 'platform/tests/fixture-2.test.ts', 'platform/tests/fixture-4.test.ts']);
+  assert.deepEqual(withoutReporters(report.isolatedCommand!), ['node', '--test', '--test-concurrency=2', 'platform/tests/fixture-3.test.ts']);
+  assert.deepEqual(Object.keys(report.fileTimings).sort(), files(4));
+  assert.deepEqual(await f.executed(), [1, 2, 3, 4]);
+  await writeFile(join(f.directory, 'executed.jsonl'), '');
+  assert.equal(f.invoke(['--output=results/plain.json']).status, 0);
+  const plain = await f.report('results/plain.json');
+  assert.equal(plain.isolation, 'process');
+  assert.equal(plain.isolatedCommand, null);
+  assert.equal(plain.command.some(part => part.startsWith('--test-isolation')), false);
+  assert.notEqual(f.invoke(['--isolation=thread']).status, 0);
+});
+
+test('D2: --isolation=none counts a failure in either process and refuses an isolated entry naming a missing file', async t => {
+  const failing = await fixture(t, true, false, 3);
+  await failing.tiers({ isolated: ['platform/tests/fixture-1.test.ts'] });
+  assert.equal(failing.invoke(['--isolation=none']).status, 1);
+  const report = await failing.report();
+  assert.equal(report.passed, false);
+  assert.equal(report.counts.tests, 3);
+  assert.equal(report.counts.fail, 3);
+  const missing = await fixture(t);
+  await missing.tiers({ isolated: ['platform/tests/gone.test.ts'] });
+  const result = missing.invoke(['--isolation=none']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /platform\/tests\/tiers\.json names a test file that does not exist: platform\/tests\/gone\.test\.ts/);
 });
 
 test('invalid, duplicated and unknown shard options refuse before spawning fixture tests', async t => {
