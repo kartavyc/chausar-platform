@@ -87,12 +87,12 @@ test('task 3: no tracked .tap test output', () => {
   assert.deepEqual(tracked.filter(file => file.endsWith('.tap')), []);
 });
 
-test('tasks 2 to 4: nothing in the moved list is tracked', { todo: 'D10 tasks 2 to 4' }, () => {
+test('tasks 2 to 4: nothing in the moved list is tracked', () => {
   const found = tracked.filter(file => MOVED.some(path => (path.endsWith('/') ? file.startsWith(path) : file === path)));
   assert.deepEqual(found.slice(0, 10), [], `${found.length} moved paths still tracked`);
 });
 
-test("task 4: no tracked text file holds the founder's Windows home folder", { todo: 'D10 task 4' }, () => {
+test("task 4: no tracked text file holds the founder's Windows home folder", () => {
   // Built from parts at run time so this file never holds the literal. Placeholder users (owner, someone) stay allowed.
   const user = ['kar', 'ta'].join('');
   const home = new RegExp(`Users[\\\\/]+${user}(?![A-Za-z0-9])`, 'i');

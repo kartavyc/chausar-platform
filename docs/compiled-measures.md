@@ -15,6 +15,6 @@ Acceptance files:
 - `platform/tests/compiled-measure.test.ts`: independent literals, actual bound fields, signs, large integers, null rules, compiler rejection, legacy shapes, atomic publication and races.
 - `platform/tests/compiled-measure-sql.test.ts`: prepared adapter contracts in both dialects, mismatch refusal and compiled-type dispatch. Connections in these adapter fixtures are explicitly injected.
 - `platform/tests/compiled-measure-http.test.ts`: public import → published catalogue → calculation → private receipt → reopen, authority/drift refusal and optional actual native DuckDB execution. Its file-storage fixture is explicitly experimental.
-- `scripts/verify-compiled-measures.mjs`: separate opt-in native qualification against a pristine disposable loopback PostgreSQL database and actual DuckDB, including the production Engine storage path.
+- `verify-compiled-measures.mjs` (a one-off script, now kept in the private repository): separate opt-in native qualification against a pristine disposable loopback PostgreSQL database and actual DuckDB, including the production Engine storage path.
 
 This addresses the bounded owner-measure path in `LIVE-D02-A08`, `LIVE-D02-X05` and `ARCH-018`. Full typed ontology/IR, units and missing-state algebra, relationships and grain, compiler target qualification, all 56 connector groups and the 250 final contracts retain their independent requirements. External corpus acquisition remains zero. No end-to-end quest, vendor, native GUI, hosted/enterprise or security release pass follows from these source tests.
