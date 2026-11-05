@@ -11,6 +11,8 @@ import { currentVenture } from '../../records.ts';
 import { matchShopFiles } from '../../playbooks/support-desk/sources.ts';
 const orderFor=(env:Parameters<Spec['run']>[0])=>{const state=env.deps.store.read();const run=env.runRef?.kind==='delivery'?findRecord(state,'venture-delivery-run',env.runRef.runId):null;return run&&run.ventureId===env.ventureId?findRecord(state,'venture-order',run.orderId):null;};
 import { dueAt, supportHours } from '../../playbooks/support-desk/due.ts';
+import { ventureTimeZone } from '../../local-day.ts';
+import { runCountry } from './run-day.ts';
 type SupportDeskToolName=Extract<ToolName,'support.match'|'support.ticket'>;
 export const SUPPORT_DESK_TOOLS:Readonly<Record<SupportDeskToolName,Spec>>=Object.freeze({
  'support.match':{name:'support.match',effect:'compute',tier:'code',endsTurn:false,summary:'Finds excerpts in this order own plain-text shop files. A weak or tied customer match waits for owner confirmation; no answer is invented.',input:{query:text('The customer question.',500),email:text('Customer email, when known.',254,false),phone:text('Customer phone, when known.',40,false),orderNumber:text('Order number, when known.',80,false)},async run(env,input){
@@ -24,7 +26,7 @@ export const SUPPORT_DESK_TOOLS:Readonly<Record<SupportDeskToolName,Spec>>=Objec
   if(input.operation==='get'){const ticket=listRecords(state,'venture-support-ticket',env.ventureId).find(t=>t.id===input.ticketId&&t.serviceOrderId===orderFor(env)?.id&&t.shopClientId===orderFor(env)?.clientId);check(ticket,'SUPPORT_TICKET_NOT_FOUND','That support ticket was not found.');return {result:ticket};}
   if(input.operation==='thread'){const venture=currentVenture(state);check(venture&&venture.id===env.ventureId,'VENTURE_NOT_FOUND','Start a business first.');check(listRecords(state,'venture-support-ticket',env.ventureId).some(t=>t.thread===input.thread&&t.serviceOrderId===orderFor(env)?.id&&t.shopClientId===orderFor(env)?.clientId),'SUPPORT_THREAD_INVALID','Choose a conversation assigned to this shop service order.');const thread=threadForAgent(state,venture,String(input.thread));check(thread,'SUPPORT_THREAD_INVALID','Choose an imported mail conversation.');return {result:{...thread,untrusted:true}};}
   const proposal=proposeTicket({thread:String(input.thread??''),customerEmail:String(input.customerEmail??''),subject:String(input.subject??''),language:String(input.language??'en'),blocked:false},env.now(),listRecords(state,'venture-support-ticket',env.ventureId));
-  const fields=env.intake?.fields??{};const hours=supportHours(fields);const responseDue=fields.firstReplyHours?dueAt(env.now(),responseHours(fields.firstReplyHours),hours):null;const resolutionDue=fields.resolutionHours?dueAt(env.now(),responseHours(fields.resolutionHours),hours):null;
+  const fields=env.intake?.fields??{};const hours=supportHours(fields,ventureTimeZone(runCountry(env)));const responseDue=fields.firstReplyHours?dueAt(env.now(),responseHours(fields.firstReplyHours),hours):null;const resolutionDue=fields.resolutionHours?dueAt(env.now(),responseHours(fields.resolutionHours),hours):null;
   return {result:{proposal,dueAt:responseDue,resolutionDueAt:resolutionDue,created:false,sent:false,line:'Proposed only. The owner confirms the exact ticket in the support desk.'}};
  }}
 });

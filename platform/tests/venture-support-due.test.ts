@@ -26,10 +26,10 @@ test('snooze requires a reason and a customer reply wakes the paused due clock',
 
 test('owner opening-hours text becomes a bounded shop policy and response targets stay in code',async()=>{
  const {supportHours}=await import('../runtime/venture/playbooks/support-desk/due.ts');
- const policy=supportHours({shopHours:'Mon-Sat 10:00-19:00',timeZone:'Asia/Kolkata',holidays:['2026-10-26']});
+ const policy=supportHours({shopHours:'Mon-Sat 10:00-19:00',timeZone:'Asia/Kolkata',holidays:['2026-10-26']},'UTC');
  assert.equal(dueAt('2026-10-24T12:00:00.000Z',4,policy),'2026-10-27T07:00:00.000Z');
- assert.equal(supportHours({shopHours:'',timeZone:'Asia/Kolkata'}),undefined);
- assert.throws(()=>supportHours({shopHours:'whenever',timeZone:'Asia/Kolkata'}));
+ assert.equal(supportHours({shopHours:'',timeZone:'Asia/Kolkata'},'UTC'),undefined);
+ assert.throws(()=>supportHours({shopHours:'whenever',timeZone:'Asia/Kolkata'},'UTC'));
 });
 // A late app open must not extend an owner-approved pause.
 test('scheduled snooze ends at its chosen time even when the app is opened later', () => {
@@ -40,7 +40,7 @@ test('scheduled snooze ends at its chosen time even when the app is opened later
 });
 test('the Hindi opening-hours hint is accepted by the real parser',async()=>{
  const {supportHours}=await import('../runtime/venture/playbooks/support-desk/due.ts');
- const policy=supportHours({shopHours:'सोम-शनि 10:00-19:00',timeZone:'Asia/Kolkata'});
+ const policy=supportHours({shopHours:'सोम-शनि 10:00-19:00',timeZone:'Asia/Kolkata'},'UTC');
  assert.equal(dueAt('2026-10-24T12:00:00.000Z',4,policy),'2026-10-26T07:00:00.000Z');
 });
 
@@ -48,4 +48,13 @@ test('an unresolved ticket keeps its resolution target after the first reply is 
  const t={...confirmTicket(proposeTicket({thread:'resolution',customerEmail:'a@example.com',subject:'Help',language:'en',blocked:false},'2026-10-27T10:00:00.000Z'),'2026-10-27T10:00:00.000Z',false),dueAt:'2026-10-27T14:00:00.000Z',resolutionDueAt:'2026-10-28T10:00:00.000Z',sentAt:'2026-10-27T11:00:00.000Z'};
  assert.equal(dueBadge(t,'2026-10-28T12:00:00.000Z'),'Overdue by 2h');assert.equal(queueRank(t,'2026-10-28T12:00:00.000Z'),0);
  assert.equal(dueBadge({...t,status:'resolved'},'2026-10-28T12:00:00.000Z'),'');
+});
+
+// B2 fix round 3 (LOW 4 of the final review): with no time zone typed, the hours are read where the business is, never
+// India's for every business.
+test('support hours with no zone typed read the business zone, not Asia/Kolkata for everyone', async () => {
+ const {supportHours}=await import('../runtime/venture/playbooks/support-desk/due.ts');
+ assert.equal(supportHours({shopHours:'Mon-Fri 09:00-17:00'},'America/New_York')?.timeZone,'America/New_York');
+ assert.equal(supportHours({shopHours:'Mon-Fri 09:00-17:00',timeZone:''},'Europe/London')?.timeZone,'Europe/London');
+ assert.equal(supportHours({shopHours:'Mon-Fri 09:00-17:00',timeZone:'Asia/Kolkata'},'Europe/London')?.timeZone,'Asia/Kolkata');
 });
