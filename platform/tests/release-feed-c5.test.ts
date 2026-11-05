@@ -11,6 +11,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ReleaseUpdater } from '../runtime/updater.ts';
 import { CURRENT_SCHEMA } from '../runtime/migrations/ladder.ts';
+import { noNet } from './helpers/no-net.ts';
+
+test.beforeEach(t => noNet(t));
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const FEED = join(ROOT, 'scripts', 'release-feed.mjs'), KEY = join(ROOT, 'scripts', 'release-key.mjs');

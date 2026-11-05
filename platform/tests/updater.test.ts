@@ -10,6 +10,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { ReleaseUpdater, canonicalReleaseManifest, canonicalReleaseFeed, compareVersions, installIdIn, rolloutBucket, type ReleaseManifest } from '../runtime/updater.ts';
 import { acquireProcessLock } from '../runtime/process-lock.ts';
+import { noNet } from './helpers/no-net.ts';
+
+test.beforeEach(t => noNet(t));
 
 const keys=generateKeyPairSync('ed25519'),artifact=Buffer.from('A test artifact; this file must never be executed.');
 const code=(expected:string)=>(error:any)=>error.code===expected;

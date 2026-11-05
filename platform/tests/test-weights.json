@@ -23,6 +23,7 @@
   "platform/tests/local-files-version-d12.test.ts": 1,
   "platform/tests/migration-ladder-d12.test.ts": 1,
   "platform/tests/near-d11.test.ts": 5,
+  "platform/tests/no-net-c5.test.ts": 1,
   "platform/tests/package-contents-d5.test.ts": 1.5,
   "platform/tests/phone-host-http.test.ts": 33.9,
   "platform/tests/private-trial-public-flow.test.ts": 22,
