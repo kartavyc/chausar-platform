@@ -90,7 +90,7 @@ export function MetaLine({ row, showBusiness, time }: { row: QueueRow; showBusin
   const pieces: ReactNode[] = [];
   if (meta?.client && !namesClient(row, meta.client)) pieces.push(<span key="client" data-meta-client="">{t('approval.meta.for', { client: meta.client })}</span>);
   if (showBusiness) pieces.push(<span key="business">{meta?.business ?? row.businessName}</span>);
-  if (time) pieces.push(<span key="time" className="mono">{time}</span>);
+  if (time) pieces.push(<span key="time">{time}</span>);
   if (expires) pieces.push(<span key="expires" className={s.expires} data-meta-expires="">{expires}</span>);
   if (meta?.waitingLong) pieces.push(<span key="waiting" className={s.waiting} data-meta-waiting="">{meta.waitingLong}</span>);
   return <>{pieces.map((piece, index) => <Fragment key={index}>{index > 0 && ' · '}{piece}</Fragment>)}</>;

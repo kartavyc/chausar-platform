@@ -150,7 +150,7 @@ describe('Work v2: running now', () => {
     expect(within(editor).getByText('Editor')).toBeTruthy();
     expect(within(editor).getByText('Lumen Studio')).toBeTruthy();
     expect(await within(editor).findByText('Rendering 3 of 6')).toBeTruthy();
-    expect(within(editor).getByText('Started 4 min ago').className).toMatch(/mono/);
+    expect(within(editor).getByText('Started 4 min ago').className).not.toMatch(/mono/); // B2: the body font
     const researcher = await tileOf('Checking titles against the last 30 videos', running);
     expect(within(researcher).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     expect(await within(researcher).findByText('Comparing the two new titles')).toBeTruthy();

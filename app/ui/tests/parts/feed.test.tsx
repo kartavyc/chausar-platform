@@ -662,13 +662,13 @@ describe('BottomTabs', () => {
     expect(screen.getByRole('link', { name: /^Today/ }).dataset.current).toBeUndefined();
   });
 
-  it('shows Today\'s count in DM Mono, hidden from screen readers, which hear it in words', () => {
+  it('shows Today\'s count in the body font, hidden from screen readers, which hear it in words', () => {
     render(<BottomTabs tabs={TABS} current="today" />);
     const today = screen.getByRole('link', { name: 'Today, 12 need you' });
     const badge = today.querySelector('[data-badge]') as HTMLElement;
     expect(badge.getAttribute('aria-hidden')).toBe('true');
     expect(badge.textContent).toBe('12');
-    expect(badge.querySelector('.mono')).not.toBeNull();
+    expect(badge.querySelector('[data-count]')).not.toBeNull(); // B2: a count, in the body font
     expect(today.querySelector('.sr-only')!.textContent).toBe(', 12 need you');
   });
 

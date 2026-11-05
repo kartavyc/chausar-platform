@@ -107,12 +107,12 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
               </span>
               <span className={s.chatSide}>
                 {snoozed && thread.snoozedUntil ? (
-                  <span className={cx(s.chatTime, 'mono')}>
+                  <span className={s.chatTime}>
                     <span className="sr-only">{t('chats.list.wakes')} </span>
                     <time dateTime={thread.snoozedUntil}>{whenOf(thread.snoozedUntil, now, zone)}</time>
                   </span>
                 ) : (
-                  <time className={cx(s.chatTime, 'mono')} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, zone)}</time>
+                  <time className={s.chatTime} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, zone)}</time>
                 )}
                 {thread.unread > 0 && <span className={s.unread} aria-hidden="true" />}
               </span>

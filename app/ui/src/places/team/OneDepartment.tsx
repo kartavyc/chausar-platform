@@ -150,7 +150,7 @@ function RecentRun({ run }: { run: RunSummary }) {
       <Inner as="article" labelledBy={titleId} className={s.work}>
         <p className={s.workKind}>
           <StateChip kind="run" value={run.state} />
-          {elapsedOf(run) && <span className={cx(s.elapsed, 'mono')}>{elapsedOf(run)}</span>}
+          {elapsedOf(run) && <span className={s.elapsed}>{elapsedOf(run)}</span>}
         </p>
         <h3 id={titleId} className={s.workTitle}>
           <button type="button" className={s.workOpen} onClick={(event) => openSheet('run', run.runId, event.currentTarget)}>{run.purpose}</button>

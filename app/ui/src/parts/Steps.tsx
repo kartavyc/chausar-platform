@@ -75,7 +75,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                   {step.state === 'waiting' ? (
                     <span className={s.waitWord}>{waitingWord ?? t('steps.waiting')}</span>
                   ) : step.elapsed ? (
-                    <span className={`${s.time} mono`}>{step.elapsed}</span>
+                    <span className={s.time}>{step.elapsed}</span>
                   ) : null}
                 </div>
                 {errors && step.error && <p className={s.error}>{step.error}</p>}
@@ -88,7 +88,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                         <span className="mono">{tool.name}</span> {tool.line}
                         {tool.state && tool.state !== 'done' && <> <span className={tool.state === 'error' ? s.toolError : s.toolCancelled}>{t(`runsheet.tool.${tool.state}`)}</span></>}
                         {tool.state === 'done' && <span className="sr-only">, {t('runsheet.tool.done')}</span>}
-                        {tool.ms !== undefined && <> <span className={`${s.time} mono`}>{msWords(t, tool.ms)}</span></>}
+                        {tool.ms !== undefined && <> <span className={s.time}>{msWords(t, tool.ms)}</span></>}
                       </p>
                     ))}
                   </details>

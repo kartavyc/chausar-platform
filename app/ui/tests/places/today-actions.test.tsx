@@ -74,7 +74,7 @@ describe('Today: the engine\'s previews on the cards (4J3)', () => {
     start({ queue: QUEUE.filter((row) => row.id === 'q-invoice-mehta' || row.id === 'q-signoff-gst') });
     const invoice = await cardTitled('Invoice INV-0042 to Mehta Traders');
     const paper = invoice.querySelector('[data-preview="paper"]')!;
-    expect([...paper.querySelectorAll('li .mono')].map((n) => n.textContent)).toEqual(['₹16,000.00', '₹1,440.00', '₹1,440.00']);
+    expect([...paper.querySelectorAll('li .mono')].map((n) => n.textContent)).toEqual(['₹16,000', '₹1,440', '₹1,440']);
     expect(paper.querySelector('[data-figure-group] [data-receipt="R-0419"]')).not.toBeNull();
     // The line already says when it is due, and the title who it is to: neither is said twice (4J19 review).
     expect(invoice.querySelector('[data-due]')).toBeNull();
@@ -172,12 +172,12 @@ describe('Today: a working paper\'s receipt from the work tools (4J19 review)', 
       actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'send-to-ca', label: 'Send to CA', primary: true, requiresView: true }],
       preview: {
         kind: 'paper', paper: 'working', title: 'Totals for September', client: null, more: 0, signer: null,
-        working: [{ label: 'Sales in September', value: '₹16,000.00', receiptId: 'wr-sept', receiptKind: 'work' }],
+        working: [{ label: 'Sales in September', value: '₹16,000', receiptId: 'wr-sept', receiptKind: 'work' }],
       },
     };
     const work = {
       id: 'wr-sept', at: '2026-10-21T09:00:00.000Z', operation: 'work.sum', currency: 'INR', explanation: 'Added the 4 sales rows of the September register.',
-      figures: [{ key: 'total', label: 'Sales in September', minor: '1600000', display: '₹16,000.00', currency: 'INR', unit: 'money' }],
+      figures: [{ key: 'total', label: 'Sales in September', minor: '1600000', display: '₹16,000', currency: 'INR', unit: 'money' }],
       steps: [{ op: 'add', inputs: ['r1', 'r2', 'r3', 'r4'], result: 'total', rule: 'sum of the amount column' }],
     };
     const { spy } = start({ queue: [row], stub: (method) => (method === 'venture.work.get' ? work : undefined) });
@@ -192,7 +192,7 @@ describe('Today: a working paper\'s receipt from the work tools (4J19 review)', 
       expect(found?.textContent).toContain('Added the 4 sales rows of the September register.');
       return found!;
     });
-    expect(sheet.textContent).toContain('₹16,000.00');
+    expect(sheet.textContent).toContain('₹16,000');
     assertInkRules(document.body);
   });
 });

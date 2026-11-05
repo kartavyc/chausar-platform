@@ -76,7 +76,7 @@ export function DecisionsView() {
                       {/* A4 review (L5): the reader's own decision is You's; another member's is named by their role. */}
                       {decision.mine ? t('business.decisions.who.mine') : t(`business.decisions.who.${decision.who}`)}
                       {' · '}
-                      <span className="mono">{momentOf(decision.at, zone)}</span>
+                      <span>{momentOf(decision.at, zone)}</span>
                     </span>
                   )}
                   // The engine's own words; an amount it named in what was decided has no receipt here (NOTES item 30).

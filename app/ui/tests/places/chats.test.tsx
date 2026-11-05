@@ -156,7 +156,7 @@ describe('#/chats: the list', () => {
     expect(links[0]!.querySelector('[data-content]')!.textContent).toBe('How much have we billed this month?');
     // The last line's amounts are Figures with their receipts (ChiefThreadSummary.amounts), outside the link.
     const line = list.querySelector('[data-last-line]')!;
-    expect(assertFiguresProved(line).map((n) => n.textContent)).toEqual(['₹1,12,400.00', '₹86,200.00']);
+    expect(assertFiguresProved(line).map((n) => n.textContent)).toEqual(['₹1,12,400', '₹86,200']);
     expect(line.closest('a')).toBeNull();
     expect(list.querySelector('[data-engine-line]')).toBeNull();
     assertInkRules(document.body);
@@ -193,10 +193,10 @@ describe('#/chats: a thread', () => {
     const log = thread();
     // Two figures inline and two in the worked table, every one with its receipt.
     const numbers = assertFiguresProved(log);
-    expect(numbers.map((n) => n.textContent)).toEqual(['₹1,12,400.00', '₹86,200.00', '₹1,12,400.00', '₹86,200.00']);
+    expect(numbers.map((n) => n.textContent)).toEqual(['₹1,12,400', '₹86,200', '₹1,12,400', '₹86,200']);
     expect(within(log).getAllByRole('button', { name: receiptMark('R-0401') })).toHaveLength(2);
     const worked = within(log).getByRole('table', { name: 'Worked by the calculator' });
-    expect(within(worked).getAllByRole('row').map((row) => row.textContent?.replace(/R-\d+/, '').trim())).toEqual(['Billed in October₹1,12,400.00', 'Received in October₹86,200.00']);
+    expect(within(worked).getAllByRole('row').map((row) => row.textContent?.replace(/R-\d+/, '').trim())).toEqual(['Billed in October₹1,12,400', 'Received in October₹86,200']);
     const plan = within(log).getByRole('region', { name: 'A short plan' });
     expect(within(plan).getByText('2 steps · each one asks you first')).toBeTruthy();
     expect(within(plan).getAllByRole('listitem').map((li) => li.querySelector('[data-step-title]')!.textContent)).toEqual([

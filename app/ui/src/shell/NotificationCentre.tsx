@@ -93,7 +93,7 @@ function Item({ item, zone, onFollow }: { item: NotificationView; zone: string; 
         <span className={s.meta}>
           <span data-kind="">{stateText(t, 'queue', item.kind)}</span>
           <span aria-hidden="true" data-sep="">·</span>
-          <time className="mono" dateTime={item.at}>{whenOf(item.at, zone)}</time>
+          <time dateTime={item.at}>{whenOf(item.at, zone)}</time>
         </span>
       </a>
       {!item.read && <Chip className={s.fresh}>{t('centre.new')}</Chip>}

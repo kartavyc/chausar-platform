@@ -80,7 +80,7 @@ export function AgentCard({ member, dept, ground, helps, onChanged, helpers }: A
         {run?.progress && (
           <div className={s.progress}>
             <ProgressBar progress={run.progress} tone={toneOf(run)} className={s.bar} />
-            {elapsedOf(run) && <span className={cx(s.elapsed, 'mono')}>{elapsedOf(run)}</span>}
+            {elapsedOf(run) && <span className={s.elapsed}>{elapsedOf(run)}</span>}
           </div>
         )}
         {/* Its last result, only while it has nothing on now (D-Team's idle cards); the rest are in its panel's runs. */}

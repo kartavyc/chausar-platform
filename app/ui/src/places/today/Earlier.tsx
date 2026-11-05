@@ -62,7 +62,7 @@ export const Earlier = memo(function Earlier({ title }: { title?: string | undef
                 ) : unknown ? (
                   <a className={s.check} href="#/money/journal">{t('today.earlier.check')}</a>
                 ) : (
-                  <span className={cx(s.eventEnd, 'mono')}>{day(entry.at)}</span>
+                  <span className={s.eventEnd}>{day(entry.at)}</span>
                 )}
               </li>
             );

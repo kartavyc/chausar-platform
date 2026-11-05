@@ -391,16 +391,16 @@ describe('ChatThread', () => {
     expect(days).toEqual(['Yesterday', 'Today']);
   });
 
-  it("shows the owner's and the agent's messages with their time in DM Mono", () => {
+  it("shows the owner's and the agent's messages with their time in the body font", () => {
     render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} /></ClockProvider>);
     const mine = screen.getByText('Cut episode 14 from the recording.').closest('[data-from]')!;
     expect(mine.getAttribute('data-from')).toBe('owner');
     const time = within(mine as HTMLElement).getByText('8:02 am');
     expect(time.tagName).toBe('TIME');
-    expect(time.classList.contains('mono')).toBe(true);
+    expect(time.classList.contains('mono')).toBe(false); // B2
     const theirs = screen.getByText('Episode 14 is cut. It is on Today for you to watch.').closest('[data-from]')!;
     expect(theirs.getAttribute('data-from')).toBe('agent');
-    expect(within(theirs as HTMLElement).getByText('8:40 am').classList.contains('mono')).toBe(true);
+    expect(within(theirs as HTMLElement).getByText('8:40 am').classList.contains('mono')).toBe(false); // B2
     // A screen reader hears who said each message; the eye has the side and the avatar.
     expect(mine.textContent).toContain('You:');
     expect(theirs.textContent).toContain('Editor:');
@@ -414,7 +414,7 @@ describe('ChatThread', () => {
     fireEvent.click(fold);
     expect(fold.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText('Read the transcript')).toBeTruthy();
-    expect(within(fold).getByText('4m').classList.contains('mono')).toBe(true);
+    expect(within(fold).getByText('4m').classList.contains('mono')).toBe(false); // B2
   });
 
   it('a run still going says how far it is, and a run with no steps to show is not a button', () => {

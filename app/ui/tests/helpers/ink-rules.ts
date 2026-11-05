@@ -17,7 +17,7 @@ import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
  *
  * The markers they read are set by the parts, never by hand in a place:
  *   [data-figure]        the Figure part: exactly one engine figure with its proof (src/parts/Figure.tsx)
- *   [data-ui-number]     that figure's value, in DM Mono with tabular digits
+ *   [data-ui-number]     that figure's value, in the body font with tabular digits (B2)
  *   [data-figure-words]  the engine's words after a figure's amount ("includes estimates"), in the body face; they
  *                        never hold an amount of their own
  *   [data-receipt="id"]  a Receipt control (src/parts/Receipt.tsx): a button or link with a non-empty receipt id. 4Z3:

@@ -10,7 +10,7 @@ import s from './Figure.module.css';
  */
 export type FigureProof = { receiptId: string; estimate?: never } | { estimate: true; receiptId?: never };
 
-/** D's figure sizes (DM Mono 500): goal 40, goal on phone 30, goal percent 32, stat 30, hero 24, tile 20,
+/** D's figure sizes (the body font with tabular figures, B2): goal 40, goal on phone 30, goal percent 32, stat 30, hero 24, tile 20,
  *  department stat 17. Left out, the figure takes the size of the text around it. */
 export type FigureSize = 'goal' | 'goal-phone' | 'pct' | 'stat' | 'hero' | 'tile' | 'dept';
 
@@ -36,7 +36,7 @@ export function proofOf(source: { receiptId?: string | undefined; estimate?: boo
 }
 
 /**
- * Every money figure Ink shows: the engine's value in DM Mono (`data-ui-number`) with its proof beside it, a
+ * Every money figure Ink shows: the engine's value in the body font with tabular figures (`data-ui-number`, B2) with its proof beside it, a
  * receipt that opens the receipt sheet or the "model estimate" chip, inside one `data-figure`
  * (tests/helpers/ink-rules.ts `assertFiguresProved` holds every place to it). Counts of steps, people and runs
  * use `Count`, which carries no proof.
@@ -47,7 +47,7 @@ export function proofOf(source: { receiptId?: string | undefined; estimate?: boo
  */
 /**
  * The engine's figure split where it wrote words after the amount ("₹60.10, includes estimates"): the amount is the
- * figure, set in DM Mono, and the words stay in the body face beside it (w3 3I). Nothing is parsed or worked out: the
+ * figure, set with tabular figures, and the words stay in the body face beside it (w3 3I). Nothing is parsed or worked out: the
  * text is cut once, after the first amount, only when a currency sign or code starts it and words follow.
  */
 const AMOUNT_THEN_WORDS = new RegExp(`^(${MONEY_TEXT.source})([,;]?\\s+\\D.*)$`, 's');
@@ -73,7 +73,7 @@ export function Figure(props: FigureProps) {
   }
   return (
     <span className={cx(s.figure, className)} data-figure="" data-size={size} data-tone={tone}>
-      <span className={cx(s.value, 'mono')} data-ui-number="">{amount}</span>
+      <span className={s.value} data-ui-number="">{amount}</span>
       {/* Words that open with a comma or semicolon sit right against the amount: no gap before the comma. */}
       {words && <span className={s.words} data-figure-words="" data-lead={/^[,;]/.test(words) ? 'punct' : undefined}>{words}</span>}
       {proof.estimate ? <ModelEstimate tone={tone} /> : <Receipt id={proof.receiptId} amount={amount} onOpen={onReceipt} tone={tone} />}
@@ -81,7 +81,7 @@ export function Figure(props: FigureProps) {
   );
 }
 
-/** A count (steps, people, runs, things waiting): DM Mono, no proof, and no `data-ui-number`, since it is not money. */
+/** A count (steps, people, runs, things waiting): the body font with tabular figures (B2), no proof, and no `data-ui-number`, since it is not money. */
 export function Count({ value, className }: { value: number | string; className?: string | undefined }) {
-  return <span className={cx(s.count, 'mono', className)} data-count="">{value}</span>;
+  return <span className={cx(s.count, className)} data-count="">{value}</span>;
 }

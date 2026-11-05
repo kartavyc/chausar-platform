@@ -75,7 +75,7 @@ function blocksOf(entries: readonly ThreadEntry[], t: T, now: Date, zone: string
 /**
  * A conversation with one agent, or with Chausar (D's `.cp-body`, `.mine`, `.bub`, `.from`, `.fold`, `.day`): the
  * owner's messages on the right on the selected ground, the agent's on the left under its avatar, each with its
- * time in DM Mono, runs folded to one row that opens their steps, and anything else the caller draws (a DiffCard,
+ * time in the body font, runs folded to one row that opens their steps, and anything else the caller draws (a DiffCard,
  * a preview) in line. It is a polite live log, so a new message is read out without moving focus. When a new entry
  * arrives it follows it only if the owner was already at the bottom; someone reading older messages stays put.
  * Each message sets its own direction (`dir="auto"`), so a reply in a right-to-left script reads right.
@@ -87,7 +87,7 @@ export function ChatThread({ agent, entries, older, now, className }: ChatThread
   const log = useRef<HTMLDivElement>(null);
   const timeOf = (at: string) => {
     const date = new Date(at);
-    return Number.isNaN(date.getTime()) ? null : <time className={cx(s.time, 'mono')} dateTime={at}>{formatTime(date, zone)}</time>;
+    return Number.isNaN(date.getTime()) ? null : <time className={s.time} dateTime={at}>{formatTime(date, zone)}</time>;
   };
   const pinned = useRef(true);
   const onScroll = () => {
@@ -167,7 +167,7 @@ function RunFold({ run }: { run: Extract<ThreadEntry, { kind: 'run' }> }) {
     <>
       {mark}
       <span className={s.foldText}>{words}</span>
-      {run.duration && <span className={cx(s.duration, 'mono')}>{run.duration}</span>}
+      {run.duration && <span className={s.duration}>{run.duration}</span>}
     </>
   );
   if (run.steps === undefined || run.steps === null) {

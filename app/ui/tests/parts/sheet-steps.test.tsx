@@ -42,7 +42,7 @@ describe('Sheet', () => {
 });
 
 describe('Steps', () => {
-  it('marks done, current, pending, waiting and failed steps, with words for each and times in mono', () => {
+  it('marks done, current, pending, waiting and failed steps, with words for each and times in the body font', () => {
     const steps: RunDetail['steps'] = [
       { id: 'a', purpose: 'Read the transcript', state: 'done', elapsed: '12 s' },
       { id: 'b', purpose: 'Rendering 3 of 6', state: 'current', elapsed: 'now' },
@@ -59,7 +59,7 @@ describe('Steps', () => {
     expect(items[0]!.textContent).toContain('done');
     expect(items[2]!.textContent).toContain('Waiting on you');
     expect(items[3]!.textContent).toContain('ffmpeg was not found on this computer.');
-    expect(items[0]!.querySelector('.mono')!.textContent).toBe('12 s');
+    expect(items[0]!.textContent).toContain('12 s'); // B2: the time is in the body font
   });
 
   it('says "indeterminate" in words instead of drawing a bar, and counts otherwise', () => {

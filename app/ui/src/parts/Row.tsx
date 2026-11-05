@@ -24,7 +24,7 @@ export interface RowProps {
   mark?: ReactNode;
   /** D's `.lr-p`: a short progress bar with its words, or a receipt, between the words and the buttons. */
   aside?: ReactNode;
-  /** D's `.lr-e`: a time or duration at the far end, in DM Mono. */
+  /** D's `.lr-e`: a time or duration at the far end, in the body font (B2). */
   end?: ReactNode;
   /** D's `.lrow.ev`: 52 px instead of 60, for lists of past events. */
   dense?: boolean | undefined;
@@ -66,7 +66,7 @@ export function Row({ id, eyebrow, title, line, children, actions, onOpen, secon
       </div>
       {aside && <div className={s.aside}>{aside}</div>}
       {(actions || linkPending) && <div className={s.actions}>{linkPending && <PendingLink />}{actions}</div>}
-      {end && <span className={cx(s.end, 'mono')}>{end}</span>}
+      {end && <span className={s.end}>{end}</span>}
     </li>
   );
 }

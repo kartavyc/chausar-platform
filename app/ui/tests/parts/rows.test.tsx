@@ -32,7 +32,7 @@ describe('Row, the D list row (lrow)', () => {
     expect(parts).toEqual(['ED', 'Cutting shorts from episode 13Editor', '3 of 5', 'Open', '4m']);
     expect(row.firstElementChild!.querySelector('[aria-hidden="true"]')!.textContent).toBe('ED');
     const end = row.lastElementChild!;
-    expect(end.classList.contains('mono')).toBe(true);
+    expect(end.classList.contains('mono')).toBe(false); // B2: the body font
   });
 
   it('is 60 px with a soft line between rows and none above the first; a dense row is 52 px', () => {

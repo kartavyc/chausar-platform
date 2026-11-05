@@ -76,7 +76,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
     expect(within(article).getByText('Editor')).toBeTruthy();
     const meta = article.querySelector('[data-meta]')!;
     expect(meta.textContent).toBe(`Lumen Studio · ${time(draft.createdAt)}`);
-    expect(meta.querySelector('.mono')!.textContent).toBe(time(draft.createdAt));
+    expect(meta.querySelector('.mono')).toBeNull(); // B2: the time is in the body font
     const kind = article.querySelector('[data-kind]')!;
     expect(kind.textContent).toBe('Draft');
     expect(kind.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
