@@ -18,9 +18,8 @@ export type CalculatorOptions = {
 };
 export type ReceiptRestatement = { version: 1; interpretation: 'restated-private-diagnostic'; trialId: string; forkDigest: string;
   candidateStateDigest: string; publicationId: string; originalAnswerId: string; originalReceiptId: string };
-export function formatMoney(n: string | bigint, currency = 'INR') { return formatMinor(n, currency); }
 export function sumMoney(values: string[]) { return String(values.reduce((sum, value) => { check(/^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Calculator amounts must be whole minor-unit strings.'); return sum + BigInt(value); }, 0n)); }
-const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMoney(value, currency), unit: 'money', currency });
+const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMinor(value, currency), unit: 'money', currency });
 function bps(numerator: bigint, denominator: bigint): bigint | null { return denominator === 0n ? null : numerator * 10000n / denominator; }
 function numericTokens(text: string) { return [...text.matchAll(/(?<![\p{L}\d])[+-]?\d[\d,]*(?:\.\d+)?(?![\p{L}\d])/gu)].map(m => m[0].replaceAll(',', '').replace(/^\+/, '')); }
 function normalizedNumber(value: string) { const negative = value.startsWith('-'); const [whole, decimals] = value.replace(/^-/, '').split('.'); return `${negative ? '-' : ''}${BigInt(whole)}${decimals ? '.' + decimals.replace(/0+$/, '') : ''}`.replace(/\.$/, ''); }
