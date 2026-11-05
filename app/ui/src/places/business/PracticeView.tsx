@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
@@ -269,7 +270,7 @@ function Improvement() {
 
 function JudgeSetting() {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const setting = useResource('venture.judge.auto.get', {}, { refreshOn: onQueue });
   const [phase, setPhase] = useState<'idle' | 'ask' | 'busy'>('idle');
@@ -299,7 +300,7 @@ function JudgeSetting() {
         <>
           <p className={s.strong}>{view.auto ? t('business.practice.judgeOn') : t('business.practice.judgeOff')}</p>
           <p className={s.line}>{view.line}</p>
-          {view.auto && view.consentAt && <p className={s.note}>{t('business.practice.consent', { day: dayOf(view.consentAt, language) })}</p>}
+          {view.auto && view.consentAt && <p className={s.note}>{t('business.practice.consent', { day: dayOf(view.consentAt, zone) })}</p>}
           {phase === 'ask' ? (
             <Confirm ask={t('business.practice.turnOnAsk')} label={t('business.practice.turnOn')} onCancel={() => setPhase('idle')} onConfirm={() => void set(true)} />
           ) : (

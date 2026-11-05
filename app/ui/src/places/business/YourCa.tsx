@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { CaRules, StoredCaSignoff } from './CaRules';
 import { Avatar } from '../../parts/Avatar';
@@ -206,15 +207,15 @@ function OfRecord({ ca, onSaved }: { ca: CaOfRecord | null; onSaved: () => void 
 }
 
 /** A rate table's dates in words: from a day, to a day or with no end date yet. */
-function validity(rate: CaPendingRate, t: ReturnType<typeof useT>, language: string): string {
+function validity(rate: CaPendingRate, t: ReturnType<typeof useT>, zone: string): string {
   return rate.validTo
-    ? t('business.ca.validFromTo', { from: dayOf(rate.validFrom, language), to: dayOf(rate.validTo, language) })
-    : t('business.ca.validFrom', { from: dayOf(rate.validFrom, language) });
+    ? t('business.ca.validFromTo', { from: dayOf(rate.validFrom, zone), to: dayOf(rate.validTo, zone) })
+    : t('business.ca.validFrom', { from: dayOf(rate.validFrom, zone) });
 }
 
 function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirmed: () => void }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [number, setNumber] = useState('');
@@ -263,7 +264,7 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
                   <input type="checkbox" checked={chosen.has(rate.tableId)} onChange={(event) => toggle(rate.tableId, event.currentTarget.checked)} />
                   <span>{rate.title}</span>
                 </label>
-                <span className={s.stepWho}>{t('business.ca.version', { version: rate.version })} · {validity(rate, t, language)}</span>
+                <span className={s.stepWho}>{t('business.ca.version', { version: rate.version })} · {validity(rate, t, zone)}</span>
                 {/* Where each table comes from, one fold away (simple first: rate tables' detail is for the CA). */}
                 {rate.citations.length > 0 && (
                   <details className={s.fold}>
@@ -305,7 +306,7 @@ function Requests({ requests, onRecorded }: { requests: CaSignoffRequest[]; onRe
 
 function RequestLine({ request, onRecorded }: { request: CaSignoffRequest; onRecorded: () => void }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const [open, setOpen] = useState(false);
   const [number, setNumber] = useState('');
@@ -332,7 +333,7 @@ function RequestLine({ request, onRecorded }: { request: CaSignoffRequest; onRec
   return (
     <li className={s.step} data-request={request.id}>
       <span>{request.title}</span>
-      <span className={s.stepWho}>{t(`business.ca.state.${request.state}`)} · {dayOf(request.at, language)}</span>
+      <span className={s.stepWho}>{t(`business.ca.state.${request.state}`)} · {dayOf(request.at, zone)}</span>
       {request.signoffId && <StoredCaSignoff id={request.signoffId} />}
       {request.state === 'sent' && !open && (
         <div className={s.buttons}><Button onClick={() => setOpen(true)}>{t('business.ca.record')}</Button></div>

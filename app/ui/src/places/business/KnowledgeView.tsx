@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import type { KnowledgeSourceInput, KnowledgeSourceView } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -125,7 +126,7 @@ function Source({ source, asking, busy, onAsk, onNo, onYes }: {
 /** Add a source of one of four kinds; the engine reads and screens it, and refuses what it will not keep. */
 function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const engine = useEngine();
   const name = useId();
   const [kind, setKind] = useState<Kind>('text');
@@ -191,7 +192,7 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
           <Choice label={t('business.knowledge.file')} none={t('business.knowledge.noFiles')} value={pick} onChange={setPick} options={fileChoices.map((file) => ({ id: file.id, label: file.name }))} loaded={Boolean(files.data)} />
         )}
         {kind === 'past-work' && (
-          <Choice label={t('business.knowledge.work')} none={t('business.knowledge.noWork')} value={pick} onChange={setPick} options={workChoices.map((run) => ({ id: run.id, label: run.deliverable?.title ?? t('business.knowledge.workOn', { day: dayOf(run.verdict?.at ?? run.at, language) }) }))} loaded={Boolean(runs.data)} />
+          <Choice label={t('business.knowledge.work')} none={t('business.knowledge.noWork')} value={pick} onChange={setPick} options={workChoices.map((run) => ({ id: run.id, label: run.deliverable?.title ?? t('business.knowledge.workOn', { day: dayOf(run.verdict?.at ?? run.at, zone) }) }))} loaded={Boolean(runs.data)} />
         )}
         {kind === 'past-work' && <p className={b.note}>{t('business.knowledge.workNote')}</p>}
         {problem && <p className={b.problem} role="alert">{problem}</p>}

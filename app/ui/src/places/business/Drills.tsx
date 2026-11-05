@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useT, type T } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { ModelEstimate } from '../../parts/ModelEstimate';
@@ -29,7 +30,7 @@ function summaryOf(run: DrillRunView, t: T): string {
  */
 export function Drills() {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const list = useResource('venture.drills.list', {});
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export function Drills() {
       {newest && (
         <div className={s.foldBody} data-drill-run={newest.id}>
           <p className={s.strong} data-drill-summary="">{summaryOf(newest, t)}</p>
-          <p className={s.note}>{t('business.practice.drills.when', { day: dayOf(newest.at, language) })}</p>
+          <p className={s.note}>{t('business.practice.drills.when', { day: dayOf(newest.at, zone) })}</p>
           {failed.map((item, i) => <p key={i} className={s.problem} data-drill-failed="">{t('business.practice.drills.item', { drill: item.drill, line: item.line })}</p>)}
           <details className={s.fold} data-fold="drills">
             <summary>{t('business.practice.drills.each')}</summary>

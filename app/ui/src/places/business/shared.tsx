@@ -5,14 +5,18 @@ import { ApprovalRow, readBack } from '../../parts/ApprovalRow';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Tile, TileHead } from '../../parts/Tile';
 import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
+import { formatDay } from '../../../../../platform/runtime/owner-format';
 import s from './Business.module.css';
 
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** A day (2026-10-21) or a moment as the reader's calendar writes the date. Dates only; no figure is formatted here. */
-export function dayOf(at: string, language: string): string {
-  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T00:00:00.000Z` : at);
-  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeZone: 'UTC' }).format(date);
+/**
+ * A day (2026-10-21) or a moment as the owner reads the date, "21 Oct 2026". A moment reads in the owner's zone
+ * (`useOwnerZone`), so a drill run at 00:50 in India on 3 Nov is a 3 Nov drill (one-shot B2, row 37); a calendar day
+ * never shifts. Dates only; no figure is formatted here.
+ */
+export function dayOf(at: string, zone: string): string {
+  return formatDay(at, zone);
 }
 
 /**

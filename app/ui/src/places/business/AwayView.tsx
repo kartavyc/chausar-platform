@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
@@ -19,7 +20,7 @@ import a from './AwayView.module.css';
 export function AwayView() {
   const t = useT();
   const client = useEngine();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const away = useResource('venture.away.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const [shown, setShown] = useState<Away | null>(null);
   const [from, setFrom] = useState('');
@@ -76,7 +77,7 @@ export function AwayView() {
             <ul className={a.list}>
               {view.promises.map((promise, i) => (
                 <li key={`${promise.due}:${i}`} className={a.item}>
-                  <span className={a.when}>{dayOf(promise.due, language)}</span>
+                  <span className={a.when}>{dayOf(promise.due, zone)}</span>
                   <span>{promise.line}</span>
                 </li>
               ))}

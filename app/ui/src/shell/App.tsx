@@ -16,6 +16,7 @@ import { UnknownSheet } from './sheets';
 import { PhoneTabs, TopBar } from './TopBar';
 import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
+import { OwnerZone } from './clock';
 import { BootScreen } from '../places/onboarding/BootScreen';
 // W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
 import { AiGo } from '../parts/layout/AiGo';
@@ -69,6 +70,7 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
 
   return (
     // One notification list for the bell and the centre (W4 4G4), so they never disagree.
+    <OwnerZone>
     <NotifyProvider>
     <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={sheet ? '' : undefined} data-boot={checking ? '' : undefined}>
       <button type="button" className={s.skip} inert={covered} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
@@ -94,5 +96,6 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
       {narrow && <div className={s.tabs} inert={covered}><PhoneTabs route={route} /></div>}
     </div>
     </NotifyProvider>
+    </OwnerZone>
   );
 }

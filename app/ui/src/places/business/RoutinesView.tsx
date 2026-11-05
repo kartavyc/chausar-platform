@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useLanguage, useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { useOwnerZone } from '../../shell/clock';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { stateText } from '../../parts/states';
@@ -158,7 +159,7 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
 /** The routine's runs, newest first, read when the fold opens: the state word (Delivered, never Done) and the engine line. */
 function History({ id }: { id: string }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const [open, setOpen] = useState(false);
   const runs = useResource('venture.routines.runs', { id }, { skip: !open });
   return (
@@ -170,8 +171,8 @@ function History({ id }: { id: string }) {
           {runs.data.runs.map((run) => (
             // A finished run says Delivered once, with its day; any other says its word and the engine's reason.
             <li key={run.id}>{run.state === 'completed'
-              ? t('business.routines.delivered', { word: stateText(t, 'routine', run.state), day: dayOf(run.dueAt, language) })
-              : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, language) })}
+              ? t('business.routines.delivered', { word: stateText(t, 'routine', run.state), day: dayOf(run.dueAt, zone) })
+              : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, zone) })}
               {/* W6 6G5 (D44): the model receipt of a run that asked an AI. */}
               <ModelReceipt receipt={run.receipt} /></li>
           ))}
