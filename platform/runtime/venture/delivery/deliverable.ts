@@ -288,10 +288,12 @@ function findFigure(receipts: readonly AnyReceipt[], part: { receiptId: string; 
 type ExactFigure = { key: string; label: string; display: string; minor?: string; currency?: string; unit?: string };
 /**
  * One-shot B2: a deliverable goes to the client, so an amount in it keeps the exact form ("INR 2,948.82"), worked out
- * from the figure's minor units; the receipt itself shows the owner form on the owner's screens.
+ * from the figure's minor units unless the display is already exact; the receipt itself shows the owner form on the
+ * owner's screens.
  */
 function exactDisplay(figure: ExactFigure): string {
   const money = figure.unit === undefined || figure.unit === 'money';
+  if (/^-?[A-Z]{3} -?\d/.test(figure.display)) return figure.display;
   return money && figure.currency && typeof figure.minor === 'string' && /^-?\d+$/.test(figure.minor) ? formatMinor(figure.minor, figure.currency) : figure.display;
 }
 
