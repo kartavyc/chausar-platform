@@ -58,6 +58,8 @@ describe('the bell', () => {
     expect(items).toHaveLength(7);
     expect(items[0]!.textContent).toContain('Thumbnail set');
     expect(items[0]!.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-21T10:06:00.000Z');
+    // B2: the time reads in the business's zone (India) on the 12-hour clock, on any computer.
+    expect(items[0]!.querySelector('time')!.textContent).toBe('21 Oct, 3:36 pm');
     expect(items[0]!.hasAttribute('data-unread')).toBe(true);
     expect(items[2]!.hasAttribute('data-unread')).toBe(false);
     expect(within(items[0]!).getByText('New')).toBeTruthy();
