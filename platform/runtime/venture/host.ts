@@ -186,7 +186,8 @@ function latestBriefId(store: StateStore): string {
   return typeof latest?.briefId === 'string' ? latest.briefId : '';
 }
 
-type HostOptions = VentureHostOptions & { demo: boolean; storage: VentureStorage };
+/** D4 task 6: the desktop's file of tool looks kept between starts (models/cli-look-file.ts), never on the hosted app. */
+type HostOptions = VentureHostOptions & { demo: boolean; storage: VentureStorage; cliLooks?: import('./models/cli-look-file.ts').CliLookPort };
 type Handler = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>;
 
 export class VentureHost {
@@ -546,9 +547,10 @@ export class VentureHost {
         if (key !== null) this.#secrets.set(name, key);
       }
     }
-    const portOptions: ModelPortOptions = {
+    const portOptions: ModelPortOptions & { cliLooks?: import('./models/cli-look-file.ts').CliLookPort } = {
       store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
+      ...(options.cliLooks && this.#deps.host !== 'hosted-web' ? { cliLooks: options.cliLooks } : {}),
       claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'accepted',
     };
     const port = (create as (options: ModelPortOptions) => ModelPort)(portOptions);

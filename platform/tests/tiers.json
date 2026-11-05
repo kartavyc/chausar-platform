@@ -26,6 +26,7 @@
     "platform/tests/durable-jobs.test.ts",
     "platform/tests/journal-execution.test.ts",
     "platform/tests/venture-build.test.ts",
+    "platform/tests/venture-cli-look-kept-d4.test.ts",
     "platform/tests/venture-cli-status.test.ts",
     "platform/tests/venture-drills.test.ts",
     "platform/tests/venture-exec-places.test.ts",
