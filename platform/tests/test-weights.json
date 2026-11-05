@@ -43,6 +43,7 @@
   "platform/tests/venture-cli-look-kept-d4.test.ts": 5.6,
   "platform/tests/venture-judge-real-orders.test.ts": 11,
   "platform/tests/venture-network-search.test.ts": 25,
+  "platform/tests/venture-plan-meter-c7.test.ts": 1,
   "platform/tests/venture-social-run.test.ts": 23.3,
   "platform/tests/workspace-activation-independent-public-acceptance.test.ts": 251.8,
   "platform/tests/workspace-activation-local.test.ts": 87.8,
