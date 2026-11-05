@@ -50,7 +50,7 @@ describe('Money w6: how clients pay', () => {
     await click(within(panel).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.billing.set', expect.objectContaining({ upiId: 'lumen.studio@okaxis' })]));
     expect(await within(panel).findByText('Saved.')).toBeTruthy();
-    expect(panel.textContent).toContain('fixture-tested');
+    expect(panel.textContent).toContain('Not tried live yet');
     assertInkRules(panel);
   });
 
@@ -89,12 +89,12 @@ describe('Money w6: how clients pay', () => {
     await waitFor(() => expect(parted.querySelector('[data-part="advance"]')?.textContent).toBe('Advance'));
   });
 
-  it('a payment link is labelled fixture-tested and is made only after a second ask, with the digest shown', async () => {
+  it('a payment link says Not tried live yet and is made only after a second ask, with the digest shown', async () => {
     const keyId = ['rzp', 'test', 'Sample0Key9'].join('_');
     const { calls } = await start('#/money/invoices?sheet=invoice:inv-0039', async (engine) => { await engine.request('venture.billing.set', { razorpayKeys: { keyId, keySecret: 'samplesecretvalue1' } }); });
     const panel = await screen.findByRole('complementary', { name: 'INV-0039' });
     const pay = await within(panel).findByRole('region', { name: 'How clients pay' });
-    expect(pay.textContent).toContain('fixture-tested');
+    expect(pay.textContent).toContain('Not tried live yet');
     await click(within(pay).getByRole('button', { name: 'Make a payment link' }));
     expect(calls.map(([method]) => method)).not.toContain('venture.invoice.payLink');
     await click(within(pay).getByRole('button', { name: 'Make link' }));

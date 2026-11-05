@@ -22,7 +22,7 @@ export const PEOPLE_LLPIN = /^[A-Z]{3}-\d{4}$/;
 export const HAPPENSTANCE_PRICE = Object.freeze({ credits: '2', checkedOn: '2026-10-27' });
 
 export const PEOPLE_WORDS = Object.freeze({
-  needs: 'fixture-tested, needs your key',
+  needs: 'Not tried live yet, needs your key',
   line: 'Each service uses your own account and key. Nothing comes from LinkedIn.',
   linkedin: 'Chausar never looks anyone up through LinkedIn. Type a name or a company instead.',
   missing: 'Add your own key for this service first, under Connections.',

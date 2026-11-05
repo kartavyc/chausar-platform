@@ -9,6 +9,7 @@ import { KEEPER_ROLE, KEEPER_WORDS } from '../runtime/venture/views/keeper.ts';
 import { KIND_WORDS, endedTitle } from '../runtime/venture/notify/centre.ts';
 import { CARD_LABELS, RAIL_NAMES, businessNeeds } from '../runtime/venture/core/needs-data.ts';
 import { applyChange, defaultLayout } from '../runtime/venture/views/layout-core.ts';
+import { PEOPLE_WORDS } from '../runtime/venture/people/people-data.ts';
 
 const FAMILIES = ['money-tax', 'teaching', 'creative', 'writing', 'local-services', 'documents', 'research', 'people', 'shop-office', 'tech', 'licensed'] as const;
 const strings = (value: unknown): string[] => (typeof value === 'string' ? [value] : value && typeof value === 'object' ? Object.values(value).flatMap(strings) : []);
@@ -18,6 +19,8 @@ test('B1 fix round 1: engine-made screen words carry no developer word', () => {
   const lines = [
     KEEPER_ROLE, ...strings(KEEPER_WORDS), ...strings(KIND_WORDS), ...Object.keys(KIND_WORDS).map(kind => endedTitle(kind as keyof typeof KIND_WORDS)),
     ...strings(CARD_LABELS), ...strings(RAIL_NAMES),
+    // B1 fix round 2: people search's lines ("Not tried live yet, needs your key").
+    ...strings(PEOPLE_WORDS),
     ...[null, ...FAMILIES].flatMap(family => ['IN', 'US', null].flatMap(country => strings(businessNeeds(family, country)))),
   ];
   assert.ok(lines.length > 50);

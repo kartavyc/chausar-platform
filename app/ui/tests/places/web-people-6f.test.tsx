@@ -36,7 +36,7 @@ describe('Connections: web search and people search (6F3, 6F8)', { timeout: 30_0
     await act(async () => { closed.querySelector('details')!.open = true; });
     await settle();
     expect(closed.querySelector('[data-kit-part="web-search"]')!.textContent).toMatch(/Reads/i);
-    expect(closed.querySelector('[data-kit-part="people-search"]')!.textContent).toContain('fixture-tested');
+    expect(closed.querySelector('[data-kit-part="people-search"]')!.textContent).toContain('Not tried live yet');
   });
 
   it('a search key is saved only after the consent shown, its last four characters come back, and the field is cleared', async () => {
@@ -78,7 +78,8 @@ describe('Connections: web search and people search (6F3, 6F8)', { timeout: 30_0
     const { spy } = await start();
     const region = await tile('People search');
     await settle();
-    expect(region.querySelector('[data-people-service="happenstance"]')!.textContent).toContain('fixture-tested, needs your key');
+    expect(region.querySelector('[data-people-service="happenstance"]')!.textContent).toContain('Not tried live yet, needs your key');
+    expect(region.textContent).not.toContain('fixture');
     expect(region.querySelector('[data-people-service="tofler"]')!.textContent).toContain('Meanwhile');
     type(within(region).getByLabelText('Probe42 API key'), KEY);
     const probe = region.querySelector('[data-people-service="probe42"]') as HTMLElement;
