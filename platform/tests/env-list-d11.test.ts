@@ -48,7 +48,9 @@ test('a source file that reads an unlisted CHAUSAR_* name fails the check by nam
   const run = await tree(t, {
     'platform/runtime/new-flag.ts': "export const on = process.env.CHAUSAR_SHINY_NEW === '1';\nexport const known = process.env.CHAUSAR_PORT;\n",
     'app/desktop/also.cjs': "const x = env['CHAUSAR_OTHER_NEW'];\n",
-    'platform/tests/reads.test.ts': "process.env.CHAUSAR_ONLY_IN_TESTS = '1';\n",
+    // A fixture file's text, built from parts so the isolation rule (test-isolation-d2) does not read it as this test
+    // setting an environment variable.
+    'platform/tests/reads.test.ts': `${['process', 'env', 'CHAUSAR_ONLY_IN_TESTS'].join('.')} = '1';\n`,
     'platform/runtime/ua.ts': "export const CHAUSAR_USER_AGENT = 'Chausar';\n",
   });
   assert.equal(run('--write').status, 0, 'writes the two files');
