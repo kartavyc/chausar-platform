@@ -2,6 +2,11 @@
 // (owner-refusals-b1.test.ts) and the fake engine's (app/ui/tests/engine/fake-refusals-b1.test.ts), so both read alike.
 // A refusal is a code in quotes followed by its words, whatever call carries them (check, new ChausarError, new
 // EngineError, a local helper), or words first: refusalError(new Error('...'), { code: 'CODE' }).
+// B1 fix round 4 (review 4, finding 1): a code held in a name is read too, when its words are written out:
+// check(cond, BAD, 'words'), new ChausarError(BAD, 'words'), and a code passed in as a parameter (check(cond, code,
+// 'words')). A name set in the same file (const BAD = 'PACK_INVALID') reads as that code; any other name (a parameter)
+// reads as itself, so it travels as the owner's. Words held in a name or a constant (SETUP_WORDS.x, held.line) are not
+// read: only words written out in quotes at the call are.
 import { readdir, readFile } from 'node:fs/promises';
 
 /**
@@ -27,6 +32,14 @@ const LIT = String.raw`(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|\`(?:[^\`\\]|\
 // The words are read ahead, not taken, so a code that follows another code in quotes is read too.
 const PAIR = new RegExp(String.raw`'([A-Z][A-Z0-9_]{2,63})'(?=\s*,\s*(${LIT}(?:\s*\+\s*${LIT})*))`, 'g');
 const MARKED = new RegExp(String.raw`\bError\(\s*(${LIT})\s*\)\s*,\s*\{[^}]{0,120}?\bcode\s*:\s*'([A-Z][A-Z0-9_]{2,63})'`, 'g');
+// A code in a name, then its words; kept only where the call around it is a check or a new ...Error.
+const NAMED = new RegExp(String.raw`(?:\bnew\s+(?:Chausar|Engine|Internal)Error\(\s*|,\s*)([A-Za-z_$][\w$]*)(?=\s*,\s*(${LIT}(?:\s*\+\s*${LIT})*)\s*[,)])`, 'g');
+const NAMED_CALLS = new Set(['check', 'internalCheck', 'ChausarError', 'EngineError', 'InternalError']);
+
+/** The code a name holds in this file (const BAD = 'PACK_INVALID', or one of a list of such), else the name itself. */
+function codeOfName(source: string, name: string): string {
+  return new RegExp(String.raw`(?:^|[^\w$.])${name.replace(/\$/g, '\\$')}\s*=\s*'([A-Z][A-Z0-9_]{2,63})'`).exec(source)?.[1] ?? name;
+}
 
 /** Every .ts file under a folder, by its path from there, with its text. */
 export async function sourcesUnder(folder: URL, keep: (path: string) => boolean = () => true, prefix = ''): Promise<[string, string][]> {
@@ -127,6 +140,14 @@ export function refusalsIn(sources: [string, string][]): Refusal[] {
       const words = [...(match[2] ?? '').matchAll(new RegExp(LIT, 'g'))].map(part => part[0].slice(1, -1)).join('').replace(/\$\{[^}]*\}/g, 'x');
       if (/^[A-Z0-9_]+$/.test(words)) continue; // a list of codes is not a refusal
       found.push({ file, code: match[1] ?? '', words, internal: throwsInternal(source, callee(masked, match.index)) });
+    }
+    for (const match of source.matchAll(NAMED)) {
+      const name = match[1] ?? '', at = match.index + match[0].length - name.length;
+      if (!/[\w$]/.test(masked[at] ?? '') || /^(?:true|false|null|undefined)$/.test(name)) continue; // inside words, or a value
+      const call = callee(masked, at);
+      if (!NAMED_CALLS.has(call)) continue;
+      const words = [...(match[2] ?? '').matchAll(new RegExp(LIT, 'g'))].map(part => part[0].slice(1, -1)).join('').replace(/\$\{[^}]*\}/g, 'x');
+      found.push({ file, code: codeOfName(source, name), words, internal: throwsInternal(source, call) });
     }
     for (const match of source.matchAll(MARKED)) {
       if (masked[match.index] !== 'E') continue;
