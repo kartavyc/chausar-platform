@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { lockfileProblems, PINNED_BUILD_GIT_SOURCES } from './lockfile.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
@@ -20,8 +21,7 @@ const betaArtifactExtensions = { win32: ['exe'], linux: ['deb', 'AppImage', 'tar
 const CODEX_CHECK = 'bundled Codex with its LICENSE and NOTICE';
 // 6J1: electron-builder 26 depends on Electron's own node-gyp fork, which npm records as a Git source. It is a build-time
 // (dev) package, never shipped, and never run here (npmRebuild is off). Only this exact commit is accepted, still with
-// its integrity hash; every other package must resolve to an HTTPS registry artifact.
-const PINNED_BUILD_GIT_SOURCES = Object.freeze({ 'node_modules/@electron/node-gyp': 'git+ssh://git@github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2' });
+// its integrity hash; every other package must resolve to an HTTPS registry artifact. The list lives in lockfile.mjs (D1).
 const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
@@ -299,20 +299,14 @@ async function dependencyPrerequisites(root, platform) {
   try { await regular(lockPath); }
   catch (error) { if (error.code === 'ENOENT') throw new Error('package-lock.json is absent; an approved registry install must generate a genuine npm lockfile first'); throw error; }
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  if (lock.lockfileVersion !== 3 || lock.packages?.['']?.version !== pkg.version) throw new Error('a genuine npm v3 lockfile matching package.json is required; generate it only with an approved registry install');
-  for (const kind of ['dependencies', 'devDependencies']) {
-    if (JSON.stringify(Object.entries(lock.packages[''][kind] ?? {}).sort()) !== JSON.stringify(Object.entries(pkg[kind] ?? {}).sort())) throw new Error(`locked ${kind} differs from package.json`);
-    for (const [name, version] of Object.entries(pkg[kind] ?? {})) {
-      if (lock.packages[`node_modules/${name}`]?.version !== version) throw new Error(`lockfile does not resolve the exact ${name} pin`);
-    }
-  }
-  for (const [path, entry] of Object.entries(lock.packages)) {
-    if (!path) continue;
-    if (entry.link || !exactVersion.test(entry.version ?? '') || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(entry.integrity ?? '')) throw new Error('locked packages require exact versions and registry integrity hashes');
-    if (entry.dev === true && PINNED_BUILD_GIT_SOURCES[path] === entry.resolved) continue;
-    const url = new URL(entry.resolved);
-    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('locked packages must resolve to HTTPS registry artifacts');
-  }
+  const [problem] = lockfileProblems(lock, pkg, { pinnedGitSources: PINNED_BUILD_GIT_SOURCES });
+  if (problem) throw new Error({
+    version: 'a genuine npm v3 lockfile matching package.json is required; generate it only with an approved registry install',
+    'dependencies-differ': `locked ${problem.kind} differs from package.json`,
+    'unresolved-pin': `lockfile does not resolve the exact ${problem.name} pin`,
+    entry: 'locked packages require exact versions and registry integrity hashes',
+    resolved: 'locked packages must resolve to HTTPS registry artifacts',
+  }[problem.code] ?? problem.message);
   for (const name of ['electron', 'electron-builder', 'vite', 'pg', '@duckdb/node-api']) {
     const packagePath = join(root, 'node_modules', name, 'package.json');
     await regular(packagePath);
