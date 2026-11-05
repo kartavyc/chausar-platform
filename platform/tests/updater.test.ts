@@ -239,3 +239,21 @@ test('a hash mismatch, a short body or an overlong body deletes the part file an
   await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:rest}).stage(release,signature(release)),code('RELEASE_HASH_MISMATCH'));
   assert.deepEqual(await readdir(stageDirectory),[]);
 });
+
+// Fix round 1 (review MEDIUM-1): a server that never stops sending is cut at the signed size. The stand-in would send ten
+// times the size; the stager asks for at most one chunk past it, the part file never grows past the size, and none is left.
+test('an endless body stops at the signed size, never grows the part file past it, and leaves no part file',async t=>{
+  const bytes=patterned(200_000),release=sized(bytes.length,'1.1.0',createHash('sha256').update(bytes).digest('hex')),stageDirectory=await directory(t),step=16384;
+  let asked=0,largestPart=0;
+  const endless:Download=async request=>({status:200,url:request.url,body:(async function*(){
+    for(let index=0;index<Math.ceil(bytes.length*10/step);index++){
+      const part=(await readdir(stageDirectory)).find(name=>name.endsWith('.part'));
+      if(part)largestPart=Math.max(largestPart,(await stat(join(stageDirectory,part))).size);
+      asked+=step;yield Buffer.alloc(step,7);
+    }
+  })()});
+  await assert.rejects(new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,download:endless}).stage(release,signature(release)),code('RELEASE_HASH_MISMATCH'));
+  assert.ok(asked<=bytes.length+step,`the stager asked for ${asked} bytes of a ${bytes.length} byte release`);
+  assert.ok(largestPart<=bytes.length,`the part file grew to ${largestPart} bytes`);
+  assert.deepEqual(await readdir(stageDirectory),[]);
+});
