@@ -1,8 +1,10 @@
-// Writes and checks NOTICE: every third-party package the desktop app ships, read from the installed node_modules.
+// Writes and checks NOTICE: every third-party package the desktop app ships, read from package-lock.json.
 // `node scripts/third-party-notices.mjs --write` rewrites NOTICE; `--check` exits 1 when NOTICE is out of date.
-// It reads package.json files only. It never reads credentials, never runs package scripts and never downloads.
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+// D1 fix: it reads package.json and package-lock.json only, never node_modules, so NOTICE is the same on every system
+// (the lockfile records each platform-specific build, such as the Agent SDK's and DuckDB's, for every system).
+// It never reads credentials, never runs package scripts and never downloads.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // SPDX ids that may be bundled inside an AGPL-3.0 program (permissive, weak copyleft or GPLv3-family).
@@ -46,6 +48,11 @@ function readManifest(dir) {
 // Packages that declare no licence in package.json but ship a licence file, read by hand: name@version to its licence.
 const LICENCE_FROM_FILE = { 'map-stream@0.1.0': 'MIT' };
 
+/** The lockfile's packages, keyed by install path ('' is the project itself). */
+function lockPackages(root) {
+  try { return JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8')).packages ?? {}; } catch { return {}; }
+}
+
 function declaredLicence(manifest) {
   const listed = list => list.map(item => typeof item === 'string' ? item : item?.type).filter(Boolean).join(' OR ');
   if (typeof manifest.license === 'string') return manifest.license;
@@ -55,41 +62,42 @@ function declaredLicence(manifest) {
   return LICENCE_FROM_FILE[`${manifest.name}@${manifest.version}`] ?? '';
 }
 
-/** Node's lookup: the nearest node_modules/<name> from `fromDir` upward, never above `root`. */
-function resolvePackage(fromDir, name, root) {
-  let dir = fromDir;
+/** Node's lookup over the lockfile's install paths: the nearest node_modules/<name> from `from` upward. */
+function resolvePackage(packages, from, name) {
+  let at = from;
   for (;;) {
-    const candidate = join(dir, 'node_modules', ...name.split('/'));
-    if (existsSync(join(candidate, 'package.json'))) return candidate;
-    if (resolve(dir) === resolve(root)) return null;
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
+    const candidate = `${at ? `${at}/` : ''}node_modules/${name}`;
+    if (packages[candidate]) return candidate;
+    if (!at) return null;
+    const cut = at.lastIndexOf('/node_modules/');
+    at = cut < 0 ? '' : at.slice(0, cut);
   }
 }
 
 function walk(root, startNames) {
+  const packages = lockPackages(root);
   const found = new Map();
   const seen = new Set();
-  const visit = (fromDir, names) => {
+  const visit = (from, names) => {
     for (const name of names) {
       if (name.startsWith('@types/')) continue; // type declarations are erased at build time and never ship
-      const dir = resolvePackage(fromDir, name, root);
-      if (!dir) continue; // an optional dependency for another platform, or a peer nobody installed
-      const real = realpathSync(dir);
-      if (seen.has(real)) continue;
-      seen.add(real);
-      const manifest = readManifest(dir);
-      if (!manifest) continue;
-      const entry = { name: manifest.name ?? name, version: String(manifest.version ?? ''), license: declaredLicence(manifest),
+      let path = resolvePackage(packages, from, name);
+      if (!path) continue; // a peer nobody installs
+      if (packages[path].link && packages[packages[path].resolved]) path = packages[path].resolved;
+      if (seen.has(path)) continue;
+      seen.add(path);
+      const locked = packages[path];
+      const manifest = { ...locked, name: locked.name ?? path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length) };
+      const entry = { name: manifest.name, version: String(manifest.version ?? ''), license: declaredLicence(manifest),
         fromFile: Boolean(LICENCE_FROM_FILE[`${manifest.name}@${manifest.version}`]),
-        platformSpecific: Boolean(manifest.os || manifest.cpu), path: relative(root, dir).split(sep).join('/') };
+        platformSpecific: Boolean(manifest.os || manifest.cpu), path };
       const key = `${entry.name}@${entry.version}`;
       if (!found.has(key)) found.set(key, entry);
-      visit(dir, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies }));
+      // Every optional dependency the lockfile records is followed, so each system's build is listed wherever it ships.
+      visit(path, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies }));
     }
   };
-  visit(root, startNames);
+  visit('', startNames);
   return [...found.values()].sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version, undefined, { numeric: true }));
 }
 
@@ -135,10 +143,10 @@ function line(item) {
   return `${item.name} ${item.version} ${item.license || '(none declared)'}${item.fromFile ? ' (from its licence file)' : ''}${flag}`;
 }
 
-/** NOTICE text. Deterministic: the same node_modules always gives the same file. */
+/** NOTICE text. Deterministic: the same lockfile always gives the same file, on any system. */
 export function renderNotice(shipped, root) {
   const screens = walk(root, SCREEN_LIBRARIES);
-  const electron = readManifest(join(root, 'node_modules', 'electron'));
+  const electron = lockPackages(root)['node_modules/electron'];
   const flaggedItems = [...shipped, ...screens].filter(flagged);
   return [
     'Chausar',
@@ -153,8 +161,9 @@ export function renderNotice(shipped, root) {
     '',
     'Chausar includes third-party software under its own licences, listed below as name, version and the licence the',
     'package declares. Each package\'s full licence text is in its folder inside the app (node_modules/<name>).',
-    'This file is generated from the installed packages by `node scripts/third-party-notices.mjs --write`; run it on',
-    'the packaging machine, because platform-specific builds (DuckDB bindings, the Agent SDK binary) differ per system.',
+    'This file is generated from package-lock.json by `node scripts/third-party-notices.mjs --write`. A package built',
+    'for one system (the DuckDB bindings, the Agent SDK program file) is listed for every system; each installer',
+    'carries only its own.',
     'A line marked FLAG has a licence that is not known to fit the AGPL and needs a decision before shipping.',
     '',
     `Flagged packages: ${flaggedItems.length}`,
@@ -196,7 +205,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } else if (process.argv.includes('--check')) {
     const current = existsSync(target) ? readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : '';
     if (current !== text) { console.error('NOTICE is out of date: run node scripts/third-party-notices.mjs --write'); process.exit(1); }
-    console.log('NOTICE matches the installed packages.');
+    console.log('NOTICE matches package-lock.json.');
   } else {
     process.stdout.write(text);
   }

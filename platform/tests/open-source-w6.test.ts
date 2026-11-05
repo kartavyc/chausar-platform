@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,22 +42,24 @@ test('licence verdicts: permissive and weak copyleft pass, proprietary and unkno
   }
 });
 
-test('the collector follows production dependencies only, nested installs, installed peers and present optionals', async () => {
+// D1 fix: the collector reads package-lock.json (never node_modules), so every system's build of a package is listed.
+test('the collector follows production dependencies only, nested installs, peers and every recorded optional build', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'chausar-6j3-'));
   try {
-    const pkg = async (path: string, body: Record<string, unknown>) => {
-      await mkdir(join(dir, path), { recursive: true });
-      await writeFile(join(dir, path, 'package.json'), JSON.stringify(body));
-    };
-    await pkg('.', { name: 'app', dependencies: { a: '1.0.0' }, optionalDependencies: { gone: '1.0.0' }, devDependencies: { tool: '1.0.0' } });
-    await pkg('node_modules/a', { name: 'a', version: '1.0.0', license: 'MIT', dependencies: { b: '^2.0.0' }, peerDependencies: { p: '*' } });
-    await pkg('node_modules/a/node_modules/b', { name: 'b', version: '2.1.0', licenses: [{ type: 'Apache-2.0' }] });
-    await pkg('node_modules/b', { name: 'b', version: '1.0.0', license: 'ISC' });
-    await pkg('node_modules/p', { name: 'p', version: '3.0.0', license: 'SEE LICENSE IN LICENSE.md' });
-    await pkg('node_modules/tool', { name: 'tool', version: '9.9.9', license: 'MIT' });
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'app', dependencies: { a: '1.0.0' }, optionalDependencies: { gone: '1.0.0' }, devDependencies: { tool: '1.0.0' } }));
+    await writeFile(join(dir, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: {
+      '': { name: 'app', dependencies: { a: '1.0.0' } },
+      'node_modules/a': { version: '1.0.0', license: 'MIT', dependencies: { b: '^2.0.0' }, optionalDependencies: { 'a-linux-x64': '1.0.0', 'a-win32-x64': '1.0.0' }, peerDependencies: { p: '*' } },
+      'node_modules/a/node_modules/b': { version: '2.1.0', license: ['Apache-2.0'] },
+      'node_modules/a-linux-x64': { version: '1.0.0', license: 'MIT', os: ['linux'], cpu: ['x64'], optional: true },
+      'node_modules/a-win32-x64': { version: '1.0.0', license: 'MIT', os: ['win32'], cpu: ['x64'], optional: true },
+      'node_modules/b': { version: '1.0.0', license: 'ISC' },
+      'node_modules/p': { version: '3.0.0', license: 'SEE LICENSE IN LICENSE.md' },
+      'node_modules/tool': { version: '9.9.9', license: 'MIT', dev: true },
+    } }));
     const found = collectShippedPackages(dir);
     assert.deepEqual(found.map((item: { name: string; version: string; license: string }) => `${item.name}@${item.version} ${item.license}`),
-      ['a@1.0.0 MIT', 'b@2.1.0 Apache-2.0', 'p@3.0.0 SEE LICENSE IN LICENSE.md']);
+      ['a@1.0.0 MIT', 'a-linux-x64@1.0.0 MIT', 'a-win32-x64@1.0.0 MIT', 'b@2.1.0 Apache-2.0', 'p@3.0.0 SEE LICENSE IN LICENSE.md']);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
