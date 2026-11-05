@@ -47,7 +47,6 @@ test('D3: no doc points a data folder or a run output into the checkout', async 
   assert.equal(listed.status, 0, listed.stderr);
   const found: string[] = [];
   for (const file of listed.stdout.split('\n').map(line => line.trim()).filter(Boolean)) {
-    if (file.startsWith('docs/verification/')) continue; // D10 moves these old logs and notes out of the tree
     const text = await read(file);
     // A data or run variable set to a relative path lands in the folder the command runs in: the checkout.
     for (const match of text.matchAll(/CHAUSAR_(?:VAULT_DIRECTORY|HOSTED_DATA|HOME|RUN_ROOT)\s*=\s*['"]?(?![A-Za-z]:|[\\/$%~<])[^\s'";`]+/g)) found.push(`${file}: ${match[0]}`);

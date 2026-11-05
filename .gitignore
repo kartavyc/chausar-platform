@@ -25,8 +25,8 @@ vendor/codex-bundle/
 # The report keys a build ships (resources/feedback.json), written by desktop-package.mjs from CHAUSAR_FEEDBACK_* (6J2).
 vendor/feedback/
 # D3: runs and dev servers write to the run root and the data home, outside the code folder; npm run guard:data and the
-# CI after-run check are the real guard. These lines only stop an accident reaching git add. The .tap logs already
-# tracked in docs/verification/ stay tracked until D10 moves them.
+# CI after-run check are the real guard. These lines only stop an accident reaching git add. D10 moved the old
+# .tap logs and build notes out of docs/ to the private repo.
 .b2c-work/
 .w3check/
 app/ui/.vitest/

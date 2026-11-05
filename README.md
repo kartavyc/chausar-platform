@@ -102,7 +102,7 @@ The factory benchmark emits a machine-readable report and fails on failed, cance
 | `fixtures/plugins/` | Synthetic WASM fixtures |
 | `docs/evidence/` | Actual current verification records |
 
-Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md), [release qualification](docs/releases.md) and [GitHub handoff](docs/github-handoff.md) before expanding deployment scope.
+Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md) and [release qualification](docs/releases.md) before expanding deployment scope.
 
 ## Licence
 

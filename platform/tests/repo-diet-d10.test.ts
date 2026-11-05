@@ -83,7 +83,7 @@ test('task 2: no tracked .png under docs/ (the screenshots live in the private r
   assert.deepEqual(found.slice(0, 10), [], `${found.length} tracked PNGs under docs/`);
 });
 
-test('task 3: no tracked .tap test output', { todo: 'D10 task 3' }, () => {
+test('task 3: no tracked .tap test output', () => {
   assert.deepEqual(tracked.filter(file => file.endsWith('.tap')), []);
 });
 
@@ -128,7 +128,7 @@ const markdownLinks = (text: string) => {
   return links.filter(link => !/^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(link));
 };
 
-test('task 3: every relative Markdown link in docs/ and the root *.md resolves', { todo: 'D10 task 3' }, () => {
+test('task 3: every relative Markdown link in docs/ and the root *.md resolves', () => {
   const files = tracked.filter(file => file.endsWith('.md') && (file.startsWith('docs/') || !file.includes('/')));
   const broken: string[] = [];
   for (const file of files) {

@@ -42,10 +42,12 @@ test('a clean tree passes both layers', async t => {
   assert.match(after.stdout, /The checkout is clean after the run\./);
 });
 
-test('layer A: tracked data fails, named with its kind; a docs/verification .tap is known until D10', async t => {
+test('layer A: tracked data fails, named with its kind; a docs/verification .tap fails too since D10 moved those logs', async t => {
   const r = await repo(t);
   await r.track('docs/verification/old.tap', 'TAP version 13\n');
-  assert.equal(r.check('--tracked').status, 0, 'the known logs pass');
+  const old = r.check('--tracked');
+  assert.equal(old.status, 1, 'no .tap log is known any more');
+  assert.match(old.stderr, /docs\/verification\/old\.tap: a test log \(\.tap\)/);
   await r.track('data/x.json', '{}');
   const result = r.check('--tracked');
   assert.equal(result.status, 1);

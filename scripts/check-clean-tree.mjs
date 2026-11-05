@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // D3: the clean-tree guard. Runtime and test data never live in the code folder; this checks it in two layers.
-//   --tracked   (layer A): no tracked file looks like data: data/, results/, .shots/, a .tap log outside
-//               docs/verification/ (those are known until D10 moves them), a vault, backup or encrypted record, a
-//               custody key, tenants/ or custody/ outside platform/ source, a raw vitest report, or a file over 1 MB
-//               that is not on the short list below with its reason.
+//   --tracked   (layer A): no tracked file looks like data: data/, results/, .shots/, a .tap log, a vault, backup
+//               or encrypted record, a custody key, tenants/ or custody/ outside platform/ source, a raw vitest
+//               report, or a file over 1 MB that is not on the short list below with its reason.
 //   --after-run (layer B): after a run, git status (ignored files included) shows nothing outside the folders a build
 //               or an install makes. CI runs it last in every test job; on a fresh checkout it must be empty.
 // Usage (from anywhere): node scripts/check-clean-tree.mjs --tracked | --after-run
@@ -40,9 +39,8 @@ const DATA_PATTERNS = [
   [/\.encrypted\.json$/, 'an encrypted record'],
   [/\.vitest\.json$/, 'a raw vitest report'],
 ];
-/** Tracked paths that match a pattern on purpose, until the batch named moves them. */
+/** Tracked paths that match a pattern on purpose, each with its reason. */
 const KNOWN = [
-  [/^docs\/verification\/[^/]+\.tap$/, 'test logs in docs/verification/, known until D10 moves them'],
   [/^platform\/.*(^|\/)custody\//, 'custody source code under platform/, not data'],
 ];
 

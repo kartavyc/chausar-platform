@@ -1,12 +1,12 @@
 # Build status
 
-Release `0.1.0-preview.1` implements a runnable local desktop architecture preview and includes the separate recovered enterprise engine. The full supplied plans are retained in `docs/specs/`; their complete production acceptance contract is not certified by this release.
+Release `0.1.0-preview.1` implements a runnable local desktop architecture preview and includes the separate recovered enterprise engine. The full supplied plans are kept in the private repository (`chausar-private/docs/specs/`); their complete production acceptance contract is not certified by this release.
 
 ## Published source checkpoints
 
 The recovered baseline below is historical evidence for the initial preview. Later integration checkpoints have their own source-pinned reports. Published commit `0546c85d3323b96ce8257f2bb1f637d6d2f47190` passed 1611 combined app/semantic tests, root strict TypeScript, portable phone TypeScript, syntax/JSON and the Windows headless worker. Its Windows and Ubuntu GitHub CI jobs also passed. It joins saved investigations to durable jobs; these source checks do not certify the complete release.
 
-The next connected local-file sync, writer admission, forecast and alert slice is described in [its milestone](connected-sync-forecast-alert-milestone.md). Final aggregate counts and commit/tree identifiers belong to the exact frozen coordinator report and CI run. Each public synthetic flow keeps live providers, customer sources, GUI qualification and full release acceptance separate.
+The next connected local-file sync, writer admission, forecast and alert slice is described in its milestone note, kept with the build logs in the private repository. Final aggregate counts and commit/tree identifiers belong to the exact frozen coordinator report and CI run. Each public synthetic flow keeps live providers, customer sources, GUI qualification and full release acceptance separate.
 
 ## Recovered baseline evidence (historical)
 
@@ -28,7 +28,7 @@ The next connected local-file sync, writer admission, forecast and alert slice i
 | Native installers, publisher signing and rollback | Not executed; runtime binaries/certificates not provided; packaging fails closed |
 | Enterprise connected engine | Source recovered and syntax inspected; new connected database run not executed |
 
-`docs/evidence/factory-bench.json` records the recovered baseline's counts and explicit production non-qualification. Historical enterprise evidence is not used as current test output. CI produces its own report on each commit.
+A receipt of 30 September (`factory-bench.json`, now kept with the build logs in the private repository) records the recovered baseline's counts and explicit production non-qualification. Historical enterprise evidence is not used as current test output. CI produces its own report on each commit.
 
 ## Release gates still open
 

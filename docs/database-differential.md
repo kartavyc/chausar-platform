@@ -1,6 +1,6 @@
 # Native database differential qualification
 
-The approved Windows qualification now executed native PostgreSQL 18.6 and DuckDB v1.5.5: **110 checks passed, exit 0**. See [completed native qualification](postgresql-native-qualification.md). Earlier missing-dependency observations below remain explicitly historical. Actual PGlite still fails its independent-instance ownership gate; no production default is selected.
+The approved Windows qualification now executed native PostgreSQL 18.6 and DuckDB v1.5.5: **110 checks passed, exit 0**. The completed native qualification note is kept with the build logs in the private repository. Earlier missing-dependency observations below remain explicitly historical. Actual PGlite still fails its independent-instance ownership gate; no production default is selected.
 
 `node scripts/verify-database-differential.mjs` is a hard qualification gate. It compares independently hand-worked answers against the JavaScript calculator, the production native DuckDB worker, and the native PostgreSQL analytical adapter. It also runs `CalculatorService` with both native verifiers on a real PostgreSQL-backed encrypted `Vault`. Missing dependencies or an unconfigured disposable PostgreSQL database cause a nonzero exit. The runner never converts those conditions into a passing test, a skip, or an injected SQL executor.
 
@@ -71,7 +71,7 @@ These tests establish normal native composition, arithmetic and transactional CA
 
 ## Initial source-only evidence
 
-This section records the first, dependency-free run at commit `4ca43c`. The later approved D: qualification installed exact dependencies and executed native DuckDB and actual PGlite. See [native database qualification](native-database-qualification.md) for current results and the remaining PostgreSQL blocker. The initial missing-module observations below are historical.
+This section records the first, dependency-free run at commit `4ca43c`. The later approved D: qualification installed exact dependencies and executed native DuckDB and actual PGlite. The native database qualification note (kept with the build logs in the private repository) records those results and the remaining PostgreSQL blocker. The initial missing-module observations below are historical.
 
 On Node `v24.13.1`, the focused suite executed **44 tests: 44 passed, 0 failed, 0 skipped**. This is JavaScript arithmetic, import behavior and safety-protocol evidence. The managed-pool preflight tests are explicitly mocks and make no native engine claim.
 
