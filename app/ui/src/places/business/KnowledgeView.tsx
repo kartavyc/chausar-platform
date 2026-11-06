@@ -11,6 +11,7 @@ import b from './Business.module.css';
 import s from './KnowledgeView.module.css';
 // W6 6G4: the business's dated facts (since when, what they replaced, source, who may see them).
 import { FactsBody } from '../clients/FactsSection';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 type Kind = KnowledgeSourceInput['kind'];
 const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work'];
@@ -52,7 +53,7 @@ export function KnowledgeView() {
   }
 
   if (view.error) return <p className={b.problem} role="alert">{messageOf(view.error)}</p>;
-  if (!data) return <p className={b.note}>{t('business.loading')}</p>;
+  if (!data) return <LoadingPlace shape="settings" />;
   return (
     <div className={b.page}>
       <div className={b.split}>
@@ -210,7 +211,7 @@ function Choice({ label, none, value, onChange, options, loaded }: {
 }) {
   const t = useT();
   const id = useId();
-  if (!loaded) return <p className={b.note}>{t('business.loading')}</p>;
+  if (!loaded) return <LoadingPlace shape="settings" />;
   if (options.length === 0) return <p className={b.note}>{none}</p>;
   return (
     <div className={s.choice}>

@@ -37,6 +37,7 @@ import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
 import { LayoutNotice } from '../../parts/layout/LayoutNotice';
 import ls from '../../parts/layout/Layout.module.css';
 import v from './MoneyViews.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
 const onOverview = (event: VentureRunEvent) => onMoney(event) || onRuns(event);
@@ -96,6 +97,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
       {overview.error && <Failed error={overview.error} />}
       {books.error && <Failed error={books.error} />}
       {views.failed && <Failed error={views.failed} />}
+      <LoadingPlace shape="tiles" loading={!overview.data && !books.data && !overview.error && !books.error} />
       {slot(0, () => (
         <Bento className={`${s.glance} ${v.glanceRow}`}>
           <InvoicedTile billed={billed} goal={views.goal} month={month === thisMonth ? null : month} />

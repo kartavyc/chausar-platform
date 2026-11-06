@@ -10,6 +10,7 @@ import { Icon } from '../../parts/Icon';
 import { goTo } from '../../shell/navigation';
 import { MiniAppFrame } from './MiniAppFrame';
 import s from './Apps.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const never = () => false;
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -64,7 +65,7 @@ export function AppView({ id }: { id: string }) {
     }
   }
 
-  if (!app) return <p className={s.quiet} role={loaded.error ? 'alert' : undefined}>{loaded.error ? t('apps.failed', { message: loaded.error.message }) : t('apps.loading')}</p>;
+  if (!app) return loaded.error ? <p className={s.quiet} role="alert">{t('apps.failed', { message: loaded.error.message })}</p> : <LoadingPlace shape="cards" />;
 
   const pin = () => void run(async () => {
     const done = await client.request('venture.apps.pin', { app: app.id, pinned: !app.pinned });

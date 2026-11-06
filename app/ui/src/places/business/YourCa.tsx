@@ -10,6 +10,7 @@ import { Receipt } from '../../parts/Receipt';
 import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Your CA (venture.ca.*), for a business on the CA firm playbook, as tiles: the CA of record (initials drawn here,
@@ -25,7 +26,7 @@ export function YourCa() {
 
   if (venture.data !== undefined && venture.data?.playbook?.id !== 'ca-firm') return <p className={s.note}>{t('business.ca.notFirm')}</p>;
   if (ca.error) return <p className={s.problem} role="alert">{t('business.failed', { message: ca.error.message })}</p>;
-  if (!ca.data) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!ca.data) return <LoadingPlace shape="settings" />;
   const { ca: of, pendingRates, requests, latestPapers } = ca.data;
   return (
     <div className={s.page}>

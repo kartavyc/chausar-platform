@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react';
 import { useT } from '../text';
 import { Icon } from './Icon';
+import { LoadingPlace } from './Skeleton';
 import s from './Sheet.module.css';
 
 /**
@@ -38,6 +39,9 @@ export interface SheetProps {
   /** A receipt sheet (w3 3I): the sheet IS the proof, so its figures are the receipt's own lines in plain DM Mono with
    *  no receipt chip. Marks the root `data-receipt-sheet`, which the Ink rules helper lets money text sit inside. */
   receipt?: boolean | undefined;
+  /** One-shot C3 task 12: its first answer is on its way. The body is a still skeleton after 150 ms, and the title's word
+   *  stays for a screen reader only. */
+  loading?: boolean | undefined;
 }
 
 /**
@@ -46,7 +50,7 @@ export interface SheetProps {
  * Its head is D's panel head (D-TeamChat `.cp-h`): an optional avatar, the kind and eyebrow, the title and its line,
  * and the close button at the right.
  */
-export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, children, footer, avatar, width, name, receipt }: SheetProps) {
+export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, children, footer, avatar, width, name, receipt, loading }: SheetProps) {
   const t = useT();
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -82,14 +86,14 @@ export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, child
               {eyebrow && <span className={s.eyebrow}>{eyebrow}</span>}
             </div>
           )}
-          <h2 id={titleId} ref={titleRef} tabIndex={-1} className={s.title}>{title}</h2>
+          <h2 id={titleId} ref={titleRef} tabIndex={-1} className={loading ? 'sr-only' : s.title}>{title}</h2>
           {line && <div className={s.line}>{line}</div>}
         </div>
         <button type="button" className={s.close} aria-label={name ? t('sheet.closeNamed', { name }) : t('sheet.close')} onClick={onClose}>
           <Icon name="x" size={18} />
         </button>
       </header>
-      <div className={s.body}>{children}</div>
+      <div className={s.body}>{children}{loading && <LoadingPlace shape="sheet" />}</div>
       {footer && <div className={s.footer}>{footer}</div>}
     </aside>
   );

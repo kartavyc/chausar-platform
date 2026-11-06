@@ -21,6 +21,7 @@ import { EngineError, type OutreachHandoff, type SalesProposalView, type Venture
 import type { SheetComponentProps } from '../../shell/sheets';
 import { copyText, handoffText, performHandoff } from './handoff';
 import s from './Proposal.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
@@ -56,7 +57,7 @@ export function ProposalSheet({ id, onClose, returnFocus }: SheetComponentProps)
     <Sheet label={t('kit-sales.proposal.sheet')} title={title} onClose={onClose} returnFocus={returnFocus}>
       <div className={s.body}>
         {newest.error && !missing && <p className={s.problem} role="alert">{t('kit-sales.proposal.failed', { message: salesWords(newest.error, t) })}</p>}
-        {!shown && newest.loading && !drafted && <p className={s.note}>{t('sheet.loading')}</p>}
+        {!shown && newest.loading && !drafted && <LoadingPlace shape="sheet" />}
         {who && (drafting || (!shown && missing)) && (
           <DraftForm
             who={who} intro={!shown ? t('kit-sales.proposal.none') : null}

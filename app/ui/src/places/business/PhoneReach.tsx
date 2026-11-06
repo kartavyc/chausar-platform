@@ -17,6 +17,7 @@ import type { ParamsOf, PhoneAccessView, TelegramView } from '../../engine/types
 import { messageOf } from './shared';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** A fold that renders its body only once opened, so a closed fold asks the engine nothing. */
 function Fold({ title, children }: { title: string; children: () => ReactNode }) {
@@ -65,7 +66,7 @@ function Telegram() {
   }
 
   if (read.error && !shown) return <p className={s.problem} role="alert">{t('business.failed', { message: read.error.message })}</p>;
-  if (!shown) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!shown) return <LoadingPlace shape="settings" />;
   return (
     <form className={s.form} onSubmit={(event) => void save(event)}>
       <p className={s.note}>{shown.line}</p>
@@ -118,7 +119,7 @@ function PhoneAccess() {
   }
 
   if (read.error && !shown) return <p className={s.problem} role="alert">{t('business.failed', { message: read.error.message })}</p>;
-  if (!shown) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!shown) return <LoadingPlace shape="settings" />;
   const tailscale = shown.addresses.some((item) => item.via === 'tailscale');
   return (
     <>

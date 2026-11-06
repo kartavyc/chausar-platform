@@ -44,7 +44,7 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const words = (text: string) => (quoted ? text : <EngineViewText text={text} />);
   if (!data) {
     return (
-      <Sheet label={label} title={view.error ? t('today.view.missing') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
+      <Sheet label={label} loading={!view.error} title={view.error ? t('today.view.missing') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
         {view.error && <p className={s.failed}>{view.error.message}</p>}
       </Sheet>
     );

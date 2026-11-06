@@ -6,6 +6,7 @@ import { Chip, type ChipTone } from '../../parts/Chip';
 import { AgentSkills } from './AgentSkills';
 import { capabilityPageWords, capabilityWords } from './CapabilityWords';
 import s from './AgentExtras.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -26,7 +27,7 @@ export function AgentCanDo({ agent, onTry }: { agent: AgentView; onTry: (starter
   const base = useId();
   const view = useResource('venture.agents.capabilities', { agent: agent.id });
   if (view.error) return <p className={s.problem} role="alert">{messageOf(view.error)}</p>;
-  if (!view.data) return <p className={s.quiet}>{t('team.loading')}</p>;
+  if (!view.data) return <LoadingPlace shape="list" />;
   const page = view.data;
   return (
     <div className={s.tab}>

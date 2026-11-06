@@ -226,7 +226,7 @@ export function RunSheet({ runId, onClose, returnFocus }: { runId: string; onClo
 
   if (!run.data) {
     return (
-      <Sheet label={t('sheet.run')} title={run.error ? t('run.notFound') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
+      <Sheet label={t('sheet.run')} loading={!run.error} title={run.error ? t('run.notFound') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
         {run.error && <p className={s.failureText}>{run.error.message}</p>}
       </Sheet>
     );

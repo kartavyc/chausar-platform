@@ -21,6 +21,7 @@ import type { NotificationView } from '../engine/types';
 import { useNotifyList } from './Bell';
 import type { SheetComponentProps } from './sheets';
 import s from './NotificationCentre.module.css';
+import { LoadingPlace } from '../parts/Skeleton';
 
 /** When an item came, in the owner's zone on the 12-hour clock: "21 Oct, 3:36 pm". Empty for a bad date. */
 export function whenOf(at: string, zone: string): string {
@@ -55,7 +56,7 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
     <Sheet label="" title={title} name={title} line={line} onClose={onClose} returnFocus={returnFocus}>
       <div className={s.centre} data-centre="">
         {list.error && !data && <p className={s.problem}>{t('sheet.failed', { message: list.error.message })}</p>}
-        {!data && !list.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+        {!data && !list.error && <LoadingPlace shape="sheet" />}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         {data && data.unread > 0 && (
           <div className={s.tools}>

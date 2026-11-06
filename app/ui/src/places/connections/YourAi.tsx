@@ -13,6 +13,7 @@ import { useCliChecks } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
 import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The built-in templates' preset id: no AI, nothing sent (Your AI and the agent panel's Its AI). */
 export const TEMPLATES = 'built-in-templates';
@@ -134,7 +135,7 @@ export function YourAi({ focus }: { focus: boolean }) {
         </div>
         {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
         {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}
-        {!data && !status.error && <p className={s.note}>{t('connections.ai.loading')}</p>}
+        {!data && !status.error && <LoadingPlace shape="cards" />}
         {data && (
           <>
             <div className={s.jobs} data-one={bothTemplates ? '' : undefined}>

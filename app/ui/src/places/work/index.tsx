@@ -36,6 +36,7 @@ import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
 import s from './Work.module.css';
 import { Ideas } from './Ideas';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The filters the address can hold. `orders` (every order, paid and cancelled too) has no chip; the order focus's
  *  "All orders" link leads there. `ideas` (Ink v2 wave 5, 5A3) is the idea pipeline, where Today's grade card leads. */
@@ -231,7 +232,7 @@ export function Place() {
         </Button>
       </div>
       {failures.map((e) => <p key={`${e.code}:${e.message}`} className={s.problem} role="status">{t('work.loadFailed', { message: e.message })}</p>)}
-      <div className={s.sections}>{content}</div>
+      <div className={s.sections}>{content}<LoadingPlace shape="list" loading={!runs.data && !runs.error} /></div>
     </>
   );
 }

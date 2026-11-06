@@ -16,6 +16,7 @@ import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -34,7 +35,7 @@ export function PlanView() {
   const [changing, setChanging] = useState(false);
 
   if (plan.error) return <p className={s.problem} role="alert">{t('business.failed', { message: plan.error.message })}</p>;
-  if (plan.data === undefined) return <p className={s.note}>{t('business.loading')}</p>;
+  if (plan.data === undefined) return <LoadingPlace shape="settings" />;
   if (plan.data === null) {
     return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
   }

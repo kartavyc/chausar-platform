@@ -5,6 +5,7 @@ import { Button } from '../../parts/Button';
 import type { LaunchStatusView, VentureRunEvent } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Business > Practice: the launch stage (wave 6, 6C4 / D19). Two stages only, Practice and Live (you approve each), as
@@ -46,7 +47,7 @@ export function LaunchStages() {
   return (
     <TileSection title={t('business.launch')}>
       {status.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: status.error.message })}</p>}
-      {!data && !status.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!data && !status.error && <LoadingPlace shape="settings" />}
       {data && (
         <>
           <ul className={s.steps}>

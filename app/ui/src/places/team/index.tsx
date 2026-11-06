@@ -21,6 +21,7 @@ import { membersOf, refreshOn } from './shared';
 import { TeamStats } from './TeamStats';
 import { useNeedsYou } from '../../shell/needsYou';
 import s from './Team.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Team (D-Team): who is working, who waits on you and the AI spend this month, then the agents as cards. Once the
@@ -82,6 +83,7 @@ export function Place() {
               <a className={s.addAgent} href="#/onboarding"><Icon name="plus" size={16} />{t('team.addAgent')}</a>
             </div>
           )}
+          <LoadingPlace shape="tiles" loading={!team.data && !team.error} />
           {team.data?.teamHealth && team.data.teamHealth.status !== 'healthy' && (
             <section className={s.teamHealth} aria-label={t('team.health.team')}>
               <HealthLine health={team.data.teamHealth} agentId="team" onCleared={team.reload} />

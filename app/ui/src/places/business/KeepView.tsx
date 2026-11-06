@@ -13,6 +13,7 @@ import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway } from 
 import { LeftContext } from '../onboarding/started';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Keep this business (workspace.custody.*), the way the old app keeps it: this computer's protected storage keeps the
@@ -56,7 +57,7 @@ export function KeepView() {
       </div>
     );
   }
-  if (!custody.data) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!custody.data) return <LoadingPlace shape="settings" />;
   const { computer, business } = custody.data;
   if (!business) return <EmptyState title={t('business.keepNone')} />;
   const locked = business.unlock === 'passphrase';
