@@ -1,0 +1,26 @@
+name: C3 arrival reset and Ideas green
+on:
+  push:
+    branches: ['b2c/os-b4-c3-*']
+permissions:
+  contents: read
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck:ui
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/list-arrivals-c3.test.tsx app/ui/tests/parts/arrivals-c3.test.tsx app/ui/tests/places/clients-crm-6g.test.tsx app/ui/tests/places/keep-c5.test.tsx app/ui/tests/parts/leaving-c3.test.tsx app/ui/tests/places/reorder-adoption-c3.test.tsx app/ui/tests/places/layout.test.tsx app/ui/tests/parts/feed.test.tsx app/ui/tests/places/ideas-flip-c3.test.tsx app/ui/tests/parts/flip-c3.test.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/settings.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings
+          path: ${{ runner.temp }}/settings.json

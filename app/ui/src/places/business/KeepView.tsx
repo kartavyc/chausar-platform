@@ -154,7 +154,7 @@ export function KeepView() {
           {/* Seam: B4's ResultLine takes these two lines when B4 lands. */}
           {backedUp && <p className={s.said} role="status">{t('business.backedUpNow')}</p>}
           {restored && <p className={s.said} role="status">{restored}</p>}
-          {!hosted && <AllBackups backups={backups.data?.backups ?? []} />}
+          {!hosted && backups.data && <AllBackups backups={backups.data.backups} />}
         </TileSection>
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
