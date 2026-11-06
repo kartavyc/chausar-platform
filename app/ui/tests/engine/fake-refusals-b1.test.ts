@@ -11,6 +11,7 @@ import { INTERNAL_LINE_CODES, bannedIn, refusalTravel } from '../../../../platfo
 import { KEPT_WORDS, refusalsIn, sourcesUnder } from '../../../../platform/tests/fixtures/refusal-scan';
 
 const KEPT_CODES = new Set(Object.keys(KEPT_WORDS).map(key => key.split(' ')[1]));
+const kept = (file: string, code: string) => KEPT_CODES.has(code);
 
 describe('B1 fix round 3: the fake follows the engine\'s rule exactly', () => {
   it('flags what the engine flags, developer words or not', () => {
@@ -25,8 +26,14 @@ describe('B1 fix round 3: the fake follows the engine\'s rule exactly', () => {
   it('so none of its own flagged refusals says a developer word', async () => {
     const all = refusalsIn(await sourcesUnder(pathToFileURL(join(import.meta.dirname, '../../src/engine/') + '/'), path => /(^|\/)fake[^/]*\.ts$/.test(path)));
     expect(all.length).toBeGreaterThan(1500);
-    const hits = all.filter(({ code, words }) => !KEPT_CODES.has(code) && bannedIn(words).length > 0 && fakeFlags(new EngineError(code, words)))
+    const hits = all.filter(({ file, code, words }) => !kept(file, code) && bannedIn(words).length > 0 && fakeFlags(new EngineError(code, words)))
       .map(({ file, code, words }) => `${file} ${code} [${bannedIn(words)}]: ${words}`);
     expect(hits).toEqual([]);
   });
+});
+
+it('a specialised outside-tool word stays allowed only in its named fake file', () => {
+  expect(kept('fake-dev-agency.ts', 'DEV_SCAN_REQUIRED')).toBe(true);
+  expect(kept('fake-money.ts', 'DEV_SCAN_REQUIRED')).toBe(false);
+  expect(kept('fake-dev-agency.ts', 'DEV_SOURCE_INVALID')).toBe(false);
 });

@@ -1,0 +1,23 @@
+name: Maintenance validation
+on:
+  push:
+    branches: ['b2c/os-maintenance-check-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts app/ui/tests/a11y app/ui/tests/engine/fake-refusals-b1.test.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile.json=${{ runner.temp }}/maintenance-ui.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maintenance-ui
+          path: ${{ runner.temp }}/maintenance-ui.json
