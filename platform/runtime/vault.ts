@@ -29,6 +29,8 @@ export interface KeychainHook {
   store(vaultId: string, key: Uint8Array): Promise<void>;
   remove(vaultId: string): Promise<void>;
 }
+/** Explicit test composition only. No default cache and no environment activation. */
+export type KdfMemo = Map<string, Buffer>;
 type Storage = 'experimental-file' | EncryptedSnapshotAdapter;
 export type PrivateArtifactPurpose = 'private-trial' | 'workspace-interchange';
 export type PrivateArtifactRef = { id: string; purpose: PrivateArtifactPurpose; valueDigest: string; diskBytes: number };
@@ -46,7 +48,7 @@ function artifactIdentity(id: string, purpose: PrivateArtifactPurpose) {
 /** Trusted host admission, held through the actual authority commit. No RPC port. */
 export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
   work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
-type Common = { directory: string; storage: Storage; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
+type Common = { directory: string; storage: Storage; kdfMemo?: KdfMemo; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
 export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
 export type VaultBootstrapBudgets = { maxStateBytes: number; maxJsonDepth: number; maxJsonNodes: number; maxRecords: number };
 /** Trusted constructor capability only: State must come from validated WorkspaceActivationHost publication. */
@@ -88,19 +90,22 @@ function unseal(key: Uint8Array, data: Ciphertext, aad: string): Buffer {
   cipher.setAuthTag(from64(data.tag, 16));
   return Buffer.concat([cipher.update(from64(data.data)), cipher.final()]);
 }
-async function derive(secret: string, salt: string): Promise<Buffer> {
-  return new Promise((accept, reject) => scrypt(secret, from64(salt, 16), 32, KDF, (error, key) => error ? reject(error) : accept(key)));
+async function derive(secret: string, salt: string, memo?: KdfMemo): Promise<Buffer> {
+  const bytes = from64(salt, 16), cacheKey = memo ? sha256Hex(JSON.stringify([secret, salt, KDF])) : '';
+  const prior = memo?.get(cacheKey); if (prior) return Buffer.from(prior);
+  const key = await new Promise<Buffer>((accept, reject) => scrypt(secret, bytes, 32, KDF, (error, value) => error ? reject(error) : accept(value)));
+  memo?.set(cacheKey, Buffer.from(key)); return key;
 }
-async function wrap(secret: string, key: Uint8Array, id: string, purpose: string): Promise<KeyWrapper> {
+async function wrap(secret: string, key: Uint8Array, id: string, purpose: string, memo?: KdfMemo): Promise<KeyWrapper> {
   const salt = randomBytes(16).toString('base64url');
-  const wrapping = await derive(secret, salt);
+  const wrapping = await derive(secret, salt, memo);
   try { return { salt, kdf: 'scrypt-32768-8-1', ciphertext: seal(wrapping, key, `${FORMAT}:${id}:${purpose}`) }; }
   finally { wrapping.fill(0); }
 }
-async function unwrap(secret: string, wrapper: KeyWrapper, id: string, purpose: string): Promise<Buffer> {
+async function unwrap(secret: string, wrapper: KeyWrapper, id: string, purpose: string, memo?: KdfMemo): Promise<Buffer> {
   if (typeof secret !== 'string' || !secret.length || secret.length > 1024) throw new Error('Invalid credential');
   if (wrapper?.kdf !== 'scrypt-32768-8-1') throw new Error('Unsupported key derivation');
-  const wrapping = await derive(secret, wrapper.salt);
+  const wrapping = await derive(secret, wrapper.salt, memo);
   try { const key = unseal(wrapping, wrapper.ciphertext, `${FORMAT}:${id}:${purpose}`); if (key.length !== 32) throw new Error('Invalid key'); return key; }
   finally { wrapping.fill(0); }
 }
@@ -348,6 +353,7 @@ function adapterFor(directory: string, storage: Storage): EncryptedSnapshotAdapt
 }
 async function closeTransferred(storage: Storage) { if (storage && typeof storage === 'object') await storage.close?.(); }
 
+type PendingUpdate = { apply(state: State, previous: State): unknown | Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void };
 export class Vault implements StateStore {
   #state: State;
   #key: Buffer;
@@ -355,21 +361,24 @@ export class Vault implements StateStore {
   #adapter: EncryptedSnapshotAdapter;
   #lock: Lock;
   #chain: Promise<unknown> = Promise.resolve();
+  #pendingUpdates?: PendingUpdate[];
   #closed = false;
   #closing = false;
   #shutdown?: Promise<void>;
   #transaction = new AsyncLocalStorage<boolean>();
   #snapshotScope = new AsyncLocalStorage<boolean>();
+  #updateRead = new AsyncLocalStorage<State>();
   #captureRestored = false;
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
+  #kdfMemo?: KdfMemo;
   /** D12: the data version this business was opened at, when the ladder brought it up in memory; null otherwise. */
   #migratedFrom: number | null = null;
   #migrating = false;
   readonly directory: string;
   readonly storageKind: 'postgres' | 'experimental-file';
-  private constructor(directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock, key: Buffer, envelope: VaultEnvelope, state: State, keychain?: KeychainHook, writerGuard?: VaultWriterGuard) {
-    this.directory = directory; this.storageKind = adapter.kind; this.#adapter = adapter; this.#lock = lock; this.#key = key; this.#envelope = envelope; this.#state = state; this.#keychain = keychain; this.#writerGuard = writerGuard;
+  private constructor(directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock, key: Buffer, envelope: VaultEnvelope, state: State, keychain?: KeychainHook, writerGuard?: VaultWriterGuard, kdfMemo?: KdfMemo) {
+    this.directory = directory; this.storageKind = adapter.kind; this.#adapter = adapter; this.#lock = lock; this.#key = key; this.#envelope = envelope; this.#state = state; this.#keychain = keychain; this.#writerGuard = writerGuard; this.#kdfMemo = kdfMemo;
   }
   /** Public identity metadata only; keys and encrypted wrappers stay private. */
   get vaultId(): string { this.#ready(); return this.#envelope.id; }
@@ -392,13 +401,13 @@ export class Vault implements StateStore {
       if (await adapter.load()) fail('VAULT_EXISTS', 'A vault already exists in this location.');
       key = randomBytes(32);
       id = randomUUID(); const recoveryCode = `CHR-${randomBytes(32).toString('base64url')}`;
-      const [primary, recovery] = await Promise.all([wrap(options.passphrase, key, id, 'passphrase'), wrap(recoveryCode, key, id, 'recovery')]);
+      const [primary, recovery] = await Promise.all([wrap(options.passphrase, key, id, 'passphrase', options.kdfMemo), wrap(recoveryCode, key, id, 'recovery', options.kdfMemo)]);
       const state = initialState(options.name, options.demo ?? false);
       const envelope = encodeSnapshot(state, { format: FORMAT, id, revision: 0, passphrase: primary, recovery }, key);
       await adapter.commit(envelope, null);
       committed = true;
       if (options.keychain) await options.keychain.store(id, Uint8Array.from(key));
-      return { vault: new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard), recoveryCode };
+      return { vault: new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard, options.kdfMemo), recoveryCode };
     } catch (error) {
       key?.fill(0);
       try { if (committed) await adapter.delete(); }
@@ -425,7 +434,7 @@ export class Vault implements StateStore {
         fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires zero target authority and no unrelated entries.');
       key = randomBytes(32); id = randomUUID();
       const recoveryCode = `CHR-${randomBytes(32).toString('base64url')}`;
-      const [primary, recovery] = await Promise.all([wrap(secret, key, id, 'passphrase'), wrap(recoveryCode, key, id, 'recovery')]);
+      const [primary, recovery] = await Promise.all([wrap(secret, key, id, 'passphrase', options.kdfMemo), wrap(recoveryCode, key, id, 'recovery', options.kdfMemo)]);
       envelope = encodeSnapshot(state, { format: FORMAT, id, revision: 0, passphrase: primary, recovery }, key);
       const publish = async (assertCurrent: () => void) => {
         if (++publicationCalls !== 1 || typeof assertCurrent !== 'function') fail('BOOTSTRAP_GUARD', 'Root must execute one held fresh bootstrap publication.');
@@ -444,7 +453,7 @@ export class Vault implements StateStore {
       else await publish(() => {});
       if (!committed || publicationCalls !== 1) fail('BOOTSTRAP_READBACK', 'Root did not publish and read back the exact fresh authority.');
       if (keychain) await keychain.store(id, Uint8Array.from(key));
-      return { vault: new Vault(directory, adapter, lock, key, envelope, state, keychain, writerGuard), recoveryCode };
+      return { vault: new Vault(directory, adapter, lock, key, envelope, state, keychain, writerGuard, options.kdfMemo), recoveryCode };
     } catch (error) {
       try {
         if (committed) {
@@ -466,7 +475,7 @@ export class Vault implements StateStore {
     try { passphrase(options.newPassphrase); } catch (error) { await closeTransferred(options.storage); throw error; }
     const vault = await Vault.unlock(options, options.recoveryCode, true);
     try {
-      const wrapper = await wrap(options.newPassphrase, vault.#key, vault.#envelope.id, 'passphrase');
+      const wrapper = await wrap(options.newPassphrase, vault.#key, vault.#envelope.id, 'passphrase', options.kdfMemo);
       // D12: an older business: the file as it was goes to its migration backup first, and this one write brings it up to date.
       if (vault.#migratedFrom !== null) {
         if (!options.migrationBackup) fail('MIGRATION_PENDING', 'Recovering an older business needs somewhere to keep it as it was.');
@@ -493,10 +502,10 @@ export class Vault implements StateStore {
     let key: Buffer | undefined;
     try {
       const envelope = await adapter.load(); validateEnvelope(envelope);
-      key = await unwrap(secret, recovery ? envelope.recovery : envelope.passphrase, envelope.id, recovery ? 'recovery' : 'passphrase');
+      key = await unwrap(secret, recovery ? envelope.recovery : envelope.passphrase, envelope.id, recovery ? 'recovery' : 'passphrase', options.kdfMemo);
       // D12: through the ladder. Its two answers come only after the key opened the data; all else stays UNLOCK_FAILED.
       const opened = openSnapshot(envelope, key, (options as OpenVaultOptions).migrationSteps ?? STEPS);
-      const vault = new Vault(directory, adapter, lock, key, envelope, opened.state, options.keychain, options.writerGuard);
+      const vault = new Vault(directory, adapter, lock, key, envelope, opened.state, options.keychain, options.writerGuard, options.kdfMemo);
       vault.#migratedFrom = opened.migratedFrom;
       return vault;
     } catch (error) {
@@ -555,12 +564,12 @@ export class Vault implements StateStore {
       if (backup.backupFormat !== 'chausar.backup.v1') throw new Error('Invalid backup');
       envelope = backup.envelope; validateEnvelope(envelope);
       const recovering = 'recoveryCode' in options;
-      key = await unwrap(recovering ? options.recoveryCode : options.passphrase, recovering ? envelope.recovery : envelope.passphrase, envelope.id, recovering ? 'recovery' : 'passphrase');
+      key = await unwrap(recovering ? options.recoveryCode : options.passphrase, recovering ? envelope.recovery : envelope.passphrase, envelope.id, recovering ? 'recovery' : 'passphrase', options.kdfMemo);
       // D12: an older backup comes up to date as it is restored, and the backup file itself is never rewritten.
       ({ state, migratedFrom } = openSnapshot(envelope, key, STEPS));
       if (recovering) {
         passphrase(options.newPassphrase);
-        const wrapper = await wrap(options.newPassphrase, key, envelope.id, 'passphrase');
+        const wrapper = await wrap(options.newPassphrase, key, envelope.id, 'passphrase', options.kdfMemo);
         state.revision++;
         envelope = encodeSnapshot(state, { ...envelope, passphrase: wrapper, revision: state.revision }, key);
         migratedFrom = null;
@@ -577,13 +586,13 @@ export class Vault implements StateStore {
       if (await adapter.load()) fail('VAULT_EXISTS', 'Restore requires an empty vault location.');
       await adapter.commit(envelope, null);
       if (options.keychain) await options.keychain.store(envelope.id, Uint8Array.from(key!));
-      const vault = new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard);
+      const vault = new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard, options.kdfMemo);
       vault.#migratedFrom = migratedFrom;
       return vault;
     } catch (error) { key!.fill(0); await lock.release(); await adapter.close?.(); throw error; }
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
-  read(): State { this.#ready(); return structuredClone(this.#state); }
+  read(): State { this.#ready(); return structuredClone(this.#updateRead.getStore() ?? this.#state); }
   /** C5 task 19: how many bytes of the store's ceiling (STORE_LIMIT_BYTES) the open business takes now. */
   storeBytes(): number {
     this.#ready();
@@ -870,6 +879,8 @@ export class Vault implements StateStore {
   #enqueue<T>(work: () => Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
+    // Every non-update operation is an ordering barrier for the next batch.
+    this.#pendingUpdates = undefined;
     const pending = this.#chain.then(work); this.#chain = pending.catch(() => {}); return pending;
   }
   /** Trusted developer replay only: a fresh marked sample vault, never an existing business or RPC route. */
@@ -890,18 +901,43 @@ export class Vault implements StateStore {
   }
   update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
-    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
-      const draft = structuredClone(this.#state), result = await change(draft);
-      if (draft.workspace.id !== this.#state.workspace.id) fail('INVALID_STATE', 'A transaction cannot change workspace identity.');
-      draft.revision = this.#state.revision + 1;
-      const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
-      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
-      this.#state = structuredClone(draft); this.#envelope = envelope;
-      // close/delete mark the handle closing before draining already accepted updates.
-      // The committed authority remains available internally while public reads are shut.
-      return { result, committedState: structuredClone(this.#state) };
-    })));
+    this.#ready();
+    const context = AsyncLocalStorage.snapshot();
+    let accept!: (value: T) => void, reject!: (error: unknown) => void;
+    const result = new Promise<T>((resolve, refuse) => { accept = resolve; reject = refuse; });
+    const entry: PendingUpdate = { apply: (state, previous) => context(() => this.#updateRead.run(previous, () => this.#transaction.run(true, () => change(state)))), resolve: value => accept(value as T), reject };
+    if (this.#pendingUpdates) { this.#pendingUpdates.push(entry); return result; }
+    const batch = [entry];
+    // Start the first write immediately. Calls already queued, including those behind an in-flight
+    // write, share its next durable save without adding a timer to an otherwise solitary update.
+    void this.#enqueue(async () => {
+      if (this.#pendingUpdates === batch) this.#pendingUpdates = undefined;
+      const completed: { entry: PendingUpdate; value: unknown }[] = [];
+      await this.#transaction.run(true, () => this.guarded(async assertCurrent => {
+        let draft = this.#state;
+        for (const item of batch) {
+          const candidate = structuredClone(draft);
+          try {
+            const value = await item.apply(candidate, draft);
+            if (candidate.workspace.id !== this.#state.workspace.id) fail('INVALID_STATE', 'A transaction cannot change workspace identity.');
+            candidate.revision = draft.revision + 1; draft = candidate; completed.push({ entry: item, value });
+          } catch (error) { item.reject(error); }
+        }
+        if (completed.length) {
+          // The callback may retain its draft. Detach the exact state we seal before yielding to IO.
+          const committed = structuredClone(draft);
+          const envelope = encodeSnapshot(committed, { ...this.#envelope, revision: committed.revision }, this.#key);
+          assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+          this.#state = committed; this.#envelope = envelope;
+        }
+        return { result: undefined, committedState: structuredClone(this.#state) };
+      }));
+      for (const item of completed) item.entry.resolve(item.value);
+    }).catch(error => { for (const item of batch) item.reject(error); });
+    this.#pendingUpdates = batch;
+    return result;
   }
+
   backup(target: string): Promise<string> {
     return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: this.#envelope }), false); return target; });
   }
@@ -920,7 +956,7 @@ export class Vault implements StateStore {
     if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.');
     let key: Buffer | undefined;
     try {
-      key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase');
+      key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase', this.#kdfMemo);
       return key.length === this.#key.length && timingSafeEqual(key, this.#key);
     } catch { return false; }
     finally { key?.fill(0); }
@@ -938,14 +974,14 @@ export class Vault implements StateStore {
   async rewrapPassphrase(secret: string): Promise<void> {
     this.#ready(); if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.');
     passphrase(secret);
-    const wrapper = await wrap(secret, this.#key, this.#envelope.id, 'passphrase');
+    const wrapper = await wrap(secret, this.#key, this.#envelope.id, 'passphrase', this.#kdfMemo);
     await this.#commitWrappers({ passphrase: wrapper });
   }
   /** A new recovery code; the old one stops opening the live vault. The code exists only in this return value. */
   async rewrapRecovery(): Promise<string> {
     this.#ready(); if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.');
     const code = `CHR-${randomBytes(32).toString('base64url')}`;
-    const wrapper = await wrap(code, this.#key, this.#envelope.id, 'recovery');
+    const wrapper = await wrap(code, this.#key, this.#envelope.id, 'recovery', this.#kdfMemo);
     await this.#commitWrappers({ recovery: wrapper });
     return code;
   }
@@ -954,7 +990,7 @@ export class Vault implements StateStore {
     if (typeof code !== 'string' || code.length < 12 || code.length > 64) return Promise.reject(new InternalError('TRANSFER_CODE_WRONG', 'Use a move code.'));
     return this.#enqueue(async () => {
       await this.#assertSnapshotOnlyBackup();
-      const wrapper = await wrap(code, this.#key, this.#envelope.id, 'passphrase');
+      const wrapper = await wrap(code, this.#key, this.#envelope.id, 'passphrase', this.#kdfMemo);
       const { snapshot, ...header } = this.#envelope;
       const envelope = encodeSnapshot(this.#state, { ...header, passphrase: wrapper }, this.#key);
       return JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope,

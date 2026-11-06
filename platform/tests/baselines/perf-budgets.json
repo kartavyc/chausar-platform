@@ -1,9 +1,48 @@
 {
-  "engine-cold-import-ms": { "budget": null, "unit": "ms", "tolerancePercent": 15, "measuredOn": null },
-  "ui-entry-chunk-bytes": { "budget": null, "unit": "bytes", "tolerancePercent": 15, "measuredOn": null },
-  "vault-commit-ms-1k": { "budget": null, "unit": "ms", "tolerancePercent": 15, "measuredOn": null },
-  "vault-commit-ms-10k": { "budget": null, "unit": "ms", "tolerancePercent": 15, "measuredOn": null },
-  "slow-test-files": { "budget": 0, "unit": "files", "tolerancePercent": 0, "measuredOn": "2026-11-05" },
-  "installer-bytes": { "budget": null, "unit": "bytes", "tolerancePercent": 15, "measuredOn": null, "measured": false, "waitsOn": "D5 and D7 (the installer without the Claude binary, and the bundled engine)" },
-  "idle-memory-bytes": { "budget": null, "unit": "bytes", "tolerancePercent": 15, "measuredOn": null, "measured": false, "waitsOn": "an Electron run with the start-up timeline of C5 task 26" }
+  "engine-cold-import-ms": {
+    "budget": null,
+    "unit": "ms",
+    "tolerancePercent": 15,
+    "measuredOn": null
+  },
+  "ui-entry-chunk-bytes": {
+    "budget": null,
+    "unit": "bytes",
+    "tolerancePercent": 15,
+    "measuredOn": null
+  },
+  "vault-commit-ms-1k": {
+    "budget": 178,
+    "unit": "ms",
+    "tolerancePercent": 15,
+    "measuredOn": "2026-11-06"
+  },
+  "vault-commit-ms-10k": {
+    "budget": 127,
+    "unit": "ms",
+    "tolerancePercent": 15,
+    "measuredOn": "2026-11-06"
+  },
+  "slow-test-files": {
+    "budget": 0,
+    "unit": "files",
+    "tolerancePercent": 0,
+    "measuredOn": "2026-11-05"
+  },
+  "installer-bytes": {
+    "budget": null,
+    "unit": "bytes",
+    "tolerancePercent": 15,
+    "measuredOn": null,
+    "measured": false,
+    "waitsOn": "D5 and D7 (the installer without the Claude binary, and the bundled engine)"
+  },
+  "idle-memory-bytes": {
+    "budget": null,
+    "unit": "bytes",
+    "tolerancePercent": 15,
+    "measuredOn": null,
+    "measured": false,
+    "waitsOn": "an Electron run with the start-up timeline of C5 task 26"
+  }
 }
