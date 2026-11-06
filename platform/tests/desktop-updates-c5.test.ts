@@ -167,6 +167,9 @@ test('a boot marker from a newer Chausar is left alone, a broken one is replaced
   await writeFile(file, newer);
   assert.equal((await updates.startBoot(folderPath, '0.2.0')).attempts, 0);
   assert.equal(await readFile(file, 'utf8'), newer);
+  await updates.clearBoot(folderPath);
+  const lines = (await readFile(join(folderPath, 'updates.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(lines.filter(line => line.code === 'LOCAL_FILE_NEWER' && line.step === 'boot').length, 1);
   await writeFile(file, '{broken');
   assert.equal((await updates.startBoot(folderPath, '0.2.0')).attempts, 1);
   const noted: any[] = [];

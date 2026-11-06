@@ -100,6 +100,7 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
       const old = await fs.stat(appImage), temporary = tempOf(appImage), bytes = await fs.readFile(release.artifactPath);
       await placeChecked(temporary, bytes, fs);
       await fs.chmod(temporary, old.mode & 0o7777);
+      if (!(await updates.verifyStaged({ ...release, artifactPath: temporary }, publicKey, platform))) { await fs.unlink(temporary).catch(() => {}); return 'not-verified'; }
       // The failed file stays beside the record until the next update; it's only a copy of what the signed feed had.
       await fs.copyFile(appImage, join(folder, `failed-${version}.AppImage`)).catch(() => {});
       await fs.rename(temporary, appImage);

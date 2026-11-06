@@ -102,6 +102,10 @@ export class UpdateService {
     const path = join(this.#stage, 'pending-release.json');
     let record: { manifest?: ReleaseManifest; artifactPath?: string };
     try { record = JSON.parse(await readFile(path, 'utf8')); } catch { return null; }
+    if (newerFormat(record, 'chausar.pending-release.v1') || newerVersion(record, 1)) {
+      await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'pending-release.json', 'pending-release');
+      return null;
+    }
     const manifest = record.manifest;
     if (!manifest || typeof manifest.version !== 'string') return null;
     if (compareVersions(manifest.version, this.#o.version) > 0) return manifest;
@@ -133,6 +137,7 @@ export class UpdateService {
   async #rollbacks(): Promise<{ raw: any; skip: string[] } | null> {
     try {
       const raw = JSON.parse(await readFile(join(this.#o.directory, 'rollbacks.json'), 'utf8'));
+      if (newerFormat(raw, 'chausar.rollbacks.v1')) await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'rollbacks.json', 'rollbacks');
       if (raw?.format !== 'chausar.rollbacks.v1' || !Array.isArray(raw.swaps) || !Array.isArray(raw.skip)) return null;
       return { raw, skip: raw.skip.filter((version: unknown) => typeof version === 'string') };
     } catch { return null; }

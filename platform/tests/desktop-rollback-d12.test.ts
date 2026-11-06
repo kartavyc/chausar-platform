@@ -4,6 +4,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { createRequire } from 'node:module';
+import * as fsp from 'node:fs/promises';
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,7 +23,7 @@ function manifestFor(platform: string, bytes = OLD, version = '0.1.0'): ReleaseM
 }
 const signatureOf = (manifest: ReleaseManifest) => sign(null, Buffer.from(canonicalReleaseManifest(manifest)), keys.privateKey).toString('base64url');
 
-async function setup(t: TestContext, options: { platform?: string; previous?: Buffer | null; publisher?: string | null; signature?: { status: string; publisher: string | null } } = {}) {
+async function setup(t: TestContext, options: { platform?: string; previous?: Buffer | null; publisher?: string | null; signature?: { status: string; publisher: string | null }; fs?: typeof fsp } = {}) {
   const userData = await mkdtemp(join(await realpath(tmpdir()), 'chausar-rollback-d12-'));
   t.after(() => rm(userData, { recursive: true, force: true }));
   const platform = options.platform ?? 'linux', updates = join(userData, 'updates'), vaults = join(userData, 'vaults');
@@ -53,7 +54,7 @@ async function setup(t: TestContext, options: { platform?: string; previous?: Bu
     updates: realUpdates, app: { relaunch: () => { seen.relaunches += 1; }, exit: () => { seen.exits += 1; } }, note: (line: unknown) => { seen.lines.push(line); },
     signatureOf: async () => options.signature ?? { status: 'Valid', publisher: options.publisher ?? null },
     spawnInstaller: (path: string, args: string[]) => { seen.ran.push({ path, args }); },
-    now: () => Date.parse('2026-11-06T10:00:00.000Z'),
+    now: () => Date.parse('2026-11-06T10:00:00.000Z'), ...(options.fs ? { fs: options.fs } : {}),
   });
   return { rollback, userData, updates, vaults, appImage, seen, newer, older, backup };
 }
@@ -211,4 +212,16 @@ test('newer rollback records and data indexes stop rollback without rewriting an
     assert.equal(seen.relaunches, 0);
     assert.ok(seen.lines.some(line => line.code === 'LOCAL_FILE_NEWER'));
   }
+});
+
+
+test('Linux rechecks the exact copy used after data rollback, before replacing the app', async t => {
+  const fs = { ...fsp, readFile: async (...args: any[]) => {
+    const bytes = await (fsp.readFile as any)(...args);
+    return String(args[0]).endsWith(join('previous', 'installer')) ? Buffer.from('changed after the release was first verified') : bytes;
+  } } as typeof fsp;
+  const { rollback, appImage, seen } = await setup(t, { fs });
+  assert.equal((await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' })).state, 'not-verified');
+  assert.equal(await readFile(appImage, 'utf8'), 'the failed version');
+  assert.equal(seen.relaunches, 0);
 });

@@ -125,3 +125,20 @@ test('newer update settings are ignored and survive an owner setting change', as
   assert.equal(await readFile(path, 'utf8'), newer);
   assert.equal((await notes(directory)).filter(line => line.step === 'update-settings').length, 1);
 });
+
+
+test('the pending update of a newer local format is not removed or acted on', async t => {
+  const directory = await home(t);
+  const updates = join(directory, 'updates'), stage = join(updates, 'stage');
+  await mkdir(stage, { recursive: true });
+  const path = join(stage, 'pending-release.json'), artifactPath = join(stage, 'future.artifact');
+  await writeFile(artifactPath, 'future installer');
+  const newer = JSON.stringify({ format: 'chausar.pending-release.v99', manifest: { version: '0.1.0' }, artifactPath });
+  await writeFile(path, newer);
+  const { UpdateService } = await import('../runtime/update-service.ts');
+  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: 'configured only, never used', feedUrl: 'https://example.com/feed', windowsPublisher: null, isBusy: () => false });
+  assert.equal((await service.view()).target, null);
+  assert.equal(await readFile(path, 'utf8'), newer);
+  assert.equal(await readFile(artifactPath, 'utf8'), 'future installer');
+  assert.equal((await notes(directory)).filter(line => line.step === 'pending-release').length, 1);
+});
