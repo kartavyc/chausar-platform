@@ -1,3 +1,6 @@
+import { runClock, runTransport } from '../replay/scope.ts';
+import { isCaptureSample } from '../replay/sample.ts';
+import type { State, StateStore } from '../../contracts.ts';
 // Chausar venture launcher, the draft desk: AI and plan state before any vault exists (onboarding spec 2.2, 2.3).
 // One per engine process, memory only. Keys sit on a memory-only shelf, the connection and call records in an
 // in-memory store, and one compose session at a time. The same model port code as the vault serves it, so every
@@ -53,6 +56,7 @@ export class DraftDesk {
   #options: DraftDeskOptions;
   #clock: () => Date;
   #parts: Parts | null = null;
+  #sampleState: State | undefined;
   #pending: Promise<Parts> | null = null;
   #session: ComposeSession | null = null;
   #lastTouch: number | null = null;
@@ -65,12 +69,23 @@ export class DraftDesk {
 
   constructor(options: DraftDeskOptions) {
     this.#options = options;
-    this.#clock = options.clock ?? (() => new Date());
+    this.#clock = () => runClock(options.clock);
     this.handover = createHandover({
       parts: () => (this.#parts ? { store: this.#parts.store, shelf: this.#parts.shelf } : null),
       session: () => this.#session,
       clear: () => this.clear(),
     });
+  }
+
+  /** Only an engine holding a newly-created developer sample vault may inspect or seed this memory-only desk. */
+  async sampleState(authority: StateStore, state?: State): Promise<State> {
+    check(this.#options.demo && isCaptureSample(authority), 'CAPTURE_SAMPLE_REQUIRED', 'Use a newly created disposable sample workspace.');
+    if (state) {
+      check(!this.#parts && !this.#pending && !this.#sampleState, 'CAPTURE_SAMPLE_REQUIRED', 'Restore only a fresh sample draft desk.');
+      check(state.conversations?.filter(row => row.kind === 'venture-record').length === 1 && state.members?.length === 1 && state.members[0].role === 'owner', 'CAPTURE_INVALID', 'The sample draft desk state is invalid.');
+      this.#sampleState = structuredClone(state);
+    }
+    return (await this.#ready()).store.read();
   }
 
   /** Answers one draft method for the owner inside the app. */
@@ -180,12 +195,15 @@ export class DraftDesk {
     } else {
       transport = defaultModelTransport(options.hostProcess ? { hostProcess: options.hostProcess } : {});
     }
-    const store = new DraftStore(countryProfile('XX'));
+    const store = new DraftStore(countryProfile('XX'), this.#sampleState);
     const shelf = createSecretShelf();
+    if (this.#sampleState) for (const row of this.#sampleState.conversations) {
+      if (row.kind === 'venture-model-connection' && row.status === 'connected') shelf.set(`model:${row.presetId}` as import('../contracts.ts').SecretName, 'sample-replay-credential');
+    }
     const host = options.host ?? 'test';
     const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
     const port: ModelPort = createModelPort({
-      store, clock: this.#clock, transport, secrets: shelf, host, demo: options.demo, claudeCodeTerms,
+      store, clock: this.#clock, transport: runTransport(transport), secrets: shelf, host, demo: options.demo, claudeCodeTerms,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
     });
     const deps: VentureDeps = Object.freeze({

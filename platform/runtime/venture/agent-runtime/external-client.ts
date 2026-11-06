@@ -1,3 +1,4 @@
+import { currentRun } from '../replay/scope.ts';
 /** Official MCP transports. No shell, inherited application secrets, automatic auth or request replay. */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -16,6 +17,7 @@ export type ExternalClient = { list(signal: AbortSignal): Promise<ExternalTool[]
  */
 export type ConnectOptions = { authProvider?: OAuthClientProvider; elicit?: (params: ElicitRequest['params'], signal: AbortSignal) => Promise<ElicitResult> };
 export async function connectExternalClient(server: ExternalMcpServer, signal: AbortSignal, token?: string, options: ConnectOptions = {}): Promise<ExternalClient> {
+  check(!currentRun()?.replay, 'REPLAY_EFFECT_REFUSED', 'Replay cannot connect to an external MCP server.');
   const client = new Client({ name: 'chausar-owner-tools', version: '1.0.0' }, { capabilities: options.elicit ? { elicitation: { form: {}, url: {} } } : {} });
   if (options.elicit) { const elicit = options.elicit; client.setRequestHandler(ElicitRequestSchema, async (request, extra) => elicit(request.params, extra.signal)); }
   check(server.transport !== 'http' || !server.oauth || options.authProvider, 'MCP_SIGN_IN_REQUIRED', 'Sign in to this server first.');
