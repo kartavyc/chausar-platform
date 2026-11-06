@@ -63,7 +63,7 @@ export function Ideas() {
   const stageName = (stage: IdeaStage) => t(`kit-rules.stage.${stage}`);
   const handlers: CardHandlers = {
     busy,
-    lead: FORWARD.flatMap((stage) => all.filter((idea) => idea.stage === stage)).find((idea) => idea.next.some((stage) => stage !== 'dropped'))?.id,
+    lead: FORWARD.flatMap((stage) => (view.data?.pipeline ?? []).filter((idea) => idea.stage === stage)).find((idea) => idea.next.some((stage) => stage !== 'dropped'))?.id,
     names: new Map((team.data?.agents ?? []).map((agent) => [agent.id, agent.name] as const)),
     move: (idea, stage) => act(() => engine.request('venture.ideas.move', { id: idea.id, stage }), t('kit-rules.done.moved', { stage: stageName(stage) })),
     drop: (idea, reason) => act(() => engine.request('venture.ideas.move', { id: idea.id, stage: 'dropped', reason }), t('kit-rules.done.moved', { stage: stageName('dropped') })),

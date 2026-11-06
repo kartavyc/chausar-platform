@@ -161,7 +161,9 @@ describe('Business > Prices: a share is the advanced option, one step away (foun
     // B4 task 7: a new price (or share) on one offer accepts on one press, with an Undo.
     expect(price.actions.find((action) => action.id === 'approve')?.secondAsk).toBeUndefined();
     // The pending change above the cards, and the offer's card at rest, both say the share as the owner set it.
-    await waitFor(() => expect(screen.getAllByText('8.33% of the amount your client confirms').length).toBe(2));
+    // B4 task 7's Change marks only the amount as a figure, so the words sit across two elements: count the innermost whole.
+    const said = '8.33% of the amount your client confirms';
+    await waitFor(() => expect([...document.querySelectorAll('main *')].filter((el) => el.textContent === said && ![...el.children].some((child) => child.textContent === said)).length).toBe(2));
     // The offer's own card keeps the Ink rules (the pending change above it is Today's row, drawn as Today draws it).
     assertInkRules(screen.getByText('Sponsor slot', { selector: '[data-offer-name]' }).closest('li')!);
   });
