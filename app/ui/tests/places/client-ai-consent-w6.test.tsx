@@ -52,9 +52,12 @@ describe('per-client AI permission',()=>{
  });
  it('Work: Start refused for permission shows Allow and start, which records it through the sheet call and then starts (B4)',async()=>{
   const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
+  const orders=await client.request('venture.order.list',{});const waiting=orders.find(order=>order.request==='Monthly books from October')!;
+  const disclosure=await client.request('venture.client.aiConsent.get',{clientId:waiting.clientId});
+  let finishAgree!:()=>void;const pending=new Promise<void>(resolve=>{finishAgree=resolve;});
   let agreed=false;const runs:unknown[]=[];
   client.request=((method,params)=>{
-   if(method==='venture.client.aiConsent.agree')return base(method as never,params as never).then((view:unknown)=>{agreed=true;return view;});
+   if(method==='venture.client.aiConsent.agree')return pending.then(()=>base(method as never,params as never)).then((view:unknown)=>{agreed=true;return view;});
    if(method==='venture.delivery.run'){runs.push(params);return agreed?Promise.resolve({}):Promise.reject(new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.'));}
    return base(method as never,params as never);
   }) as EngineClient['request'];
@@ -67,9 +70,12 @@ describe('per-client AI permission',()=>{
   expect(row.querySelector('[data-consent-words]')?.textContent).toContain('Withdrawal stops future sharing');
   expect(spy.mock.calls.some(([method])=>method==='venture.client.aiConsent.agree')).toBe(false);
   await act(async()=>fireEvent.click(allow));
+  expect(runs).toHaveLength(1);
+  await act(async()=>{finishAgree();});
   await waitFor(()=>expect(runs).toHaveLength(2));
   const grant=spy.mock.calls.find(([method])=>method==='venture.client.aiConsent.agree');
-  expect(grant?.[1]).toMatchObject({clientId:expect.any(String),disclosureDigest:expect.any(String)});
+  expect(grant?.[1]).toEqual({clientId:waiting.clientId,disclosureDigest:disclosure.disclosureDigest});
+  expect(runs).toEqual([{orderId:waiting.id},{orderId:waiting.id}]);
   const names=spy.mock.calls.map(([method])=>method);expect(names.indexOf('venture.client.aiConsent.agree')).toBeLessThan(names.lastIndexOf('venture.delivery.run'));
   expect(within(row).queryByRole('button',{name:'Allow and start'})).toBeNull();
  });
@@ -91,12 +97,14 @@ describe('per-client AI permission',()=>{
   const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
   const clients=await engine.request('venture.client.list') as {id:string;name:string}[];const iyer=clients.find(item=>item.name==='Iyer & Co')!;
   const orders=await engine.request('venture.order.list') as {id:string;clientId:string;request:string}[];const waiting=orders.find(order=>order.request==='Monthly books from October')!;
+  const disclosure=await client.request('venture.client.aiConsent.get',{clientId:iyer.id});
   client.request=((method,params)=>method==='venture.delivery.run'?Promise.resolve({id:'run_new'}):base(method as never,params as never)) as EngineClient['request'];
   const spy=vi.spyOn(client,'request');window.location.hash=`#/clients?sheet=client%3A${iyer.id}`;render(<App client={client} language="en"/>);
   const sheet=await screen.findByRole('complementary',{name:'Iyer & Co'});await within(sheet).findByText('AI permission');
   expect(within(sheet).queryByRole('button',{name:/order$/})).toBeNull();
   await act(async()=>fireEvent.click(await within(sheet).findByRole('button',{name:'Allow AI access'})));
   const start=await within(sheet).findByRole('button',{name:"Start Iyer & Co's order"});
+  expect(spy.mock.calls.filter(([method])=>method==='venture.client.aiConsent.agree').map(([,params])=>params)).toEqual([{clientId:iyer.id,disclosureDigest:disclosure.disclosureDigest}]);
   expect(spy.mock.calls.some(([method])=>method==='venture.delivery.run')).toBe(false);
   await act(async()=>{fireEvent.click(start);window.dispatchEvent(new HashChangeEvent('hashchange'));});
   const run=spy.mock.calls.filter(([method])=>method==='venture.delivery.run');

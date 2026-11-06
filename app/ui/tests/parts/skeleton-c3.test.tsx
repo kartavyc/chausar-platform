@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { LoadingPlace, SKELETON_DELAY_MS, Skeleton } from '../../src/parts/Skeleton';
 import { TextProvider } from '../../src/text';
+import { Sheet } from '../../src/parts/Sheet';
 import { cssOf } from '../helpers/css';
 
 /** One-shot C3 task 12: still skeletons in place of "Loading": nothing before 150 ms, the blocks after, no animation. */
@@ -57,4 +58,18 @@ describe('source rule', () => {
     }
     expect(found).toEqual([]);
   });
+});
+
+it('sheet contents arrive only after a visible skeleton, never for a fast answer', () => {
+  const show = (loading: boolean) => page(<Sheet label="Client" title={loading ? 'Loading' : 'Sample client'} onClose={() => {}} loading={loading}>{!loading && <p>Client details</p>}</Sheet>);
+  const fast = render(show(true));
+  act(() => { vi.advanceTimersByTime(100); });
+  fast.rerender(show(false));
+  expect(document.querySelector('[data-arrived]')).toBeNull();
+  fast.unmount();
+  const slow = render(show(true));
+  act(() => { vi.advanceTimersByTime(200); });
+  expect(document.querySelector('[data-skeleton="sheet"]')).not.toBeNull();
+  slow.rerender(show(false));
+  expect(document.querySelector('[data-arrived]')?.textContent).toBe('Client details');
 });

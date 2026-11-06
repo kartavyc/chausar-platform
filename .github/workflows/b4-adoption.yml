@@ -1,0 +1,29 @@
+name: C3 sheets and C4 consent qualification
+on:
+  push:
+    branches: ['b2c/os-b4-c3-*']
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck:ui
+      - if: '!cancelled()'
+        run: node --test platform/tests/client-consent-start-c4.test.ts
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/sheet-loading-adoption-c3.test.tsx app/ui/tests/parts/skeleton-c3.test.tsx app/ui/tests/places/client-ai-consent-w6.test.tsx app/ui/tests/places/clients-quiet-b4.test.tsx app/ui/tests/places/team-quiet-b4.test.tsx app/ui/tests/a11y/sheets.test.tsx --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/sheets.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sheets
+          path: ${{ runner.temp }}/sheets.json
