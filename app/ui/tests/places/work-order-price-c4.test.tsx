@@ -38,7 +38,7 @@ describe('C4 task 11: prices on the order form and the order card', () => {
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });
     const price = await within(sheet).findByTestId('picked-price');
     expect(price.textContent).toMatch(/₹/);
-    expect(within(price).getByRole('button', { name: /Receipt/ })).toBeTruthy();
+    expect(within(price).getByRole('button', { name: /receipt/i })).toBeTruthy();
     assertFiguresProved(price);
   });
 

@@ -290,7 +290,7 @@ input.name {
 
 input.name:focus-visible,
 .offerEdit:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: var(--focus) solid var(--link);
   outline-offset: 1px;
 }
 

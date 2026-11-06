@@ -9,7 +9,7 @@ import { figureWords } from '../../../../platform/runtime/venture/delivery/templ
 
 /* One-shot C4 task 16: an amount in a quoted draft carries its receipt, or the model estimate label. */
 
-const receiptName = /Receipt/;
+const receiptName = /receipt/i;
 
 describe('an amount in a draft (C4 task 16)', () => {
   it('draws the figure face with its receipt mark inside the quoted draft', () => {

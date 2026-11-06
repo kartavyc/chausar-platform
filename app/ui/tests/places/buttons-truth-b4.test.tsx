@@ -130,7 +130,8 @@ describe('Buttons that say why', () => {
 
   it('Notifications: Save bot until the token and chat id are there', async () => {
     await start('#/business/notifications');
-    const telegram = await fold('Telegram alerts');
+    // C4 task 39: one group, open while nothing is set up; Telegram is a part under its own heading.
+    const telegram = (await screen.findByRole('heading', { name: 'Telegram alerts' })).closest('section') as HTMLElement;
     const token = await within(telegram).findByLabelText('Bot token');
     dim('Save bot', 'Add the token and your chat id first', telegram);
     type(token, 'a-token');

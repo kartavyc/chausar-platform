@@ -43,12 +43,16 @@ export function App({ client, language }: { client: EngineClient; language: Lang
  */
 export function Shell() {
   const client = useEngine();
-  // One-shot C3: the owner's Animations choice, read once at the top and applied to <html data-motion>.
-  useMotionPreference();
   const status = useEngineStatus();
   const line = <StatusLine status={status} transport={client.transport} />;
   if (status.state === 'unpaired' || status.state === 'session-ended') return <PairScreen />;
-  return <BootScreen status={line}>{(checking) => <PrivacyBoundary>{(privacy) => <Frame key={privacy} statusLine={line} checking={checking} />}</PrivacyBoundary>}</BootScreen>;
+  return <><MotionPreference /><BootScreen status={line}>{(checking) => <PrivacyBoundary>{(privacy) => <Frame key={privacy} statusLine={line} checking={checking} />}</PrivacyBoundary>}</BootScreen></>;
+}
+
+/** One-shot C3: the owner's Animations choice, read once at the top and applied to <html data-motion>. Not before a browser is paired: it asks the engine nothing then. */
+function MotionPreference() {
+  useMotionPreference();
+  return null;
 }
 
 /**

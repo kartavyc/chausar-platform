@@ -99,7 +99,6 @@ describe('Business > Routines (4J22a)', () => {
     expect(form.textContent).toContain('On the 1st of each month, 9:00 am, Asia/Kolkata');
     expect(calls.some((c) => c.method === 'venture.routines.set')).toBe(false);
     await press(form, 'Save routine');
-    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
     const set = calls.find((c) => c.method === 'venture.routines.set')!;
     expect(set.params).toEqual({ routine: { name: monthly.name, agent: null, prompt: monthly.prompt, on: true, schedule: monthly.schedule } });
     // A weekly one fills the days, the time and the zone.

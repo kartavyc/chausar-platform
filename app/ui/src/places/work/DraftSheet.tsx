@@ -75,7 +75,7 @@ function RunDraft({ id, onClose, returnFocus }: SheetComponentProps) {
   const decided = session.lines().filter((line) => line.row.viewRef?.kind === 'draft' && line.row.viewRef.id === id).at(-1);
   const undo = decided ? undoOf(decided, queue.data?.rows ?? []) : undefined;
   if (!run) {
-    return <Sheet label={t('work.draft.label')} title={drafts.data ? t('work.draft.gone') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus} />;
+    return <Sheet label={t('work.draft.label')} title={drafts.data ? t('work.draft.gone') : t('sheet.loading')} loading={!drafts.data} onClose={onClose} returnFocus={returnFocus} />;
   }
 
   const order = orders.data?.find((item) => item.id === run.orderId);

@@ -86,7 +86,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   let footer = null;
   if (invoice.status === 'draft') {
     footer = phase === 'confirm' ? (
-      <Confirm action={t('money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
+      <Confirm action={t(noPay ? 'money.invoice.noPayIssue' : 'money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
         <p>{t('money.invoice.issueAsk')}</p>
         {noPay && <p data-no-pay="">{t('money.invoice.noPay')}</p>}
         {noPay && <Button onClick={(event) => { setPhase('idle'); openSheet('billing', 'settings', event.currentTarget); }}>{t('money.invoice.noPayAdd')}</Button>}
