@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ConnectorCheckRecord, RoutineRecord } from '../runtime/venture/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import { METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
 import { handlers as agentHandlers } from '../runtime/venture/agents/index.ts';
 import { currentVenture, listRecords, ventureAction } from '../runtime/venture/records.ts';

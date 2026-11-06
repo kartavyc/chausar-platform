@@ -12,7 +12,7 @@ import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import { liveSignals } from './check-signals.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
-import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
+import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contract-values.ts';
 import type {
   AttributionLevel, CaseScore, CheckId, Diagnosis, Episode, GateCase, GatePreference, GateResult, ImprovementCase, ImprovementRound, ImprovementRunRecord,
   ImprovementStatus, ImproveModelOutput, Json, ModelOutcome, ModelTask, PlaybookPatch, PlaybookPatchOp, PlaybookRecord, Scenario,

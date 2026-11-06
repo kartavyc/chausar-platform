@@ -5,7 +5,7 @@
 // client-data guard and one dispatch per call. Idle for sixty minutes (while running) wipes it all.
 import { readFile } from 'node:fs/promises';
 import { ChausarError, check, type Context } from '../../contracts.ts';
-import { DRAFT_METHODS } from '../contracts.ts';
+import { DRAFT_METHODS } from '../contract-values.ts';
 import type { DelegateCli, ModelPort, ModelReplayFixture, ModelTransport, SecretShelf, VentureDeps, VentureEngineServices, VentureHostOptions } from '../contracts.ts';
 import { DRAFT_IDLE_MS } from '../onboarding-contracts.ts';
 import type { DraftHandoverPort } from '../onboarding-contracts.ts';

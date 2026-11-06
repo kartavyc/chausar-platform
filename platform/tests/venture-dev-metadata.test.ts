@@ -5,7 +5,7 @@ import {DEV_AGENCY_DEFINITION} from '../runtime/venture/playbooks/dev-agency/def
 import {DEV_AGENCY_REGISTRATION} from '../runtime/venture/playbooks/dev-agency/registration.ts';
 test('developer kit is registered and browser metadata preserves its three owner-priced services',()=>{assert.equal(DEV_AGENCY_REGISTRATION?.id,'dev-agency');assert.equal(DEV_AGENCY_DEFINITION?.registration.id,'dev-agency');const source=readFileSync(new URL('../../app/ui/src/engine/dev-metadata.ts',import.meta.url),'utf8'),meta=JSON.parse(source.slice(source.indexOf('=')+1,source.lastIndexOf('as const')).trim());assert.deepEqual(meta,{registration:DEV_DATA.registration,offers:DEV_DATA.offers.map(({id,name,description,pricing,unit,intake,rights})=>({id,name,description,pricing,unit,intake,rights})),intakeFields:DEV_DATA.intakeFields});});
 
-import {VENTURE_ERRORS} from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 test('developer public refusal codes survive host transport',()=>{for(const code of ['DEV_PROJECT_NOT_FOUND','DEV_SOURCE_INVALID','DEV_AUDIT_REQUIRED','DEV_CLI_PENDING','FIRST_WEEK_REPORT_ONLY'])assert.ok((VENTURE_ERRORS as readonly string[]).includes(code),code);});
 
 

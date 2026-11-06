@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { BlueprintView, Json, ModelCallRecord, ModelHttpRequest, ModelProcessRequest, ModelReplayFixture, PlanSuggestionView } from '../runtime/venture/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, PURPOSE_TIER, W4_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, PURPOSE_TIER, W4_METHOD_LEVELS } from '../runtime/venture/contract-values.ts';
 import { SUGGEST_LEFT, SUGGEST_REFUSED, suggestTask, validateSuggestOutput } from '../runtime/venture/core/suggest.ts';
 import { ATTACHMENT_LEFT_OUT, screenedFile } from '../runtime/venture/core/attachment.ts';
 import { DOG_COMPOSE, DOG_DECIDE, DOG_TEXT, MODELS, planEntries, replay } from './fixtures/venture/compose-unit/plans.ts';

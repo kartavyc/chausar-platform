@@ -11,7 +11,7 @@ import { formatMoney, plainMoney } from '../../owner-format.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currencyMinorDigits, decimalMinor } from '../../currency.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
-import { PURPOSE_TIER } from '../contracts.ts';
+import { PURPOSE_TIER } from '../contract-values.ts';
 import type {
   BlueprintRecord, GoalFigureView, GoalRecord, GoalSuggestion, GoalView, Json, ModelTask, MoneyFigureView, VentureDeps, VentureRecord,
 } from '../contracts.ts';

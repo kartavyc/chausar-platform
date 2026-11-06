@@ -4,7 +4,7 @@
 // returns (ventureAction in venture/records.ts), and business data lives only in the encrypted vault, never in actor
 // state. Actor state holds pointers.
 import { check } from '../../contracts.ts';
-import { DRAFT_METHODS, VENTURE_EVENTS, VENTURE_METHODS, PRE_VAULT_METHODS } from '../../venture/contracts.ts';
+import { DRAFT_METHODS, VENTURE_EVENTS, VENTURE_METHODS, PRE_VAULT_METHODS } from '../../venture/contract-values.ts';
 import { isBusinessId, isTenantId } from '../custody.ts';
 
 export const RUNTIME_API_VERSION = 'chausar.dev/venture-runtime/v1alpha1';

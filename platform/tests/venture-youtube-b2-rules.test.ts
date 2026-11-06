@@ -19,5 +19,5 @@ test('the finishing code reads dated house values with explicit platform verific
   }
 });
 
-import {VENTURE_ERRORS} from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 test('B2 public refusals are registered',()=>{for(const code of ['BOARD_REQUIRED','BOARD_OUTPUT_INVALID','OUTPUT_APPROVAL_REQUIRED','STYLE_NOT_FOUND','STYLE_OWNED_REQUIRED','STYLE_SAMPLES_REQUIRED','STYLE_MEASUREMENTS_REQUIRED','BROLL_INVALID','BROLL_REMOVED','BROLL_LICENCE_REQUIRED','BROLL_APPROVAL_REQUIRED','BROLL_REVIEW_REQUIRED','SOURCE_DOWNSCALED','FINISHING_FAILED','FINISHING_INPUT_INVALID','INTERCHANGE_INVALID','PUBLISHING_TEXT_INVALID','CLIP_RULES_FAILED','CLIP_PAGE_INVALID','BEAT_RULES_FAILED','BEAT_INPUT_INVALID','AUDIO_INPUT_INVALID','AUDIO_TOO_LARGE'])assert.ok((VENTURE_ERRORS as readonly string[]).includes(code),code);});

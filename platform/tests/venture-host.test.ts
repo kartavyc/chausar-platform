@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type {
   GitHubFixture, GitHubTransport, ModelPort, ModelPortOptions, ModelTransport, VentureDeps, VentureEngineServices, VentureHandlerTable,
   VentureHostOptions, VentureMethod, VenturePackageId, VentureStorage,

@@ -10,7 +10,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type { DeliveryRunRecord, ShareLinkView, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';

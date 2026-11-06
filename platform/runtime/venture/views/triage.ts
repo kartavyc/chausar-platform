@@ -7,7 +7,7 @@ import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // or adds a row, and never changes an id or a digest. The plan and setup rows still lead and locked businesses still
 // come last; the rule orders the rows between. Every key's value comes from the row's own fields and receipts, by code.
 import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
-import { PURPOSE_TIER } from '../contracts.ts';
+import { PURPOSE_TIER } from '../contract-values.ts';
 import type { Json, ModelTask, QueueKind, QueueRow, TriageField, TriagePreview, TriageRule, TriageRuleRecord, TriageRuleView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, digest, exactPayload, listRecords, requireAppChannel, singleLine, ventureAction } from '../records.ts';
 import { screenReadback } from '../core/secrets.ts';
