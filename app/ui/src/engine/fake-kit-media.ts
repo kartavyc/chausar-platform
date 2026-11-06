@@ -346,7 +346,7 @@ export class FakeKitMediaDesk {
         };
         book.assets.push(next);
         old.supersededBy = next.id;
-        const view: AssetRerunView = { asset: this.assetView(next), superseded: this.assetView(old), line: `${old.name} is asked for again, with the same request. The old one is kept; the order's next run makes the new one.` };
+        const view: AssetRerunView = { asset: this.assetView(next), superseded: this.assetView(old), line: `${old.name} is asked for again, with the same request. The old one is kept; the order's next job makes the new one.` };
         return view;
       }
       case 'venture.assets.reuse': {

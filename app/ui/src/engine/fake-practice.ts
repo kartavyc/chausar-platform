@@ -50,7 +50,7 @@ export const PRACTICE_WORDS = Object.freeze({
   readAgain: 'This changed since you read it. Read it again.',
   changed: 'The draft changed since you asked the quality check. Ask again.',
   expired: 'Ask the quality check again; the call you read is no longer available.',
-  passed: 'Every rule passed its own floor. Each yes cited something code found in the run.',
+  passed: 'Every rule passed its own floor. Each yes cited something code found in the job.',
   due: 'There are enough reviewed drafts to improve the work plan. The improvement loop tries one change and keeps it only if it wins.',
   notDue: 'The improvement loop can run once a draft was rejected or edited, a check failed or a rehearsal failed. It learns more from more reviewed drafts.',
   nothingToImprove: 'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.',
@@ -306,8 +306,8 @@ export class FakePracticeDesk {
     if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
     const current = this.inUse[biz];
     if (current === candidate.id) return 'This version is already in use.';
-    if (current !== run.parentPlaybookId) return 'The work instructions changed since this run, so its result no longer applies. Run the loop again.';
-    if (!this.fits(candidate)) return 'Your plan changed since this run. Run the loop again.';
+    if (current !== run.parentPlaybookId) return 'The work instructions changed since this job, so its result no longer applies. Run the loop again.';
+    if (!this.fits(candidate)) return 'Your plan changed since this job. Run the loop again.';
     return null;
   }
 
@@ -351,7 +351,7 @@ export class FakePracticeDesk {
         hypothesis: 'Drafts that hold the plan price and offer no free work need fewer changes from you.', change: CHANGE, patchId: `patch-${id}`,
         control: { kind: 'parent-on-same-cases', playbookHash: parent.hash, cases: 3, window: { from: at, to: at } },
         budget: { capMicros: '500000', capDisplay: 'US$0.50', spentMicros: '0', spentDisplay: 'US$0.00' },
-        stopRules: ['Stop when the run has spent its budget of US$0.50, between practice episodes.', 'Stop after 1 round.', 'Keep the old version when the change makes any case newly fail or adds a critical error.'],
+        stopRules: ['Stop when the job has spent its budget of US$0.50, between practice episodes.', 'Stop after 1 round.', 'Keep the old version when the change makes any case newly fail or adds a critical error.'],
         rollbackRule: 'A kept change waits for you to adopt it; after that you can go back to the version it was made from with one tap.',
         result: { kind: 'caused', line: 'With the old version as the control on the same 3 practice cases, the change won 2, lost 0 and tied 1.' },
         // 4J22a (4J15): the lift on the same 3 paired cases: too few to tell, as the engine's exact test says.
@@ -370,7 +370,7 @@ export class FakePracticeDesk {
     if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const run = (this.improvements[biz] ?? []).find((r) => r.id === runId);
     if (!run) throw new EngineError('IMPROVEMENT_NOT_FOUND', 'That improvement run was not found.');
-    if (run.status !== 'kept-candidate' || !run.candidatePlaybookId) throw invalid('This run kept the old version, so there is nothing to adopt.');
+    if (run.status !== 'kept-candidate' || !run.candidatePlaybookId) throw invalid('This job kept the old version, so there is nothing to adopt.');
     if (run.digest !== body.digest) throw new EngineError('CANDIDATE_STALE', 'The change you approved is not the one stored. Open it again.');
     const stale = this.staleReason(biz, run);
     if (stale !== null) throw new EngineError('CANDIDATE_STALE', stale);

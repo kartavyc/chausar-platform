@@ -733,7 +733,7 @@ function allRuns(deps: VentureDeps, ctx: Context, whole: boolean): { state: Stat
 /** venture.runs.list { state? } (read): runs newest first. 'active' keeps the working and waiting ones, 'done' the rest. */
 export async function runsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ runs: RunSummary[] }> {
   const body = exactPayload(payload, ['state']);
-  check(body.state === undefined || body.state === 'active' || body.state === 'done' || body.state === 'all', 'INVALID_VENTURE_REQUEST', 'Choose active, done or all runs.');
+  check(body.state === undefined || body.state === 'active' || body.state === 'done' || body.state === 'all', 'INVALID_VENTURE_REQUEST', 'Choose active, done or all jobs.');
   const want = (body.state as 'active' | 'done' | 'all' | undefined) ?? 'all';
   const { runs } = allRuns(deps, ctx, false);
   const summaries = [...runs.values()].map(build => build().summary)

@@ -385,7 +385,7 @@ async function improveRun(deps: VentureDeps, ctx: Context, payload: unknown, sta
   const window = signalWindow(signals, startedAt);
   // The budget in rupees at the owner's rate, when they set one; USD otherwise.
   const rupees = venture.country ? rupeesOf(state, venture) : null;
-  const budgetLine = `The run reached its budget of ${budgetWords(capMicros, rupees)}, so it stopped.`;
+  const budgetLine = `The job reached its budget of ${budgetWords(capMicros, rupees)}, so it stopped.`;
   const left = () => BigInt(capMicros) - BigInt(spendSummary(spend).costMicros);
 
   const work = deps.work?.begin('improve', WORK_STEPS.improve.map((step) => step.id)) ?? NO_WORK;
@@ -585,9 +585,9 @@ export function staleReason(state: State, venture: VentureRecord, run: Improveme
   if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
   const current = currentPlaybook(state, venture);
   if (current?.id === candidate.id) return 'This version is already in use.';
-  if (current?.id !== run.parentPlaybookId) return 'The work instructions changed since this run, so its result no longer applies. Run the loop again.';
+  if (current?.id !== run.parentPlaybookId) return 'The work instructions changed since this job, so its result no longer applies. Run the loop again.';
   const blueprint = findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId ?? '');
-  if (!blueprint || blueprint.digest !== candidate.blueprintDigest) return 'Your plan changed since this run. Run the loop again.';
+  if (!blueprint || blueprint.digest !== candidate.blueprintDigest) return 'Your plan changed since this job. Run the loop again.';
   return null;
 }
 
@@ -633,7 +633,7 @@ export async function improveAdoptHandler(deps: VentureDeps, ctx: Context, paylo
   return ventureAction(deps, ctx, 'approve', 'improve.adopt', tx => {
     const run = tx.find('venture-improvement-run', runId);
     check(run, 'IMPROVEMENT_NOT_FOUND', 'That improvement run was not found.');
-    check(run.status === 'kept-candidate' && run.candidatePlaybookId, 'INVALID_VENTURE_REQUEST', 'This run kept the old version, so there is nothing to adopt.');
+    check(run.status === 'kept-candidate' && run.candidatePlaybookId, 'INVALID_VENTURE_REQUEST', 'This job kept the old version, so there is nothing to adopt.');
     check(run.digest === approved, 'CANDIDATE_STALE', 'The change you approved is not the one stored. Open it again.');
     const stale = staleReason(tx.state, tx.venture!, run);
     check(stale === null, 'CANDIDATE_STALE', stale ?? '');

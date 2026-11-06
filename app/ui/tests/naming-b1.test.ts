@@ -1,7 +1,7 @@
 // B1 fix round 1 (the founder's naming answers, 5 Nov): a single agent task is a "job" everywhere the owner reads it
 // (Work stays the place, client orders stay "orders"); Today's "Questions" filter is "From your agents"; "Settled chats"
 // are "Old chats", and the Settle action's word follows; one spelling, "Practice". Code names are unchanged.
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CATALOGUES } from '../src/text';
@@ -11,7 +11,7 @@ const flat = (value: unknown): string => (typeof value === 'string' ? value : va
 const lines = Object.entries(words).map(([key, value]) => [key, flat(value).replace(/\{[^}]+\}/g, '')] as const);
 
 /** "Run" as the name of an agent task. The verb ("Run again", "Run by Editor") and code names are not matched. */
-const RUN_NOUN = /\b(?:this|a|the|newer|last|next|previous|no|each|every|its|one) (?:coding |conversation )?runs?\b|\bruns (?:going|failed|stopped|finished|already|stay|that)\b|^Runs$|\bNo runs\b|\bfinished runs\b|\bper run\b|\bruns? (?:failed|stops?|is stopping|are stopping)\b|\bduring this run\b|\bfor this run\b|\bnext run\b|\brun's\b/i;
+const RUN_NOUN = /\b(?:this|a|the|newer|last|next|previous|no|each|every|its|one|new|all|these|those|your|their) (?:coding |conversation )?runs?\b|\bruns (?:going|failed|stopped|finished|already|stay|that)\b|^Runs$|\bNo runs\b|\bfinished runs\b|\bper run\b|\bruns? (?:failed|stops?|is stopping|are stopping)\b|\bduring this run\b|\bfor this run\b|\bnext run\b|\brun's\b/i;
 
 describe('one name for an agent task: a job', () => {
   it('no line calls one a run', () => {
@@ -38,7 +38,14 @@ describe('one name for an agent task: a job', () => {
  * these sources (it starts with a capital and has a space) is read, so a line added later is checked too.
  */
 const ROOT = join(import.meta.dirname, '../../..');
-const SCREEN_SOURCES = [
+const SCREEN_SOURCES = [...new Set([
+  ...readdirSync(join(ROOT, 'app/ui/src/engine')).filter(file => /^fake.*\.ts$/.test(file)).map(file => 'app/ui/src/engine/' + file),
+  ...['delivery', 'flows', 'policy', 'money'].flatMap(area => {
+    const folder = 'platform/runtime/venture/' + area;
+    return readdirSync(join(ROOT, folder), { recursive: true }).filter((file): file is string => typeof file === 'string' && file.endsWith('.ts')).map(file => folder + '/' + file.replaceAll('\\', '/'));
+  }),
+  'platform/runtime/venture/agents/routine-runner.ts', 'platform/runtime/venture/playbooks/kit/assets.ts',
+  'platform/runtime/venture/playbooks/social/calendar-export.ts', 'platform/runtime/venture/playbooks/support-desk/tickets.ts',
   'platform/runtime/venture/views/health.ts', 'platform/runtime/venture/views/queue.ts', 'platform/runtime/venture/views/row-receipts.ts',
   'platform/runtime/venture/views/runs.ts', 'platform/runtime/venture/views/keeper.ts', 'platform/runtime/venture/agents/ideas.ts',
   'platform/runtime/venture/agents/relay.ts', 'platform/runtime/venture/agents/roles.ts', 'platform/runtime/venture/agents/persona.ts',
@@ -47,7 +54,7 @@ const SCREEN_SOURCES = [
   'platform/runtime/venture/money/spend-meter.ts', 'platform/runtime/venture/notify/digest.ts',
   'app/ui/src/engine/fake-agent-extras.ts', 'app/ui/src/engine/fake-agents.ts', 'app/ui/src/engine/fake-retire.ts',
   'app/ui/src/engine/fake-run-controls.ts', 'app/ui/src/engine/fake-team.ts',
-];
+])];
 const QUOTED = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
 function sentences(file: string): string[] {
   const source = readFileSync(join(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');

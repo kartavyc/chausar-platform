@@ -1,0 +1,26 @@
+name: Owner words validation
+on:
+  push:
+    branches: ['b2c/os-owner-words-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts app/ui/tests/naming-b1.test.ts app/ui/tests/engine/owner-flag-b1.test.ts app/ui/tests/w6-owner-words.test.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile.json=${{ runner.temp }}/owner-words-ui.json
+      - run: node --test --test-concurrency=2 platform/tests/venture-context-hygiene.test.ts platform/tests/venture-flows-methods.test.ts platform/tests/venture-flows-recipe.test.ts platform/tests/venture-judge-checks.test.ts platform/tests/venture-harness.test.ts platform/tests/venture-judge-calibration.test.ts platform/tests/venture-judge-baseline.test.ts platform/tests/venture-harness-runs.test.ts platform/tests/venture-judge-auditor.test.ts platform/tests/venture-harness-recheck.test.ts platform/tests/venture-judge-real-orders.test.ts platform/tests/venture-owner-today-b2.test.ts platform/tests/venture-judge-rules.test.ts platform/tests/venture-judge-practice.test.ts platform/tests/venture-policy-harness.test.ts platform/tests/venture-judge-pairwise.test.ts platform/tests/venture-judge-claims.test.ts platform/tests/venture-spend-policy.test.ts platform/tests/venture-social-calendar-export.test.ts platform/tests/venture-spend.test.ts platform/tests/venture-spend-meter.test.ts platform/tests/venture-spend-own-plan-a4.test.ts platform/tests/venture-spend-reserve.test.ts platform/tests/venture-support-tickets.test.ts platform/tests/venture-taint.test.ts platform/tests/venture-routines.test.ts platform/tests/venture-spend-lead.test.ts
+        if: '!cancelled()'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owner-words-ui
+          path: ${{ runner.temp }}/owner-words-ui.json

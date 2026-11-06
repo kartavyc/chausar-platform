@@ -44,7 +44,7 @@ function ideasAddTool(): Spec {
       const source = String(input.source ?? '').replace(/\s+/g, ' ').trim();
       if (words.length < 2 || source.length < 2) throw new ChausarError('TOOL_FAILED', 'Give the idea in one line and where it came from in a few words.');
       if (env.runRef.kind !== 'delivery') return { result: { added: false, practice: true } };
-      if (!env.ctx) throw new ChausarError('TOOL_FAILED', 'Only a run the owner approved can add an idea.');
+      if (!env.ctx) throw new ChausarError('TOOL_FAILED', 'Only a job the owner approved can add an idea.');
       const runId = env.runRef.runId;
       const [{ addIdea, IDEA_TOOL_NOTE }, { findRecord, ventureAction }] = await Promise.all([import('../../playbooks/kit/ideas.ts'), import('../../records.ts')]);
       await ventureAction(env.deps, env.ctx, 'prepare', 'ideas.add', tx => {

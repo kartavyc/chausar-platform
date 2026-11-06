@@ -194,7 +194,7 @@ export function folderNames(files: readonly Pick<FileLike, 'name'>[]): string[] 
 export function delegateBrief(task: string, names: readonly string[], cli: DelegateCli, limits: DelegateLimits): string {
   const spend = cli === 'claude-code' && limits.budgetMicros
     ? `, at most ${limits.maxTurns} turns and USD ${usdArgument(limits.budgetMicros)} of your plan`
-    : '. Codex has no spending limit of its own, so the time limit bounds the run';
+    : '. Codex has no spending limit of its own, so the time limit bounds the job';
   return helperBrief([
     '# Brief from Chausar',
     '',
@@ -512,7 +512,7 @@ export function delegateSpend(request: Pick<DelegationRequest, 'cli' | 'limits' 
   const item = `delegate:${request.cli}`;
   const list: SpendRate | null = request.limits.budgetMicros === null ? null : {
     item, unit: 'per-run-cap', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: request.limits.budgetMicros,
-    source: `The spending limit Chausar gives ${label} for one run`, checkedOn: DELEGATE_CAP_CHECKED_ON, confirmed: true, by: 'list',
+    source: `The spending limit Chausar gives ${label} for one job`, checkedOn: DELEGATE_CAP_CHECKED_ON, confirmed: true, by: 'list',
   };
   return {
     key: `delegate:${runId}:${request.toolCallId}:${request.digest}`, item, label: `${label} heavy work`, payer: `plan:${request.cli}`,

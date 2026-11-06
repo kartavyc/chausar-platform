@@ -14,7 +14,7 @@ import type { PolicyAction } from './floor.ts';
 export const INTEGRITY_LABELS = ['trusted', 'untrusted'] as const;
 /** Effects a latched run may use only with the owner's approval of the exact call. */
 export const LATCHED_EFFECTS: readonly EffectKind[] = Object.freeze(['private-read', 'write', 'send', 'egress', 'money']);
-export const TAINT_WORDS = 'This run read outside content, so anything that writes, sends or reaches outside waits for you.';
+export const TAINT_WORDS = 'This job read outside content, so anything that writes, sends or reaches outside waits for you.';
 /**
  * Chausar's own tools whose only write is an internal suggestion: a record in Chausar's own ledger that changes no
  * stored value until the owner applies it, and that nothing outside this computer ever sees (evidence.record, Ink v2

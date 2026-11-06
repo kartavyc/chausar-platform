@@ -27,7 +27,7 @@ export function orderUploads(state: State, ventureId: string, orderId: string): 
 export function uploadsById(state: State, ventureId: string, ids: readonly string[]): FileLike[] {
   return ids.map(id => {
     const upload = findRecord(state, 'venture-upload', id);
-    check(upload && upload.ventureId === ventureId, 'UPLOAD_NOT_FOUND', 'A file this run reads is gone.');
+    check(upload && upload.ventureId === ventureId, 'UPLOAD_NOT_FOUND', 'A file this job reads is gone.');
     return upload;
   });
 }
@@ -36,7 +36,7 @@ export function uploadsById(state: State, ventureId: string, ids: readonly strin
 export function madeSoFar(state: State, harness: HarnessState): { tables: WorkTableRecord[]; receipts: WorkReceiptRecord[] } {
   const tables = harness.tableIds.map(id => findRecord(state, 'venture-work-table', id));
   const receipts = harness.workReceiptIds.map(id => findRecord(state, 'venture-work-receipt', id));
-  check(tables.every(Boolean) && receipts.every(Boolean), 'WORK_RECEIPT_NOT_FOUND', 'A table or receipt this run made is gone.');
+  check(tables.every(Boolean) && receipts.every(Boolean), 'WORK_RECEIPT_NOT_FOUND', 'A table or receipt this job made is gone.');
   return { tables: tables as WorkTableRecord[], receipts: receipts as WorkReceiptRecord[] };
 }
 
