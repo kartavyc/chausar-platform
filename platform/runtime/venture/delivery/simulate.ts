@@ -521,7 +521,8 @@ export async function simulationFromSignalHandler(deps: VentureDeps, ctx: Contex
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'simulation.fromSignal', tx => {
     const signal = tx.find('venture-signal', signalId);
-    check(signal, 'SIGNAL_NOT_FOUND', 'That signal was not found.');
+    // C4 task 15: a signal the owner took back is no longer one to learn from.
+    check(signal && !signal.withdrawnAt, 'SIGNAL_NOT_FOUND', 'That signal was not found.');
     const type = serviceTypeOf(tx.state, tx.venture!);
     const scenario = signalScenario(signal, type, tx.state);
     if (signal.scenarioId !== scenario.id) tx.replace({ ...signal, scenarioId: scenario.id });

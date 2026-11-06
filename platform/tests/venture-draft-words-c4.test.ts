@@ -8,6 +8,7 @@ import { DELIVERY_INSTRUCTIONS, draftAmounts, renderDeliverable, reconciliationB
 import { REQUIRED_SECTIONS, figureWords, templateOutline, type TemplateServiceType } from '../runtime/venture/delivery/template-outline.ts';
 import { runChecks, type CheckInput } from '../runtime/venture/delivery/checks.ts';
 import { engineLabelIn } from '../runtime/venture/delivery/judge/engine-labels.ts';
+import { figureLines } from '../runtime/venture/playbooks/document-desk/core.ts';
 import { business, CA_IDEA, PLAIN_IDEA } from './venture-judge-helpers.ts';
 import { call, record, seedOrder, setup, startNativeDraft } from './venture-run-controls-env.ts';
 
@@ -47,6 +48,14 @@ test('the flagship playbooks\' template rehearsals pass with no engine label', a
       for (const turn of episode.turns ?? []) if (turn.by === 'agent') assert.doesNotMatch(turn.text ?? '', LABEL);
     }
   }
+});
+
+test('a document desk\'s exported figures hold no engine label; the desk itself keeps its own lines', () => {
+  const figures = { currency: 'INR', receiptId: 'R-9', totalMinor: '83333', lines: [{ label: 'Printing', quantity: '2.5', unitMinor: '33333', lineMinor: '83333' }] } as never;
+  const exported = figureLines(figures, 'exact');
+  assert.equal(exported.at(-1), 'INR 833.33 in total');
+  assert.equal(exported.some(line => /^Total:|^Receipt /.test(line)), false);
+  assert.ok(figureLines(figures).some(line => line.startsWith('Total:')));
 });
 
 test('the drafting instructions say never to repeat a receipt\'s label or name the calculator', () => {
