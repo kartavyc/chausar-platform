@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { EngineProvider } from '../../src/engine/context';
-import type { EngineClient, VentureRunEvent } from '../../src/engine/types';
+import type { EngineClient, UiRunEvent } from '../../src/engine/types';
 import { PrivacyBoundary, useForgetCompletion } from '../../src/shell/PrivacyBoundary';
 
 function setup() {
   window.location.hash = '#/clients/network?sheet=person:private-person';
-  const listeners = new Set<(event: VentureRunEvent) => void>();
-  const client = { subscribe: (fn: (event: VentureRunEvent) => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; } } as unknown as EngineClient;
+  const listeners = new Set<(event: UiRunEvent) => void>();
+  const client = { subscribe: (fn: (event: UiRunEvent) => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; } } as unknown as EngineClient;
   let complete = (_: { line: string; kept: string[] }) => {};
   function Buffer() {
     const [words, setWords] = useState('');
