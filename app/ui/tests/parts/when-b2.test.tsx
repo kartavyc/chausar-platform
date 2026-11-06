@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 import { ClockProvider } from '../../src/shell/clock';
-import { useDay, useDayKey, useLocalToday, useMoment, useMonth, useOwnerHour, useTime, useWeekday } from '../../src/parts/when';
+import { LOCALE, setDateLanguage, useDay, useDayKey, useLocalToday, useMoment, useMonth, useOwnerHour, useTime, useWeekday } from '../../src/parts/when';
+import { formatCount, formatMoney, formatMoneyRange } from '../../../../platform/runtime/owner-format';
 
 /*
  * One-shot B2 task 4: every day and time on a screen goes through parts/when.ts, which reads the owner zone and the
@@ -41,5 +42,38 @@ describe('parts/when.ts', () => {
   });
   it('another zone reads the same instant as its own day and time; the calendar day does not move', () => {
     expect(read('America/New_York')).toMatchObject({ day: '2 Nov 2026', calendar: '3 Nov 2026', time: '2:11 pm', today: '2026-11-02', hour: '14' });
+  });
+});
+
+// C5 task 38: under the Hindi pack, dates read in Hindi with Latin digits; money and counts do not change.
+describe('parts/when.ts in Hindi', () => {
+  afterEach(() => setDateLanguage('en'));
+
+  it('the language-to-locale map keeps Latin digits for Hindi', () => {
+    expect(LOCALE).toEqual({ en: 'en-IN', hi: 'hi-IN-u-nu-latn' });
+  });
+
+  it('days, times and months read in Hindi with Latin digits; a calendar day does not move', () => {
+    setDateLanguage('hi');
+    expect(read('Asia/Kolkata')).toEqual({
+      day: '3 नव॰ 2026', calendar: '3 नव॰ 2026', blank: '', short: '3 नव॰', time: '12:41 am', moment: '3 नव॰ 2026, 12:41 am',
+      momentShort: '3 नव॰, 12:41 am', month: 'नवंबर 2026', monthShort: 'नव॰', weekday: 'मंगलवार, 3 नवंबर', today: '2026-11-03',
+      key: '2026-11-03', hour: '0',
+    });
+    expect(read('America/New_York')).toMatchObject({ day: '2 नव॰ 2026', calendar: '3 नव॰ 2026', time: '2:11 pm', today: '2026-11-02' });
+  });
+
+  it('no Devanagari digit ever shows, and going back to English reads as before', () => {
+    setDateLanguage('hi');
+    expect(Object.values(read('Asia/Kolkata')).join(' ')).not.toMatch(/[०-९]/);
+    setDateLanguage('en');
+    expect(read('Asia/Kolkata')).toMatchObject({ day: '3 Nov 2026', time: '12:41 am', month: 'November 2026' });
+  });
+
+  it('money and counts stay as they are', () => {
+    setDateLanguage('hi');
+    expect(formatMoney('10000000', 'INR')).toBe('₹1,00,000');
+    expect(formatMoneyRange('300000', '1200000', 'INR')).toBe('₹3,000 to ₹12,000');
+    expect(formatCount(100000, 'IN')).toBe('1,00,000');
   });
 });

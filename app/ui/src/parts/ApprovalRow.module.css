@@ -358,3 +358,8 @@
   transform: translateX(6px);
   transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit);
 }
+
+/* Hindi words run longer: the chip may take two lines rather than push the name off the card. */
+.kind:lang(hi) {
+  white-space: normal;
+}

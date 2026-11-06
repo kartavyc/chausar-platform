@@ -88,7 +88,7 @@ async function plainWorking(deps: VentureDeps, ctx: Context, state: State, ventu
   if (plan) {
     const office = plan.backOffice;
     const said = office.taxRegistered.value ? `You charge ${taxLabel} at ${bpsPercent(office.taxRateBps)}%` : `You do not charge ${taxLabel}`;
-    const assumed = office.taxRegistered.label === 'told-by-you' ? '' : ' (Chausar assumed this; confirm it in the business menu)';
+    const assumed = office.taxRegistered.label === 'told-by-you' ? '' : ' (Chausar assumed this; confirm it under Business, Prices)';
     lines.push({ label: 'What your plan says', value: `${said}${assumed}` });
   } else {
     lines.push({ label: 'What your plan says', value: 'Your plan is not made yet.' });
@@ -126,7 +126,7 @@ type CaEngines = {
 type Built = { lines: GstLine[]; counted: InvoiceRecord[]; left: { label: string; value: string }[] };
 
 /** The firm's issued invoices as the engine's sale lines. An invoice the engine cannot take is left out with its reason. */
-function saleLines(state: State, venture: VentureRecord, invoices: InvoiceRecord[], gstin: string): Built {
+export function saleLines(state: State, venture: VentureRecord, invoices: InvoiceRecord[], gstin: string): Built {
   const clients = new Map(listRecords(state, 'venture-client', venture.id).map(client => [client.id, client]));
   const built: Built = { lines: [], counted: [], left: [] };
   for (const invoice of invoices) {
@@ -198,10 +198,10 @@ async function caWorking(deps: VentureDeps, ctx: Context, state: State, venture:
   };
 
   if (!registered) {
-    const assumed = office && office.taxRegistered.label !== 'told-by-you' ? ' Chausar assumed this; confirm it in the business menu.' : '';
+    const assumed = office && office.taxRegistered.label !== 'told-by-you' ? ' Chausar assumed this; turn on I charge GST under Business, Prices if you do.' : '';
     sections.push({ id: 'gst', title: 'GST', lines: [], note: `${office ? 'Your plan says you do not charge GST, so there is no GST working.' : 'Your plan is not made yet.'}${assumed}` });
   } else if (!gstinValid(gstin)) {
-    sections.push({ id: 'gst', title: 'GST', lines: [], note: 'Add your GSTIN to your plan to see the GST working.' });
+    sections.push({ id: 'gst', title: 'GST', lines: [], note: 'Add your GSTIN under Business, Prices to see the GST working.' });
   } else if (period.kind === 'month') {
     const invoices = issuedIn(state, venture, period);
     const { receipt, built, failure } = runGst(period.month, invoices);

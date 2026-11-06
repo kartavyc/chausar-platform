@@ -123,6 +123,22 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
     draft.taken();
   }
 
+  async function takeReference() {
+    setSending(true);
+    setProblem(null);
+    try {
+      const reply = await engine.request('venture.spend.policy.set', { useReference: true });
+      setSaved(reply);
+      onSaved?.();
+      setEditing(false);
+      setTouched(false);
+    } catch (error) {
+      setProblem(t('money.failed', { message: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function save() {
     setSending(true);
     setProblem(null);
@@ -218,6 +234,12 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
             label={t('money.policy.askFirst')} hint={t('money.policy.askFirstHint')} value={askFirst} inputMode="decimal" autoComplete="off" disabled={sending}
             onChange={(event) => { setAskFirst(event.currentTarget.value); setAsking(false); setTouched(true); }}
           />
+          {view.reference && (
+            <p className={s.sheetLine}>
+              {/* C5 task 15: one tap takes the dated figure shipped with this release; the owner can type their own. */}
+              <Button variant="quiet" disabled={sending} onClick={() => void takeReference()}>{view.reference.line}</Button>
+            </p>
+          )}
           <Field
             label={t('money.policy.inrPerUsd')} hint={t('money.policy.inrPerUsdHint')} value={inrPerUsd} inputMode="decimal" autoComplete="off" disabled={sending}
             onChange={(event) => { setInrPerUsd(event.currentTarget.value); setAsking(false); setTouched(true); }}

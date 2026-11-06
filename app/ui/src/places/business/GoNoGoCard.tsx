@@ -125,6 +125,8 @@ function CardTile({ card, onRemoved }: { card: GoNoGoCardView; onRemoved: () => 
         </dl>
       )}
       {card.spendsNothing && <p className={s.note}>{t('kit-sales.goNoGo.spendsNothing')}</p>}
+      {/* C5 task 14: the engine's line, its figures on the card's receipt. */}
+      {card.toGo && <p className={s.note} data-engine-line="">{card.toGo.line}</p>}
       {card.unknown.length > 0 && (
         <>
           <p className={s.note}>{t('kit-sales.goNoGo.unknown')}</p>

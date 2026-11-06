@@ -46,7 +46,7 @@ function AppsHome() {
       <Bento>
         <Tile as="section" span={12} labelledBy="apps-make" className={s.make}>
           <TileHead id="apps-make" title={t('apps.make.title')} />
-          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} describeFailure={noAi} suggestions={data?.ideas ?? []} waitLabel={t('apps.make.busy')} />
+          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} describeFailure={noAi} suggestions={data?.ideas ?? []} suggestionsLabel={t('apps.make.ideas')} waitLabel={t('apps.make.busy')} />
         </Tile>
         {list.error && <p className={s.problem} role="alert">{t('apps.failed', { message: list.error.message })}</p>}
         {data && data.apps.length === 0 && <p className={s.quiet}>{t('apps.empty')}</p>}

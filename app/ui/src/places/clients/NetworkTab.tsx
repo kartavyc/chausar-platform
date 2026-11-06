@@ -111,6 +111,8 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
   const [text, setText] = useState('');
   const [web, setWeb] = useState(false);
   const askWeb = webSearch === 'set-up' && web;
+  // C5 task 10: the chips the engine built from this network.
+  const chips = useResource('venture.network.people', { limit: 0 }, { refreshOn: networkRefresh }).data?.chips ?? [];
 
   async function run(words = text) {
     if (words.trim().length < 2) return;
@@ -174,11 +176,14 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
           <span className={s.meta}>{t('clients.network.web.line')}</span>
         </div>
       ) : <p className={s.meta}>{t('clients.network.web.notSetUp')}</p>}
-      <div className={s.starters}>
-        <span className={s.meta}>{t('clients.network.try')}</span>
-        {STARTERS.map((starter) => (
-          <button key={starter.label} type="button" className={s.starter} onClick={() => setText(t(starter.fill))}>{t(starter.label)}</button>
-        ))}
+      <div className={s.starters} role="group" aria-label={t('clients.network.try')}>
+        <span className={s.meta} aria-hidden="true">{t('clients.network.try')}</span>
+        {/* C5 task 10: chips from the owner's own network when the engine has some, else the fixed starters. */}
+        {chips.length > 0
+          ? chips.map((chip) => <button key={chip} type="button" className={s.starter} onClick={() => setText(chip)}>{chip}</button>)
+          : STARTERS.map((starter) => (
+            <button key={starter.label} type="button" className={s.starter} onClick={() => setText(t(starter.fill))}>{t(starter.label)}</button>
+          ))}
       </div>
       {search.kind === 'consent' && (
         <Inner card={false} className={s.consent}>

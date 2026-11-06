@@ -8,6 +8,7 @@ import { App } from './shell/App';
 import { createEngineClient } from './engine/client';
 import { browserPush, startHostedPush } from './shell/push';
 import { startCrashRelay } from './shell/crash-relay';
+import { reportFirstPaint } from './shell/first-paint';
 import { pickLanguage } from './text';
 import type { EngineClient } from './engine/types';
 
@@ -36,6 +37,8 @@ async function start() {
       <App client={client} language={lang} />
     </StrictMode>,
   );
+  // C5 task 26: the start-up timeline's last step on the desktop; nothing on the web.
+  reportFirstPaint();
 }
 
 void start();

@@ -5,7 +5,7 @@ import type { VentureHandler, VentureHandlerTable } from '../contracts.ts';
 import { writeBrief } from './brief.ts';
 import { listConnectors } from './connectors.ts';
 import { buildStatus, linkRepo, syncRepo } from './github.ts';
-import { markHandoffOpened, prepareHandoff } from './handoff.ts';
+import { markHandoffOpened, prepareBriefFile, prepareHandoff } from './handoff.ts';
 import { bankAlertsGet, bankAlertsSet, bankApply, bankConsent, bankImport, bankLedger } from './bank-methods.ts';
 import { siteApply, siteRevert, siteStage } from './site-methods.ts';
 import { leadsAdd, leadsBlock, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
@@ -37,6 +37,7 @@ const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BU
 export const handlers: VentureHandlerTable = Object.freeze({
   'venture.build.brief': brief,
   'venture.build.handoff': handoff,
+  'venture.build.briefFile': prepareBriefFile satisfies VentureHandler<'venture.build.briefFile'>,
   'venture.build.handoffOpened': handoffOpened,
   'venture.build.link': link,
   'venture.build.sync': sync,

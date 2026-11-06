@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useT } from '../../text';
+import { useLanguageChoice, useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { PassphraseField } from '../../parts/PassphraseField';
@@ -10,11 +10,12 @@ import type { Deleted } from '../../engine/types';
 import { DeletedNote } from '../business/KeepMore';
 import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
+import { OpenCopy } from './CopyImport';
 import s from './Onboarding.module.css';
 import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
 
-type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' };
+type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' } | { kind: 'copy' };
 
 /**
  * Welcome back: no business is open. A quiet list of the businesses on this computer, each opened the way it opens:
@@ -32,6 +33,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
   deleted?: Deleted | null;
 }) {
   const t = useT();
+  const client = useEngine();
   const { businesses, complete, ask } = found;
   const [way, setWay] = useState<Way>(ask?.with === 'recovery-code' ? { kind: 'recover', folder: ask.folder } : { kind: 'list' });
   const [asking, setAsking] = useState<string | null>(ask?.with === 'passphrase' ? ask.folder : null);
@@ -54,6 +56,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         {way.kind === 'restore' && <RestoreBackup {...shared} />}
         {way.kind === 'move' && <MoveHere {...shared} businesses={businesses} onOpen={(business) => { back(); void choose(business); }} />}
         {way.kind === 'folder' && <ByFolder {...shared} />}
+        {way.kind === 'copy' && <OpenCopy {...shared} />}
       </Shell>
     );
   }
@@ -89,16 +92,30 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         <Button variant="quiet" onClick={onNew}>{t(empty ? 'onboarding.welcome.newFirst' : 'onboarding.welcome.new')}</Button>
         {!hosted && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
       </div>
+      <LanguageLink />
       {!hosted && (
         <Fold summary={t('onboarding.welcome.more')} className={s.more}>
           <div className={s.actions}>
             <Button variant="quiet" onClick={() => setWay({ kind: 'restore' })}>{t('onboarding.welcome.restore')}</Button>
             <Button variant="quiet" onClick={() => setWay({ kind: 'recover' })}>{t('onboarding.welcome.useCode')}</Button>
+            {client.pickCopy && client.importCopy && <Button variant="quiet" onClick={() => setWay({ kind: 'copy' })}>{t('onboarding.copy.title')}</Button>}
             {(!complete || empty) && <Button variant="quiet" onClick={() => setWay({ kind: 'folder' })}>{t('onboarding.welcome.byFolder')}</Button>}
           </div>
         </Fold>
       )}
     </Shell>
+  );
+}
+
+/** C5 task 36: a small link to the other language, in that language's own words. Never picked from the computer. */
+function LanguageLink() {
+  const { language, available, choose } = useLanguageChoice();
+  if (!available) return null;
+  const next = language === 'hi' ? 'en' : 'hi';
+  return (
+    <div className={s.actions}>
+      <Button variant="quiet" size="sm" lang={next} onClick={() => void choose(next).catch(() => {})}>{next === 'hi' ? 'हिन्दी' : 'English'}</Button>
+    </div>
   );
 }
 

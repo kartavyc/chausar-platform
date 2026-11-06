@@ -7,6 +7,9 @@
     "one": "{count} department",
     "other": "{count} departments"
   },
+  "team.chat.connect": "Connect your AI",
+  "team.intro.label": "New on your team",
+  "team.intro.gotIt": "Got it",
   "team.sub": "{agents}.",
   "team.subDepts": "{agents} in {depts}.",
   "team.stats": "Team summary",

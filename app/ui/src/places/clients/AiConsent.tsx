@@ -52,3 +52,27 @@ export function AiConsent({clientId,clientName}:{clientId:string;clientName:stri
     </div>
   </Fold>;
 }
+
+/** C5 task 7: one Allow AI for new clients, with its own words one fold away. Off by default; clients already here keep their own. */
+export function AiDefault() {
+  const engine=useEngine(),t=useT();const resource=useResource('venture.client.aiDefault.get',{});
+  const [busy,setBusy]=useState(false),[problem,setProblem]=useState<string|null>(null);
+  const view=resource.data;
+  async function set(on:boolean) {
+    if(busy||!view)return;
+    setBusy(true);setProblem(null);
+    try {await engine.request('venture.client.aiDefault.set',{on,digest:view.digest});resource.reload();}
+    catch(error) {setProblem(error instanceof Error?error.message:String(error));resource.reload();}
+    finally {setBusy(false);}
+  }
+  if(!view)return null;
+  return <details className={s.aiConsent}>
+    <summary>{t('clients.aiDefault.title')}<span className={s.state}> · {t(view.on?'clients.aiDefault.on':'clients.aiDefault.off')}</span></summary>
+    <div className={s.inlineForm}>
+      {problem && <p className={s.failed} role="alert">{problem}</p>}
+      <p className={s.quiet}>{view.line}</p>
+      <p data-content className={s.quiet}>{view.disclosure}</p>
+      <div className={s.formActions}><Button locked={busy} onClick={()=>void set(!view.on)}>{t(view.on?'clients.aiDefault.turnOff':'clients.aiDefault.turnOn')}</Button></div>
+    </div>
+  </details>;
+}

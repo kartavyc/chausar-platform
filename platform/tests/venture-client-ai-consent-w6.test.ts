@@ -115,3 +115,33 @@ test('withdrawal interrupts only this client’s live jobs after the withdrawal 
     assert.deepEqual(events, ['stopped']);
   } finally { stop(); other(); }
 });
+
+// C5 task 7: Allow AI for new clients. Off by default; on, each client added gets their own recorded consent, granted
+// by the business default; clients already here are untouched; withdrawing one still holds; a stale digest is refused;
+// off again stops new grants and keeps the old ones.
+test('Allow AI for new clients: off by default, then one recorded consent per new client', async () => {
+  const env = await setup(), plan = await seedBlueprint(env);
+  const { client: before } = await seedOrder(env, plan);
+  const add = (name: string) => methods['venture.client.add'](env.deps, owner, { name, email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com` });
+  const status = async (clientId: string) => (await methods['venture.client.aiConsent.get'](env.deps, owner, { clientId })).status;
+  const off = await methods['venture.client.aiDefault.get'](env.deps, owner, {});
+  assert.equal(off.on, false);
+  assert.match(off.disclosure, /every client you add from now on/);
+  assert.equal(await status((await add('First Client')).id), 'required');
+  await assert.rejects(methods['venture.client.aiDefault.set'](env.deps, owner, { on: true, digest: 'f'.repeat(64) }), code('CLIENT_AI_CONSENT_CHANGED'));
+  await assert.rejects(methods['venture.client.aiDefault.set'](env.deps, { ...owner, channel: 'phone' }, { on: true, digest: off.digest }), code('APP_APPROVAL_REQUIRED'));
+  const on = await methods['venture.client.aiDefault.set'](env.deps, owner, { on: true, digest: off.digest });
+  assert.equal(on.on, true);
+  const added = await add('Second Client');
+  const view = await methods['venture.client.aiConsent.get'](env.deps, owner, { clientId: added.id });
+  assert.equal(view.status, 'agreed');
+  assert.equal(view.consent.grantedBy, 'business-default');
+  assert.equal(view.consent.disclosureDigest, off.digest);
+  assert.equal(await status(before.id), 'required', 'clients already here are untouched');
+  await methods['venture.client.aiConsent.withdraw'](env.deps, owner, { clientId: added.id });
+  assert.equal(await status(added.id), 'withdrawn', 'withdrawing one client still holds');
+  await methods['venture.client.aiDefault.set'](env.deps, owner, { on: false, digest: on.digest });
+  assert.equal(await status((await add('Third Client')).id), 'required', 'off stops new grants');
+  const kept = await add('Fourth Client');
+  assert.equal(await status(kept.id), 'required');
+});

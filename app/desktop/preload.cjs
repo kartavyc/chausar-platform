@@ -19,10 +19,16 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be read.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
   // Export for your CA (4J4): saves one month's CSV where the owner picks; the system dialog asks before replacing a file. Null when cancelled.
-  saveMoneyExport: async month => {
-    const reply = await ipcRenderer.invoke('chausar:money:saveExport', { month: String(month) });
+  saveMoneyExport: async (month, format) => {
+    const reply = await ipcRenderer.invoke('chausar:money:saveExport', format === undefined ? { month: String(month) } : { month: String(month), format: String(format) });
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  // C5 task 35: the brief as a file for Lovable or Replit; the window names only the builder. Null when cancelled.
+  saveBriefFile: async builder => {
+    const reply = await ipcRenderer.invoke('chausar:brief:saveFile', { builder: String(builder) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The brief could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
   // A client report (5A5): the desktop makes the files and saves them in a new folder where the owner picks. Null when cancelled.
   saveReport: async runId => {
@@ -73,6 +79,28 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // C5 tasks 21, 23: an exported copy and a backup folder. Main does the picking; no path reaches this window.
+  pickCopy: async () => {
+    const reply = await ipcRenderer.invoke('chausar:copy:pick', {});
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be chosen.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  importCopy: async input => {
+    const reply = await ipcRenderer.invoke('chausar:copy:import', input);
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be opened.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  setBackupFolder: async action => {
+    const reply = await ipcRenderer.invoke('chausar:backups:folder', { action: String(action) });
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The folder could not be set.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  // C5 task 16: Send to my CA; only the month and how go to main, which makes the file and opens the owner's app.
+  sharePack: async (month, how) => {
+    const reply = await ipcRenderer.invoke('chausar:pack:share', { month: String(month), how: String(how) });
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be shared.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   // One-shot A6: Email it or Share on WhatsApp on an issued invoice; only the invoice and how go to main, which makes the file.
   shareInvoice: async (invoiceId, how) => {
     const reply = await ipcRenderer.invoke('chausar:invoice:share', { invoiceId: String(invoiceId), how: String(how) });
@@ -110,9 +138,28 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'Chausar could not change this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // C5 task 27: Export diagnostics. Main gathers and saves; only the tick and the preview's id go to it.
+  previewDiagnostics: async dumps => {
+    const reply = await ipcRenderer.invoke('chausar:diagnostics:preview', { dumps: dumps === true });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read its diagnostics.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  saveDiagnostics: async id => {
+    const reply = await ipcRenderer.invoke('chausar:diagnostics:save', { id: String(id) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  // C5 task 32: show the downloaded installer; only which one goes to main, and no path comes back.
+  showUpdateInstaller: async kind => {
+    const reply = await ipcRenderer.invoke('chausar:updates:showInstaller', { kind: String(kind) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'The installer could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  // C5 task 26: the page has painted; only the event goes to main.
+  firstPaint: () => ipcRenderer.invoke('chausar:first-paint'),
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
-    const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];
+    const states = ['starting', 'ready', 'failed', 'stopping', 'stopped', 'reconnecting'];
     const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed' }));
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);

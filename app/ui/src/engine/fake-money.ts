@@ -161,7 +161,8 @@ const SHARE_WORDS = { whatsapp: 'Opened in WhatsApp to share', email: 'Opened in
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / DAY_MS);
 /** "300000" or "3000.00" as paise, or null when it is not an amount. */
 const paiseOf = (value: unknown, currency = 'INR'): number | null => {
-  const typed = typeof value === 'string' && value.length <= 40 ? value.replace(/[\s,]/g, '') : '';
+  // C5 task 12: a leading money sign is read past, as records.ts amountText does ("Full amount" copies "₹2,000").
+  const typed = typeof value === 'string' && value.length <= 40 ? value.replace(/^\s*[₹$€£]/, '').replace(/[\s,]/g, '') : '';
   if (!/^\d+(?:\.\d+)?$/.test(typed)) return null;
   const [whole = '0', fraction = ''] = typed.split('.');
   const digits = fraction.replace(/0+$/, '');
@@ -456,6 +457,12 @@ export class FakeMoney {
 
   private show(invoice: { currency: string }, amount: number): string { return invoice.currency === 'INR' ? inr(amount) : formatMoney(BigInt(amount), invoice.currency); }
 
+  private paymentDefaults(): { method: PaymentMethod } {
+    const newest = this.payments.filter((payment) => payment.businessId === this.host.business()).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+    if (newest) return { method: newest.method };
+    return { method: this.mine()[0]?.currency === 'USD' ? 'bank-transfer' : 'upi' };
+  }
+
   private view(invoice: HeldInvoice): InvoiceViewLite {
     const name = this.clientName(invoice.clientId);
     const figures = this.figures(invoice);
@@ -477,6 +484,8 @@ export class FakeMoney {
     return {
       ...(part ? { billed: { orderTotal: this.show(invoice, part.basis.total), billed: this.show(invoice, billed), left: this.show(invoice, part.basis.total - billed), invoices: counted.length } } : {}),
       ...(pay ? { howToPay: pay } : {}),
+      // C5 task 12 (money/invoices.ts paymentDefaultsOf): the newest payment's method, else UPI in rupees, else bank transfer.
+      paymentDefaults: this.paymentDefaults(),
       invoice: {
         ...this.lite(invoice), currency, dueInDays, digest: invoiceDigest, documentTitle, priceReceiptId, booksReceiptId, booksNote,
         ...(part ? { part: { kind: part.kind, label: part.label } } : {}), ...(invoice.terms !== undefined ? { terms: invoice.terms } : {}),

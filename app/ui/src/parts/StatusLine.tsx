@@ -11,6 +11,7 @@ const ICONS: Readonly<Record<Exclude<EngineStatus['state'], 'ok'>, IconName>> = 
   error: 'triangle-alert',
   unpaired: 'lock',
   starting: 'clock',
+  reconnecting: 'clock',
 };
 
 /** One thin line at the top when something is wrong with the engine or the session, on the failed or waiting
@@ -26,8 +27,9 @@ export function StatusLine({ status, transport }: { status: EngineStatus; transp
       : status.state === 'session-ended' ? t('status.sessionEnded')
         : status.state === 'unpaired' ? t('status.unpaired')
           : status.state === 'starting' ? t('status.starting')
+          : status.state === 'reconnecting' ? t('status.reconnecting')
             : t('status.error', { message: status.message });
-  const urgent = status.state !== 'starting';
+  const urgent = status.state !== 'starting' && status.state !== 'reconnecting';
   return (
     <div className={s.line} data-state={status.state} role={urgent ? 'alert' : 'status'}>
       <Icon name={ICONS[status.state]} size={14} />

@@ -17,9 +17,11 @@ import { voiceGetHandler, voiceLearnHandler, voiceSetHandler } from './voice.ts'
 import { personaGetHandler, personaSetHandler, personaTestHandler } from './persona.ts';
 import { agentsExportHandler, agentsImportHandler } from './export.ts';
 import { restoreHandler, retireCheckHandler, retireHandler } from './retire.ts';
+import { teamIntroducedHandler } from './intro.ts';
 import { talkConsentHandler, talkGetHandler, talkHearHandler, talkSayHandler, talkSetupHandler, talkStartHandler } from './talk.ts';
 
 export const handlers: VentureHandlerTable = Object.freeze({
+  'venture.team.introduced': teamIntroducedHandler,
   // 4B1 agent threads, proposals, versions, standing orders and the chat consent
   'venture.agents.thread.list': threadListHandler,
   'venture.agents.thread.send': threadSendHandler,

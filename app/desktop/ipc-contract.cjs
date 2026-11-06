@@ -30,11 +30,18 @@ const BACKGROUND_SET_CHANNEL = 'chausar:background:set';
 // A5 fix round 3: the day the owner put Today's start-at-login question aside; it changes nothing else.
 const BACKGROUND_LATER_GET_CHANNEL = 'chausar:background:later:get';
 const BACKGROUND_LATER_SET_CHANNEL = 'chausar:background:later:set';
+// C5 task 26: the window says once that it has painted; the start-up timeline's last step (main.cjs).
+const FIRST_PAINT_CHANNEL = 'chausar:first-paint';
+// C5 task 27: Export diagnostics. The window reads what's inside, with crash files only when ticked, then saves that preview by its id.
+const DIAGNOSTICS_PREVIEW_CHANNEL = 'chausar:diagnostics:preview';
+const DIAGNOSTICS_SAVE_CHANNEL = 'chausar:diagnostics:save';
+// C5 task 32: Show installer: the window names only which release; main checks it again and shows it in the file manager.
+const UPDATE_SHOW_CHANNEL = 'chausar:updates:showInstaller';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
-  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek',
+  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
   // One-shot C3: the app's own preferences on this computer (APP_PREFERENCE_METHODS, platform/runtime/app-preferences.ts).
   'app.preferences.get', 'app.preferences.set',
   // One-shot C3: which step long work is on, for a page opened mid-job (ENGINE_METHODS, answered by the engine).
@@ -66,7 +73,7 @@ const METHODS = Object.freeze([
   'speech.list', 'speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe', 'activity.list',
   'learning.list', 'learning.log', 'learning.preview', 'learning.consent', 'learning.sharing', 'learning.share',
   'plugins.list', 'plugins.install', 'plugins.enable', 'plugins.disable', 'plugins.remove', 'plugins.run', 'plugins.miniapp',
-  'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.verify', 'updates.stage',
+  'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.settings', 'updates.check', 'updates.verify', 'updates.stage',
   'venture.countries', 'venture.preview',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
@@ -113,6 +120,18 @@ const METHODS = Object.freeze([
   'venture.layout.get', 'venture.layout.change',
   // C2: the command bar's find.
   'venture.find',
+  'venture.diagnostics.today',
+  'venture.build.briefFile',
+  'venture.accountant.pack.done',
+  'venture.accountant.schedule.set',
+  'venture.accountant.schedule.get',
+  'venture.accountant.set',
+  'venture.accountant.get',
+  'venture.notify.telegram.findChat',
+  'venture.client.aiDefault.set',
+  'venture.client.aiDefault.get',
+  'venture.away.preview',
+  'venture.team.introduced',
   // Wave 6 (6H2): recorded flows
   'venture.flows.list', 'venture.flows.act',
   'venture.proposals.raise', 'venture.proposals.dismiss',
@@ -180,7 +199,7 @@ const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
 // A frozen copy of EXTERNAL_ORIGINS in platform/runtime/venture/contracts.ts, same order.
 const EXTERNAL_ORIGINS = Object.freeze([
-  'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
+  'https://accounts.google.com', 'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com',
   'https://www.paddle.com', 'https://dodopayments.com', 'https://workspace.google.com', 'https://www.zoho.com', 'https://resend.com',
@@ -359,4 +378,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

@@ -69,6 +69,7 @@
   "first-run.about.chatMeta": "Setting up your business",
   "first-run.about.back": "Back to fields",
   "first-run.about.reading": "Reading what you sent",
+  "first-run.about.byAi": "Your AI",
   "first-run.about.reply": "Here is a first plan for {family}. Change anything on the right, or tell me more.",
   "first-run.about.replyNoFamily": "I could not tell your field from that. Write a little more, or pick your field on the right.",
   "first-run.about.replyKeywords": "No AI is connected, so this plan comes from templates for {family}.",

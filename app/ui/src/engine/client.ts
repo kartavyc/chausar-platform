@@ -7,12 +7,20 @@
  * at once. A transport failure sets the status line; an engine refusal stays with the request that caused it.
  */
 
+import type { BackupCopyLite, CopyImportInput, CopyImportResult, PackShareResult } from './types';
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
 import { errorLine, ownerError } from './owner-errors';
-import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
+  /** C5 task 32, desktop only: shows the downloaded installer, checked again first. */
+  showUpdateInstaller?(kind: 'staged'): Promise<void>;
+  /** C5 task 27, desktop only: what Export diagnostics would save; then that preview saved, by its id. Null when cancelled. */
+  previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
+  saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;
+  /** C5 task 26, desktop only: says once that the page has painted (shell/first-paint.ts). */
+  firstPaint?(): Promise<unknown>;
   openExternal?(url: string): Promise<void>;
   /**
    * Desktop only (4D1): the owner picks one of their own network files and a desktop worker reads it on this computer;
@@ -28,7 +36,11 @@ export interface ChausarBridge {
    * picked name meanwhile; EXPORT_NOT_SAVED with plain words when the disk refused. Null when cancelled. On the web the
    * page downloads the engine's csv itself.
    */
-  saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; readme?: string; count?: number; folder?: string; id?: string; line: string } | null>;
+  saveMoneyExport?(month: string, format?: string): Promise<{ saved: true; name: string; receipts?: string; readme?: string; count?: number; folder?: string; id?: string; line: string } | null>;
+  saveBriefFile?(builder: string): Promise<{ saved: true; name: string; companion: string } | null>;
+  pickCopy?(): Promise<{ token: string; name: string } | null>;
+  importCopy?(input: unknown): Promise<unknown>;
+  setBackupFolder?(action: string): Promise<unknown>;
   /** Desktop only (review of A1, row 1): shows a kept export in the file manager, by its file name. */
   showExport?(name: string): Promise<void>;
   /** Desktop only (C4 task 36): a copy of the business saved where the owner picks; its name and an id, or null. */
@@ -36,6 +48,8 @@ export interface ChausarBridge {
   showSavedExport?(id: string): Promise<void>;
   /** Desktop only (one-shot A6): Email it or Share on WhatsApp on an invoice, and the kept file shown in its folder. */
   shareInvoice?(invoiceId: string, how: string): Promise<unknown>;
+  /** C5 task 16: Send to my CA. */
+  sharePack?(month: string, how: string): Promise<unknown>;
   showShared?(name: string): Promise<void>;
   /** Desktop only (one-shot A5): start at login and keep running, read back from this computer (background.cjs). */
   getBackground?(): Promise<unknown>;
@@ -150,6 +164,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     bridge.onEngineStatus(({ state }) => {
       if (state === 'ready') status.set({ state: 'ok' });
       else if (state === 'starting') status.set({ state: 'starting' });
+      else if (state === 'reconnecting') status.set({ state: 'reconnecting' });
       else status.set({ state: 'offline' });
     });
   }
@@ -207,7 +222,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       return result;
     } catch (error) {
       const e = asEngineError(error);
-      if (e.code.startsWith('ENGINE_')) status.set({ state: 'offline' });
+      // C5 task 29: while the desktop restarts its worker, a refused request changes nothing: the status line says why.
+      if (e.code.startsWith('ENGINE_') && status.get().state !== 'reconnecting') status.set({ state: 'offline' });
       throw e;
     }
   }
@@ -267,13 +283,22 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     // 4J21: the hosted server's `me` (trials switch, temporary business), read again with the session each time.
     ...(transport === 'hosted' ? { hostedMe: hostedSessionMe } : {}),
     // 4J20: Export for your CA saved by the desktop, with its refusals as engine errors.
-    ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string) => bridge.saveMoneyExport!(month).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string, format?: string) => (format === undefined ? bridge.saveMoneyExport!(month) : bridge.saveMoneyExport!(month, format)).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // C5 tasks 21, 23: an exported copy and a backup folder, picked by main, with its refusals as engine errors.
+    ...(bridge?.saveBriefFile ? { saveBriefFile: (builder: string) => bridge.saveBriefFile!(builder).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.showUpdateInstaller ? { showUpdateInstaller: (kind: 'staged') => bridge.showUpdateInstaller!(kind).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.previewDiagnostics ? { previewDiagnostics: (dumps: boolean) => bridge.previewDiagnostics!(dumps).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.saveDiagnostics ? { saveDiagnostics: (id: string) => bridge.saveDiagnostics!(id).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.pickCopy ? { pickCopy: () => bridge.pickCopy!().catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.importCopy ? { importCopy: (input: CopyImportInput) => bridge.importCopy!(input).then((value) => value as CopyImportResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.setBackupFolder ? { setBackupFolder: (action: 'pick' | 'clear') => bridge.setBackupFolder!(action).then((value) => value as { copy: BackupCopyLite | null } | null, (error: unknown) => { throw asEngineError(error); }) } : {}),
     // Review of A1 (row 1): a kept export shown in the file manager, with its refusals as engine errors.
     ...(bridge?.showExport ? { showExport: (name: string) => bridge.showExport!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot C4 task 36: Export asks where to save in the desktop's own dialog, and shows the saved copy by its id.
     ...(bridge?.saveBusinessExport ? { saveBusinessExport: (plaintext: boolean) => bridge.saveBusinessExport!(plaintext).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.showSavedExport ? { showSavedExport: (id: string) => bridge.showSavedExport!(id).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A6: an invoice shared through the owner's own apps, and its file shown, with the desktop's refusals as engine errors.
+    ...(bridge?.sharePack ? { sharePack: (month: string, how: 'email' | 'whatsapp') => bridge.sharePack!(month, how).then((value) => value as PackShareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.shareInvoice ? { shareInvoice: (invoiceId: string, how: 'email' | 'whatsapp') => bridge.shareInvoice!(invoiceId, how).then(shareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.showShared ? { showShared: (name: string) => bridge.showShared!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A5: start at login and keep running, with the desktop's refusals as engine errors.

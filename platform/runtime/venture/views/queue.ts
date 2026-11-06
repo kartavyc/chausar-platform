@@ -71,6 +71,7 @@ export const GONE_LINE = 'This was resolved elsewhere.';
 const NOT_A_DECISION: Partial<Record<QueueActionId, string>> = {
   watch: 'Open it to watch it.', read: 'Open it to read it.', connect: 'Connect it under Connections.',
   'set-prices': 'Set your prices in the business menu.', keep: 'Keep this business safe in the business menu.', open: 'Open it from the business menu.',
+  'show-file': 'Show it from the row.',
 };
 const BUILDERS: Readonly<Record<string, string>> = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
 /** The plan and setup rows lead Today, in this order; other rows made at the same moment keep it too. */
@@ -257,6 +258,14 @@ export function runError(state: State, run: DeliveryRunRecord): string {
 
 /** The line a rejected draft leaves on Today, which is also how its Undo knows it (queue-actions.ts). */
 export const REJECT_LINE = 'Draft rejected. The agent learns from it.';
+/** C5 task 9: the answer to a one-tap reject, naming its reason. */
+const REJECT_LINES: Readonly<Partial<Record<DeliveryReason, string>>> = {
+  'wrong-fact': 'Draft rejected: wrong facts. The agent gets this as a rehearsal case.',
+  tone: 'Draft rejected: wrong tone. The agent gets this as a rehearsal case.',
+  'not-needed': 'Draft rejected: not needed. Nothing is learned from it.',
+};
+/** Every line a rejected draft can leave on Today: how its Undo knows it (queue-actions.ts). */
+export const REJECT_LINE_SET: ReadonlySet<string> = new Set([REJECT_LINE, ...Object.values(REJECT_LINES)]);
 
 const reviewReason = (answer: string | null): DeliveryReason =>
   answer !== null && (DELIVERY_REASONS as readonly string[]).includes(answer) ? answer as DeliveryReason : 'other';
@@ -316,7 +325,9 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     if (run.status === 'ready-for-review' && run.awaitingYou) {
       const review = (verdict: 'accepted' | 'rejected'): Perform => async (d, ctx, input) => {
         await deliveryReviewHandler(d, ctx, verdict === 'accepted' ? { runId: run.id, verdict } : { runId: run.id, verdict, reason: reviewReason(input.answer) });
-        return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : REJECT_LINE };
+        // C5 task 9: the answer names the reason; not needed teaches nothing, so it says so.
+        const reason = reviewReason(input.answer);
+        return { line: verdict === 'accepted' ? 'Draft accepted. You send it to the client.' : REJECT_LINES[reason] ?? REJECT_LINE };
       };
       const viewDraft = { kind: 'draft' as const, id: run.id };
       // AI-native CA firm: papers held only for the CA's sign-off, not yet with the CA, go to the CA from this row.
@@ -573,6 +584,10 @@ const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
   // One-shot C4 (T22): a bill due today or overdue, as a notice whose only action is Open, loaded on use
   ['notice', async (deps, ctx, state, venture) => (await import('../money/bills.ts')).billDueRows(deps, ctx, state, venture)],
   ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead
+  // C5 task 22: a readable copy still on this computer a day after its export, loaded on use
+  ['readable-copy', async (deps, ctx, state, venture) => (await import('./readable-copy.ts')).readableCopyRows(deps, ctx, state, venture)],
+  // C5 task 17: the monthly pack for the CA, loaded on use
+  ['notice', async (deps, ctx, state, venture) => (await import('../money/ca-pack.ts')).caPackRows(deps, ctx, state, venture)],
   // Ink v2 wave 5 (5A1): kit chains that stopped or wait on the client past a stage's waitDays, as notices, loaded on use
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/kit/chain.ts')).chainRows(deps, ctx, state, venture)],
   // Ink v2 wave 5 (5A3): published ideas waiting for their grade, loaded on use

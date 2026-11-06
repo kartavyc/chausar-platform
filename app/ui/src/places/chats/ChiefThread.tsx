@@ -26,7 +26,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
-import { navigate } from '../../shell/navigation';
+import { goTo, navigate } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatMonth, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
 import { ChausarAvatar } from '../../parts/Avatar';
@@ -385,6 +385,8 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
         </a>
       )}
       {message.proposals.length > 0 && <PlanCard proposals={message.proposals} agentOf={agentOf} onChanged={onChanged} />}
+      {/* C5 task 5: an answer written with no AI: its next step, set by code, opens Connections. */}
+      {message.suggestion?.kind === 'connect-ai' && <p><Button onClick={() => goTo('connections')}>{t('chats.connect')}</Button></p>}
       {threadId && message.parts.length > 0 && <ReadAloud threadId={threadId} messageId={message.id} />}
     </div>
   );

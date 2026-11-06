@@ -11,6 +11,7 @@ import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { formatBytes, formatTime } from '../../../../../platform/runtime/owner-format';
 import { LeftContext, StartedContext } from '../onboarding/started';
+import { CopyImport } from '../onboarding/CopyImport';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
@@ -25,6 +26,7 @@ import { Progress } from '../../parts/Progress';
  *                   "Move file made" line until dismissed, and a recovery code first when there is none (C4 task 38)
  *   CloseBusiness   close it, or lock it when a passphrase opens it (workspace.lock)
  *   ExportCopy      a copy in the exports folder: encrypted, or readable after a second ask (workspace.export)
+ *   OpenCopyFold    an exported copy back in (C5 task 21)
  *   DeleteBusiness  delete it, with its name typed as the vault holds it (workspace.delete)
  * Every refusal is the engine's, said in plain words. A passphrase or a code lives only in its field or on the screen
  * that shows it, and is cleared once it is sent or done with.
@@ -71,6 +73,8 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
           <li key={backup.file} className={s.backupRow}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
+              {/* C5 task 20: what came just before it, in the engine's words. */}
+              {backup.after && <span className={s.quiet} data-content="">{t('custody.after', { what: backup.after })}</span>}
               <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
               <span className={s.quiet} data-bytes="">{formatBytes(backup.bytes)}</span>
@@ -313,6 +317,20 @@ export function ExportCopy() {
   );
 }
 
+/** C5 task 21: an exported copy, from inside a business: a copy of this business offers to restore it; another waits until this one is closed. */
+export function OpenCopyFold() {
+  const t = useT();
+  const client = useEngine();
+  const restarted = useContext(StartedContext);
+  if (!client.pickCopy || !client.importCopy) return null;
+  return (
+    <details className={s.fold}>
+      <summary>{t('onboarding.copy.title')}</summary>
+      <CopyImport onOpened={restarted} />
+    </details>
+  );
+}
+
 /**
  * Delete this business: what it removes and what it can't, then the business name typed exactly as the vault holds
  * it (workspace.status, which can differ from the plan's working name). A wrong name is refused here, before the engine.
@@ -380,7 +398,7 @@ export function DeletedNote({ result }: { result: Deleted }) {
   // Review of A1 (row 1): the copies Delete kept, by file name, and whether each is readable (not encrypted).
   const kept = (result.exportsKept ?? []).map((path) => {
     const name = path.split(/[\\/]/).pop() ?? path;
-    return { path, name, readable: name.endsWith('.json') };
+    return { path, name, readable: /\.(json|csv)$/.test(name) };
   });
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);

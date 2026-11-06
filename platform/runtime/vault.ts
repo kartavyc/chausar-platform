@@ -224,11 +224,15 @@ function archivedEnvelopeJson(text: string) {
       || Object.keys(value.ciphertext).sort().join(',') !== 'data,nonce,tag') throw new Error('Unreviewed artifact envelope fields');
   } catch { fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact JSON requires complete unique exact envelope fields.'); }
 }
+/** C5 task 19: the most one business's records may take, in bytes of its JSON; past it a commit is refused (VAULT_TOO_LARGE). */
+export const STORE_LIMIT_BYTES = MAX_BYTES / 2;
+/** C5 task 19: the plaintext length of each snapshot this process sealed, so the store-size meter never serialises the state again. */
+const sealedBytes = new WeakMap<VaultEnvelope, number>();
 function encodeSnapshot(state: State, envelope: Omit<VaultEnvelope, 'snapshot'>, key: Uint8Array): VaultEnvelope {
   validateState(state);
   const plaintext = Buffer.from(JSON.stringify(state));
   if (plaintext.length > MAX_BYTES / 2) fail('VAULT_TOO_LARGE', 'The workspace exceeds the snapshot storage limit.');
-  try { return { ...envelope, snapshot: seal(key, plaintext, aad(envelope)) }; }
+  try { const sealed: VaultEnvelope = { ...envelope, snapshot: seal(key, plaintext, aad(envelope)) }; sealedBytes.set(sealed, plaintext.length); return sealed; }
   finally { plaintext.fill(0); }
 }
 function decodeSnapshot(envelope: VaultEnvelope, key: Uint8Array): State {
@@ -548,6 +552,13 @@ export class Vault implements StateStore {
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
   read(): State { this.#ready(); return structuredClone(this.#state); }
+  /** C5 task 19: how many bytes of the store's ceiling (STORE_LIMIT_BYTES) the open business takes now. */
+  storeBytes(): number {
+    this.#ready();
+    let bytes = sealedBytes.get(this.#envelope);
+    if (bytes === undefined) { bytes = Buffer.byteLength(JSON.stringify(this.#state)); sealedBytes.set(this.#envelope, bytes); }
+    return bytes;
+  }
   /** Trusted host snapshot fence. It cannot update the authority or export its key. */
   snapshot<T>(work: (state: State) => Promise<T>): Promise<T> {
     return this.#enqueue(() => this.#transaction.run(true, () => this.#snapshotScope.run(true, () => work(structuredClone(this.#state)))));

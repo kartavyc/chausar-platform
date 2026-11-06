@@ -5,6 +5,7 @@
  * owner can upload one.
  */
 
+import { AiDefault } from './AiConsent';
 import { useT } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
@@ -49,6 +50,7 @@ export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
   return (
     <>
       {orders.error && <p className={s.failed} role="alert">{t('clients.order.failed', { message: orders.error.message })}</p>}
+      <AiDefault />
       <Tile pad="compact">
         <ul className={s.list} aria-label={t('place.clients')}>
           {list.map((client) => <ClientRow key={client.id} client={client} ordersKnown={ordersKnown} last={lastOrder.get(client.id)} />)}

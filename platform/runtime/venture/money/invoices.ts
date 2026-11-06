@@ -39,7 +39,7 @@ import { gateEffect, sealApproval } from '../policy/holds.ts';
 import { blueprintCountry, invoiceCountry } from '../core/country-history.ts';
 import {
   experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceLine, type InvoiceListRow, type InvoiceRecord,
-  type InvoiceView, type IsoDate, type MinorString, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
+  type InvoiceView, type IsoDate, type MinorString, type PaymentMethod, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
 } from '../contracts.ts';
 
 const DIGEST_TEXT = /^[A-Za-z0-9]{1,200}$/;
@@ -136,6 +136,16 @@ function pricedBlueprint(state: State, venture: VentureRecord, receipt: PriceRec
 }
 
 /** The full view the screens show for one invoice, with its next step, timeline and credit notes as of the owner's day. */
+/**
+ * C5 task 12: the payment method a new payment starts from: the method of the business's newest payment, else UPI
+ * for a business in rupees, else bank transfer. The owner can always choose another.
+ */
+export function paymentDefaultsOf(state: State, venture: VentureRecord): { method: PaymentMethod } {
+  const newest = listRecords(state, 'venture-payment', venture.id).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+  if (newest) return { method: newest.method };
+  return { method: venture.country?.currency === 'INR' ? 'upi' : 'bank-transfer' };
+}
+
 export function invoiceView(state: State, venture: VentureRecord, invoice: InvoiceRecord, deps: Pick<VentureDeps, 'storage' | 'host' | 'clock'>): InvoiceView {
   const experimental = experimentalStorage(deps);
   const client = listRecords(state, 'venture-client', venture.id).find(c => c.id === invoice.clientId);
@@ -183,6 +193,7 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
     ...(billed ? { billed } : {}),
     ...(howToPay ? { howToPay } : {}),
     sent: sentOf(state, venture, invoice.id),
+    paymentDefaults: paymentDefaultsOf(state, venture),
   };
 }
 

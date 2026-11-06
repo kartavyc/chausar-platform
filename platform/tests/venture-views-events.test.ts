@@ -214,7 +214,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['getAskLater', 'getBackground', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickNetworkFile', 'request', 'saveBusinessExport', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'shareInvoice', 'showExport', 'showSavedExport', 'showShared']);
+  assert.deepEqual(Object.keys(api).sort(), ['firstPaint', 'getAskLater', 'getBackground', 'importCopy', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickCopy', 'pickNetworkFile', 'previewDiagnostics', 'request', 'saveBriefFile', 'saveBusinessExport', 'saveDiagnostics', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'setBackupFolder', 'shareInvoice', 'sharePack', 'showExport', 'showSavedExport', 'showShared', 'showUpdateInstaller']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });

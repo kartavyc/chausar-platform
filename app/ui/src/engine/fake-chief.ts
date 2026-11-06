@@ -85,14 +85,14 @@ interface HeldProposal extends Drafted {
 interface HeldMessage {
   id: string; at: string; from: 'owner' | 'chief'; text: string; parts: ChatPart[]; proposalIds: string[]; routedTo: string | null;
   recordReport?:true;
-  worked: ChiefMessageView['worked']; dropped: string[]; read: boolean; counted?: ChiefCounted | null;
+  worked: ChiefMessageView['worked']; dropped: string[]; read: boolean; counted?: ChiefCounted | null; suggestion?: { kind: 'connect-ai' };
   /** W6 6G1: the chief's question back, waiting for the owner until they write again. */
   ask?: string;
 }
 /** W6 6G1: snoozedUntil, settledAt and stateAt are the owner's snooze, Settle and last state change, as the engine keeps them. */
 interface HeldThread { id: string; title: string; pinned: boolean; lastAt: string; messages: HeldMessage[]; snoozedUntil?: string | null; settledAt?: string | null; stateAt?: string | null }
 interface Held { threads: HeldThread[]; proposals: HeldProposal[] }
-type Reply = { parts: ChatPart[]; ask?: string; routedTo?: string; worked?: ChiefMessageView['worked']; proposals?: (Drafted & { target?: HeldProposal['target'] })[]; counted?: ChiefCounted };
+type Reply = { suggestion?: { kind: 'connect-ai' }; parts: ChatPart[]; ask?: string; routedTo?: string; worked?: ChiefMessageView['worked']; proposals?: (Drafted & { target?: HeldProposal['target'] })[]; counted?: ChiefCounted };
 /** One-shot A3 (S3), chief/answer.ts AI_FAILED_LEAD, word for word. */
 export const AI_FAILED_LEAD = "Your AI couldn't answer this time, so here is what Chausar's records say.";
 
@@ -191,6 +191,9 @@ export class FakeChiefDesk {
    * owner words (a named failure such as a used-up plan), or null for one with none (a time-out). Null turns it off.
    */
   failAi(failure: { reason: string | null } | null): void { this.aiFails = failure; }
+  /** C5 task 5: answer as with no AI connected (chief/answer.ts NO_AI_LEAD and NO_AI_TAIL, with Connect your AI). */
+  withoutAi(on: boolean): void { this.noAi = on; }
+  private noAi = false;
   private aiFails: { reason: string | null } | null = null;
 
   handles(method: string): boolean {
@@ -346,7 +349,7 @@ export class FakeChiefDesk {
       id: message.id, at: message.at, from: message.from, parts: structuredClone(message.parts),
       proposals: message.proposalIds.flatMap((id) => { const found = held.proposals.find((item) => item.id === id); return found ? [this.proposalView(found)] : []; }),
       routedTo: message.routedTo ? { agent: message.routedTo, name: routed?.name ?? message.routedTo } : null,
-      worked: structuredClone(message.worked), dropped: [...message.dropped], counted: message.counted ? structuredClone(message.counted) : null,
+      worked: structuredClone(message.worked), dropped: [...message.dropped], counted: message.counted ? structuredClone(message.counted) : null, ...(message.suggestion ? { suggestion: { ...message.suggestion } } : {}),
     };
   }
 
@@ -472,7 +475,7 @@ export class FakeChiefDesk {
     const existing = p.threadId === undefined ? null : this.threadOf(p.threadId);
     this.requireConsent();
 
-    const reply = this.otherBusiness(words) ?? this.routed(words) ?? (this.aiFails ? this.recordsAnswer(this.aiFails.reason) : this.answer(words));
+    const reply = this.otherBusiness(words) ?? this.routed(words) ?? (this.noAi ? this.recordsAnswer(null, true) : this.aiFails ? this.recordsAnswer(this.aiFails.reason) : this.answer(words));
     const held = this.mine();
     const now = this.host.now();
     const thread: HeldThread = existing ?? { id: `chiefthread-${this.seq++}`, title: short(words, 80), pinned: false, lastAt: now, messages: [] };
@@ -489,7 +492,7 @@ export class FakeChiefDesk {
     const chief: HeldMessage = {
       id: `chiefmsg-${this.seq++}`, at: now, from: 'chief', text: plainOf(reply.parts), parts: reply.parts, proposalIds,
       routedTo: reply.routedTo ?? null, worked: reply.worked ?? [], dropped: [], read: false, ...(reply.ask ? { ask: reply.ask } : {}),
-      ...(reply.counted ? { counted: reply.counted } : {}),
+      ...(reply.counted ? { counted: reply.counted } : {}), ...(reply.suggestion ? { suggestion: reply.suggestion } : {}),
     };
     thread.messages.push(owner, chief);
     thread.lastAt = now;
@@ -569,18 +572,19 @@ export class FakeChiefDesk {
    * when it has them, then what the records say (each figure after its label, with its receipt) and the counts by code
    * for the last three months. Never a figure the books do not hold.
    */
-  private recordsAnswer(reason: string | null): Reply {
+  private recordsAnswer(reason: string | null, noAi = false): Reply {
     const books = BOOKS[this.host.current()] ?? BOOKS.lumen!;
     const month = MONTHS[Number(books.period.from.slice(5, 7)) - 1]!;
     const shown = books.figures.filter((figure) => figure.operation === 'billed' || figure.operation === 'received').slice(0, 4);
-    const parts: ChatPart[] = [{ kind: 'text', text: AI_FAILED_LEAD }, ...(reason ? [{ kind: 'text' as const, text: reason }] : [])];
+    const parts: ChatPart[] = [{ kind: 'text', text: noAi ? "Here is where the money stands, from Chausar's records." : AI_FAILED_LEAD }, ...(reason ? [{ kind: 'text' as const, text: reason }] : [])];
     const worked: ChiefMessageView['worked'] = [];
     for (const figure of shown) {
       const label = `${figure.operation === 'billed' ? 'Billed' : 'Received'} in ${month}`;
       parts.push({ kind: 'text', text: `${label}:` }, { kind: 'figure', receiptId: figure.receiptId, key: 'total', display: figure.display });
       worked.push({ label, value: figure.display, receiptId: figure.receiptId });
     }
-    return { parts, worked, counted: this.countedByCode() };
+    if (noAi) parts.push({ kind: 'text', text: 'Connect your AI in Connections to ask in your own words.' });
+    return { parts, worked, counted: this.countedByCode(), ...(noAi ? { suggestion: { kind: 'connect-ai' as const } } : {}) };
   }
 
   /** delivery/fallbacks.ts countedByCode, as far as the fake holds those records: each kind's count and the last three months. */

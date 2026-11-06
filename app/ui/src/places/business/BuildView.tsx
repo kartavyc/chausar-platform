@@ -4,7 +4,8 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { ModelEstimate } from '../../parts/ModelEstimate';
-import { EngineError, type BuildStatusView, type BuilderId } from '../../engine/types';
+import { saveTextFile } from '../../parts/custody';
+import { EngineError, type BuildStatusView, type BuilderId, type FileBuilderId } from '../../engine/types';
 import { ExternalLink, openProblem } from '../connections/external';
 import { BUILDER_NAMES, handOff } from './handoff';
 import { TileSection, messageOf } from './shared';
@@ -88,14 +89,45 @@ export function BuildView() {
   );
 }
 
+const FILE_BUILDERS: readonly FileBuilderId[] = ['lovable', 'replit'];
+
 function Builders({ status, ready, onOpened }: { status: BuildStatusView; ready: boolean; onOpened: () => void }) {
   const t = useT();
   const client = useEngine();
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ lines: string[]; problem: string | null } | null>(null);
+  /** The note file of a brief just downloaded, offered as a second file (web and hosted). */
+  const [companion, setCompanion] = useState<{ name: string; text: string } | null>(null);
+
+  /** C5 task 35: by file. The desktop asks the engine and shows the save dialog; on the web the page asks and offers a download. */
+  async function saveFile(builder: FileBuilderId) {
+    setSaid(null);
+    setCompanion(null);
+    setBusy(true);
+    const name = BUILDER_NAMES[builder];
+    try {
+      if (client.saveBriefFile) {
+        const saved = await client.saveBriefFile(builder);
+        if (saved) { setSaid({ lines: [t('business.fileSaved', { name: saved.name, companion: saved.companion, builder: name })], problem: null }); onOpened(); }
+      } else {
+        const plan = await client.request('venture.build.briefFile', { builder });
+        const [brief, note] = plan.files;
+        if (!saveTextFile(brief!.name, brief!.text, 'text/markdown;charset=utf-8')) throw new EngineError('REQUEST_FAILED', t('connections.copyFailed'));
+        await client.request('venture.build.handoffOpened', { handoffId: plan.handoffId });
+        setCompanion(note!);
+        setSaid({ lines: [t('business.fileDownloaded', { name: brief!.name, companion: note!.name, builder: name })], problem: null });
+        onOpened();
+      }
+    } catch (error) {
+      setSaid({ lines: [], problem: openProblem(error, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function open(builder: BuilderId) {
     setSaid(null);
+    setCompanion(null);
     const started = handOff(client, builder); // first, so the web tab opens inside the click
     setBusy(true);
     try {
@@ -112,19 +144,30 @@ function Builders({ status, ready, onOpened }: { status: BuildStatusView; ready:
     }
   }
 
+  // A file the owner cancelled never reached them, so it isn't listed.
+  const shown = status.handoffs.filter((handoff) => handoff.mode !== 'file' || handoff.openedAt);
+
   return (
     <TileSection title={t('business.builders')}>
-      <div className={s.buttons}>
-        <Button disabled={busy || !ready} onClick={() => void open('replit')}>{t('business.openReplit')}</Button>
-        <Button variant="primary" disabled={busy || !ready} onClick={() => void open('lovable')}>{t('business.openLovable')}</Button>
-      </div>
-      <p className={s.note}>{t('business.replitNote')}</p>
+      {FILE_BUILDERS.map((builder) => (
+        <div key={builder}>
+          <p className={s.line}>{t(`business.travel.${builder}.${status.linkFits?.[builder] === false ? 'file' : 'link'}`)}</p>
+          <div className={s.buttons}>
+            <Button variant={builder === 'lovable' ? 'primary' : undefined} disabled={busy || !ready} onClick={() => void open(builder)}>{t(builder === 'lovable' ? 'business.openLovable' : 'business.openReplit')}</Button>
+            <Button size="sm" variant="quiet" disabled={busy || !ready} onClick={() => void saveFile(builder)}>
+              {t('business.saveAsFile')} <span className="sr-only">{t('business.saveFileFor', { name: BUILDER_NAMES[builder] })}</span>
+            </Button>
+          </div>
+        </div>
+      ))}
+      <p className={s.note}>{t('business.directNeeds')}</p>
       <ResultLine tone={said?.problem ? 'problem' : 'done'}>{said?.problem ?? (said?.lines.length ? said.lines.map((line) => <span key={line}>{line} </span>) : null)}</ResultLine>
-      {status.handoffs.length > 0 && (
+      {companion && <div className={s.buttons}><Button size="sm" variant="quiet" onClick={() => saveTextFile(companion.name, companion.text, 'text/markdown;charset=utf-8')}>{t('business.saveCompanion', { name: companion.name })}</Button></div>}
+      {shown.length > 0 && (
         <Fold summary={t('business.handoffs')} className={s.fold}>
           <ul className={s.plain}>
-            {status.handoffs.slice(0, 4).map((handoff) => (
-              <li key={handoff.id}>{t(handoff.openedAt ? 'business.handoffOpened' : 'business.handoffNotOpened', { name: BUILDER_NAMES[handoff.builder] })}</li>
+            {shown.slice(0, 4).map((handoff) => (
+              <li key={handoff.id}>{t(handoff.mode === 'file' ? 'business.handoffSaved' : handoff.openedAt ? 'business.handoffOpened' : 'business.handoffNotOpened', { name: BUILDER_NAMES[handoff.builder] })}</li>
             ))}
           </ul>
         </Fold>

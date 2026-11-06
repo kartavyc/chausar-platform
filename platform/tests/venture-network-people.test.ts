@@ -197,3 +197,25 @@ test('an owner merge keeps a person hidden when either was hidden', async () => 
   const merged = await net<PersonView>(env, 'venture.network.merge', { a: first.id, b: second.id });
   assert.equal(merged.person.hidden, true);
 });
+
+// C5 task 10: search chips from the owner's own network, built by code: the most common company, the most common role
+// title, and the quiet-clients search when there are clients. Hidden people never give a chip; an empty network none.
+test('people: chips from the network; two people at Sample Bakery give its chip; hidden people never do', async () => {
+  const env = await setup();
+  assert.deepEqual((await net<PeopleView>(env, 'venture.network.people', {})).chips, []);
+  const { connectionsCsv } = await import('./venture-network-env.ts');
+  await imported(env, 'linkedin-connections', 'Connections.csv', connectionsCsv([
+    'Meera,Shah,https://www.linkedin.com/in/meera-shah-c5,,Sample Bakery,Baker,02 Oct 2026',
+    'Ravi,Kumar,https://www.linkedin.com/in/ravi-kumar-c5,,Sample Bakery,Owner,02 Oct 2026',
+    'Neha,Iyer,https://www.linkedin.com/in/neha-iyer-c5,,Hidden Foods,Owner,02 Oct 2026',
+    'Kabir,Das,https://www.linkedin.com/in/kabir-das-c5,,Hidden Foods,Chef,02 Oct 2026',
+    'Tara,Bose,https://www.linkedin.com/in/tara-bose-c5,,Hidden Foods,Chef,02 Oct 2026',
+  ]));
+  for (const name of ['Neha Iyer', 'Kabir Das', 'Tara Bose']) {
+    await net(env, 'venture.network.hide', { personId: personNamed(env, name).id, hidden: true });
+  }
+  const view = await net<PeopleView>(env, 'venture.network.people', {});
+  assert.deepEqual(view.chips, ['Who works at Sample Bakery?']);
+  assert.ok(!JSON.stringify(view.chips).includes('Hidden Foods'));
+  assert.ok(!JSON.stringify(view.chips).includes('Chef'), 'a hidden person\'s title never gives a chip');
+});

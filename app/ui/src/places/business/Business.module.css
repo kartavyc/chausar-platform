@@ -720,3 +720,11 @@
   outline: var(--focus) solid var(--link);
   outline-offset: 2px;
 }
+
+/* C5 task 13: I charge GST, a quiet switch above the prices; its fields show only once it is on. */
+.gst {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-block: var(--sp-3);
+}

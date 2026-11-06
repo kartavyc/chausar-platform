@@ -5,7 +5,7 @@ import {
   EngineError, type AgentMessageView, type AgentProposalView, type AgentRunItem, type AgentThreadItem, type AgentView, type ChatConsentView,
   type StandingPlaybookView,
 } from '../../engine/types';
-import { openSheet } from '../../shell/navigation';
+import { goTo, openSheet } from '../../shell/navigation';
 import { useClock } from '../../shell/clock';
 import type { DeptId } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
@@ -193,6 +193,10 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
     }
     const suggestion = message.suggestion;
     if (!suggestion) return [said];
+    // C5 task 5: a reply written with no AI: its next step, set by code, opens Connections.
+    if (suggestion.kind === 'connect-ai') {
+      return [said, { kind: 'card', id: `${message.id}-connect`, at: message.at, node: <Button onClick={() => goTo('connections')}>{t('team.chat.connect')}</Button> }];
+    }
     return [said, {
       kind: 'card', id: `${message.id}-order`, at: message.at,
       node: (

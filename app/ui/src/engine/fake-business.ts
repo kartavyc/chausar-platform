@@ -47,6 +47,10 @@ export interface DeskHost {
   business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made'; passphrase?: string | undefined } | null;
   /** Whether this computer's protected storage can keep a business key. */
   deviceKeys(): boolean;
+  /** C5 task 19: how big the open business is. */
+  storeBytes?(): number;
+  /** C5 task 20: what the owner last decided. */
+  lastDecided?(): string | null;
   /** 4H2: whether this answers as the hosted web server. */
   hosted?(): boolean;
   /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
@@ -59,9 +63,10 @@ const DESK_METHODS = new Set([
   'venture.models.presets', 'venture.models.status', 'venture.models.connect', 'venture.models.disconnect',
   'venture.ai.options', 'venture.ai.status', 'venture.ai.connect', 'venture.ai.disconnect',
   'venture.blueprint.get', 'venture.blueprint.update', 'venture.price.quote',
-  'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
+  'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
   'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.export',
+  'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
   'trust.update',
 ]);
 /** The engine's move file format, in the sample. The real file is the encrypted vault, sealed under the move code. */
@@ -298,9 +303,14 @@ export class FakeBusinessDesk {
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
       case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn, p.ownerSave === true ? true : undefined), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
-      case 'venture.build.status': return clone(this.buildOf(biz));
+      case 'venture.build.status': {
+        const build = this.buildOf(biz);
+        // The real Replit limit reads the compressed link (build/handoff.ts); the sample's briefs are short and always fit.
+        return clone({ ...build, linkFits: build.brief ? { lovable: true, replit: true } : null });
+      }
       case 'venture.build.brief': return this.brief(biz);
       case 'venture.build.handoff': return this.handoff(biz, p.builder);
+      case 'venture.build.briefFile': return this.briefFile(biz, p.builder);
       case 'venture.build.handoffOpened': {
         const handoff = this.buildOf(biz).handoffs.find((h) => h.id === p.handoffId);
         if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This copy is not on this computer.');
@@ -316,6 +326,9 @@ export class FakeBusinessDesk {
       case 'workspace.backups.list': return { backups: clone(this.backupsOf(biz)), more: false };
       case 'workspace.backups.create': return clone(this.addBackup(biz, 'manual'));
       case 'workspace.backups.restore': return this.restoreBackup(biz, p);
+      // C5 task 24: the rehearsal has no Google client, as a build has none until the founder registers one.
+      case 'workspace.backups.drive.status': case 'workspace.backups.drive.connect': case 'workspace.backups.drive.disconnect':
+        throw new EngineError('DRIVE_NOT_SET_UP', "Google Drive needs Chausar's Google sign-in set up first. Until then, pick your Google Drive folder under Keep a copy on a drive.");
       case 'trust.update': {
         // trust.ts updatePolicy: only known fields, and send is one of three.
         if (Object.keys(p).some((key) => key !== 'send') || !['nothing', 'shape', 'samples'].includes(p.send as string)) throw new EngineError('INVALID_POLICY', 'Choose nothing, shape, or samples.');
@@ -483,6 +496,24 @@ export class FakeBusinessDesk {
       resetCountry(next, country.code, beforeCountry.code);
     }
     next.country = country;
+    // C5 task 13 (core/blueprint.ts applyTaxPatch, core/tax-fields.ts): I charge GST, its rate and the GSTIN.
+    if (patch.taxRegistered !== undefined) {
+      if (typeof patch.taxRegistered !== 'boolean') throw invalid('Say yes or no to charging tax.');
+      next.backOffice.taxRegistered = { value: patch.taxRegistered, label: 'told-by-you', by: 'owner' };
+      if (!patch.taxRegistered) { next.backOffice.taxRateBps = '0'; next.backOffice.taxRateBy = 'not-registered'; }
+    }
+    if (patch.taxRate !== undefined) {
+      if (!next.backOffice.taxRegistered.value) throw new EngineError('INVALID_TAX_RATE', 'Turn tax on before you set a rate.');
+      const match = /^(\d{1,2})(?:\.(\d{1,2}))?$/.exec(String(patch.taxRate).trim());
+      if (!match) throw new EngineError('INVALID_TAX_RATE', 'Type the rate as a percent, like 18.');
+      next.backOffice.taxRateBps = String(Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')));
+      next.backOffice.taxRateBy = 'told-by-you';
+    }
+    if (patch.taxId !== undefined) {
+      const cleaned = patch.taxId === null ? null : String(patch.taxId).toUpperCase().replace(/\s+/g, '');
+      if (cleaned !== null && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(cleaned)) throw new EngineError('INVALID_TAX_ID', 'Check your GSTIN.');
+      next.backOffice.taxId = cleaned;
+    }
     if (patch.name !== undefined) next.name = told(text(patch.name, 60, 'The name'));
     if (patch.oneLiner !== undefined) next.oneLiner = told(text(patch.oneLiner, 160, 'The one line'));
     if (patch.customer !== undefined) next.customer = told(text(patch.customer, 200, "Who it's for"));
@@ -729,7 +760,7 @@ export class FakeBusinessDesk {
   }
 
   private addBackup(biz: string, kind: BackupLite['kind']): BackupLite {
-    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true };
+    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true, ...(this.host.lastDecided?.() ? { after: this.host.lastDecided!()! } : {}) };
     this.backupsOf(biz).unshift(backup);
     return backup;
   }
@@ -779,7 +810,8 @@ export class FakeBusinessDesk {
       computer,
       business: {
         folder: biz, unlock: held.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', recovery: held.recovery, storage: 'experimental-file',
-        backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null },
+        backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null, copy: null },
+        storeBytes: this.host.storeBytes?.() ?? 4_300_000, storeLimit: 32 * 1024 * 1024,
         // C4 task 36, as the engine: the name the desktop's save dialog offers.
         exportName: exportFileName(this.host.businessName(biz), new Date(this.host.now()), 'Asia/Kolkata', false),
         // C4 task 37: the copies in Chausar's own exports folder.
@@ -869,6 +901,19 @@ export class FakeBusinessDesk {
       handoffId, builder: id, mode: link ? 'link' : 'copy', url, clipboardText: link ? null : brief.markdown,
       notes: [...(id === 'lovable' ? HANDOFF_NOTES.lovable : id === 'replit' ? HANDOFF_NOTES.replit : HANDOFF_NOTES.copy)], label: 'handoff', status: 'available',
     };
+  }
+
+  /** C5 task 35: the same gates and shapes as the engine (build/handoff.ts). */
+  private briefFile(biz: string, builder: unknown) {
+    if (builder !== 'lovable' && builder !== 'replit') throw invalid('Choose Lovable or Replit.');
+    const build = this.buildOf(biz);
+    const brief = build.brief;
+    if (!brief) throw new EngineError('BRIEF_NOT_FOUND', 'Write the build brief first.');
+    if (!brief.lint.ok) throw new EngineError('BRIEF_LINT_FAILED', brief.lint.findings[0]?.message ?? 'The brief did not pass its checks.');
+    const handoffId = `ho-${biz}-${++this.seq}`;
+    build.handoffs.unshift({ id: handoffId, at: this.host.now(), builder, mode: 'file', openedAt: null });
+    const note = `chausar-brief-id: ${brief.briefId}\nMoney numbers come from Chausar. Do not compute totals or tax.\n`;
+    return { handoffId, builder, files: [{ name: 'website-brief.md', text: brief.markdown }, { name: builder === 'lovable' ? 'AGENTS.md' : 'replit.md', text: note }] };
   }
 
   private link(biz: string, p: Record<string, unknown>) {

@@ -20,8 +20,8 @@ const { buildEml, cleanSubject, FILE_NAME, TYPES } = require('./mail-draft.cjs')
 const DAY_MS = 24 * 60 * 60_000;
 const MAX_LINK = 30_000;
 const INVOICE_ID = /^[A-Za-z0-9_.:-]{1,200}$/;
-const OURS = /^[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml)$/;
-const STAGED = /^\.[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml)\.[0-9a-f]{12}\.tmp$/;
+const OURS = /^[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml|csv)$/;
+const STAGED = /^\.[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml|csv)\.[0-9a-f]{12}\.tmp$/;
 const failure = (code, message) => Object.assign(new Error(message), { code });
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const notMade = () => failure('REQUEST_FAILED', 'The invoice file could not be made. Try again.');
@@ -292,4 +292,4 @@ async function showShared(event, input, deps) {
   }
 }
 
-module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl, emlHandler });
+module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl, emlHandler, keepFile, prune });

@@ -373,7 +373,7 @@ describe('Ink v2 rules the UI keeps (w3 plan)', () => {
   });
 
   it('no emoji in src or the text catalogues', () => {
-    expect(everything.some(({ f }) => f.startsWith('text/hi/'))).toBe(false);
+    expect(everything.some(({ f }) => f.startsWith('text/hi/'))).toBe(true);
     for (const { f, text } of everything) expect(text.match(/\p{Extended_Pictographic}/u)?.[0], f).toBeUndefined();
   });
 

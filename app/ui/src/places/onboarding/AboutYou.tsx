@@ -22,7 +22,7 @@ import { Progress } from '../../parts/Progress';
 export type AboutMode = 'a' | 'b' | 'plan';
 type Mode = AboutMode;
 /** failed: a read that failed or an AI that stopped, said as Chausar's turn in the chat (B4 task 4). */
-type Bubble = { who: 'me' | 'them'; text: string; failed?: boolean };
+type Bubble = { who: 'me' | 'them'; text: string; failed?: boolean; byAi?: boolean };
 /** C4 task 1: an offer on the plan card, kept (ticked) by default, renamed in place, or added by the owner. */
 type OfferRow = { key: number; name: string; line: string; kept: boolean; editing: boolean };
 /** The engine keeps one to three offers from the card (core/blueprint.ts SHOWN_OFFER_IDS). */
@@ -112,14 +112,15 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
   }, [client]);
 
   function answerWords(next: AboutReadLite): string {
-    const lines = [!next.family ? t('first-run.about.replyNoFamily') : t(next.source === 'keywords' ? 'first-run.about.replyKeywords' : 'first-run.about.reply', { family: next.family.label })];
+    // C5 task 6: the AI's own short reply when it gave one (core/about.ts kept it), else the fixed line.
+    const lines = [next.reply ?? (!next.family ? t('first-run.about.replyNoFamily') : t(next.source === 'keywords' ? 'first-run.about.replyKeywords' : 'first-run.about.reply', { family: next.family.label }))];
     if (next.file && !next.file.included && next.file.line) lines.push(next.file.line);
     return lines.join('\n');
   }
 
   function took(next: AboutReadLite) {
     setRead(next);
-    setThread((was) => [...was, { who: 'them', text: answerWords(next) }]);
+    setThread((was) => [...was, { who: 'them', text: answerWords(next), ...(next.reply ? { byAi: true } : {}) }]);
     if (next.country && next.country.code !== countryCode && !picked.current) setCountryAsk(next.country);
     void nameFor(next, countryCode);
   }
@@ -410,8 +411,10 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
               <div key={index} className={`${s.bubble} ${s.them}`} data-failed-turn="">
                 <InlineError fix={stopped && index === thread.length - 1 && lastAsk.current ? { label: t('first-run.ai.tryAgain'), onSelect: () => { void ask(lastAsk.current!); } } : undefined}>{bubble.text}</InlineError>
               </div>
-            ) : (
-              <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' ? '' : undefined}>{bubble.text}</p>
+            ) : (              <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' || bubble.byAi ? '' : undefined} data-by={bubble.byAi ? 'ai' : undefined}>
+                {bubble.byAi && <span className={s.byAi}>{t('first-run.about.byAi')}</span>}
+                <span>{bubble.text}</span>
+              </p>
             )))}
             {/* One-shot C3 task 11: Chausar's turn in the chat says which step it is on. */}
             {busy && <div className={`${s.bubble} ${s.them}`}><Progress kind="about" active /></div>}

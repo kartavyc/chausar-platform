@@ -10,7 +10,9 @@ import { Icon } from '../../parts/Icon';
 import { Tile } from '../../parts/Tile';
 import { momentOf, saveTextFile } from '../../parts/custody';
 import type { CustodyViewLite, Deleted, UnlockMode } from '../../engine/types';
-import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway, takeRestoredLine } from './KeepMore';
+import { formatBytes } from '../../parts/when';
+import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway, OpenCopyFold, takeRestoredLine } from './KeepMore';
+import { KeepCopy } from './KeepCopy';
 import { LeftContext } from '../onboarding/started';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
@@ -53,6 +55,7 @@ export function KeepView() {
     <>
       {!hosted && <CloseBusiness unlock={unlock} />}
       {!hosted && <ExportCopy />}
+      {!hosted && <OpenCopyFold />}
       <DeleteBusiness onDeleted={onDeleted} counts={hosted ? null : counts} />
     </>
   );
@@ -110,6 +113,9 @@ export function KeepView() {
           {business.backups.lastError
             ? <p className={s.problem} role="alert">{business.backups.lastError}</p>
             : <p className={s.note}>{newest ? t('business.lastBackup', { when: momentOf(newest, zone) }) : t('business.noBackup')}</p>}
+          {/* C5 task 19: how much of the ceiling this business takes; from 70 percent, what to do about it. */}
+          <p className={s.note}>{t('business.store.uses', { used: formatBytes(business.storeBytes), limit: formatBytes(business.storeLimit) })}</p>
+          {business.storeBytes >= business.storeLimit * 0.7 && <p className={s.warn}>{t('business.store.full')}</p>}
           <div className={s.buttons}>
             <Button disabled={busy} onClick={() => void run(async () => { setBackedUp(false); await client.request('workspace.backups.create', {}); setBackedUp(true); refresh(); })}>{t('business.backupNow')}</Button>
           </div>
@@ -120,6 +126,12 @@ export function KeepView() {
         </TileSection>
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {!hosted && client.setBackupFolder && (
+        <KeepCopy
+          copy={business.backups.copy} recovery={business.recovery} locked={locked} busy={busy} onChanged={refresh}
+          onMakeCode={() => void run(async () => { setCode((await client.request('workspace.custody.recoveryCode', {})).recoveryCode); })}
+        />
+      )}
       <TileSection title={t('business.keepMore')}>
         <div className={s.more}>
           {!hosted && <MoveAway locked={locked} madeAt={business.moveMadeAt ?? null} noCode={!made} onChanged={refresh} onMakeCode={makeCode} />}

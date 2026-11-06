@@ -1,4 +1,5 @@
 // Clients of the venture. Client details are client data: they stay in the vault and never reach a model here.
+import { defaultConsentFor } from '../clients/ai-default.ts';
 import { check, type Context } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
 import { activateTerm, exactPayload, listRecords, plainText, readVenture, singleLine, ventureAction, type VentureTx } from '../records.ts';
@@ -65,7 +66,8 @@ export function putClient(tx: VentureTx, fields: ClientFields): ClientRecord {
     check(stateCode === null || stateCode === fromGstin, 'INVALID_TAX_ID', "The client's state must match the first two digits of their GSTIN.");
     stateCode = fromGstin;
   }
-  const client: ClientRecord = { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note };
+  // C5 task 7: with Allow AI for new clients on, the client's own consent is written in this same write.
+  const client: ClientRecord = defaultConsentFor(tx, { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note });
   const stored = tx.put(client);
   // The evidence ledger: each field the owner typed is owner-entered and verified.
   recordOwnerFields(tx, `client:${stored.id}`, { name, email, countryCode, taxId, stateCode, note });

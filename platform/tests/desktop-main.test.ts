@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[] } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
@@ -22,13 +22,15 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   // A6: the app this computer has for whatsapp:// links ('' when none), as Electron reads it.
   app.getApplicationNameForProtocol = (protocol: string) => (protocol === 'whatsapp://' ? options.whatsapp ?? '' : '');
   const opened: string[] = [], openedPaths: string[] = [], shownItems: string[] = [];
+  // C5 task 25: the crash reporter, the process's own error events and the lines main.cjs writes (a stand-in file system).
+  const crashStarts: unknown[] = [], processHandlers = new Map<string, (error: unknown) => void>(), logged: { path: string; text: string }[] = [];
   const shell = { openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); }, openPath: async (path: string) => { openedPaths.push(path); return ''; }, showItemInFolder: (path: string) => { shownItems.push(path); } };
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   // D11 release smoke: the paths main.cjs sets before ready.
   app.setPaths = [] as [string, string][]; app.setPath = (name: string, value: string) => { app.setPaths.push([name, value]); };
   class Window extends EventEmitter {
     webContents: any; options: any;
-    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; windows.push(this); }
+    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.sent = []; this.webContents.send = (channel: string, value: unknown) => { this.webContents.sent.push([channel, value]); }; windows.push(this); }
     urls: string[] = [];
     loadURL(url: string) { this.webContents.mainFrame.url = url; this.urls.push(url); }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
@@ -38,12 +40,19 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     visible = true; focused = false; minimized = false;
     isVisible() { return this.visible; } isFocused() { return this.focused; }
   }
+  const startFails: boolean[] = options.startFails ?? [], order: unknown[] = options.order ?? [];
   class Harness extends EventEmitter {
     state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
-    async start() {} async request(method: string) { return { method, experimental: true }; }
+    asked: string[] = [];
+    async start() { if (startFails.shift() === true) throw new Error('The worker did not start.'); }
+    async request(method: string) { this.asked.push(method); return { method, experimental: true }; }
+    // C5 task 29: the worker dies: the real harness says failed, then exit.
+    die() { this.state = 'failed'; this.emit('status', { state: 'failed', healthy: false }); this.emit('exit', { code: 1, signal: null }); }
+    reconnecting() { this.state = 'reconnecting'; this.emit('status', { state: 'reconnecting', healthy: false }); }
     async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
-    async stop() { this.stops++; this.state = 'stopped'; return { graceful: true, forced: false }; }
+    async stop() { this.stops++; order.push('engine stopped'); this.state = 'stopped'; return { graceful: true, forced: false }; }
+    async prepareUpdateInstall(input: unknown) { order.push('prepared'); order.push(plain(input)); return { busy: false, openDataSchema: 1, backup: 'made' }; }
     watching: boolean[] = [];
     reportWatching(value: boolean) { this.watching.push(value); return true; }
   }
@@ -61,23 +70,25 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, shell, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
     if (name === './money-export.cjs') return require('./money-export.cjs');
-    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}) }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+    if (name === './updates.cjs' && options.updates) return options.updates;
+    if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('pending-release.json') && options.pending) return options.pending; if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !production, version: '2.3.4', ...(options.channel ? { chausarReleaseChannel: options.channel } : {}), ...options.metadata }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+      appendFile: async (path: string, text: string) => { logged.push({ path: String(path), text }); }, stat: async () => { throw Object.assign(new Error('No file.'), { code: 'ENOENT' }); }, rename: async () => {},
       writeFile: async (path: string, _data: unknown, flags: any) => { if (flags?.flag === 'wx' && written.has(path)) throw Object.assign(new Error('The file exists.'), { code: 'EEXIST' }); written.add(path); },
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
     return require(name);
-  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: options.platform ?? 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
+  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: options.platform ?? 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe', on: (name: string, handler: (error: unknown) => void) => { processHandlers.set(name, handler); } }, console: { error() {} }, URL, Response, Buffer,
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, crashStarts, processHandlers, logged, order, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -549,4 +560,247 @@ test('D11: --smoke-user-data sets userData only to an absolute path, before the 
   assert.deepEqual((await desktop(['--smoke-user-data=chausar-smoke'], Promise.resolve(), false, { platform: 'linux' })).app.setPaths, [], 'relative on Linux too');
   const source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   assert.ok(source.indexOf('--smoke-user-data=') < source.indexOf('requestSingleInstanceLock()'), 'set before the lock, which lives in userData');
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 25: the main-process guard and local crash dumps.
+// ---------------------------------------------------------------------------
+
+/** The lines main.cjs wrote to one diagnostics file, as objects, without their time. */
+function linesOf(d: { logged: { path: string; text: string }[] }, name: string) {
+  return d.logged.filter(({ path }) => path.replace(/[\\]/g, '/').endsWith(`/diagnostics/${name}`)).map(({ text }) => { const { at: _at, ...line } = JSON.parse(text); return line; });
+}
+
+test('C5 task 25: crash dumps stay here, and an error nothing caught writes one line, shows one plain dialog and quits', async () => {
+  const d = await desktop([]);
+  assert.deepEqual(plain(d.crashStarts), [{ uploadToServer: false }], 'the reporter starts with no upload');
+  assert.deepEqual([...d.processHandlers.keys()].sort(), ['uncaughtException', 'unhandledRejection']);
+  d.processHandlers.get('uncaughtException')!(new TypeError('the file secret-marker.txt'));
+  await flush(); await flush();
+  assert.deepEqual(linesOf(d, 'main.jsonl'), [{ op: 'uncaught', name: 'TypeError' }]);
+  assert.deepEqual(d.errors, ['Chausar hit a problem and needs to close. Nothing was sent anywhere.']);
+  assert.equal(d.app.quits, 1);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 26: the start-up timeline and the window's first paint.
+// ---------------------------------------------------------------------------
+
+test('C5 task 26: the start line has the phases in order, each once; first paint comes from the app window only', async () => {
+  const { STARTUP_PHASES } = require('./diagnostics.cjs');
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop([]);
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  window.emit('ready-to-show');
+  await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  assert.equal((await d.handlers.get(contract.FIRST_PAINT_CHANNEL)({ sender: {}, senderFrame: own.senderFrame })).error.code, 'UNTRUSTED_SENDER');
+  assert.equal(linesOf(d, 'startup.jsonl').some(line => line.phase === 'first-paint'), false);
+  assert.deepEqual(plain(await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own)), { ok: true });
+  await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own);
+  await flush();
+  const lines = linesOf(d, 'startup.jsonl');
+  assert.deepEqual(lines.map(line => line.phase), [...STARTUP_PHASES]);
+  for (const line of lines) assert.ok(Number.isFinite(line.ms) && line.ms >= 0);
+});
+
+test('C5 task 26: main gives the harness a timing writer for rpc.jsonl, and the real preload sends only the event', async () => {
+  const d = await desktop([]);
+  d.engines[0].options.onTiming({ method: 'workspace.status', ms: 3, requestBytes: 2, answerBytes: 9, ok: true, words: 'secret-marker here' });
+  await flush();
+  assert.deepEqual(linesOf(d, 'rpc.jsonl'), [{ method: 'workspace.status', ms: 3, requestBytes: 2, answerBytes: 9, ok: true }]);
+  let bridge: any; const calls: unknown[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (...parts: unknown[]) => { calls.push(parts); return { ok: true }; } } }) });
+  await bridge.firstPaint('anything');
+  assert.deepEqual(plain(calls), [['chausar:first-paint']]);
+});
+
+test('C5 task 27: main answers Export diagnostics for the app window only, and the preload sends only the tick and the id', async () => {
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop([]);
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame }, stranger = { sender: {}, senderFrame: own.senderFrame };
+  assert.equal((await d.handlers.get(contract.DIAGNOSTICS_PREVIEW_CHANNEL)(stranger, { dumps: false })).error.code, 'UNTRUSTED_SENDER');
+  assert.equal((await d.handlers.get(contract.DIAGNOSTICS_SAVE_CHANNEL)(stranger, { id: 'x' })).error.code, 'UNTRUSTED_SENDER');
+  assert.equal((await d.handlers.get(contract.DIAGNOSTICS_PREVIEW_CHANNEL)(own, { dumps: false, path: 'C:/x' })).error.code, 'INVALID_REQUEST');
+  let bridge: any; const calls: unknown[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (...parts: unknown[]) => { calls.push(parts); return { ok: true, result: null }; } } }) });
+  await bridge.previewDiagnostics(true);
+  await bridge.previewDiagnostics('C:/x');
+  await bridge.saveDiagnostics('abc');
+  assert.deepEqual(plain(calls), [['chausar:diagnostics:preview', { dumps: true }], ['chausar:diagnostics:preview', { dumps: false }], ['chausar:diagnostics:save', { id: 'abc' }]]);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 29: a worker that died is started again, by a fresh harness, after 1 s, 5 s, then 30 s.
+// ---------------------------------------------------------------------------
+
+const statusesOf = (window: any) => plain(window.webContents.sent.filter(([channel]: [string]) => channel === 'chausar:engine-status').map(([, status]: [string, { state: string }]) => status.state));
+
+test('C5 task 29: a worker that dies twice then stays: two restarts at the backoff times, reconnecting then ready, no error box', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const window = d.windows[0];
+  d.engines[0].die();
+  assert.deepEqual(statusesOf(window).at(-1), 'reconnecting');
+  assert.equal(statusesOf(window).includes('failed'), false, 'the window never hears failed while a restart is pending');
+  t.mock.timers.tick(999); await flush();
+  assert.equal(d.engines.length, 1);
+  t.mock.timers.tick(1); await flush(); await flush();
+  assert.equal(d.engines.length, 2, 'a fresh harness after 1 s');
+  assert.equal(d.engines[0].stops, 1, 'the old one was stopped first, so its lock is free');
+  d.engines[1].emit('status', { state: 'ready', healthy: true });
+  assert.equal(statusesOf(window).at(-1), 'ready');
+  d.engines[1].die();
+  assert.equal(statusesOf(window).at(-1), 'reconnecting');
+  t.mock.timers.tick(4999); await flush();
+  assert.equal(d.engines.length, 2);
+  t.mock.timers.tick(1); await flush(); await flush();
+  assert.equal(d.engines.length, 3, 'a fresh harness after 5 s more');
+  d.engines[2].emit('status', { state: 'ready', healthy: true });
+  assert.equal(statusesOf(window).at(-1), 'ready');
+  assert.deepEqual(d.errors, []);
+  assert.equal(d.app.quits, 0);
+  // Each restart is a line in the timeline, and the new worker hears the host's state.
+  assert.deepEqual(linesOf(d, 'startup.jsonl').filter(line => line.op === 'engine-restart').map(({ attempt, delayMs }) => [attempt, delayMs]), [[1, 1000], [2, 5000]]);
+  assert.deepEqual(d.engines[2].lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
+  // The window's requests go to the new worker; nothing was sent to it by itself, an approval above all.
+  assert.deepEqual(d.engines[2].asked, []);
+  const own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  assert.deepEqual(d.engines[2].asked, ['workspace.status']);
+});
+
+test('C5 task 29: dying four times shows the box once and quits', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const [index, wait] of [1000, 5000, 30000].entries()) {
+    d.engines[index].die();
+    t.mock.timers.tick(wait); await flush(); await flush();
+    d.engines[index + 1].emit('status', { state: 'ready', healthy: true });
+  }
+  assert.equal(d.engines.length, 4);
+  assert.deepEqual(d.errors, []);
+  d.engines[3].die();
+  assert.equal(d.errors.length, 1);
+  assert.match(d.errors[0], /could not restart/);
+  assert.equal(d.app.quits, 1);
+  d.engines[3].die();
+  t.mock.timers.tick(100_000); await flush();
+  assert.equal(d.errors.length, 1);
+  assert.equal(d.engines.length, 4);
+  assert.equal(statusesOf(d.windows[0]).at(-1), 'failed');
+});
+
+test('C5 task 29: a restart that fails to start counts as the next failure, and a failed first start is the box as today', async t => {
+  const d = await desktop([], Promise.resolve(), true, { startFails: [false, true, false] });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  d.engines[0].die();
+  t.mock.timers.tick(1000); await flush(); await flush();
+  assert.equal(d.engines.length, 2);
+  t.mock.timers.tick(5000); await flush(); await flush();
+  assert.equal(d.engines.length, 3);
+  assert.deepEqual(d.errors, []);
+  t.mock.timers.reset();
+  const first = await desktop([], Promise.resolve(), true, { startFails: [true] });
+  assert.deepEqual(first.errors, ['The worker did not start.']);
+  assert.equal(first.app.quits, 1);
+  assert.equal(first.engines.length, 1, 'no restart of an engine that never started');
+});
+
+test('C5 task 29: quitting during the wait stops the restart, and the old worker is stopped once', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  d.engines[0].die();
+  d.app.emit('before-quit', { preventDefault() {} }); await flush(); await flush();
+  t.mock.timers.tick(100_000); await flush();
+  assert.equal(d.engines.length, 1);
+  assert.equal(d.engines[0].stops, 1);
+  assert.equal(d.app.quits, 1);
+  assert.deepEqual(d.errors, []);
+});
+
+test('C5 task 29: a worker that stops while Chausar quits is not started again', async t => {
+  const d = await desktop([], Promise.resolve(), true);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  d.app.emit('before-quit', { preventDefault() {} });
+  d.engines[0].die();
+  await flush(); await flush();
+  t.mock.timers.tick(100_000); await flush();
+  assert.equal(d.engines.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 32: install on quit and the boot marker, called from main. update-wiring.cjs has its own tests.
+// ---------------------------------------------------------------------------
+
+const UPDATE_KEYS = { chausarUpdatePublicKey: 'the-public-key', chausarUpdateFeed: 'https://downloads.example.com/feed.json', chausarWindowsPublisher: 'Chausar', chausarPreview: false };
+const standInUpdates = (order: unknown[], answer = { state: 'installer-started', version: '3.0.0' }) => ({
+  startBoot: async () => { order.push('boot started'); return { attempts: 1, failed: false }; },
+  clearBoot: async () => { order.push('boot cleared'); },
+  onFailedBoot: async () => '',
+  verifyStaged: async () => true,
+  installOnQuit: async (input: any) => { order.push('install'); order.push(input.staged.artifactPath); return answer; },
+});
+const PENDING = JSON.stringify({ manifest: { version: '3.0.0' }, signature: 'sig', artifactPath: '/owned/app/updates/stage/release.artifact' });
+
+test('C5 task 32: the boot marker starts before the engine, and clears only at ready plus first paint', async () => {
+  const order: unknown[] = [];
+  const d = await desktop([], Promise.resolve(), true, { metadata: UPDATE_KEYS, updates: standInUpdates(order) });
+  await flush();
+  assert.deepEqual(order, ['boot started'], 'the engine is ready; no paint yet');
+  assert.equal(d.engines.length, 1);
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  await d.handlers.get(require('./ipc-contract.cjs').FIRST_PAINT_CHANNEL)(own);
+  await flush();
+  assert.deepEqual(order, ['boot started', 'boot cleared']);
+});
+
+test('C5 task 32: before-quit asks the engine first, stops it, then installs; a build with no key does none of it', async () => {
+  const order: unknown[] = [];
+  const d = await desktop([], Promise.resolve(), true, { order, metadata: UPDATE_KEYS, updates: standInUpdates(order), pending: PENDING });
+  await flush();
+  d.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(order.slice(1), ['prepared', { backup: true }, 'engine stopped', 'install', '/owned/app/updates/stage/release.artifact']);
+  assert.equal(d.app.quits, 1);
+
+  const plainOrder: unknown[] = [];
+  const none = await desktop([], Promise.resolve(), true, { updates: standInUpdates(plainOrder), pending: PENDING });
+  none.app.emit('before-quit', { preventDefault() {} });
+  for (let count = 0; count < 6; count += 1) await flush();
+  assert.deepEqual(plainOrder, []);
+  assert.deepEqual(none.order, ['engine stopped']);
+  assert.equal(none.app.quits, 1);
+  const window = none.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const refused = await none.handlers.get(require('./ipc-contract.cjs').UPDATE_SHOW_CHANNEL)(own, { kind: 'staged' });
+  assert.deepEqual([refused.ok, refused.error.code], [false, 'UPDATES_NOT_SET_UP']);
+});
+
+test('C5 task 32: a start in the tray has no window to paint, so it clears the marker when the engine is ready', async () => {
+  const order: unknown[] = [];
+  const d = await desktop(['--background', '--hidden'], Promise.resolve(), true, { channel: 'beta', metadata: UPDATE_KEYS, updates: standInUpdates(order) });
+  await flush(); await flush();
+  assert.equal(d.windows.length, 0);
+  assert.deepEqual(order, ['boot started', 'boot cleared']);
+});
+
+test('C5 task 32: Show installer answers the app window only and names only which one; the worker hears the build\'s keys', async () => {
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop([], Promise.resolve(), true, { metadata: UPDATE_KEYS, updates: standInUpdates([]) });
+  const environment = d.engines[0].options.environment;
+  assert.deepEqual([environment.CHAUSAR_UPDATE_PUBLIC_KEY, environment.CHAUSAR_UPDATE_FEED, environment.CHAUSAR_WINDOWS_PUBLISHER], ['the-public-key', 'https://downloads.example.com/feed.json', 'Chausar']);
+  const handler = d.handlers.get(contract.UPDATE_SHOW_CHANNEL), window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  assert.equal((await handler({ sender: {}, senderFrame: own.senderFrame }, { kind: 'staged' })).error.code, 'UNTRUSTED_SENDER');
+  for (const bad of [{}, { kind: 'previous' }, { kind: 'staged', path: 'C:/x' }, null]) assert.equal((await handler(own, bad)).error.code, 'INVALID_REQUEST', JSON.stringify(bad));
+  let bridge: any; const calls: unknown[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (...parts: unknown[]) => { calls.push(parts); return { ok: true }; } } }) });
+  await bridge.showUpdateInstaller('staged');
+  assert.deepEqual(plain(calls), [['chausar:updates:showInstaller', { kind: 'staged' }]]);
+});
+
+test('C5 task 32: the engine says if a run is busy and makes the safety copy over main\'s own route; no window can ask', async () => {
+  const contract = require('./ipc-contract.cjs');
+  assert.equal(contract.METHODS.includes('updates.prepareInstall'), false);
+  const source = await readFile(new URL('../runtime/worker.ts', import.meta.url), 'utf8');
+  assert.match(source, /message\?\.kind === 'host-update-prepare'/);
 });

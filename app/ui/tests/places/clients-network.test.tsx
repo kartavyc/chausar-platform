@@ -85,12 +85,15 @@ describe('Clients: three tabs (founder decision: Clients, Pipeline, Network)', (
 });
 
 describe('Network: the search box', () => {
-  it('offers starters that fill the box and never send, and the web choice with its line', async () => {
+  // C5 task 10: the chips come from the owner's own network (network/chips.ts): the commonest company and title, and
+  // the quiet-clients search; they fill the box and never send.
+  it('offers chips from the network that fill the box and never send, and the web choice with its line', async () => {
     const { spy } = await start();
     await screen.findByRole('searchbox', { name: 'Who are you looking for?' });
-    for (const label of ['Clients quiet for 6 months', 'An intro to Zomato', 'Paste a client brief']) expect(screen.getByRole('button', { name: label })).toBeTruthy();
-    await click(screen.getByRole('button', { name: 'An intro to Zomato' }));
-    expect((searchBox() as HTMLInputElement).value).toBe('An intro to Zomato');
+    const tries = await screen.findByRole('group', { name: 'Try' });
+    await waitFor(() => expect(within(tries).getAllByRole('button').map((b) => b.textContent)).toEqual(['Who works at Kettle Audio?', 'Who is a founder?', 'Clients quiet for 6 months']));
+    await click(within(tries).getByRole('button', { name: 'Who works at Kettle Audio?' }));
+    expect((searchBox() as HTMLInputElement).value).toBe('Who works at Kettle Audio?');
     expect(calls(spy, 'venture.network.search')).toHaveLength(0);
   });
 

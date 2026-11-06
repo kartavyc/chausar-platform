@@ -7,6 +7,8 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { AwayView as Away } from '../../engine/types';
 import { TileSection, dayOf } from './shared';
+import { useLocalToday } from '../../parts/when';
+import { quickDates, type QuickDates } from './away-dates';
 import s from './Business.module.css';
 import a from './AwayView.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
@@ -29,7 +31,27 @@ export function AwayView() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [copied, setCopied] = useState<'yes' | 'no' | null>(null);
+  // C5 task 2: what falls due between the days picked, before Set (venture.away.preview, a read).
+  const [preview, setPreview] = useState<{ from: string; to: string; items: Away['promises'] } | null>(null);
+  const today = useLocalToday();
   const view = shown ?? away.data;
+
+  async function look(nextFrom: string, nextTo: string) {
+    setPreview(null);
+    if (!nextFrom || !nextTo || nextFrom > nextTo) return;
+    try {
+      const found = await client.request('venture.away.preview', { from: nextFrom, to: nextTo });
+      setPreview(found);
+    } catch {
+      // The setter says why when the owner presses Set; the preview stays quiet.
+    }
+  }
+
+  function pick(dates: QuickDates) {
+    setFrom(dates.from);
+    setTo(dates.to);
+    void look(dates.from, dates.to);
+  }
 
   async function set(event: FormEvent) {
     event.preventDefault();
@@ -38,6 +60,7 @@ export function AwayView() {
     setCopied(null);
     try {
       setShown(await client.request('venture.away.set', { from, to }));
+      setPreview(null);
     } catch (error) {
       setProblem(t('business.away.failed', { message: refusalWords(error, t) }));
     } finally {
@@ -76,10 +99,29 @@ export function AwayView() {
       <p className={s.lead}>{view.line}</p>
       <TileSection title={t('business.away.when')}>
         <form className={a.form} onSubmit={(event) => void set(event)}>
-          <div className={a.days}>
-            <Field label={t('business.away.from')} type="date" value={from} disabled={busy} required onChange={(event) => setFrom(event.currentTarget.value)} />
-            <Field label={t('business.away.to')} type="date" value={to} disabled={busy} required onChange={(event) => setTo(event.currentTarget.value)} />
+          <div className={a.quick} role="group" aria-label={t('business.away.quick')}>
+            {quickDates(today()).map((dates) => (
+              <button key={dates.id} type="button" className={a.chip} aria-pressed={from === dates.from && to === dates.to} disabled={busy} onClick={() => pick(dates)}>{t(`business.away.quick.${dates.id}`)}</button>
+            ))}
           </div>
+          <div className={a.days}>
+            <Field label={t('business.away.from')} type="date" value={from} disabled={busy} required onChange={(event) => { const next = event.currentTarget.value; setFrom(next); void look(next, to); }} />
+            <Field label={t('business.away.to')} type="date" value={to} disabled={busy} required onChange={(event) => { const next = event.currentTarget.value; setTo(next); void look(from, next); }} />
+          </div>
+          {preview && preview.from === from && preview.to === to && (
+            <section aria-label={t('business.away.preview')}>
+              {preview.items.length === 0 ? <p className={s.line}>{t('business.away.noneDue')}</p> : (
+                <ul className={a.list}>
+                  {preview.items.map((item, i) => (
+                    <li key={`${item.due}:${i}`} className={a.item}>
+                      <span className={a.when}>{dayOf(item.due, zone)}</span>
+                      <span>{item.line}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
           <div className={a.acts}>
             {view.away && <Button disabled={busy} onClick={() => void clear()}>{t('business.away.clear')}</Button>}
             <Button type="submit" variant="primary" disabled={busy} disabledReason={!from || !to ? t('business.away.pickBoth') : undefined}>{t('business.away.set')}</Button>

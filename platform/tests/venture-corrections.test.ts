@@ -146,3 +146,18 @@ test('the owner\'s yes is the only way a correction becomes a rule: a 4B1 propos
   assert.equal(undone.playbookId, made.parentId);
   assert.ok(listRecords(env.store.read(), 'venture-playbook').some(record => record.id === made.id));
 });
+
+// C5 task 9: Reject with one tap: wrong facts and wrong tone become rehearsal cases; not needed says the work was not
+// wanted, not that it was wrong, so it makes none.
+test('a reject for wrong facts or tone is a rehearsal case; not needed makes none', async () => {
+  const env = await business(PLAIN_IDEA);
+  for (const reason of ['wrong-fact', 'tone', 'not-needed'] as const) {
+    const run = await readyDraft(env);
+    await env.call('venture.delivery.review', { runId: run.id, verdict: 'rejected', reason });
+  }
+  const state = env.store.read();
+  const venture = listRecords(state, 'venture-record')[0];
+  const reasons = correctionCases(state, venture.id).map(item => listRecords(state, 'venture-signal').find(signal => signal.id === item.signalId)?.reason);
+  assert.deepEqual(reasons, ['wrong-fact', 'tone']);
+  assert.equal(listRecords(state, 'venture-signal').filter(signal => signal.reason === 'not-needed').length, 1, 'the signal is kept; it just teaches nothing');
+});

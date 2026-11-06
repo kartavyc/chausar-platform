@@ -30,7 +30,7 @@ interface WayProps { onOpened: () => void; onBack: () => void }
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** The head of a way in: back to the list, the title (focused, for a screen reader) and one line. */
-function Way({ title, lead, onBack, children }: { title: string; lead: string; onBack: () => void; children: ReactNode }) {
+export function Way({ title, lead, onBack, children }: { title: string; lead: string; onBack: () => void; children: ReactNode }) {
   const t = useT();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
@@ -45,7 +45,7 @@ function Way({ title, lead, onBack, children }: { title: string; lead: string; o
 }
 
 /** A new passphrase, once the engine asked for one: the pair and its check before anything is sent. */
-function useNewPassphrase() {
+export function useNewPassphrase() {
   const [reason, setReason] = useState<string | null>(null);
   const [first, setFirst] = useState('');
   const [again, setAgain] = useState('');

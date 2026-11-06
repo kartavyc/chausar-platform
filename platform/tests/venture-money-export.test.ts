@@ -16,6 +16,7 @@ import { APP_ONLY_METHODS, METHOD_OWNERS, W4_METHOD_LEVELS, type MoneyExportFile
 import { VentureHost } from '../runtime/venture/host.ts';
 import { csvCell } from '../runtime/venture/money/export.ts';
 import { goalBusiness, invoice } from './venture-goals-helpers.ts';
+import { parseTallyXmlDocument } from '../runtime/adapters/accounting/tally.ts';
 import { bankCosts, foreignInvoice, foreignPayment, issueCredit } from './venture-money-env.ts';
 import { code, owner, phone } from './venture-views-env.ts';
 
@@ -317,5 +318,105 @@ test('4J20: both names are checked before either is written: a new CSV beside an
     assert.equal(saved.ok, false);
     assert.equal(saved.error.code, 'EXPORT_NOT_SAVED');
     assert.deepEqual(await readdir(dir), []);
+  });
+});
+
+// C5 task 16: the CA's email and WhatsApp number are remembered, newest wins, set inside the app only.
+test('accountant: remembered, newest wins, checked; a phone cannot set it', async () => {
+  const { setup, code, owner, phone } = await import('./venture-views-env.ts');
+  const { handlers } = await import('../runtime/venture/money/index.ts');
+  const call = (env: any, method: string, payload: unknown, ctx = owner) => (handlers as any)[method](env.deps, ctx, payload);
+  const env = await setup();
+  assert.deepEqual(await call(env, 'venture.accountant.get', {}), { email: null, whatsapp: null, at: null });
+  const saved = await call(env, 'venture.accountant.set', { email: 'ca@example.com', whatsapp: '+91 98765 43210' });
+  assert.equal(saved.email, 'ca@example.com');
+  assert.equal(saved.whatsapp, '919876543210');
+  assert.equal((await call(env, 'venture.accountant.get', {})).email, 'ca@example.com');
+  await assert.rejects(call(env, 'venture.accountant.set', { email: 'not an address' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.accountant.set', { whatsapp: '12' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.accountant.set', { email: 'ca@example.com' }, phone), code('APP_APPROVAL_REQUIRED'));
+  assert.equal((await call(env, 'venture.accountant.set', { whatsapp: '919876543210' })).email, null, 'what is left out is forgotten');
+});
+
+// C5 task 18: the same month as a file Tally imports, and a GSTR-1 shaped file for a registered business. Both are for the
+// CA to check and file; Chausar files nothing.
+test('C5 task 18: the Tally file carries the month as vouchers whose totals equal the CSV\'s to the paisa', async () => {
+  const { env } = await month();
+  const rows = parseCsv((await env.money<MoneyExportFile>('venture.money.export', { month: '2026-10' })).csv.slice(1));
+  const file = await env.money<MoneyExportFile>('venture.money.export', { month: '2026-10', format: 'tally-xml' });
+  assert.equal(file.fileName, 'ledger-cafe-books-2026-10-tally.xml');
+  assert.equal(file.format, 'tally-xml');
+  assert.equal(file.receipts, undefined);
+  assert.equal(file.rows, 2);
+  assert.match(file.line, /Your CA imports it and can rename the ledgers there\. Chausar files nothing\./);
+  const root = parseTallyXmlDocument(file.csv);
+  assert.equal(root.name, 'ENVELOPE');
+  const find = (node: any, name: string): any[] => [...(node.name === name ? [node] : []), ...node.children.flatMap((child: any) => find(child, name))];
+  const vouchers = find(root, 'VOUCHER');
+  const scalar = (node: any, name: string) => node.children.find((child: any) => child.name === name)?.text;
+  assert.deepEqual(vouchers.map(voucher => [voucher.attributes.VCHTYPE, scalar(voucher, 'DATE'), scalar(voucher, 'VOUCHERNUMBER'), scalar(voucher, 'PARTYLEDGERNAME')]), [
+    ['Sales', '20261005', 'INV-0002', 'Cafe Aroma Demo'],
+    ['Sales', '20261006', 'INV-0003', '=HYPERLINK("http://evil.example","Pay")'],
+  ]);
+  const minor = (text: string) => BigInt(text.replace('.', ''));
+  const totalOf = (ledger: string) => vouchers.flatMap(voucher => find(voucher, 'ALLLEDGERENTRIES.LIST')).filter(entry => scalar(entry, 'LEDGERNAME') === ledger).reduce((sum, entry) => sum + minor(scalar(entry, 'AMOUNT')), 0n);
+  for (const voucher of vouchers) {
+    const entries = find(voucher, 'ALLLEDGERENTRIES.LIST');
+    assert.equal(entries.reduce((sum, entry) => sum + minor(scalar(entry, 'AMOUNT')), 0n), 0n, 'each voucher balances');
+    assert.equal(scalar(entries[0], 'ISDEEMEDPOSITIVE'), 'Yes');
+  }
+  const invoiced = rows.find(row => row[0] === 'Total' && row[6].startsWith('Invoiced'))!;
+  assert.equal(totalOf('Sales'), minor(invoiced[7]), 'sales equal the invoiced total to the paisa');
+  const taxed = rows.filter(row => row[0] === 'Invoice').reduce((sum, row) => sum + minor(row[8]), 0n);
+  assert.equal(totalOf('CGST') + totalOf('SGST'), taxed);
+});
+
+test('C5 task 18: GSTR-1 shaped rows for a registered business: B2B, B2CS and the HSN summary; a business not registered is refused in words', async () => {
+  const { env } = await month();
+  const buyer = await env.money<{ id: string }>('venture.client.add', { name: 'Registered Cafe', countryCode: 'IN', stateCode: '27', taxId: '27AAPFU0939F1ZV' });
+  const order = await env.money<{ id: string }>('venture.order.create', { clientId: buyer.id, offerId: 'offer_1', quantity: '1', request: 'Books.' });
+  const draft = await env.money<{ invoice: { id: string; digest: string } }>('venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-07' });
+  await env.money('venture.invoice.issue', { invoiceId: draft.invoice.id, digest: draft.invoice.digest });
+  const file = await env.money<MoneyExportFile>('venture.money.export', { month: '2026-10', format: 'gstr1-csv' });
+  assert.equal(file.fileName, 'ledger-cafe-books-2026-10-gstr1.csv');
+  assert.match(file.line, /Your CA checks it and files the return\. Chausar files nothing\./);
+  const rows = parseCsv(file.csv.slice(1));
+  const at = (row: string[], name: string) => row[rows[0].indexOf(name)];
+  const sheet = (name: string) => rows.filter(row => row[0] === name);
+  assert.deepEqual(sheet('B2B').map(row => [at(row, 'Buyer GSTIN'), at(row, 'Invoice'), at(row, 'Date'), at(row, 'Place of supply'), at(row, 'Rate'), at(row, 'Taxable value'), at(row, 'IGST'), at(row, 'CGST')]), [
+    ['27AAPFU0939F1ZV', 'INV-0004', '2026-10-07', '27', '18.00', '19750.00', '0.00', '1777.50'],
+  ]);
+  assert.deepEqual(sheet('B2CS').map(row => [at(row, 'Place of supply'), at(row, 'Rate'), at(row, 'Invoices'), at(row, 'Taxable value'), at(row, 'CGST'), at(row, 'SGST')]), [
+    ['27', '18.00', '2', '39500.00', '3555.00', '3555.00'],
+  ]);
+  assert.deepEqual(sheet('HSN').map(row => [at(row, 'HSN or SAC'), at(row, 'Rate'), at(row, 'Invoices'), at(row, 'Taxable value'), at(row, 'IGST'), at(row, 'CGST'), at(row, 'SGST')]), [
+    ['998222', '18.00', '3', '59250.00', '0.00', '5332.50', '5332.50'],
+  ]);
+
+  const unregistered = await goalBusiness({ taxAssumed: true });
+  await assert.rejects(unregistered.money('venture.money.export', { month: '2026-10', format: 'gstr1-csv' }), (error: any) => {
+    assert.equal(error.code, 'GST_NOT_REGISTERED');
+    assert.match(error.message, /GST-registered/);
+    return true;
+  });
+  await assert.rejects(env.money('venture.money.export', { month: '2026-10', format: 'pdf' }), code('INVALID_VENTURE_REQUEST'));
+});
+
+test('C5 task 18: the desktop saves each format under its own name and type, and asks for nothing else', async () => {
+  await folder(async dir => {
+    const window = { webContents: { id: 1 } };
+    const trusted = { sender: window.webContents, senderFrame: { url: 'chausar://app/index.html' } };
+    const asked: unknown[] = [];
+    const engine = { request: async (_method: string, payload: any) => { asked.push(payload); return { fileName: 'ledger-cafe-books-2026-10-tally.xml', format: 'tally-xml', csv: '<ENVELOPE/>', rows: 0, line: 'x' }; } };
+    const shown: any[] = [];
+    const dialog = { showSaveDialog: async (_owner: unknown, options: any) => { shown.push(options); return { canceled: false, filePath: join(dir, 'tally.xml') }; } };
+    const deps = { dialog, window, engine, assertTrustedSender: () => undefined, publicError: contract.publicError, documents: dir };
+    const saved = await saving.saveMoneyExport(trusted, { month: '2026-10', format: 'tally-xml' }, deps);
+    assert.equal(saved.ok, true, JSON.stringify(saved));
+    assert.deepEqual(asked, [{ month: '2026-10', format: 'tally-xml' }]);
+    assert.deepEqual(shown[0].filters, [{ name: 'Tally XML', extensions: ['xml'] }]);
+    assert.equal(await readFile(join(dir, 'tally.xml'), 'utf8'), '<ENVELOPE/>');
+    assert.equal(saved.result.line, 'Saved tally.xml for your CA. Chausar did not send it anywhere.');
+    assert.equal((await saving.saveMoneyExport(trusted, { month: '2026-10', format: 'exe' }, deps)).ok, false);
   });
 });

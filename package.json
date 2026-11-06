@@ -4,6 +4,10 @@
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Local business intelligence: every number has a receipt.",
+  "chausarBuildDate": "2026-11-06",
+  "chausarUpdatePublicKey": "",
+  "chausarUpdateFeed": "",
+  "chausarWindowsPublisher": "",
   "type": "module",
   "main": "app/desktop/main.cjs",
   "engines": {

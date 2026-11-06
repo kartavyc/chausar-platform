@@ -58,6 +58,7 @@ import { ReportsView } from './ReportsView';
 import { SettingsList } from './SettingsList';
 // One-shot C3: This app, the Animations switch.
 import { ThisAppView } from './ThisAppView';
+import { UpdatesView } from './UpdatesView';
 import s from './Business.module.css';
 
 const PAGES = [
@@ -92,6 +93,8 @@ const PAGES = [
   // One-shot C3: how the app itself behaves on this computer (Animations), from the business menu; listed only while it
   // is the page. C1's Settings puts it last in Business.
   { sub: 'app', title: 'business.app', View: ThisAppView },
+  // C5 task 33: the version, Check daily and what an update is doing, from the business menu; listed only while it is the page.
+  { sub: 'updates', title: 'updates.page', View: UpdatesView },
 ] as const;
 
 export function Place() {

@@ -3,7 +3,7 @@ import { constants, createReadStream } from 'node:fs';
 import { open, readFile, lstat, rename, unlink, link, mkdir } from 'node:fs/promises';
 import { join, isAbsolute, dirname, basename } from 'node:path';
 import { isIP } from 'node:net';
-import { check, newId, internalCheck } from './contracts.ts';
+import { check, internalCheck, newId } from './contracts.ts';
 import { safeDirectory } from './vault.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import type { BoundedHttp } from './connectors.ts';
@@ -43,7 +43,7 @@ export type PreparedRollback = Readonly<{
 }>;
 const FIELDS = ['schemaVersion','version','publishedAt','platform','architecture','url','sha256','size','minEngineVersion','dataSchemaVersion','rollback'].sort();
 function hasExactKeys(value:any, keys:string[]) { return value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort()); }
-function exactKeys(value:any, keys:string[]) { internalCheck(hasExactKeys(value,keys), 'INVALID_MANIFEST', 'The release manifest has unexpected or missing fields.'); }
+function exactKeys(value:any, keys:string[]) { check(hasExactKeys(value,keys), 'INVALID_MANIFEST', 'The release manifest has unexpected or missing fields.'); }
 function versionParts(value:string) {
   check(typeof value === 'string' && value.length <= 100 && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*))?$/.test(value), 'INVALID_VERSION', 'Use an explicit semantic version without build metadata.');
   const [base, ...pre] = value.split('-'), numbers = base.split('.').map(Number), prerelease = pre.length ? pre.join('-').split('.') : [];
@@ -102,13 +102,13 @@ function signatureBytes(signature:unknown,code:string,message:string):Buffer {
 }
 function validateManifest(value:any):asserts value is ReleaseManifest {
   exactKeys(value,FIELDS); exactKeys(value.rollback,['supported','requiresBackup']);
-  internalCheck(value.schemaVersion===1 && typeof value.rollback.supported==='boolean' && value.rollback.requiresBackup===true, 'INVALID_MANIFEST','A version-one manifest must require a vault backup before installation.');
+  check(value.schemaVersion===1 && typeof value.rollback.supported==='boolean' && value.rollback.requiresBackup===true, 'INVALID_MANIFEST','A version-one manifest must require a vault backup before installation.');
   versionParts(value.version); versionParts(value.minEngineVersion);
   check(typeof value.publishedAt==='string' && Number.isFinite(Date.parse(value.publishedAt)) && new Date(value.publishedAt).toISOString()===value.publishedAt && Date.parse(value.publishedAt)<=Date.now()+300000, 'INVALID_MANIFEST','The release needs a canonical publication timestamp.');
-  internalCheck(['win32','linux','darwin'].includes(value.platform) && ['x64','arm64'].includes(value.architecture) && /^[a-f0-9]{64}$/.test(value.sha256) && Number.isSafeInteger(value.size) && value.size>0 && value.size<=MAX_ARTIFACT && Number.isSafeInteger(value.dataSchemaVersion) && value.dataSchemaVersion>0 && value.dataSchemaVersion<=1000, 'INVALID_MANIFEST','The release platform, digest, size, or data version is invalid.');
+  check(['win32','linux','darwin'].includes(value.platform) && ['x64','arm64'].includes(value.architecture) && /^[a-f0-9]{64}$/.test(value.sha256) && Number.isSafeInteger(value.size) && value.size>0 && value.size<=MAX_ARTIFACT && Number.isSafeInteger(value.dataSchemaVersion) && value.dataSchemaVersion>0 && value.dataSchemaVersion<=1000, 'INVALID_MANIFEST','The release platform, digest, size, or data version is invalid.');
   let url:URL;try{url=new URL(value.url);}catch{check(false,'INVALID_RELEASE_URL','Use an explicit HTTPS artifact URL.');}
   const host=url!.hostname.replace(/^\[|\]$/g,'');
-  internalCheck(url!.protocol==='https:' && !url!.username && !url!.password && !url!.hash && (!url!.port||url!.port==='443') && !isIP(host) && host.includes('.') && !/(?:^|\.)(localhost|local|internal|test)$/.test(host) && value.url===url!.href, 'INVALID_RELEASE_URL','Release artifacts must use canonical public HTTPS URLs without credentials.');
+  check(url!.protocol==='https:' && !url!.username && !url!.password && !url!.hash && (!url!.port||url!.port==='443') && !isIP(host) && host.includes('.') && !/(?:^|\.)(localhost|local|internal|test)$/.test(host) && value.url===url!.href, 'INVALID_RELEASE_URL','Release artifacts must use canonical public HTTPS URLs without credentials.');
 }
 async function regular(path:string):Promise<boolean> {
   try { const stat=await lstat(path);check(stat.isFile()&&!stat.isSymbolicLink(),'UNSAFE_STAGE','The staging path must be a regular file without symbolic links.');return true; }
@@ -123,24 +123,45 @@ function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).dige
 async function fileDigest(path:string,hash=createHash('sha256')){for await(const chunk of createReadStream(path))hash.update(chunk as Buffer);return hash;}
 
 // C5 task 31, the stage half: a release is fetched as a stream. `ReleaseDownload` is the seam: tests pass a stand-in,
-// the app uses `fetchDownload` (fetch with redirects refused and an idle timer). A BoundedHttp passed as `http` still
+// the app uses `fetchDownload` (fetch, a redirect followed only to the release hosts, and an idle timer). A BoundedHttp passed as `http` still
 // works and is read as one chunk, so older callers keep their shape.
 export type DownloadRequest = { url:string; headers:Record<string,string>; idleTimeoutMs:number; redirect:'error' };
 export type DownloadResponse = { status:number; url?:string; headers?:Record<string,string>; body:AsyncIterable<Uint8Array> };
 export type ReleaseDownload = (request:DownloadRequest)=>Promise<DownloadResponse>;
 const IDLE_TIMEOUT_MS = 60000;
-/** The app's download: fetch, redirects refused, the stream aborted when no byte arrives for the idle time. */
-export const fetchDownload:ReleaseDownload=async request=>{
-  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
-  const response=await fetch(request.url,{method:'GET',headers:request.headers,redirect:'error',signal:controller.signal}).catch(error=>{clearTimeout(timer);throw error;});
+/** GitHub's release hosts: where a release link may send a download or the feed. */
+export const RELEASE_HOSTS = Object.freeze(['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']);
+const MAX_HOPS = 5;
+/** One address, following only https redirects to the release hosts (and the address's own host). */
+export async function followRelease(url:string,init:RequestInit,fetcher:typeof fetch):Promise<Response>{
+  const allowed=new Set([...RELEASE_HOSTS,new URL(url).hostname]);
+  let at=url;
+  for(let count=0;count<=MAX_HOPS;count+=1){
+    const response=await fetcher(at,{...init,redirect:'manual'});
+    if(response.status<300||response.status>=400)return response;
+    const location=response.headers.get('location');
+    const next=location?new URL(location,at):null;
+    check(next&&next.protocol==='https:'&&allowed.has(next.hostname)&&count<MAX_HOPS,'UPDATE_REDIRECT_REFUSED','The update host sent Chausar somewhere it does not trust.');
+    at=next!.href;
+  }
+  return check(false,'UPDATE_REDIRECT_REFUSED','The update host sent Chausar somewhere it does not trust.') as never;
+}
+/**
+ * The app's download: a GitHub release link always redirects to its asset host, so a redirect is followed only to the
+ * release hosts. The stream is aborted when no byte arrives for the idle time. No response url goes back: where the bytes
+ * came from doesn't matter, since the signed length and hash decide.
+ */
+export async function fetchDownload(request:DownloadRequest,fetcher:typeof fetch=fetch):Promise<DownloadResponse>{
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+  const response=await followRelease(request.url,{method:'GET',headers:request.headers,signal:controller.signal},fetcher).catch(error=>{clearTimeout(timer);throw error;});
   const headers:Record<string,string>={};response.headers.forEach((value,key)=>{headers[key]=value;});
   const reader=response.body?.getReader();
   async function*body(){
     try{while(reader){const {done,value}=await reader.read();if(done)return;clearTimeout(timer);timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);yield value;}}
     finally{clearTimeout(timer);await reader?.cancel().catch(()=>{});}
   }
-  return {status:response.status,url:response.url,headers,body:body()};
-};
+  return {status:response.status,headers,body:body()};
+}
 function fromBoundedHttp(http:BoundedHttp,maxBytes:number):ReleaseDownload{
   return async request=>{
     const response=await http({url:request.url,method:'GET',headers:request.headers,maxBytes,timeoutMs:request.idleTimeoutMs,redirect:'error'});
@@ -177,7 +198,7 @@ function validateBackup(bytes:Uint8Array,expected:RollbackVaultIdentity) {
   const wrapper=(value:any)=>hasExactKeys(value,['salt','kdf','ciphertext'])&&value.kdf==='scrypt-32768-8-1'&&typeof value.salt==='string'&&Buffer.from(value.salt,'base64url').length===16&&Buffer.from(value.salt,'base64url').toString('base64url')===value.salt&&ciphertext(value.ciphertext,32);
   const envelope=backup?.envelope;
   check(hasExactKeys(backup,['backupFormat','envelope'])&&backup.backupFormat==='chausar.backup.v1'&&hasExactKeys(envelope,['format','id','revision','passphrase','recovery','snapshot'])&&envelope.format==='chausar.vault.v1'&&typeof envelope.id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)&&Number.isSafeInteger(envelope.revision)&&envelope.revision>=0&&wrapper(envelope.passphrase)&&wrapper(envelope.recovery)&&ciphertext(envelope.snapshot),'INVALID_ROLLBACK_BACKUP','Use a version-one encrypted Chausar backup with complete key wrappers.');
-  internalCheck(envelope.id===expected.vaultId&&envelope.revision===expected.revision,'ROLLBACK_BACKUP_MISMATCH','The backup belongs to a different vault or revision.');
+  check(envelope.id===expected.vaultId&&envelope.revision===expected.revision,'ROLLBACK_BACKUP_MISMATCH','The backup belongs to a different vault or revision.');
 }
 export class ReleaseUpdater {
   #key:KeyObject;
@@ -194,7 +215,7 @@ export class ReleaseUpdater {
   verify(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
     const value=this.#authenticate(manifest,signature);
     check(compareVersions(value.version,this.#version)>0,'RELEASE_DOWNGRADE_REFUSED','The release must be newer than the running version.');
-    check(compareVersions(this.#version,value.minEngineVersion)>=0,'INCOMPATIBLE_ENGINE','Install the update before this one first.');
+    check(compareVersions(this.#version,value.minEngineVersion)>=0,'INCOMPATIBLE_ENGINE','Install an intermediate compatible engine before this release.');
     return value;
   }
   /**
@@ -225,8 +246,8 @@ export class ReleaseUpdater {
   }
   #authenticate(manifest:ReleaseManifest|string,signature:string,thisPlatform=true):ReleaseManifest {
     let value:any;
-    internalCheck(typeof manifest !== 'string' || Buffer.byteLength(manifest) <= 65536, 'INVALID_MANIFEST', 'The signed manifest exceeds its byte limit.');
-    try{value=typeof manifest==='string'?JSON.parse(manifest):structuredClone(manifest);}catch{internalCheck(false,'INVALID_MANIFEST','The signed manifest is not valid JSON data.');}
+    check(typeof manifest !== 'string' || Buffer.byteLength(manifest) <= 65536, 'INVALID_MANIFEST', 'The signed manifest exceeds its byte limit.');
+    try{value=typeof manifest==='string'?JSON.parse(manifest):structuredClone(manifest);}catch{check(false,'INVALID_MANIFEST','The signed manifest is not valid JSON data.');}
     validateManifest(value);
     const payload=canonicalReleaseManifest(value);
     check(typeof manifest!=='string'||manifest===payload,'NONCANONICAL_MANIFEST','Verify the exact canonical signing payload, without duplicate keys or alternate encodings.');
@@ -239,22 +260,22 @@ export class ReleaseUpdater {
   async prepareRollback(options:PrepareRollbackOptions):Promise<PreparedRollback> {
     const previousSignature=options.previousSignature;
     const current=this.#authenticate(options.currentManifest,options.currentSignature),previous=this.#authenticate(options.previousManifest,previousSignature);
-    internalCheck(current.version===this.#version,'ROLLBACK_VERSION_MISMATCH','The current signed release must identify the running engine.');
+    check(current.version===this.#version,'ROLLBACK_VERSION_MISMATCH','The current signed release must identify the running engine.');
     check(compareVersions(previous.version,current.version)<0,'INVALID_ROLLBACK_TARGET','A rollback target must be an explicitly verified older release.');
     check(current.rollback.supported,'ROLLBACK_UNSUPPORTED','The running release does not declare rollback support.');
-    internalCheck(typeof options.validateRestore==='function','ROLLBACK_RESTORE_REQUIRED','Trusted engine code must validate a disposable restore before preparing rollback.');
+    check(typeof options.validateRestore==='function','ROLLBACK_RESTORE_REQUIRED','Trusted engine code must validate a disposable restore before preparing rollback.');
     const expected=Object.freeze({...options.expectedVault}),backup={...options.backup},validator=options.validateRestore;
-    internalCheck(hasExactKeys(expected,['vaultId','workspaceId','revision'])&&typeof expected.vaultId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(expected.vaultId)&&typeof expected.workspaceId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(expected.workspaceId)&&Number.isSafeInteger(expected.revision)&&expected.revision>=0,'INVALID_ROLLBACK_IDENTITY','Capture the expected vault, workspace and backup revision from trusted engine state.');
-    internalCheck(typeof backup.sha256==='string'&&/^[a-f0-9]{64}$/.test(backup.sha256),'INVALID_ROLLBACK_BACKUP','Pin the digest captured when the encrypted backup was created.');
+    check(hasExactKeys(expected,['vaultId','workspaceId','revision'])&&typeof expected.vaultId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(expected.vaultId)&&typeof expected.workspaceId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(expected.workspaceId)&&Number.isSafeInteger(expected.revision)&&expected.revision>=0,'INVALID_ROLLBACK_IDENTITY','Capture the expected vault, workspace and backup revision from trusted engine state.');
+    check(typeof backup.sha256==='string'&&/^[a-f0-9]{64}$/.test(backup.sha256),'INVALID_ROLLBACK_BACKUP','Pin the digest captured when the encrypted backup was created.');
     const artifact=await rollbackFile(options.previousArtifactPath,previous.size,'ROLLBACK_ARTIFACT_MISMATCH');
-    internalCheck(artifact.bytes.length===previous.size&&digest(artifact.bytes)===previous.sha256,'ROLLBACK_ARTIFACT_MISMATCH','The previous package differs from its signed length or digest.');
+    check(artifact.bytes.length===previous.size&&digest(artifact.bytes)===previous.sha256,'ROLLBACK_ARTIFACT_MISMATCH','The previous package differs from its signed length or digest.');
     const snapshot=await rollbackFile(backup.path,MAX_BACKUP,'INVALID_ROLLBACK_BACKUP');
-    internalCheck(digest(snapshot.bytes)===backup.sha256,'ROLLBACK_BACKUP_MISMATCH','The backup differs from its pinned digest.');validateBackup(snapshot.bytes,expected);
+    check(digest(snapshot.bytes)===backup.sha256,'ROLLBACK_BACKUP_MISMATCH','The backup differs from its pinned digest.');validateBackup(snapshot.bytes,expected);
     const bindings={fromManifestSha256:digest(Buffer.from(canonicalReleaseManifest(current))),toManifestSha256:digest(Buffer.from(canonicalReleaseManifest(previous))),artifactSha256:previous.sha256,backupSha256:backup.sha256};
     let restored:RollbackRestoreResult;
     try {
       restored=await validator(Object.freeze({...bindings,fromManifest:current,toManifest:previous,artifactBytes:Uint8Array.from(artifact.bytes),backupBytes:Uint8Array.from(snapshot.bytes),expectedVault:expected}));
-    } catch {check(false,'ROLLBACK_RESTORE_UNVERIFIED','Chausar could not check the restore, so your business was not changed.');}
+    } catch {check(false,'ROLLBACK_RESTORE_UNVERIFIED','The trusted restore validation failed. The authoritative vault was not changed by the updater.');}
     check(hasExactKeys(restored!,['restored','fromManifestSha256','toManifestSha256','artifactSha256','backupSha256','vaultId','workspaceId','revision','dataSchemaVersion'])&&restored!.restored===true&&Object.entries(bindings).every(([key,value])=>restored![key as keyof RollbackRestoreResult]===value)&&restored!.vaultId===expected.vaultId&&restored!.workspaceId===expected.workspaceId&&restored!.revision===expected.revision,'ROLLBACK_RESTORE_UNVERIFIED','The restore result is not bound to this package, backup, workspace and revision.');
     check(Number.isSafeInteger(restored!.dataSchemaVersion)&&restored!.dataSchemaVersion===previous.dataSchemaVersion,'ROLLBACK_SCHEMA_INCOMPATIBLE','The restored data schema is not supported by the previous signed package.');
     // A plan is a snapshot of checked bytes, not authority to execute files that may later change.

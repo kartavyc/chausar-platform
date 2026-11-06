@@ -41,6 +41,31 @@ const runsOf = (env: ChiefEnv, id: string) => env.agents('venture.routines.runs'
 const tick = (env: ChiefEnv) => routineTick(env.deps, owner);
 const routineRows = async (env: ChiefEnv) => (await env.call('venture.queue.list')).rows.filter((row: any) => row.id.startsWith('routine:'));
 
+test('C5 task 17: a monthly schedule falls on its own day each month, across a month end, in the named zone; day 31 is refused', async () => {
+  const monthly = { kind: 'monthly', day: 1, time: '00:00', timeZone: 'Asia/Kolkata' } as const;
+  // Midnight on 1 Dec in India is 18:30 UTC on 30 Nov.
+  assert.equal(nextOccurrence(monthly, Date.parse('2026-11-30T18:00:00.000Z')), '2026-11-30T18:30:00.000Z');
+  assert.equal(nextOccurrence(monthly, Date.parse('2026-11-30T18:30:00.000Z')), '2026-12-31T18:30:00.000Z');
+  assert.deepEqual(occurrencesBetween(monthly, Date.parse('2026-10-15T00:00:00.000Z'), Date.parse('2026-12-20T00:00:00.000Z')),
+    { count: 2, latest: '2026-11-30T18:30:00.000Z', previous: '2026-10-31T18:30:00.000Z' });
+  assert.deepEqual(occurrencesBetween(monthly, Date.parse('2026-11-30T18:30:00.000Z'), Date.parse('2026-12-20T00:00:00.000Z')), { count: 0, latest: null, previous: null });
+  // The 28th exists every month, February too; a year's gap counts every month.
+  const late = { kind: 'monthly', day: 28, time: '09:30', timeZone: 'Asia/Kolkata' } as const;
+  assert.equal(nextOccurrence(late, Date.parse('2027-02-01T00:00:00.000Z')), '2027-02-28T04:00:00.000Z');
+  assert.equal(occurrencesBetween(late, Date.parse('2026-01-01T00:00:00.000Z'), Date.parse('2027-01-01T00:00:00.000Z')).count, 12);
+
+  const env = await chiefBusiness();
+  const venture = currentVenture(env.store.read())!;
+  const review = weeklyReview(venture);
+  const { routine } = await set(env, { ...review, schedule: { kind: 'monthly', day: 5, time: '09:00', timeZone: 'Asia/Kolkata' } });
+  assert.equal(routine.when, 'Every month on the 5th, 9:00 am, Asia/Kolkata');
+  for (const day of [0, 29, 31, 1.5, '1']) {
+    await assert.rejects(setRaw(env, { ...review, schedule: { kind: 'monthly', day, time: '09:00', timeZone: 'Asia/Kolkata' } }), code('INVALID_VENTURE_REQUEST'), String(day));
+  }
+  await assert.rejects(setRaw(env, { ...review, schedule: { kind: 'monthly', day: 1, time: '9am', timeZone: 'Asia/Kolkata' } }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(setRaw(env, { ...review, schedule: { kind: 'monthly', day: 1, time: '09:00', timeZone: 'Mars/Olympus' } }), code('INVALID_VENTURE_REQUEST'));
+});
+
 test('a schedule is once, every so many minutes, or days at a time in a named zone, never cron text; the owner sets it in the app', async () => {
   const env = await chiefBusiness();
   const venture = currentVenture(env.store.read())!;

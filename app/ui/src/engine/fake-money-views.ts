@@ -458,11 +458,25 @@ export class FakeMoneyViews {
     };
   }
 
+  private exportFormat(month: string, format: unknown): MoneyExportFile {
+    if (format !== 'tally-xml' && format !== 'gstr1-csv') throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose CSV, Tally or GSTR-1.');
+    const period = monthRange(month);
+    const invoices = this.host.ledger().invoices.filter((i) => this.issuedIn(i, period));
+    const count = `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'}`;
+    const slug = this.host.name().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'chausar';
+    if (format === 'tally-xml') {
+      return { format, fileName: `${slug}-${month}-tally.xml`, csv: `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDATA>${invoices.map((i) => `<TALLYMESSAGE><VOUCHER VCHTYPE="Sales" ACTION="Create"><VOUCHERNUMBER>${i.number}</VOUCHERNUMBER></VOUCHER></TALLYMESSAGE>`).join('')}</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>\n`, rows: invoices.length, line: `${monthWords(month)} for Tally: ${invoices.length} ${invoices.length === 1 ? 'sale' : 'sales'}. Your CA imports it and can rename the ledgers there. Chausar files nothing.` };
+    }
+    return { format, fileName: `${slug}-${month}-gstr1.csv`, csv: `\uFEFFSheet,Invoice\r\n${invoices.map((i) => `B2CS,${i.number}`).join('\r\n')}\r\n`, rows: invoices.length, line: `${monthWords(month)} shaped for GSTR-1: ${count}. Your CA checks it and files the return. Chausar files nothing.` };
+  }
+
   /** venture.money.export {month}: the month for the owner's CA as CSV text, each row in its currency, totals with receipts. */
   private export(p: Record<string, unknown>): MoneyExportFile {
-    exact(p, ['month'], ['month']);
+    exact(p, ['month', 'format'], ['month']);
     const month = monthText(p.month);
     this.open();
+    // C5 task 18, as money/export-formats.ts: the same words and refusal; the rehearsal's file holds the month's invoices only.
+    if (p.format !== undefined && p.format !== 'csv') return this.exportFormat(month, p.format);
     const ledger = this.host.ledger();
     const period = monthRange(month);
     const name = this.host.name();

@@ -137,6 +137,8 @@ test('consent: with templates only nothing is sent, so none is asked and the age
   assert.equal(reply.from, 'agent');
   assert.ok(reply.parts.every((part: any) => part.kind === 'text'));
   assert.match(reply.parts.map((part: any) => part.text).join(' '), /Connect your AI in Connections/);
+  // C5 task 5: the no-AI tail carries its next step as a button, set by code.
+  assert.deepEqual(reply.suggestion, { kind: 'connect-ai' });
   assert.equal(env.models.previewed.length, 0);
   assert.equal(listRecords(env.store.read(), 'venture-agent-message').at(-1)!.author, 'template');
   assert.equal((await env.agents('venture.chats.consent', { digest: 'e'.repeat(64) })).state, 'not-needed', 'nothing to agree to');

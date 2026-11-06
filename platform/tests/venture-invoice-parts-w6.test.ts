@@ -119,3 +119,49 @@ test('due dates on orders, payment terms on invoices and the reminder schedule a
   assert.deepEqual(own.invoice.reminderDays, [2]);
   await assert.rejects(env.money('venture.invoice.prepare', { orderId: (await order(env)).id, reminderDays: [0] }), code('INVALID_VENTURE_REQUEST'));
 });
+
+// C5 task 12: India-friendly payment defaults. The invoice view says which method to start from: the method of the
+// business's newest payment, else UPI for a business in rupees, else bank transfer.
+test('payment defaults: UPI for a rupee business with no payments, then the newest payment\'s method; bank transfer elsewhere', async () => {
+  const env = await goalBusiness();
+  const view = await issue(env, await env.money<InvoiceView>('venture.invoice.prepare', { orderId: (await order(env)).id }));
+  assert.deepEqual(view.paymentDefaults, { method: 'upi' });
+  const paid = await env.money<InvoiceView>('venture.payment.record', { invoiceId: view.invoice.id, amount: '₹1,000', receivedOn: '2026-10-23', method: 'cash' });
+  assert.deepEqual(paid.paymentDefaults, { method: 'cash' });
+  const { ventureAction } = await import('../runtime/venture/records.ts');
+  const { owner } = await import('./venture-views-env.ts');
+  await ventureAction(env.deps, owner, 'admin', 'test.usd', tx => {
+    const venture = tx.venture!;
+    tx.replace({ ...venture, country: { ...venture.country, currency: 'USD' } });
+    for (const payment of listRecords(tx.state, 'venture-payment')) tx.replace({ ...payment, ventureId: 'elsewhere' });
+  });
+  const { paymentDefaultsOf } = await import('../runtime/venture/money/invoices.ts');
+  const state = env.store.read();
+  assert.deepEqual(paymentDefaultsOf(state, listRecords(state, 'venture-record')[0]!), { method: 'bank-transfer' });
+});
+
+// C5 task 13: "I charge GST" on Prices goes through venture.blueprint.update and the plan's own accept. On at 18 percent
+// with a GSTIN, the next invoice is a TAX INVOICE with CGST and SGST (IGST across states) and the GSTIN; off, plain.
+test('GST: switched on at 18 percent with a GSTIN the next invoice is a tax invoice, across states IGST; switched off, a plain invoice', async () => {
+  const env = await goalBusiness();
+  const { handlers: core } = await import('../runtime/venture/core/index.ts');
+  const { owner } = await import('./venture-views-env.ts');
+  const plan = async (patch: unknown) => {
+    const updated = await (core as any)['venture.blueprint.update'](env.deps, owner, { patch }) as { blueprint: { digest: string } };
+    await (core as any)['venture.blueprint.accept'](env.deps, owner, { digest: updated.blueprint.digest });
+  };
+  await plan({ taxRegistered: false });
+  const off = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: (await order(env)).id });
+  assert.equal(off.invoice.documentTitle, 'INVOICE');
+  assert.equal(off.invoice.taxMinor, '0');
+  await plan({ taxRegistered: true, taxRate: '18', taxId: '27ZZZZZ9999Z1Z8', sacCode: '998222' });
+  const on = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: (await order(env)).id });
+  assert.equal(on.invoice.documentTitle, 'TAX INVOICE');
+  assert.equal(on.invoice.supplierTaxId, '27ZZZZZ9999Z1Z8');
+  assert.deepEqual(on.invoice.taxLines.map(line => line.label), ['CGST at 9%', 'SGST at 9%']);
+  const far = await env.money<{ id: string }>('venture.client.add', { name: 'Delhi Client', email: 'd@example.com', countryCode: 'IN', stateCode: '07' });
+  const across = await env.money<OrderRecord>('venture.order.create', { clientId: far.id, offerId: 'offer_1', request: 'Close the month of books.' });
+  const igst = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: across.id });
+  assert.deepEqual(igst.invoice.taxLines.map(line => line.label), ['IGST at 18%']);
+  await assert.rejects((core as any)['venture.blueprint.update'](env.deps, owner, { patch: { taxId: 'NOT-A-GSTIN' } }), code('INVALID_TAX_ID'));
+});

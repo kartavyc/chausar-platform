@@ -53,7 +53,7 @@ export const SETTINGS: readonly SettingsGroup[] = [
   {
     id: 'safety',
     title: 'business.settings.group.safety',
-    pages: [page('keep', 'business.keep'), page('decisions', 'business.decisions'), page('rules', 'business.yourRules'), page('reports', 'feedback.page')],
+    pages: [page('keep', 'business.keep'), page('decisions', 'business.decisions'), page('rules', 'business.yourRules'), page('reports', 'feedback.page'), page('updates', 'updates.page')],
   },
 ];
 

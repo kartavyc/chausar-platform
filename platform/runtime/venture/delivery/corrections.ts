@@ -114,6 +114,8 @@ export function correctionCases(state: State, ventureId: string): RegressionCase
   const cases: RegressionCase[] = [];
   for (const signal of liveSignals(state, ventureId)) {
     if (signal.source !== 'owner-edited' && signal.source !== 'owner-rejected') continue;
+    // C5 task 9: a draft rejected as not needed was not wrong, so it is no rehearsal case.
+    if (signal.reason === 'not-needed') continue;
     const run = findRecord(state, 'venture-delivery-run', signal.runId);
     if (!run) continue;
     const edited = signal.source === 'owner-edited' ? run.editedText : null;

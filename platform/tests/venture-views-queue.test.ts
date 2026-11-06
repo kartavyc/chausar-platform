@@ -262,3 +262,36 @@ test('queue: retired per-turn records cannot create a new approval or spending w
   const rows = (await list(env)).rows;
   assert.equal(rows.some(row => row.kind === 'quote' && row.viewRef?.kind === 'run'), false);
 });
+
+// C5 task 22: a readable copy still on this computer, asked about a day after the export.
+test('readable copy: no row before 24 hours; one row after; Delete removes exactly that file and the row; Keep it dismisses', async () => {
+  const env = await setup();
+  const files = [{ file: 'chausar-main-100.json', at: env.now() }, { file: 'chausar-main-200.json', at: env.now() }];
+  const removed: string[] = [], kept: string[] = [];
+  Object.assign(env.workspace, {
+    readableExports: async () => files.filter(item => !removed.includes(item.file) && !kept.includes(item.file)),
+    deleteReadable: async (file: string) => { removed.push(file); },
+    keepReadable: async (file: string) => { kept.push(file); },
+  });
+  const rows = async () => (await list(env)).rows.filter(row => row.id.startsWith('readable-copy:'));
+  env.advance(24 * 3_600_000 - 1000);
+  assert.deepEqual(await rows(), []);
+  env.advance(1000);
+  const [first, second] = await rows();
+  assert.equal(first.title, 'A readable copy of this business is still on this computer. Delete it?');
+  assert.deepEqual(first.notice, { probe: 'readable-copy', severity: 'medium', link: '#/business/keep', file: 'chausar-main-100.json' });
+  assert.deepEqual(first.actions.map(action => [action.id, action.label, action.primary, action.secondAsk ?? false]), [['deny', 'Keep it', false, false], ['approve', 'Delete', true, true]]);
+  const deleted = await call<QueueDecision>(env, 'venture.queue.decide', { id: first.id, digest: first.digest, action: 'approve' });
+  assert.equal(deleted.line, 'The readable copy is deleted.');
+  assert.deepEqual(removed, ['chausar-main-100.json']);
+  const left = await call<QueueDecision>(env, 'venture.queue.decide', { id: second.id, digest: second.digest, action: 'deny' });
+  assert.equal(left.line, "Kept. Chausar won't ask about this copy again.");
+  assert.deepEqual(kept, ['chausar-main-200.json']);
+  assert.deepEqual(await rows(), []);
+});
+
+test('readable copy: a host with no such port shows no row', async () => {
+  const env = await setup({ workspace: false });
+  env.advance(48 * 3_600_000);
+  assert.deepEqual((await list(env)).rows.filter(row => row.id.startsWith('readable-copy:')), []);
+});

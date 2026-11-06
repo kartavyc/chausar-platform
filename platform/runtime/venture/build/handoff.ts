@@ -4,9 +4,9 @@
 // The engine opens nothing: the renderer opens the URL from the owner's click, then reports back.
 import { authorize, check, type Context } from '../../contracts.ts';
 import { BUILDER_IDS } from '../contracts.ts';
-import type { BuilderId, HandoffPlan, HandoffRecord, VentureDeps } from '../contracts.ts';
+import type { BriefFilePlan, BuilderId, HandoffPlan, HandoffRecord, VentureDeps } from '../contracts.ts';
 import { digest, exactPayload, identifier, readVenture, requireAppChannel, ventureAction } from '../records.ts';
-import { acceptedBlueprint, latestBrief } from './brief.ts';
+import { acceptedBlueprint, briefMarkerLines, latestBrief } from './brief.ts';
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from './lz.ts';
 import { checkConnectorFields } from './connector-truth.ts';
 
@@ -102,6 +102,47 @@ export async function prepareHandoff(deps: VentureDeps, ctx: Context, payload: u
     tx.put(record);
     tx.emit('handoff-prepared', { handoffId: record.id, builder, mode: plan.mode, briefId: current.briefId });
     const result: HandoffPlan = { handoffId: record.id, ...plan };
+    return result;
+  });
+}
+
+/** C5 task 35: the note file for a builder's project root: the same two lines the brief asks it to write. */
+export function builderNote(briefId: string): string {
+  return `${briefMarkerLines(briefId).join('\n')}\n`;
+}
+
+/** Pure: the brief as files. Only Lovable and Replit take one; the brief file holds exactly the brief's markdown. */
+export function briefFileOf(builder: BuilderId, brief: { briefId: string; markdown: string }): BriefFilePlan['files'] {
+  check(builder === 'lovable' || builder === 'replit', 'INVALID_VENTURE_REQUEST', 'Choose Lovable or Replit.');
+  return [{ name: 'website-brief.md', text: brief.markdown }, { name: builder === 'lovable' ? 'AGENTS.md' : 'replit.md', text: builderNote(brief.briefId) }];
+}
+
+/**
+ * venture.build.briefFile { builder } (level prepare). The same gates as the link: a brief that passed its checks and
+ * the plan it was written from. Answers the files as text for the desktop's save dialog or a web download, and keeps
+ * a record marked opened only after the owner saved them. A direct hand-off waits on Lovable's and Replit's own APIs.
+ */
+export async function prepareBriefFile(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BriefFilePlan> {
+  const body = exactPayload(payload ?? {}, ['builder'], ['builder']);
+  check(body.builder === 'lovable' || body.builder === 'replit', 'INVALID_VENTURE_REQUEST', 'Choose Lovable or Replit.');
+  const builder = body.builder as BuilderId;
+  authorize(deps.store, ctx, 'prepare');
+  const { state, venture } = readVenture(deps, ctx);
+  const brief = latestBrief(state, venture.id);
+  check(brief, 'BRIEF_NOT_FOUND', 'Write the build brief first.');
+  check(brief.lint.ok, 'BRIEF_LINT_FAILED', `Fix the brief before you save it: ${brief.lint.findings[0]?.message ?? 'it did not pass its checks.'}`);
+  return ventureAction(deps, ctx, 'prepare', 'build.handoff', tx => {
+    const current = latestBrief(tx.state, tx.venture!.id);
+    check(current && current.id === brief.id, 'APPROVAL_STALE', 'A newer brief was written. Save it again.');
+    const accepted = acceptedBlueprint(tx.state, tx.venture!);
+    check(accepted.digest === current.blueprintDigest, 'APPROVAL_STALE', 'Your plan changed after this brief was written. Write the brief again.');
+    const record: HandoffRecord = {
+      ...tx.base('venture-handoff'),
+      builder, mode: 'file', briefId: current.briefId, briefDigest: current.digest, urlChars: 0, urlDigest: digest(current.markdown), openedAt: null,
+    };
+    tx.put(record);
+    tx.emit('handoff-prepared', { handoffId: record.id, builder, mode: 'file', briefId: current.briefId });
+    const result: BriefFilePlan = { handoffId: record.id, builder, files: briefFileOf(builder, current) };
     return result;
   });
 }

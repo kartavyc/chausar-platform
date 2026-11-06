@@ -14,6 +14,7 @@
  * Connect your AI, Set your prices and Keep this business are not screens here: the queue view makes them Today rows.
  */
 
+import type { Language } from '../../text';
 import { EngineError, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type Transport, type WorkspaceCreated } from '../../engine/types';
 import { COUNTRY_TIME_ZONES } from '../../../../../platform/runtime/venture/local-day-data';
 
@@ -66,7 +67,7 @@ export function pickCountry(codes: readonly string[], region: string | null): st
 }
 
 /** Country labels keep the engine's English wording. Translation plumbing remains at the call sites. */
-export function countryWords(country: { code: string; name: string }, _language: 'en', _t: (key: string) => string): string {
+export function countryWords(country: { code: string; name: string }, _language: Language, _t: (key: string) => string): string {
   return country.name;
 }
 

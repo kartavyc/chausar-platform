@@ -651,3 +651,6 @@
 .meterFill[data-state='over'] {
   fill: var(--fail);
 }
+
+/* C5 task 17: the monthly pack's switch. */
+.packSwitch { display: flex; align-items: center; gap: var(--sp-2); }

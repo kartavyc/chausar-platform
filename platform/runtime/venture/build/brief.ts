@@ -340,13 +340,17 @@ export function assembleBrief(parts: BriefParts): string {
     [h[7], countryLine],
     [h[8],
       'Keep GitHub sync on, on the main branch. Create AGENTS.md (Lovable) or replit.md (Replit) at the root, starting with these two lines:',
-      `chausar-brief-id: ${briefId}`,
-      'Money numbers come from Chausar. Do not compute totals or tax.',
+      ...briefMarkerLines(briefId),
       `Add <meta name="chausar-brief" content="${briefId}"> to the page head.`],
     [h[9], ...words.doneMeans.map(item => `- [ ] ${item}`)],
     [h[10], 'No invented reviews, client counts, awards or results. No features beyond this brief. Ask before guessing.'],
   ];
   return blocks.map(block => block.join('\n')).join('\n\n');
+}
+
+/** The two lines AGENTS.md or replit.md starts with: the brief's own words, and the file a saved brief comes with. */
+export function briefMarkerLines(briefId: string): string[] {
+  return [`chausar-brief-id: ${briefId}`, 'Money numbers come from Chausar. Do not compute totals or tax.'];
 }
 
 export function briefIdFor(ventureId: string, version: number): string {

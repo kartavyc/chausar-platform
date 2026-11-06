@@ -33,6 +33,11 @@ describe('every text key the UI builds exists', () => {
     const missing = files.flatMap(({ path, text }) => [...text.matchAll(DYNAMIC)].map((m) => m[1]!).filter((prefix) => ![...keys].some((key) => key.startsWith(prefix))).map((prefix) => `${path}: ${prefix}`));
     expect(missing).toEqual([]);
   });
+  it('every key in the Hindi pack is a key the app has', () => {
+    const hi = join(SRC, 'text/hi');
+    const stray = readdirSync(hi).flatMap((file) => Object.keys(JSON.parse(readFileSync(join(hi, file), 'utf8')) as object).filter((key) => !keys.has(key)).map((key) => `${file}: ${key}`));
+    expect(stray).toEqual([]);
+  });
   it('the version in use has words for every origin the engine sends', () => {
     // The engine's own list (review of A1): a new origin there needs its words here before this passes.
     expect(PLAYBOOK_ORIGINS.length).toBeGreaterThan(0);

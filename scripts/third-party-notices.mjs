@@ -145,6 +145,25 @@ function line(item) {
   return `${item.name} ${item.version} ${item.license || '(none declared)'}${item.fromFile ? ' (from its licence file)' : ''}${flag}`;
 }
 
+/**
+ * The fonts in app/ui/assets/fonts, from their manifest: each family, its copyright line and the one licence they share.
+ * The licence travels here because the screens' build carries the font files but not the text files beside them.
+ */
+function fontLines(root) {
+  const folder = join(root, 'app', 'ui', 'assets', 'fonts');
+  const manifest = JSON.parse(readFileSync(join(folder, 'manifest.json'), 'utf8'));
+  const families = [...new Set(manifest.fonts.map(font => font.family))].sort();
+  const licences = manifest.notices.map(notice => readFileSync(join(folder, notice.file), 'utf8').replace(/\r\n/g, '\n'));
+  const lines = families.map(family => {
+    const file = manifest.fonts.find(font => font.family === family).file.split('-')[0];
+    const text = licences[manifest.notices.findIndex(notice => notice.file.startsWith(file))] ?? '';
+    const copyright = text.split('\n').find(line => line.startsWith('Copyright')) ?? '';
+    return `${family}, SIL Open Font License 1.1${/Devanagari/.test(family) ? ', loaded only with the Hindi pack' : ''}. ${copyright}`.trim();
+  });
+  const body = licences[0].slice(licences[0].indexOf('This Font Software is licensed')).trim();
+  return [...lines, '', body];
+}
+
 /** NOTICE text. Deterministic: the same lockfile always gives the same file, on any system. */
 export function renderNotice(shipped, root) {
   const screens = walk(root, SCREEN_LIBRARIES);
@@ -176,6 +195,10 @@ export function renderNotice(shipped, root) {
     '== Libraries built into the app screens (app/ui/dist) ==',
     '',
     ...screens.map(line),
+    '',
+    '== Fonts built into the app screens (app/ui/assets/fonts) ==',
+    '',
+    ...fontLines(root),
     '',
     '== Runtime ==',
     '',

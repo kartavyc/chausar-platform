@@ -4,6 +4,7 @@ import { useEngine, useResource } from '../../engine/context';
 import type { FeedbackView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { FeedbackQuestionCard } from '../../parts/FeedbackQuestion';
+import { DiagnosticsSection } from './DiagnosticsSection';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 import r from './Reports.module.css';
@@ -116,6 +117,7 @@ export function ReportsView() {
           </div>
         )}
       </TileSection>
+      <DiagnosticsSection />
     </div>
   );
 }

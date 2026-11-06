@@ -9,7 +9,7 @@
 // another currency is listed in its own, so the CA gets it too, and a "Not in totals" line says it is kept out of the
 // totals, which are in the business's currency alone. Chausar never sends the file: the desktop saves it where the
 // owner picks (app/desktop/money-export.cjs), the web page downloads it.
-import { authorize, type Context } from '../../contracts.ts';
+import { authorize, check, type Context } from '../../contracts.ts';
 import { currencyMinorDigits } from '../../currency.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
@@ -22,6 +22,7 @@ import { receivedPlan, sumReceipt } from './sums.ts';
 import { costsElsewhere, creditsElsewhere, invoicesElsewhere, moneyCountry, paymentsElsewhere } from './figure-kinds.ts';
 import { signedReceiptsFile } from '../journal/signing.ts';
 import { formatMonth } from '../../owner-format.ts';
+import { EXPORT_FORMATS, gstr1File, tallyFile } from './export-formats.ts';
 
 /** The columns, in order. */
 type Column = 'Section' | 'Date' | 'Number' | 'Party' | 'Party tax ID' | 'Place of supply' | 'Description' | 'Before tax' | 'Tax' | 'Total' | 'Status' | 'Method' | 'TDS section' | 'TDS' | 'Receipt' | 'Currency';
@@ -73,14 +74,25 @@ function listed(parts: string[]): string {
 }
 
 /**
- * venture.money.export { month } (approve, app only): the month's invoices, credit notes, payments, costs and receipted
+ * venture.money.export { month, format? } (approve, app only): the month's invoices, credit notes, payments, costs and receipted
  * totals as CSV text for the owner's CA, with a file name. Nothing is sent; nothing is written but the totals' receipts.
  */
 export async function moneyExport(deps: VentureDeps, ctx: Context, payload: unknown): Promise<MoneyExportFile> {
   requireAppChannel(ctx, 'venture.money.export');
   authorize(deps.store, ctx, 'approve');
-  const body = exactPayload(payload, ['month'], ['month']);
+  const body = exactPayload(payload, ['month', 'format'], ['month']);
   const month = monthText(body.month);
+  const format = body.format ?? 'csv';
+  check(typeof format === 'string' && (EXPORT_FORMATS as readonly string[]).includes(format), 'INVALID_VENTURE_REQUEST', 'Choose CSV, Tally or GSTR-1.');
+  if (format === 'csv') return (await monthFile(deps, ctx, month)).file;
+  // C5 task 18: a file for the CA's own tools. Reads only.
+  const { state, venture } = readVenture(deps, ctx);
+  const base = fileNameOf(venture.workingName, month).replace(/-for-ca\.csv$/, '');
+  return format === 'tally-xml' ? tallyFile(state, venture, month, base) : gstr1File(state, venture, month, base);
+}
+
+/** The month's CSV for the CA, and what is in it in a few words. C5 task 17's standing order makes it from the sweep too. */
+export async function monthFile(deps: VentureDeps, ctx: Context, month: string): Promise<{ file: MoneyExportFile; what: string }> {
   const { state, venture } = readVenture(deps, ctx);
   const country = moneyCountry(venture);
   const currency = country.currency;
@@ -163,7 +175,7 @@ export async function moneyExport(deps: VentureDeps, ctx: Context, payload: unkn
     ...(costRows.length ? [plural(costRows.length, 'cost', 'costs')] : []),
   ];
   const what = parts.length ? listed(parts) : 'nothing was invoiced, paid or spent';
-  return {
+  return { what, file: {
     fileName: fileNameOf(venture.workingName, month), csv, rows: rows.length,
     // C4 (T24): the name in owner words, and the business and the month for the read-me beside the file.
     ownerFileName: ownerFileNameOf(venture.workingName, month), business: venture.workingName, period: monthWords(month),
@@ -171,5 +183,5 @@ export async function moneyExport(deps: VentureDeps, ctx: Context, payload: unkn
     // 4J10 (H26): the business's signed receipts with the public halves of its keys, so the CA can check them offline
     // (node scripts/verify-receipts.mjs). Read after the totals above, whose receipts this call may just have made.
     receipts: signedReceiptsFile(deps.store.read(), venture),
-  };
+  } };
 }

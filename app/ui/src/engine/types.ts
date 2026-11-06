@@ -12,7 +12,7 @@
 
 export type Display = string; // engine-formatted text; the UI never computes it
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
-  | 'sent' | 'continue' | 'stop' | 'resume'; // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
+  | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file'; // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
 export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
 export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector' | 'bank'
@@ -52,7 +52,7 @@ export interface QueueRow {
    * 4G2: a needs-you probe's notice: which probe, how much it matters, the screen Open goes to (an address such as
    * #/connections), and each amount its line states, exactly as written there, with its receipt, in order.
    */
-  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
+  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill' | 'ca-pack' | 'readable-copy'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[]; file?: string };
 }
 /**
  * The row kinds Ink v2 wave 4 adds on the engine (4C1 proposal, 4E1 followup, 4E3 reply, 4G2 notice). W3's states.ts
@@ -105,6 +105,8 @@ export interface QueueDecision {
 export type RunState = 'active' | 'waiting' | 'done' | 'failed';
 export interface RunStep {
   id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;
+  /** C5 task 4: this step's working time, and the wait for the owner just before it. */
+  working?: Display; waiting?: Display;
   tools?: RunToolLine[]; evidence?: { kind: string; id: string; label: string }[]; error?: string; audited?: boolean;
   /** 4J14 (Q6): on the read step, how much of the client's files code handed over (venture.runs.get only). */
   coverage?: CoverageView;
@@ -278,6 +280,8 @@ export interface SpendRateInput {
  * set; `capRupees`, `askFirstRupees`: the limits in rupees at that rate. All null or absent without a rate.
  */
 export interface SpendPolicyView {
+  /** C5 task 15: the offer of the reference rate shipped with this release; gone once it is in use. */
+  reference?: { perUsd: string; on: string; line: Display; source: Display; url: string };
   capMicros: string | null; askFirstMicros: string | null; capUsd: string | null; askFirstUsd: string | null;
   cap: Display; askFirst: Display; rates: SpendRateLine[]; setAt: string | null;
   inrPerUsd: string | null; rupeeRate: Display | null; capRupees?: Display; askFirstRupees?: Display;
@@ -604,6 +608,8 @@ export interface BlueprintLite {
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
   backOffice: {
     taxRateBps?:string;taxState?:string|null;lutConfirmed?:boolean;
+    /** C5 task 13. */
+    taxRateBy?:string;taxId?:string|null;
     currency: string; taxLabel: string; taxRegistered: LabelledLite<boolean>; invoiceKind: 'tax-invoice' | 'invoice';
     taxInvoiceReady: boolean; taxInvoiceMissing: string[]; paymentRail: string;
   };
@@ -630,6 +636,8 @@ export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string
 export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView; /** C4 task 33: the owner's own price applied on Save, with its Undo row. */ decided?: { line: string; undoRowId: string } }
 export interface BlueprintPatchLite {
   countryCode?: string;
+  /** C5 task 13: I charge GST, on Prices (core/blueprint.ts applyTaxPatch). */
+  taxRegistered?: boolean; taxRate?: string; taxId?: string | null; taxState?: string | null; sacCode?: string | null;
   name?: string; oneLiner?: string; customer?: string;
   /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
   offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
@@ -648,7 +656,10 @@ export interface HandoffPlanLite {
   handoffId: string; builder: BuilderId; mode: 'link' | 'copy'; url: string; clipboardText: string | null;
   notes: string[]; label: 'handoff'; status: 'available' | 'planned';
 }
-export interface HandoffLite { id: string; at: string; builder: BuilderId; mode: 'link' | 'copy'; openedAt: string | null }
+export interface HandoffLite { id: string; at: string; builder: BuilderId; mode: 'link' | 'copy' | 'file'; openedAt: string | null }
+/** C5 task 35: only Lovable and Replit take the brief as a file. */
+export type FileBuilderId = 'lovable' | 'replit';
+export interface BriefFilePlanLite { handoffId: string; builder: BuilderId; files: { name: string; text: string }[] }
 export type BuildStatusWord = 'waiting-for-repo' | 'repo-connected' | 'builder-making-changes' | 'quiet' | 'sync-conflict' | 'repo-not-readable';
 export interface BuildStatusLite {
   word: BuildStatusWord; asOf: string;
@@ -661,7 +672,7 @@ export interface BuildStatusLite {
   syncConflictBranch: string | null; cannotSay: string[];
 }
 export interface BuildFollowLite { id: string; repo: { owner: string; name: string }; tokenState: 'none' | 'in-memory'; linkedAt: string; lastStatus: BuildStatusLite | null }
-export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefLite | null; handoffs: HandoffLite[]; tokenLink: string }
+export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefLite | null; handoffs: HandoffLite[]; tokenLink: string; linkFits?: { lovable: boolean; replit: boolean } | null }
 
 /**
  * `workspace.custody.*` and `workspace.backups.*` (platform/runtime/workspace-custody-contracts.ts), trimmed. A recovery
@@ -670,23 +681,35 @@ export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefL
 export type UnlockMode = 'this-computer' | 'passphrase';
 /** One-shot C3: animations follow this computer's reduce-motion setting ('system') or are off for the whole app. */
 export type MotionPreferenceLite = 'system' | 'off';
-/** The app's preferences on this computer (platform/runtime/app-preferences.ts AppPreferences). C5 adds language. */
-export interface AppPreferencesLite { motion: MotionPreferenceLite }
+/** The app's preferences on this computer (platform/runtime/app-preferences.ts AppPreferences). */
+export type AppLanguageLite = 'en' | 'hi';
+export interface AppPreferencesLite { motion: MotionPreferenceLite; language: AppLanguageLite }
 
 export interface CustodyViewLite {
   computer: { available: boolean; scheme: string | null; reason: string | null; checked: boolean; where: string; loss: string | null };
   business: {
     folder: string; unlock: UnlockMode; recovery: 'made' | 'not-made' | 'unknown'; storage: 'experimental-file' | 'postgres';
-    backups: { auto: boolean; count: number; newestAt: string | null; nextDueAt: string | null; lastError: string | null };
+    backups: { auto: boolean; count: number; newestAt: string | null; nextDueAt: string | null; lastError: string | null; copy: BackupCopyLite | null };
     /** C4 task 36: the name the save dialog offers for an export. */
     exportName?: string;
     /** C4 task 37: the exports in Chausar's own folder, which Delete keeps. */
     exportsHere?: number;
     /** C4 task 38: when a move file was made, until the owner dismisses the line. */
     moveMadeAt?: string | null;
+    /** C5 task 19: how big the business is, and the most it can be. */
+    storeBytes: number; storeLimit: number;
   } | null;
 }
-export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean }
+export type RecoveryLite = 'made' | 'not-made' | 'unknown';
+/** C5 task 23: the drive or folder backups are copied to: its last name only, never a path. problem: the engine's words. */
+export interface BackupCopyLite { folderName: string; lastCopiedAt: string | null; problem: string | null }
+/** C5 task 24. */
+export interface DriveStatusLite { state: 'not-connected' | 'connecting' | 'connected'; lastCopiedAt: string | null; problem: string | null }
+/** C5 task 21: the pick's token and what the engine asked for; never a path. */
+export interface CopyImportInput { token: string; passphrase?: string; recoveryCode?: string; restore?: true }
+export interface CopyImportResult { workspace: WorkspaceLite; folder: string; unlock: UnlockMode; restored?: boolean }
+/** after (C5 task 20): what came just before it, while the business is open. */
+export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
 /** The vault's own record of a business, as workspace.open, .recover, .restore and the moves return it (trimmed). */
 export interface WorkspaceLite { id?: string; name: string }
 /**
@@ -710,7 +733,7 @@ export interface ClientLite {
   owed?: { display: Display; receiptId: string };
 }
 export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string }
-export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+export type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
 import type { FlowsActPayload, FlowsActView, FlowsListView } from '../../../../platform/runtime/venture/flows/flow-types';
@@ -749,7 +772,7 @@ export interface MiniAppView extends MiniAppCard {
 /** What the bridge answers for one tools/call, in the MCP CallToolResult shape. */
 export interface MiniAppCallResult { content: { type: 'text'; text: string }[]; structuredContent: unknown; isError: false }
 export type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView, FactView, FactVisibility, MemoryChange, MemoryView };
-import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
 import type { AgentApprovalRequest } from '../../../../platform/runtime/venture/agent-runtime/driver-types';
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
@@ -887,6 +910,8 @@ export interface InvoiceTimelineEntry {
 }
 export interface InvoiceViewLite {
   country?: CountryLite;
+  /** C5 task 12: the method a new payment starts from (money/invoices.ts paymentDefaultsOf). */
+  paymentDefaults?: { method: PaymentMethod };
   invoice: InvoiceLite & {
     currency: string; dueInDays: number; digest: string; documentTitle: string;
     priceReceiptId: string; booksReceiptId: string | null; booksNote: string | null;
@@ -1233,6 +1258,8 @@ export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'r
 export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: string; outcome: 'ok' | 'warn' | 'failed'; line: Display } | null; note: Display | null }
 export interface KeeperView { jobs: KeeperJobView[] }
 export interface TeamListView {
+  /** C5 task 1: the agents this member has not met yet, each with its one code-written line. */
+  introduce?: { agentId: string; line: string }[];
   agents: AgentView[]; departments?: DepartmentView[]; shared?: DepartmentSpend | null;
   /** The team's totals, from the same partition as the departments; spendThisMonth is Money's own figure. */
   totals?: { doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; held: MoneyFigure | null };
@@ -1256,7 +1283,7 @@ export interface RetireCheckView {
 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
 export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string };
-export interface AgentSuggestion { kind: 'order'; offerId: string | null; request: string }
+export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string } | { kind: 'connect-ai' };
 export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
 export type AgentNoteScope = 'agent' | `client:${string}`;
 export type AgentNoteLoad = 'always' | 'topic';
@@ -1359,6 +1386,8 @@ export interface ChiefMessageView {
   id: string; at: string; from: 'owner' | 'chief'; parts: ChatPart[]; proposals: ProposalView[];
   routedTo: { agent: string; name: string } | null; worked: { label: Display; value: Display; receiptId: string }[]; dropped: Display[];
   counted: ChiefCounted | null;
+  /** C5 task 5: Connect your AI, under an answer written with no AI. */
+  suggestion?: { kind: 'connect-ai' };
 }
 /** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
 export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean; snooze: ChiefSnoozeOption[] }
@@ -1371,7 +1400,7 @@ export type TieBand = 'close' | 'know-well' | 'know' | 'met-once' | 'cold';
 export interface PersonSummary { id: string; name: string; initials: string; title: Display | null; company: string | null; band: TieBand | null; dots: number; hidden: boolean; degree: '1st' | '2nd' | null }
 export interface WarmPathView { kind: 'direct' | 'same-company' | 'connector'; via: { id: string; name: string } | null; confirmed: boolean; strength: TieBand; line: Display }
 /** 4D4: consent, the chat consent a search needs while it is needed (needed or stale, with its text and digest), else null. */
-export interface PeopleView { people: PersonSummary[]; suggestions: { a: string; b: string; line: Display }[]; total: number; consent: ChatConsentView | null }
+export interface PeopleView { people: PersonSummary[]; suggestions: { a: string; b: string; line: Display }[]; total: number; consent: ChatConsentView | null; chips?: string[] }
 export interface PersonView {
   person: PersonSummary; fields: { field: string; value: Display; source: Display; sourceId: string }[]; how: { line: Display; receiptId: string | null }[];
   paths: WarmPathView[]; card: PipelineCardView | null; drafts: OutreachView[]; merged: boolean; web: { text: string; url: string }[];
@@ -1597,7 +1626,8 @@ export interface MarginsView { month: string; rows: { clientId: string; client: 
 /** receipts (4J10): the business's signed receipts with the public halves of its keys, for the CA to check offline; saved as its own file. */
 /** Desktop only (C4 T24): what the save answered. folder is the folder's own name; id is for showSavedExport. Never a path. */
 export interface MoneyExportSaved { saved: true; name: string; receipts?: string; readme?: string; count?: number; folder?: string; id?: string; line: string }
-export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; /** C4 (T24): the name in owner words, and the business and the month for the read-me. */ ownerFileName?: string; business?: Display; period?: Display }
+export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; /** C4 (T24): the name in owner words, and the business and the month for the read-me. */ ownerFileName?: string; business?: Display; period?: Display; format?: MoneyExportFormat }
+export type MoneyExportFormat = 'csv' | 'tally-xml' | 'gstr1-csv';
 export interface SignedReceiptsFile { format: string; business: string; algorithm: string; publicKey: string | null; keys: { id: string; publicKey: string }[]; receipts: unknown[] }
 /** 4J20: the amount as typed (amount) or in minor units (amountMinor), and the rate as typed (taxRate, a percentage) or in basis points; one of each. */
 export type BillLineInput = { description: string; taxName: string }
@@ -1730,6 +1760,8 @@ export interface AboutReadLite {
   /** A1 final check: the AI read's own call id, carried by the kept card. */
   callId?: string;
   file?: { name: string; included: boolean; line: string | null };
+  /** C5 task 6: your AI's first reply after About you, when it gave one (at most two sentences, no digits). */
+  reply?: string;
 }
 /** Wave 6 (6C7): what the business needs from outside, as core/needs.ts answers. */
 export interface NeedLite {
@@ -1834,6 +1866,8 @@ export interface GoNoGoCardView {
   spendsNothing: Display | null;
   /** C4 (T25): how the most the owner could lose was reached ("₹5,000 to start + 6 months × ₹1,000"), from the receipt's steps. */
   working?: Display | null;
+  /** C5 task 14: on NO-GO, what would make it a go, worked out by code. */
+  toGo?: { line: Display; months: number | null; monthly: { minor: string; display: Display } | null };
 }
 export interface GoNoGoListView { cards: GoNoGoCardView[] }
 /** 5A2: a price that is a share of an amount the client confirms later (basis points the owner set). */
@@ -2007,6 +2041,8 @@ export interface EngineMethods {
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
   'venture.spend.policy.set': {
     params: {
+      /** C5 task 15: use the reference rate shipped with this release; not together with inrPerUsd. */
+      useReference?: true;
       capUsd?: string | null; askFirstUsd?: string | null; rates?: SpendRateInput[]; inrPerUsd?: string | null;
       // 4F2: the day's cap, the alert share in permille, each agent's own monthly limit, and lower daily write caps.
       dailyCapUsd?: string | null; alertPermille?: number; agentCaps?: { agent: string; capUsd: string }[]; writeCaps?: Partial<Record<WriteCapKind, number>>;
@@ -2083,11 +2119,16 @@ export interface EngineMethods {
   'venture.build.link': { params: { repo: string; token?: string }; result: BuildFollowLite };
   'venture.build.sync': { params: Record<string, never>; result: BuildStatusLite };
   'venture.build.status': { params: Record<string, never>; result: BuildStatusView };
+  /** C5 task 36: the owner's language on this computer, before any vault is open. */
   'workspace.custody.get': { params: Record<string, never>; result: CustodyViewLite };
   // One-shot C3: the app's own preferences on this computer (platform/runtime/app-preferences.ts), before any business.
   'app.preferences.get': { params: Record<string, never>; result: AppPreferencesLite };
   'venture.work.list': { params: Record<string, never>; result: { work: WorkJobLite[] } };
   'app.preferences.set': { params: Partial<AppPreferencesLite>; result: AppPreferencesLite };
+  // C5 tasks 31, 33: answered with no business open (platform/runtime/update-service.ts).
+  'updates.status': { params: Record<string, never>; result: UpdatesView };
+  'updates.settings': { params: { daily?: boolean; channel?: 'beta' | 'stable' }; result: UpdatesView };
+  'updates.check': { params: Record<string, never>; result: UpdatesView };
   'workspace.custody.recoveryCode': { params: { passphrase?: string }; result: { custody: CustodyViewLite; recoveryCode: string } };
   'workspace.custody.passphraseOn': { params: { passphrase: string }; result: { custody: CustodyViewLite; recoveryCode: string | null } };
   'workspace.custody.passphraseOff': { params: { passphrase: string }; result: { custody: CustodyViewLite } };
@@ -2096,6 +2137,10 @@ export interface EngineMethods {
   /** With a business open, its backups; with none open (Welcome back), every backup on this computer, newest first. */
   'workspace.backups.list': { params: Record<string, never>; result: { backups: BackupLite[]; more: boolean } };
   'workspace.backups.create': { params: Record<string, never>; result: BackupLite };
+  /** C5 task 24: DRIVE_NOT_SET_UP until the build has its Google client. */
+  'workspace.backups.drive.status': { params: Record<string, never>; result: DriveStatusLite };
+  'workspace.backups.drive.connect': { params: Record<string, never>; result: { state: 'connecting'; url: string } };
+  'workspace.backups.drive.disconnect': { params: Record<string, never>; result: DriveStatusLite };
   /** The open business goes back to the backup. The engine writes a safety copy of how it is now first. */
   'workspace.backups.restore': { params: { file: string; confirmed: true }; result: { workspace: WorkspaceLite; restoredFrom: BackupLite; safety: BackupLite } };
   /** Needs the passphrase when the business is locked with one (PASSPHRASE_WRONG otherwise). */
@@ -2257,7 +2302,7 @@ export interface EngineMethods {
   'venture.agents.retire': { params: { agent: string; to: string; digest: string }; result: { retired: RetiredAgentView; line: Display } };
   'venture.agents.restore': { params: { agent: string }; result: { agent: AgentView; routines: number; line: Display } };
   // W6 6H1 (D39): mini apps, their permission screen, versions with undo, pin, export, delete and the MCP Apps bridge.
-  'venture.apps.list': { params: Record<string, never>; result: { apps: MiniAppCard[]; ideas: Display[]; never: Display } };
+  'venture.apps.list': { params: Record<string, never>; result: { apps: MiniAppCard[]; ideas: { label: Display; preview: Display }[]; never: Display } };
   'venture.apps.get': { params: { app: string }; result: { app: MiniAppView } };
   'venture.apps.make': { params: { ask: string; app?: string }; result: { app: MiniAppView; line: Display } };
   'venture.apps.grant': { params: { app: string; digest: string }; result: { app: MiniAppView; line: Display } };
@@ -2272,6 +2317,18 @@ export interface EngineMethods {
   'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
   // C2: the command bar's find across the open business's clients, invoices, orders, runs and chats (read).
   'venture.find': { params: FindRequest; result: FindView };
+  'venture.diagnostics.today': { params: Record<string, never>; result: DiagnosticsTodayView };
+  'venture.build.briefFile': { params: { builder: FileBuilderId }; result: BriefFilePlanLite };
+  'venture.accountant.pack.done': { params: { month: string }; result: { done: boolean } };
+  'venture.accountant.schedule.set': { params: { on: boolean }; result: { on: boolean; at: string | null; next: string | null } };
+  'venture.accountant.schedule.get': { params: Record<string, never>; result: { on: boolean; at: string | null; next: string | null } };
+  'venture.accountant.set': { params: { email?: string | null; whatsapp?: string | null }; result: { email: string | null; whatsapp: string | null; at: string | null } };
+  'venture.accountant.get': { params: Record<string, never>; result: { email: string | null; whatsapp: string | null; at: string | null } };
+  'venture.notify.telegram.findChat': { params: { token: string }; result: { found: { chatId: string; name: string } | null; line: Display } };
+  'venture.client.aiDefault.set': { params: { on: boolean; digest: string }; result: ClientAiDefaultView };
+  'venture.client.aiDefault.get': { params: Record<string, never>; result: ClientAiDefaultView };
+  'venture.away.preview': { params: { from: string; to: string }; result: { from: string; to: string; items: AwayView['promises'] } };
+  'venture.team.introduced': { params: { agentIds: string[] }; result: { met: string[] } };
   // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI.
   'venture.flows.list': { params: Record<string, never>; result: FlowsListView };
   'venture.flows.act': { params: FlowsActPayload; result: FlowsActView };
@@ -2411,7 +2468,7 @@ export interface EngineMethods {
   'venture.money.flow': { params: { months?: number }; result: FlowView };
   'venture.money.cash': { params: Record<string, never>; result: CashView };
   'venture.money.margins': { params: { month: string }; result: MarginsView };
-  'venture.money.export': { params: { month: string }; result: MoneyExportFile };
+  'venture.money.export': { params: { month: string; format?: MoneyExportFormat }; result: MoneyExportFile };
   // C4 (T22): with no dueDate the engine takes the vendor's last terms, else defaultDueDays after the bill date.
   'venture.bills.add': { params: { vendor: string; lines: BillLineInput[]; billDate: string; dueDate?: string; recurring?: 'monthly' | 'quarterly' | null }; result: { bill: BillView; receiptId?: string } };
   'venture.bills.pay': { params: { billId: string; paidOn: string; method: PaymentMethod } & ({ amount: string; amountMinor?: never } | { amountMinor: string; amount?: never }); result: { bill: BillView; receiptId?: string } };
@@ -2566,16 +2623,27 @@ export class EngineError extends Error {
 }
 
 /** What the status line shows. `ok` shows nothing. */
+export type { UpdatesView } from '../../../../platform/runtime/update-service-core';
+export type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
+/** C5 task 27: the files and crash files going in, how many crash files are here, how many didn't fit, and the exact text. */
+export type DiagnosticsPreview = { id: string; files: { name: string; bytes: number }[]; dumps: { name: string; bytes: number }[]; dumpsThere: number; leftOut: number; text: string; bytes: number };
+
 export type EngineStatus =
   | { state: 'ok' }
   | { state: 'starting' }
+  | { state: 'reconnecting' }
   | { state: 'offline' }
   | { state: 'unpaired' }
   | { state: 'session-ended' }
   | { state: 'error'; message: string };
 
+import type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
+import type { UpdatesView } from '../../../../platform/runtime/update-service-core';
+
 export type Transport = 'desktop' | 'web' | 'hosted' | 'fake';
 
+/** C5 task 16: what the desktop opened for Send to my CA. */
+export interface PackShareResult { how: 'email' | 'whatsapp'; opened: 'draft' | 'none' | 'app' | 'web'; file: string; to: string }
 export interface EngineClient {
   readonly transport: Transport;
   request<M extends MethodName>(method: M, params?: ParamsOf<M>): Promise<ResultOf<M>>;
@@ -2596,7 +2664,19 @@ export interface EngineClient {
    * when the owner cancelled; refusals (EXPORT_EXISTS, EXPORT_NOT_SAVED) as engine errors. Absent on the web, the
    * hosted app and the fake, where the page downloads the engine's CSV itself.
    */
-  saveMoneyExport?(month: string): Promise<MoneyExportSaved | null>;
+  saveMoneyExport?(month: string, format?: MoneyExportFormat): Promise<MoneyExportSaved | null>;
+  /** C5 task 35: the desktop saves the brief where the owner picks; null when cancelled. */
+  saveBriefFile?(builder: FileBuilderId): Promise<{ saved: true; name: string; companion: string } | null>;
+  /** C5 task 32, desktop only: shows the downloaded installer, checked again first. UPDATE_NOT_VERIFIED when it changed. */
+  showUpdateInstaller?(kind: 'staged'): Promise<void>;
+  /** C5 task 27, desktop only: what Export diagnostics would save, read first; then that preview saved, by its id. Null when cancelled. */
+  previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
+  saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;
+  /** C5 task 21, desktop only: main shows the file dialog; the window gets a token and the file's name. Null when cancelled. */
+  pickCopy?(): Promise<{ token: string; name: string } | null>;
+  importCopy?(input: CopyImportInput): Promise<CopyImportResult>;
+  /** C5 task 23, desktop only: main shows the folder dialog, or clears the setting. Null when cancelled. */
+  setBackupFolder?(action: 'pick' | 'clear'): Promise<{ copy: BackupCopyLite | null } | null>;
   /**
    * Desktop only (review of A1, row 1): shows one export Delete kept in the file manager, by its file name (the desktop
    * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.
@@ -2614,6 +2694,8 @@ export interface EngineClient {
    * file (venture.invoice.pdf), keeps it in Chausar's share folder and opens the owner's own app; it answers what opened.
    * Nothing is sent. Absent on the web, the hosted app and the fake, where the sheet opens the engine's share links.
    */
+  /** C5 task 16: Send to my CA: a draft or WhatsApp with the month's file; desktop only. */
+  sharePack?(month: string, how: 'email' | 'whatsapp'): Promise<PackShareResult>;
   shareInvoice?(invoiceId: string, how: 'email' | 'whatsapp'): Promise<InvoiceShareResult>;
   /** Desktop only (A6): shows the invoice file the desktop kept for sharing in the file manager. SHARE_FILE_GONE when it is gone. */
   showShared?(name: string): Promise<void>;

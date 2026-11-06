@@ -199,7 +199,7 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
     const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
     const text = answer.parts.map(part => (part.kind === 'figure' ? part.display : part.text)).join(' ');
-    const reply = put(tx, { agent: agent.id, from: 'agent', text, parts: answer.parts, author: answer.author, callId: answer.callId });
+    const reply = put(tx, { agent: agent.id, from: 'agent', text, parts: answer.parts, author: answer.author, callId: answer.callId, ...(answer.suggestion ? { suggestion: answer.suggestion } : {}) });
     return { added: [asItem(said), asItem(reply)], line: answer.line };
   });
 }

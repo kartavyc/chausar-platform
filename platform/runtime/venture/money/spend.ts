@@ -13,6 +13,7 @@
 // Their float arithmetic is not taken: every amount here is whole micro units in BigInt.
 // Spend is counted and capped in US dollars. With the owner's own rupee rate set, every figure also shows in rupees
 // beside the dollars (paise worked out in BigInt, to the nearest paisa, a half paisa up), labelled with that rate.
+import { REFERENCE_RATE, REFERENCE_SOURCE } from './reference-rate.ts';
 import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
 import { ESTIMATE_WORDS, microsAsUsd, recordedCallMicros, usdToMicros } from '../models/cost.ts';
@@ -414,7 +415,11 @@ function rateLine(value: unknown): SpendRate {
  */
 export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyRecord> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
-  const body = exactPayload(payload, ['capMicros', 'askAboveMicros', 'rates', 'inrPerUsd', 'dailyCapMicros', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead', 'routineCaps']);
+  const body = exactPayload(payload, ['capMicros', 'askAboveMicros', 'rates', 'inrPerUsd', 'useReference', 'dailyCapMicros', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead', 'routineCaps']);
+  // C5 task 15: the reference rate shipped with this release, stored with its figure, day and source.
+  check(body.useReference === undefined || body.useReference === true, 'INVALID_VENTURE_REQUEST', 'Send useReference as true, or leave it out.');
+  check(body.useReference === undefined || body.inrPerUsd === undefined, 'INVALID_VENTURE_REQUEST', 'Choose the reference rate or type your own, not both.');
+  const referenceRate = body.useReference === true ? { perUsd: rupeeRateOf(REFERENCE_RATE.perUsd), setOn: REFERENCE_RATE.on, source: REFERENCE_SOURCE } : null;
   // 4Z3: which currency leads spend; left out, the choice already set is kept.
   const lead = body.currencyLead === undefined ? undefined : currencyLeadOf(body.currencyLead);
   // Ink v2 wave 4 (4F2): the day's cap, the alert share, each agent's own limit and the lower write caps.
@@ -433,9 +438,9 @@ export async function setSpendPolicy(deps: VentureDeps, ctx: Context, payload: u
     if (limits.routineCaps) requireRoutinesExist(tx.state, tx.venture!.id, limits.routineCaps);
     const current = latestPolicy(tx.list('venture-spend-policy'));
     const held = current?.rupeeRate ?? null;
-    const rupeeRate = perUsd === undefined ? held
+    const rupeeRate = referenceRate ?? (perUsd === undefined ? held
       : perUsd === null ? null
-        : { perUsd, setOn: held && held.perUsd === perUsd ? held.setOn : localDayAt(tx.now, tx.venture!.country) };
+        : { perUsd, setOn: held && held.perUsd === perUsd && !held.source ? held.setOn : localDayAt(tx.now, tx.venture!.country) });
     return tx.put({
       ...tx.base('venture-spend-policy'),
       capMicros: cap !== undefined ? cap : current?.capMicros ?? null,
@@ -521,9 +526,10 @@ function rateParts(perUsd: string): { whole: bigint; decimals: string } {
   return { whole: value / 10_000n, decimals: String(value % 10_000n).padStart(4, '0').replace(/0+$/, '').padEnd(2, '0') };
 }
 
-/** '₹83.50 per $1 (your rate, set 23 Oct 2026)': the owner's rate in words, with the day it was set. */
+/** '₹83.50 per $1 (your rate, set 23 Oct 2026)': the owner's rate in words, with the day it was set. C5 task 15: a rate taken from the reference figure names its source and day. */
 export function rupeeRateWords(rupees: Rupees): Display {
   const { whole, decimals } = rateParts(rupees.rate.perUsd);
+  if (rupees.rate.source) return `₹${formatCount(whole, 'IN')}.${decimals} per $1 (${rupees.rate.source} of ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
   return `₹${formatCount(whole, 'IN')}.${decimals} per $1 (your rate, set ${formatVentureDate(rupees.rate.setOn, rupees.dateOrder)})`;
 }
 
@@ -584,6 +590,8 @@ function policyView(policy: SpendPolicyRecord | null, dateOrder: DateOrder, coun
     ...(cap !== null ? { capLead: spendLead(cap, rupees, POLICY_WORDS.perMonth) } : {}),
     ...(askFirst !== null ? { askFirstLead: spendLead(askFirst, rupees, '', POLICY_WORDS.asksAbove) } : {}),
     inrPerUsd: typed ? `${typed.whole}.${typed.decimals}` : null, rupeeRate: rupees ? rupeeRateWords(rupees) : null,
+    // C5 task 15: the offer of the reference rate, in the engine's words; gone once it is in use.
+    ...(rupees?.rate.source === REFERENCE_SOURCE && rupees.rate.setOn === REFERENCE_RATE.on ? {} : { reference: { perUsd: REFERENCE_RATE.perUsd, on: REFERENCE_RATE.on, line: `Use the reference rate of ${formatVentureDate(REFERENCE_RATE.on, dateOrder)}: ₹${REFERENCE_RATE.perUsd} per US dollar`, source: REFERENCE_RATE.citation.source, url: REFERENCE_RATE.citation.url } }),
     ...(rupees && cap !== null ? { capRupees: rupeesBeside(cap, rupees)! } : {}),
     ...(rupees && askFirst !== null ? { askFirstRupees: rupeesBeside(askFirst, rupees)! } : {}),
     capMicros: cap, askFirstMicros: askFirst, capUsd: usd(cap), askFirstUsd: usd(askFirst),
@@ -625,7 +633,7 @@ export async function spendPolicyGet(deps: VentureDeps, ctx: Context, payload: u
  */
 export async function spendPolicySet(deps: VentureDeps, ctx: Context, payload: unknown): Promise<SpendPolicyView> {
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', SPEND_WORDS.appApproval);
-  const body = exactPayload(payload, ['cap', 'askFirst', 'capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'dailyCap', 'dailyCapUsd', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead', 'routineCaps']);
+  const body = exactPayload(payload, ['cap', 'askFirst', 'capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'useReference', 'dailyCap', 'dailyCapUsd', 'alertPermille', 'agentCaps', 'writeCaps', 'currencyLead', 'routineCaps']);
   const cap = usdOrMicros(body, 'capUsd', 'cap', 'The monthly limit', 2);
   const askFirst = usdOrMicros(body, 'askFirstUsd', 'askFirst', 'The ask-first figure', 2);
   // Ink v2 wave 4 (4F2): the day's cap in US dollars too, each agent's limit in US dollars, the alert share, write caps.
@@ -652,6 +660,7 @@ export async function spendPolicySet(deps: VentureDeps, ctx: Context, payload: u
     ...(askFirst !== undefined ? { askAboveMicros: askFirst } : {}),
     ...(rates !== undefined ? { rates } : {}),
     ...(body.inrPerUsd !== undefined ? { inrPerUsd: body.inrPerUsd } : {}),
+    ...(body.useReference !== undefined ? { useReference: body.useReference } : {}),
     ...(dailyCap !== undefined ? { dailyCapMicros: dailyCap } : {}),
     ...(body.alertPermille !== undefined ? { alertPermille: body.alertPermille } : {}),
     ...(agentCaps !== undefined ? { agentCaps } : {}),

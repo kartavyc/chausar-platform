@@ -308,3 +308,14 @@ describe('the web app manifest and the theme colours', () => {
     expect(manifest.icons.some((icon) => icon.src.endsWith('.svg'))).toBe(false);
   });
 });
+
+// C5 task 3: a phone that is not paired (or whose session ended) is told where the code is: Connections on the computer.
+describe('The phone page names where to pair', () => {
+  it('the unpaired and ended words point to Connections and never to a link printed by the engine', () => {
+    const common = JSON.parse(readFileSync(join(__dirname, '../../src/text/en/common.json'), 'utf8')) as Record<string, string>;
+    for (const key of ['status.unpaired', 'status.sessionEnded']) {
+      expect(common[key]).toContain('go to Connections, and scan the code with this phone.');
+      expect(common[key]).not.toMatch(/printed by the engine/);
+    }
+  });
+});

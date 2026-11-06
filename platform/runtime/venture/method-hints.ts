@@ -41,6 +41,18 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.layout.get': ['read', 'rui'], 'venture.layout.change': ['prepare', 'ui'],
   // C2: the command bar's find; it reads the lists the owner reads and writes nothing.
   'venture.find': ['read', 'rui'],
+  'venture.diagnostics.today': ['read', 'rui'],
+  'venture.build.briefFile': ['prepare', 'u'],
+  'venture.accountant.pack.done': ['prepare', 'ui'],
+  'venture.accountant.schedule.set': ['approve', 'ui'],
+  'venture.accountant.schedule.get': ['read', 'rui'],
+  'venture.accountant.set': ['prepare', 'ui'],
+  'venture.accountant.get': ['read', 'rui'],
+  'venture.notify.telegram.findChat': ['prepare', 'uio'],
+  'venture.client.aiDefault.set': ['approve', 'ui'],
+  'venture.client.aiDefault.get': ['read', 'rui'],
+  'venture.away.preview': ['read', 'rui'],
+  'venture.team.introduced': ['read', 'rui'],
   // W6 6H2: recorded flows. A run touches the website in the desktop's window; its submits go through the journal.
   'venture.flows.list': ['read', 'rui'], 'venture.flows.act': ['approve', 'o'],
   // W6 6G3: CRM reads, and owner edits whose every change is kept in the field history; 6G4: dated memory facts.

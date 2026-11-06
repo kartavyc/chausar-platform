@@ -597,6 +597,38 @@ test('venture.build.handoff and handoffOpened: lint gate, records, events, once 
   assert.equal(listRecords(store.read(), 'venture-handoff').find(r => r.id === copy.handoffId)!.mode, 'copy');
 });
 
+test('venture.build.briefFile: the brief itself, the same gates as the link, and a record once saved (C5 task 35)', async () => {
+  const { deps, store } = setup();
+  await seedVenture(deps);
+  const file = (builder: string, ctx: Context = owner) => handlers['venture.build.briefFile']!(deps, ctx, { builder });
+  await assert.rejects(file('lovable'), code('BRIEF_NOT_FOUND'));
+  const written = await brief(deps);
+  const saved = await file('replit');
+  assert.deepEqual(saved.files.map((item: { name: string }) => item.name), ['website-brief.md', 'replit.md']);
+  assert.equal(saved.files[0].text, written.markdown);
+  assert.ok(saved.files[1].text.startsWith(`chausar-brief-id: ${written.briefId}
+`));
+  const record = listRecords(store.read(), 'venture-handoff').find(r => r.id === saved.handoffId)!;
+  assert.equal(record.mode, 'file');
+  assert.equal(record.openedAt, null);
+  assert.equal((await opened(deps, saved.handoffId)).openedAt, clock().toISOString());
+  await assert.rejects(file('bolt'), code('INVALID_VENTURE_REQUEST'));
+  assert.deepEqual((await status(deps)).linkFits, { lovable: true, replit: true });
+  // A stale plan refuses as the link does.
+  await ventureAction(deps, owner, 'prepare', 'build.handoff', tx => {
+    const accepted = listRecords(tx.state, 'venture-blueprint', tx.venture!.id).find(b => b.status === 'accepted')!;
+    tx.replace({ ...accepted, digest: 'a-changed-plan' });
+  });
+  await assert.rejects(file('lovable'), code('APPROVAL_STALE'));
+});
+
+test('venture.build.briefFile refuses an unpassed brief as the link does', async () => {
+  const { deps } = setup();
+  await seedVenture(deps, { offer1Description: 'Monthly books. Write to owner@example.com to start.' });
+  assert.equal((await brief(deps)).lint.ok, false);
+  await assert.rejects(handlers['venture.build.briefFile']!(deps, owner, { builder: 'lovable' }), code('BRIEF_LINT_FAILED'));
+});
+
 test('venture.build.handoff refuses BRIEF_LINT_FAILED when the latest brief failed its lint', async () => {
   const { deps } = setup();
   await seedVenture(deps, { offer1Description: 'Monthly books. Write to owner@example.com to start.' });
@@ -988,13 +1020,13 @@ test('a viewer can read the build status but cannot start a model call, a handof
   assert.equal((await handlers['venture.connectors.list']!(deps, viewer, {})).length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
 });
 
-test('handlers are exactly the forty-four owned methods, and every code the package throws is a declared venture or engine code', async () => {
+test('handlers are exactly the forty-five owned methods, and every code the package throws is a declared venture or engine code', async () => {
   // Thirty-one, the two Ink v2 wave 4 added (connectors.check and share.request, 4J7), and the eight wave 5 added (5-0
   // registered 5A6's monitors.list, .add and .remove, mail.import and .threads, localApps.list, webhook.set and
   // speechOut.providers); W6 6F4 adds webhook.send, and 6H2 the recorded flows' list and act.
   assert.deepEqual(Object.keys(handlers).sort(), [
     'venture.bank.alerts.get', 'venture.bank.alerts.set', 'venture.bank.apply', 'venture.bank.consent', 'venture.bank.import', 'venture.bank.ledger',
-    'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
+    'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.status', 'venture.build.sync',
     'venture.connectors.check', 'venture.connectors.list', 'venture.flows.act', 'venture.flows.list',
     'venture.leads.add', 'venture.leads.block', 'venture.leads.draft', 'venture.leads.list', 'venture.leads.recordSend',
     'venture.localApps.list', 'venture.mail.import', 'venture.mail.threads', 'venture.monitors.add', 'venture.monitors.list', 'venture.monitors.remove',

@@ -25,7 +25,7 @@ import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signof
 import { sumReceipt } from '../money/sums.ts';
 import { setPlan } from '../money/set-plan.ts';
 import { undoOwnerPrice } from '../core/owner-price.ts';
-import { REJECT_LINE } from './queue.ts';
+import { REJECT_LINE_SET } from './queue.ts';
 
 /** The words each action leaves on its decision and says back. */
 export const ACTION_WORDS = Object.freeze({
@@ -268,7 +268,7 @@ export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload:
     return { restored: true, line: RESTORED_LINE };
   }
   // C4 task 15: a draft's reject, until the agent acts on it.
-  if (decision.subject.startsWith('run:') && decision.action === 'deny' && decision.line === REJECT_LINE) {
+  if (decision.subject.startsWith('run:') && decision.action === 'deny' && REJECT_LINE_SET.has(decision.line)) {
     await undoReject(deps, ctx, decision.subject.slice('run:'.length), rowId);
     return { restored: true, line: RESTORED_LINE };
   }

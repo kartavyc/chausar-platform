@@ -17,6 +17,7 @@ import { Field } from '../../parts/Field';
 import type { ParamsOf, PhoneAccessView, TelegramView } from '../../engine/types';
 import { messageOf } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
+import { QrCode } from '../../parts/QrCode';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
 import { Fold } from '../../parts/Fold';
@@ -63,6 +64,21 @@ function Telegram() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const shown = view ?? read.data ?? null;
+  // C5 task 11: what Find me read from the bot; nothing is saved until the owner says yes.
+  const [finding, setFinding] = useState<{ found: { chatId: string; name: string } | null; line: string } | null>(null);
+
+  async function findMe() {
+    if (!token.trim()) return;
+    setBusy(true);
+    setProblem(null);
+    setFinding(null);
+    try { setFinding(await client.request('venture.notify.telegram.findChat', { token: token.trim() })); }
+    catch (error) { setProblem(t('business.notify.failed', { message: messageOf(error) })); }
+    finally { setBusy(false); }
+  }
+  async function saveFound(chat: string) {
+    if (await send({ bot: { token: token.trim(), chatId: chat } })) { setToken(''); setChatId(''); setFinding(null); }
+  }
 
   async function send(params: ParamsOf<'venture.notify.telegram'>) {
     setBusy(true);
@@ -84,9 +100,22 @@ function Telegram() {
     <form className={s.form} onSubmit={(event) => void save(event)}>
       <p className={s.note}>{shown.line}</p>
       <Field label={t('business.notify.botToken')} hint={t('business.notify.botTokenHint')} type="password" autoComplete="off" spellCheck={false} value={token} disabled={busy} onChange={(event) => setToken(event.currentTarget.value)} />
-      <Field label={t('business.notify.chatId')} inputMode="numeric" autoComplete="off" spellCheck={false} value={chatId} disabled={busy} onChange={(event) => setChatId(event.currentTarget.value)} />
       <div className={s.buttons}>
-        <Button type="submit" variant="secondary" disabled={busy} disabledReason={!token.trim() || !chatId.trim() ? t('business.notify.botFirst') : undefined}>{t('business.notify.botSave')}</Button>
+        <Button variant="secondary" disabled={busy || !token.trim()} onClick={() => void findMe()}>{t('business.notify.findMe')}</Button>
+      </div>
+      {finding && <p className={s.note} role="status">{finding.line}</p>}
+      {finding?.found && (
+        <div className={s.buttons}>
+          <Button variant="primary" disabled={busy} onClick={() => void saveFound(finding.found!.chatId)}>{t('business.notify.findYes')}</Button>
+        </div>
+      )}
+      <Fold summary={t('business.notify.chatManual')} className={s.fold}>
+        <div className={s.foldBody}>
+          <Field label={t('business.notify.chatId')} inputMode="numeric" autoComplete="off" spellCheck={false} value={chatId} disabled={busy} onChange={(event) => setChatId(event.currentTarget.value)} />
+          <Button type="submit" variant="secondary" disabled={busy} disabledReason={!token.trim() || !chatId.trim() ? t('business.notify.botFirst') : undefined}>{t('business.notify.botSave')}</Button>
+        </div>
+      </Fold>
+      <div className={s.buttons}>
         {shown.connected && <Button variant="quiet" disabled={busy} onClick={() => void send({ test: true })}>{t('business.notify.botTest')}</Button>}
         {shown.connected && <Button variant="quiet" disabled={busy} onClick={() => void send({ bot: null })}>{t('business.notify.botRemove')}</Button>}
       </div>
@@ -98,18 +127,6 @@ function Telegram() {
       )}
       <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? shown.said}</ResultLine>
     </form>
-  );
-}
-
-/** The engine's QR matrix as squares (as the invoice sheet draws the UPI code); nothing about the link is worked out here. */
-function QrCode({ rows, label }: { rows: string[]; label: string }) {
-  const side = rows.length + 8;
-  const path = rows.flatMap((row, y) => [...row].flatMap((cell, x) => (cell === '1' ? [`M${x + 4} ${y + 4}h1v1h-1z`] : []))).join('');
-  return (
-    <svg className={n.qr} role="img" aria-label={label} viewBox={`0 0 ${side} ${side}`} shapeRendering="crispEdges" focusable="false">
-      <rect className={n.qrLight} width={side} height={side} />
-      <path className={n.qrDark} d={path} />
-    </svg>
   );
 }
 

@@ -26,6 +26,8 @@ export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.ac
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.ai.setup.trust', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
   // One-shot C3: the app's preference on this computer is the computer owner's to change.
   'app.preferences.set',
+  // C5 task 31: only the owner on this computer changes how it updates.
+  'updates.settings', 'updates.check',
   ...CUSTODY_METHODS]);
 
 /** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */

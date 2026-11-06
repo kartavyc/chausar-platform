@@ -21,6 +21,7 @@ const { createReadStream, constants: fsConstants } = require('node:fs');
 const { createHash, createPublicKey, randomBytes, verify } = require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const { dirname, isAbsolute, join, basename } = require('node:path');
+const { createDiagnostics } = require('./diagnostics.cjs');
 
 const BOOT_FORMAT = 'chausar.boot.v1';
 const FAILED_STARTS = 2;
@@ -76,12 +77,10 @@ function runInstaller(path, args) {
   spawn(path, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 }
 
-/** One line in <updates>/updates.jsonl: names and versions only, never a path. The log never stops an update. */
+/** One line in <updates>/updates.jsonl, through diagnostics.cjs: names and versions only, rotated at 1 MB. The log never stops an update. */
 function noterFor(updatesFolder) {
-  return async line => {
-    if (!updatesFolder) return;
-    try { await fsp.mkdir(updatesFolder, { recursive: true }); await fsp.appendFile(join(updatesFolder, 'updates.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), ...line })}\n`); } catch { /* a help, never a gate */ }
-  };
+  const log = updatesFolder ? createDiagnostics({ folder: updatesFolder }) : null;
+  return async line => { await log?.line('updates.jsonl', line); };
 }
 
 /** Writes this release (manifest.json, signature, installer) into a fresh hidden folder; nothing is kept yet. */

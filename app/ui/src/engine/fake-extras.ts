@@ -8,6 +8,7 @@
  * a statement import never counts a line twice, and a preview link needs a public address.
  */
 
+import { REFERENCE_RATE, REFERENCE_SOURCE } from '../../../../platform/runtime/venture/money/reference-rate';
 import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { formatDayRange } from '../../../../platform/runtime/owner-format';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
@@ -73,7 +74,7 @@ function asUsd(micros: string | null): string | null {
   return `${padded.slice(0, -6).replace(/^0+(?=\d)/, '')}.${padded.slice(-6).replace(/0+$/, '').padEnd(2, '0')}`;
 }
 /** The owner's rupee rate in the sample, as the engine keeps it: ten-thousandths of a rupee per dollar, and its day. */
-interface SampleRupeeRate { perUsd: bigint; setOn: string }
+interface SampleRupeeRate { perUsd: bigint; setOn: string; source?: string }
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** 4J20: the sample month's AI spend per business with its sum receipt, as fake-team.ts sends it, for the meter. */
 const MONTH_SPEND: Readonly<Record<string, { micros: number; receiptId: string }>> = { lumen: { micros: 719800, receiptId: 'R-0431' }, ledgerline: { micros: 401200, receiptId: 'R-0412' } };
@@ -91,6 +92,7 @@ function rateTyped(rate: SampleRupeeRate): string {
 function rateWords(rate: SampleRupeeRate): string {
   const [year, month, day] = rate.setOn.split('-');
   const decimals = rateTyped(rate).split('.')[1] ?? '00';
+  if (rate.source) return `₹${(rate.perUsd / 10_000n).toLocaleString('en-IN')}.${decimals} per $1 (${rate.source} of ${Number(day)} ${MONTH_NAMES[Number(month) - 1]} ${year})`;
   return `₹${(rate.perUsd / 10_000n).toLocaleString('en-IN')}.${decimals} per $1 (your rate, set ${day} ${MONTH_NAMES[Number(month) - 1]} ${year})`;
 }
 /** Micro-dollars in rupees beside the dollars, as the engine's rupeesBeside: to the nearest paisa, a half paisa up. */
@@ -337,6 +339,11 @@ export class FakeExtrasDesk {
       capMicros: null, askFirstMicros: null, capUsd: null, askFirstUsd: null, cap: 'No monthly limit', askFirst: 'Never asks first', rates: [], setAt: null, inrPerUsd: null, rupeeRate: null,
     };
     this.policies[biz].writeCaps ??= (['drafts', 'books-lines', 'messages'] as const).map((kind, i) => ({ kind, configuredCap: [30, 500, 40][i]!, cap: [30, 500, 40][i]!, used: 0, raised: false, line: this.writeCapLine(kind, [30, 500, 40][i]!) }));
+    // C5 task 15: the offer of the reference rate, in the engine's words; gone once it is in use.
+    const inUse = this.rupees[biz]?.source === REFERENCE_SOURCE && this.rupees[biz]?.setOn === REFERENCE_RATE.on;
+    const [refYear, refMonth, refDay] = REFERENCE_RATE.on.split('-');
+    if (inUse) delete this.policies[biz].reference;
+    else this.policies[biz].reference = { perUsd: REFERENCE_RATE.perUsd, on: REFERENCE_RATE.on, line: `Use the reference rate of ${Number(refDay)} ${MONTH_NAMES[Number(refMonth) - 1]} ${refYear}: ₹${REFERENCE_RATE.perUsd} per US dollar`, source: REFERENCE_RATE.citation.source, url: REFERENCE_RATE.citation.url };
     return this.policies[biz];
   }
 
@@ -346,7 +353,7 @@ export class FakeExtrasDesk {
   }
 
   private setPolicy(biz: string, p: Record<string, unknown>): SpendPolicyView {
-    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'currencyLead', 'writeCaps', 'agentCaps', 'routineCaps'].includes(key));
+    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'useReference', 'currencyLead', 'writeCaps', 'agentCaps', 'routineCaps'].includes(key));
     if (extra) throw invalid(`${extra} is not a spend setting.`);
     // W6 6G5: each agent's and each routine's own limit, checked before anything else changes.
     if (p.agentCaps !== undefined || p.routineCaps !== undefined) this.setOwnCaps(biz, p);
@@ -402,8 +409,12 @@ export class FakeExtrasDesk {
     }
     // The owner's rupee rate: dated the day it is set; the same rate again keeps its day. The limits show in rupees too.
     const held = this.rupees[biz] ?? null;
+    // C5 task 15 (money/spend.ts): the reference rate, stored with its figure, day and source.
+    if (p.useReference !== undefined && p.useReference !== true) throw invalid('Send useReference as true, or leave it out.');
+    if (p.useReference === true && p.inrPerUsd !== undefined) throw invalid('Choose the reference rate or type your own, not both.');
     const perUsd = p.inrPerUsd === undefined ? undefined : p.inrPerUsd === null ? null : rupeeRate(p.inrPerUsd);
-    const rate = perUsd === undefined ? held : perUsd === null ? null : { perUsd, setOn: held && held.perUsd === perUsd ? held.setOn : this.host.now().slice(0, 10) };
+    const rate: SampleRupeeRate | null = p.useReference === true ? { perUsd: rupeeRate(REFERENCE_RATE.perUsd), setOn: REFERENCE_RATE.on, source: REFERENCE_SOURCE }
+      : perUsd === undefined ? held : perUsd === null ? null : { perUsd, setOn: held && held.perUsd === perUsd && !held.source ? held.setOn : this.host.now().slice(0, 10) };
     policy.inrPerUsd = rate ? rateTyped(rate) : null;
     policy.rupeeRate = rate ? rateWords(rate) : null;
     delete policy.capRupees;

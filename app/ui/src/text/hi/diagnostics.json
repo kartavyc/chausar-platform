@@ -1,0 +1,13 @@
+{
+  "diagnostics.title": "जाँच-जानकारी",
+  "diagnostics.line": "Chausar ने इस कंप्यूटर पर जो नोट किया: शुरू होने के कदम, अनुरोधों का समय और गड़बड़ियों के नाम। सेव होने से पहले आप इसे पढ़ते हैं।",
+  "diagnostics.export": "जाँच-जानकारी एक्सपोर्ट करें",
+  "diagnostics.counted": "यह कैसे गिना गया",
+  "diagnostics.row": "{label}: {time}, {count} रिकॉर्ड से",
+  "diagnostics.file": "{name}, {size}",
+  "diagnostics.dumps": "क्रैश फ़ाइलें जोड़ें।",
+  "diagnostics.dumpsHint": "क्रैश फ़ाइल में स्क्रीन पर दिखी चीज़ों के हिस्से हो सकते हैं।",
+  "diagnostics.leftOut": "पुरानी क्रैश फ़ाइलें जो नहीं आ पाईं: {count}।",
+  "diagnostics.save": "सेव करें",
+  "diagnostics.notNow": "अभी नहीं"
+}

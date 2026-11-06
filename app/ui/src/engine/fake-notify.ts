@@ -18,7 +18,7 @@ const NOTIFY_METHODS = new Set<string>([
   'venture.notify.list', 'venture.notify.read', 'venture.notify.settings',
   'venture.notify.push.key', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay',
   // W6 6F6 and 6F7
-  'venture.notify.telegram', 'venture.phone.access',
+  'venture.notify.telegram', 'venture.notify.telegram.findChat', 'venture.phone.access',
 ]);
 /** W6 6F6 telegram.ts WORDS and 6F7 phone.ts WORDS, as the engine says them. */
 const TELEGRAM_WORDS = {
@@ -147,6 +147,7 @@ export class FakeNotifyDesk {
       case 'venture.notify.push.unsubscribe': return this.unsubscribe(p);
       case 'venture.notify.relay': return this.relay(p);
       case 'venture.notify.telegram': return this.telegram(p);
+      case 'venture.notify.telegram.findChat': return this.findChat(p);
       case 'venture.phone.access': return this.phoneAccess(p);
       default: return refuse('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
@@ -350,6 +351,17 @@ export class FakeNotifyDesk {
 
   private bots = new Map<string, { details: boolean }>();
   /** telegram.ts telegramHandler: the bot goes to protected storage (here, nowhere); count only unless details; a test. Sends nothing. */
+  /**
+   * C5 task 11 notify/telegram.ts findChat: the sample bot's newest /start came from Kartavy's private chat. A token
+   * of the bot with a webhook answers the webhook words. Nothing is kept.
+   */
+  private findChat(p: Record<string, unknown>) {
+    exact(p, ['token'], ['token']);
+    check(!this.host.hosted(), 'TIER_UNAVAILABLE', TELEGRAM_WORDS.hosted);
+    check(typeof p.token === 'string' && /^\d{6,12}:[A-Za-z0-9_-]{30,64}$/.test(p.token.trim()), 'INVALID_VENTURE_REQUEST', TELEGRAM_WORDS.token);
+    return { found: { chatId: '7000123456', name: 'Kartavy' }, line: 'Is this you: Kartavy?' };
+  }
+
   private telegram(p: Record<string, unknown>) {
     exact(p, ['bot', 'details', 'test']);
     check(!this.host.hosted(), 'TIER_UNAVAILABLE', TELEGRAM_WORDS.hosted);

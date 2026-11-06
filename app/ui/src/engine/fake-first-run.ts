@@ -282,6 +282,8 @@ export class FakeFirstRun {
     return {
       family: this.family(familyId), profession: professionPick(familyId, source), offers: answered, country: country ? { ...country.country } : null, evidence: country?.evidence ?? null,
       idea, source: 'ai', callId, ...(file ? { file } : {}),
+      // C5 task 6: a stand-in for the AI's own short reply (two sentences, no digits), as core/about.ts keeps it.
+      ...(familyId ? { reply: `You work in ${this.family(familyId)!.label}. I suggested offers to start; change any of them on the right.` } : {}),
     };
   }
 

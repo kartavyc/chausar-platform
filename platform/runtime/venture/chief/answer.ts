@@ -384,6 +384,8 @@ export type ChiefAnswer = {
   proposals: RawProposal[];
   /** 4J14 (Q21), structured by the 4C2 review: the counts by code, or null. The screen words them (and their label). */
   counted: ChiefCounted | null;
+  /** C5 task 5: set by code when the no-AI tail is said. */
+  suggestion?: { kind: 'connect-ai' };
 };
 /** kinds: the proposal kinds the chief may use now, each with the fields it takes (a kind whose method is not built yet is left out). */
 export type AnswerInput = {
@@ -441,6 +443,7 @@ async function recordsAnswer(deps: VentureDeps, ctx: Context, question: string, 
   return {
     parts, dropped: [], worked: chosen.map(figure => ({ label: figure.label, value: figure.display, receiptId: figure.receiptId })),
     receiptIds: [...new Set(chosen.map(figure => figure.receiptId))], callIds, author: 'template', proposals: [], counted: counts ? countedOf(counts) : null,
+    ...(tail === NO_AI_TAIL ? { suggestion: { kind: 'connect-ai' as const } } : {}),
   };
 }
 

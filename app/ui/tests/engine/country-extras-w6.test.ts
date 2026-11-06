@@ -32,7 +32,7 @@ it('overview totals use current currency and show excluded old-currency amounts 
 it('a CA returning to India keeps its GST setup boundary and INR-only yearly income total', () => {
   const { desk } = sample(true);
   const month = desk.request('venture.tax.working', { period: '2026-10' }) as TaxWorking;
-  expect(month.sections).toEqual([{ id: 'gst', title: 'GST', lines: [], note: 'Your plan says you do not charge GST, so there is no GST working. Chausar assumed this; confirm it in the business menu.' }]);
+  expect(month.sections).toEqual([{ id: 'gst', title: 'GST', lines: [], note: 'Your plan says you do not charge GST, so there is no GST working. Chausar assumed this; turn on I charge GST under Business, Prices if you do.' }]);
   const year = desk.request('venture.tax.working', { period: 'FY 2026-27' }) as TaxWorking;
   expect(year.sections.find(section => section.id === 'income-tax')?.lines).toContainEqual({ label: 'Billed in the year, without tax', value: '₹100' });
   expect(year.sections.find(section => section.id === 'income-tax')?.note).toContain('Invoices in other currencies are excluded; no conversion was made.');

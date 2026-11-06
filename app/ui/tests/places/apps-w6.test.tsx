@@ -88,6 +88,16 @@ describe('Apps (6H1)', () => {
     assertInkRules();
   });
 
+  // C5 task 8: each idea shows its preview line under it; a press still fills the box with the idea's words.
+  it('each app idea shows its preview line, and pressing one fills the box', async () => {
+    await start();
+    const ideas = await screen.findByRole('group', { name: 'Ideas to start from' });
+    const first = within(ideas).getByRole('button', { name: /Who owes me, by client/ });
+    expect(first.textContent).toContain('A table of unpaid invoices grouped by client, with what each owes.');
+    await click(first);
+    expect((screen.getByRole('textbox', { name: 'Describe the app' }) as HTMLTextAreaElement).value).toBe('Who owes me, by client');
+  });
+
   // One-shot A4 (hands-on row 75, bug 15): the wait only while a make is on its way. C3 task 11: "Writing your app" with
   // its elapsed time, where it said "Your AI is writing it.".
   it('says the AI is writing only while the app is being made, never at rest or after a refusal', async () => {

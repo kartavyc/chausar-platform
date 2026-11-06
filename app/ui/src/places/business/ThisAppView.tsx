@@ -3,6 +3,8 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { MotionPreferenceLite } from '../../engine/types';
 import { applyMotionPreference } from '../../shell/motionPreference';
+import { BuildLine } from './BuildLine';
+import { LanguageSetting } from './LanguageSetting';
 import { TileSection, messageOf } from './shared';
 import s from './ThisAppView.module.css';
 
@@ -10,8 +12,8 @@ import s from './ThisAppView.module.css';
  * Settings, This app (one-shot C3 task 3): how Chausar itself behaves on this computer, the same for every business.
  * Animations follow this computer's own reduce-motion setting, or are off. The choice is the app's preference
  * (app.preferences, kept beside the businesses, not in one), and it applies at once: <html data-motion="off"> sets every
- * motion time to 0 (tokens/motion.css) and parts/motion.ts stops the moves made in code. C4 task 41 adds the version
- * line here and C5 task 36 the language.
+ * motion time to 0 (tokens/motion.css) and parts/motion.ts stops the moves made in code. The language (C5 task 36) and
+ * the build line (C4 task 41) are here too.
  */
 export function ThisAppView() {
   const t = useT();

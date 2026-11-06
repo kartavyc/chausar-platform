@@ -40,7 +40,8 @@ describe('Business > Reports (6J2)', () => {
     expect(preview.textContent).toMatch(/chausar_report/);
     expect(preview.textContent).toMatch(/Only each service's own key is added on the way/);
     expect(preview.querySelector('[data-content]')).toBeTruthy();
-    const digest = (await request.mock.results.at(-1)!.value as { preview: { digest: string } }).preview.digest;
+    const lastFeedback = request.mock.calls.findLastIndex(([method]) => String(method).startsWith('venture.feedback'));
+    const digest = (await request.mock.results[lastFeedback]!.value as { preview: { digest: string } }).preview.digest;
     fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('venture.feedback.send', { digest }));
     expect(await screen.findByRole('alert')).toBeTruthy();

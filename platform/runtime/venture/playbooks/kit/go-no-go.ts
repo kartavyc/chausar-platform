@@ -12,6 +12,7 @@ import { digest, exactPayload, listRecords, readVenture, singleLine, ventureActi
 import type { Display, GoNoGoRecord, MinorString, PriceStep, RowFigure, RowFigureReceipt, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { ownerPrice } from '../../core/words.ts';
 import { recordDecision } from '../../journal/decisions.ts';
+import { goNoGoFit, type GoNoGoFit } from './go-no-go-fit.ts';
 import type { GoNoGoBody, GoNoGoCardView, GoNoGoInputName, GoNoGoListView, GoNoGoVerdict } from './records-sales.ts';
 
 /** The inputs a card reads, in its order, with their plain labels and the words HOLD asks for them with. */
@@ -92,10 +93,18 @@ function workingLine(record: GoNoGoRecord): Display | null {
   return `${show(upfront)} to start + ${months} ${months === '1' ? 'month' : 'months'} × ${show(monthly)}`;
 }
 
+/** C5 task 14: what would make a NO-GO card a go, from its stored inputs alone; none on any other card. */
+function fitOf(record: Pick<GoNoGoRecord, 'verdict' | 'inputs' | 'currency'>): GoNoGoFit | null {
+  if (record.verdict !== 'NO-GO') return null;
+  const { upfront, monthly, months, limit } = record.inputs;
+  return goNoGoFit({ upfront: upfront!, monthly: monthly!, months: months!, limit: limit! }, minor => formatMoney(minor, record.currency));
+}
+
 /** A stored card as the screens read it, with its line in the engine's words. */
 export function cardView(record: GoNoGoRecord): GoNoGoCardView {
   const show = (minor: string) => formatMoney(minor, record.currency);
   const label = (name: GoNoGoInputName) => GO_NO_GO_INPUTS.find(input => input.name === name)!;
+  const fit = fitOf(record);
   const line = record.verdict === 'HOLD'
     ? `HOLD: say ${joined(record.unknown.map(name => label(name).ask))}, then make the card again.`
     : record.verdict === 'NO-GO'
@@ -108,6 +117,7 @@ export function cardView(record: GoNoGoRecord): GoNoGoCardView {
     limit: record.limitMinor === null ? null : { minor: record.limitMinor, display: show(record.limitMinor) },
     spendsNothing: record.verdict === 'GO' ? GO_SPENDS_NOTHING : null,
     working: workingLine(record),
+    ...(fit ? { toGo: fit } : {}),
   };
 }
 
@@ -168,12 +178,16 @@ export function goNoGoReceipt(state: State, venture: VentureRecord, id: string):
   const again = working(record.inputs, record.currency);
   const { id: _id, kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, digest: stored, removedAt: _removed, ...body } = record;
   const show = (minor: string) => formatMoney(minor, record.currency);
+  const fit = fitOf(record);
   const figure = (key: string, label: string, amount: string): RowFigure => ({ key, label, amount, unit: 'minor', currency: record.currency, display: show(amount) });
   const { upfront: upfrontMinor, monthly: monthlyMinor, limit: limitMinor } = record.inputs;
   const figures = [
     figure('upfront', 'What it costs to start', upfrontMinor!), figure('monthly', 'What it costs each month', monthlyMinor!),
     figure('running', `Each month for ${record.inputs.months} months`, record.steps[0].resultMinor), figure('max-loss', 'The most you could lose', record.maxLossMinor),
     ...(limitMinor === null ? [] : [figure('limit', 'Your limit', limitMinor)]),
+    // C5 task 14: what would make it a go, rebuilt here from the stored inputs. A count of months is no money: 'rate'.
+    ...(fit?.months != null ? [{ key: 'fit-months', label: 'Months that fit your limit', amount: String(fit.months), unit: 'rate' as const, currency: record.currency, display: `${fit.months} ${fit.months === 1 ? 'month' : 'months'}` }] : []),
+    ...(fit?.monthly ? [figure('fit-monthly', 'Monthly cost that fits your limit', fit.monthly.minor)] : []),
   ];
   return {
     id: record.id, kind: 'row-figure', ventureId: venture.id, at: record.at, operation: 'venture.row-figure', subject: { type: 'go-no-go', recordId: record.id },
