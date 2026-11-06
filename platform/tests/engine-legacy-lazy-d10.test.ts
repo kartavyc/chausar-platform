@@ -51,7 +51,8 @@ test('the existing method registry owns the exact legacy surface without rendere
   assert.equal(new Set(rows.map(row => row.name)).size, 163);
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /case ['"](?:jobs|trials|conversation|auth|phone|sync)\./);
-  assert.match(source, /import\('\.\/legacy\/dispatch\.ts'\)/);
+  const legacy = await readFile(new URL('../runtime/engine/legacy-methods.ts', import.meta.url), 'utf8');
+  assert.match(legacy, /import\('\.\.\/legacy\/dispatch\.ts'\)/);
 });
 
 test('legacy parity files remain in full qualification and are excluded from the fast tier', async () => {

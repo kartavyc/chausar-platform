@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
 // Client share links (venture/build/share-links.ts): venture.share.create, .list and .revoke, and the two trusted entry
 // points the hosted /share/<token> page uses. The token is shown once and only its sha256 is kept; the address is real
 // only on the hosted web server with a public address; the client's answer goes through the social approvals module.
@@ -43,12 +45,12 @@ test('share methods are build methods; create and revoke are app-only and reach 
     assert.equal(typeof (build as Record<string, unknown>)[method], 'function', method);
   }
   assert.deepEqual(['venture.share.create', 'venture.share.list', 'venture.share.revoke'].filter(method => APP_ONLY_METHODS.includes(method as never)), ['venture.share.create', 'venture.share.revoke']);
-  const [ipc, engine] = await Promise.all([readFile(new URL('../../app/desktop/ipc-contract.cjs', import.meta.url), 'utf8'), readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8')]);
+  const { METHODS: ipc } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
   for (const method of ['venture.share.create', 'venture.share.list', 'venture.share.revoke']) {
-    assert.ok(ipc.includes(`'${method}'`), `the desktop allows ${method}`);
-    assert.ok(engine.includes(`case '${method}':`), `the engine routes ${method}`);
+    assert.ok(ipc.includes(method), `the desktop allows ${method}`);
+    assert.equal(typeof ENGINE_HANDLERS[method], 'function', `the engine routes ${method}`);
   }
-  assert.equal(engine.includes("case 'venture.share.page'"), false, 'the page entry points are not methods');
+  assert.equal(Object.hasOwn(ENGINE_HANDLERS, 'venture.share.page'), false, 'the page entry points are not methods');
 });
 
 test('without a public address a link is kept, says why it has no address, and nothing opens it', async () => {

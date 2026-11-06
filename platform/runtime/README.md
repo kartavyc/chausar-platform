@@ -9,13 +9,15 @@ The engine is TypeScript run by Node's type stripping (no build step in developm
 - `hosted/server.ts`: the experimental hosted server (`npm run start:hosted`). Off unless `CHAUSAR_HOSTED=1` or `--hosted`.
 - `analytics-worker.ts` and `wasm-worker.mjs`: helper processes the engine starts itself.
 
-`engine.ts` holds the `Engine` class: opening a business (the vault), custody, and the method switch that answers every request. Venture methods (`venture.*`) go to `venture/host.ts`, which loads each package's handler table on first use.
+`engine.ts` holds the `Engine` lifecycle and one request lookup. The `engine/` area tables implement workspace, custody, draft desk, update and app requests through private capabilities. Open-vault requests retain their admitted context across asynchronous work. Venture methods (`venture.*`) go to `venture/host.ts`, which loads each package's handler table on first use.
 
 ## The top-level folders
 
 - `adapters/`: accounting adapters (Tally, Zoho Books, QuickBooks, Xero) that read a file or response into records with receipts.
 - `config/`: `config/env.ts`, the one list of every `CHAUSAR_*` environment variable (see Flags).
 - `connector-framework/`: the older connector framework: read dispatch, import bridge and source profiles.
+- `engine/`: request tables, vault admission, private capabilities and the conversation, custody and service composition helpers.
+- `legacy/`: trusted server and companion request bodies, loaded only when a legacy method is called.
 - `gateway/`: the model gateway's parts (D11 split): types, the plan, request checks, one module per provider route, and the review checks. `gateway.ts` beside it keeps the `ModelGateway` class.
 - `hosted/`: the hosted server: accounts, sign-in, config read from the environment, its app routes.
 - `migrations/`: the data ladder (D12): `CURRENT_SCHEMA`, one numbered step per data version in `migrations/steps/`, and `migrate()`, which every business is opened through.
@@ -33,6 +35,7 @@ The files at this level are the older engine surface (calculations, forecasts, i
 - `venture/build/`: building the business: the website brief, browser sign-ins, posting, share links, site edits.
 - `venture/chief/`: the chief's answer: what needs the owner now.
 - `venture/clients/`: clients and their consent.
+- `venture/contracts/`: canonical type declarations grouped by area; `venture/contracts.ts` reexports them.
 - `venture/core/`: About you, the plan, countries, onboarding.
 - `venture/crm/`: CRM shapes, request checks and views.
 - `venture/customers/`: the customer engine's lead rules.
@@ -56,7 +59,7 @@ The files at this level are the older engine surface (calculations, forecasts, i
 - `venture/views/`: views across businesses (runs, money).
 - `venture/web/`: the web methods.
 
-`venture/contracts.ts` holds the venture records and method types; `venture/host.ts` routes `venture.*` methods; `venture/records.ts` keeps records in State.
+`venture/contracts.ts` reexports the canonical venture record and method types from `venture/contracts/`; `venture/host.ts` routes `venture.*` methods; `venture/records.ts` keeps records in State.
 
 ## Boundaries
 
@@ -68,4 +71,4 @@ Every `CHAUSAR_*` variable is listed in `config/env.ts` with its meaning, defaul
 
 ## Adding a method
 
-Today a method needs four places: its arm in `engine.ts` (or a handler in a `venture/` package's table, routed by `venture/host.ts`), its payload and result types in `venture/contracts.ts` (or `contracts.ts`), its name in the desktop allowlist `app/desktop/ipc-contract.cjs`, and its UI types in `app/ui/src/engine/types.ts`, with the fake engine answering the same way. D8 replaces the hand lists with a generated method registry; the older methods no Ink screen calls move to `legacy/` in D10. Both come after the rebase.
+A method needs four places: its handler in an `engine/` area table (or a handler in a `venture/` package's table, routed by `venture/host.ts`), its payload and result types in `venture/contracts.ts` (or `contracts.ts`), its entry in `method-registry.ts` and regenerated desktop contract (`node scripts/gen-contract.mjs`), and its UI types in `app/ui/src/engine/types.ts`, with the fake engine answering the same way. The registry records which methods the renderer can call. Older methods no Ink screen calls stay in `legacy/` for trusted engine callers; registering them does not grant renderer access.
