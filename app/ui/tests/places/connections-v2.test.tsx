@@ -206,32 +206,16 @@ describe('Connections in the Ink v2 look', () => {
     expect(canDo.textContent).toContain('Disconnecting never undoes completed actions.');
   });
 
-  it('Your AI: every choice, grouped by how you pay, says whether it can connect and gives its one fix line', async () => {
-    const client = start();
-    const section = await region('Your AI');
-    const every = await within(section).findByText('Every choice');
-    fireEvent.click(every);
-    const groups: Record<string, string> = { 'provider-api': 'With your own key', 'this-computer': 'With an AI app on this computer', 'chausar-engine': 'Without AI' };
-    // One-shot A4: the choices as the fake engine answers them (A3 made its Codex words follow the engine's own look),
-    // not the static fixture, so each row is checked against what the page was given.
+  it('Your AI lists native tools and key providers once, retaining the engine choices behind each row', async () => {
+    const client = start(), section = await region('Your AI');
+    const list = await within(section).findByRole('list', { name: 'AI choices' });
+    expect([...list.querySelectorAll('[data-ai-name]')].map(node => node.textContent)).toEqual(['Claude Code', 'Codex', 'Anthropic key', 'OpenAI key']);
     const presets = await client.request('venture.models.presets', {});
-    expect(presets.map((preset) => preset.id)).toEqual(MODEL_PRESETS.map((preset) => preset.id));
-    for (const preset of presets) {
-      const item = within(section).getByText(preset.label).closest('li')!;
-      expect(item.querySelector('[data-fix-line]')?.textContent, preset.id).toBe(preset.availabilityReason);
-      expect(item.querySelector('[data-availability]')?.getAttribute('data-availability'), preset.id).toBe(preset.availability);
-      // One-shot A4 (rows 82, 95): with no AI connected, the AI app on this computer that can connect is at rest, above
-      // the fold, and only there.
-      if (!item.closest('details')) {
-        expect(preset.runsOn, preset.id).toBe('this-computer');
-        expect(['ready', 'unverified'], preset.id).toContain(preset.availability);
-        continue;
-      }
-      const group = item.closest('[data-runs-on]')!;
-      expect(group.getAttribute('data-runs-on'), preset.id).toBe(preset.runsOn);
-      // Under "Add an AI" (a level 3 heading), each group is a level 4 heading.
-      expect(within(group as HTMLElement).getByRole('heading', { level: 4 }).textContent, preset.id).toBe(groups[preset.runsOn]);
-    }
+    expect(presets.map(preset => preset.id)).toEqual(MODEL_PRESETS.map(preset => preset.id));
+    const claude = within(list).getByText('Claude Code').closest('li')!;
+    expect(claude.closest('details')).toBeNull();
+    expect(within(claude).getByRole('button', { name: 'Connect' })).toBeTruthy();
+    expect(within(section).queryByText('Can connect')).toBeNull();
     assertInkRules(document.body);
   });
 
@@ -249,6 +233,7 @@ describe('Connections in the Ink v2 look', () => {
     // The side tiles come with the engine's AI status: wait for it first, then for each tile.
     await within(yourAi).findByText(/^This month:/);
     const privacy = await fieldset('What may leave this computer');
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up transcription' }));
     const transcription = await fieldset('Transcription on this computer');
     expect(yourAi.contains(privacy)).toBe(false);
     expect(yourAi.contains(transcription)).toBe(false);
@@ -299,4 +284,18 @@ describe('Connections in the Ink v2 look', () => {
   });
 
 
+});
+
+
+describe('Connections: one list of AI choices (B4 task 20)', () => {
+  it('lists each AI once, with one page check and no duplicate availability chip', async () => {
+    start();
+    const ai = await region('Your AI');
+    const choices = await within(ai).findByRole('list', { name: 'AI choices' });
+    expect([...choices.querySelectorAll(':scope > li [data-ai-name]')].map(node => node.textContent)).toEqual(['Claude Code', 'Codex', 'Anthropic key', 'OpenAI key']);
+    expect(within(ai).queryByText('Can connect')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your AI apps' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Check connections' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+  });
 });
