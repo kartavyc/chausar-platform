@@ -164,7 +164,10 @@ export class FakeFirstRun {
     if (method === 'venture.ai.claude.progress') { exact(p, []); return { step: this.claudeInstalled ? 'done' : 'idle', receivedBytes: 0, totalBytes: null, line: this.claudeInstalled ? CLAUDE_INSTALLED : null }; }
     if (method !== 'venture.needs.list' && this.host.hosted()) throw new EngineError('HOSTED_NOT_AVAILABLE', 'The hosted web app adds your AI after you keep your business.');
     switch (method) {
-      case 'venture.ai.tools': exact(p, []); return this.tools();
+      case 'venture.ai.tools': {
+        exact(p, ['cli']);
+        return this.tools(p.cli === undefined ? undefined : this.cli(p));
+      }
       case 'venture.ai.login.start': return this.start(this.cli(p));
       case 'venture.ai.login.cancel': return this.cancel(this.cli(p));
       case 'venture.about.read': return this.read(p);
@@ -220,11 +223,13 @@ export class FakeFirstRun {
     return { cli: 'claude-code', label: 'Claude Code', found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: 'Install Claude Code with its own installer, then check again.' } };
   }
 
-  private tools(): ToolsLite {
+  private tools(cli?: ToolLite['cli']): ToolsLite {
     const login = this.codex.login;
-    if (login.state === 'starting') this.codex.login = { state: 'waiting', code: FAKE_DEVICE_CODE, link: DEVICE_LINK, line: null };
-    else if (login.state === 'waiting' && ++this.codex.looks >= 3) this.codex = { signedIn: 'yes', login: { state: 'signed-in', code: null, link: null, line: null }, looks: 0 };
-    return { tools: [this.codexView(), this.claudeView()], line: LOGIN_LINE };
+    if (cli !== 'claude-code') {
+      if (login.state === 'starting') this.codex.login = { state: 'waiting', code: FAKE_DEVICE_CODE, link: DEVICE_LINK, line: null };
+      else if (login.state === 'waiting' && ++this.codex.looks >= 3) this.codex = { signedIn: 'yes', login: { state: 'signed-in', code: null, link: null, line: null }, looks: 0 };
+    }
+    return { tools: [this.codexView(), this.claudeView()].filter(tool => cli === undefined || tool.cli === cli), line: LOGIN_LINE };
   }
 
   private start(cli: 'codex' | 'claude-code'): ToolLite {

@@ -44,6 +44,7 @@ export function PersonSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     <Sheet
       label={t('clients.person.sheet')}
       title={title}
+      loading={!completed && !view && !person.error}
       name={completed ? undefined : view?.person.name}
       line={completed ? forgotten?.line : view ? roleLine(t, view.person) ?? undefined : undefined}
       avatar={!completed && view ? <Avatar name={view.person.name} size={40} /> : undefined}

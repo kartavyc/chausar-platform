@@ -2446,7 +2446,7 @@ export interface EngineMethods {
   'venture.ai.calls': { params: { limit?: number }; result: unknown[] };
   'venture.country.suggest': { params: { text: string }; result: { country: CountryLite | null; evidence: string | null; source: 'ai' | 'not-connected' } };
   // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault; (6C7) what the business needs.
-  'venture.ai.tools': { params: Record<string, never>; result: ToolsLite };
+  'venture.ai.tools': { params: { cli?: ToolLite['cli'] | undefined }; result: ToolsLite };
   'venture.ai.login.start': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   // A2: the owner's yes to the Codex found on this computer, with or without a business.

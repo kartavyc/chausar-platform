@@ -26,7 +26,7 @@ export function CompanySheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const company = view.data?.company;
   const title = view.error ? t('crm.company.notFound') : company ? company.name : t('sheet.loading');
   return (
-    <Sheet label={t('crm.company.sheet')} title={title} line={company?.domain ?? undefined} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label={t('crm.company.sheet')} title={title} loading={!view.data && !view.error} line={company?.domain ?? undefined} onClose={onClose} returnFocus={returnFocus}>
       {view.data && (
         <>
           {view.data.company.note && <p className={s.quiet} data-content="">{view.data.company.note}</p>}
