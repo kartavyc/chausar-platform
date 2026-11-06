@@ -1,0 +1,637 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "work",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    },
+    "<id-1>": {
+      "kind": "id",
+      "prefix": "client_"
+    },
+    "<id-2>": {
+      "kind": "id",
+      "prefix": "venture_"
+    },
+    "<digest-1>": {
+      "kind": "digest"
+    },
+    "<digest-2>": {
+      "kind": "digest"
+    },
+    "<id-3>": {
+      "kind": "id",
+      "prefix": "aiconsent_"
+    },
+    "<id-4>": {
+      "kind": "id",
+      "prefix": "order_"
+    },
+    "<id-5>": {
+      "kind": "id",
+      "prefix": "price_"
+    },
+    "<id-6>": {
+      "kind": "id",
+      "prefix": "delivery_"
+    },
+    "<id-7>": {
+      "kind": "id",
+      "prefix": "playbook_"
+    },
+    "<digest-3>": {
+      "kind": "digest"
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.client.add",
+      "payload": {
+        "name": "Sample Cafe",
+        "countryCode": "IN"
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 19
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": {
+        "id": "<id-1>",
+        "kind": "venture-client",
+        "ventureId": "<id-2>",
+        "memberId": "owner",
+        "epoch": 1,
+        "at": "<time-1>",
+        "name": "Sample Cafe",
+        "email": null,
+        "countryCode": "IN",
+        "taxId": null,
+        "stateCode": null,
+        "note": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.client.aiConsent.get",
+      "payload": {
+        "clientId": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 2,
+      "result": {
+        "clientId": "<id-1>",
+        "clientName": "Sample Cafe",
+        "status": "required",
+        "disclosure": "Allow your connected AI to read this client's details, requests and files for their work. Only share data you have permission to share. You can withdraw this permission at any time. Withdrawal stops future sharing but cannot take back data already shared. Sending anything to a client still needs your approval.",
+        "disclosureDigest": "<digest-1>",
+        "consent": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.client.aiConsent.agree",
+      "payload": {
+        "clientId": "<id-1>",
+        "disclosureDigest": "<digest-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 3,
+      "result": {
+        "clientId": "<id-1>",
+        "clientName": "Sample Cafe",
+        "status": "agreed",
+        "disclosure": "Allow your connected AI to read this client's details, requests and files for their work. Only share data you have permission to share. You can withdraw this permission at any time. Withdrawal stops future sharing but cannot take back data already shared. Sending anything to a client still needs your approval.",
+        "disclosureDigest": "<digest-2>",
+        "consent": {
+          "id": "<id-3>",
+          "revision": 1,
+          "disclosureDigest": "<digest-1>",
+          "grantedAt": "<time-1>",
+          "grantedBy": "owner",
+          "withdrawnAt": null
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.order.create",
+      "payload": {
+        "clientId": "<id-1>",
+        "offerId": "offer_1",
+        "request": "Prepare the monthly books for review."
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 21
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "id": "<id-4>",
+        "kind": "venture-order",
+        "ventureId": "<id-2>",
+        "memberId": "owner",
+        "epoch": 1,
+        "at": "<time-1>",
+        "clientId": "<id-1>",
+        "offerId": "offer_1",
+        "quantity": "1",
+        "request": "Prepare the monthly books for review.",
+        "status": "open",
+        "priceReceiptId": "<id-5>",
+        "deliveredOn": null,
+        "saleFactId": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 5,
+      "method": "venture.delivery.run",
+      "payload": {
+        "orderId": "<id-4>",
+        "useTemplate": true
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "run.started",
+        "businessId": "main",
+        "runId": "<id-6>",
+        "at": "<time-1>",
+        "seq": 23
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "run.waiting",
+        "businessId": "main",
+        "runId": "<id-6>",
+        "at": "<time-1>",
+        "seq": 25
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 26
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "notify.new",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 27
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 5,
+      "result": {
+        "id": "<id-6>",
+        "kind": "venture-delivery-run",
+        "ventureId": "<id-2>",
+        "memberId": "owner",
+        "epoch": 1,
+        "at": "<time-1>",
+        "orderId": "<id-4>",
+        "playbookId": "<id-7>",
+        "playbookHash": "<digest-3>",
+        "verdict": null,
+        "editedText": null,
+        "scope": {
+          "tools": [],
+          "actions": [],
+          "capMicros": "0",
+          "posture": "rehearsal",
+          "frozenAt": "<time-1>"
+        },
+        "status": "ready-for-review",
+        "servedBy": "template",
+        "practice": false,
+        "callId": null,
+        "preview": null,
+        "deliverable": {
+          "title": "Reply outline",
+          "sections": [
+            {
+              "heading": "Summary",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "Thanks for your message. This reply sets out how we will handle your books."
+                }
+              ]
+            },
+            {
+              "heading": "What we will do",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "We will sort your bills, match them to your bank statement and list anything that needs your answer."
+                },
+                {
+                  "kind": "text",
+                  "text": "Here is the price for this work."
+                },
+                {
+                  "kind": "figure",
+                  "receiptId": "<id-5>",
+                  "figureKey": "total"
+                }
+              ]
+            },
+            {
+              "heading": "What we need from you",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "Please send your bank statement and your bills for the period."
+                }
+              ]
+            },
+            {
+              "heading": "Next steps",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "Once the files arrive, we will prepare a short report for you to review."
+                }
+              ]
+            }
+          ],
+          "questionsForClient": [
+            "Is anything missing that we should know before we start?"
+          ]
+        },
+        "renderedText": "Template outline. No AI wrote this and it doesn't read the client's request.\n\n# Reply outline\n\n## Summary\nThanks for your message. This reply sets out how we will handle your books.\n\n## What we will do\nWe will sort your bills, match them to your bank statement and list anything that needs your answer. Here is the price for this work. INR 2,948.82 in total\n\n## What we need from you\nPlease send your bank statement and your bills for the period.\n\n## Next steps\nOnce the files arrive, we will prepare a short report for you to review.\n\nQuestions for you:\n- Is anything missing that we should know before we start?",
+        "checks": [
+          {
+            "check": "no-numeric-prose",
+            "passed": true,
+            "detail": "Every number in the draft comes from a receipt."
+          },
+          {
+            "check": "figures-resolve",
+            "passed": true,
+            "detail": "Every price in the draft opens a receipt."
+          },
+          {
+            "check": "required-sections",
+            "passed": true,
+            "detail": "Every required section is there."
+          },
+          {
+            "check": "no-outside-writes",
+            "passed": true,
+            "detail": "Nothing was sent anywhere. In this build every outside effect is only recorded, never carried out."
+          },
+          {
+            "check": "house-style",
+            "passed": true,
+            "detail": "No long dashes and no words on the avoid list."
+          },
+          {
+            "check": "prompt-leak",
+            "passed": true,
+            "detail": "The draft has no words meant for the AI."
+          },
+          {
+            "check": "length-bounds",
+            "passed": true,
+            "detail": "The draft length is within bounds."
+          },
+          {
+            "check": "no-done-claims",
+            "passed": true,
+            "detail": "The draft describes work ahead and never claims it is done."
+          },
+          {
+            "check": "claims-grounded",
+            "passed": true,
+            "detail": "The draft makes no specific claim to check."
+          },
+          {
+            "check": "receipts",
+            "passed": true,
+            "detail": "The draft states no number, file or link that needs a receipt."
+          }
+        ],
+        "practiceNow": false,
+        "awaitingYou": true,
+        "canApprove": false,
+        "canAccept": true,
+        "acceptBlocked": null,
+        "canEdit": true,
+        "writtenBy": "Written by Chausar's template, not your AI",
+        "judgeNotice": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 6,
+      "method": "venture.runs.list",
+      "payload": {
+        "state": "all"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 6,
+      "result": {
+        "runs": [
+          {
+            "runId": "<id-6>",
+            "businessId": "main",
+            "agent": "Bookkeeping agent",
+            "purpose": "Draft a reply for Sample Cafe",
+            "state": "waiting",
+            "startedAt": "<time-1>",
+            "elapsed": "",
+            "waitingSince": "<time-1>",
+            "client": {
+              "id": "<id-1>",
+              "name": "Sample Cafe"
+            },
+            "progress": {
+              "done": 3,
+              "total": 5
+            },
+            "writtenBy": "Written by Chausar's template, not your AI"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "id": 7,
+      "method": "venture.runs.get",
+      "payload": {
+        "runId": "<id-6>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 7,
+      "result": {
+        "runId": "<id-6>",
+        "businessId": "main",
+        "agent": "Bookkeeping agent",
+        "purpose": "Draft a reply for Sample Cafe",
+        "state": "waiting",
+        "startedAt": "<time-1>",
+        "elapsed": "",
+        "waitingSince": "<time-1>",
+        "client": {
+          "id": "<id-1>",
+          "name": "Sample Cafe"
+        },
+        "progress": {
+          "done": 3,
+          "total": 5
+        },
+        "writtenBy": "Written by Chausar's template, not your AI",
+        "steps": [
+          {
+            "id": "price",
+            "purpose": "Take prices from the calculator",
+            "state": "done",
+            "evidence": [
+              {
+                "kind": "price-receipt",
+                "id": "<id-5>",
+                "label": "Price receipt"
+              }
+            ]
+          },
+          {
+            "id": "draft",
+            "purpose": "Draft the monthly report for review",
+            "state": "done",
+            "evidence": [
+              {
+                "kind": "draft",
+                "id": "<id-6>",
+                "label": "Reply outline"
+              }
+            ]
+          },
+          {
+            "id": "verify",
+            "purpose": "Check the draft",
+            "state": "done",
+            "evidence": [
+              {
+                "kind": "check",
+                "id": "no-numeric-prose",
+                "label": "Passed: Every number in the draft comes from a receipt."
+              },
+              {
+                "kind": "check",
+                "id": "figures-resolve",
+                "label": "Passed: Every price in the draft opens a receipt."
+              },
+              {
+                "kind": "check",
+                "id": "required-sections",
+                "label": "Passed: Every required section is there."
+              },
+              {
+                "kind": "check",
+                "id": "no-outside-writes",
+                "label": "Passed: Nothing was sent anywhere. In this build every outside effect is only recorded, never carried out."
+              },
+              {
+                "kind": "check",
+                "id": "house-style",
+                "label": "Passed: No long dashes and no words on the avoid list."
+              },
+              {
+                "kind": "check",
+                "id": "prompt-leak",
+                "label": "Passed: The draft has no words meant for the AI."
+              },
+              {
+                "kind": "check",
+                "id": "length-bounds",
+                "label": "Passed: The draft length is within bounds."
+              },
+              {
+                "kind": "check",
+                "id": "no-done-claims",
+                "label": "Passed: The draft describes work ahead and never claims it is done."
+              },
+              {
+                "kind": "check",
+                "id": "claims-grounded",
+                "label": "Passed: The draft makes no specific claim to check."
+              },
+              {
+                "kind": "check",
+                "id": "receipts",
+                "label": "Passed: The draft states no number, file or link that needs a receipt."
+              }
+            ]
+          },
+          {
+            "id": "approve",
+            "purpose": "You review the draft",
+            "state": "waiting"
+          },
+          {
+            "id": "send",
+            "purpose": "Send it to the client (you copy it for now)",
+            "state": "pending"
+          }
+        ],
+        "scope": {
+          "tools": [],
+          "actions": [],
+          "cap": "$0.00",
+          "posture": "rehearsal",
+          "capReceiptId": "fig:scope:<id-6>",
+          "line": "Set when it started: 0 tools, 0 outside actions it may propose for your approval, a spend cap of $0.00, with the agent still rehearsing."
+        },
+        "report": {
+          "measured": [
+            {
+              "id": "no-numeric-prose",
+              "outcome": "pass",
+              "line": "Passed: Every number in the draft comes from a receipt.",
+              "detail": "Every number in the draft comes from a receipt."
+            },
+            {
+              "id": "figures-resolve",
+              "outcome": "pass",
+              "line": "Passed: Every price in the draft opens a receipt.",
+              "detail": "Every price in the draft opens a receipt."
+            },
+            {
+              "id": "required-sections",
+              "outcome": "pass",
+              "line": "Passed: Every required section is there.",
+              "detail": "Every required section is there."
+            },
+            {
+              "id": "no-outside-writes",
+              "outcome": "pass",
+              "line": "Passed: Nothing was sent anywhere. In this build every outside effect is only recorded, never carried out.",
+              "detail": "Nothing was sent anywhere. In this build every outside effect is only recorded, never carried out."
+            },
+            {
+              "id": "house-style",
+              "outcome": "pass",
+              "line": "Passed: No long dashes and no words on the avoid list.",
+              "detail": "No long dashes and no words on the avoid list."
+            },
+            {
+              "id": "prompt-leak",
+              "outcome": "pass",
+              "line": "Passed: The draft has no words meant for the AI.",
+              "detail": "The draft has no words meant for the AI."
+            },
+            {
+              "id": "length-bounds",
+              "outcome": "pass",
+              "line": "Passed: The draft length is within bounds.",
+              "detail": "The draft length is within bounds."
+            },
+            {
+              "id": "no-done-claims",
+              "outcome": "pass",
+              "line": "Passed: The draft describes work ahead and never claims it is done.",
+              "detail": "The draft describes work ahead and never claims it is done."
+            },
+            {
+              "id": "claims-grounded",
+              "outcome": "pass",
+              "line": "Passed: The draft makes no specific claim to check.",
+              "detail": "The draft makes no specific claim to check."
+            },
+            {
+              "id": "receipts",
+              "outcome": "pass",
+              "line": "Passed: The draft states no number, file or link that needs a receipt.",
+              "detail": "The draft states no number, file or link that needs a receipt."
+            }
+          ],
+          "lookedAt": [
+            {
+              "id": "rules-judge",
+              "outcome": "not-run",
+              "line": "Not run: no AI quality check looked at this draft.",
+              "detail": "no AI quality check looked at this draft."
+            }
+          ],
+          "needsHuman": [
+            {
+              "code": "reply-fits",
+              "line": "Whether the reply reads right for this client."
+            }
+          ],
+          "findings": [
+            {
+              "class": "creative",
+              "id": "reply-fits",
+              "line": "Whether the reply reads right for this client."
+            }
+          ],
+          "verdict": "pass",
+          "verdictLine": "PASS: every check ran and passed. No AI quality check looked at it.",
+          "review": {
+            "complete": true,
+            "line": null
+          },
+          "generatedBy": [
+            "code"
+          ],
+          "at": "<time-1>",
+          "stale": false,
+          "staleLine": null
+        },
+        "modelReceipt": {
+          "tool": "Built-in templates",
+          "model": "not reported",
+          "tier": "No AI",
+          "usage": "Tokens not reported",
+          "cost": "No cost",
+          "state": "none",
+          "line": "Built-in templates · not reported · No AI · Tokens not reported · No cost"
+        }
+      }
+    }
+  ]
+}

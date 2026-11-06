@@ -1,0 +1,280 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "chats",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<digest-1>": {
+      "kind": "digest"
+    },
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    },
+    "<id-1>": {
+      "kind": "id",
+      "prefix": "chiefthread_"
+    },
+    "<id-2>": {
+      "kind": "id",
+      "prefix": "chiefmsg_"
+    },
+    "<id-3>": {
+      "kind": "id",
+      "prefix": "chiefmsg_"
+    },
+    "<time-2>": {
+      "kind": "time",
+      "offsetMs": 10800000,
+      "precision": 3
+    },
+    "<time-3>": {
+      "kind": "time",
+      "offsetMs": 55800000,
+      "precision": 3
+    },
+    "<time-4>": {
+      "kind": "time",
+      "offsetMs": 228600000,
+      "precision": 3
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.chief.threads",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": {
+        "groups": [],
+        "consent": {
+          "state": "needed",
+          "text": "Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to Claude Sonnet 5.5 with your key. Keys, passphrases and bank or card numbers are never sent.",
+          "digest": "<digest-1>",
+          "at": null
+        },
+        "settled": [],
+        "settleAfterDays": 7
+      }
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.chats.consent",
+      "payload": {
+        "digest": "<digest-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 2,
+      "result": {
+        "state": "given",
+        "text": "Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to Claude Sonnet 5.5 with your key. Keys, passphrases and bank or card numbers are never sent.",
+        "digest": "<digest-1>",
+        "at": "<time-1>"
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.chief.thread.send",
+      "payload": {
+        "text": "What should I review before sharing work?"
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "chief.message",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 22
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "chief.message",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 23
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 3,
+      "result": {
+        "thread": {
+          "id": "<id-1>",
+          "title": "What should I review before sharing work?",
+          "pinned": false,
+          "lastAt": "<time-1>",
+          "lastLine": "Keep the draft here until you have reviewed it.",
+          "amounts": [],
+          "unread": 1,
+          "state": "active",
+          "snoozedUntil": null,
+          "settled": null,
+          "waiting": false
+        },
+        "added": [
+          {
+            "id": "<id-2>",
+            "at": "<time-1>",
+            "from": "owner",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "What should I review before sharing work?"
+              }
+            ],
+            "proposals": [],
+            "routedTo": null,
+            "worked": [],
+            "dropped": [],
+            "counted": null
+          },
+          {
+            "id": "<id-3>",
+            "at": "<time-1>",
+            "from": "chief",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "Keep the draft here until you have reviewed it."
+              }
+            ],
+            "proposals": [],
+            "routedTo": null,
+            "worked": [],
+            "dropped": [],
+            "counted": null
+          }
+        ],
+        "ask": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.chief.thread.list",
+      "payload": {
+        "threadId": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "thread": {
+          "id": "<id-1>",
+          "title": "What should I review before sharing work?",
+          "pinned": false,
+          "lastAt": "<time-1>",
+          "lastLine": "Keep the draft here until you have reviewed it.",
+          "amounts": [],
+          "unread": 0,
+          "state": "active",
+          "snoozedUntil": null,
+          "settled": null,
+          "waiting": false
+        },
+        "messages": [
+          {
+            "id": "<id-2>",
+            "at": "<time-1>",
+            "from": "owner",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "What should I review before sharing work?"
+              }
+            ],
+            "proposals": [],
+            "routedTo": null,
+            "worked": [],
+            "dropped": [],
+            "counted": null
+          },
+          {
+            "id": "<id-3>",
+            "at": "<time-1>",
+            "from": "chief",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "Keep the draft here until you have reviewed it."
+              }
+            ],
+            "proposals": [],
+            "routedTo": null,
+            "worked": [],
+            "dropped": [],
+            "counted": null
+          }
+        ],
+        "more": false,
+        "snooze": [
+          {
+            "id": "later",
+            "until": "<time-2>"
+          },
+          {
+            "id": "tomorrow",
+            "until": "<time-3>"
+          },
+          {
+            "id": "next-week",
+            "until": "<time-4>"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "id": 5,
+      "method": "venture.chief.threads",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 5,
+      "result": {
+        "groups": [
+          {
+            "key": "today",
+            "label": "Today",
+            "threads": [
+              {
+                "id": "<id-1>",
+                "title": "What should I review before sharing work?",
+                "pinned": false,
+                "lastAt": "<time-1>",
+                "lastLine": "Keep the draft here until you have reviewed it.",
+                "amounts": [],
+                "unread": 0,
+                "state": "active",
+                "snoozedUntil": null,
+                "settled": null,
+                "waiting": false
+              }
+            ]
+          }
+        ],
+        "consent": {
+          "state": "given",
+          "text": "Chats send your message and what Chausar reads to answer it (run steps, file names, figures with their receipts, the agent's notes; for a network search, your question as you typed it, your contacts' titles and companies with each contact's own name masked, and your notes and meeting titles with the full names of people in your network and of clients who are people masked; emails and phone numbers are masked everywhere) to Claude Sonnet 5.5 with your key. Keys, passphrases and bank or card numbers are never sent.",
+          "digest": "<digest-1>",
+          "at": "<time-1>"
+        },
+        "settled": [],
+        "settleAfterDays": 7
+      }
+    }
+  ]
+}
