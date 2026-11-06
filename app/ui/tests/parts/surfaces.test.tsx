@@ -4,7 +4,7 @@ import { Bento, Panel, SectionHead, Tile, TileHead } from '../../src/parts/Tile'
 import { Inner, Lift } from '../../src/parts/Card';
 import { Chip, CountChip, DeptChip, DeptDot, KindChip, PostureChip, StateChip } from '../../src/parts/Chip';
 import { FilterChips } from '../../src/parts/FilterChips';
-import { Segmented, departmentChoices } from '../../src/parts/Segmented';
+import { Tabs, departmentChoices } from '../../src/parts/Tabs';
 import { StatTile } from '../../src/parts/StatTile';
 import { revealInRow } from '../../src/parts/reveal';
 import { Figure } from '../../src/parts/Figure';
@@ -415,23 +415,23 @@ describe('FilterChips', () => {
 
 });
 
-describe('Segmented', () => {
-  it('buttons mode: a labelled group of toggle buttons with hidden department dots', () => {
+describe('Tabs (moved from Segmented, C1 task 2)', () => {
+  it('buttons mode: a labelled group of toggle buttons with hidden department dots, no icons', () => {
     const onChange = vi.fn();
     const { container } = render(
-      <Segmented
+      <Tabs
         mode="buttons"
         label="Show departments"
         value="all"
         onChange={onChange}
-        options={[{ id: 'all', label: 'All departments', icon: 'layout-grid' }, { id: 'prod', label: 'Production', dept: 'prod' }]}
+        items={[{ id: 'all', label: 'All departments' }, { id: 'prod', label: 'Production', dept: 'prod' }]}
       />,
     );
     const group = screen.getByRole('group', { name: 'Show departments' });
     const [all, prod] = within(group).getAllByRole('button');
     expect(all!.getAttribute('aria-pressed')).toBe('true');
     expect(prod!.getAttribute('aria-pressed')).toBe('false');
-    expect(all!.querySelector('svg')!.innerHTML).toBe(iconMarkup('layout-grid'));
+    expect(all!.querySelector('svg')).toBeNull();
     const dot = prod!.querySelector('[data-dept]')!;
     expect(dot.getAttribute('data-dept')).toBe('prod');
     expect(dot.getAttribute('aria-hidden')).toBe('true');
@@ -442,11 +442,11 @@ describe('Segmented', () => {
 
   it('links mode: a labelled nav of links, the current one marked as the page, counts as Counts', () => {
     const { container } = render(
-      <Segmented
+      <Tabs
         mode="links"
         label="Clients views"
         value="pipeline"
-        options={[
+        items={[
           { id: 'clients', label: 'Clients', href: '#/clients', count: 7 },
           { id: 'pipeline', label: 'Pipeline', href: '#/clients/pipeline', count: 19 },
         ]}
@@ -462,110 +462,49 @@ describe('Segmented', () => {
     expect(screen.getByRole('link', { name: 'Pipeline 19' })).toBe(pipeline);
   });
 
-  it('the selected segment uses the selected tokens, in both modes', () => {
-    expect(rule('Segmented.module.css', ".item[aria-pressed='true']")).toMatch(/background:\s*var\(--selected\)[\s\S]*color:\s*var\(--on-selected\)/);
-    expect(rule('Segmented.module.css', ".item[aria-current='page']")).toMatch(/background:\s*var\(--selected\)[\s\S]*color:\s*var\(--on-selected\)/);
+  it('the selected item uses the quiet selected fill, in every mode', () => {
+    for (const state of ["aria-pressed='true'", "aria-current='page'", "aria-selected='true'"]) {
+      expect(rule('Tabs.module.css', `.item[${state}]`)).toMatch(/background:\s*var\(--line\)[\s\S]*color:\s*var\(--fg\)/);
+    }
   });
 
   it('counts read at 4.5:1 on the hover wash too: --mute, never --dim (4.34 to 4.47 on --wash)', () => {
-    expect(rule('Segmented.module.css', '.count')).toMatch(/color:\s*var\(--mute\)/);
-    expect(cssOf('Segmented.module.css')).not.toMatch(/var\(--dim\)/);
+    expect(rule('Tabs.module.css', '.count')).toMatch(/color:\s*var\(--mute\)/);
+    expect(cssOf('Tabs.module.css')).not.toMatch(/var\(--dim\)/);
   });
 
-  it('links mode needs an address on every option', () => {
-    // @ts-expect-error a link segment without an href goes nowhere
-    void (<Segmented mode="links" label="Views" value="a" options={[{ id: 'a', label: 'A' }]} />);
+  it('links mode needs an address on every item', () => {
+    // @ts-expect-error a link tab without an href goes nowhere
+    void (<Tabs mode="links" label="Views" value="a" items={[{ id: 'a', label: 'A' }]} />);
     expect(true).toBe(true);
   });
 
-  it('on mount the current segment is scrolled into the row, in both modes', () => {
-    const current = (el: HTMLElement) => el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-current') === 'page';
-    const stubs = layOut(300, (el) => (current(el) ? [500, 140] : undefined));
-    const { unmount } = render(<Segmented mode="buttons" label="Show departments" value="ops" onChange={() => {}} options={departmentChoices(en)} />);
-    expect(screen.getByRole('group', { name: 'Show departments' }).scrollLeft).toBe(344);
-    unmount();
-    render(<Segmented mode="links" label="Views" value="b" options={[{ id: 'a', label: 'A', href: '#/a' }, { id: 'b', label: 'B', href: '#/b' }]} />);
-    expect(screen.getByRole('navigation', { name: 'Views' }).scrollLeft).toBe(344);
-    for (const stub of stubs) stub.mockRestore();
+  it('no outer frame, no fade and no sideways scroll; colours are tokens', () => {
+    expect(rule('Tabs.module.css', '.tabs')).not.toMatch(/border|box-shadow|background|overflow/);
+    expect(cssOf('Tabs.module.css')).not.toMatch(/mask-image|overflow-x/);
+    expect(cssOf('Tabs.module.css')).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
   });
 
-  it('a row wider than its place says which edges hide more (data-more), as it scrolls; a row that fits says nothing', () => {
-    let full = 800;
-    const stubs = [...layOut(300, () => undefined), vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(() => full)];
-    const links = ['a', 'b', 'c'].map((id) => ({ id, label: id.toUpperCase(), href: `#/${id}` }));
-    const { unmount } = render(<Segmented mode="links" label="Views" value="a" options={links} />);
-    const row = screen.getByRole('navigation', { name: 'Views' });
-    expect(row.getAttribute('data-more')).toBe('end');
-    row.scrollLeft = 200;
-    fireEvent.scroll(row);
-    expect(row.getAttribute('data-more')).toBe('both');
-    row.scrollLeft = 500;
-    fireEvent.scroll(row);
-    expect(row.getAttribute('data-more')).toBe('start');
-    unmount();
-    full = 300;
-    render(<Segmented mode="links" label="Views" value="a" options={links} />);
-    expect(screen.getByRole('navigation', { name: 'Views' }).hasAttribute('data-more')).toBe(false);
-    for (const stub of stubs) stub.mockRestore();
-  });
-
-  it('when the row narrows (a sheet opens beside the page) the current segment is brought back into view', () => {
-    let width = 1000;
-    let resized: (() => void) | undefined;
-    const original = globalThis.ResizeObserver;
-    globalThis.ResizeObserver = class { constructor(callback: () => void) { resized = callback; } observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
-    const stubs = [
-      vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('aria-current') === 'page' ? 500 : 0; }),
-      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('aria-current') === 'page' ? 140 : width; }),
-      vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width),
-    ];
-    render(<Segmented mode="links" label="Views" value="b" options={[{ id: 'a', label: 'A', href: '#/a' }, { id: 'b', label: 'B', href: '#/b' }]} />);
-    const row = screen.getByRole('navigation', { name: 'Views' });
-    expect(row.scrollLeft).toBe(0);
-    width = 300;
-    act(() => resized!());
-    expect(row.scrollLeft).toBe(344);
-    for (const stub of stubs) stub.mockRestore();
-    globalThis.ResizeObserver = original;
-  });
-
-  it('a segment reached by Tab is scrolled into the row, so it never sits under the faded edge', () => {
-    const stubs = layOut(300, (el) => (el.textContent === 'C' ? [600, 120] : undefined));
-    const links = ['a', 'b', 'c'].map((id) => ({ id, label: id.toUpperCase(), href: `#/${id}` }));
-    render(<Segmented mode="links" label="Views" value="a" options={links} />);
-    const row = screen.getByRole('navigation', { name: 'Views' });
-    expect(row.scrollLeft).toBe(0);
-    fireEvent.focus(screen.getByRole('link', { name: 'C' }));
-    expect(row.scrollLeft).toBe(424);
-    for (const stub of stubs) stub.mockRestore();
-  });
-
-  it('the edge that hides more fades out (a mask in tokens, no colour of its own)', () => {
-    for (const edge of ['start', 'end', 'both']) expect(rule('Segmented.module.css', `.seg[data-more='${edge}']`)).toMatch(/mask-image:\s*linear-gradient\([^;]*var\(--sp-\d\)/);
-    expect(cssOf('Segmented.module.css')).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
-  });
-
-  it('one department dot serves the toggle and the chips: the same DeptDot part in both, its colours in one place', () => {
+  it('one department dot serves the row and the chips: the same DeptDot part in both, its colours in one place', () => {
     const { container: alone } = render(<DeptDot dept="prod" />);
     const reference = alone.firstElementChild!;
     expect(reference.getAttribute('aria-hidden')).toBe('true');
     expect(reference.getAttribute('data-dept')).toBe('prod');
-    const { container: seg } = render(<Segmented mode="buttons" label="S" value="all" onChange={() => {}} options={departmentChoices(en)} />);
+    const { container: seg } = render(<Tabs mode="buttons" label="S" value="all" onChange={() => {}} items={departmentChoices(en)} />);
     const { container: chips } = render(<FilterChips label="F" value="all" onChange={() => {}} options={departmentChoices(en)} />);
     for (const dot of [seg.querySelector('[data-dept="prod"]')!, chips.querySelector('[data-dept="prod"]')!]) {
       expect(dot.className).toBe(reference.className);
     }
-    for (const file of ['Segmented.module.css', 'FilterChips.module.css']) expect(cssOf(file)).not.toMatch(/data-dept/);
-    for (const dept of DEPT_IDS) expect(rule('Chip.module.css', `.deptDot[data-dept='${dept}']`)).toMatch(new RegExp(`background:\\s*var\\(--${dept}\\)`));
+    for (const file of ['Tabs.module.css', 'FilterChips.module.css']) expect(cssOf(file)).not.toMatch(/data-dept/);
+    for (const dept of DEPT_IDS) expect(rule('Chip.module.css', `.deptDot[data-dept='${dept}']`)).toMatch(new RegExp(`background:\s*var\(--${dept}\)`));
   });
 
   it('departmentChoices is "All departments" then the five departments in order, each with its dot', () => {
     const choices = departmentChoices(en);
     expect(choices.map((c) => c.id)).toEqual(['all', ...DEPT_IDS]);
     expect(choices.map((c) => c.label)).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
-    expect(choices[0]!.icon).toBe('layout-grid');
     expect(choices.slice(1).map((c) => c.dept)).toEqual([...DEPT_IDS]);
-    const { container } = render(<Segmented mode="buttons" label={en('dept.show')} value="all" onChange={() => {}} options={choices} />);
+    const { container } = render(<Tabs mode="buttons" label={en('dept.show')} value="all" onChange={() => {}} items={choices} />);
     expect(screen.getByRole('group', { name: 'Show departments' })).toBeTruthy();
     expect(container.querySelectorAll('[data-dept]')).toHaveLength(5);
   });
@@ -647,8 +586,8 @@ describe('axe on the parts together', () => {
     const { default: axe } = await import('axe-core');
     const { container } = render(
       <main>
-        <Segmented mode="buttons" label="Show departments" value="all" onChange={() => {}} options={departmentChoices(en)} />
-        <Segmented mode="links" label="Clients views" value="clients" options={[{ id: 'clients', label: 'Clients', href: '#/clients', count: 7 }]} />
+        <Tabs mode="buttons" label="Show departments" value="all" onChange={() => {}} items={departmentChoices(en)} />
+        <Tabs mode="links" label="Clients views" value="clients" items={[{ id: 'clients', label: 'Clients', href: '#/clients', count: 7 }]} />
         <Bento as="section" label="Team at a glance">
           <StatTile span={3} label="Waiting on you" dot="wait" count={1} tone="wait" sub="Producer" />
           <StatTile span={3} label="AI spend this month" icon="indian-rupee" figure={{ value: '₹78.80', receiptId: 'R-0402' }} />

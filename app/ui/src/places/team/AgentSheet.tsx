@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { RunSummary } from '../../engine/types';
@@ -10,6 +10,7 @@ import { Chip, DeptChip, StateChip } from '../../parts/Chip';
 import { cx } from '../../parts/cx';
 import { ProgressRing, measuredSteps } from '../../parts/ProgressRing';
 import { Sheet } from '../../parts/Sheet';
+import { Tabs } from '../../parts/Tabs';
 import { AgentChat } from './AgentChat';
 import { AgentNotes } from './AgentNotes';
 // W4 4J22b: its skills and what it can and cannot do (how it talks sits in Instructions).
@@ -96,18 +97,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     setQuery({ ...route.query, tab: next });
   }
 
-  function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const at = tabs.indexOf(tab);
-    const next = event.key === 'ArrowRight' ? tabs[(at + 1) % tabs.length]
-      : event.key === 'ArrowLeft' ? tabs[(at + tabs.length - 1) % tabs.length]
-        : event.key === 'Home' ? tabs[0]
-          : event.key === 'End' ? tabs[tabs.length - 1] : undefined;
-    if (!next) return;
-    event.preventDefault();
-    choose(next);
-    document.getElementById(tabId(next))?.focus();
-  }
-
   // Keeper is code, not AI (W4 4A1): no posture to choose, no steps to gate and no runs of its own; its jobs instead.
   if (isKeeper(agent)) {
     return (
@@ -130,19 +119,15 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     );
   }
 
-  const label = (which: AgentTab) => {
+  /** Each tab's words, and after them the instructions version or the count of jobs (read once, so not in the tab's name). */
+  const label = (which: AgentTab): { label: string; after?: ReactNode } => {
     if (which === 'instructions') {
-      return (
-        <>
-          {t('team.instructions.tab')}
-          {version !== undefined && <>{' '}<span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
-        </>
-      );
+      return { label: t('team.instructions.tab'), after: version !== undefined ? <span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span> : undefined };
     }
     if (which === 'runs') {
-      return <>{t('team.runs')}{runs.data && <span className={c.tabBadge} data-num="" aria-hidden="true">{` ${mine.length}`}</span>}</>;
+      return { label: t('team.runs'), after: runs.data ? <span className={c.tabBadge} data-num="" aria-hidden="true">{String(mine.length)}</span> : undefined };
     }
-    return t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`);
+    return { label: t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`) };
   };
 
   return (
@@ -167,23 +152,8 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       returnFocus={returnFocus}
     >
       <HealthLine health={agent.health} agentId={agent.id} onCleared={team.reload} />
-      <div role="tablist" aria-label={agent.name} className={s.tabs} onKeyDown={onTabKey}>
-        {tabs.map((which) => (
-          <button
-            key={which}
-            type="button"
-            role="tab"
-            id={tabId(which)}
-            className={s.tab}
-            aria-selected={tab === which}
-            aria-controls={tab === which ? `${tabId(which)}-panel` : undefined}
-            tabIndex={tab === which ? 0 : -1}
-            onClick={() => choose(which)}
-          >
-            {label(which)}
-          </button>
-        ))}
-      </div>
+      {/* C1 task 2: the one Tabs part, in its tabs mode; the panel below stays this sheet's own. */}
+      <Tabs mode="tabs" label={agent.name} value={tab} idOf={(which) => tabId(which as AgentTab)} items={tabs.map((which) => ({ id: which, ...label(which) }))} onChange={(which) => choose(which as AgentTab)} />
 
       <div role="tabpanel" id={`${tabId(tab)}-panel`} aria-labelledby={tabId(tab)} className={s.tabPanel} data-tab={tab}>
         {tab === 'chat' && (

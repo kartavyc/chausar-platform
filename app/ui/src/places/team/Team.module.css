@@ -590,7 +590,7 @@
   color: var(--mute);
 }
 
-/* The agent panel: the state in its head line, D's `.cp-tabs` segmented tabs, and the two tabs' contents. */
+/* The agent panel: the state in its head line, and the tabs' contents (the tabs are the Tabs part, C1). */
 
 .panelState {
   font-weight: var(--weight-medium);
@@ -600,55 +600,6 @@
 .panelState[data-tone='working'] { color: var(--accent-text); }
 .panelState[data-tone='waiting'] { color: var(--wait); }
 .panelState[data-tone='failed'] { color: var(--fail); }
-
-.tabs {
-  display: flex;
-  gap: calc(var(--sp-1) / 2);
-  padding: var(--sp-1);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-tile);
-}
-
-.tab {
-  display: inline-flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--control);
-  padding: 0 var(--sp-3);
-  border: 0;
-  border-radius: var(--r-button-sm);
-  background: none;
-  color: var(--fg2);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  white-space: nowrap; /* W4 4J22b: five tabs in one row (D-TeamChat), each on one line. */
-  cursor: pointer;
-  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
-}
-
-@media (max-width: 759px) {
-  .tab {
-    padding: 0 var(--sp-2);
-  }
-}
-
-.tab:hover {
-  background: var(--wash);
-  color: var(--fg);
-}
-
-.tab[aria-selected='true'] {
-  background: var(--selected);
-  color: var(--on-selected);
-}
-
-.tab:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
 
 /* One column that may shrink below its content (4Z walk), so a scroll bar in the sheet never pushes it sideways. */
 .tabPanel {
@@ -849,13 +800,6 @@
   .statValue {
     font-size: var(--fig-hero);
     line-height: 30px;
-  }
-}
-
-/* A phone (3H1): the panel's tabs are full 44 px touch targets. */
-@media (max-width: 759px) {
-  .tab {
-    min-height: var(--target);
   }
 }
 

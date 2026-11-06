@@ -218,25 +218,20 @@ function withDepartments(): EngineClient {
 }
 
 describe('Team on a phone', () => {
-  it('the department toggle is a row of filter chips that wraps (4Z2: no chip starts cut off), with the same choices, held in the address', async () => {
-    stubWidth(true);
-    start('#/team', withDepartments());
-    const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(toggle.hasAttribute('data-scroll')).toBe(false);
-    // Each chip carries how many agents it holds (D-Phone-Team, W4 4A2); Keeper sits in no department in this engine view.
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1', 'Money 0', 'Operations 0']);
-    await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: /^Production/ })); });
-    await hashChanged();
-    expect(window.location.hash).toBe('#/team?dept=prod');
-    expect(within(screen.getByRole('group', { name: 'Show departments' })).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('a wide window keeps the segmented toggle', async () => {
-    stubWidth(false);
-    start('#/team', withDepartments());
-    const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(toggle.hasAttribute('data-scroll')).toBe(false);
-  });
+  // C1 task 2: one Tabs row of departments at every width, with the counts; zero counts are not drawn.
+  for (const narrow of [true, false]) {
+    it(`the department row is the same Tabs ${narrow ? 'on a phone' : 'in a wide window'}, with the counts, held in the address`, async () => {
+      stubWidth(narrow);
+      start('#/team', withDepartments());
+      const toggle = await screen.findByRole('group', { name: 'Show departments' });
+      expect(toggle.hasAttribute('data-tabs')).toBe(true);
+      expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1', 'Money', 'Operations']);
+      await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: /^Production/ })); });
+      await hashChanged();
+      expect(window.location.hash).toBe('#/team?dept=prod');
+      expect(within(screen.getByRole('group', { name: 'Show departments' })).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------------------------------------------

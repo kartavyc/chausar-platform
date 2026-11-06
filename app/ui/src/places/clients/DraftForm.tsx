@@ -13,7 +13,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import { Segmented } from '../../parts/Segmented';
+import { Tabs } from '../../parts/Tabs';
 import type { LawfulBasis, OutreachChannel, OutreachKind, PipelineCardView } from '../../engine/types';
 import { NeverContactLost } from './NeverContactLost';
 import { codeOf, messageOf } from './network';
@@ -99,20 +99,20 @@ export function DraftForm({ card, picked = null }: { card: PipelineCardView; pic
           {kinds.map((one) => <option key={one} value={one}>{t(`clients.outreach.kind.${one}`)}</option>)}
         </select>
       </div>
-      <Segmented
+      <Tabs
         mode="buttons"
         label={t('clients.outreach.channel')}
         value={shownChannel}
         onChange={(id) => setChannel(id as OutreachChannel)}
-        options={channels.map((one) => ({ id: one, label: t(`clients.outreach.channel.${one}`) }))}
+        items={channels.map((one) => ({ id: one, label: t(`clients.outreach.channel.${one}`) }))}
       />
       {kind === 'connection-note' && (
-        <Segmented
+        <Tabs
           mode="buttons"
           label={t('clients.outreach.limit')}
           value={String(limit)}
           onChange={(id) => setLimit(id === '300' ? 300 : 200)}
-          options={[{ id: '200', label: t('clients.outreach.limit.free') }, { id: '300', label: t('clients.outreach.limit.premium') }]}
+          items={[{ id: '200', label: t('clients.outreach.limit.free') }, { id: '300', label: t('clients.outreach.limit.premium') }]}
         />
       )}
       {kind === 'double-opt-in' && (
@@ -135,12 +135,12 @@ export function DraftForm({ card, picked = null }: { card: PipelineCardView; pic
         </div>
       )}
       {cold && !needsBasis && <p className={s.quiet} data-cold="">{t('clients.outreach.coldFooter')}</p>}
-      <Segmented
+      <Tabs
         mode="buttons"
         label={t('clients.outreach.language')}
         value={language}
         onChange={(id) => setLanguage(id === 'hi' ? 'hi' : 'en')}
-        options={[{ id: 'en', label: t('clients.outreach.language.en') }, { id: 'hi', label: t('clients.outreach.language.hi') }]}
+        items={[{ id: 'en', label: t('clients.outreach.language.en') }, { id: 'hi', label: t('clients.outreach.language.hi') }]}
       />
       <Field label={t('clients.outreach.about')} hint={t('clients.outreach.about.hint')} value={about} maxLength={300} onChange={(event) => setAbout(event.currentTarget.value)} autoComplete="off" />
       {postal !== null && <Field label={t('clients.leads.address')} hint={t('clients.leads.addressHint')} value={postal} onChange={(event) => setPostal(event.currentTarget.value)} />}

@@ -72,8 +72,8 @@ describe('Clients: the tabs', () => {
     await waitFor(() => expect(clients.querySelector('[data-count]')?.textContent).toBe('2'));
     await waitFor(() => expect(pipeline.querySelector('[data-count]')?.textContent).toBe('9'));
     expect(within(nav).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBeNull();
-    // An icon sits before each word, hidden from screen readers.
-    for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    // C1: one quiet look, no icons in tabs.
+    for (const link of links) expect(link.querySelector('svg')).toBeNull();
     assertInkRules();
   });
 

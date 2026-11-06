@@ -13,7 +13,7 @@ import { openSheet, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import { PageTitle } from '../../parts/PageTitle';
-import { Segmented } from '../../parts/Segmented';
+import { Tabs } from '../../parts/Tabs';
 import type { VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { ClientSheet } from './ClientSheet';
@@ -83,14 +83,14 @@ function Clients({ tab }: { tab: Tab }) {
     <>
       <PageTitle title={t('place.clients')} line={line} count={count ? String(count) : undefined} />
       <div className={s.toolbar}>
-        <Segmented
+        <Tabs
           mode="links"
           label={t('clients.nav')}
           value={tab}
-          options={[
-            { id: 'clients', label: t('clients.sub.clients'), icon: 'contact', href: '#/clients', count: clientCount },
-            { id: 'pipeline', label: t('clients.sub.pipeline'), icon: 'layout-grid', href: '#/clients/pipeline', count: leadCount },
-            { id: 'network', label: t('clients.sub.network'), icon: 'users', href: '#/clients/network', count: peopleCount },
+          items={[
+            { id: 'clients', label: t('clients.sub.clients'), href: '#/clients', count: clientCount },
+            { id: 'pipeline', label: t('clients.sub.pipeline'), href: '#/clients/pipeline', count: leadCount },
+            { id: 'network', label: t('clients.sub.network'), href: '#/clients/network', count: peopleCount },
           ]}
         />
         {tool && <div className={s.tools}>{tool}</div>}

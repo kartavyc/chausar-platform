@@ -26,7 +26,7 @@ import { useResource } from '../../engine/context';
 import { useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
 import { PageTitle } from '../../parts/PageTitle';
-import { Segmented } from '../../parts/Segmented';
+import { Tabs } from '../../parts/Tabs';
 import { AwayView } from './AwayView';
 import { BuildView } from './BuildView';
 // W4 4J19: who decided what, on what rule (catalogue O17).
@@ -99,14 +99,14 @@ export function Place() {
     <>
       <PageTitle title={t(page.title)} line={venture.data?.venture.workingName} />
       {page.sub !== 'keep' && <StorageNotice />}
-      <Segmented
+      <Tabs
         // Your CA joins the pages once the engine names the playbook: a new row, so it brings the current page into view.
         key={listed.length}
         mode="links"
         className={s.nav}
         label={t('business.pages')}
         value={page.sub}
-        options={listed.map((p) => ({ id: p.sub, label: t(p.title), href: `#/business/${p.sub}` }))}
+        items={listed.map((p) => ({ id: p.sub, label: t(p.title), href: `#/business/${p.sub}` }))}
       />
       <View key={page.sub} />
     </>

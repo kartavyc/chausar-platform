@@ -20,9 +20,8 @@ import { StorageNotice } from '../../shell/StorageNotice';
 import { PageTitle } from '../../parts/PageTitle';
 // W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
-import { Segmented, type SegmentLink } from '../../parts/Segmented';
+import { Tabs, type TabLink } from '../../parts/Tabs';
 import { Icon } from '../../parts/Icon';
-import type { IconName } from '../../parts/icons';
 import type { SheetComponent } from '../../shell/sheets';
 import { AccountantSheet } from './AccountantSheet';
 import { AcrossChips, AcrossView, useAcrossChoice } from './Across';
@@ -47,16 +46,6 @@ const SUBS = ['invoices', 'bills', 'books', 'margins', 'spend', 'journal', 'busi
 type Sub = (typeof SUBS)[number];
 const isSub = (value: string | undefined): value is Sub => SUBS.includes(value as Sub);
 
-const ICONS: Readonly<Record<Sub | 'overview', IconName>> = {
-  overview: 'layout-grid',
-  invoices: 'receipt-text',
-  bills: 'file-pen',
-  books: 'file-text',
-  margins: 'trending-up',
-  spend: 'bot',
-  journal: 'history',
-  businesses: 'layout-grid',
-};
 
 
 export function Place() {
@@ -65,10 +54,10 @@ export function Place() {
   const sub = isSub(route.sub) ? route.sub : undefined;
   const { month } = useChosenMonth(route.query);
   const { across, chosen, error } = useAcrossChoice();
-  const links: SegmentLink[] = [
-    { id: 'overview', label: t('money.sub.overview'), icon: ICONS.overview, href: '#/money' },
+  const links: TabLink[] = [
+    { id: 'overview', label: t('money.sub.overview'), href: '#/money' },
     // Money across businesses (4J6) is its own page, offered only when this computer has more than one business.
-    ...SUBS.filter((id) => id !== 'businesses' || (across?.businesses.length ?? 0) > 1).map((id) => ({ id, label: t(`money.sub.${id}`), icon: ICONS[id], href: `#/money/${id}` })),
+    ...SUBS.filter((id) => id !== 'businesses' || (across?.businesses.length ?? 0) > 1).map((id) => ({ id, label: t(`money.sub.${id}`), href: `#/money/${id}` })),
   ];
   const monthly = sub === undefined || sub === 'margins';
 
@@ -77,7 +66,7 @@ export function Place() {
       <PageTitle title={t('place.money')} line={sub === undefined ? t('money.line') : undefined} tools={sub === undefined ? <ArrangeButton place="money" /> : undefined} />
       <StorageNotice />
       <div className={s.toolbar}>
-        <Segmented mode="links" label={t('money.nav')} value={sub ?? 'overview'} options={links} />
+        <Tabs mode="links" label={t('money.nav')} value={sub ?? 'overview'} items={links} />
       </div>
       {monthly && (
         <div className={v.bar}>

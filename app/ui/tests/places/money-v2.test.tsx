@@ -76,7 +76,7 @@ const ledgerline = async () => {
 };
 
 describe('Money v2: the sub-pages', () => {
-  it('are a segmented row of links named Money, each with its icon, the current one marked', async () => {
+  it('are a row of tabs named Money, no icons (C1), the current one marked', async () => {
     start('#/money');
     const nav = screen.getByRole('navigation', { name: 'Money' });
     // Businesses (W4 4J20) joins once the engine says this computer has more than one business.
@@ -86,7 +86,6 @@ describe('Money v2: the sub-pages', () => {
       ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
       ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
     ]);
-    for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
     await go('#/money/books');
     expect(within(nav).getByRole('link', { name: 'Books' }).getAttribute('aria-current')).toBe('page');
