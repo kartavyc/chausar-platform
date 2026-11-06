@@ -88,6 +88,18 @@ Every tagged release signs a new update feed with `node scripts/release-feed.mjs
 - If the feed runs out, every app says it couldn't check for updates until a newly signed feed is up. Nothing installs from an expired feed.
 - An app whose computer clock is far off can read a current feed as expired; its words say the clock may be wrong.
 
+### What a build needs for updates
+
+`package.json` carries three empty keys until the founder gives them, and a build with them empty reads "not set up" to the owner and asks nothing:
+
+- `chausarUpdatePublicKey`: the public half from `node scripts/release-key.mjs`, as PEM text.
+- `chausarUpdateFeed`: the address of `feed.json`, with `feed.json.sig` beside it. `{channel}` in it becomes `beta` or `stable`. Redirects are followed only to GitHub's release hosts and the address's own host.
+- `chausarWindowsPublisher`: the certificate's CN. Empty, a Windows owner reads "Needs a signed installer" and gets Show installer; nothing runs by itself.
+
+GitHub's `releases/latest` link skips anything marked pre-release, so a beta feed needs a release not marked pre-release, or a fixed tag in the address.
+
+Each waiting update holds up to three copies of the installer on disk: the staged file, the private copy Windows runs, and the kept copy for rollback, about 1 GB at today's size.
+
 ## Background execution boundary
 
 The desktop engine runs as a child process while Chausar is open. A normal last-window close quits Chausar and shuts down the engine and local database. An explicitly requested `--background` session retains the tray and engine after the last window closes; a second launch reopens the window, and Quit from the tray drains the engine before closing the bundled database. This lasts only for that running session. This package does not register a Windows service, macOS LaunchAgent, Linux systemd unit, login item or startup task.

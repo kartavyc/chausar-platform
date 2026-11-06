@@ -155,6 +155,18 @@ test('nothing newer reads up to date; a refused feed says why in the engine\'s o
   assert.equal(lost.reason, "Chausar couldn't reach the update feed. It tries again tomorrow.");
 });
 
+test('a release already waiting still reads ready when a later check could not reach the feed', async t => {
+  const { service, setFeed, advance } = await setup(t);
+  await service.checkNow();
+  await service.settled();
+  assert.equal((await service.view()).state, 'ready');
+  setFeed(async () => { throw new Error('offline'); });
+  advance(25 * HOUR);
+  await service.tick();
+  await service.settled();
+  assert.equal((await service.view()).state, 'ready');
+});
+
 test('a cut download keeps its part: the view says how far, and the next check goes on from there', async t => {
   let cut = true;
   const asked: Record<string, string>[] = [];
@@ -281,4 +293,11 @@ test('prepareUpdateInstall: no business is none-open; an open one gets a safety 
   const backups = await engine.request('workspace.backups.list', {});
   assert.equal(backups.backups.filter((backup: { kind: string }) => backup.kind === 'safety').length, 1);
   await engine.request('workspace.lock', {});
+});
+
+test('on the local server, only the owner on this computer changes how it updates; a paired phone may read', async () => {
+  const { BOOTSTRAP_ONLY_METHODS } = await import('../runtime/server.ts');
+  assert.ok(BOOTSTRAP_ONLY_METHODS.includes('updates.settings'));
+  assert.ok(BOOTSTRAP_ONLY_METHODS.includes('updates.check'));
+  assert.ok(!BOOTSTRAP_ONLY_METHODS.includes('updates.status'));
 });

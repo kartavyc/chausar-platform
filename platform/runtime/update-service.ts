@@ -165,9 +165,10 @@ export class UpdateService {
     const targetOf = (manifest: ReleaseManifest) => ({ version: manifest.version, bytes: manifest.size });
     if (this.#phase === 'checking') return { ...base, state: 'checking', target: null, downloadedBytes: null, reason: null };
     if (this.#phase === 'downloading' && this.#target) return { ...base, state: 'downloading', target: targetOf(this.#target), downloadedBytes: await this.#partBytes(this.#target) ?? 0, reason: null };
+    // A release already waiting still installs at quit, whatever today's check found.
     const pending = await this.#pending();
-    if (kept.lastResult === 'failed' || kept.lastResult === 'cut') return { ...base, state: 'failed', target: this.#target ? targetOf(this.#target) : null, downloadedBytes: await this.#partBytes(this.#target), reason: kept.reason };
     if (pending) return { ...base, state: await this.#stagedState(pending), target: targetOf(pending), downloadedBytes: null, reason: null };
+    if (kept.lastResult === 'failed' || kept.lastResult === 'cut') return { ...base, state: 'failed', target: this.#target ? targetOf(this.#target) : null, downloadedBytes: await this.#partBytes(this.#target), reason: kept.reason };
     return { ...base, state: kept.lastResult === 'up-to-date' ? 'up-to-date' : 'idle', target: null, downloadedBytes: null, reason: null };
   }
   async settings(payload: unknown): Promise<UpdatesView> {
