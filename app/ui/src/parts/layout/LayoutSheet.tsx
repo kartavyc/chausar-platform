@@ -7,7 +7,7 @@
  * approvals and limits stay where they are.
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { EngineError, type LayoutBlockView, type LayoutChange, type LayoutPlace, type LayoutRequest } from '../../engine/types';
@@ -34,7 +34,7 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
   const t = useT();
   const client = useEngine();
   const layout = useLayout(place);
-  const [said, setSaid] = useState<{ line: string; undo: LayoutRequest } | null>(null);
+  const [said, setSaid] = useState<{ line: string; undo: LayoutRequest; block: string | null } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [viewName, setViewName] = useState('');
@@ -46,7 +46,7 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
     setProblem(null);
     try {
       const result = await client.request('venture.layout.change', { place, change });
-      setSaid({ line: result.line, undo: result.undo });
+      setSaid({ line: result.line, undo: result.undo, block: 'block' in change ? change.block : null });
       return true;
     } catch (error) {
       setProblem(error instanceof EngineError || error instanceof Error ? error.message : String(error));
@@ -59,14 +59,15 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
 
   const movable = (view?.blocks ?? []).filter((block) => block.movable);
   const fixed = (view?.blocks ?? []).filter((block) => !block.movable && block.rename === 'fixed');
+  const feedback = said && (
+    <p className={s.status} role="status" aria-label={t('layout.change.label')}>
+      <span>{said.line}</span>
+      <Button variant="quiet" size="sm" disabled={busy} onClick={() => void send(said.undo.change)}>{t('layout.undo')}</Button>
+    </p>
+  );
   return (
     <Sheet label="" title={title} line={t('layout.sheet.line')} onClose={onClose} returnFocus={returnFocus}>
-      {said && (
-        <p className={s.status} role="status" aria-label={t('layout.change.label')}>
-          <span>{said.line}</span>
-          <Button variant="quiet" size="sm" disabled={busy} onClick={() => void send(said.undo.change)}>{t('layout.undo')}</Button>
-        </p>
-      )}
+      {!said?.block && feedback}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {!view && !layout.error && <LoadingPlace shape="list" />}
       {layout.error && <p className={s.problem}>{layout.error.message}</p>}
@@ -84,6 +85,7 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
                 slot={movable.findIndex((item) => item.id === block.id)}
                 busy={busy}
                 send={send}
+                feedback={said?.block === block.id ? feedback : null}
               />
             ))}
           </ul>
@@ -122,9 +124,10 @@ interface BlockRowProps {
   slot: number;
   busy: boolean;
   send: (change: LayoutChange) => Promise<boolean>;
+  feedback: ReactNode;
 }
 
-function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
+function BlockRow({ block, first, last, slot, busy, send, feedback }: BlockRowProps) {
   const t = useT();
   const [name, setName] = useState(block.name);
   /** C4 task 6: the name is text with a pencil; its field opens for this part only, while the owner renames it. */
@@ -163,6 +166,7 @@ function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
           </>
         )}
       </div>
+      {feedback}
       {editing && block.rename === 'free' && (
         <div className={s.rename}>
           <Field label={t('layout.name', { name: block.defaultName })} value={name} maxLength={32} autoFocus onKeyDown={keys} onChange={(event) => setName(event.currentTarget.value)} />
