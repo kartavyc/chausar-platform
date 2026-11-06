@@ -1,0 +1,77 @@
+name: Recorded places snapshot checks
+on:
+  push:
+    branches: ['b2c/os-recordings-check-*']
+permissions:
+  contents: read
+jobs:
+  recordings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/recording-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Nearby routing and public words
+        run: |
+          mkdir -p /tmp/recording-receipts
+          set -o pipefail
+          timeout 600s node --test platform/tests/engine-dispatch-d11.test.ts platform/tests/venture-host.test.ts platform/tests/venture-guides.test.ts platform/tests/rpc-recorder-d11.test.ts 2>&1 | tee /tmp/recording-receipts/nearby.log
+      - name: Observe missing recordings red
+        run: |
+          mkdir -p /tmp/recording-receipts
+          set +e
+          node --test platform/tests/recordings/{money,clients,apps,connections,business}.recording.test.ts > /tmp/recording-receipts/red.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          node -e "const s=require('fs').readFileSync('/tmp/recording-receipts/red.log','utf8');const f=s.split(/^test at /m).slice(1);if(f.length!==5||f.some(p=>!p.split('\n').slice(0,4).join('\n').includes('Recordings changed:')))throw Error('Unexpected flow failure; inspect red.log');console.log('All five scenarios reached the missing-recording assertion.');"
+      - name: Generate sample recordings
+        run: |
+          set -o pipefail
+          CHAUSAR_RECORDINGS_UPDATE=1 node --test platform/tests/recordings/{money,clients,apps,connections,business}.recording.test.ts 2>&1 | tee /tmp/recording-receipts/update.log
+      - name: Compare twice with fresh engines
+        run: |
+          set -o pipefail
+          node --test platform/tests/recordings/{money,clients,apps,connections,business}.recording.test.ts 2>&1 | tee /tmp/recording-receipts/compare-one.log
+          node --test platform/tests/recordings/{money,clients,apps,connections,business}.recording.test.ts 2>&1 | tee /tmp/recording-receipts/compare-two.log
+      - name: Focused receipts and generated files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recordings-focused-receipts
+          path: |
+            /tmp/recording-receipts
+            app/ui/tests/recordings
+      - name: Engine types
+        if: always()
+        run: |
+          mkdir -p /tmp/recording-receipts
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/recording-receipts/types.log
+      - name: UI types
+        if: always()
+        run: |
+          set -o pipefail
+          npm run typecheck:ui 2>&1 | tee /tmp/recording-receipts/ui-types.log
+      - name: Source checks
+        if: always()
+        run: |
+          set -o pipefail
+          node scripts/check.mjs 2>&1 | tee /tmp/recording-receipts/checks.log
+      - name: Retain all receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recordings-snapshot-receipts
+          path: |
+            /tmp/recording-receipts
+            app/ui/tests/recordings

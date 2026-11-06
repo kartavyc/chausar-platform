@@ -4,6 +4,7 @@
 // has a hand-written guide; a connector this build does not link asks for no key; the validation fails on a connector
 // without a guide; a half-configured connection names its missing setting.
 import test from 'node:test';
+import { secretFindings } from '../runtime/venture/core/secrets.ts';
 import assert from 'node:assert/strict';
 import type { ConnectorCard, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, ventureAction } from '../runtime/venture/records.ts';
@@ -35,6 +36,7 @@ test('every catalogue connector has a whole guide, and the validation passes for
     assert.equal(guide.missing, null);
     assert.ok(guide.charges.line === NO_CHARGE ? guide.charges.checkedOn === null : guide.charges.line.length > 10, item.id);
     for (const text of [...guide.steps, guide.skipped, guide.checks, guide.sends, guide.agentLimits, guide.charges.line]) {
+      assert.deepEqual(secretFindings(text), [], `${item.id}: public guide words must pass the secret screen`);
       assert.deepEqual(houseStyleFindings(text), [], `${item.id}: ${text}`);
       assert.equal(text.includes(String.fromCharCode(0x2014)), false, `${item.id}: no long dash`);
     }
@@ -139,3 +141,4 @@ test("guides: the UI's fake engine keeps the engine's own guides and capability 
     assert.deepEqual(fake[id], { guide: guideOf(item), capabilities: connectorCapabilities(id) }, id);
   }
 });
+
