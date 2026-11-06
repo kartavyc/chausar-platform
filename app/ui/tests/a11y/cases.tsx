@@ -235,7 +235,7 @@ const OPENED: Case[] = [
   { name: 'Team, a note being forgotten', hash: '#/team?sheet=agent:editor&tab=notes', press: ['Forget'] },
   { name: 'Money, books with the tax details open', hash: '#/money/books', before: ledgerline, press: ['Tax details'] },
   { name: 'Money, journal with Resolve asked', hash: '#/money/journal', press: ['Resolve'] },
-  { name: 'Business, staging a website edit', hash: '#/business/build', press: ['Stage an edit'] },
+  { name: 'Business, staging a website edit', hash: '#/business/build', before: (engine) => engine.request('venture.build.brief', {}), press: ['Stage an edit'] },
   { name: 'Business, practice: rehearsed, a version kept and its second ask, the judge turned off then asked on', hash: '#/business/practice', press: ['Rehearse now', 'Run the improvement loop', 'Use this version', 'Turn off', 'Turn on'] },
   {
     name: 'Work, the judge asked about a ready draft', hash: '#/work?order=o-boat-14', press: ['Check quality'],

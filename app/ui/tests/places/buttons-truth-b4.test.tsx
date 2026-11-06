@@ -98,7 +98,7 @@ describe('Buttons that say why', () => {
 
   it('What AI knows: Add says what is missing for each kind', async () => {
     await start('#/business/knowledge');
-    const add = (await screen.findByRole('heading', { name: 'Add a source' })).closest('section') as HTMLElement;
+    const add = await fold('Add');
     dim('Add', 'Add a title and the words first', add);
     fireEvent.click(within(add).getByRole('radio', { name: 'Web page' }));
     dim('Add', 'Add the link first', add);
@@ -203,7 +203,8 @@ describe('Buttons that say why', () => {
 
   it('What AI knows: Keep fact says what is missing', async () => {
     await start('#/business/knowledge');
-    const add = await fold('Add a fact');
+    const add = await fold('Add');
+    await press(within(add).getByRole('radio', { name: 'Fact' }));
     dim('Keep fact', 'Add the topic and the fact first', add);
     type(within(add).getByRole('textbox', { name: 'Topic' }), 'Best time');
     type(within(add).getByRole('textbox', { name: 'The fact' }), 'Calls after 4 pm.');

@@ -693,12 +693,12 @@ const WAY: GalleryWay = {
 };
 
 describe('GalleryTile', () => {
-  it('is an article labelled by its name, with its icon and category chip', () => {
+  it('is an article labelled by its name, with supporting icons and no repeated category chip', () => {
     const { container } = render(<GalleryTile way={WAY} onStart={() => {}} />);
     const tile = screen.getByRole('article', { name: 'Wedding videos' });
     expect(tile.dataset.card).toBe('');
     expect(tile.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
-    expect(within(tile).getByText('Content')).toBeTruthy();
+    expect(within(tile).queryByText('Content')).toBeNull();
     expect(within(tile).getByText('Invitation videos for families, made from their photos.')).toBeTruthy();
     expect(within(tile).queryByText('You run this')).toBeNull();
     assertInkRules(document.body);
