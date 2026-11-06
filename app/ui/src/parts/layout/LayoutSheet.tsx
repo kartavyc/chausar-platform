@@ -20,6 +20,7 @@ import { useLayout } from './useLayout';
 import s from './Layout.module.css';
 import { Select } from '../Select';
 import { LoadingPlace } from '../Skeleton';
+import { useFlip } from '../flip';
 
 const PLACES: readonly LayoutPlace[] = ['today', 'money'];
 const isPlace = (id: string): id is LayoutPlace => (PLACES as readonly string[]).includes(id);
@@ -39,6 +40,7 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
   const [busy, setBusy] = useState(false);
   const [viewName, setViewName] = useState('');
   const view = layout.data;
+  const rows = useFlip<HTMLUListElement>((view?.blocks ?? []).map(block => block.id).join(' '));
   const title = t('layout.sheet.title', { place: view?.title ?? (place === 'today' ? 'Today' : 'Money') });
 
   async function send(change: LayoutChange): Promise<boolean> {
@@ -75,7 +77,7 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
         <>
           {/* B4 task 13: what always shows is one line; a row is what can change. */}
           {fixed.length > 0 && <p className={s.quiet}>{t('layout.always', { names: fixed.map((block) => block.name).join(', ') })}</p>}
-          <ul className={s.list}>
+          <ul ref={rows} className={s.list}>
             {view.blocks.filter((block) => !fixed.includes(block)).map((block) => (
               <BlockRow
                 key={block.id}
@@ -144,7 +146,7 @@ function BlockRow({ block, first, last, slot, busy, send, feedback }: BlockRowPr
     else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
   };
   return (
-    <li className={s.item} aria-label={block.name}>
+    <li className={s.item} aria-label={block.name} data-flip-id={block.id}>
       <div className={s.head}>
         <span className={s.name}>{block.name}</span>
         {block.rename !== 'fixed' && !editing && (

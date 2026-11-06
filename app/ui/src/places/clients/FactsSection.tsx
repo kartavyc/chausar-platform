@@ -18,6 +18,9 @@ import { CrmFold } from './CrmParts';
 import s from './Crm.module.css';
 import { Select } from '../../parts/Select';
 import { clientsChanged, useClientsChanged } from './signals';
+import { useArrivals } from '../../parts/useArrivals';
+import { useFlip } from '../../parts/flip';
+import motion from '../../parts/Leave.module.css';
 
 /** The facts with their heading, for a sheet. */
 export function FactsSection({ subject, quiet = false }: { subject: string; quiet?: boolean }) {
@@ -43,6 +46,8 @@ export function FactsBody({ subject, quiet = false }: { subject: string; quiet?:
   const engine = useEngine();
   useClientsChanged(engine, view.reload);
   const [said, setSaid] = useState<{ line: string; problem: boolean } | null>(null);
+  const arrivals = useArrivals(view.data?.facts.map(fact => fact.id));
+  const rows = useFlip<HTMLUListElement>((view.data?.facts ?? []).map(fact => fact.id).join(' '));
   const done = (line: string) => { setSaid({ line, problem: false }); view.reload(); clientsChanged(engine); };
   const failed = (error: unknown) => setSaid({ line: messageOf(error), problem: true });
 
@@ -55,8 +60,8 @@ export function FactsBody({ subject, quiet = false }: { subject: string; quiet?:
       {!quiet && <p className={s.quiet}>{view.data.line}</p>}
       {said && <p className={said.problem ? s.failed : s.said} role={said.problem ? 'alert' : 'status'}>{said.line}</p>}
       {facts.length === 0 ? <p className={s.quiet}>{t('crm.facts.none')}</p> : (
-        <ul className={s.items}>
-          {facts.map((fact) => <FactRow key={fact.id} fact={fact} onDone={done} onFailed={failed} />)}
+        <ul ref={rows} className={s.items}>
+          {facts.map((fact) => <FactRow key={fact.id} fact={fact} arriving={arrivals.has(fact.id)} onDone={done} onFailed={failed} />)}
         </ul>
       )}
       {!quiet && <CrmFold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></CrmFold>}
@@ -81,7 +86,7 @@ export function FactsBody({ subject, quiet = false }: { subject: string; quiet?:
   );
 }
 
-export function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
+export function FactRow({ fact, arriving = false, onDone, onFailed }: { fact: FactView; arriving?: boolean; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
   const t = useT();
   const day = useDay();
   const engine = useEngine();
@@ -103,7 +108,7 @@ export function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (l
   };
 
   return (
-    <li className={s.item} data-fact={fact.id}>
+    <li className={`${s.item} ${motion.arrive}`} data-fact={fact.id} data-flip-id={fact.id} data-arriving={arriving ? '' : undefined}>
       <span className={s.line}>
         {fact.topic}{': '}<span data-content="" className={s.words}>{fact.text}</span>
         {fact.source === 'ai' && <>{' '}<span className={s.tag}>{t('crm.facts.fromAi')}</span></>}
