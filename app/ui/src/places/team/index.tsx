@@ -1,16 +1,15 @@
 import { useId, useMemo } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import { setQuery, useRoute } from '../../shell/navigation';
-import { useNarrow } from '../../shell/useNarrow';
+import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { EmptyState } from '../../parts/EmptyState';
-import { FilterChips } from '../../parts/FilterChips';
 import { PageTitle } from '../../parts/PageTitle';
-import { Segmented, departmentChoices } from '../../parts/Segmented';
+import { Tabs, departmentChoices } from '../../parts/Tabs';
 import { Icon } from '../../parts/Icon';
-import { Bento, Tile, TileHead, type TileSpan } from '../../parts/Tile';
+import { Bento, Tile, TileHead, type TileSpan, PlaceTiles } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { AgentSheet } from './AgentSheet';
+import { HireSheet } from './HireSheet';
 import { RetiredShelf } from './AgentRetire';
 import { CountsLine, DepartmentPanel } from './DepartmentPanel';
 import { chosenDept, departmentsOf, versionOf, type DepartmentData, type Member } from './departments';
@@ -19,8 +18,18 @@ import { JobsTile } from './JobsTile';
 import { OneDepartment } from './OneDepartment';
 import { membersOf, refreshOn } from './shared';
 import { TeamStats } from './TeamStats';
+import { TeamIntro } from './TeamIntro';
 import { useNeedsYou } from '../../shell/needsYou';
 import s from './Team.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
+
+/**
+ * One-shot C4 task 10 (36.x1): the empty Team's way on lands on Today with the plan's card in view and the plan open to
+ * read (Today's `focus` and `read`), where it is accepted.
+ */
+export const TEAM_ACCEPT_PLAN_HREF = '#/today?focus=plan&read=1';
+/** B4 task 14's "Add an agent here" keeps one address: C7 task 16's hire sheet. */
+export const TEAM_ADD_AGENT_HREF = '#/team?sheet=hire:new';
 
 /**
  * Team (D-Team): who is working, who waits on you and the AI spend this month, then the agents as cards. Once the
@@ -31,9 +40,13 @@ import s from './Team.module.css';
  * Everything refreshes as runs move.
  */
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const route = useRoute();
-  const narrow = useNarrow();
   // B3: Waiting on you counts what Today counts for this business (shell/needsYou.ts), the engine's number.
   const needs = useNeedsYou('current');
   const team = useResource('venture.team.list', {}, { refreshOn });
@@ -67,21 +80,21 @@ export function Place() {
       <PageTitle title={t('place.team')} line={line} count={some ? count : undefined} />
       {team.error && <p className={s.failed}>{t('team.failed', { message: team.error.message })}</p>}
       {agents?.length === 0 && (
-        <EmptyState title={t('team.empty')} actions={[{ label: t('team.emptyLink'), href: '#/business/plan' }]} />
+        <EmptyState title={t('team.empty')} actions={[{ label: t('team.emptyLink'), href: TEAM_ACCEPT_PLAN_HREF }]} />
       )}
+      {/* C5 task 1: each agent this member has not met yet, one quiet line each, until Got it. */}
+      {some && team.data?.introduce && team.data.introduce.length > 0 && <TeamIntro lines={team.data.introduce} onDone={team.reload} />}
       {some && (
         <div className={s.page}>
           {split && (
             <div className={s.toolbar}>
-              {/* A phone: the same choice as filter chips (D-STYLE "Segmented toggle"); 4Z2: they wrap, so no chip starts cut
-                  off at the edge as the row scrolled to the chosen one. */}
-              {narrow
-                ? <FilterChips label={t('dept.show')} options={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
-                : <Segmented mode="buttons" label={t('dept.show')} options={departmentChoices(t)} value={chosen} onChange={show} />}
-              {/* An agent joins with a way to earn: its playbook brings the team that works it (spec 5.1). */}
-              <a className={s.addAgent} href="#/onboarding"><Icon name="plus" size={16} />{t('team.addAgent')}</a>
+              {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}
+              <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
+              {/* C7 (REPORT row 56): hiring one more agent from a sentence, in its own sheet. */}
+              <button type="button" className={s.addAgent} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('team.addAgent')}</button>
             </div>
           )}
+          <LoadingPlace shape="tiles" loading={!team.data && !team.error} />
           {team.data?.teamHealth && team.data.teamHealth.status !== 'healthy' && (
             <section className={s.teamHealth} aria-label={t('team.health.team')}>
               <HealthLine health={team.data.teamHealth} agentId="team" onCleared={team.reload} />
@@ -168,7 +181,7 @@ function spansOf(departments: readonly DepartmentData[]): TileSpan[] {
   return spans;
 }
 
-export const sheets = { agent: AgentSheet };
+export const sheets = { agent: AgentSheet, hire: HireSheet };
 
 /** The phone's chips, each with how many agents it holds (D-Phone-Team): all of them, or a department's. */
 function withCounts<O extends { id: string }>(options: O[], members: readonly Member[], departments: readonly DepartmentData[]): (O & { count: number })[] {

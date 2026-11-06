@@ -1,8 +1,13 @@
 name: Open verification
 
+# Every push runs: a push to main and every pull request get the full matrix (docs-only pull requests are skipped);
+# a push to any other branch gets the fast lane only (lint, the fast engine tier, the changed UI tests). Also by hand.
 on:
   push:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -13,12 +18,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The fast checks run once, here, before any test job starts: a type error fails in minutes, not after a shard.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check that no data is tracked in the repo
+        run: node scripts/check-clean-tree.mjs --tracked
+      - name: Check source and JSON syntax
+        run: node scripts/check.mjs
+      # D11: report only until D11a task 2 moves the helpers the UI value-imports into platform/shared.
+      - name: Report imports that cross the platform boundaries
+        run: node scripts/check-boundaries.mjs --report
+      - name: Check the CHAUSAR_ variable list and the files made from it
+        run: node scripts/env-docs.mjs --check
+      - name: Typecheck runtime and tests
+        run: npm run typecheck
+      - name: Typecheck the Ink frontend
+        run: npm run typecheck:ui
+      - name: Check NOTICE against the installed packages
+        run: node scripts/third-party-notices.mjs --check
+
+  # D2: three time-balanced shards (platform/tests/test-weights.json), three test files at a time on each runner.
   verify:
+    needs: lint
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -28,31 +66,43 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24.13.1'
-          package-manager-cache: false
-      - name: Install pinned dependencies without lifecycle scripts
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Check source and JSON syntax
-        run: node scripts/check.mjs
-      - name: Typecheck runtime and tests
-        run: npm run typecheck
+          cache: npm
+      - name: Keep Node's compile cache between runs
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/node-cc
+          key: node-cc-${{ runner.os }}-24.13.1-${{ hashFiles('package-lock.json') }}
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run repository open tests and capture benchmark receipt
-        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --output results/factory-bench.json
+        # The runner context exists only from the steps on, so the compile cache folder is set here, not on the job.
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-cc
+        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/3 --workers=3
       - name: Upload open-test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-6
-          path: results/factory-bench.json
+          name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-3
+          path: ${{ runner.temp }}/chausar/engine-tests/factory-bench.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
   ui:
+    needs: lint
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3]
     runs-on: ${{ matrix.os }}
-    # The full wave-five UI suite measured fifteen minutes locally before install, types and build.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -61,31 +111,87 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24.13.1'
-          package-manager-cache: false
-      - name: Install pinned dependencies without lifecycle scripts
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Typecheck the Ink frontend
-        run: npm run typecheck:ui
-      - name: Run the Ink frontend tests and capture their receipt
-        run: node scripts/ui-bench.mjs --output results/ui-tests.json
-      - name: Build the Ink frontend
-        run: npm run build:ui
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
+      - name: Run one shard of the Ink frontend tests and capture its receipt
+        run: node scripts/ui-bench.mjs --shard=${{ matrix.shard }}/3
       - name: Upload UI test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-test-report-${{ matrix.os }}
-          path: results/ui-tests.json
+          name: ui-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-3
+          path: ${{ runner.temp }}/chausar/ui-tests/ui-tests.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
 
-  # The ui job runs the Ink frontend (app/ui) on both OSes: its strict typecheck, every vitest test (a failed, skipped
-  # or todo test fails it, as in the open suite) and the production build that Electron and the servers serve.
+  build:
+    needs: lint
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build the Ink frontend
+        run: npm run build:ui
+
+  # D2: a push to a branch other than main gets this lane only, on Ubuntu. The fast tier is still about a thousand
+  # files (each file is its own process), so it runs as three time-balanced shards side by side; the changed UI tests
+  # run on the first.
+  fast:
+    needs: lint
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
+      - name: Run the fast tier of the engine tests
+        run: node scripts/bench.mjs --tier=fast --shard=${{ matrix.shard }}/3 --workers=3
+      - name: Run the UI tests that the branch's changes reach
+        if: matrix.shard == 1
+        run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts --changed origin/main --passWithNoTests
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
+
+  # The lint job runs once on Ubuntu: check.mjs, both strict typechecks (engine and Ink frontend) and the NOTICE check.
+  # The ui job runs the Ink frontend (app/ui) in three shards on both OSes: every vitest test (a failed, skipped or
+  # todo test fails it, as in the open suite); the build job makes the production build that Electron serves.
   # This workflow verifies the open repository only. It neither signs releases nor
   # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.
-  # Each OS requires all six shards to pass: five ordinary round-robin groups and
-  # the independent activation suite on its own sixth shard (the five-shard plan
-  # with four groups still exists in bench.mjs). Wave 5 more than doubled the suite;
-  # each runner now has fifteen minutes, within this job's twenty-five minute bound.
-  # Every test file belongs to exactly one group. A
-  # shard receipt is not a full-suite result.
+  # Each OS requires all three engine shards to pass. Every test file belongs to exactly one shard
+  # (bench.mjs places them by measured time). A shard receipt is not a full-suite result.

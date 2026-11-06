@@ -82,6 +82,27 @@ function summaryOf(state: State, venture: VentureRecord, thread: ChiefThreadReco
   };
 }
 
+/**
+ * C2: every thread of the open business for venture.find, newest first: its id, title, state now, last time and its
+ * messages as stored. Read only: it never marks an answer read, as venture.chief.thread.list does.
+ */
+export function searchableThreads(state: State, venture: VentureRecord, now: IsoTime): { id: string; title: string; state: ChiefThreadSummary['state']; lastAt: IsoTime; messages: ChiefMessageRecord[] }[] {
+  const byThread = new Map<string, ChiefMessageRecord[]>();
+  for (const message of listRecords(state, 'venture-chief-message', venture.id)) {
+    const list = byThread.get(message.threadId);
+    if (list) list.push(message); else byThread.set(message.threadId, [message]);
+  }
+  // waitingOf, with the proposals read once for every thread rather than once per thread.
+  const proposed = new Set(listRecords(state, 'venture-proposal', venture.id).filter(item => item.status === 'drafted' || item.status === 'raised').map(item => item.threadId));
+  const days = settleDaysOf(state, venture);
+  return listRecords(state, 'venture-chief-thread', venture.id).sort((a, b) => b.lastAt.localeCompare(a.lastAt)).map(thread => {
+    const messages = byThread.get(thread.id) ?? [];
+    const last = messages.at(-1);
+    const waiting = Boolean(last?.from === 'chief' && last.ask) || proposed.has(thread.id);
+    return { id: thread.id, title: thread.title, state: stateOf(thread, waiting, now, days).state, lastAt: thread.lastAt, messages };
+  });
+}
+
 /** venture.chief.thread.state (6G1, states.ts), reading summaries as this file makes them. */
 export const threadStateHandler = makeThreadStateHandler(summaryOf);
 
@@ -94,6 +115,7 @@ function messageView(state: State, venture: VentureRecord, record: ChiefMessageR
     id: record.id, at: record.at, from: record.from, parts: record.parts, proposals,
     routedTo: record.routedTo ? { agent: record.routedTo, name: agentNameOf(state, venture, record.routedTo) } : null,
     worked: record.worked ?? [], dropped: record.dropped ?? [], counted: record.counted ?? null,
+    ...(record.suggestion ? { suggestion: record.suggestion } : {}),
   };
 }
 
@@ -249,6 +271,7 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
     const parts = [...(reply.author === 'model' ? withoutActionClaims(reply.parts, { proposals: proposalIds.length, briefed }) : reply.parts), ...done];
     answer = tx.replace<ChiefMessageRecord>({
       ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null,
+      ...(reply.suggestion ? { suggestion: reply.suggestion } : {}),
       // 6G1: the chief's question back waits for the owner, so the chat is never hidden until they write again.
       ...(reply.ask ? { ask: reply.ask } : {}),
     });

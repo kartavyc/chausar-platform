@@ -14,6 +14,8 @@ import type {
 } from '../contracts.ts';
 import { digest, exactPayload, identifier, listRecords, requireAppChannel, tidyWords, ventureAction } from '../records.ts';
 import { readAs } from '../delivery/shared.ts';
+import { ownerToday } from '../local-day.ts';
+import { APP_PREVIEW_ONLY, DATA_READS, NOT_IN_PREVIEW, sampleAnswer } from './sample-data.ts';
 import { chatCall } from '../agents/answer.ts';
 import { chatRoute } from '../agents/consent.ts';
 import { secretFindings } from '../core/secrets.ts';
@@ -25,7 +27,7 @@ import { sumReceipt } from '../money/sums.ts';
 import { appCalcPlan, appCalcSubject } from './calc.ts';
 import { makeTask } from './make.ts';
 import { APP_PERMISSIONS, APP_TOOLS, appCodeFindings, appDocument, appUri, exportDocument, permissionsOf, type AppPermission } from './frame.ts';
-import { APP_ERRORS, APP_IDEAS, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from './words.ts';
+import { APP_ERRORS, APP_IDEAS, type AppIdea, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from './words.ts';
 
 /** At most this many versions are kept; the oldest that is not in use goes first. */
 export const APP_VERSIONS_KEPT = 20;
@@ -75,10 +77,22 @@ function cardOf(record: MiniAppRecord): MiniAppCard {
   };
 }
 
-export function appView(record: MiniAppRecord): MiniAppView {
+/**
+ * C4 task 29: whether the app's own reads have nothing to show now: it reads the business and every read it may make is
+ * empty. Only then does the app offer Preview with sample data.
+ */
+function readsEmpty(state: State, record: MiniAppRecord): boolean {
+  const reads = toolsNow(record).filter(tool => DATA_READS.has(tool));
+  if (!reads.length) return false;
+  return reads.every(tool => (tool === 'clients_list' ? listRecords(state, 'venture-client', record.ventureId).every(client => client.self)
+    : tool === 'orders_list' ? listRecords(state, 'venture-order', record.ventureId).length === 0
+      : listRecords(state, 'venture-invoice', record.ventureId).every(invoice => invoice.number === null || invoice.status === 'draft')));
+}
+
+export function appView(record: MiniAppRecord, state: State): MiniAppView {
   const version = currentOf(record);
   return {
-    ...cardOf(record),
+    ...cardOf(record), empty: readsEmpty(state, record),
     uri: appUri(record.id, record.current), document: appDocument(version.html, record.name),
     versions: record.versions.map(item => ({ version: item.version, at: item.at, summary: item.summary, current: item.version === record.current })),
     permissions: version.permissions.map(id => ({ id, verb: PERMISSION_WORDS[id].verb, line: PERMISSION_WORDS[id].line })),
@@ -93,18 +107,18 @@ const appId = (payload: unknown, fields: readonly string[] = ['app']) => {
 };
 
 /** venture.apps.list {} (read): the business's apps, newest first, with ideas and the line about what apps never do. */
-export async function appsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ apps: MiniAppCard[]; ideas: string[]; never: string }> {
+export async function appsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ apps: MiniAppCard[]; ideas: AppIdea[]; never: string }> {
   exactPayload(payload, []);
   const { state, venture } = readAs(deps, ctx, 'read');
   const apps = listRecords(state, 'venture-mini-app', venture.id).map(cardOf).reverse();
-  return { apps, ideas: [...APP_IDEAS], never: APP_NEVER_LINE };
+  return { apps, ideas: APP_IDEAS.map(idea => ({ ...idea })), never: APP_NEVER_LINE };
 }
 
 /** venture.apps.get { app } (read): one app, opened, with its frame document and its permission screen if it needs one. */
 export async function appsGetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ app: MiniAppView }> {
   const { id } = appId(payload);
   const { state, venture } = readAs(deps, ctx, 'read');
-  return { app: appView(appIn(state, venture.id, id)) };
+  return { app: appView(appIn(state, venture.id, id), state) };
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +182,7 @@ export async function appsMakeHandler(deps: VentureDeps, ctx: Context, payload: 
         ...tx.base('venture-mini-app'), name: made.name, versions: [versionOf(1)], current: 1, grant: null, pinned: false, notes: {}, messages: said(1),
       });
     }
-    return { app: appView(record), line: madeLine(record.current, permissions) };
+    return { app: appView(record, tx.state), line: madeLine(record.current, permissions) };
   });
 }
 
@@ -192,7 +206,7 @@ export async function appsGrantHandler(deps: VentureDeps, ctx: Context, payload:
     check(ask && ask.digest === body.digest, 'APPROVAL_STALE', APP_ERRORS.stale);
     const permissions = ordered([...(record.grant?.permissions ?? []), ...currentOf(record).permissions]);
     const next = tx.replace<MiniAppRecord>({ ...record, grant: { permissions, version: record.current, digest: ask.digest, at: tx.now } });
-    return { app: appView(next), line: APP_LINES.granted(record.name) };
+    return { app: appView(next, tx.state), line: APP_LINES.granted(record.name) };
   });
 }
 
@@ -204,7 +218,7 @@ export async function appsRevokeHandler(deps: VentureDeps, ctx: Context, payload
   return ventureAction(deps, ctx, 'approve', 'apps.revoke', tx => {
     const record = appIn(tx.state, tx.venture!.id, id);
     const next = tx.replace<MiniAppRecord>({ ...record, grant: null });
-    return { app: appView(next), line: APP_LINES.revoked(record.name) };
+    return { app: appView(next, tx.state), line: APP_LINES.revoked(record.name) };
   });
 }
 
@@ -219,7 +233,7 @@ export async function appsRestoreHandler(deps: VentureDeps, ctx: Context, payloa
     const record = appIn(tx.state, tx.venture!.id, id);
     check(record.versions.some(item => item.version === version), 'INVALID_VENTURE_REQUEST', APP_ERRORS.version);
     const next = tx.replace<MiniAppRecord>({ ...record, current: version });
-    return { app: appView(next), undo: { version: record.current }, line: APP_LINES.restored(version) };
+    return { app: appView(next, tx.state), undo: { version: record.current }, line: APP_LINES.restored(version) };
   });
 }
 
@@ -233,7 +247,7 @@ export async function appsPinHandler(deps: VentureDeps, ctx: Context, payload: u
   return ventureAction(deps, ctx, 'prepare', 'apps.pin', tx => {
     const record = appIn(tx.state, tx.venture!.id, id);
     const next = tx.replace<MiniAppRecord>({ ...record, pinned });
-    return { app: appView(next), undo: { pinned: record.pinned }, line: pinned ? APP_LINES.pinned : APP_LINES.unpinned };
+    return { app: appView(next, tx.state), undo: { pinned: record.pinned }, line: pinned ? APP_LINES.pinned : APP_LINES.unpinned };
   });
 }
 
@@ -327,20 +341,29 @@ async function setNote(deps: VentureDeps, ctx: Context, id: string, args: Record
 }
 
 /**
- * venture.apps.call { app, tool, arguments } (prepare, app only): one tools/call the app's frame sent through the Ink
- * app's bridge. Unknown tools are APP_TOOL_UNKNOWN; before Allow, or for a tool whose permission the current version
- * did not get, APP_NOT_ALLOWED. The answer is an MCP CallToolResult.
+ * venture.apps.call { app, tool, arguments, sample? } (prepare, app only): one tools/call the app's frame sent through
+ * the Ink app's bridge. Unknown tools are APP_TOOL_UNKNOWN; before Allow, or for a tool whose permission the current
+ * version did not get, APP_NOT_ALLOWED. The answer is an MCP CallToolResult. C4 task 29: with sample: true a read answers
+ * the made-up rows (sample-data.ts) without touching a record, and anything that would write says "Not in a preview".
  */
 export async function appsCallHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<MiniAppCallResult> {
   requireAppChannel(ctx, 'venture.apps.call');
-  const { body, id } = appId(payload, ['app', 'tool', 'arguments']);
+  const body = exactPayload(payload, ['app', 'tool', 'arguments', 'sample'], ['app', 'tool', 'arguments']);
+  const id = identifier(body.app, 'App');
+  check(!Object.hasOwn(body, 'sample') || body.sample === true, 'INVALID_VENTURE_REQUEST', 'Send sample: true, or leave it out.');
+  const sample = body.sample === true;
   check(typeof body.tool === 'string' && Object.hasOwn(APP_TOOLS, body.tool), 'APP_TOOL_UNKNOWN', APP_ERRORS.unknownTool);
   const tool = body.tool;
   const args = exactPayload(body.arguments, Object.keys((body.arguments ?? {}) as object));
-  const { state, venture } = readAs(deps, ctx, tool === 'notes_set' || tool === 'propose' ? 'prepare' : 'read');
+  const { state, venture } = readAs(deps, ctx, !sample && (tool === 'notes_set' || tool === 'propose') ? 'prepare' : 'read');
   const record = appIn(state, venture.id, id);
   check(record.grant, 'APP_NOT_ALLOWED', APP_ERRORS.allowFirst);
   check(allowedOf(record).includes(APP_TOOLS[tool]!), 'APP_NOT_ALLOWED', APP_ERRORS.notAllowed);
+  if (sample) {
+    const rows = sampleAnswer(tool, venture.country.currency, ownerToday(deps.clock, venture.country));
+    check(rows, APP_PREVIEW_ONLY, NOT_IN_PREVIEW);
+    return result(rows as Json);
+  }
   switch (tool) {
     case 'clients_list':
       none(args);

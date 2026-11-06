@@ -14,6 +14,9 @@
  * its one next step by state (the engine's `next`): Remind drafts a payment reminder the owner sends from their own app
  * (venture.invoice.remind, then 4E4's draft sheet), a drafted one opens, and a cheque waiting to clear opens the invoice
  * where it is marked cleared. Under the table, invoices that repeat (Recurring.tsx).
+ *
+ * One-shot C4 (T21): the table reads in sections: drafts (only when there are some), Issued and Paid, each under its
+ * own heading row, with "No invoices yet" under an empty one. Cancelled invoices sit with the paid ones, as before.
  */
 
 import { useId, useState } from 'react';
@@ -32,11 +35,14 @@ import type { InvoiceLite, OrderLite } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
 import { EngineWords, Failed, Section } from './parts';
 import { Recurring } from './Recurring';
-import { messageOf, onMoney, useDay } from './words';
+import { invoiceChip, messageOf, onMoney, useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 
 const ORDER: Readonly<Record<InvoiceLite['status'], number>> = { draft: 0, issued: 1, 'part-paid': 1, paid: 2, void: 2 };
+/** C4 (T21): the table's sections, in order; drafts show only when there are some. */
+const GROUPS = [{ group: 0, key: 'draft', always: false }, { group: 1, key: 'issued', always: true }, { group: 2, key: 'paid', always: true }] as const;
+const COLUMNS = 7;
 
 export function Invoices() {
   const t = useT();
@@ -49,6 +55,7 @@ export function Invoices() {
   const list = invoices.data ?? [];
   // Drafts first, then open, then closed; the engine's own order inside each.
   const rows = [0, 1, 2].flatMap((group) => list.filter((invoice) => ORDER[invoice.status] === group));
+  const inGroup = (group: number) => rows.filter((invoice) => ORDER[invoice.status] === group);
   // 6D1: an order billed only by issued parts, none of them the final one, still has the rest to bill.
   const invoiced = new Set(list.filter((invoice) => invoice.status !== 'void' && (invoice.status === 'draft' || !invoice.part || invoice.part.kind === 'final')).map((invoice) => invoice.orderId));
   const toInvoice = (orders.data ?? []).filter((order) => order.status !== 'cancelled' && order.status !== 'invoiced' && !invoiced.has(order.id));
@@ -78,9 +85,17 @@ export function Invoices() {
                   <th scope="col" role="columnheader" className={s.colAction}><span className="sr-only">{t('money.table.action')}</span></th>
                 </tr>
               </thead>
-              <tbody role="rowgroup">
-                {rows.map((invoice) => <InvoiceRow key={invoice.id} invoice={invoice} client={names.get(invoice.clientId)} request={requests.get(invoice.orderId)} />)}
-              </tbody>
+              {GROUPS.filter(({ group, always }) => always || inGroup(group).length > 0).map(({ group, key }) => (
+                <tbody key={key} role="rowgroup" data-group={key}>
+                  <tr role="row" className={s.groupRow}>
+                    <th role="rowheader" scope="colgroup" colSpan={COLUMNS} className={s.groupHead}>{t(`money.invoices.group.${key}`)}</th>
+                  </tr>
+                  {inGroup(group).map((invoice) => <InvoiceRow key={invoice.id} invoice={invoice} client={names.get(invoice.clientId)} request={requests.get(invoice.orderId)} />)}
+                  {inGroup(group).length === 0 && (
+                    <tr role="row" className={s.groupRow}><td role="cell" colSpan={COLUMNS} className={s.groupEmpty}>{t('money.invoices.groupEmpty')}</td></tr>
+                  )}
+                </tbody>
+              ))}
             </table>
           </Tile>
         </section>
@@ -177,7 +192,7 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
         {proved && <span className={s.amount} data-num="">{total}</span>}
         {view.error && <EngineWords className={s.quietSmall}>{t('money.failed', { message: view.error.message })}</EngineWords>}
       </td>
-      <td role="cell" className={s.cellStatus}><StateChip kind="invoice" value={invoice.status} /></td>
+      <td role="cell" className={s.cellStatus}><StateChip kind="invoice" value={invoiceChip(invoice)} /></td>
       <td role="cell" className={s.cellDue}>
         {due}
         {/* 4J4: how late, from the engine's whole days (its line worded here). */}

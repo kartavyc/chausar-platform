@@ -402,3 +402,31 @@ describe('a transcript made on this computer', () => {
     await expect(made.engine.request('fake.files.keepMade' as never, { orderId: made.order.id, name: 'x.srt', contentBase64: btoa('1\n00:00:00,000 --> 00:00:01,000\nHi\n') } as never)).rejects.toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
   });
 });
+
+describe('C4 task 12: a Finished row names its client and its day', () => {
+  it('the client is a link to the client sheet and the row has the date of the run', async () => {
+    window.location.hash = '#/work';
+    const fake = new FakeEngine();
+    render(<App client={createFakeClient(fake)} language="en" />);
+    const finished = await screen.findByRole('region', { name: 'Finished' });
+    const title = await within(finished).findByRole('button', { name: 'Matched September bank lines to invoices' });
+    const row = title.closest('[data-row]') as HTMLElement;
+    expect(within(row).getByText('21 Oct')).toBeTruthy();
+    fireEvent.click(within(row).getByRole('button', { name: 'Mehta Traders' }));
+    expect(window.location.hash).toContain('sheet=client%3Ac-mehta');
+  });
+});
+
+// One-shot C6 task 3: a new client added with an order can carry a phone or WhatsApp number.
+describe('a new client on a new order', () => {
+  it('takes a phone or WhatsApp number and sends it with the new client', async () => {
+    const { calls, sheet, service, add } = await openOrder(await lumen());
+    fireEvent.change(within(sheet).getByLabelText('Client'), { target: { value: '+new' } });
+    fireEvent.change(within(sheet).getByLabelText("Client's name"), { target: { value: 'Kavya Rao' } });
+    fireEvent.change(within(sheet).getByLabelText('Phone or WhatsApp'), { target: { value: '98765 43210' } });
+    fireEvent.change(service, { target: { value: 'offer_shorts' } });
+    fireEvent.change(within(sheet).getByLabelText('Who owns the footage'), { target: { value: 'Kavya Rao' } });
+    await act(async () => { fireEvent.click(add()); });
+    expect(created(calls)?.newClient).toEqual({ name: 'Kavya Rao', phone: '98765 43210' });
+  });
+});

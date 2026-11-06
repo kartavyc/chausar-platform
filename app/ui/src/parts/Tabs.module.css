@@ -1,0 +1,149 @@
+/* Tabs (C1 task 1): one quiet row, no frame, no shadow, no sideways scroll. The selected item is a light grey fill
+   with dark words in the light theme (and the same step on the dark ground), never a solid pill. Items that do not fit
+   sit under More, a small menu at the end of the row. The row fills its place, so its own width is the room it has
+   (Tabs.tsx measures it); each item keeps its natural width and never wraps or cuts its words. */
+
+.tabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-1) / 2);
+  width: 100%;
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: calc(var(--sp-1) / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-button-sm);
+  background: none;
+  color: var(--fg2);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.item[aria-current='page'],
+.item[aria-pressed='true'],
+.item[aria-selected='true'] {
+  background: var(--nav-on);
+  color: var(--nav-on-fg);
+}
+
+/* One-shot C3 task 15: the pill under the row takes over the current item's fill once it is placed, and slides from
+   then on. Before that (the first frame) the item keeps its own fill, so nothing moves at first paint. */
+.pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-button-sm);
+  background: var(--nav-on);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.tabs[data-pill-ready] .pill {
+  opacity: 1;
+  transition: transform var(--t-press) var(--ease), width var(--t-press) var(--ease);
+}
+
+.tabs[data-pill-ready] .item {
+  position: relative;
+}
+
+.tabs[data-pill-ready] .item[aria-current='page'],
+.tabs[data-pill-ready] .item[aria-pressed='true'],
+.tabs[data-pill-ready] .item[aria-selected='true'] {
+  background: none;
+}
+
+.count {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.moreHolder {
+  position: relative;
+  flex: none;
+}
+
+.moreButton[aria-expanded='true'] {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+/* More's list: a small menu under the button, at the row's right edge. */
+.menu {
+  position: absolute;
+  top: calc(100% + var(--sp-1));
+  right: 0;
+  z-index: 5;
+  min-width: calc(var(--sp-12) * 3);
+  padding: var(--sp-1);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-paper);
+}
+
+.menuList {
+  display: grid;
+  gap: calc(var(--sp-1) / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-button-sm);
+  background: none;
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--wash);
+}
+
+/* A phone (3H1): each item is a full 44 px touch target. */
+@media (max-width: 759px) {
+  .item,
+  .menuItem {
+    min-height: var(--target);
+  }
+}

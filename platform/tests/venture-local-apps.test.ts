@@ -171,11 +171,15 @@ test('a run that never started is known not to have happened; PATH skips .bat, .
   const nativeEnv = { PATH: ['relative-test-tools-5a6', shims, real].join(delimiter), PATHEXT: '.COM;.EXE;.BAT;.CMD' };
   assert.equal(locateApp('baocut', nativeEnv), null, 'a .cmd needs a shell, so it is not runnable here');
   assert.equal(locateApp('kimo', nativeEnv), join(real, program));
-  mkdirSync(join(process.cwd(), 'relative-test-tools-5a6'), { recursive: true });
+  // D3: the relative folder really exists, in a temp working folder, never in the checkout the tests start in.
+  mkdirSync(join(dir, 'relative-test-tools-5a6'));
+  writeFileSync(join(dir, 'relative-test-tools-5a6', 'filmcraft.exe'), '');
+  const started = process.cwd();
+  process.chdir(dir);
   try {
-    writeFileSync(join(process.cwd(), 'relative-test-tools-5a6', 'filmcraft.exe'), '');
     assert.equal(locateApp('filmcraft', { PATH: 'relative-test-tools-5a6', PATHEXT: '.EXE' }), null, 'a relative PATH folder is skipped');
   } finally {
-    (await import('node:fs')).rmSync(join(process.cwd(), 'relative-test-tools-5a6'), { recursive: true, force: true });
+    process.chdir(started);
+    (await import('node:fs')).rmSync(dir, { recursive: true, force: true });
   }
 });

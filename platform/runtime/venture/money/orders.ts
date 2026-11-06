@@ -2,7 +2,7 @@
 // The request text is client data: it stays in the vault and only reaches a model through an approved preview.
 // Ink v2 wave 4 (4J3): the order list carries each order's stage steps and what waits on the owner (order-steps.ts).
 import { check, type Context } from '../../contracts.ts';
-import { activateTerm, amountText, exactPayload, isoDate, listRecords, plainText, readVenture, ventureAction } from '../records.ts';
+import { activateTerm, amountText, exactPayload, findRecord, isoDate, listRecords, plainText, readVenture, ventureAction } from '../records.ts';
 import { currencyMinorDigits, decimalMinor } from '../../currency.ts';
 import type { ForeignPrice } from './billing-types.ts';
 import { insertBooksFact, saleFact } from './facts.ts';
@@ -10,7 +10,7 @@ import { orderIndex, orderSteps } from './order-steps.ts';
 import { buildPriceReceipt, receiptTaxable } from './quote.ts';
 import { clientFields, putClient } from './clients.ts';
 import { newestFirst, oneLine, quantityText, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
-import type { ClientRecord, CountryProfile, OrderListRow, OrderRecord, VentureDeps } from '../contracts.ts';
+import type { ClientRecord, CountryProfile, OrderListRow, OrderPrice, OrderRecord, VentureDeps } from '../contracts.ts';
 import { localDayAt } from '../local-day.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { orderIntake } from '../playbooks/intake.ts';
@@ -112,7 +112,17 @@ export async function listOrders(deps: VentureDeps, ctx: Context, payload: unkno
   const { state, venture } = readVenture(deps, ctx);
   // The records the stages read are indexed once for the whole list, not once per order.
   const index = orderIndex(state, venture, deps.clock().getTime());
-  return newestFirst(listRecords(state, 'venture-order', venture.id)).map(order => ({ ...order, ...orderSteps(index, order) }));
+  return newestFirst(listRecords(state, 'venture-order', venture.id)).map(order => ({ ...order, ...orderSteps(index, order), price: orderPrice(state, order) }));
+}
+
+/**
+ * One-shot C4 task 11: the order's price as its own receipt says it (the receipt's Total figure, the owner form) with
+ * the receipt id, so Work shows it with its mark. Null when the receipt is missing; nothing is worked out again here.
+ */
+export function orderPrice(state: Parameters<typeof findRecord>[0], order: OrderRecord): OrderPrice | null {
+  const receipt = findRecord(state, 'venture-price-receipt', order.priceReceiptId);
+  const total = receipt?.figures.find(figure => figure.key === 'total');
+  return receipt && total ? { display: total.display, receiptId: receipt.id } : null;
 }
 
 /**

@@ -5,7 +5,9 @@
 // versions and the hash of the playbook it was drafted against. Accept writes a new playbook version (ownerVersion);
 // reject stores the decision and changes nothing; a proposal drafted against an older version is stale. A note proposal
 // (4B2) is drafted by code from the owner's own words, quoting them, and accept keeps the note (notes.ts); words the
-// owner said no to are never proposed again. An agent never proposes on its own: only the owner's words start one.
+// owner said no to are never proposed again. An agent proposes on its own in one place only (C7, the founder's change of
+// this rule): after the owner signs off a draft they edited, the writing agent may offer one way of working
+// (way-of-working.ts), which the owner approves or dismisses. Everything else still starts from the owner's words.
 import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import type {
   AgentProposalDecision, AgentProposalRecord, AgentProposalView, DiffLine, Json, ModelTask, PlaybookPatch, PlaybookRecord, VentureDeps, VentureRecord,
@@ -156,11 +158,12 @@ export function proposalView(state: State, venture: VentureRecord, record: Agent
   const stale = isStale(record, current);
   return {
     id: record.id, at: record.at, agent: record.agent, kind: record.proposalKind, status: stale ? 'stale' : record.status, quote: record.quote,
-    title: record.proposalKind === 'instruction' ? `Proposed change to ${agentName}'s instructions` : record.proposalKind === 'import' ? `Import an agent file into ${agentName}?` : 'Save this note?',
+    title: record.offered ? 'Keep this as a way of working?' : record.proposalKind === 'instruction' ? `Proposed change to ${agentName}'s instructions` : record.proposalKind === 'import' ? `Import an agent file into ${agentName}?` : 'Save this note?',
     appliesTo: record.appliesTo, diff: record.diff, fromVersion: record.fromVersion, toVersion: record.toVersion,
     note: record.note ? { text: record.note.text, scope: record.note.scope } : null, digest: record.digest,
     // A note proposal quotes the owner's words it came from, as masked, or says they were erased (4B2).
     line: stale ? staleLine(record, current) : record.proposalKind === 'note' ? (record.quote ? `You said: '${record.quote}'` : NOTE_ERASED_LINE) : null,
+    ...(record.offered && record.label ? { offered: record.label } : {}),
   };
 }
 

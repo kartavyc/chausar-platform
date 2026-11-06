@@ -1,4 +1,5 @@
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { exportFileName } from '../../../../platform/runtime/workspace-custody-contracts';
 import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
 import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { resetCountry } from './fake-country-plan';
@@ -18,7 +19,7 @@ import { withPriceGuide } from './fake-price-ranges';
 import { BLUEPRINTS, BUILDS, DRAFT_AI_STATUS, GITHUB_TOKEN_LINK, HANDOFF_NOTES, MODEL_PRESETS, MODEL_STATUS, OFFER_RECEIPTS, PLAYBOOKS, TEMPLATES_TIER, templateBrief } from './fixtures-business';
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE } from './fixtures';
 import {
-  EngineError, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
+  EngineError, type BackupInspectLite, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
   type CustodyViewLite, type ModelPresetLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
 } from './types';
 
@@ -29,7 +30,9 @@ export interface DeskHost {
   country?(id: string): { code: string; currency: string };
   acceptCountry?(id: string, code: string): void;
   current(): string;
-  orders?(): {offerId:string;status:string}[];
+  orders?(): {id:string;offerId:string;status:string}[];
+  /** B4 task 7: the invoices of the open business, so an accepted price knows it was billed. */
+  invoices?(): {id:string;orderId:string}[];
   businessName(id: string): string;
   now(): string;
   /** The next receipt number, shared with the queue's receipts. */
@@ -44,6 +47,10 @@ export interface DeskHost {
   business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made'; passphrase?: string | undefined } | null;
   /** Whether this computer's protected storage can keep a business key. */
   deviceKeys(): boolean;
+  /** C5 task 19: how big the open business is. */
+  storeBytes?(): number;
+  /** C5 task 20: what the owner last decided. */
+  lastDecided?(): string | null;
   /** 4H2: whether this answers as the hosted web server. */
   hosted?(): boolean;
   /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
@@ -56,9 +63,10 @@ const DESK_METHODS = new Set([
   'venture.models.presets', 'venture.models.status', 'venture.models.connect', 'venture.models.disconnect',
   'venture.ai.options', 'venture.ai.status', 'venture.ai.connect', 'venture.ai.disconnect',
   'venture.blueprint.get', 'venture.blueprint.update', 'venture.price.quote',
-  'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
+  'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
-  'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.export',
+  'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.backups.inspect', 'workspace.transfer.export', 'workspace.export',
+  'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
   'trust.update',
 ]);
 /** The engine's move file format, in the sample. The real file is the encrypted vault, sealed under the move code. */
@@ -77,8 +85,32 @@ const SYNTHETIC = 'These answers come from a synthetic recording of GitHub, not 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const told = (value: string) => ({ value, label: 'told-by-you' as const, by: 'owner' as const });
 
+/** views/queue-actions.ts ACTION_WORDS, word for word. */
+const FAKE_PRICE_WORDS = {
+  back: (offer: string) => `You took back the new price for ${offer}.`,
+  inUse: 'Too late to undo: this price is already in use.',
+  planUndo: 'Your plan change is still a draft in the business menu. Accept it there.',
+} as const;
+
+/** The offers whose price or share differs between two versions (views/price-only.ts changedPrices). */
+function changedPrices(from: BlueprintLite, to: BlueprintLite): OfferLite[] {
+  return to.offers.filter((offer) => {
+    const before = from.offers.find((item) => item.id === offer.id);
+    return (before?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null);
+  });
+}
+
+/** B4 task 7: one price accepted on one press, and what its Undo needs. */
+interface PricePress {
+  businessId: string; blueprintId: string; offer: string; offerName: string; before: BlueprintViewLite;
+  shown: readonly (readonly [string, string | undefined])[]; quoted: boolean; orders: readonly string[]; invoices: readonly string[];
+}
+
 export class FakeBusinessDesk {
   private readonly host: DeskHost;
+  private readonly presses = new Map<string, PricePress>();
+  /** Rows accepted that asked more than one price: their Undo is refused (views/queue-actions.ts planUndo). */
+  private readonly planPresses = new Set<string>();
   private models: Record<string, ModelStatusLite>;
   private draftAi: ModelStatusLite;
   private blueprints: Record<string, BlueprintViewLite>;
@@ -158,6 +190,69 @@ export class FakeBusinessDesk {
     this.keepAccepted(businessId, view);
   }
 
+  /**
+   * B4 task 7, as views/price-only.ts priceOnlyOffer: the one offer whose price is all that changed between two versions,
+   * or null when anything else did. Two prices, or a price with any other change, keep the second ask.
+   */
+  private priceOnly(from: BlueprintLite, to: BlueprintLite): OfferLite | null {
+    const changed = changedPrices(from, to);
+    if (changed.length !== 1) return null;
+    const saying = (plan: BlueprintLite, offerId: string) => {
+      const { id: _id, at: _at, digest: _digest, status: _status, version: _version, source: _source, country: _country, ...rest } = plan;
+      return { ...rest, offers: rest.offers.map((offer) => {
+        if (offer.id !== offerId) return offer;
+        const { unitPriceMinor: _minor, unitPriceLabel: _label, share: _share, ...pricing } = offer.pricing;
+        return { ...offer, pricing };
+      }) };
+    };
+    const [offer] = changed as [OfferLite];
+    return this.host.digest(saying(from, offer.id)) === this.host.digest(saying(to, offer.id)) ? offer : null;
+  }
+
+  /** What the press on this row put aside, so its Undo restores it: taken before the plan row is accepted. */
+  pressed(rowId: string, businessId: string, blueprintId: string): boolean {
+    const view = this.blueprints[businessId];
+    const before = this.accepted[businessId];
+    const offer = view && before && view.blueprint.id === blueprintId ? this.priceOnly(before.blueprint, view.blueprint) : null;
+    if (!offer) { this.planPresses.add(rowId); return false; }
+    this.presses.set(rowId, {
+      businessId, blueprintId, offer: offer.id, offerName: offer.name.value, before: clone(before!),
+      shown: before!.blueprint.offers.map((item) => [item.id, this.prices[`accepted:${businessId}:${item.id}`]] as const),
+      quoted: false, ...this.usesNow(offer.id),
+    });
+    return true;
+  }
+
+  /** The orders and invoices of an offer so far (the engine reads their places in its record list). */
+  private usesNow(offerId: string): { orders: readonly string[]; invoices: readonly string[] } {
+    const orders = (this.host.orders?.() ?? []).filter((order) => order.offerId === offerId).map((order) => order.id);
+    return { orders, invoices: (this.host.invoices?.() ?? []).filter((invoice) => orders.includes(invoice.orderId)).map((invoice) => invoice.id) };
+  }
+
+  /**
+   * B4 task 7, as views/queue-actions.ts undoPriceAccept: the plan goes back to the previous version; this one is a draft
+   * again, so the same row comes back to decide anew. Null for a row with no such press, which the approvals desk answers.
+   */
+  undoPress(rowId: string): { restored: true; line: string; subject: string } | null {
+    if (this.planPresses.has(rowId)) throw new EngineError('UNDO_NOTHING', FAKE_PRICE_WORDS.planUndo);
+    const press = this.presses.get(rowId);
+    if (!press) return null;
+    const view = this.blueprints[press.businessId];
+    const uses = this.usesNow(press.offer);
+    const later = (now: readonly string[], then: readonly string[]) => now.some((id) => !then.includes(id));
+    if (!view || view.blueprint.id !== press.blueprintId || press.quoted || later(uses.orders, press.orders) || later(uses.invoices, press.invoices)) {
+      throw new EngineError('UNDO_TOO_LATE', FAKE_PRICE_WORDS.inUse);
+    }
+    this.presses.delete(rowId);
+    view.blueprint.status = 'draft';
+    this.accepted[press.businessId] = clone(press.before);
+    for (const [offerId, shown] of press.shown) {
+      if (shown === undefined) delete this.prices[`accepted:${press.businessId}:${offerId}`];
+      else this.prices[`accepted:${press.businessId}:${offerId}`] = shown;
+    }
+    return { restored: true, line: FAKE_PRICE_WORDS.back(press.offerName), subject: `plan:${press.businessId}` };
+  }
+
   private keepAccepted(businessId: string, view: BlueprintViewLite): void {
     this.accepted[businessId] = clone(view);
     for (const offer of view.blueprint.offers) {
@@ -206,11 +301,16 @@ export class FakeBusinessDesk {
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p, null);
       // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
-      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
+      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn, p.ownerSave === true ? true : undefined), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
-      case 'venture.build.status': return clone(this.buildOf(biz));
+      case 'venture.build.status': {
+        const build = this.buildOf(biz);
+        // The real Replit limit reads the compressed link (build/handoff.ts); the sample's briefs are short and always fit.
+        return clone({ ...build, linkFits: build.brief ? { lovable: true, replit: true } : null });
+      }
       case 'venture.build.brief': return this.brief(biz);
       case 'venture.build.handoff': return this.handoff(biz, p.builder);
+      case 'venture.build.briefFile': return this.briefFile(biz, p.builder);
       case 'venture.build.handoffOpened': {
         const handoff = this.buildOf(biz).handoffs.find((h) => h.id === p.handoffId);
         if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This copy is not on this computer.');
@@ -226,6 +326,10 @@ export class FakeBusinessDesk {
       case 'workspace.backups.list': return { backups: clone(this.backupsOf(biz)), more: false };
       case 'workspace.backups.create': return clone(this.addBackup(biz, 'manual'));
       case 'workspace.backups.restore': return this.restoreBackup(biz, p);
+      // C5 task 24: the rehearsal has no Google client, as a build has none until the founder registers one.
+      case 'workspace.backups.drive.status': case 'workspace.backups.drive.connect': case 'workspace.backups.drive.disconnect':
+        throw new EngineError('DRIVE_NOT_SET_UP', "Google Drive needs Chausar's Google sign-in set up first. Until then, pick your Google Drive folder under Keep a copy on a drive.");
+      case 'workspace.backups.inspect': return this.inspectBackup(biz, p);
       case 'trust.update': {
         // trust.ts updatePolicy: only known fields, and send is one of three.
         if (Object.keys(p).some((key) => key !== 'send') || !['nothing', 'shape', 'samples'].includes(p.send as string)) throw new EngineError('INVALID_POLICY', 'Choose nothing, shape, or samples.');
@@ -238,7 +342,7 @@ export class FakeBusinessDesk {
         const plaintext = p.plaintext === true;
         const path = `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`;
         (this.exports[biz] ??= []).push(path);
-        return { path, encrypted: !plaintext };
+        return { path, name: path.split('/').pop()!, encrypted: !plaintext };
       }
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
@@ -367,7 +471,7 @@ export class FakeBusinessDesk {
     return view;
   }
 
-  private update(biz: string, raw: unknown, basedOn?: unknown): BlueprintViewLite {
+  private update(biz: string, raw: unknown, basedOn?: unknown, ownerSave?: true): BlueprintViewLite {
     const view = this.planOf(biz);
     const patch = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     if (Object.keys(patch).length === 0) throw invalid('Change at least one thing.');
@@ -393,6 +497,24 @@ export class FakeBusinessDesk {
       resetCountry(next, country.code, beforeCountry.code);
     }
     next.country = country;
+    // C5 task 13 (core/blueprint.ts applyTaxPatch, core/tax-fields.ts): I charge GST, its rate and the GSTIN.
+    if (patch.taxRegistered !== undefined) {
+      if (typeof patch.taxRegistered !== 'boolean') throw invalid('Say yes or no to charging tax.');
+      next.backOffice.taxRegistered = { value: patch.taxRegistered, label: 'told-by-you', by: 'owner' };
+      if (!patch.taxRegistered) { next.backOffice.taxRateBps = '0'; next.backOffice.taxRateBy = 'not-registered'; }
+    }
+    if (patch.taxRate !== undefined) {
+      if (!next.backOffice.taxRegistered.value) throw new EngineError('INVALID_TAX_RATE', 'Turn tax on before you set a rate.');
+      const match = /^(\d{1,2})(?:\.(\d{1,2}))?$/.exec(String(patch.taxRate).trim());
+      if (!match) throw new EngineError('INVALID_TAX_RATE', 'Type the rate as a percent, like 18.');
+      next.backOffice.taxRateBps = String(Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')));
+      next.backOffice.taxRateBy = 'told-by-you';
+    }
+    if (patch.taxId !== undefined) {
+      const cleaned = patch.taxId === null ? null : String(patch.taxId).toUpperCase().replace(/\s+/g, '');
+      if (cleaned !== null && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(cleaned)) throw new EngineError('INVALID_TAX_ID', 'Check your GSTIN.');
+      next.backOffice.taxId = cleaned;
+    }
     if (patch.name !== undefined) next.name = told(text(patch.name, 60, 'The name'));
     if (patch.oneLiner !== undefined) next.oneLiner = told(text(patch.oneLiner, 160, 'The one line'));
     if (patch.customer !== undefined) next.customer = told(text(patch.customer, 200, "Who it's for"));
@@ -473,9 +595,65 @@ export class FakeBusinessDesk {
       blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])),
       ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: {...clone(view.intake),...Object.fromEntries(next.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer&&view.playbook?.id==='youtube').map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))} } : {}),
     };
+    // C4 task 33, as core/owner-price.ts: the owner's own price on an accepted plan applies at once, with an Undo.
+    const decided = ownerSave === true ? this.ownerPrice(biz, patch, basedOn, view.blueprint, next) : null;
+    if (decided) {
+      this.accept(biz, next.id);
+      this.host.setRows(this.host.rows().filter((r) => !(r.businessId === biz && r.viewRef?.kind === 'plan')));
+      this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
+      return { ...clone(this.blueprints[biz]!), decided };
+    }
     this.planRow(biz, next);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
     return clone(this.blueprints[biz]!);
+  }
+
+  /** C4 task 33: the owner's applied prices by Undo row id, with what it puts back and what counts as a use. */
+  private ownPrices = new Map<string, { biz: string; appliedId: string; before: BlueprintViewLite; shown: Record<string, string | undefined>; names: string[]; orders: number; used: boolean; undone: boolean }>();
+
+  private ownerPrice(biz: string, patch: Record<string, unknown>, basedOn: unknown, latest: BlueprintLite, next: BlueprintLite): { line: string; undoRowId: string } | null {
+    const accepted = this.accepted[biz]?.blueprint;
+    const shape = basedOn === undefined && Object.keys(patch).length === 1 && Array.isArray(patch.offers)
+      && (patch.offers as unknown[]).every((change) => !!change && typeof change === 'object' && Object.keys(change).every((key) => key === 'id' || key === 'unitPrice') && Object.hasOwn(change, 'unitPrice'));
+    if (!shape || !accepted || latest.status !== 'accepted' || accepted.id !== latest.id) return null;
+    const changes = next.offers.filter((offer) => (latest.offers.find((item) => item.id === offer.id)?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor);
+    if (!changes.length) return null;
+    const unit: Record<string, string> = { month: 'a month', project: 'a project', hour: 'an hour' };
+    const words = (offer: OfferLite) => `${offer.pricing.unitPriceMinor === null ? 'no price' : formatMoney(offer.pricing.unitPriceMinor, next.backOffice.currency)} ${unit[offer.pricing.quantityUnit] ?? `per ${offer.pricing.quantityUnit}`}`;
+    const names = changes.map((offer) => offer.name.value);
+    const listed = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+    const undoRowId = `price-set:${biz}:${next.id}`;
+    const orders = (this.host.orders?.() ?? []).filter((order) => changes.some((offer) => offer.id === order.offerId)).length;
+    const shown = Object.fromEntries(accepted.offers.map((offer) => [offer.id, this.prices[`accepted:${biz}:${offer.id}`]]));
+    this.ownPrices.set(undoRowId, { biz, appliedId: next.id, before: clone(this.accepted[biz]!), shown, names, orders, used: false, undone: false });
+    return { line: changes.length === 1 ? `You set the price of ${listed} to ${words(changes[0]!)}.` : `You set new prices for ${listed}.`, undoRowId };
+  }
+
+  /** venture.queue.undo for an owner's price (fake.ts routes it here): puts back exactly the version before. */
+  undoOwnerPrice(rowId: string): { restored: boolean; line: string } {
+    const own = this.ownPrices.get(rowId);
+    if (!own || own.undone) throw new EngineError('UNDO_NOTHING', 'Nothing to undo here.');
+    const now = this.blueprints[own.biz];
+    const orders = (this.host.orders?.() ?? []).filter((order) => own.before.blueprint.offers.some((offer) => offer.id === order.offerId && own.names.includes(offer.name.value))).length;
+    if (!now || now.blueprint.id !== own.appliedId || own.used || orders > own.orders) throw new EngineError('UNDO_TOO_LATE', 'Too late to undo: the new price is in use or the plan changed since.');
+    const restored = clone(own.before);
+    restored.blueprint.version = now.blueprint.version + 1;
+    restored.blueprint.id = `bp-${own.biz}-${restored.blueprint.version}`;
+    restored.blueprint.at = this.host.now();
+    restored.blueprint.status = 'accepted';
+    restored.blueprint.digest = this.host.digest({ ...restored.blueprint, digest: '' });
+    restored.offerReceipts = Object.fromEntries(restored.blueprint.offers.map((o) => [o.id, null]));
+    for (const offer of restored.blueprint.offers) {
+      const shown = own.shown[offer.id];
+      delete this.prices[`${own.biz}:${offer.id}`];
+      if (shown) this.prices[`${own.biz}:${offer.id}`] = shown;
+    }
+    this.blueprints[own.biz] = restored;
+    own.undone = true;
+    this.accept(own.biz, restored.blueprint.id);
+    this.host.emit({ type: 'queue.changed', businessId: own.biz, at: this.host.now() });
+    const listed = own.names.length === 1 ? own.names[0]! : `${own.names.slice(0, -1).join(', ')} and ${own.names.at(-1)}`;
+    return { restored: true, line: `You took back the new price${own.names.length === 1 ? '' : 's'} for ${listed}.` };
   }
 
   private priceText(offer: OfferLite | undefined, key: string): string {
@@ -495,11 +673,8 @@ export class FakeBusinessDesk {
     const accepted = this.accepted[biz]?.blueprint;
     const base = { id: `q-plan-${biz}-v${latest.version}`, businessId: biz, businessName: this.host.businessName(biz), createdAt: latest.at, line: latest.oneLiner.value, viewRef: { kind: 'plan' as const, id: latest.id } };
     let seed: Omit<QueueRow, 'digest'>;
-    const changes = accepted ? latest.offers.filter((o) => {
-      const before = accepted.offers.find((a) => a.id === o.id);
-      // 5A2: setting or changing a share is a price change too.
-      return (before?.pricing.unitPriceMinor ?? null) !== o.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (o.pricing.share?.bps ?? null);
-    }) : [];
+    // 5A2: setting or changing a share is a price change too.
+    const changes = accepted ? changedPrices(accepted, latest) : [];
     if (!accepted) {
       seed = { ...base, kind: 'plan', title: 'Your plan is ready. Read it.', actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }] };
     } else if (changes.length === 0) {
@@ -510,7 +685,8 @@ export class FakeBusinessDesk {
         ...base, kind: 'price', title: changes.length === 1 ? `New price for ${first.name.value}` : 'New prices in your plan',
         line: rest.length ? `Also changes ${rest.map((o) => o.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
         change: { label: first.name.value, before: this.priceText(accepted.offers.find((a) => a.id === first.id), `accepted:${biz}:${first.id}`), after: this.priceText(first, `${biz}:${first.id}`) },
-        actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, secondAsk: true }],
+        // B4 task 7: one price and nothing else is one press on the price the row shows.
+        actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, ...(this.priceOnly(accepted!, latest) ? {} : { secondAsk: true }) }],
       };
     }
     this.host.setRows([...rows, { ...seed, digest: this.host.digest(seed) }]);
@@ -548,6 +724,10 @@ export class FakeBusinessDesk {
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);
+    // B4 task 7: a quote after the press uses the price, so its Undo is too late (views/price-only.ts priceInUse).
+    for (const press of this.presses.values()) if (press.businessId === biz && press.offer === offer.id) press.quoted = true;
+    // C4 task 33: a quote at another quantity than the usual one uses the owner's new price, so its Undo leaves.
+    if (quantityText !== offer.pricing.defaultQuantity) for (const own of this.ownPrices.values()) if (own.biz === biz && own.appliedId === view.blueprint.id) own.used = true;
     this.host.quote?.({ receiptId: receipt.id, at: receipt.at, offer: offer.name.value, quantity: quantityText, value: showMinor(unit * quantity), currency: view.blueprint.backOffice.currency, beforeTaxMinor: String(unit * quantity), explanation: receipt.explanation });
     view.offerReceipts[offer.id] = receipt;
     // B3: as the engine's price-quoted, one queue.changed tells every screen.
@@ -581,7 +761,7 @@ export class FakeBusinessDesk {
   }
 
   private addBackup(biz: string, kind: BackupLite['kind']): BackupLite {
-    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true };
+    const backup: BackupLite = { file: `chausar-${biz}-${++this.seq}.backup`, kind, at: this.host.now(), revision: this.seq, bytes: 48_211, name: this.host.businessName(biz), opensNow: true, ...(this.host.lastDecided?.() ? { after: this.host.lastDecided!()! } : {}) };
     this.backupsOf(biz).unshift(backup);
     return backup;
   }
@@ -599,15 +779,48 @@ export class FakeBusinessDesk {
     return { workspace: { id: biz, name: this.host.businessName(biz) }, restoredFrom: clone(restoredFrom), safety: clone(safety) };
   }
 
+  /**
+   * One-shot C6, workspace.backups.inspect: the same checks as a restore, then what the backup holds and what changed
+   * since, from the sample's own snapshots: the samples carry fixed contents; a copy made in this session holds the
+   * newest sample's contents with nothing changed since.
+   */
+  private inspectBackup(biz: string, p: Record<string, unknown>): BackupInspectLite {
+    const backup = this.backupsOf(biz).find((b) => b.file === p.file);
+    if (!backup) {
+      const elsewhere = Object.entries(this.backups).some(([other, list]) => other !== biz && list.some((b) => b.file === p.file));
+      throw elsewhere ? new EngineError('BACKUP_OTHER_BUSINESS', CUSTODY_ERROR_WORDS.BACKUP_OTHER_BUSINESS) : new EngineError('BACKUP_NOT_FOUND', CUSTODY_ERROR_WORDS.BACKUP_NOT_FOUND);
+    }
+    const count = (kind: string, n: number) => ({ kind, words: kind, count: n });
+    const change = (kind: string, added: number, changed: number, removed = 0) => ({ kind, words: kind, added, changed, removed });
+    // In the engine's order (venture/views/backup-diff.ts BACKUP_KIND_WORDS).
+    const counts = [count('clients', 3), count('orders', 12), count('invoices', 4), count('payments', 3)];
+    const sample: Record<string, BackupInspectLite['since']> = {
+      auto: [change('clients', 0, 1), change('orders', 2, 0), change('invoices', 1, 0)],
+      safety: [change('clients', 1, 1), change('orders', 3, 1), change('invoices', 1, 1)],
+      manual: [change('clients', 1, 1), change('orders', 5, 2), change('invoices', 2, 1), change('payments', 1, 0)],
+    };
+    const fromSample = backup.file === `chausar-${biz}-${backup.kind}.backup`;
+    return { file: backup.file, at: backup.at, counts, since: fromSample ? clone(sample[backup.kind] ?? []) : [] };
+  }
+
   /** workspace.transfer.export: one file and one code. A business locked with a passphrase needs it. */
-  private moveFile(biz: string, p: Record<string, unknown>): MoveFile {
+  /** C4 task 38: when a move file was made, by business, until the owner dismisses the line. */
+  private moveMade: Record<string, string | null> = {};
+
+  private moveFile(biz: string, p: Record<string, unknown>): MoveFile | { dismissed: true } {
+    if (Object.hasOwn(p, 'dismiss')) {
+      if (p.dismiss !== true || Object.keys(p).length !== 1) throw new EngineError('INVALID_REQUEST', 'Send dismiss: true to take the line away.');
+      this.moveMade[biz] = null;
+      return { dismissed: true };
+    }
     const held = this.heldOrThrow(biz);
     if (held.opens === 'needs-passphrase' && !(typeof p.passphrase === 'string' && p.passphrase === held.passphrase)) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
     const madeAt = this.host.now();
+    this.moveMade[biz] = madeAt;
     const text = JSON.stringify({ backupFormat: SAMPLE_MOVE_FORMAT, business: biz, name: this.host.businessName(biz), madeAt });
     // A4 review (L3): named by this computer's own date, as the engine's moveFileName.
     const at = new Date(madeAt), day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-    return { fileName: `chausar-move-${day}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
+    return { fileName: `chausar-move-${day}.chausar-move`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
   }
 
   private custodyView(biz: string): CustodyViewLite {
@@ -622,7 +835,14 @@ export class FakeBusinessDesk {
       computer,
       business: {
         folder: biz, unlock: held.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', recovery: held.recovery, storage: 'experimental-file',
-        backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null },
+        backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null, copy: null },
+        storeBytes: this.host.storeBytes?.() ?? 4_300_000, storeLimit: 32 * 1024 * 1024,
+        // C4 task 36, as the engine: the name the desktop's save dialog offers.
+        exportName: exportFileName(this.host.businessName(biz), new Date(this.host.now()), 'Asia/Kolkata', false),
+        // C4 task 37: the copies in Chausar's own exports folder.
+        exportsHere: (this.exports[biz] ?? []).length,
+        // C4 task 38: the move file made, until dismissed.
+        moveMadeAt: this.moveMade[biz] ?? null,
       },
     };
   }
@@ -706,6 +926,19 @@ export class FakeBusinessDesk {
       handoffId, builder: id, mode: link ? 'link' : 'copy', url, clipboardText: link ? null : brief.markdown,
       notes: [...(id === 'lovable' ? HANDOFF_NOTES.lovable : id === 'replit' ? HANDOFF_NOTES.replit : HANDOFF_NOTES.copy)], label: 'handoff', status: 'available',
     };
+  }
+
+  /** C5 task 35: the same gates and shapes as the engine (build/handoff.ts). */
+  private briefFile(biz: string, builder: unknown) {
+    if (builder !== 'lovable' && builder !== 'replit') throw invalid('Choose Lovable or Replit.');
+    const build = this.buildOf(biz);
+    const brief = build.brief;
+    if (!brief) throw new EngineError('BRIEF_NOT_FOUND', 'Write the build brief first.');
+    if (!brief.lint.ok) throw new EngineError('BRIEF_LINT_FAILED', brief.lint.findings[0]?.message ?? 'The brief did not pass its checks.');
+    const handoffId = `ho-${biz}-${++this.seq}`;
+    build.handoffs.unshift({ id: handoffId, at: this.host.now(), builder, mode: 'file', openedAt: null });
+    const note = `chausar-brief-id: ${brief.briefId}\nMoney numbers come from Chausar. Do not compute totals or tax.\n`;
+    return { handoffId, builder, files: [{ name: 'website-brief.md', text: brief.markdown }, { name: builder === 'lovable' ? 'AGENTS.md' : 'replit.md', text: note }] };
   }
 
   private link(biz: string, p: Record<string, unknown>) {

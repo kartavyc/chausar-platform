@@ -1,5 +1,5 @@
 /**
- * Work, in the direction D look (docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): what the team is doing
+ * Work, in the direction D look (chausar-private/docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): what the team is doing
  * and has done, and every order. Filter chips under the title, held in the address (#/work?state=waiting|active|
  * failed|done, plus orders for every order, and business=<id> when runs come from more than one business). Running now
  * as tiles with rings, the failed run with what went wrong and Run again beside Finished, then orders grouped by
@@ -34,15 +34,18 @@ import { Finished, superseded } from './PreviousRuns';
 import { RunTiles } from './RunTiles';
 import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
+import { DraftSheet } from './DraftSheet';
 import s from './Work.module.css';
 import { Ideas } from './Ideas';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { Trackers } from './Trackers';
 
 /** The filters the address can hold. `orders` (every order, paid and cancelled too) has no chip; the order focus's
- *  "All orders" link leads there. `ideas` (Ink v2 wave 5, 5A3) is the idea pipeline, where Today's grade card leads. */
-export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders', 'ideas'] as const;
+ *  "All orders" link leads there. `?state=ideas` (5A3) is the Ideas page (Place below), where Today's grade card leads. */
+export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders', 'trackers'] as const;
 export type WorkFilter = 'all' | (typeof FILTERS)[number];
-/** The chips, in D's order: All, Needs you, Running, Failed, Done; then Ideas (5A3). */
-const CHIPS = ['all', 'waiting', 'active', 'failed', 'done', 'ideas'] as const;
+/** The chips, in D's order: All, Needs you, Running, Failed, Done, then C7's Trackers. Ideas (5A3) is its own page (C1 task 5), not a filter. */
+const CHIPS = ['all', 'waiting', 'active', 'failed', 'done', 'trackers'] as const;
 
 export function readFilter(value: string | undefined): WorkFilter {
   return (FILTERS as readonly string[]).includes(value ?? '') ? (value as WorkFilter) : 'all';
@@ -90,7 +93,27 @@ function Orders({ views, meta, children }: { views: OrderView[]; meta?: string |
   );
 }
 
+/**
+ * Work, or its Ideas page: `#/work/ideas`, and `?state=ideas`, which the engine's notices link to (C1 task 5).
+ */
 export function Place() {
+  const route = useRoute();
+  return route.sub === 'ideas' || route.query.state === 'ideas' ? <IdeasPage /> : <WorkPage />;
+}
+
+/** The idea pipeline on its own page, under the title Ideas, with a quiet way back to Work. */
+function IdeasPage() {
+  const t = useT();
+  return (
+    <>
+      <a className={s.back} href="#/work" data-back="">{t('kit-rules.back')}</a>
+      <PageTitle title={t('kit-rules.chip')} />
+      <Ideas />
+    </>
+  );
+}
+
+function WorkPage() {
   const t = useT();
   const route = useRoute();
   const filter = readFilter(route.query.state);
@@ -163,8 +186,8 @@ export function Place() {
     content = runs.data && (failed.length > 0 ? failedTiles(failed) : <EmptyState title={t('work.none.failed')} />);
   } else if (filter === 'done') {
     content = runs.data && (done.length > 0 ? finished(done, false) : <EmptyState title={t('work.none.done')} />);
-  } else if (filter === 'ideas') {
-    content = <Ideas />; // 5A3: the idea pipeline
+  } else if (filter === 'trackers') {
+    content = <Trackers />; // C7: trackers the owner makes
   } else if (filter === 'orders') {
     content = ordersReady && (views.length > 0 && ordersHere ? <Orders views={views}>{orderList}</Orders> : <EmptyState title={t('work.none.orders')} />);
     // W5 5A1: the business's own desk, where its orders are.
@@ -201,7 +224,16 @@ export function Place() {
     ? headerLine(t, going.length, failedOpen.length, counted.length, new Set(counted.map((v) => v.order.clientId)).size, stoppedRuns.length)
     : undefined;
 
-  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(id === 'ideas' ? 'kit-rules.chip' : `work.filter.${id}`) }));
+  // B4 task 6: a chip with nothing behind it goes (Failed only when something failed). These numbers decide; the line
+  // under the title says them. Until the lists are read every chip stays, so the row does not change as they arrive.
+  const known = Boolean(runs.data) && ordersReady;
+  const chipCount: Partial<Record<(typeof CHIPS)[number], number>> = known ? {
+    waiting: waiting.length + stoppedRuns.length + (ordersHere ? current.filter(waitsOnYou).length : 0),
+    active: going.length,
+    failed: failed.length,
+    done: done.length,
+  } : {};
+  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(`work.filter.${id}`), count: chipCount[id] }));
   const businessChips: FilterOption[] = offerBusinesses
     ? businessIds.map((id) => ({ id, label: names.get(id)!, business: true }))
     : [];
@@ -214,10 +246,13 @@ export function Place() {
       <PausedNote />
       <div className={s.toolbar}>
         <div className={s.chips}>
-          <FilterChips
-            label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} className={s.chipGroup}
-            onChange={(id) => navigate(routeFor(route, id as WorkFilter, business))}
-          />
+          {/* A new business has nothing to filter; a filter in the address keeps the row, as the way back. */}
+          {!(empty && filter === 'all' && focus === undefined) && (
+            <FilterChips
+              label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} drawCounts={false} className={s.chipGroup}
+              onChange={(id) => navigate(routeFor(route, id as WorkFilter, business))}
+            />
+          )}
           {businessChips.length > 0 && (
             <FilterChips
               label={t('work.filter.business')} options={businessChips} value={business ?? ''} className={s.chipGroup}
@@ -225,15 +260,19 @@ export function Place() {
             />
           )}
         </div>
-        <Button onClick={(event) => openSheet('new-order', 'new', event.currentTarget)}>
-          <Icon name="plus" size={16} />
-          {t('work.new')}
-        </Button>
+        <span className={s.toolbarEnd}>
+          {/* C1 task 5: the idea pipeline is a page of its own, one quiet link away. */}
+          <a className={s.ideasLink} href="#/work/ideas">{t('kit-rules.chip')}</a>
+          <Button onClick={(event) => openSheet('new-order', 'new', event.currentTarget)}>
+            <Icon name="plus" size={16} />
+            {t('work.new')}
+          </Button>
+        </span>
       </div>
       {failures.map((e) => <p key={`${e.code}:${e.message}`} className={s.problem} role="status">{t('work.loadFailed', { message: e.message })}</p>)}
-      <div className={s.sections}>{content}</div>
+      <div className={s.sections}>{content}<LoadingPlace shape="list" loading={!runs.data && !runs.error} /></div>
     </>
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { 'new-order': NewOrderSheet };
+export const sheets: Readonly<Record<string, SheetComponent>> = { 'new-order': NewOrderSheet, draft: DraftSheet };

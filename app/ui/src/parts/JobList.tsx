@@ -6,6 +6,9 @@ import { EmptyState } from './EmptyState';
 import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
 import { Row } from './Row';
+import { useWaitingWords } from './run-time';
+import { useDay } from './when';
+import { openSheet } from '../shell/navigation';
 import type { RunState, RunSummary } from '../engine/types';
 import s from './JobList.module.css';
 
@@ -29,6 +32,8 @@ const RINGS: Readonly<Record<RunState, AvatarState>> = { active: 'working', wait
 export function JobList({ runs, onOpen, onRunAgain }: JobListProps) {
   const t = useT();
   const id = useId();
+  const day = useDay('short');
+  const waitingWords = useWaitingWords();
   const active = runs.filter((r) => r.state === 'active' || r.state === 'waiting');
   const previous = runs.filter((r) => r.state === 'done' || r.state === 'failed');
   if (active.length === 0 && previous.length === 0) return <EmptyState title={t('jobs.none')} />;
@@ -68,7 +73,9 @@ export function JobList({ runs, onOpen, onRunAgain }: JobListProps) {
   /** The sub line of a previous run: its agent, then what came of it (a failure in fail words). */
   const result = (run: RunSummary) => {
     const outcome = run.state === 'failed' ? <span className={s.failure}>{run.result ?? t('run.stopped')}</span> : run.result;
-    return outcome === undefined ? run.agent : <>{run.agent}{' · '}{outcome}</>;
+    // C4 task 12: a finished run says who it was for, as a link to their sheet.
+    const who = run.state === 'done' && run.client ? <>{' · '}<button type="button" className={s.client} onClick={(event) => openSheet('client', run.client!.id, event.currentTarget)}>{run.client.name}</button></> : null;
+    return outcome === undefined && !who ? run.agent : <>{run.agent}{who}{outcome === undefined ? null : <>{' · '}{outcome}</>}</>;
   };
 
   const proof = (run: RunSummary) => {
@@ -87,7 +94,7 @@ export function JobList({ runs, onOpen, onRunAgain }: JobListProps) {
             {active.map((run) => (
               <Row
                 key={run.runId} id={run.runId} mark={mark(run)} title={run.purpose} line={run.agent} onOpen={open(run)}
-                aside={progress(run)} end={run.state === 'waiting' ? t('run.paused') : run.elapsed}
+                aside={progress(run)} end={run.state === 'waiting' ? waitingWords(run) ?? t('run.paused') : run.elapsed}
               />
             ))}
           </ul>
@@ -102,7 +109,7 @@ export function JobList({ runs, onOpen, onRunAgain }: JobListProps) {
                 key={run.runId} id={run.runId} mark={mark(run)} title={run.purpose} line={result(run)} onOpen={open(run)} dense
                 aside={proof(run)}
                 actions={run.state === 'failed' && onRunAgain ? <Button size="sm" data-key="primary" onClick={() => onRunAgain(run)}>{t('run.again')}</Button> : undefined}
-                end={run.elapsed}
+                end={[run.state === 'done' ? day(run.startedAt) : '', run.elapsed].filter(Boolean).join(' · ')}
               />
             ))}
           </ul>

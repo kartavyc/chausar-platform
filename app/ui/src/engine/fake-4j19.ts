@@ -80,7 +80,7 @@ export function withFakeMeta(rows: QueueRow[]): QueueRow[] {
   });
 }
 
-type Undo = { kind: 'edit' | 'send-back'; row: QueueRow; madeId: string | null; runId: string | null; held?: Pick<DeliveryLite, 'canAccept' | 'acceptBlocked'> };
+type Undo = { kind: 'edit' | 'send-back' | 'reject'; row: QueueRow; madeId: string | null; runId: string | null; held?: Pick<DeliveryLite, 'canAccept' | 'acceptBlocked'>; prior?: DeliveryLite };
 const ID_OK = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 400;
 
 /** The fake's answers, as the engine's queue-actions, revise, changes, triage and decisions modules give them. */
@@ -118,12 +118,30 @@ export class FakeApprovalsDesk {
         const receipt=this.host.workReceipt?.(p.id);if(receipt)return structuredClone(receipt);
         throw new EngineError('WORK_RECEIPT_NOT_FOUND', 'That work receipt was not found.');
       }
-      case 'venture.decisions.list': return { decisions: structuredClone(this.decisions).reverse() };
+      case 'venture.decisions.list': return { decisions: structuredClone(this.decisions).reverse().map((item) => ({ ...item, opens: this.opensOf(item) })) };
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
   private now(): string { return this.host.now(); }
+
+  /** C4 (T26): what a decision opens, as journal/decisions.ts opensOf works it out: by its subject, null once it has gone. */
+  private opensOf(item: DecisionView): DecisionView['opens'] {
+    const at = item.subject.indexOf(':');
+    if (at < 0) return null;
+    const kind = item.subject.slice(0, at), id = item.subject.slice(at + 1);
+    const among = (method: string) => {
+      try { return (this.host.ask(method, {}) as { id: string }[]).some((row) => row.id === id); } catch { return false; }
+    };
+    switch (kind) {
+      case 'run': return among('venture.delivery.list') ? { kind: 'run', id } : null;
+      case 'order': return among('venture.order.list') ? { kind: 'order', id } : null;
+      case 'client': return among('venture.client.list') ? { kind: 'client', id } : null;
+      case 'invoice': return { kind: 'invoice', id };
+      case 'plan': return { kind: /^(?:Price of |New prices? )/.test(item.reason) ? 'price' : 'plan', id };
+      default: return null;
+    }
+  }
 
   /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
   noteDecision(subject: string, action: string, reason: string): void { this.record(subject, action, reason, `You decided: ${reason}`); }
@@ -230,10 +248,31 @@ export class FakeApprovalsDesk {
     try { host.reviseDelivery?.(runId, change); } catch { /* a sample row whose draft is not in the delivery list keeps no text */ }
   }
 
+  /** C4 task 15: a draft's Reject on Today (fake.ts decide), which can be taken back until the agent acts on it. */
+  rejected(row: QueueRow, runId: string, prior: DeliveryLite): void {
+    this.undos.set(row.id, { kind: 'reject', row, madeId: null, runId, prior });
+    this.record(`run:${runId}`, 'rejected', 'Draft rejected.', 'You decided: Draft rejected.');
+  }
+
   private undo(p: Record<string, unknown>): { restored: boolean; line: string } {
     if (!ID_OK(p.rowId)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the row to undo.');
     const undo = this.undos.get(p.rowId);
     if (!undo) throw new EngineError('UNDO_NOTHING', FAKE_4J19_WORDS.nothing);
+    if (undo.kind === 'reject') {
+      // As views/queue-actions.ts undoReject: until a newer run of the order, or anything that moved the draft on.
+      const list = this.host.ask('venture.delivery.list', {}) as DeliveryLite[];
+      const run = list.find((item) => item.id === undo.runId);
+      if (!run || run.status !== 'rejected' || list.some((item) => item.orderId === run.orderId && item.id !== run.id && item.at >= run.at)) throw new EngineError('UNDO_TOO_LATE', 'Too late to undo: this draft moved on since you rejected it.');
+      this.undos.delete(p.rowId);
+      const prior = undo.prior!;
+      this.revise(run.id, () => structuredClone(prior));
+      const { digest: _old, ...seen } = undo.row;
+      const again: QueueRow = { ...seen, id: `${undo.row.id}-r${(this.seq += 1)}`, createdAt: this.now(), digest: '' };
+      again.digest = this.host.digest({ ...again, digest: undefined });
+      this.record(`run:${run.id}`, 'undo', 'You took back the reject.', 'You decided: You took back the reject.');
+      this.remove('', again);
+      return { restored: true, line: FAKE_4J19_WORDS.restored };
+    }
     if (undo.madeId && !this.host.rows().some((row) => row.id === undo.madeId)) throw new EngineError('UNDO_TOO_LATE', 'Too late to undo: this draft moved on since your edit.');
     this.undos.delete(p.rowId);
     if (undo.kind === 'edit' && undo.runId) this.revise(undo.runId, (run) => ({ ...run, editedText: null, ...(undo.held ?? {}) }));

@@ -10,6 +10,8 @@ const VENTURE_EVENT_TYPES = Object.freeze([
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
   // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed; ids only.
   'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
+  // One-shot C3 task 9: which step long work is on. No seq; its own fields; businessId '' before a business is open.
+  'work.step',
 ]);
 // Ink v2 wave 4 channel (package 4-0 named it): the desktop reads one of the owner's network files on this computer in a
 // worker and hands the window only what Chausar keeps (4D1, network-files.cjs). The count of things that need the owner
@@ -28,11 +30,22 @@ const BACKGROUND_SET_CHANNEL = 'chausar:background:set';
 // A5 fix round 3: the day the owner put Today's start-at-login question aside; it changes nothing else.
 const BACKGROUND_LATER_GET_CHANNEL = 'chausar:background:later:get';
 const BACKGROUND_LATER_SET_CHANNEL = 'chausar:background:later:set';
+// C5 task 26: the window says once that it has painted; the start-up timeline's last step (main.cjs).
+const FIRST_PAINT_CHANNEL = 'chausar:first-paint';
+// C5 task 27: Export diagnostics. The window reads what's inside, with crash files only when ticked, then saves that preview by its id.
+const DIAGNOSTICS_PREVIEW_CHANNEL = 'chausar:diagnostics:preview';
+const DIAGNOSTICS_SAVE_CHANNEL = 'chausar:diagnostics:save';
+// C5 task 32: Show installer: the window names only which release; main checks it again and shows it in the file manager.
+const UPDATE_SHOW_CHANNEL = 'chausar:updates:showInstaller';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
-  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset',
+  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect', 'workspace.backups.inspect',
+  // One-shot C3: the app's own preferences on this computer (APP_PREFERENCE_METHODS, platform/runtime/app-preferences.ts).
+  'app.preferences.get', 'app.preferences.set',
+  // One-shot C3: which step long work is on, for a page opened mid-job (ENGINE_METHODS, answered by the engine).
+  'venture.work.list',
   'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
   'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
   'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
@@ -60,7 +73,7 @@ const METHODS = Object.freeze([
   'speech.list', 'speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe', 'activity.list',
   'learning.list', 'learning.log', 'learning.preview', 'learning.consent', 'learning.sharing', 'learning.share',
   'plugins.list', 'plugins.install', 'plugins.enable', 'plugins.disable', 'plugins.remove', 'plugins.run', 'plugins.miniapp',
-  'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.verify', 'updates.stage',
+  'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.settings', 'updates.check', 'updates.verify', 'updates.stage',
   'venture.countries', 'venture.preview',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
@@ -68,10 +81,31 @@ const METHODS = Object.freeze([
   'venture.needs.list',
   // A2: the owner's yes to the Codex found on this computer (engine.ts answers it, with or without a vault).
   'venture.ai.setup.trust',
+  'venture.agents.hire.duties',
+  'venture.events.calKey.set',
+  'venture.events.relay.set',
+  'venture.events.get',
+  'venture.agents.hire.cancel',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.start',
+  'venture.trackers.rows.undo',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.add',
+  'venture.trackers.remove',
+  'venture.trackers.set',
+  'venture.trackers.get',
+  'venture.trackers.list',
+  // C7: What's new, once per version on this computer (engine.ts answers it before any vault).
+  'whatsNew.get', 'whatsNew.seen',
+  'venture.routines.backup.set',
+  'venture.routines.backup.get',
+  'venture.models.plan',
   'venture.create', 'venture.get', 'venture.events', 'venture.interview.next',
   'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
   'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
-  'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
+  'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
   'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.spend.list', 'venture.build.brief',
   'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
   'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
@@ -105,6 +139,20 @@ const METHODS = Object.freeze([
   'venture.chief.thread.state', 'venture.chief.settle.set',
   // W6 6H3: a place's layout.
   'venture.layout.get', 'venture.layout.change',
+  // C2: the command bar's find.
+  'venture.find',
+  'venture.diagnostics.today',
+  'venture.build.briefFile',
+  'venture.accountant.pack.done',
+  'venture.accountant.schedule.set',
+  'venture.accountant.schedule.get',
+  'venture.accountant.set',
+  'venture.accountant.get',
+  'venture.notify.telegram.findChat',
+  'venture.client.aiDefault.set',
+  'venture.client.aiDefault.get',
+  'venture.away.preview',
+  'venture.team.introduced',
   // Wave 6 (6H2): recorded flows
   'venture.flows.list', 'venture.flows.act',
   'venture.proposals.raise', 'venture.proposals.dismiss',
@@ -154,7 +202,7 @@ const METHODS = Object.freeze([
   'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
   // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
   'venture.order.chain',
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list', 'venture.goNoGo.remove',
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
   'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
@@ -163,12 +211,16 @@ const METHODS = Object.freeze([
   'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
+  // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent".
+  'venture.invoice.shared',
+  // One-shot C4 (T32): the ready routines from the plan.
+  'venture.routines.suggestions',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
 // A frozen copy of EXTERNAL_ORIGINS in platform/runtime/venture/contracts.ts, same order.
 const EXTERNAL_ORIGINS = Object.freeze([
-  'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
+  'https://accounts.google.com', 'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com',
   'https://www.paddle.com', 'https://dodopayments.com', 'https://workspace.google.com', 'https://www.zoho.com', 'https://resend.com',
@@ -240,6 +292,8 @@ function validateRequest(input) {
   if (!isRecord(input)) throw failure('INVALID_REQUEST', 'Use a named request with an object payload.');
   assertJson(input);
   if (Object.keys(input).some(name => !['method', 'payload'].includes(name)) || !allowedMethods.has(input.method) || (input.payload !== undefined && !isRecord(input.payload))) throw failure('INVALID_REQUEST', 'This desktop request is not supported.');
+  // One-shot C4 task 36: where an export goes is chosen in main's own save dialog (export-save.cjs), never by the window.
+  if (input.method === 'workspace.export' && input.payload && Object.hasOwn(input.payload, 'path')) throw failure('INVALID_REQUEST', 'Choose where to save the copy in the save dialog.');
   const canonical = JSON.stringify({ method: input.method, payload: input.payload ?? {} });
   if (Buffer.byteLength(canonical) > MAX_REQUEST_BYTES) throw failure('REQUEST_TOO_LARGE', 'The desktop request exceeds the size limit.');
   return JSON.parse(canonical);
@@ -330,6 +384,12 @@ function publicError(error) {
 function validateVentureEvent(input) {
   if (!isRecord(input) || !VENTURE_EVENT_TYPES.includes(input.type)) return null;
   const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
+  if (input.type === 'work.step') {
+    if ((input.businessId !== '' && !id(input.businessId)) || !id(input.workId) || !id(input.kind) || !id(input.step) || !['current', 'done', 'failed'].includes(input.state)) return null;
+    if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
+    if (input.passed !== undefined && typeof input.passed !== 'boolean') return null;
+    return Object.freeze({ type: input.type, businessId: input.businessId, workId: input.workId, kind: input.kind, step: input.step, state: input.state, at: input.at, ...(input.passed !== undefined ? { passed: input.passed } : {}) });
+  }
   const whole = value => Number.isSafeInteger(value) && value >= 0;
   if (!id(input.businessId) || (input.type !== 'privacy.forgotten' && input.runId !== undefined && !id(input.runId))) return null;
   if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
@@ -339,4 +399,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

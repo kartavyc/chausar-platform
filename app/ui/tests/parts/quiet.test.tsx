@@ -12,14 +12,25 @@ describe('Receipt reads quietly (4Z3: a small mark, not the code)', () => {
     const onOpen = vi.fn();
     const id = 'sum_1792ea30-606a-4150-91e9-e30c0a428d4c';
     render(<><Receipt id="R-0412" amount="₹1,12,400" onOpen={onOpen} /><Receipt id={id} onOpen={onOpen} /></>);
-    const short = screen.getByRole('button', { name: 'Receipt for ₹1,12,400' });
+    const short = screen.getByRole('button', { name: 'Open receipt for ₹1,12,400' });
     expect(short.textContent).toBe('');
     expect(short.dataset.receipt).toBe('R-0412');
     expect(short.querySelector('svg.lucide-receipt-text')!.getAttribute('aria-hidden')).toBe('true');
-    const long = screen.getByRole('button', { name: 'Receipt' });
+    const long = screen.getByRole('button', { name: 'Open receipt' });
     expect(long.textContent).toBe('');
     fireEvent.click(long);
     expect(onOpen).toHaveBeenCalledWith(id);
+  });
+
+  it('is named Open receipt, says so as a tip, and is a 24 px target that grows to 44 px on a phone (B4)', () => {
+    render(<Receipt id="R-1" amount="₹500" onOpen={() => {}} />);
+    const mark = screen.getByRole('button', { name: 'Open receipt for ₹500' });
+    expect(mark.getAttribute('title')).toBe('Open receipt');
+    const css = readFileSync(join(import.meta.dirname, '../../src/parts/Receipt.module.css'), 'utf8');
+    expect(css).toContain("composes: hit from './touch.module.css'");
+    expect(css).toContain('min-width: 24px');
+    expect(css).toContain('min-height: 24px');
+    expect(readFileSync(join(import.meta.dirname, '../../src/parts/touch.module.css'), 'utf8')).toContain('var(--target)');
   });
 
   it('is quiet: no chip edge or ground, the muted ink at rest and the link colour on hover', () => {

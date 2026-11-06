@@ -1,10 +1,13 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { Figure } from '../../parts/Figure';
 import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { goTo } from '../../shell/navigation';
+import { totalOf } from '../business/shared';
 import { EngineError } from '../../engine/types';
 import { FILE_ACCEPT, fileProblem, readBase64 } from './files';
 import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './intake';
@@ -12,9 +15,13 @@ import { IntakeFields } from './IntakeFields';
 import { KitIntakeFields } from './KitIntakeFields';
 import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from './kit-intake';
 import { messageOf } from './PreviousRuns';
-import { clearPrefill, peekPrefill } from './prefill';
+import { clearPrefill, peekPrefill, prefillOrder } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
+import { Reveal } from '../../parts/RevealBlock';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The client choice that opens a name field and adds the client with the order. Not a valid client id. */
 export const NEW_CLIENT = '+new';
@@ -30,15 +37,16 @@ const never = () => false;
 export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
-  const ids = useId();
   const clients = useResource('venture.client.list', {}, { refreshOn: never });
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: never });
   const business = useResource('venture.get', {}, { refreshOn: never });
-  const [clientId, setClientId] = useState(id === 'new' ? '' : id);
-  const [name, setName] = useState('');
-  // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts).
+  const [newPhone, setNewPhone] = useState(''); // C6: the new client's phone or WhatsApp number, as typed
+  // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts); C4 task 11: so
+  // does the owner's own form, kept while they set a price, with its client too.
   const [prefill] = useState(peekPrefill);
   useEffect(clearPrefill, []);
+  const [clientId, setClientId] = useState(id === 'new' ? prefill?.clientId ?? '' : id);
+  const [name, setName] = useState(prefill?.clientName ?? '');
   const [offerId, setOfferId] = useState(prefill?.offerId ?? '');
   const [request, setRequest] = useState(prefill?.request ?? '');
   const [intake, setIntake] = useState<IntakeDraft>(EMPTY_INTAKE);
@@ -52,10 +60,33 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const priced = offers.filter((o) => o.pricing.unitPriceMinor !== null);
   const who = clientId === NEW_CLIENT || (clients.data ?? []).some((c) => c.id === clientId) ? clientId : '';
   const what = offerId || (priced.length === 1 ? priced[0]!.id : '');
+  // C4 task 11: the picked service as the plan has it; an unpriced one can be picked so the form can say how to fix it.
+  const picked = offers.find((o) => o.id === what);
+  const unpriced = !!picked && picked.pricing.unitPriceMinor === null;
+  const pickedReceipt = picked && !unpriced ? plan.data?.offerReceipts[picked.id] ?? null : null;
+  const pickedTotal = totalOf(pickedReceipt);
   // What the engine says this service asks at intake; null for a service that asks nothing.
   const ask = (what && plan.data?.intake?.[what]) || null;
   const filesOk = files.every((f) => fileProblem(f) === null);
-  const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
+  const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && !unpriced && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
+
+  /** C4 task 11: keep what was typed, go to Prices for that service, and the next New order opens with it. */
+  function setPrice() {
+    prefillOrder({ offerId: what, request, ...(who ? { clientId: who } : {}), ...(who === NEW_CLIENT && name.trim() ? { clientName: name } : {}) });
+    goTo('business', 'prices', { offer: what });
+  }
+
+  /** The first thing still missing, said under Add order (B4). */
+  const typesName = who === NEW_CLIENT || (clients.data ?? []).length === 0;
+  const noClient = who === NEW_CLIENT ? name.trim() === '' : who === '';
+  const missing = ready || sending ? undefined
+    : !business.data?.venture.country ? t('work.form.needCountry')
+      : noClient && what === '' ? t(typesName ? 'work.form.needNameAndService' : 'work.form.needClientAndService')
+        : noClient ? t(typesName ? 'work.form.needName' : 'work.form.needClient')
+          : what === '' ? t('work.form.needService')
+            : request.trim() === '' ? t('work.form.needRequest')
+              : !filesOk ? t('work.form.needFiles')
+                : t('work.form.needIntake');
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -66,7 +97,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
       const intakeFiles = await kitIntakeFiles(ask, kitAnswers);
       const told = ask?.kit ? { ...intakeParams(ask, intake), ...kitIntakeParams(ask, kitAnswers) } : intakeParams(ask, intake);
       // One-shot A1 (row 10): a new client goes with the order in one request, so a refused order adds no client.
-      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim() } } : { clientId: who };
+      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim(), ...(newPhone.trim() ? { phone: newPhone.trim() } : {}) } } : { clientId: who };
       const order = await engine.request('venture.order.create', { ...forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}), ...(Object.keys(intakeFiles).length ? { intakeFiles } : {}) });
       if (who === NEW_CLIENT) { setClientId(order.clientId); clients.reload(); }
       const refused: { name: string; message: string }[] = [];
@@ -104,55 +135,52 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   } else if (plan.data === null || (plan.data && offers.length === 0)) {
     body = <p className={s.note}>{t('work.form.noServices')}</p>;
   } else if (!plan.data || !clients.data || !business.data) {
-    body = <p className={s.quiet}>{t('sheet.loading')}</p>;
+    body = <LoadingPlace shape="sheet" />;
   } else {
     body = (
       <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
-        <div className={s.field}>
-          <label htmlFor={`${ids}-client`} className={s.label}>{t('work.form.client')}</label>
-          <select id={`${ids}-client`} className={s.select} value={who} onChange={(event) => setClientId(event.currentTarget.value)}>
+        <Select label={t('work.form.client')} value={who} onChange={(event) => setClientId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {clients.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>
-          </select>
-        </div>
-        {who === NEW_CLIENT && <Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />}
-        <div className={s.field}>
-          <label htmlFor={`${ids}-service`} className={s.label}>{t('work.form.service')}</label>
-          <select id={`${ids}-service`} className={s.select} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
+          </Select>
+        <Reveal open={who === NEW_CLIENT}><Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} /><Field label={t('work.form.clientPhone')} type="tel" inputMode="tel" value={newPhone} autoComplete="off" maxLength={40} onChange={(event) => setNewPhone(event.currentTarget.value)} /></Reveal>
+        <Select label={t('work.form.service')} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {offers.map((offer) => {
-              const unpriced = offer.pricing.unitPriceMinor === null;
-              return <option key={offer.id} value={offer.id} disabled={unpriced}>{unpriced ? t('work.form.noPrice', { name: offer.name.value }) : offer.name.value}</option>;
+              const noPrice = offer.pricing.unitPriceMinor === null;
+              return <option key={offer.id} value={offer.id}>{noPrice ? t('work.form.noPrice', { name: offer.name.value }) : offer.name.value}</option>;
             })}
-          </select>
-        </div>
+          </Select>
+          {/* C4 task 11: the picked service's price as its receipt says it, or how to set one. */}
+          {pickedReceipt && pickedTotal && picked && (
+            <p className={s.hint} data-testid="picked-price">
+              <Figure value={pickedTotal} receiptId={pickedReceipt.id} /> {t(`business.unit.${picked.pricing.quantityUnit}`)}
+            </p>
+          )}
+          {unpriced && picked && (
+            <p className={s.hint} role="status">
+              {t('work.form.setPriceFirst', { name: picked.name.value })}{' '}
+              <Button size="sm" onClick={setPrice}>{t('work.form.setPrice')}</Button>
+            </p>
+          )}
         <IntakeFields ask={ask} draft={intake} onChange={setIntake} />
         <KitIntakeFields currency={business.data?.venture.country?.currency} ask={ask} answers={kitAnswers} onChange={setKitAnswers} />
         <Field multiline label={t('work.form.request')} value={request} onChange={(event) => setRequest(event.currentTarget.value)} />
         <div className={s.field}>
-          <label htmlFor={`${ids}-files`} className={s.label}>{t('work.form.files')}</label>
-          <input
-            id={`${ids}-files`} type="file" multiple accept={FILE_ACCEPT} className={s.file} aria-describedby={`${ids}-files-hint`}
-            onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))}
-          />
-          <p id={`${ids}-files-hint`} className={s.hint}>{t('work.form.filesHint')}</p>
-          {files.length > 0 && (
+          <FilePick label={t('work.form.files')} hint={t('work.form.filesHint')} multiple accept={FILE_ACCEPT} files={files} onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))} onRemove={(index) => setFiles(files.filter((_, at) => at !== index))} />
+          {!filesOk && (
             <ul className={s.files}>
               {files.map((file, i) => {
                 const problem = fileProblem(file);
-                return (
-                  <li key={`${file.name}-${i}`} className={problem ? s.problem : undefined}>
-                    {problem ? t(problem === 'type' ? 'work.form.fileType' : 'work.form.fileSize', { name: file.name }) : file.name}
-                  </li>
-                );
+                return problem && <li key={`${file.name}-${i}`} className={s.problem}>{t(problem === 'type' ? 'work.form.fileType' : 'work.form.fileSize', { name: file.name })}</li>;
               })}
             </ul>
           )}
         </div>
         {error && <p className={s.problem} role="status">{error}</p>}
         <div className={s.submit}>
-          <Button variant="primary" type="submit" disabled={!ready}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
+          <Button variant="primary" type="submit" disabled={!ready} disabledReason={missing}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
         </div>
       </form>
     );

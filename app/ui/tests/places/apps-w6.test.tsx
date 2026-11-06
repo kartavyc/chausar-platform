@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { EngineClient } from '../../src/engine/types';
+import { EngineError, type EngineClient } from '../../src/engine/types';
 import { assertInkRules } from '../helpers/ink-rules';
 
 /*
@@ -40,10 +40,43 @@ async function send(label: string, text: string) {
 }
 
 describe('Apps (6H1)', () => {
+  // C4 task 29 (founder decision 3): the button only when the app has no data; the banner while on sample rows; every call says sample.
+  it('an app with no data offers Preview with sample data; the banner stays while it runs on it; Back to your data returns', async () => {
+    window.location.hash = '#/apps?app=miniapp_sample';
+    const base = createFakeClient(new FakeEngine());
+    const client: EngineClient = {
+      ...base,
+      request: (async (method: string, params?: Record<string, unknown>) => {
+        const answer = await base.request(method as never, params as never);
+        return method === 'venture.apps.get' ? { app: { ...(answer as { app: object }).app, empty: true } } : answer;
+      }) as EngineClient['request'],
+    };
+    render(<App client={client} language="en" />);
+    const go = await screen.findByRole('button', { name: 'Preview with sample data' });
+    expect(screen.queryByText('Sample data, not your records')).toBeNull();
+    const frame = () => document.querySelector('iframe[data-mini-app]') as HTMLIFrameElement;
+    const live = frame();
+    await click(go);
+    expect(screen.getByText('Sample data, not your records')).toBeTruthy();
+    expect(frame()).not.toBe(live);
+    expect(frame().getAttribute('data-sample')).toBe('');
+    expect(screen.queryByRole('button', { name: 'Preview with sample data' })).toBeNull();
+    await click(screen.getByRole('button', { name: 'Back to your data' }));
+    expect(screen.queryByText('Sample data, not your records')).toBeNull();
+    expect(frame().hasAttribute('data-sample')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Preview with sample data' })).toBeTruthy();
+  });
+
+  it('an app with data of its own offers no preview', async () => {
+    await start('#/apps?app=miniapp_sample');
+    await screen.findByRole('button', { name: 'Pin to Today' });
+    expect(screen.queryByRole('button', { name: 'Preview with sample data' })).toBeNull();
+  });
+
   it('the rail has Apps between Money and Connections; the place lists the sample app, the make box and the rules', async () => {
     await start();
     const rail = screen.getByRole('navigation', { name: 'Places' });
-    const hrefs = within(within(rail).getByRole('list')).getAllByRole('link').map((a) => a.getAttribute('href'));
+    const hrefs = within(within(rail).getAllByRole('list')[0]!).getAllByRole('link').map((a) => a.getAttribute('href'));
     expect(hrefs.slice(5, 8)).toEqual(['#/money', '#/apps', '#/connections']);
     expect(await screen.findByRole('heading', { level: 1, name: 'Apps' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Make an app' })).toBeTruthy();
@@ -55,7 +88,18 @@ describe('Apps (6H1)', () => {
     assertInkRules();
   });
 
-  // One-shot A4 (hands-on row 75, bug 15): "Your AI is writing it." only while a make is on its way.
+  // C5 task 8: each idea shows its preview line under it; a press still fills the box with the idea's words.
+  it('each app idea shows its preview line, and pressing one fills the box', async () => {
+    await start();
+    const ideas = await screen.findByRole('group', { name: 'Ideas to start from' });
+    const first = within(ideas).getByRole('button', { name: /Who owes me, by client/ });
+    expect(first.textContent).toContain('A table of unpaid invoices grouped by client, with what each owes.');
+    await click(first);
+    expect((screen.getByRole('textbox', { name: 'Describe the app' }) as HTMLTextAreaElement).value).toBe('Who owes me, by client');
+  });
+
+  // One-shot A4 (hands-on row 75, bug 15): the wait only while a make is on its way. C3 task 11: "Writing your app" with
+  // its elapsed time, where it said "Your AI is writing it.".
   it('says the AI is writing only while the app is being made, never at rest or after a refusal', async () => {
     window.location.hash = '#/apps';
     const base = createFakeClient(new FakeEngine());
@@ -73,15 +117,36 @@ describe('Apps (6H1)', () => {
     };
     render(<App client={client} language="en" />);
     await screen.findByRole('article', { name: 'Who owes me' });
+    expect(screen.queryByText('Writing your app')).toBeNull();
     expect(screen.queryByText('Your AI is writing it.')).toBeNull();
     refuse = true;
     const box = screen.getByRole('textbox', { name: 'Describe the app' });
     await act(async () => { fireEvent.change(box, { target: { value: 'A list of who is due' } }); });
     await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
-    expect(await screen.findByText('Your AI is writing it.')).toBeTruthy();
+    expect(await screen.findByText(/^Writing your app/)).toBeTruthy();
+    expect(screen.queryByText('Your AI is writing it.')).toBeNull();
     await act(async () => { release!(); });
     await screen.findByText(/Connect your AI first\./);
-    expect(screen.queryByText('Your AI is writing it.')).toBeNull();
+    expect(screen.queryByText(/^Writing your app/)).toBeNull();
+  });
+
+  it('no AI connected is a known state: muted words, Connect in the line, the words kept (B4)', async () => {
+    window.location.hash = '#/apps';
+    const client = createFakeClient(new FakeEngine());
+    const base = client.request.bind(client);
+    client.request = ((method: string, params?: unknown) => (method === 'venture.apps.make'
+      ? Promise.reject(new EngineError('APP_NEEDS_AI', 'Connect your AI first. Your AI writes the app; Chausar checks it and runs it in a locked box.'))
+      : base(method as never, params as never))) as EngineClient['request'];
+    render(<App client={client} language="en" />);
+    const box = await screen.findByRole('textbox', { name: 'Describe the app' }) as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'A sheet of my batches' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
+    const line = await screen.findByText(/^Connect your AI first\./);
+    expect(line.closest('[data-tone]')!.getAttribute('data-tone')).toBe('expected');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(box.value).toBe('A sheet of my batches');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Connect your AI' })); });
+    expect(window.location.hash).toBe('#/connections');
   });
 
   it('making an app opens it beside its permission screen; it runs only after Allow, in a locked frame', async () => {

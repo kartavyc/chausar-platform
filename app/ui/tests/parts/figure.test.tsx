@@ -8,7 +8,7 @@ import { Button } from '../../src/parts/Button';
 import { Receipt } from '../../src/parts/Receipt';
 import { ModelEstimate } from '../../src/parts/ModelEstimate';
 import { TextProvider } from '../../src/text';
-import { assertFiguresProved, assertInkRules, assertNoInlineStyles, assertOnePrimary } from '../helpers/ink-rules';
+import { assertFiguresProved, assertInkRules, assertNoInlineStyles, assertOnePrimary, assertOnePrimaryPerView } from '../helpers/ink-rules';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -23,7 +23,7 @@ describe('Figure', () => {
     expect(number.textContent).toBe('₹18,880');
     expect(number.classList.contains('mono')).toBe(false); // B2: the body font with tabular figures
     // 4Z3: a small receipt mark named for the amount it proves; the code is not printed beside it.
-    const mark = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
+    const mark = screen.getByRole('button', { name: 'Open receipt for ₹18,880' });
     expect(figure.contains(mark)).toBe(true);
     expect(mark.dataset.receipt).toBe('R-0419');
     expect(figure.textContent).not.toContain('R-0419');
@@ -32,7 +32,7 @@ describe('Figure', () => {
 
   it('names the mark for the amount only, not the engine words after it', () => {
     render(<Figure value="₹60.10, includes estimates" receiptId="R-0431" />);
-    expect(screen.getByRole('button', { name: 'Receipt for ₹60.10' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open receipt for ₹60.10' })).toBeTruthy();
   });
 
   it('words after the amount that start with a comma sit right against it, with no space before the comma (4A2 review)', () => {
@@ -47,7 +47,7 @@ describe('Figure', () => {
   it('opens the receipt through the handler it is given', () => {
     const onReceipt = vi.fn();
     render(<Figure value="₹18,880" receiptId="R-0419" onReceipt={onReceipt} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹18,880' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open receipt for ₹18,880' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0419');
   });
 
@@ -312,6 +312,61 @@ describe('assertOnePrimary', () => {
       <article data-card="" aria-label="Outer"><Button variant="primary">Approve</Button><ul><li data-row=""><Button variant="primary">Send</Button></li></ul></article>,
     );
     expect(() => assertOnePrimary(container)).toThrow(/Outer/);
+  });
+});
+
+describe('assertOnePrimaryPerView', () => {
+  it('fails on two filled buttons in main, naming them, though they sit in two cards', () => {
+    const { container } = render(
+      <main>
+        <article data-card=""><Button variant="primary">Connect</Button></article>
+        <article data-card=""><Button variant="primary">Keep it</Button></article>
+      </main>,
+    );
+    expect(() => assertOnePrimaryPerView(container)).toThrow(/the page holds 2 filled buttons.*Connect.*Keep it/);
+    expect(() => assertOnePrimary(container)).not.toThrow();
+  });
+
+  it('passes one in main and one in a sheet beside it', () => {
+    const { container } = render(
+      <>
+        <main><Button variant="primary">Connect</Button></main>
+        <div><aside data-sheet="" aria-label="A sheet"><Button variant="primary">Save</Button></aside></div>
+      </>,
+    );
+    expect(() => assertOnePrimaryPerView(container)).not.toThrow();
+  });
+
+  it('fails on two filled buttons in one sheet', () => {
+    const { container } = render(<aside data-sheet="" aria-label="A sheet"><Button variant="primary">Save</Button><Button variant="primary">Send</Button></aside>);
+    expect(() => assertOnePrimaryPerView(container)).toThrow(/A sheet.*2 filled buttons/);
+  });
+
+  it('a locked one, a disabled one and one in a closed fold do not count', () => {
+    const { container } = render(
+      <main>
+        <Button variant="primary">Connect</Button>
+        <Button variant="primary" locked>Accept</Button>
+        <Button variant="primary" disabled>Send</Button>
+        <details><summary>More</summary><Button variant="primary">Start</Button></details>
+      </main>,
+    );
+    expect(() => assertOnePrimaryPerView(container)).not.toThrow();
+  });
+
+  it('one in an open fold counts', () => {
+    const { container } = render(<main><Button variant="primary">Connect</Button><details open><summary>More</summary><Button variant="primary">Start</Button></details></main>);
+    expect(() => assertOnePrimaryPerView(container)).toThrow(/Connect.*Start/);
+  });
+
+  it('checks the whole page by default', () => {
+    render(<main><Button variant="primary">A</Button><Button variant="primary">B</Button></main>);
+    expect(() => assertOnePrimaryPerView()).toThrow(/2 filled buttons/);
+  });
+
+  it('says so when there is nothing to check', () => {
+    const { container } = render(<div><Button variant="primary">A</Button></div>);
+    expect(() => assertOnePrimaryPerView(container)).toThrow(/no <main>/);
   });
 });
 

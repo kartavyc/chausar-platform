@@ -1,5 +1,7 @@
 /**
- * The books for a period: billed, received and earned as tiles, each from the calculator with its receipt; the
+ * For your CA (C4 T24, founder decision 2; the Books page, still at #/money/books): Share with your CA at the top, where
+ * the files and the link are one sheet, and Invite your accountant beside it where links work. C1 moves the page under
+ * Money's More. Under them, the books for a period: billed, received and earned as tiles, each from the calculator with its receipt; the
  * engine's own notes on what the figures include; and the invoices still open, each a step from its own figures. The
  * period is a row of chips held in the address.
  *
@@ -11,8 +13,8 @@
 
 import { useId, useState } from 'react';
 import { useT } from '../../text';
-import { useResource } from '../../engine/context';
-import { setQuery, useRoute } from '../../shell/navigation';
+import { useEngine, useResource } from '../../engine/context';
+import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { Bento } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { FilterChips } from '../../parts/FilterChips';
@@ -24,6 +26,7 @@ import { OpenList } from './OwedTile';
 import { Amount, EngineWords, Failed, MoneyTile, Section } from './parts';
 import { byDue, onMoney, useDay } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 const PERIODS: readonly BooksPeriodKey[] = ['all', 'this-month', 'last-month', 'this-year'];
 const isPeriod = (value: string | undefined): value is BooksPeriodKey => PERIODS.includes(value as BooksPeriodKey);
@@ -38,9 +41,15 @@ export function Books() {
   const data = books.data;
   const periods = data?.periods ?? PERIODS.map((key) => ({ key, label: t(`money.books.period.${key}`) }));
   const [first, ...more] = data?.notes ?? [];
+  // A link opens only on the hosted app, so the desktop has no invite; the sheet holds both ways (AccountantSheet.tsx).
+  const linksWork = !useEngine().saveMoneyExport;
 
   return (
     <>
+      <div className={s.buttons} data-ca-top="">
+        <Button variant="primary" onClick={(event) => openSheet('accountant', 'books', event.currentTarget)}>{t('money.accountant.share')}</Button>
+        {linksWork && <Button variant="quiet" onClick={(event) => openSheet('accountant', 'books', event.currentTarget)}>{t('money.accountant.invite')}</Button>}
+      </div>
       <div className={s.periodRow}>
         <FilterChips
           label={t('money.books.period')}
@@ -65,10 +74,9 @@ export function Books() {
           </Bento>
           {first && <p className={s.notes}>{first}</p>}
           {more.length > 0 && (
-            <details className={s.fold}>
-              <summary>{t('money.books.about')}</summary>
+            <Fold summary={t('money.books.about')} className={s.fold}>
               {more.map((note) => <p key={note}>{note}</p>)}
-            </details>
+            </Fold>
           )}
           <Section title={t('money.books.open')}>
             {data.openInvoices.length === 0 ? <p className={s.quietLine}>{t('money.books.openNone')}</p> : <OpenList items={byDue(data.openInvoices)} balances={false} />}

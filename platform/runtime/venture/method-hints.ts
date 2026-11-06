@@ -39,6 +39,20 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.chief.thread.state': ['prepare', 'ui'], 'venture.chief.settle.set': ['prepare', 'ui'],
   // W6 6H3: a place's layout; each change carries its exact Undo.
   'venture.layout.get': ['read', 'rui'], 'venture.layout.change': ['prepare', 'ui'],
+  // C2: the command bar's find; it reads the lists the owner reads and writes nothing.
+  'venture.find': ['read', 'rui'],
+  'venture.diagnostics.today': ['read', 'rui'],
+  'venture.build.briefFile': ['prepare', 'u'],
+  'venture.accountant.pack.done': ['prepare', 'ui'],
+  'venture.accountant.schedule.set': ['approve', 'ui'],
+  'venture.accountant.schedule.get': ['read', 'rui'],
+  'venture.accountant.set': ['prepare', 'ui'],
+  'venture.accountant.get': ['read', 'rui'],
+  'venture.notify.telegram.findChat': ['prepare', 'uio'],
+  'venture.client.aiDefault.set': ['approve', 'ui'],
+  'venture.client.aiDefault.get': ['read', 'rui'],
+  'venture.away.preview': ['read', 'rui'],
+  'venture.team.introduced': ['read', 'rui'],
   // W6 6H2: recorded flows. A run touches the website in the desktop's window; its submits go through the journal.
   'venture.flows.list': ['read', 'rui'], 'venture.flows.act': ['approve', 'o'],
   // W6 6G3: CRM reads, and owner edits whose every change is kept in the field history; 6G4: dated memory facts.
@@ -60,7 +74,7 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   // W6 6J2: feedback. Turning reports on or off comes back with its opposite; Send report and Delete my reports reach PostHog and Sentry.
   'venture.feedback.get': ['read', 'rui'], 'venture.feedback.consent': ['approve', 'ui'], 'venture.feedback.send': ['approve', 'o'],
   'venture.feedback.answer': ['prepare', ''], 'venture.feedback.crash': ['prepare', ''], 'venture.feedback.delete': ['approve', 'o'],
-  'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
+  'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.payment.receipt': ['read', 'rui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],
   'venture.payment.record': ['prepare', ''], 'venture.books.summary': ['read', 'rui'],
@@ -108,6 +122,31 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.needs.list': ['read', 'rui'],
   // A2: the owner's yes to the Codex found on this computer; it writes only Chausar's own trust folder.
   'venture.ai.setup.trust': ['approve', 'ui'],
+  // One-shot C3: which step long work is on; a read, and it never touches the vault.
+  'venture.work.list': ['read', 'rui'],
+  // One-shot C4 (T20): a note on the invoice of a share the owner made; it sends nothing.
+  'venture.invoice.shared': ['prepare', ''],
+  // One-shot C4 (T32): the ready routines from the plan; a read that stores nothing.
+  'venture.routines.suggestions': ['read', 'rui'],
+  'venture.agents.hire.duties': ['approve', 'u'],
+  'venture.events.calKey.set': ['approve', 'ui'],
+  'venture.events.relay.set': ['approve', 'ui'],
+  'venture.events.get': ['read', 'rui'],
+  'venture.agents.hire.cancel': ['prepare', 'u'],
+  'venture.agents.hire.confirm': ['approve', 'u'],
+  'venture.agents.hire.answer': ['prepare', 'o'],
+  'venture.agents.hire.start': ['prepare', 'o'],
+  'venture.trackers.rows.undo': ['prepare', 'u'],
+  'venture.trackers.rows.remove': ['prepare', 'u'],
+  'venture.trackers.rows.edit': ['prepare', 'u'],
+  'venture.trackers.rows.add': ['prepare', 'u'],
+  'venture.trackers.remove': ['approve', 'ui'],
+  'venture.trackers.set': ['approve', 'ui'],
+  'venture.trackers.get': ['read', 'rui'],
+  'venture.trackers.list': ['read', 'rui'],
+  'venture.routines.backup.set': ['approve', 'ui'],
+  'venture.routines.backup.get': ['read', 'rui'],
+  'venture.models.plan': ['read', 'rui'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */
@@ -163,7 +202,7 @@ const W4_FLAGS: Readonly<Record<W4Method, Flags>> = Object.freeze({
  */
 const W5_FLAGS: Readonly<Record<W5Method, Flags>> = Object.freeze({
   'venture.order.chain': 'rui',
-  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui',
+  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui', 'venture.goNoGo.remove': '',
   'venture.ideas.add': 'u', 'venture.ideas.move': '', 'venture.ideas.grade': '',
   'venture.brandKit.get': 'rui', 'venture.brandKit.set': 'ui', 'venture.assets.list': 'rui', 'venture.assets.rerun': 'o', 'venture.assets.reuse': 'u',
   'venture.voiceConsent.record': '', 'venture.voiceConsent.revoke': 'i', 'venture.voiceConsent.list': 'rui',

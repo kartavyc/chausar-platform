@@ -5,10 +5,18 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { BankImportResult } from '../../engine/types';
+import { SAMPLE_STATEMENT_PATH, STATEMENT_FORMATS } from '../../../../../platform/runtime/venture/build/bank-formats';
 import type { SheetComponentProps } from '../../shell/sheets';
 import s from './Connections.module.css';
+import { FilePick } from '../../parts/FilePick';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/** C4 (T28): "A, B and C", from the parser's own list. */
+const banksWords = (): string => {
+  const names = STATEMENT_FORMATS.map((format) => format.bank);
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+};
 
 /** The file's text, as it is. The engine reads the rows; nothing here reads an amount. */
 function textOf(file: File): Promise<string> {
@@ -44,6 +52,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<BankImportResult | null>(null);
+  const missing = !account.trim() && !file ? t('connections.bank.needBoth') : !file ? t('connections.bank.fileFirst') : !account.trim() ? t('connections.bank.accountFirst') : undefined;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -65,10 +74,14 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
   return (
     <>
       <form className={s.form} onSubmit={(event) => void submit(event)}>
+        <p className={s.said} data-banks="">
+          {t('connections.bank.banks', { banks: banksWords() })}{' '}
+          <a href={SAMPLE_STATEMENT_PATH} download="sample-bank-statement.csv">{t('connections.bank.sample')}</a>
+        </p>
         <Field label={t('connections.bank.account')} hint={t('connections.bank.accountHint')} value={account} maxLength={60} autoComplete="off" onChange={(event) => setAccount(event.currentTarget.value)} />
-        <Field label={t('connections.bank.file')} type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setResult(null); }} />
+        <FilePick label={t('connections.bank.file')} accept=".csv,text/csv" onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setResult(null); }} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button variant="primary" type="submit" disabled={busy}>{t('connections.bank.import')}</Button></div>
+        <div className={s.buttons}><Button variant="primary" type="submit" disabled={busy} disabledReason={missing}>{t('connections.bank.import')}</Button></div>
       </form>
       {result && (
         <div role="status">

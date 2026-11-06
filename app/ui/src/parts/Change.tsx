@@ -19,21 +19,37 @@ export interface ChangeProps extends QueueChange {
 }
 
 /**
- * A value changing: the old one struck through in grey, an arrow (on a card), the new one in ink, both in the body font with tabular digits (B2); then
+ * A value changing: the old one struck through in grey, an arrow (on a card), the new one in ink, both in the body font with tabular digits (B2). B4: only
+ * the amount takes the figure face, never "per month" after it, and a price that was not set reads "Was not set", not
+ * struck-through words. Then
  * its receipt, or the words "model estimate" when a model wrote it (an estimate never shows a receipt). The old and
  * the new value share that one proof, so the change is one figure group (`data-figure-group`, see
  * tests/helpers/ink-rules.ts); a change the engine sends with neither proof fails that rule rather than pass as proved.
  * A screen reader hears "was ₹25,000 now ₹30,000", in the order the eye reads it.
  */
+/** The engine's words for an offer with no price (views/queue.ts priceText). */
+const NOT_SET = 'Not set';
+
+/** A value's amount and the plain words after it ("₹2,999", " per month"); anything else stays whole. */
+function amountOf(value: string): { amount: string; rest: string } {
+  const found = /^(\D{0,4}\d[\d,.]*%?)(\s+\p{Ll}\D*)$/u.exec(value);
+  return found ? { amount: found[1]!, rest: found[2]! } : { amount: value, rest: '' };
+}
+
+function Value({ value, className }: { value: string; className?: string | undefined }) {
+  const { amount, rest } = amountOf(value);
+  return <span className={className}><span data-num="">{amount}</span>{rest}</span>;
+}
+
 export function Change({ label, before, after, receiptId, estimate, onReceipt, size = 'inline' }: ChangeProps) {
   const t = useT();
   const arrow = size !== 'inline';
   const values = (
     <>
-      {before !== undefined && (
+      {before === NOT_SET ? <><span className={s.was}>{t('change.wasNotSet')}</span>{' '}</> : before !== undefined && (
         <>
           <span className="sr-only">{t('change.was')} </span>
-          <del className={s.old} data-num="">{before}</del>
+          <del className={s.old}><Value value={before} /></del>
           {arrow && (
             <span className={s.arrow} aria-hidden="true">
               <Icon name="arrow-right" size={size === 'pill' ? 16 : 12} />
@@ -42,7 +58,7 @@ export function Change({ label, before, after, receiptId, estimate, onReceipt, s
         </>
       )}
       <span className="sr-only">{t('change.now')} </span>
-      <span className={s.now} data-num="">{after}</span>
+      <Value value={after} className={s.now} />
     </>
   );
   const proof = estimate ? <ModelEstimate /> : receiptId ? <Receipt id={receiptId} amount={after} onOpen={onReceipt} /> : null;

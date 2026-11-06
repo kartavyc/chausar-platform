@@ -9,15 +9,18 @@ import { initialsOf } from '../parts/Avatar';
 import { Icon } from '../parts/Icon';
 import { LeftContext, StartedContext } from '../places/onboarding/started';
 import { RunControlsMenu } from './RunControlsMenu';
+import { SETTINGS_HREF } from './settings';
 import s from './BusinessMenu.module.css';
+import { usePresence } from '../parts/motion';
 
 /**
  * The top of the rail (D's `.biz`): the open business as its initials square, its name and its kind, with a
  * chevron that says it switches. It opens a small menu beside it, not a dialog:
- * the businesses on this computer, then plan and playbook, prices, website build, your CA (only for a business on the
- * CA firm playbook), keep this business and new business. The menu is a popover over the page (a portal on the body,
- * placed under the button and no taller than the window left below it), so the rail and the phone top bar never
- * clip it, and nor does the bottom of the window.
+ * the businesses on this computer; Settings and New business; Pause all, Stop all and Away; and Invite your accountant
+ * (C1 task 9: one short list, the settings pages live in Settings, shell/settings.ts). Beside the full rail and on a
+ * phone it is a popover under the button, no wider than the rail, so it never reaches over the page; in the rail folded
+ * to icons (760 to 959 px) it is a full-height panel from the window's left edge, over the rail. It is a portal on the
+ * body, so the rail and the phone top bar never clip it. It closes when the address changes, by any route.
  * The engine keeps one business open, so switching closes this one first (workspace.lock), then opens the other and
  * reads the app again. This menu never asks for a passphrase or a code itself: a business that needs one says so, and
  * Continue closes this business and asks for it on Welcome back, under that business's own row.
@@ -30,6 +33,8 @@ const GAP = 4;
 const EDGE = 8;
 /** What in the popover takes the focus, in page order (the open business's own row is disabled). */
 const FOCUSABLE = 'button:not(:disabled), a[href]';
+/** The rail folded to icons (Rail.module.css, C1 task 8), where the menu is a full-height panel. */
+const COMPACT = '(min-width: 760px) and (max-width: 959px)';
 
 /**
  * `rail`: the rail's button (D's `.biz`), with the kind line and the up-down chevrons. `bar`: the phone's top bar
@@ -60,16 +65,17 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
   const type = venture.data?.venture.serviceType;
   // The playbook's own label ("YouTube channel") when the idea picked one; else the service type's label.
   const kind = playbookLabel(t,venture.data?.playbook) ?? (type && SERVICE_TYPES.includes(type) ? t(`business.kind.${type}`) : null);
-  const links: (readonly [string, string])[] = [
-    ['business.plan', '#/business/plan'], ['business.prices', '#/business/prices'], ['business.goals', '#/business/goals'],
-    ['kit-sales.page', '#/business/go-no-go'], // W5 5A2: a GO, HOLD or NO-GO card before something new
-    ['business.build', '#/business/build'], ['business.practice', '#/business/practice'],
-    ...(venture.data?.playbook?.id === 'ca-firm' ? [['business.ca', '#/business/ca'] as const] : []),
-    ['business.notify', '#/business/notifications'],
-    ['business.chats', '#/business/chats'], // W6 6G1: settled chats and the quiet days (D42: the archive is in Settings)
-    ['feedback.page', '#/business/reports'], // W6 6J2: the opt-in Send report, its preview and Delete my reports
-    ['business.keep', '#/business/keep'], ['business.new', '#/onboarding'],
-  ];
+  // C1 task 9: Settings (every settings page, from the one list) and New business; Away comes with the run controls.
+  const links: (readonly [string, string])[] = [['place.business', SETTINGS_HREF], ['business.new', '#/onboarding']];
+
+  // 26.f2: any change of address closes the menu, not only its own links.
+  useEffect(() => {
+    if (!open) return undefined;
+    const at = window.location.hash;
+    const moved = () => { if (window.location.hash !== at) { setOpen(false); setProblem(null); setNotice(null); } };
+    window.addEventListener('hashchange', moved);
+    return () => window.removeEventListener('hashchange', moved);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,6 +96,13 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
       const rect = button.current?.getBoundingClientRect();
       const popover = menu.current;
       if (!rect || !popover) return;
+      // The folded rail (C1 task 9): a full-height panel from the window's left edge; its place is the CSS module's.
+      if (window.matchMedia?.(COMPACT).matches && variant === 'rail') {
+        popover.style.top = '';
+        popover.style.left = '';
+        popover.style.maxHeight = '';
+        return;
+      }
       const left = Math.max(EDGE, Math.min(rect.left, window.innerWidth - popover.offsetWidth - EDGE));
       const top = rect.bottom + GAP;
       popover.style.top = `${top}px`;
@@ -101,10 +114,13 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
     window.addEventListener('resize', at);
     window.addEventListener('scroll', at, true);
     return () => { window.removeEventListener('resize', at); window.removeEventListener('scroll', at, true); };
-  }, [open]);
+  }, [open, variant]);
 
   // The popover is not next to the button in the page, so it takes the focus when it opens; Tab then walks its items.
   useEffect(() => { if (open) menu.current?.focus(); }, [open]);
+
+  // One-shot C3 task 6: it stays on screen with data-state="closing" while its exit runs (at once with motion off).
+  const presence = usePresence(open, menu);
 
   function close() { setOpen(false); setProblem(null); setNotice(null); button.current?.focus(); }
 
@@ -179,8 +195,9 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
     }
   }
 
+  const isOpen = (b: BusinessOnComputer) => b.name !== null && b.name === venture.data?.venture.workingName;
   const status = (b: BusinessOnComputer) =>
-    b.name !== null && b.name === venture.data?.venture.workingName ? t('business.current')
+    isOpen(b) ? ''
       : b.opens === 'needs-passphrase' ? t('business.locked')
         : b.opens === 'key-missing' ? t('business.keyMissing') : '';
 
@@ -193,32 +210,42 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
         if (event.key === 'Tab' && open) tabAcross(event);
       }}
     >
-      <button ref={button} type="button" className={s.business} data-variant={variant} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
+      <button ref={button} type="button" className={s.business} data-variant={variant} title={name || undefined} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
         {venture.data && <span className={s.square} data-initials="" aria-hidden="true">{initialsOf(name)}</span>}
         <span className={s.words}>
-          {loading ? <span className={s.nameLoading} data-loading="" aria-hidden="true" /> : <span className={s.name}>{name}</span>}
+          {loading ? <span className={s.nameLoading} data-loading="" aria-hidden="true" /> : (
+            <span className={s.name}>
+              {name}
+              {/* C4 task 5: a small dot beside the name while the business is paused, with its word for readers. */}
+              {venture.data?.paused && <span className={s.pausedDot} data-paused-dot="" title={t('business.paused')}><span className="sr-only">{t('business.paused')}</span></span>}
+            </span>
+          )}
           {variant === 'rail' && kindLine(kind, name) && <span className={s.kind}>{kindLine(kind, name)}</span>}
         </span>
         <Icon name={variant === 'bar' ? 'chevron-down' : 'chevrons-up-down'} size={16} className={s.chevrons} />
         <span className="sr-only">{t('business.switchTo')}</span>
       </button>
-      {open && createPortal(
+      {presence.mounted && createPortal(
         <div
-          ref={menu} id={menuId} className={s.menu} role="dialog" aria-label={t('business.menu', { name })} tabIndex={-1}
+          ref={menu} id={menuId} className={s.menu} data-variant={variant} role="dialog" aria-label={t('business.menu', { name })} tabIndex={-1}
+          data-state={presence.state} inert={presence.state === 'closing'}
           onBlur={(event) => focusLeft(event.relatedTarget)}
         >
           <p className={s.heading}>{t('business.switchTo')}</p>
           <ul className={s.list}>
             {(list.data?.businesses ?? []).map((business) => {
               const word = status(business);
-              const current = word === t('business.current');
+              const current = isOpen(business);
+              const itemKind = current ? kindLine(kind, business.name) : null;
               return (
                 <li key={business.folder}>
                   <button type="button" className={s.item} aria-current={current ? 'true' : undefined} disabled={current || busy} onClick={() => void switchTo(business)}>
                     <span className={s.itemName}>
                       <span>{business.name ?? t('business.noName')}</span>
-                      {current && kind && <span className={s.itemKind}>{kind}</span>}
+                      {itemKind && <span className={s.itemKind}>{itemKind}</span>}
                     </span>
+                    {/* 120.f2: the open business has a check, and "open now" for screen readers, not words that read like an action. */}
+                    {current && <><Icon name="check" size={16} className={s.check} /><span className="sr-only">{t('business.current')}</span></>}
                     {word && <span className={s.status}>{word}</span>}
                   </button>
                 </li>

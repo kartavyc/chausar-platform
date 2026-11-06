@@ -1,0 +1,11 @@
+/* WindowedList (one-shot C3 task 16): a scroll box of its own, tall enough for a long list; the rows it draws sit between
+   two spacers. */
+
+.box {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.row:focus-visible {
+  outline-offset: -2px;
+}

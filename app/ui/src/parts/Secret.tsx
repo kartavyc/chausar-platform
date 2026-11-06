@@ -1,5 +1,5 @@
 import { useT } from '../text';
-import { Field } from './Field';
+import { PassphraseField } from './PassphraseField';
 import { groupsOf } from './custody';
 import s from './Secret.module.css';
 
@@ -26,8 +26,8 @@ export function NewPassphrase({ reason, first, again, onFirst, onAgain }: {
   return (
     <div className={s.pair}>
       <p className={s.reason}>{reason}</p>
-      <Field label={t('custody.newPassphrase')} type="password" autoComplete="new-password" spellCheck={false} value={first} onChange={(event) => onFirst(event.currentTarget.value)} hint={t('custody.passphraseHint')} />
-      <Field label={t('custody.again')} type="password" autoComplete="new-password" spellCheck={false} value={again} onChange={(event) => onAgain(event.currentTarget.value)} />
+      <PassphraseField label={t('custody.newPassphrase')} autoComplete="new-password" value={first} onChange={onFirst} hint={t('custody.passphraseHint')} />
+      <PassphraseField label={t('custody.again')} autoComplete="new-password" value={again} onChange={onAgain} />
     </div>
   );
 }

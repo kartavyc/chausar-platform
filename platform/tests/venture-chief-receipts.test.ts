@@ -128,6 +128,9 @@ test('receipts: with templates only, the answer comes from the records, every fi
   assert.ok(owed, 'what clients owe, from its receipt');
   assert.ok(listRecords(env.store.read(), 'venture-sum-receipt').some(item => item.id === owed.receiptId));
   assert.match(reply.parts.at(-1).text, /Connect your AI in Connections/);
+  // C5 task 5: the no-AI tail carries its next step as a button, set by code; the stored message keeps it.
+  assert.deepEqual(reply.suggestion, { kind: 'connect-ai' });
+  assert.deepEqual(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.suggestion, { kind: 'connect-ai' });
   assert.ok(reply.parts.every((part: any) => part.kind !== 'estimate'));
   assert.equal(env.models.previewed.length, 0, 'nothing is sent with templates only');
 });

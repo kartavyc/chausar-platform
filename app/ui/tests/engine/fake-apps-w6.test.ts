@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { SAMPLE_APP_HTML } from '../../src/engine/fake-apps';
-import { APP_NEVER_LINE, madeLine } from '../../../../platform/runtime/venture/apps/words';
+import { APP_IDEAS, APP_NEVER_LINE, madeLine } from '../../../../platform/runtime/venture/apps/words';
 import { MINI_FRAME_CSP, OFFLINE_LINE } from '../../../../platform/runtime/venture/apps/frame';
 
 // Wave 6 package 6H1 (D39): the fake engine's mini apps answer as the engine's apps/apps.ts does (the engine's own
@@ -20,7 +20,22 @@ describe('fake mini apps (6H1)', () => {
       ['miniapp_sample', 'Who owes me', true, false, ['Reads: Clients', 'Reads: Invoices', 'Keeps notes', 'Proposes cards']],
     ]);
     expect(listed.ideas).toHaveLength(3);
+    // C5 task 8: the engine's ideas, each with its preview line, word for word.
+    expect(listed.ideas).toEqual(APP_IDEAS.map((idea) => ({ ...idea })));
+    expect(listed.ideas.every((idea) => idea.preview.length > 0)).toBe(true);
     expect(listed.never).toBe(APP_NEVER_LINE);
+  });
+
+  // C4 task 29: as the engine (venture-mini-apps-w6.test.ts).
+  it('in sample mode a read answers the sample rows and a write is refused; the owner\'s notes do not change', async () => {
+    const client = fake();
+    const sample = (tool: string, args: Record<string, unknown> = {}) => client.request('venture.apps.call', { app: 'miniapp_sample', tool, arguments: args, sample: true });
+    const clients = (await sample('clients_list')).structuredContent as { clients: { id: string; name: string }[] };
+    expect(clients.clients.map((item) => item.id)).toEqual(['sample_client_1', 'sample_client_2', 'sample_client_3']);
+    await expect(sample('notes_set', { key: 'a', value: 'b' })).rejects.toMatchObject({ code: 'APP_PREVIEW_ONLY', message: 'Not in a preview' });
+    await expect(sample('propose', { kind: 'draft-reminder', invoiceId: 'sample_invoice_1' })).rejects.toMatchObject({ code: 'APP_PREVIEW_ONLY' });
+    expect((await client.request('venture.apps.call', { app: 'miniapp_sample', tool: 'notes_get', arguments: {} })).structuredContent).toEqual({ notes: {} });
+    expect((await client.request('venture.apps.get', { app: 'miniapp_sample' })).app.empty).toBe(false);
   });
 
   it('make writes a new app that asks first; its document carries the policy and the bridge', async () => {

@@ -1096,14 +1096,14 @@ test('replay through the port: calls are marked replay and status says synthetic
 // 13. Handlers and house rules
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the fifteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
+test('handlers: exactly the sixteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
   // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
   // Five, and the two Ink v2 wave 4 added (the CLI status and per-role models, 4H1).
   // A2: the owner's Codex choice is owned by models too, but the engine answers it itself (ENGINE_METHODS).
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method) && !ENGINE_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   // W6 6F1 adds the curated MCP list and OAuth sign-in, 6F2 lists, adds and removes packs.
-  assert.equal(owned.length, 15);
+  assert.equal(owned.length, 16);
   assert.ok(owned.includes('venture.agentSettings.get')); assert.ok(owned.includes('venture.agentSettings.set'));
   assert.ok(owned.includes('venture.mcpCredential.set'));
   const { deps } = await setup({ venture: false });
@@ -1186,4 +1186,51 @@ test('no command-line temp folder made by these tests is left behind', async () 
   // Only this package makes folders with this prefix; a new one here means a dispatch skipped its cleanup.
   const leftovers = (await readdir(tmpdir())).filter(name => name.startsWith(TEMP_PREFIX) && !TEMP_AT_START.has(name));
   assert.deepEqual(leftovers, []);
+});
+
+// D2 fix (review 1, HIGH 1): a call that reported cache tokens with no saved cache rate has its cost held. The caller
+// is told so: the reservation is the figure and the price is not confirmed, never '0' confirmed (callers add it up).
+test('D2 fix: a held cost comes back as the reservation with the price not confirmed; the record and spend row stay held', async () => {
+  const { deps, store, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  rec.replyHttp = () => anthropicReply({ words: 'Cached words' }, { usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } as never });
+  const outcome = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  const record = calls(store).find(row => row.id === outcome.callId)!;
+  assert.equal(record.costMicros, null, 'the call record keeps the cost held');
+  assert.ok(BigInt(record.estimatedMaxCostMicros) > 0n);
+  assert.equal(outcome.costMicros, record.estimatedMaxCostMicros, 'the caller counts the reservation, not 0');
+  assert.equal(outcome.priceConfirmed, false);
+  const spend = listRecords(store.read(), 'venture-spend').find(row => row.ref === outcome.callId);
+  if (spend) assert.equal(spend.settledMicros, spend.reservedMicros, 'the spend row settles at the reservation');
+});
+
+test('D2 fix: the harness run cap counts a held call at its reservation, so the next call that would cross the cap is refused', async () => {
+  const { applyTurn, capShortfall, DEFAULT_LIMITS, finishWrite, newHarnessState, reserveRunCall } = await import('../runtime/venture/delivery/harness/loop.ts');
+  const { deps, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  rec.replyHttp = () => anthropicReply({ words: 'Cached words' }, { usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } as never });
+  const held = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  const reservation = BigInt(held.costMicros);
+  assert.ok(reservation > 0n, 'a held call counts as its reservation, not 0');
+  // A cap with room for this call and less than one more of the same size.
+  const limits = { ...DEFAULT_LIMITS, maxCostMicros: String(reservation * 2n - 1n) };
+  const env = { runRef: { kind: 'rehearsal', runId: 'rehearsal_1' }, now: () => '2026-10-15T09:00:00.000Z' } as never;
+  let state = newHarnessState([], limits, []);
+  state = await applyTurn(env, state, { note: 'Looked at the files', calls: [], finished: false }, { by: held.by, callId: held.callId, costMicros: held.costMicros });
+  assert.equal(state.used.costMicros, String(reservation));
+  assert.notEqual(capShortfall(state, held.costMicros), null);
+  assert.throws(() => reserveRunCall(state, held.costMicros), code('RUN_CAP_REACHED'));
+  const written = finishWrite(newHarnessState([], limits, []), { by: held.by, callId: held.callId, costMicros: held.costMicros });
+  assert.equal(written.used.costMicros, String(reservation), 'the write step counts it the same way');
+});
+
+// D3 fix (review 1, item 3): the month's spend in the AI status counts a held call at its reservation, as an estimate.
+test('D3 fix: the month spent counts a held call at its reservation and says it is an estimate', async () => {
+  const { deps, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  rec.replyHttp = () => anthropicReply({ words: 'Cached words' }, { usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } as never });
+  const held = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  const status = deps.models.status(owner);
+  assert.equal(status.spentThisMonthMicros, held.costMicros, 'the reservation, not 0');
+  assert.equal(status.estimate, true);
 });

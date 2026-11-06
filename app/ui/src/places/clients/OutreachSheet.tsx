@@ -33,6 +33,7 @@ import {
 } from './handoff';
 import { CHANNELS_OF, pipelineRefresh } from './pipeline';
 import s from './Pipeline.module.css';
+import { Fold } from '../../parts/Fold';
 
 
 export function OutreachSheet({ id, onClose, returnFocus }: SheetComponentProps) {
@@ -152,14 +153,11 @@ function Draft({ view, onView }: { view: OutreachView; onView: (view: OutreachVi
         </p>
       )}
       {view.blurb && (
-        <details className={s.blurb}>
-          <summary className={s.blurbSummary}>
-            <Icon name="file-text" size={14} />
+        <Fold summary={<><Icon name="file-text" size={14} />
             <span>{t('clients.outreach.blurb')}</span>
-            {typeof view.blurbSentences === 'number' && <span data-num="">{t('clients.outreach.sentences', { count: view.blurbSentences })}</span>}
-          </summary>
+            {typeof view.blurbSentences === 'number' && <span data-num="">{t('clients.outreach.sentences', { count: view.blurbSentences })}</span>}</>} className={s.blurb} summaryClassName={s.blurbSummary}>
           <p className={s.noteText} data-content="" data-blurb="">{view.blurb}</p>
-        </details>
+        </Fold>
       )}
       {view.footer && (
         <section className={s.section} aria-labelledby={`${ids}-footer`} data-footer="">

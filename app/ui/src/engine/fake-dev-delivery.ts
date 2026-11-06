@@ -23,7 +23,7 @@ export class FakeDevDelivery {
   roomExact(p,['runId','verdict','reason','editedText'],['runId','verdict']);
   if(method==='venture.delivery.review'){
    need(['accepted','edited','rejected'].includes(String(p.verdict))&&typeof p.verdict==='string','INVALID_VENTURE_REQUEST','Choose accept, edit or reject.');
-   if(p.reason!==undefined)need(typeof p.reason==='string'&&['wrong-fact','missing-fact','missing-section','off-brief','tone','format','too-long','too-short','wrong-number','late','claims-work-not-done','other'].includes(p.reason),'INVALID_VENTURE_REQUEST','Choose a reason from the list.');
+   if(p.reason!==undefined)need(typeof p.reason==='string'&&['wrong-fact','missing-fact','missing-section','off-brief','tone','format','too-long','too-short','wrong-number','late','claims-work-not-done','other','not-needed'].includes(p.reason),'INVALID_VENTURE_REQUEST','Choose a reason from the list.');
    if(p.verdict==='edited')need(typeof p.editedText==='string'&&p.editedText.trim().length>0&&p.editedText.length<=20000,'INVALID_VENTURE_REQUEST','Add a bounded edited draft.');else need(p.editedText===undefined,'INVALID_VENTURE_REQUEST','Only an edit carries new text.');
    if(p.verdict==='rejected')need(p.reason!==undefined,'INVALID_VENTURE_REQUEST','Choose why you reject this draft.');if(p.verdict==='accepted')need(p.reason===undefined,'INVALID_VENTURE_REQUEST','An accepted draft needs no reason.');
   }

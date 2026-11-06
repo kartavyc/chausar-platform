@@ -17,6 +17,8 @@
   align-content: start;
   justify-items: center;
   padding: var(--sp-6) var(--gutter-phone) var(--sp-12);
+  /* One-shot C3: a step change cross-fades the column (tokens/motion.css ::view-transition-*(page)). */
+  view-transition-name: page;
 }
 
 .main:focus {
@@ -44,10 +46,12 @@
   font-size: var(--text-label);
 }
 
+/* C1 task 11: each label stays on one line, and step 1 keeps one short label, so the row holds its width. */
 .step {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
+  white-space: nowrap;
 }
 
 .step[aria-current='step'] {
@@ -208,6 +212,11 @@
 .problem {
   color: var(--fail);
   font-size: var(--text-body);
+}
+
+/* An error that belongs to the whole grid, not one card. */
+.wide {
+  grid-column: 1 / -1;
 }
 
 .status {

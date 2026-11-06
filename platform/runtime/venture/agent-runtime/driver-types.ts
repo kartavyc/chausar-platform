@@ -53,6 +53,8 @@ export type AgentDriverInput = {
   signal?: AbortSignal; credentials?: AgentDriverCredentials;
   /** Missing callback means deny. It never grants access outside the job's policy. */
   requestApproval?: (request: AgentApprovalRequest) => Promise<boolean>;
+  /** C7: what the tool itself reported of the owner's plan use (models/plan-meter.ts). Never shown as it came. */
+  onPlan?: (reading: import('../models/plan-meter.ts').PlanReading) => void;
 };
 export interface AgentDriverSession {
   /** Turns are serial. Continuation reuses only this live, consent-checked session. */

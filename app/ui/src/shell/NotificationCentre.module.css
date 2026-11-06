@@ -107,3 +107,9 @@
   font-size: var(--text-read);
   color: var(--fail);
 }
+
+/* C4 task 7: the items by the owner's day, Today and Earlier, each under a quiet heading. */
+.group {
+  display: grid;
+  gap: var(--sp-1);
+}

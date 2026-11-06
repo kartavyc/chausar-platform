@@ -5,6 +5,9 @@ import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { lockfileProblems, PINNED_BUILD_GIT_SOURCES } from './lockfile.mjs';
+import { TRIM } from './package-trim.mjs';
+import { readPackageContents } from './package-contents.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
@@ -20,8 +23,7 @@ const betaArtifactExtensions = { win32: ['exe'], linux: ['deb', 'AppImage', 'tar
 const CODEX_CHECK = 'bundled Codex with its LICENSE and NOTICE';
 // 6J1: electron-builder 26 depends on Electron's own node-gyp fork, which npm records as a Git source. It is a build-time
 // (dev) package, never shipped, and never run here (npmRebuild is off). Only this exact commit is accepted, still with
-// its integrity hash; every other package must resolve to an HTTPS registry artifact.
-const PINNED_BUILD_GIT_SOURCES = Object.freeze({ 'node_modules/@electron/node-gyp': 'git+ssh://git@github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2' });
+// its integrity hash; every other package must resolve to an HTTPS registry artifact. The list lives in lockfile.mjs (D1).
 const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
@@ -227,6 +229,40 @@ const onlyPinnedHook = config => {
   return hooks.length === 1 && hooks[0] === 'afterPack' && config.afterPack === AFTER_PACK_HOOK;
 };
 
+// D5: the installer trim (package-trim.mjs): three Chromium languages and no Claude Code program file.
+export { TRIM };
+// D7 task 6 (additive half): every build carries the engine bundle (scripts/bundle-engine.mjs) as its own file set,
+// unpacked, so the packaged worker can run as plain files. Its maps never ship. The engine source still ships beside it
+// until desktop main runs the bundle (D7 task 5, main lane).
+export const ENGINE_BUNDLE = Object.freeze({
+  fileSet: Object.freeze({ from: 'app/engine/dist', to: 'app/engine/dist', filter: Object.freeze(['**/*']) }),
+  unpack: 'app/engine/dist/**/*',
+  worker: 'app/engine/dist/runtime/worker.js',
+  manifest: 'app/engine/dist/engine-manifest.json',
+});
+/** Every mode: the bundle as its own file set (never a glob in the main set), unpacked, and no maps. */
+export function validateEngineBundleConfig(config) {
+  const files = Array.isArray(config.files) ? config.files : [];
+  const own = files.some(entry => JSON.stringify(entry) === JSON.stringify(ENGINE_BUNDLE.fileSet));
+  const glob = files.some(entry => typeof entry === 'string' && entry.replace(/^!/, '').startsWith('app/engine/'));
+  if (!own || glob || !(config.asarUnpack ?? []).includes(ENGINE_BUNDLE.unpack)) throw new Error(`the package carries the engine bundle as its own file set (${ENGINE_BUNDLE.fileSet.from}) and unpacks it (${ENGINE_BUNDLE.unpack}); its maps never ship`);
+}
+/** The receipt's line for the engine bundle, from its engine-manifest.json. */
+export function engineReceipt(manifest) {
+  const ok = manifest && Array.isArray(manifest.entries) && manifest.entries.length > 0 && Number.isInteger(manifest.chunks) && Number.isInteger(manifest.bytes);
+  if (!ok) throw new Error('the engine bundle has no readable engine-manifest.json');
+  return { entries: [...manifest.entries], chunks: manifest.chunks, bytes: manifest.bytes, files: manifest.files, rolldown: manifest.rolldown, sourceCommit: manifest.sourceCommit ?? null };
+}
+
+/** Every mode: exactly the three languages, and the Agent SDK's platform packages left out after node_modules. */
+export function validateTrim(config) {
+  if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
+  const files = Array.isArray(config.files) ? config.files : [];
+  const all = files.indexOf('node_modules/**/*'), cut = files.indexOf(TRIM.claudeBinaryExclusion);
+  const putBack = files.slice(cut + 1).some(entry => JSON.stringify(entry).includes('@anthropic-ai/claude-agent-sdk-'));
+  if (all < 0 || cut <= all || putBack) throw new Error(`the package carries no Claude Code program file: ${TRIM.claudeBinaryExclusion} after node_modules/**/*, and nothing puts one back`);
+}
+
 function validatePreviewConfig(config) {
   if (config.appId !== 'in.chausar.desktop.preview' || config.productName !== 'Chausar Unsigned Preview' || config.extraMetadata?.name !== 'chausar-preview' || config.extraMetadata?.chausarPreview !== true || config.extraMetadata?.chausarReleaseChannel !== 'unsigned-preview') throw new Error('preview requires a separate identity and explicit unsigned demo metadata');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
@@ -299,20 +335,14 @@ async function dependencyPrerequisites(root, platform) {
   try { await regular(lockPath); }
   catch (error) { if (error.code === 'ENOENT') throw new Error('package-lock.json is absent; an approved registry install must generate a genuine npm lockfile first'); throw error; }
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  if (lock.lockfileVersion !== 3 || lock.packages?.['']?.version !== pkg.version) throw new Error('a genuine npm v3 lockfile matching package.json is required; generate it only with an approved registry install');
-  for (const kind of ['dependencies', 'devDependencies']) {
-    if (JSON.stringify(Object.entries(lock.packages[''][kind] ?? {}).sort()) !== JSON.stringify(Object.entries(pkg[kind] ?? {}).sort())) throw new Error(`locked ${kind} differs from package.json`);
-    for (const [name, version] of Object.entries(pkg[kind] ?? {})) {
-      if (lock.packages[`node_modules/${name}`]?.version !== version) throw new Error(`lockfile does not resolve the exact ${name} pin`);
-    }
-  }
-  for (const [path, entry] of Object.entries(lock.packages)) {
-    if (!path) continue;
-    if (entry.link || !exactVersion.test(entry.version ?? '') || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(entry.integrity ?? '')) throw new Error('locked packages require exact versions and registry integrity hashes');
-    if (entry.dev === true && PINNED_BUILD_GIT_SOURCES[path] === entry.resolved) continue;
-    const url = new URL(entry.resolved);
-    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('locked packages must resolve to HTTPS registry artifacts');
-  }
+  const [problem] = lockfileProblems(lock, pkg, { pinnedGitSources: PINNED_BUILD_GIT_SOURCES });
+  if (problem) throw new Error({
+    version: 'a genuine npm v3 lockfile matching package.json is required; generate it only with an approved registry install',
+    'dependencies-differ': `locked ${problem.kind} differs from package.json`,
+    'unresolved-pin': `lockfile does not resolve the exact ${problem.name} pin`,
+    entry: 'locked packages require exact versions and registry integrity hashes',
+    resolved: 'locked packages must resolve to HTTPS registry artifacts',
+  }[problem.code] ?? problem.message);
   for (const name of ['electron', 'electron-builder', 'vite', 'pg', '@duckdb/node-api']) {
     const packagePath = join(root, 'node_modules', name, 'package.json');
     await regular(packagePath);
@@ -363,6 +393,8 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
     const config = JSON.parse(await readFile(join(root, plan.config), 'utf8'));
     validateInkPackagingConfig(config);
     validateIconConfig(config);
+    validateTrim(config);
+    validateEngineBundleConfig(config);
     if (plan.mode === 'preview') validatePreviewConfig(config);
     else if (plan.mode === 'beta') validateBetaConfig(config);
     else if (config.forceCodeSigning !== true || config.publish !== null || config.extraMetadata?.chausarPreview === true) throw new Error('final config must keep signed-release gating and disable publishing');
@@ -392,6 +424,38 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
   return { ok: failures.length === 0, mode: plan.mode, target: plan.target, cliPath, viteCli, version, checks, failures, qualification: plan.qualification };
 }
 
+// D5 task 4: a build proves its own notices. The unpacked folder electron-builder leaves (win-unpacked, linux-unpacked)
+// is read after the build: a beta or final build carries the AGPL LICENSE, NOTICE, the third-party notices and each
+// font's OFL text (app/desktop/notices/fonts, shipped as resources/notices/fonts), and feedback.json exactly when report
+// keys were staged; the demo preview carries none of them. Read only; nothing is started.
+export const UNPACKED_FOLDER = Object.freeze({ win32: 'win-unpacked', linux: 'linux-unpacked' });
+const NOTICE_RESOURCES = Object.freeze(['LICENSE', 'NOTICE', 'notices/THIRD-PARTY-NOTICES.md']);
+
+/** The font licence files a build must carry: the OFL texts in app/desktop/notices/fonts (none until they are copied there). */
+export async function packagedFontLicences(folder = join(projectRoot, 'app/desktop/notices/fonts')) {
+  try { return (await readdir(folder)).filter(name => /-OFL\.txt$/.test(name)).sort(); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+}
+
+/** What a packaged build lacks or should not carry, in plain words; empty when it is right. */
+export async function packagedResourceProblems(unpackedDir, { mode, reports, fonts = [] } = {}) {
+  const resources = join(unpackedDir, 'resources');
+  const present = async relativePath => { try { return (await lstat(join(resources, ...relativePath.split('/')))).isFile(); } catch { return false; } };
+  try { if (!(await lstat(resources)).isDirectory()) return ['the unpacked build has no resources folder']; }
+  catch { return ['the unpacked build has no resources folder']; }
+  const problems = [];
+  const staged = Boolean(reports && (reports.posthog || reports.sentry));
+  if (mode === 'preview') {
+    for (const file of [...NOTICE_RESOURCES, 'feedback.json']) if (await present(file)) problems.push(`resources/${file} is in the preview`);
+    return problems;
+  }
+  for (const file of [...NOTICE_RESOURCES, ...fonts.map(name => `notices/fonts/${name}`)]) if (!(await present(file))) problems.push(`resources/${file} is missing`);
+  const feedback = await present('feedback.json');
+  if (staged && !feedback) problems.push('resources/feedback.json is missing');
+  if (!staged && feedback) problems.push('resources/feedback.json is there, but no report keys were staged');
+  return problems;
+}
+
 async function sha256(path) {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -419,12 +483,14 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
 }
 
 /**
- * The children packaging runs, in order: the Ink build (vite build, which empties and refills app/ui/dist), then
- * electron-builder. Each is a local CLI run by this Node, with no shell. Nothing else is spawned.
+ * The children packaging runs, in order: the Ink build (vite build, which empties and refills app/ui/dist), the engine
+ * bundle (D7, which empties and refills app/engine/dist), then electron-builder. Each is a local CLI run by this Node, with no shell. Nothing else is spawned.
  */
 export function desktopPackageCommands(plan, { cliPath, viteCli }) {
   return [
     { name: 'Ink build', args: [viteCli, 'build', '--config', inkConfig] },
+    // D7: the engine bundle the packaged worker runs (npm run build:engine).
+    { name: 'engine bundle', args: ['scripts/bundle-engine.mjs'] },
     { name: 'electron-builder', args: [cliPath, ...plan.builderArguments] },
   ];
 }
@@ -448,6 +514,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   const { receiptPath, expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: prerequisites.version });
   // 6J2: the report keys are staged before electron-builder copies the resources; the demo preview carries none.
   const feedback = plan.mode !== 'preview' ? await stageFeedbackKeys({ root, environment }) : undefined;
+  let engine;
   for (const command of desktopPackageCommands(plan, prerequisites)) {
     const status = await new Promise((accept, reject) => {
       const child = spawn(process.execPath, command.args, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
@@ -457,6 +524,20 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (status !== 0) throw new Error(`${command.name} failed with exit code ${status}`);
     // The window refuses to start without the build, so a package without it is refused here first.
     if (command.name === 'Ink build') await regular(join(root, 'app/ui/dist/index.html'));
+    // D7: the packaged worker is the bundle's, so a build without it is refused here.
+    if (command.name === 'engine bundle') { await regular(join(root, ENGINE_BUNDLE.worker)); engine = engineReceipt(JSON.parse(await readFile(join(root, ENGINE_BUNDLE.manifest), 'utf8'))); }
+  }
+  // D5 task 4: no receipt for a build that lacks its notices (or carries report keys nobody staged).
+  let contents;
+  if (Object.hasOwn(UNPACKED_FOLDER, plan.platform)) {
+    const unpackedDir = join(root, plan.output, UNPACKED_FOLDER[plan.platform]);
+    const problems = await packagedResourceProblems(unpackedDir, { mode: plan.mode, reports: feedback, fonts: await packagedFontLicences(join(root, 'app/desktop/notices/fonts')) });
+    if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
+    // D5 task 5: what the build carries goes on the receipt; any problem (a fourth language, a Claude Code program file,
+    // no Ink build, Ink source, another Codex) refuses it.
+    const read = await readPackageContents(unpackedDir, { mode: plan.mode });
+    if (read.problems.length) throw new Error(`the packaged build carries the wrong contents, so no receipt was written: ${read.problems.join('; ')}`);
+    contents = { sizes: read.sizes, totalBytes: read.totalBytes, fileCount: read.fileCount, locales: read.locales, anthropic: read.anthropic, codexVersion: read.codexVersion, archiveFiles: read.archive.files, problems: read.problems };
   }
   const artifacts = [];
   if (plan.mode !== 'final' && !plan.unpacked) {
@@ -474,7 +555,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     bundled = bundledReceipt(codex, plan);
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}) };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'final' ? 'requires-native-verification' : false, published: false, qualification: plan.qualification, checks: [...prerequisites.checks, 'Ink app built to app/ui/dist'], artifacts, ...(bundled ? { bundled } : {}), ...(feedback ? { reports: feedback } : {}), ...(contents ? { contents } : {}), ...(engine ? { engine } : {}) };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }

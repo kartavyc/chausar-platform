@@ -5,24 +5,30 @@
  * A draft is issued from here. Issuing cannot be undone, so it asks a second time, and it sends the digest of the
  * invoice on screen: if the draft changed since, the engine refuses, the sheet says so and shows the new version.
  *
+ * One-shot C4 (T21): when the business has neither UPI nor bank details (the sheet's own view says so), Issue's second
+ * ask says clients won't see how to pay, with Add them (the billing settings) and Issue anyway.
+ *
  * W4 4J20 (InvoiceExtras.tsx): the invoice's next step (a reminder to draft or open, a cheque to clear), a draft's rate
  * change, each payment with a cheque waiting and the client's TDS, its credit notes and asking for one, and its
  * timeline.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type InvoiceViewLite } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Credits, NextStep, PaymentLine, RateChange, Timeline } from './InvoiceExtras';
 import { BillPart, HowToPay } from './InvoicePay';
+import { ThankYou } from './ThankYou';
 import { messageOf, onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 type Notice = { kind: 'done' | 'stale' | 'refused'; text: string; receiptId?: string | undefined };
 
@@ -36,10 +42,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const [answered, setAnswered] = useState<InvoiceViewLite | null>(null);
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'sending'>('idle');
   const [notice, setNotice] = useState<Notice | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { setAnswered(null); }, [view.data]);
-  useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = answered ?? view.data;
   // 4J20: what an action in the sheet answered; a draft made again at today's rate is a new invoice, so it opens.
@@ -50,12 +54,15 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   };
   if (!current) {
     return (
-      <Sheet label={t('money.invoice.label')} title={t('money.loading')} onClose={onClose} returnFocus={returnFocus}>
+      <Sheet label={t('money.invoice.label')} loading={!view.error} title={t('money.loading')} onClose={onClose} returnFocus={returnFocus}>
         {view.error && <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p>}
       </Sheet>
     );
   }
   const { invoice } = current;
+  // C4 (T21): no way for clients to pay is in the view the sheet already reads (howToPay, as the engine built it).
+  const pay = current.howToPay;
+  const noPay = !pay || (!pay.upi && !pay.bank && !pay.upiNote);
 
   async function issue(shown: InvoiceViewLite) {
     setPhase('sending');
@@ -80,13 +87,11 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   let footer = null;
   if (invoice.status === 'draft') {
     footer = phase === 'confirm' ? (
-      <div className={s.ask}>
+      <Confirm action={t(noPay ? 'money.invoice.noPayIssue' : 'money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
         <p>{t('money.invoice.issueAsk')}</p>
-        <div className={s.buttons}>
-          <Button ref={cancelRef} onClick={() => setPhase('idle')}>{t('approval.cancel')}</Button>
-          <Button variant="primary" data-confirm="" onClick={() => void issue(current)}>{t('money.invoice.issueConfirm')}</Button>
-        </div>
-      </div>
+        {noPay && <p data-no-pay="">{t('money.invoice.noPay')}</p>}
+        {noPay && <Button onClick={(event) => { setPhase('idle'); openSheet('billing', 'settings', event.currentTarget); }}>{t('money.invoice.noPayAdd')}</Button>}
+      </Confirm>
     ) : (
       <div className={s.buttons}>
         <Button variant="primary" disabled={phase === 'sending'} onClick={() => setPhase('confirm')}>{t('money.invoice.issue')}</Button>
@@ -105,7 +110,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       label={t('money.invoice.label')}
       eyebrow={current.client.name}
       title={invoice.number ?? t('money.invoice.draft')}
-      line={statusOf(t, day, invoice)}
+      line={current.paidInFull ? t('money.invoice.paidInFull') : statusOf(t, day, invoice, current.sent)}
       onClose={onClose}
       returnFocus={returnFocus}
       footer={footer}
@@ -147,14 +152,15 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       <RateChange view={current} onChanged={changed} />
       {/* Wave 6 (6D2, 6D3): how clients pay, the file and the share buttons, a payment link. */}
       <HowToPay view={current} onChanged={changed} />
+      {/* One-shot C6: a paid invoice's thank-you receipt, which the owner sends. */}
+      <ThankYou view={current} />
       {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
       <Credits view={current} />
       <Timeline view={current} />
-      <details className={`${s.fold} ${s.block}`}>
-        <summary>{t('money.invoice.document')}</summary>
+      <Fold summary={t('money.invoice.document')} className={`${s.fold} ${s.block}`}>
         {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}
         <pre className={s.pre} data-content="">{current.documentText}</pre>
-      </details>
+      </Fold>
       {/* Issued and changed-since are this screen's own words; only a refusal carries the engine's, which may name an
           amount. */}
       {notice && (

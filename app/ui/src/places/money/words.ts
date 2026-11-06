@@ -80,14 +80,21 @@ export function useMoment(): (iso: string) => string {
 export { useLocalToday };
 
 /** Where an invoice stands, in one sentence: "Issued 14 Oct 2026, due 28 Oct 2026". */
-export function statusOf(t: T, day: Day, invoice: InvoiceLite & { dueInDays?: number }): string {
+export function statusOf(t: T, day: Day, invoice: InvoiceLite & { dueInDays?: number }, sent?: boolean): string {
   switch (invoice.status) {
     case 'draft': return invoice.dueInDays === undefined ? t('money.status.draftShort') : t('money.status.draft', { count: String(invoice.dueInDays) });
-    case 'issued': return t('money.status.issued', { issued: day(invoice.issueDate), due: day(invoice.dueDate) });
+    // C4 (T20): "not sent" until the owner marks it; an engine that does not say leaves the plain words.
+    case 'issued': return t(sent === undefined ? 'money.status.issued' : sent ? 'money.status.issuedSent' : 'money.status.issuedUnsent', { issued: day(invoice.issueDate), due: day(invoice.dueDate) });
     case 'part-paid': return t('money.status.part-paid', { due: day(invoice.dueDate) });
     case 'paid': return t('money.status.paid');
     default: return t('money.status.void');
   }
+}
+
+/** C4 (T20): the state chip's value for an invoice: an issued one is "Issued, not sent" until the owner marks it sent. */
+export function invoiceChip(invoice: Pick<InvoiceLite, 'status' | 'sent'>): InvoiceLite['status'] | 'unsent' | 'sent' {
+  if (invoice.status !== 'issued' || invoice.sent === undefined) return invoice.status;
+  return invoice.sent ? 'sent' : 'unsent';
 }
 
 /** "INV-0039 · Boat Audio", or "Draft · Boat Audio" before it has a number. */

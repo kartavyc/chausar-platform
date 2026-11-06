@@ -5,6 +5,7 @@
 // passed (simulate.ts practiceChecks), so with built-in templates the case shows "Not checked", never a pass.
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
 import { findRecord, listRecords } from '../records.ts';
+import { liveSignals } from './check-signals.ts';
 import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 import { practiceFileNames } from './harness/practice.ts';
 import { signalExpectations } from './corrections.ts';
@@ -261,12 +262,12 @@ const REASON_CHECKS: Readonly<Record<DeliveryReason, readonly CheckId[]>> = {
   'wrong-fact': ['no-numeric-prose', 'claims-grounded'], 'missing-fact': ['questions-raised'], 'missing-section': ['required-sections'],
   'off-brief': ['required-sections', 'rules-judge'], tone: ['house-style', 'rules-judge'], format: ['required-sections', 'house-style'],
   'too-long': ['length-bounds'], 'too-short': ['length-bounds'], 'wrong-number': ['figures-resolve', 'no-numeric-prose'],
-  late: [], 'claims-work-not-done': ['no-done-claims', 'rules-judge'], other: [],
+  late: [], 'claims-work-not-done': ['no-done-claims', 'rules-judge'], other: [], 'not-needed': [],
 };
 const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
   'wrong-fact': 'a wrong fact', 'missing-fact': 'a missing fact', 'missing-section': 'a missing section', 'off-brief': 'a reply off the brief',
   tone: 'the wrong tone', format: 'the wrong format', 'too-long': 'a reply that was too long', 'too-short': 'a reply that was too short',
-  'wrong-number': 'a wrong number', late: 'a late reply', 'claims-work-not-done': 'a claim of work that was not done', other: 'a problem you flagged',
+  'wrong-number': 'a wrong number', late: 'a late reply', 'claims-work-not-done': 'a claim of work that was not done', other: 'a problem you flagged', 'not-needed': 'work you did not need',
 };
 const SOURCE_WORDS: Readonly<Record<SignalRecord['source'], string>> = {
   'owner-rejected': 'a draft you rejected', 'owner-edited': 'a draft you edited', 'check-failed': 'a draft that failed a check',
@@ -316,7 +317,7 @@ export function signalScenario(signal: SignalRecord, type: ServiceType, state?: 
  * edit or send-back of the owner's as soon as it is recorded: each correction is a rehearsal case with its expectations.
  */
 export function listScenarios(state: State, ventureId: string, type: ServiceType): Scenario[] {
-  const signals = listRecords(state, 'venture-signal', ventureId).filter(signal => signal.scenarioId !== null || signal.source === 'owner-edited' || signal.source === 'owner-rejected');
+  const signals = liveSignals(state, ventureId).filter(signal => signal.scenarioId !== null || signal.source === 'owner-edited' || (signal.source === 'owner-rejected' && signal.reason !== 'not-needed'));
   return [...businessScenarios(state, ventureId, type), ...signals.map(signal => signalScenario(signal, type, state))];
 }
 

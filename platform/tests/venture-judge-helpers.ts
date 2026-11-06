@@ -88,7 +88,12 @@ export class JudgePort implements ModelPort {
   replay = true;
   /** Runs inside a sent call, before the model answers: lets a test act while the call is out. */
   onSend: ((task: ModelTask<any>) => Promise<void>) | null = null;
-  #previews = new Map<string, { digest: string; task: ModelTask<any>; used: boolean }>();
+  /**
+   * D3 fix: a sent call reports cache tokens with no saved cache rate, as the real port keeps it: the record's cost is
+   * held (null) beside the usage, and a finished call reaches its caller as the reservation, price not confirmed.
+   */
+  heldCost = false;
+  #previews = new Map<string, { digest: string; task: ModelTask<any>; used: boolean; estimate: string }>();
   #calls = 0;
   constructor(store: VentureTestStore) { this.store = store; }
   status(): ModelStatusView {
@@ -130,10 +135,10 @@ export class JudgePort implements ModelPort {
     this.#calls += 1;
     const callId = `call_${this.#calls}`;
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
-    this.#previews.set(callId, { digest: digest(payloadText), task, used: false });
-    await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview', purpose: task.purpose }); });
-    if (this.onPreview) await this.onPreview(task);
     const estimate = this.estimateFor?.(task) ?? '1000';
+    this.#previews.set(callId, { digest: digest(payloadText), task, used: false, estimate });
+    await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview', purpose: task.purpose, estimatedMaxCostMicros: estimate }); });
+    if (this.onPreview) await this.onPreview(task);
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-haiku-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages',
       estimatedMaxCostMicros: estimate, estimatedMaxCostDisplay: estimate === '1000' ? 'USD 0.0010' : `estimate ${estimate}`,
@@ -152,7 +157,10 @@ export class JudgePort implements ModelPort {
     // Like the real port, a sent call keeps what it cost, an answer refused for its shape included.
     const setCall = (status: string) => this.store.update(state => {
       const call = state.conversations.find(record => record?.id === callId);
-      if (call) { call.status = status; if (status !== 'dispatching') call.costMicros = '200'; }
+      if (!call) return;
+      call.status = status;
+      if (status === 'dispatching') return;
+      if (this.heldCost) { call.costMicros = null; call.usage = { inputTokens: 1000, outputTokens: 200, cachedInputTokens: 4000 }; } else call.costMicros = '200';
     });
     options?.beforeDispatch?.();
     await setCall('dispatching');
@@ -169,7 +177,7 @@ export class JudgePort implements ModelPort {
     try {
       const value = validate(this.#answer(held.task));
       await setCall('completed');
-      return { value, by: 'model', callId, presetId: 'anthropic-haiku-5-5', model: 'stub', costMicros: '200', priceConfirmed: true };
+      return { value, by: 'model', callId, presetId: 'anthropic-haiku-5-5', model: 'stub', costMicros: this.heldCost ? held.estimate : '200', priceConfirmed: !this.heldCost };
     } catch (error) {
       await setCall('failed');
       throw error;

@@ -1,26 +1,28 @@
 /**
  * Money (D-Money): an overview, invoices, bills, books, margins, spend and the journal, each one address (#/money,
- * #/money/invoices, ...), as a segmented row of links. Every figure here is text the engine formatted, through the
+ * #/money/invoices, ...), as a row of tabs (Overview, Invoices, Bills, and More). Every figure here is text the engine formatted, through the
  * Figure part with its receipt, or labelled a model estimate. The screen never adds, parses or rounds an amount.
  *
- * Simple first: the overview is plain money in and out; tax detail sits one step away under Books, and a business not
- * registered for GST never sees GST at all.
+ * Simple first: the overview is plain money in and out; tax detail sits one step away under For your CA (the Books page,
+ * C4 T24; C1 moves it under More), and a business not registered for GST never sees GST at all.
  *
- * Above the overview (W4 4J20): the businesses on this computer as chips (Across.tsx, W4 4J6), the month the tiles show
- * (?month=2026-09, this month when none) and Export for your CA for that month. Margins takes the same month.
+ * Above the overview (W4 4J20): the businesses on this computer as chips (Across.tsx, W4 4J6) and the month the tiles show
+ * (?month=2026-09, this month when none). Margins takes the same month. Saving a month for the CA is one sheet (C4 T24).
  *
  * Sheets: `invoice` (one invoice; a draft is issued from it), `payment` (record a payment against an invoice),
- * `limit` (what to do when a spend limit is used up, W4 4F2) and `accountant` (a read-only month of books for the
- * owner's accountant, from the business menu).
+ * `limit` (what to do when a spend limit is used up, W4 4F2) and `accountant` (Share with your CA, C4 T24: the files or a
+ * link, from For your CA and the business menu).
  */
 
 import { useT } from '../../text';
 import { setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
 import { PageTitle } from '../../parts/PageTitle';
+import { PlaceTiles } from '../../parts/Tile';
 // W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
-import { Segmented, type SegmentLink } from '../../parts/Segmented';
+import { Tabs, type TabLink } from '../../parts/Tabs';
+import { MONEY_PRIMARY } from '../../shell/nav';
 import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
 import type { SheetComponent } from '../../shell/sheets';
@@ -28,7 +30,6 @@ import { AccountantSheet } from './AccountantSheet';
 import { AcrossChips, AcrossView, useAcrossChoice } from './Across';
 import { Bills } from './Bills';
 import { Books } from './Books';
-import { ExportButton } from './ExportButton';
 import { InvoiceSheet } from './InvoiceSheet';
 import { BillingSheet } from './BillingSheet';
 import { Invoices } from './Invoices';
@@ -42,33 +43,29 @@ import { notYet } from './views';
 import { monthsOffered, useChosenMonth, useMonthWords } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import { Select } from '../../parts/Select';
 
 const SUBS = ['invoices', 'bills', 'books', 'margins', 'spend', 'journal', 'businesses'] as const;
 type Sub = (typeof SUBS)[number];
 const isSub = (value: string | undefined): value is Sub => SUBS.includes(value as Sub);
 
-const ICONS: Readonly<Record<Sub | 'overview', IconName>> = {
-  overview: 'layout-grid',
-  invoices: 'receipt-text',
-  bills: 'file-pen',
-  books: 'file-text',
-  margins: 'trending-up',
-  spend: 'bot',
-  journal: 'history',
-  businesses: 'layout-grid',
-};
 
 
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const route = useRoute();
   const sub = isSub(route.sub) ? route.sub : undefined;
   const { month } = useChosenMonth(route.query);
   const { across, chosen, error } = useAcrossChoice();
-  const links: SegmentLink[] = [
-    { id: 'overview', label: t('money.sub.overview'), icon: ICONS.overview, href: '#/money' },
+  const links: TabLink[] = [
+    { id: 'overview', label: t('money.sub.overview'), href: '#/money' },
     // Money across businesses (4J6) is its own page, offered only when this computer has more than one business.
-    ...SUBS.filter((id) => id !== 'businesses' || (across?.businesses.length ?? 0) > 1).map((id) => ({ id, label: t(`money.sub.${id}`), icon: ICONS[id], href: `#/money/${id}` })),
+    ...SUBS.filter((id) => id !== 'businesses' || (across?.businesses.length ?? 0) > 1).map((id) => ({ id, label: t(`money.sub.${id}`), href: `#/money/${id}` })),
   ];
   const monthly = sub === undefined || sub === 'margins';
 
@@ -77,7 +74,9 @@ export function Place() {
       <PageTitle title={t('place.money')} line={sub === undefined ? t('money.line') : undefined} tools={sub === undefined ? <ArrangeButton place="money" /> : undefined} />
       <StorageNotice />
       <div className={s.toolbar}>
-        <Segmented mode="links" label={t('money.nav')} value={sub ?? 'overview'} options={links} />
+        {/* C1 task 3: Overview, Invoices and Bills in the row; Books, Margins, Spend, Journal (and Businesses) under More at
+            every width, so no tab appears or leaves as data arrives. The page on screen is always in the row. */}
+        <Tabs mode="links" label={t('money.nav')} value={sub ?? 'overview'} items={links} primary={MONEY_PRIMARY} />
       </div>
       {monthly && (
         <div className={v.bar}>
@@ -85,7 +84,6 @@ export function Place() {
           {sub === undefined && <AcrossChips across={across} chosen={null} overview />}
           <span className={v.barEnd}>
             <MonthPicker month={month} />
-            {sub === undefined && <ExportButton month={month} />}
           </span>
         </div>
       )}
@@ -114,11 +112,8 @@ function MonthPicker({ month }: { month: string }) {
   const { thisMonth } = useChosenMonth({});
   const months = monthsOffered(thisMonth);
   return (
-    <label className={v.month}>
-      <Icon name="calendar" size={16} />
-      <span className="sr-only">{t('money.month')}</span>
-      <select
-        className={v.monthSelect}
+    <Select
+        aria-label={t('money.month')}
         value={month}
         onChange={(event) => {
           const { month: _old, ...query } = route.query;
@@ -127,8 +122,7 @@ function MonthPicker({ month }: { month: string }) {
         }}
       >
         {months.map((item) => <option key={item} value={item}>{monthWords(item)}</option>)}
-      </select>
-    </label>
+      </Select>
   );
 }
 

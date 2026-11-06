@@ -14,7 +14,10 @@ import { FAKE_4J3_METHODS, fakePoster, withFakePreviews } from './fake-previews'
 // 4J8: "Add this to {business}", the plan suggestion (fake-plan-suggest.ts).
 import { FAKE_4J8_METHODS, fakePlanSuggest } from './fake-plan-suggest';
 // 4H2: the CLI status on this computer and the AI serving each role (fake-cli.ts).
-import { FAKE_4H2_METHODS, fakeCliStatus, fakeRoles } from './fake-cli';
+import { FAKE_4H2_METHODS, fakeCliStatus, fakePlan, fakeRoles } from './fake-cli';
+import { FAKE_TRACKER_METHODS, FakeTrackers } from './fake-trackers';
+import { FAKE_HIRE_METHODS, FakeHire } from './fake-hire';
+import { FAKE_EVENT_METHODS, FakeEvents } from './fake-events';
 // 4J6: money and runs across the businesses on this computer (fake-across.ts).
 import { FAKE_4J6_METHODS, FakeAcross } from './fake-across';
 // 4A2: departments, Keeper and health on Team (fake-team.ts).
@@ -36,6 +39,8 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  /** C4 (T25): a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
+  noteDecision?(subject: string, action: string, reason: string): void;
   /** A2 review: the Codex setup Your AI shows (fake-first-run.ts connectionsSetup). */
   codexSetup?(): import('./types').CodexSetupLite;
   nativeCanResume?(run:RunDetail):boolean;
@@ -69,6 +74,8 @@ export interface W4DeskHost {
   emit(event: VentureRunEvent): void;
   /** Whether this answers as the hosted web server. */
   hosted(): boolean;
+  /** C7: whether the open business has tax fields (the GST tracker starter); left out means none. */
+  taxFields?(): boolean;
   /** Today's rows, shared with the other desks, and the fake's digest for a row it adds or changes. */
   rows(): QueueRow[];
   setRows(rows: QueueRow[]): void;
@@ -116,11 +123,14 @@ export interface W4DeskHost {
   receipt?(id: string): ReceiptLite | undefined;
 }
 
-const W4_METHODS = new Set<string>([...FAKE_4J3_METHODS, ...FAKE_4J8_METHODS, ...FAKE_4J6_METHODS, ...FAKE_4A2_METHODS, ...FAKE_4I2_METHODS, ...FAKE_4H2_METHODS, ...FAKE_4F3_METHODS, ...FAKE_4J2_METHODS, ...FAKE_4J19_METHODS, ...FAKE_4J21_METHODS, ...FAKE_4J22B_METHODS, ...FAKE_4J22A_METHODS]);
+const W4_METHODS = new Set<string>([...FAKE_EVENT_METHODS, ...FAKE_HIRE_METHODS, ...FAKE_TRACKER_METHODS, ...FAKE_4J3_METHODS, ...FAKE_4J8_METHODS, ...FAKE_4J6_METHODS, ...FAKE_4A2_METHODS, ...FAKE_4I2_METHODS, ...FAKE_4H2_METHODS, ...FAKE_4F3_METHODS, ...FAKE_4J2_METHODS, ...FAKE_4J19_METHODS, ...FAKE_4J21_METHODS, ...FAKE_4J22B_METHODS, ...FAKE_4J22A_METHODS]);
 
 export class FakeW4Desk {
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
+  private readonly trackers: FakeTrackers;
+  private readonly hire: FakeHire;
+  private readonly events: FakeEvents;
   private readonly across: FakeAcross;
   private readonly team: FakeTeamDesk;
   private readonly goals: FakeGoals;
@@ -129,6 +139,8 @@ export class FakeW4Desk {
   private readonly approvals: FakeApprovalsDesk;
   /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision). */
   noteDecision(subject: string, action: string, reason: string): void { this.approvals.noteDecision(subject, action, reason); }
+  /** C4 task 15: a draft's Reject, which can be taken back. */
+  noteReject(row: QueueRow, runId: string, prior: DeliveryLite): void { this.approvals.rejected(row, runId, prior); }
   chausarNote(subject: string, action: string, reason: string): void { this.approvals.chausarNote(subject, action, reason); }
   private readonly setup: FakeSetupDesk;
   private readonly extras: FakeAgentExtras;
@@ -145,6 +157,9 @@ export class FakeW4Desk {
     this.sets = new FakeSets(host);
     this.approvals = new FakeApprovalsDesk(host, { fresh: this.fresh });
     this.setup = new FakeSetupDesk(host, { trial: () => host.trial?.() ?? false });
+    this.trackers = new FakeTrackers(host);
+    this.hire = new FakeHire(host);
+    this.events = new FakeEvents(host);
     this.extras = new FakeAgentExtras(host, { fresh: this.fresh, hooks: options.extras ?? {} });
     this.quality = new FakeQualityDesk(host, { fresh: this.fresh });
     // 4J3: the engine adds previews after each row's digest; the fake adds its own rows' the same way.
@@ -165,7 +180,10 @@ export class FakeW4Desk {
 
   /** 4A2: venture.team.list, the fake's agents as the engine lists them (fake.ts answers the method with this). */
   teamList(agents: AgentView[], runs: readonly RunSummary[]): TeamListView {
-    return this.team.list(agents, runs);
+    // C7: the agents the owner hired stand before Keeper.
+    const keeper = agents.findIndex((agent) => agent.id === 'keeper');
+    const hired = this.hire.agents();
+    return this.team.list(keeper < 0 ? [...agents, ...hired] : [...agents.slice(0, keeper), ...hired, ...agents.slice(keeper)], runs);
   }
 
   /** 4F3: a run as venture.runs.get sends it, its scope's cap in rupees when the owner set a rate. */
@@ -194,9 +212,13 @@ export class FakeW4Desk {
   }
 
   request(method: string, p: Record<string, unknown>): unknown {
+    if (FAKE_TRACKER_METHODS.includes(method)) return this.trackers.request(method, p);
+    if (FAKE_HIRE_METHODS.includes(method)) return this.hire.request(method, p);
+    if (FAKE_EVENT_METHODS.includes(method)) return this.events.request(method, p);
     if (method === 'venture.files.poster') return fakePoster(this.host, p);
     if (method === 'venture.blueprint.suggest') return fakePlanSuggest(this.host, p);
     if (method === 'venture.models.cli.status') return fakeCliStatus(this.host, p);
+    if (method === 'venture.models.plan') return fakePlan(this.host, p);
     if (method === 'venture.models.roles') return fakeRoles(this.host, p);
     if (method === 'venture.queue.setPreview') return this.sets.preview(p);
     if (method === 'venture.queue.set') return this.sets.set(p);

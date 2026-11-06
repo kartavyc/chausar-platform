@@ -10,7 +10,7 @@ import {
   ArrowLeftRight, ArrowRight, Bell, Bot, Briefcase, Calendar, Check, ChevronDown, ChevronRight, ChevronsUpDown,
   CircleHelp, Clock, Contact, Eye, EyeOff, FilePen, FileText, Handshake, History, IndianRupee, LayoutGrid, Lock,
   Megaphone, MessageSquare, MessagesSquare, Mic, Package, Paperclip, Pencil, Play, Plug, Plus, ReceiptText, RotateCcw,
-  Scissors, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, SquarePlay, Stamp, Sun, Tag, Target, TrendingDown, TrendingUp,
+  Scissors, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquarePlay, Stamp, Sun, Tag, Target, TrendingDown, TrendingUp,
   TriangleAlert, Upload, Users, Wallet, Wrench, X, type LucideIcon,
 } from 'lucide-react';
 
@@ -74,6 +74,8 @@ export const ICONS = {
   search: Search,
   'sliders-horizontal': SlidersHorizontal,
   paperclip: Paperclip,
+  // C1: Settings in the rail and in More (sliders-horizontal keeps meaning Arrange).
+  settings: Settings,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

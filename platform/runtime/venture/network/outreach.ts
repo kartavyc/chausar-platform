@@ -278,7 +278,7 @@ function outsidePerson(who: Named & { title: string | null }): (Named & { title:
   return { name, company: who.company === null ? null : outside(who.company), title: who.title === null ? null : outside(who.title) };
 }
 
-function instructionsFor(request: DraftRequest): string {
+export function instructionsFor(request: Pick<DraftRequest, 'language' | 'channel' | 'kind'>): string {
   return [
     'You draft one message that the owner of a small business sends themselves from their own app. Chausar never sends it.',
     'Use only the facts given: who it is to, how the owner knows them, the business and its offers, and the owner\'s own words.',

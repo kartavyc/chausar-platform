@@ -12,6 +12,16 @@
   animation: global(ink-sheet-in) var(--t-sheet) var(--ease) 1;
 }
 
+/* One-shot C3: a sheet that took another's place (Read to Edit) cross-fades on the press time, no slide; a closed one
+   leaves the way it came, a little faster, before the shell drops it (shell/App.tsx). */
+.sheet[data-replacing] {
+  animation: global(ink-fade-in) var(--t-press) var(--ease) 1;
+}
+
+.sheet[data-leaving] {
+  animation: global(ink-sheet-out) var(--t-exit) var(--ease-exit) 1 both;
+}
+
 .sheet[data-width='panel'] {
   max-inline-size: var(--panel);
 }

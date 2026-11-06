@@ -10,12 +10,15 @@ import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
+import noteStyles from '../../shell/StorageNotice.module.css';
 import { StartAtLogin } from '../onboarding/StartAtLogin';
 import { PausedNote } from '../../shell/PausedNote';
+import { PausedWork } from '../../parts/paused';
 import { useNarrow } from '../../shell/useNarrow';
-import { refusalWords } from '../../parts/custody';
+import { refusalWords, takeOpenedWithPassphrase } from '../../parts/custody';
+import { PlaceTiles } from '../../parts/Tile';
 import { LeftContext } from '../onboarding/started';
-import { ApprovalRow, decidedWords, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
+import { ApprovalRow, decidedWords, primaryOf, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
 import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
 import { SwipeCard } from '../../parts/SwipeCard';
@@ -26,6 +29,7 @@ import { decide as decideRow, reread as rereadRow, seenKey, undoOf, useTodaySess
 import { ViewSheet, viewSheetId } from './ViewSheet';
 import { Greeting } from './Greeting';
 import { TodayGoal } from './GoalCard';
+import { GOAL_EVENTS } from './goal';
 import { TeamAtWork } from './TeamAtWork';
 import { BIG_CARDS, COMPACT_CARDS, NeedsYou, SwipeTip, knownFilter, matchesFilter, type CardLayout, type NeedsItem } from './NeedsYou';
 import { useCardPreview } from './CardPreview';
@@ -88,7 +92,7 @@ const PLACES_FOR: Partial<Record<QueueAction['id'], () => void>> = {
  * the owner to another place, and opening the thing to look at. A swipe right never presses them (3H1 review): on a
  * phone those cards swipe left only.
  */
-const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>(['open', 'watch', 'read', ...(Object.keys(PLACES_FOR) as QueueAction['id'][])]);
+const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>(['open', 'watch', 'read', 'show-file', ...(Object.keys(PLACES_FOR) as QueueAction['id'][])]);
 
 const focusedRowId = () => (document.activeElement as HTMLElement | null)?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null;
 
@@ -109,7 +113,19 @@ function sentences(first: string | undefined, second: string | undefined): strin
   return /[.!?।]$/.test(first.trim()) ? `${first} ${second}` : `${first}. ${second}`;
 }
 
+/** C4 task 35 (32.x1): after a passphrase opened this business, one quiet line on Today's first view, once. */
+function OpenedNote() {
+  const t = useT();
+  const [opened] = useState(takeOpenedWithPassphrase);
+  return opened ? <p className={noteStyles.notice} role="status">{t('today.openedAgain')}</p> : null;
+}
+
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const client = useEngine();
   const left = useContext(LeftContext);
@@ -118,8 +134,12 @@ export function Place() {
   const narrow = useNarrow();
   const openOutreach = useOutreachOpen(); // 4E4: a follow-up's handoff, Reply in Mail, Add notes
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
+  // C4 task 5: while paused, cards that would start new work lock their primary (parts/paused.ts).
+  const business = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
+  // The same read as the goal card's (one answer for both): whether the next best step holds the page's filled button.
+  const goals = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
   const layout = useLayout('today');
   // A stale decision hands back the new version; it shows until the list itself catches up.
   const [newer, setNewer] = useState<ReadonlyMap<string, { from: string; latest: QueueRow }>>(new Map());
@@ -170,13 +190,16 @@ export function Place() {
 
   // W4 4B3: an agent's chat opens a card here by its subject (`?row=proposal:<id>`; a row's id is its subject and its
   // version). Once the card is listed it comes into view through goToRow, and the address lets go of it.
-  const askedRow = route.query.row;
+  // One-shot C4 task 7: the notification centre (and Team's empty state) ask the same with `?focus=<rowId>`, once.
+  const askedRow = route.query.row ?? route.query.focus;
   useEffect(() => {
     if (!askedRow) return;
-    const row = live.find((r) => r.id === askedRow || r.id.startsWith(`${askedRow}:`));
+    // C4 task 10: `focus` may name a kind ("plan"): the first card of that kind; `read` opens what it is about too.
+    const row = live.find((r) => r.id === askedRow || r.id.startsWith(`${askedRow}:`)) ?? live.find((r) => r.kind === askedRow);
     if (!row) return;
     goToRow(row.id);
-    const { row: _asked, ...rest } = route.query;
+    if (route.query.read && row.viewRef) look(row);
+    const { row: _asked, focus: _focus, read: _read, ...rest } = route.query;
     setQuery(rest);
   }, [askedRow, live.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,6 +274,11 @@ export function Place() {
   function navigate(row: QueueRow, action: QueueAction): boolean {
     if (openOutreach(row, action)) return true;
     if (openNotice(row, action)) return true;
+    // C5 task 17: the desktop shows the file in its folder; the window names only the file.
+    if (action.id === 'show-file') {
+      if (row.notice?.file) void client.showExport?.(row.notice.file)?.catch(() => undefined);
+      return true;
+    }
     const go = PLACES_FOR[action.id];
     if (!go) return false;
     go();
@@ -331,6 +359,17 @@ export function Place() {
     if (first) setReveal(first);
   }
 
+  // B4: one filled button on the page. The next best step holds it while it is drawn; with none, the first card that
+  // can be pressed holds it. Every other card's primary is drawn as a secondary. While the goals view is still on its
+  // way nobody holds it, so no card flashes filled.
+  const goalShown = drawnBlocks('today', layout.data).some((block) => block.id === 'goal' && block.shown);
+  const stepId = goals.data?.next?.rowId;
+  const stepDrawn = goalShown && stepId !== undefined && live.some((row) => row.id === stepId) && !session.line(stepId);
+  const goalsPending = goalShown && goals.data === undefined && !goals.error;
+  const holder = stepDrawn || goalsPending
+    ? undefined
+    : items.find((item) => !item.done && matchesFilter(item.row, filter) && !primaryOf(item.row, session.isViewed(seenKey(item.row)), t).locked)?.row.id;
+
   const card = (item: NeedsItem, layout: CardLayout) => (item.done ? (
     <Decided line={{ ...item.done, undo: undoOf(item.done, live) }} settle={settled.has(item.row.id)} layout={layout} phone={narrow} />
   ) : (
@@ -349,6 +388,8 @@ export function Place() {
       phone={narrow}
       onDefer={handlers.defer}
       onHandle={handlers.handle}
+      quietPrimary={item.row.id !== holder}
+      said={session.said(item.row.id)}
     />
   ));
 
@@ -376,7 +417,7 @@ export function Place() {
       />
     ),
     // A5 fix round 1: start at login, asked once here when the first run ended without an answer.
-    notices: () => <><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
+    notices: () => <><OpenedNote /><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
     goal: () => <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />,
     team: () => <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} title={nameOf('team')} />,
     needs: () => (
@@ -411,7 +452,7 @@ export function Place() {
   const ideasHidden = drawn.some((block) => block.id === 'ideas' && !block.shown);
 
   return (
-    <>
+    <PausedWork.Provider value={Boolean(business.data?.paused)}>
       {slot(0)}
       {slot(1)}
       <LayoutNotice layout={layout.data} reload={layout.reload} />
@@ -434,7 +475,7 @@ export function Place() {
         {ideasHidden && <IdeasFold ideas={false} />}
         <FeedbackQuestion />
       </div>
-    </>
+    </PausedWork.Provider>
   );
 }
 
@@ -458,6 +499,10 @@ interface TodayCardProps {
   onDefer: (row: QueueRow) => void;
   /** Lend the card's own buttons to Today (the next best step presses its primary through them). */
   onHandle: (id: string, handle: ApprovalHandle | null) => void;
+  /** B4: another button holds the page's one filled primary. */
+  quietPrimary: boolean;
+  /** B4: what happened to this row just now (a price taken back). */
+  said: string | undefined;
 }
 
 /**
@@ -470,7 +515,7 @@ interface TodayCardProps {
  * was on screen when the finger came down: a new version that arrives mid-swipe (its digest changed) is never pressed
  * by that swipe; the card shows it as changed, and the owner swipes again if they want to.
  */
-const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle }: TodayCardProps) {
+const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle, quietPrimary, said }: TodayCardProps) {
   const t = useT();
   const handle = useRef<ApprovalHandle | null>(null);
   // The card's buttons, for the swipe here and for Today's next best step (4I2).
@@ -489,6 +534,7 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
       agentState={agentState}
       preview={outreach ?? preview}
       tools={draftToolsFor(row)}
+      said={said}
       viewed={viewed}
       onDecide={onDecide}
       onReread={onReread}
@@ -499,6 +545,7 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
       handle={register}
       buttonSize={phone ? 'xl' : undefined}
       answerLabel={answerLabel}
+      quietPrimary={quietPrimary}
     />
   );
   if (!phone) return card;

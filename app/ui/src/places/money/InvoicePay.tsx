@@ -11,12 +11,17 @@
  * each press asks the engine again (S7: the first file was kept, so an email added later was never used), and a failure
  * names the button.
  *
+ * One-shot C4 (T20): after each share opened the owner's own app (or the file was saved) the sheet records it on the
+ * invoice (venture.invoice.shared), so its timeline says so. "Mark as sent" is the owner's own word that it went: only
+ * that makes the invoice sent. Opening WhatsApp or a mail app is not sending.
+ *
  * BillPart: a draft can bill part of its order instead (an advance, a milestone, a part payment or what is left), sent
  * as typed; the engine cuts it and refuses anything past the order's total.
  */
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
+import { ResultLine } from '../../parts/ResultLine';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
@@ -27,6 +32,8 @@ import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { messageOf } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 type Changed = (next?: InvoiceViewLite) => void;
 /** How often a waiting payment link is checked while the sheet is open. */
@@ -45,7 +52,7 @@ function QrCode({ rows, label }: { rows: string[]; label: string }) {
 }
 
 /** Saves bytes the engine sent as a file, from the owner's own click. */
-function saveFile(file: Pick<InvoicePdfView, 'fileName' | 'contentBase64' | 'mimeType'>): boolean {
+export function saveFile(file: Pick<InvoicePdfView, 'fileName' | 'contentBase64' | 'mimeType'>): boolean {
   if (typeof URL.createObjectURL !== 'function') return false;
   const bytes = Uint8Array.from(atob(file.contentBase64), (character) => character.charCodeAt(0));
   const url = URL.createObjectURL(new Blob([bytes], { type: file.mimeType }));
@@ -95,12 +102,21 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     try { await work(); } catch (error) { setProblem(t(failed, { message: messageOf(error) })); }
     setBusy(false);
   }
+  /**
+   * C4 (T20): records a share the owner made on the invoice and shows the invoice it answers. The share already happened,
+   * so a note that could not be written never hides the line that says what opened.
+   */
+  const note = async (how: 'whatsapp' | 'email' | 'file') => {
+    try { onChanged(await engine.request('venture.invoice.shared', { invoiceId: invoice.id, how })); } catch { /* the share stands; only its note is missing */ }
+  };
+  const markSent = () => act(async () => { onChanged(await engine.request('venture.invoice.shared', { invoiceId: invoice.id, how: 'marked' })); });
   // A6 (S7): every press asks the engine again, so the file and its links follow the invoice and the client as they are now.
   const fileNow = (): Promise<InvoicePdfView> => engine.request('venture.invoice.pdf', { invoiceId: invoice.id });
   const save = () => act(async () => {
     const made = await fileNow();
     if (!saveFile(made)) { setProblem(t('money-pay.cantSave')); return; }
     setSaid(made.note ?? t('money-pay.saved', { name: made.fileName }));
+    await note('file');
   });
   /** A6: what the desktop opened, in words, and the file offered in its folder. */
   const shared = (result: InvoiceShareResult) => {
@@ -111,6 +127,8 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     setSaid(result.note ? `${line} ${result.note}` : line);
     // A6 round 1: on a draft too, since a mail app that opens it read-only leaves the owner to attach the file again.
     setKept(file);
+    // C4 (T20): an app opened with it; when no mail app opened there is nothing to note.
+    if (result.how === 'whatsapp' || result.opened !== 'none') void note(result.how);
   };
   const whatsapp = () => {
     if (engine.shareInvoice) { void act(async () => shared(await engine.shareInvoice!(invoice.id, 'whatsapp')), 'money-pay.whatsappFailed'); return; }
@@ -123,6 +141,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
         await performHandoff({ action: 'whatsapp', url: made.share.whatsappUrl } as Parameters<typeof performHandoff>[0], tab);
       } catch (error) { tab?.close(); throw error; }
       setSaid(t('money-pay.shareNote'));
+      await note('whatsapp');
     }, 'money-pay.whatsappFailed');
   };
   const email = () => act(async () => {
@@ -130,6 +149,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     const made = await fileNow();
     await performHandoff({ action: 'mailto', url: made.share.mailtoUrl } as Parameters<typeof performHandoff>[0], null);
     setSaid(t('money-pay.shareNote'));
+    await note('email');
   }, 'money-pay.emailFailed');
   const showKept = async (name: string) => {
     // A6 round 1: a file that cannot be shown takes the line above with it, so no stale "opened" line sits over the problem.
@@ -203,15 +223,17 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           <Button size="sm" disabled={busy} onClick={() => void save()}>{t('money-pay.saveFile')}</Button>
           <Button size="sm" disabled={busy} onClick={whatsapp}>{t('money-pay.whatsapp')}</Button>
           <Button size="sm" disabled={busy} onClick={() => void email()}>{t('money-pay.email')}</Button>
+          {/* C4 (T20): the owner's own word that it went; until then the invoice reads "Issued, not sent". */}
+          {invoice.status === 'issued' && view.sent === false && <Button size="sm" variant="quiet" disabled={busy} onClick={() => void markSent()}>{t('money-pay.markSent')}</Button>}
         </div>
       )}
-      {said && <p className={s.notice} role="status" data-engine-line="">{said}</p>}
+      {/* B4 task 5: Saved, Shared and a refusal share one slot that is there before the press. */}
+      <ResultLine tone={problem ? 'problem' : 'done'} className={s.result} data-engine-line="">{problem ?? said}</ResultLine>
       {kept && engine.showShared && (
         <p className={s.payRow}>
           <Button size="sm" variant="quiet" onClick={() => void showKept(kept)}>{t(kept.endsWith('.pdf') ? 'money-pay.showPdf' : 'money-pay.showFile')}</Button>
         </p>
       )}
-      {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </section>
   );
 }
@@ -252,13 +274,12 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
       {partLine}
       {restOpen && <p className={s.payRow}><Button size="sm" disabled={busy} onClick={() => void draft()}>{t('money-pay.part.rest')}</Button></p>}
       {invoice.status === 'draft' && (
-        <details className={`${s.fold} ${s.block}`}>
-          <summary>{t('money-pay.part.fold')}</summary>
+        <Fold summary={t('money-pay.part.fold')} className={`${s.fold} ${s.block}`}>
           <div className={s.field}>
             <label htmlFor={kindId} className={s.fieldLabel}>{t('money-pay.part.kind')}</label>
-            <select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
+            <Select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
               {KINDS.map((item) => <option key={item} value={item}>{t(`money-pay.part.${item}`)}</option>)}
-            </select>
+            </Select>
           </div>
           {(kind === 'advance' || kind === 'milestone') && <Field label={t('money-pay.part.percent')} value={percent} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setPercent(event.currentTarget.value)} />}
           {kind === 'partial' && <Field label={t('money-pay.part.amount')} value={amount} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setAmount(event.currentTarget.value)} />}
@@ -270,7 +291,7 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
             })}>{t('money-pay.part.draft')}</Button>
           </div>
           {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
-        </details>
+        </Fold>
       )}
       {problem && invoice.status !== 'draft' && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </>

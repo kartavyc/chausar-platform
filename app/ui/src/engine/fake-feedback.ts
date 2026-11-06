@@ -6,6 +6,7 @@
  * rehearsal business has started, has its plan and its AI, and has earned nothing yet.
  */
 
+import { diagnosticsLine } from '../../../../platform/runtime/venture/views/diagnostics-core';
 import { EngineError } from './types';
 import type { FeedbackCrashKept, FeedbackView } from './types';
 import type { W4DeskHost } from './fake-w4';
@@ -15,7 +16,7 @@ import {
   feedbackPreview, keptCrash, type CrashSource, type KeptCrash,
 } from '../../../../platform/runtime/venture/core/feedback-core';
 
-const METHODS = new Set(['venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete']);
+const METHODS = new Set(['venture.diagnostics.today', 'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete']);
 /** The milestones the rehearsal business has reached. */
 const REACHED: readonly ReportMilestone[] = ['business_started', 'plan_accepted', 'ai_connected'];
 
@@ -47,6 +48,8 @@ export class FakeFeedbackDesk {
 
   request(method: string, p: Record<string, unknown>): unknown {
     switch (method) {
+      // C5 task 28: the rehearsal's runs keep no call times, so it says what a business with nothing today says.
+      case 'venture.diagnostics.today': exact(p ?? {}, []); return { day: this.host.now().slice(0, 10), line: diagnosticsLine([], 0), rows: [], modelCalls: 0 };
       case 'venture.feedback.get': exact(p ?? {}, []); return this.view();
       case 'venture.feedback.consent': return this.consent(p);
       case 'venture.feedback.send': return this.send(p);

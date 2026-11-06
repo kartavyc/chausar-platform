@@ -85,7 +85,7 @@ describe('Today: the goal card with a goal set (W4 4I2)', () => {
     expect(foot.textContent).toContain('₹37,600');
     expect(foot.textContent).toContain('Received so far');
     expect(within(foot).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
-    expect(foot.querySelectorAll('[data-receipt][data-tone="dark"]')).toHaveLength(3);
+    expect(foot.querySelectorAll('[data-receipt]')).toHaveLength(3);
     // A goal is set, so no suggestion is ever asked for, and nothing reads the pace receipt on its own.
     expect(calls.some(([method]) => method === 'venture.goals.suggest' || method === 'venture.receipt.get')).toBe(false);
     assertFiguresProved(goal);
@@ -268,6 +268,27 @@ describe('Today: the next best step (W4 4I2)', () => {
     await start({ engine: new FakeEngine({ now: () => NOW, queue: [] }) });
     await goalCard('October goal');
     expect(screen.queryByText('Next best step')).toBeNull();
+  });
+
+  it('C4 task 9: on a phone a locked step has Open beside it; after reading, the primary unlocks', async () => {
+    await start({
+      narrow: true,
+      override: {
+        'venture.goals.get': changed((view) => ({
+          ...view, next: { rowId: 'post:linkedin-ep13:v1', title: 'Post to X', agent: 'Publisher', line: '', figure: null, goalAfter: null, goalAfterPercent: null },
+        })),
+      },
+    });
+    const goal = await goalCard('October goal');
+    await waitFor(() => expect(goal.querySelector('[data-next-folded]')).not.toBeNull());
+    const folded = goal.querySelector<HTMLElement>('[data-next-folded]')!;
+    const primary = () => within(folded).getByRole('button', { name: /^Approve and post/ });
+    expect(primary().getAttribute('aria-disabled')).toBe('true');
+    await act(async () => { fireEvent.click(within(folded).getByRole('button', { name: 'Open' })); });
+    await settle();
+    await waitFor(() => expect(primary().getAttribute('aria-disabled')).toBeNull());
+    expect(within(folded).queryByRole('button', { name: 'Open' })).toBeNull();
+    assertOnePrimary(goal);
   });
 
   it('on a phone the step folds into the goal card as one line with one primary, and there is no separate tile', async () => {

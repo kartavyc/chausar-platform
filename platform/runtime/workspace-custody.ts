@@ -2,11 +2,12 @@
 // Cards say which businesses live here; key records hold the OS's protected blob or a pointer to the OS item.
 // No secret passes through this file except into a DeviceKeyStore.
 import { randomBytes } from 'node:crypto';
-import { appendFile, lstat, readdir, unlink } from 'node:fs/promises';
+import { appendFile, copyFile, lstat, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ChausarError, check, internalCheck } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory, wrappersDigestOf } from './vault.ts';
 import type { DeviceKeyRecord } from './device-custody.ts';
+import { newerFormat, noteNewerOnce, readLocalJson } from './local-files.ts';
 import {
   AUTO_BACKUP, BACKUP_LIST_MAX, BUSINESS_LIST_MAX, CUSTODY_WORDS, TRANSFER,
   type BackupKind, type BackupView, type BusinessList, type BusinessOnComputer, type ComputerCustodyView,
@@ -23,7 +24,17 @@ export type VaultCard = {
    * the change was cut short, so opening tries both ways in and the next successful open clears it. */
   state: 'creating' | 'ready'; pending: CardPending;
   createdAt: string; openedAt: string | null;
+  /** C5 task 23: where automatic backups are copied (ciphertext only), and how the last copy went. */
+  copy?: BackupCopySetting | null;
+  /** C5 task 24: how the last copy to Google Drive went. Never a token. */
+  drive?: { lastFile: string | null; lastCopiedAt: string | null; problem: string | null } | null;
 };
+export type BackupCopySetting = { folder: string; lastFile: string | null; lastCopiedAt: string | null; problem: string | null };
+/** C5 task 23: how many copies stay on the drive or folder. */
+export const COPY_KEEP = 5;
+/** C5 task 22: a readable export this computer knows of: kind and time only, never a business word. kept: the owner said to keep it. */
+type ReadableNote = { file: string; at: string; kept: boolean; path?: string };
+const READABLE_NAME = /^chausar-[A-Za-z0-9_-]{1,200}-\d{1,16}\.json$/;
 export type CardPending = null | 'reseal' | 'forget' | 'to-passphrase' | 'to-this-computer';
 export const CARD_PENDING: readonly CardPending[] = Object.freeze([null, 'reseal', 'forget', 'to-passphrase', 'to-this-computer']);
 export const FOLDER_RULE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
@@ -79,8 +90,15 @@ export class CustodyFiles {
     try { const info = await lstat(join(folder, name)); if (info.isFile() && !info.isSymbolicLink()) await unlink(join(folder, name)); }
     catch (error: any) { if (error?.code !== 'ENOENT') throw error; }
   }
+  /** D12: a card a newer Chausar wrote is left alone (ignored, never rewritten or removed) and noted once. */
+  async #newerCard(folder: string): Promise<boolean> {
+    if (!newerFormat(await readLocalJson(join(this.cards, `${folder}.json`)), CARD_FORMAT)) return false;
+    await noteNewerOnce(join(this.directory, 'custody'), `cards/${folder}.json`, 'card');
+    return true;
+  }
   async readCard(folder: string): Promise<VaultCard | null> {
     if (!FOLDER_RULE.test(folder)) return null;
+    if (await this.#newerCard(folder)) return null;
     const card = await this.#readJson(this.cards, `${folder}.json`);
     return validCard(card) && card.folder === folder ? card : null;
   }
@@ -102,8 +120,8 @@ export class CustodyFiles {
       if (lines.length > 200) await atomicWriteText(path, `${lines.slice(-200).join('\n')}\n`, true);
     } catch { /* the log is a help, never a gate */ }
   }
-  async writeCard(card: VaultCard) { check(validCard(card), 'INVALID_CARD', 'A business card needs its folder and unlock mode.'); await this.#write(this.cards, `${card.folder}.json`, card); }
-  async removeCard(folder: string) { if (FOLDER_RULE.test(folder)) await this.#remove(this.cards, `${folder}.json`); }
+  async writeCard(card: VaultCard) { check(validCard(card), 'INVALID_CARD', 'A business card needs its folder and unlock mode.'); if (await this.#newerCard(card.folder)) return; await this.#write(this.cards, `${card.folder}.json`, card); }
+  async removeCard(folder: string) { if (FOLDER_RULE.test(folder) && !(await this.#newerCard(folder))) await this.#remove(this.cards, `${folder}.json`); }
   async listCards(): Promise<VaultCard[]> {
     const folder = await this.#folder(this.cards, false); if (!folder) return [];
     const cards: VaultCard[] = [];
@@ -228,6 +246,58 @@ export class CustodyFiles {
     return found.sort();
   }
   async removeBackup(name: string) { await this.#remove(this.backups, name); }
+
+  // -------------------------------------------------------------- C5 task 23: a copy on a drive or folder
+
+  /** Copies a managed backup to the owner's folder as ciphertext, under its own name, then keeps that business's newest 5 there. Nothing else in the folder is touched. */
+  async copyBackupOut(name: string, folder: string, workspaceId: string): Promise<void> {
+    const parsed = parseBackupName(name);
+    check(parsed && parsed.workspaceId === workspaceId, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+    if (!(await stat(folder)).isDirectory()) throw Object.assign(new Error('Not a folder'), { code: 'ENOTDIR' });
+    const part = join(folder, `.${name}.${randomBytes(6).toString('hex')}.part`);
+    try { await copyFile(this.backupPath(name), part); await rename(part, join(folder, name)); }
+    catch (error) { await unlink(part).catch(() => {}); throw error; }
+    const mine = (await readdir(folder)).flatMap(item => { const read = parseBackupName(item); return read && read.workspaceId === workspaceId ? [read] : []; }).sort((a, b) => b.at - a.at || b.name.localeCompare(a.name));
+    for (const old of mine.slice(COPY_KEEP)) await unlink(join(folder, old.name)).catch(() => {});
+  }
+
+  // -------------------------------------------------------------- C5 task 22: readable exports still on this computer
+
+  async #readableNotes(): Promise<ReadableNote[]> {
+    const value = await this.#readJson(join(this.directory, 'custody'), 'exports.json').catch(() => null);
+    return Array.isArray(value?.readable) ? value.readable.filter((note: any) => typeof note?.file === 'string' && READABLE_NAME.test(note.file) && typeof note.at === 'string') : [];
+  }
+  async #writeReadable(readable: ReadableNote[]) { await this.#write(join(this.directory, 'custody'), 'exports.json', { readable }); }
+  async noteReadable(file: string, at: string, path?: string) {
+    check(READABLE_NAME.test(file), 'EXPORT_NOT_FOUND', 'That copy is not in the exports folder any more.');
+    await this.#writeReadable([...await this.#readableNotes(), { file, at, kept: false, ...(path ? { path } : {}) }]);
+  }
+  /** This business's readable copies the owner hasn't said to keep, oldest first. A file gone by itself drops off quietly. */
+  async readableExports(workspaceId: string): Promise<{ file: string; at: string }[]> {
+    const folder = await this.#folder(join(this.directory, 'exports'), false);
+    const notes = await this.#readableNotes(), present: ReadableNote[] = [];
+    for (const note of notes) {
+      if (!folder) break;
+      try { const info = await lstat(note.path ?? join(folder, note.file)); if (info.isFile() && !info.isSymbolicLink()) present.push(note); } catch { /* gone */ }
+    }
+    if (present.length !== notes.length) await this.#writeReadable(present).catch(() => {});
+    const prefix = `chausar-${workspaceId}-`;
+    return present.filter(note => !note.kept && note.file.startsWith(prefix)).sort((a, b) => a.at.localeCompare(b.at)).map(({ file, at }) => ({ file, at }));
+  }
+  async keepReadable(file: string) {
+    const notes = await this.#readableNotes();
+    check(notes.some(note => note.file === file), 'EXPORT_NOT_FOUND', 'That copy is not in the exports folder any more.');
+    await this.#writeReadable(notes.map(note => (note.file === file ? { ...note, kept: true } : note)));
+  }
+  /** Deletes exactly that readable copy, and only one Chausar noted. */
+  async deleteReadable(file: string) {
+    const notes = await this.#readableNotes();
+    check(READABLE_NAME.test(file) && notes.some(note => note.file === file), 'EXPORT_NOT_FOUND', 'That copy is not in the exports folder any more.');
+    const saved = notes.find(note => note.file === file)?.path;
+    if (saved) await unlink(saved).catch(error => { if (error?.code !== 'ENOENT') throw error; });
+    else await this.#remove(join(this.directory, 'exports'), file);
+    await this.#writeReadable(notes.filter(note => note.file !== file));
+  }
   async transferFile(text: string): Promise<string> {
     const folder = await this.#folder(this.transfers, true);
     const path = join(folder!, `${randomBytes(12).toString('hex')}.backup`);
@@ -256,7 +326,7 @@ export function newCard(fields: Partial<VaultCard> & Pick<VaultCard, 'folder' | 
 export type ParsedBackup = { name: string; workspaceId: string; at: number; kind: BackupKind; legacy: boolean };
 export type BackupFile = ParsedBackup & { bytes: number };
 /** The tail after `chausar-<workspaceId>-` that a managed backup or export may have. */
-export const MANAGED_COPY_TAIL = /^\d+(?:-(?:auto|manual|safety))?\.(backup|json|vault)$/;
+export const MANAGED_COPY_TAIL = /^(?:\d+(?:-(?:auto|manual|safety))?\.(backup|json|vault)|ca-\d{4}-\d{2}(?:\.csv|-receipts\.json))$/;
 const BACKUP_NAME = /^chausar-([A-Za-z0-9_-]{1,200})-(\d{1,16})(?:-(auto|manual|safety))?\.backup$/;
 export function parseBackupName(name: string): ParsedBackup | null {
   if (typeof name !== 'string') return null;

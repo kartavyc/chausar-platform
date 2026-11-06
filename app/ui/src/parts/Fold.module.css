@@ -1,0 +1,42 @@
+/* The one fold: the app's chevron, plain dark words, no native marker. A place may set its spacing or a larger size on
+   the summary, never a colour. The ring on focus is the app's own (base.css). */
+
+.summary {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--control-sm);
+  list-style: none;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary > [data-fold-mark] {
+  display: inline-flex;
+  flex: none;
+  color: var(--mute);
+}
+
+.summary[data-tone='danger'] {
+  color: var(--fail);
+}
+
+.summary[data-tone='danger'] > [data-fold-mark] {
+  color: inherit;
+}
+
+.fold[open] > .summary {
+  margin-bottom: var(--sp-2);
+}
+
+.fold[open] > .summary > [data-fold-mark] {
+  transform: rotate(90deg);
+}

@@ -45,7 +45,7 @@ The founder's later decisions of 18 October removed the Keep it safe step. The e
 
 **The live preview.** The right side shows the business coming together in real words, like the founder's prototype B: the kind, the name, the one line, each offer with how it is charged and its price, and a small website card with the first four page names, the line and the offers. Every word there is an engine answer, the owner's own typing, or one of five fixed phrases ("Your business", "Takes shape as you type.", "Price not set", "before tax", "Encrypted on this computer"). A price is the engine's `priceDisplay` before the vault, the receipt's total label and display after it, or, on the built-in plan, the owner's typed text beside the currency code. The renderer adds, rounds and formats nothing. There is no web address. The pane stays `aria-hidden`, and it isn't counted in the 45 words at rest. At phone width a strip under the header shows the small shapes, the kind and the name. Hosted gets the same preview, without the lock words.
 
-Words at rest, header and left pane, measured by the renderer test with the longest answers: Pair 30, Connect 45, the open box 35, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Choose a passphrase 36, the recovery code 36, Setting up 9, Accept 45 (the longest plan) or 30, Build 44, Welcome back 38 (three businesses, the longest name, the typed folder offered) or 20 (none). The captures, light and dark at 1366 px and 375 px, are `screens/60-*` to `78-*`: [prices](screens/63-prices-light.png), [setting up](screens/64-setup-light.png), [Accept](screens/65-accept-light.png), [Welcome back](screens/68-welcome-back-light.png), [Trust, off](screens/72-trust-off-light.png), [backups](screens/75-trust-backups-light.png), [moving](screens/76-trust-move-light.png). They come from the renderer fixtures in headless Edge, not from a live engine. The live walk of 19 October, against the real engine and this computer's Windows key store, is in [`screens/onboarding-v3/`](screens/onboarding-v3/); the next section says what it did.
+Words at rest, header and left pane, measured by the renderer test with the longest answers: Pair 30, Connect 45, the open box 35, Working 37, Plan 43, Set your prices 44, Not a service 31, Refused 39, Choose a passphrase 36, the recovery code 36, Setting up 9, Accept 45 (the longest plan) or 30, Build 44, Welcome back 38 (three businesses, the longest name, the typed folder offered) or 20 (none). These screens were captured in light and dark at 1366 px and 375 px from the renderer fixtures in headless Edge, not from a live engine, and walked live on 19 October against the real engine and this computer's Windows key store; the next section says what that walk did. Those captures are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones.
 
 ## The live walk, 19 October
 
@@ -129,7 +129,7 @@ Before a business is kept, the engine holds everything in a **draft desk**, in m
 
 The nine draft methods are `venture.ai.options`, `venture.ai.connect`, `venture.ai.disconnect`, `venture.ai.status`, `venture.ai.calls`, `venture.compose.decide`, `venture.compose.fill`, `venture.compose.get` and `venture.compose.update`. The engine answers them before its vault check. The local server lets only the trusted owner's bootstrap session use them, and the hosted server answers `HOSTED_NOT_AVAILABLE`. `venture.ai.connect`, `decide` and `fill` are app-only: a phone or a tainted context is refused.
 
-Wave 6 (6C1, 6C2) adds six more draft methods for the new first run. `venture.ai.tools` reads whether Codex and Claude Code are installed and signed in, from each tool's own status command. `venture.ai.login.start` and `venture.ai.login.cancel` open and stop that tool's own sign-in; Chausar never shows a sign-in of its own and never reads the tool's login files. `venture.about.read` turns a few lines about the owner, a resume PDF or a LinkedIn export into a family and up to three offers, checked by a strict schema; `venture.about.pick` takes a family the owner picks; `venture.about.families` lists the families. Notes: `docs/superpowers/plans/w6/notes/6C1.md` and `6C2.md`.
+Wave 6 (6C1, 6C2) adds six more draft methods for the new first run. `venture.ai.tools` reads whether Codex and Claude Code are installed and signed in, from each tool's own status command. `venture.ai.login.start` and `venture.ai.login.cancel` open and stop that tool's own sign-in; Chausar never shows a sign-in of its own and never reads the tool's login files. `venture.about.read` turns a few lines about the owner, a resume PDF or a LinkedIn export into a family and up to three offers, checked by a strict schema; `venture.about.pick` takes a family the owner picks; `venture.about.families` lists the families. Notes: `chausar-private/docs/superpowers/plans/w6/notes/6C1.md` and `6C2.md`.
 
 **Handover.** `venture.create` gains `composeId` and `composedDigest`, sent together or not at all. The renderer never sends the plan itself. The engine checks the held plan's digest (else `APPROVAL_STALE`), checks the plan again, then writes in one action: the business, the composition record, the answered interview, plan version 1, the adopted connections and calls (same ids and times, so "What was sent" in the vault lists the calls made before it), and the events `venture-created`, `plan-composed`, `interview-updated`, `blueprint-drafted` and `model-connected`. Only after that commit are the keys copied to the vault's memory-only shelf. An AI connected before the vault is adopted even when the owner chose a built-in plan.
 
@@ -220,7 +220,7 @@ Each screen has a budget of words at rest: 45 or less, and lower on Pair 35, Not
 
 Every "with <model>" line on these screens comes from the live status, and the plan screen names who wrote the plan from its own `writtenBy` (with `replay` set for a recording), so a plan written by Sonnet still says Sonnet after the owner connects another AI. In the replay demo, Working and Plan say "from a synthetic recording" and name no model.
 
-The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their test `venture-onboarding-renderer.test.ts`. [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words; the captures are in [`screens/onboarding-v2/`](screens/onboarding-v2/).
+The renderer package owns the screens (`app/renderer/launch.js`, `app.js`, `styles.css`) and their test `venture-onboarding-renderer.test.ts`. [launch.md](launch.md#onboarding-v2-18-october) lists the screens and their exact words. The captures are no longer kept in this repository; the screenshot walk (`node scripts/ui-shots/walk.mjs`) makes new ones.
 
 ## After the plan is kept
 
@@ -251,13 +251,13 @@ The offline demo answers the composer for the demo idea ("Monthly bookkeeping fo
 In sh:
 
 ```sh
-CHAUSAR_PORT=4391 CHAUSAR_VAULT_DIRECTORY=.b2c-work/demo-data CHAUSAR_VENTURE_REPLAY=1 CHAUSAR_VENTURE_MODEL_REPLAY=platform/tests/fixtures/venture/demo/model-replay.json CHAUSAR_VENTURE_GITHUB_REPLAY=platform/tests/fixtures/venture/e2e/github-sync.json npm start
+CHAUSAR_PORT=4391 CHAUSAR_HOME="${TMPDIR:-/tmp}/chausar-demo" CHAUSAR_VENTURE_REPLAY=1 CHAUSAR_VENTURE_MODEL_REPLAY=platform/tests/fixtures/venture/demo/model-replay.json CHAUSAR_VENTURE_GITHUB_REPLAY=platform/tests/fixtures/venture/e2e/github-sync.json npm start
 ```
 
 In PowerShell:
 
 ```powershell
-$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_VAULT_DIRECTORY='.b2c-work/demo-data'; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
+$env:CHAUSAR_PORT='4391'; $env:CHAUSAR_HOME="$env:TEMP\chausar-demo"; $env:CHAUSAR_VENTURE_REPLAY='1'; $env:CHAUSAR_VENTURE_MODEL_REPLAY='platform/tests/fixtures/venture/demo/model-replay.json'; $env:CHAUSAR_VENTURE_GITHUB_REPLAY='platform/tests/fixtures/venture/e2e/github-sync.json'; npm start
 ```
 
 Add `CHAUSAR_CLAUDE_CODE_TERMS=accepted` to try the Claude Code row; the demo has Claude Code answers for decide and compose only.

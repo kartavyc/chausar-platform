@@ -12,6 +12,18 @@
   margin-bottom: var(--sp-4);
 }
 
+/* The tabs take the room the tools leave (C1); what does not fit goes under More. On a phone they have their own line. */
+.toolbar > [data-tabs] {
+  flex: 1 1 0;
+  width: auto;
+}
+
+@media (max-width: 759px) {
+  .toolbar > [data-tabs] {
+    flex-basis: 100%;
+  }
+}
+
 .tools {
   display: flex;
   flex: none;
@@ -131,33 +143,7 @@
 }
 
 .moreSummary {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
   min-height: var(--target);
-  list-style: none;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--fg2);
-  cursor: pointer;
-}
-
-.moreSummary::-webkit-details-marker {
-  display: none;
-}
-
-.moreSummary > svg {
-  flex: none;
-  color: var(--mute);
-  transition: transform var(--t-press) var(--ease);
-}
-
-.more[open] > .moreSummary > svg {
-  transform: rotate(90deg);
-}
-
-.moreSummary:hover {
-  color: var(--fg);
 }
 
 .moreBody {
@@ -328,7 +314,6 @@
   flex: none;
   font-size: var(--text-label);
   color: var(--mute);
-  text-transform: uppercase;
 }
 
 /* A lead: what is known, its drafts as written, the owner's own send, the block */

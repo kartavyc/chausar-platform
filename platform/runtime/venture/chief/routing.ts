@@ -4,6 +4,7 @@
 // agent's chat; a name only in the middle of a question leaves it with the chief. An agent is named by its name
 // ("Story editor"), the last word of its name when no other agent's name ends the same way ("Editor"), the same in
 // Devanagari ("एडिटर"), or its id after an @ ("@story-editor"). Hindi is compared without the nukta. Reads only.
+import { hiredRecords } from '../agents/hire-store.ts';
 import type { State } from '../../contracts.ts';
 import type { VentureRecord } from '../contracts.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
@@ -43,6 +44,8 @@ export function teamAgents(state: State, venture: VentureRecord): TeamAgent[] {
   for (const id of ids) {
     try { agents.push(brief(chatAgent(state, venture, id))); } catch { /* not on this team now */ }
   }
+  // C7: the agents the owner hired, while they are on the team.
+  for (const hired of hiredRecords(state, venture.id)) if (hired.role && !isRetired(state, venture.id, hired.id)) agents.push({ id: hired.id, name: hired.role.name, job: hired.role.job });
   return agents;
 }
 

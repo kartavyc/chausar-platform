@@ -590,7 +590,7 @@
   color: var(--mute);
 }
 
-/* The agent panel: the state in its head line, D's `.cp-tabs` segmented tabs, and the two tabs' contents. */
+/* The agent panel: the state in its head line, and the tabs' contents (the tabs are the Tabs part, C1). */
 
 .panelState {
   font-weight: var(--weight-medium);
@@ -600,55 +600,6 @@
 .panelState[data-tone='working'] { color: var(--accent-text); }
 .panelState[data-tone='waiting'] { color: var(--wait); }
 .panelState[data-tone='failed'] { color: var(--fail); }
-
-.tabs {
-  display: flex;
-  gap: calc(var(--sp-1) / 2);
-  padding: var(--sp-1);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-tile);
-}
-
-.tab {
-  display: inline-flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--control);
-  padding: 0 var(--sp-3);
-  border: 0;
-  border-radius: var(--r-button-sm);
-  background: none;
-  color: var(--fg2);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  white-space: nowrap; /* W4 4J22b: five tabs in one row (D-TeamChat), each on one line. */
-  cursor: pointer;
-  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
-}
-
-@media (max-width: 759px) {
-  .tab {
-    padding: 0 var(--sp-2);
-  }
-}
-
-.tab:hover {
-  background: var(--wash);
-  color: var(--fg);
-}
-
-.tab[aria-selected='true'] {
-  background: var(--selected);
-  color: var(--on-selected);
-}
-
-.tab:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
 
 /* One column that may shrink below its content (4Z walk), so a scroll bar in the sheet never pushes it sideways. */
 .tabPanel {
@@ -852,13 +803,6 @@
   }
 }
 
-/* A phone (3H1): the panel's tabs are full 44 px touch targets. */
-@media (max-width: 759px) {
-  .tab {
-    min-height: var(--target);
-  }
-}
-
 /* W4 4A2: a department panel's head is its icon, name and jobs, which fit on one line at any panel width; the spend,
    with the rupees beside it, takes the line under them. */
 .deptHead > .deptStat {
@@ -997,19 +941,6 @@
   composes: hit from '../../parts/touch.module.css';
 }
 
-.keeperSee {
-  width: fit-content;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.keeperSee:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
-
 .jobs {
   display: grid;
   gap: var(--sp-3);
@@ -1042,4 +973,86 @@
   line-height: 16px;
   color: var(--fg2);
   overflow-wrap: anywhere;
+}
+
+/* C5 task 1: the quiet introduction lines above the team, plain text with one small button. */
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.introLines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+/* C7: the hire sheet: one step at a time, plain fields, the card of what the agent does. */
+.hireForm {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.hireLine {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.introDone {
+  font: inherit;
+  font-size: var(--text-read);
+  color: var(--link);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hireProblem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.hireReads {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-read);
+}
+
+.hireSelect {
+  display: grid;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.hireHead {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.hireList {
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.hireFold {
+  font-size: var(--text-read);
 }

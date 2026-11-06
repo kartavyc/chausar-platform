@@ -2,6 +2,7 @@ import { useId, type ButtonHTMLAttributes, type Ref } from 'react';
 import { useT } from '../text';
 import { cx } from './cx';
 import { Icon } from './Icon';
+import { SwapWords } from './Swap';
 import s from './Button.module.css';
 
 /**
@@ -28,22 +29,29 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   lockedReason?: string | undefined;
   /** The id of the visible note line that says why it is locked, so a screen reader hears it with the button. */
   lockedNoteId?: string | undefined;
+  /** One-shot B4: why it can't be pressed yet. Given, the button is `disabled` and the reason is printed under it, tied
+   *  by `aria-describedby`. Left out (or empty), it follows `disabled` alone, as a busy button does. */
+  disabledReason?: string | undefined;
+  /** One-shot B4: it destroys or stops something. Red words on an outline, never the accent fill. */
+  tone?: 'danger' | undefined;
   ref?: Ref<HTMLButtonElement> | undefined;
 }
 
 export function Button({
-  variant = 'secondary', size, locked = false, lockedReason, lockedNoteId,
+  variant = 'secondary', size, locked = false, lockedReason, lockedNoteId, disabledReason, tone,
   className, type = 'button', ref, disabled, title, children, onClick, ...rest
 }: ButtonProps) {
   const t = useT();
   const lockedId = useId();
+  const reasonId = useId();
   if (import.meta.env.DEV && variant === 'chat' && !rest['aria-label'] && !rest['aria-labelledby']) {
     throw new Error('A chat button needs an aria-label that says whose chat it opens, such as "Chat with Editor".');
   }
   const height = size ?? (variant === 'chat' ? 'sm' : 'md');
   const reason = lockedReason ?? t('button.locked');
   // Locked: "Locked." and the note line (or the reason when there is no note) join whatever it already describes.
-  const describedBy = cx(rest['aria-describedby'], locked && lockedId, locked && lockedNoteId) || undefined;
+  const describedBy = cx(rest['aria-describedby'], locked && lockedId, locked && lockedNoteId, disabledReason && reasonId) || undefined;
+  const off = disabled || Boolean(disabledReason);
   // A locked button is aria-disabled, not disabled, so it stays in the Tab order and can say why it is locked; a
   // click (or Enter, Space, a form submit) does nothing. Native `disabled` stays for a busy button.
   return (
@@ -54,9 +62,10 @@ export function Button({
         className={cx(s.button, s[variant], className)}
         data-variant={variant}
         data-size={height}
+        data-tone={tone}
         data-locked={locked ? '' : undefined}
-        aria-disabled={locked && !disabled ? true : undefined}
-        disabled={disabled}
+        aria-disabled={locked && !off ? true : undefined}
+        disabled={off}
         title={locked ? reason : title}
         onClick={locked ? (event) => event.preventDefault() : onClick}
         {...rest}
@@ -64,9 +73,11 @@ export function Button({
       >
         {locked && <Icon name="lock" size={height === 'sm' ? 14 : 16} />}
         {variant === 'chat' && <Icon name="message-square" size={14} />}
-        {children ?? (variant === 'chat' ? t('button.chat') : null)}
+        {/* One-shot C3 task 8: a label that changes (Save to Saved) fades in place; at rest the text stands alone. */}
+        {typeof children === 'string' ? <SwapWords>{children}</SwapWords> : children ?? (variant === 'chat' ? t('button.chat') : null)}
       </button>
       {locked && <span id={lockedId} hidden>{lockedNoteId ? t('button.lockedWord') : t('button.lockedWhy', { reason })}</span>}
+      {disabledReason && <span id={reasonId} className={s.reason} data-disabled-reason="">{disabledReason}</span>}
     </>
   );
 }

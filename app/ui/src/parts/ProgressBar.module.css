@@ -26,6 +26,8 @@
   height: 6px;
   border-radius: var(--r-chip);
   background: var(--line);
+  /* One-shot C3 task 14: a step that fills does so once, over the settle time. */
+  transition: background-color var(--t-settle) var(--ease);
 }
 
 .bar[data-tone='working'] .segment[data-filled] { background: var(--accent); }
@@ -47,6 +49,7 @@
 }
 
 .rest { fill: var(--line); }
+.fill { transition: width var(--t-settle) var(--ease); }
 .bar[data-tone='working'] .fill { fill: var(--accent); }
 .bar[data-tone='waiting'] .fill { fill: var(--wait-ring); }
 .bar[data-tone='failed'] .fill { fill: var(--fail-ring); }

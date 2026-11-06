@@ -24,6 +24,8 @@
 
 .arc {
   stroke: var(--ring-colour);
+  /* One-shot C3 task 14: the arc moves to the new step over the settle time. */
+  transition: stroke-dasharray var(--t-settle) var(--ease), stroke-dashoffset var(--t-settle) var(--ease);
 }
 
 .dot {

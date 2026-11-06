@@ -14,12 +14,23 @@ export const CUSTODY_METHODS = Object.freeze([
   'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export',
   // Ink v2 wave 4 (4J6): the owner starts a new never-contact list once the old one can no longer be checked.
   'workspace.custody.neverContactReset',
+  // One-shot C4 task 38: the business name and day inside a move file, read with its code, before moving it here.
+  'workspace.transfer.peek',
+  // C5 task 24: Google Drive, built up to the OAuth client.
+  'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
+  // One-shot C6: what a backup of the open business holds and what restoring it would take back (read only).
+  'workspace.backups.inspect',
 ] as const);
 export type CustodyMethod = typeof CUSTODY_METHODS[number];
+/**
+ * C5 tasks 21, 23: these name a path on this computer, so only the desktop's main process asks them, after its own file
+ * or folder pick. They are in neither the window's allowlist nor the server's: a window can never name a path.
+ */
+export const CUSTODY_MAIN_ONLY_METHODS = Object.freeze(['workspace.import', 'workspace.backups.copyTo'] as const);
 /** Answered before the vault check; they also answer with a vault open. */
-export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import']);
+export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.transfer.peek']);
 /** The owner, in the app (desktop channel, untainted), with a vault open. */
-export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset']);
+export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect', 'workspace.backups.inspect']);
 /** These change which vault is open or replace its state: engine transitions. */
 export const CUSTODY_TRANSITION_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.transfer.import', 'workspace.backups.restore']);
 /** After one of these succeeds, an automatic backup is due at the next tick. */
@@ -30,10 +41,26 @@ export const BACKUP_AFTER_METHODS: readonly string[] = Object.freeze([
 ]);
 export const AUTO_BACKUP = Object.freeze({ everyMs: 21_600_000, minGapMs: 120_000, keepRecent: 10, keepDailyDays: 14, keepWeeklyWeeks: 8, keepSafety: 5 });
 export const TRANSFER = Object.freeze({ prefix: 'CHT-', length: 24, alphabet: '0123456789ABCDEFGHJKMNPQRSTVWXYZ', maxTextChars: 1_900_000 });
-/** A4 review (L3, hands-on row 113): a move file's name, by this computer's own date (never the UTC day). */
+/**
+ * A4 review (L3, hands-on row 113): a move file's name, by this computer's own date (never the UTC day). One-shot C4
+ * task 38 (218.d1): its own extension, .chausar-move; a move file an older Chausar named .backup still opens (the
+ * import reads the text, never the name).
+ */
+export const MOVE_EXTENSION = '.chausar-move';
 export function moveFileName(at: Date): string {
   const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-  return `chausar-move-${day}.backup`;
+  return `chausar-move-${day}${MOVE_EXTENSION}`;
+}
+const EXPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/**
+ * One-shot C4 task 36 (206.w1): the name an export of the whole business is offered under in the save dialog, from the
+ * business's name and the day where the owner is: "Pune Frames, 3 Nov 2026.vault" (.json for a readable copy). Letters
+ * a file name can't hold become spaces; an empty name reads "Chausar business".
+ */
+export function exportFileName(business: string, at: Date, timeZone: string, plaintext: boolean): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(at).map(part => [part.type, part.value]));
+  const name = business.replace(/[<>:"/\\|?*\p{Cc}]/gu, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 80) || 'Chausar business';
+  return `${name}, ${Number(parts.day)} ${EXPORT_MONTHS[Number(parts.month) - 1]} ${parts.year}.${plaintext ? 'json' : 'vault'}`;
 }
 export const BUSINESS_LIST_MAX = 50;
 export const BACKUP_LIST_MAX = 200;
@@ -52,8 +79,18 @@ export type BusinessCustodyView = {
   unlock: UnlockMode;
   recovery: RecoveryState;
   storage: 'experimental-file' | 'postgres';
-  backups: { auto: boolean; count: number; newestAt: IsoTime | null; nextDueAt: IsoTime | null; lastError: string | null };
+  backups: { auto: boolean; count: number; newestAt: IsoTime | null; nextDueAt: IsoTime | null; lastError: string | null; copy: BackupCopyView | null };
+  /** C4 task 36: the name the save dialog offers for an encrypted export today (exportFileName). */
+  exportName?: string;
+  /** C4 task 37: how many exports of this business are in Chausar's own exports folder (Delete keeps them). */
+  exportsHere?: number;
+  /** C4 task 38 (219.x1): when a move file was made, until the owner dismisses the line; null when none waits. */
+  moveMadeAt?: IsoTime | null;
+  /** C5 task 19: how big the business is, and the most it can be: past that a save is refused. */
+  storeBytes: number; storeLimit: number;
 };
+/** C5 task 23: the drive or folder backups are copied to. folderName only: the window never holds a path. problem: in the owner's words. */
+export type BackupCopyView = { folderName: string; lastCopiedAt: IsoTime | null; problem: string | null };
 export type CustodyView = { computer: ComputerCustodyView; business: BusinessCustodyView | null };
 export type BusinessOnComputer = {
   folder: string; name: string | null; demo: boolean | null; unlock: UnlockMode;
@@ -66,6 +103,18 @@ export type BackupView = {
   kind: BackupKind; at: IsoTime; revision: number; bytes: number;
   name: string | null;     // from the card of the same vault id
   opensNow: boolean;       // its wrappers equal the business's current ones
+  /** C5 task 20: what came just before it, while the business is open. Worked out on reading, never written outside the vault. */
+  after?: string;
+};
+
+/**
+ * One-shot C6: what a backup of the open business holds (`counts`, the backup's own) and what changed since it was made
+ * (`since`: restoring takes these back). Kinds and words come from venture/views/backup-diff.ts BACKUP_KIND_WORDS.
+ */
+export type BackupInspectView = {
+  file: string; at: IsoTime;
+  counts: { kind: string; words: string; count: number }[];
+  since: { kind: string; words: string; added: number; changed: number; removed: number }[];
 };
 
 export type WorkspaceCreatePayload = { name: string; pack?: string; demo?: boolean; passphrase?: string; folder?: string | null };
@@ -86,10 +135,19 @@ export type CustodyPayloads = {
   'workspace.custody.recoveryCode': { passphrase?: string };
   'workspace.backups.create': Record<string, never>;
   'workspace.backups.restore': { file: string; confirmed: true };
-  'workspace.transfer.export': { passphrase?: string };
+  /** dismiss (C4 task 38): takes away the "Move file made" line; nothing else changes. */
+  'workspace.transfer.export': { passphrase?: string } | { dismiss: true };
+  'workspace.transfer.peek': { fileText: string; transferCode: string };
   /** confirmation: the open business's name, typed by the owner. */
   'workspace.custody.neverContactReset': { confirmation: string };
+  'workspace.backups.drive.status': Record<string, never>;
+  'workspace.backups.drive.connect': Record<string, never>;
+  'workspace.backups.drive.disconnect': Record<string, never>;
+  'workspace.backups.inspect': { file: string };
 };
+export type DriveStatus = { state: 'not-connected' | 'connecting' | 'connected'; lastCopiedAt: IsoTime | null; problem: string | null };
+export type CopyImportPayload = { file: string; passphrase?: string; recoveryCode?: string; restore?: boolean };
+export type CopyImportResult = { workspace: WorkspaceCreateResult['workspace']; folder: string; unlock: UnlockMode; restored?: boolean };
 export type CustodyResults = {
   'workspace.custody.get': CustodyView;
   'workspace.list': BusinessList;
@@ -100,8 +158,13 @@ export type CustodyResults = {
   'workspace.custody.recoveryCode': { custody: CustodyView; recoveryCode: string };
   'workspace.backups.create': BackupView;
   'workspace.backups.restore': { workspace: WorkspaceCreateResult['workspace']; restoredFrom: BackupView; safety: BackupView };
-  'workspace.transfer.export': { fileName: string; text: string; transferCode: string; bytes: number };
+  'workspace.transfer.export': { fileName: string; text: string; transferCode: string; bytes: number } | { dismissed: true };
+  'workspace.transfer.peek': { name: string; movedOutAt: IsoTime | null };
   'workspace.custody.neverContactReset': { line: string };
+  'workspace.backups.drive.status': DriveStatus;
+  'workspace.backups.drive.connect': { state: 'connecting'; url: string };
+  'workspace.backups.drive.disconnect': DriveStatus;
+  'workspace.backups.inspect': BackupInspectView;
 };
 
 export const CUSTODY_ERRORS = Object.freeze([
@@ -112,6 +175,10 @@ export const CUSTODY_ERRORS = Object.freeze([
   'SAFETY_BACKUP_FAILED',
   /** 4J6: the never-contact list can't be checked (NEVER_CONTACT_LOST), or still checks so there is nothing to reset. */
   'NEVER_CONTACT_LOST', 'NEVER_CONTACT_OK',
+  /** C5 task 21: an exported copy that can't come in as asked. */
+  'IMPORT_READABLE', 'IMPORT_INVALID', 'IMPORT_ALREADY_HERE', 'IMPORT_CLOSE_FIRST',
+  /** C5 task 24. */
+  'DRIVE_NOT_SET_UP', 'DRIVE_RECONNECT',
 ] as const);
 
 /** DEVICE_KEYS_UNAVAILABLE carries CUSTODY_WORDS.unavailable[reason] as its message and `reason` on the error.
@@ -152,6 +219,20 @@ export const CUSTODY_WORDS = Object.freeze({
     BACKUP_NOT_FOUND: 'That backup is not in the backups folder.',
     BACKUP_OTHER_BUSINESS: 'This backup belongs to another business.',
     SYNC_NEEDS_PASSPHRASE: 'Device sync needs a business locked with a passphrase.',
+    IMPORT_READABLE: "A readable copy can't come back in, since anyone could have changed it. Use the encrypted copy.",
+    IMPORT_INVALID: "This isn't a Chausar copy, or part of it has changed.",
+    IMPORT_ALREADY_HERE: 'This business is already on this computer. Restore it from this copy instead?',
+    IMPORT_CLOSE_FIRST: 'This copy is of another business. Close this one first, then open the copy from the list of businesses.',
+    IMPORT_NEEDS_SECRET: 'This copy opens with its passphrase or its recovery code.',
+    DRIVE_NOT_SET_UP: "Google Drive needs Chausar's Google sign-in set up first. Until then, pick your Google Drive folder under Keep a copy on a drive.",
+    DRIVE_RECONNECT: 'Connect Google Drive again.',
+  }),
+  /** C5 task 23: why the last copy didn't reach the drive or folder. */
+  copy: Object.freeze({
+    missing: "The drive isn't plugged in. The next copy goes when it is.",
+    denied: "Chausar can't write to that folder. Pick another one.",
+    full: 'That drive is full. The next copy goes when it has room.',
+    failed: "The last copy didn't reach that folder. Chausar tries again at the next tick.",
   }),
   /** Words for changing the lock and for opening, beside the errors above. */
   lock: Object.freeze({

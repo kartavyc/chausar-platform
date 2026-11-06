@@ -580,7 +580,10 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     }
     // 4J1 (J2): Accept or an edit binds the files the draft hands over, by the sha256 of their bytes, to whoever decided.
     const manifest = verdict !== 'rejected' ? acceptManifest(tx.state, run, tx.now, ctx.memberId) : null;
+    const orderBefore = verdict === 'rejected' ? JSON.stringify(tx.find('venture-order', run.orderId) ?? null) : '';
     const next: DeliveryRunRecord = {
+      // C4 task 15: what a reject changes, for its Undo.
+      ...(verdict === 'rejected' ? { rejectedFrom: { verdict: run.verdict ?? null, editedText: run.editedText ?? null, practice: run.practice } } : {}),
       // 4J1: Accept of a draft the owner edited and that came back for review keeps the owner's words (draft-text.ts).
       ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText: verdict === 'accepted' ? run.editedText ?? null : editedText,
       // The owner's edit is the owner's own words: the judge never reads it, and its line says so (judge-run.ts).
@@ -602,6 +605,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     tx.emit('run.done', { runId });
     // Ink v2 wave 5 (5A1): a kit chain order moves on only after Accept, or goes back or stops after a rejection.
     chainNext = chainOnReview(tx, next, verdict);
+    // C4 task 15: a reject that moved the order too (a chain's stage goes back or stops) can't be taken back on its own.
+    if (verdict === 'rejected' && JSON.stringify(tx.find('venture-order', run.orderId) ?? null) !== orderBefore) tx.replace<DeliveryRunRecord>({ ...next, rejectedFrom: null });
     return runView(next, tx.venture!, Date.parse(tx.now), tx.state);
   });
   // The next stage's run starts through the order path, so its gates, posture and floor hold; if it can't start now
@@ -610,6 +615,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
   // AI-native CA firm: the owner's edit of regulated papers is new papers, so it goes in front of the CA of record too.
   if (reviewed.status === 'edited') {
     await import('../playbooks/ca-firm/delivery-signoff.ts').then(module => module.requestSignoffForRun(deps, ctx, reviewed)).catch(() => null);
+    // C7: the writing agent may offer a way of working learnt from the edit; it runs on its own and never holds this up.
+    await import('../agents/way-of-working.ts').then(module => module.launchWayOfWorking(deps, ctx, reviewed.id)).catch(() => null);
   }
   return reviewed;
 }

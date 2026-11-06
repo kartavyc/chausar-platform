@@ -7,6 +7,7 @@ import { Icon } from '../../parts/Icon';
 import { ProgressRing } from '../../parts/ProgressRing';
 import { SectionHead, Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
+import { useWaitingWords, workedWords } from '../../parts/run-time';
 import type { QueueRow, RunDetail, RunSummary } from '../../engine/types';
 import { useRunDetails } from './PreviousRuns';
 import { RoundGate, gateRow } from './RoundGate';
@@ -29,10 +30,14 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
   const t = useT();
   const titleId = useId();
   const waiting = run.state === 'waiting';
+  const waitingWords = useWaitingWords();
+  const waited = waiting ? waitingWords(run) : undefined;
   // W4 4F3: Stop and its dialog; a run the engine says is stopping reads Stopping until it says stopped.
   const stop = useStopRun(run, detail, onChanged);
   const stopping = run.stop?.state === 'stopping';
   const gate = detail?.gate?.waiting ? gateRow(queue, run.runId) : undefined;
+  // C4 task 13: a run that waits with a draft to read opens that draft here, not on Today.
+  const draftWaits = queue?.some((row) => row.kind === 'draft' && row.viewRef?.kind === 'draft' && row.viewRef.id === run.runId);
   const open = (origin: HTMLElement) => openSheet('run', run.runId, origin);
   // The step the engine says is in hand: the current one, or the one that waits on the owner, counted in its list.
   const steps = detail?.steps ?? [];
@@ -69,7 +74,8 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
         <p className={s.runStep}><StillArc />{steps[at]!.purpose}</p>
       ) : null}
       <div className={s.runFoot}>
-        {run.elapsed ? <span>{t('work.run.foot', { elapsed: run.elapsed })}</span> : <span />}
+        {/* C4 task 12: a run waiting on the owner says how long it has waited; the time it worked leaves that out. */}
+        {waited ? <span className={s.wait}>{waited}</span> : run.elapsed ? <span>{workedWords(run, t, 'work.run.foot')}</span> : <span />}
         {stopping ? <span className={s.runActs}><span className={s.stopping}>{t('work.stop.stopping')}</span>{stop.button}</span> : (
           <span className={s.runActs}>
             {/* While the round gate waits, its own Stop decides the run: the tile's Stop steps aside. */}
@@ -78,7 +84,9 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
                 While the Stop dialog is open its own primary is the tile's one; a gate decides in its own box. */}
             {waiting && !stop.open && !detail?.gate?.waiting && (detail?.question
               ? <Button variant="primary" size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.answer')}</Button>
-              : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
+              : draftWaits
+                ? <Button size="sm" onClick={(event) => openSheet('draft', run.runId, event.currentTarget)}>{t('work.readDraft')}</Button>
+                : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
           </span>
         )}
       </div>

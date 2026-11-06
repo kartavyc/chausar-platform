@@ -64,13 +64,13 @@ describe('Work: runs', () => {
     expect(books.textContent).toContain('Bookkeeper');
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
+    expect(within(books).getByText('Took 4 min')).toBeTruthy();
     const reach = await rowOf('Estimated reach for episode 14', previous);
     expect(reach.textContent).toContain('Researcher');
     expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
     expect(within(reach).getByText('model estimate')).toBeTruthy();
-    expect(within(reach).getByText('Worked for 2 min')).toBeTruthy();
-    expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
+    expect(within(reach).getByText('Took 2 min')).toBeTruthy();
+    expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
   });
 
   it('shows a failed run with its real error, and runs it again through the engine', async () => {
@@ -145,6 +145,25 @@ describe('Work: filter in the address', () => {
     await go('#/work?state=nonsense');
     expect(await screen.findByText('Two mentions in episode 14')).toBeTruthy();
     expect(pressed(screen.getByRole('group', { name: 'Show' }))).toEqual(['All']);
+  });
+
+  it('a new business has no chips at all: nothing to filter (B4 task 6)', async () => {
+    await start('#/work', { intercept: { 'venture.runs.list': () => ({ runs: [] }), 'venture.order.list': () => [] } });
+    expect(await screen.findByText('No work yet.')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Show' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'New order' })).toBeTruthy();
+  });
+
+  it('a filter with nothing in it hides its chip; Failed shows only when something failed (B4 task 6)', async () => {
+    await start('#/work', { intercept: { 'venture.runs.list': () => ({ runs: [] }) } });
+    await screen.findByText('Two mentions in episode 14');
+    const nav = await screen.findByRole('group', { name: 'Show' });
+    await waitFor(() => expect(within(nav).queryByRole('button', { name: 'Failed' })).toBeNull());
+    expect(within(nav).queryByRole('button', { name: 'Running' })).toBeNull();
+    expect(within(nav).queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(within(nav).getByRole('button', { name: 'All' })).toBeTruthy();
+    // C1 task 5: Ideas is a page of its own, not a chip.
+    expect(within(nav).queryByRole('button', { name: 'Ideas' })).toBeNull();
   });
 
   it('says plainly when a filter has nothing, and when there is no work at all', async () => {
@@ -312,7 +331,8 @@ describe('Work: new order', () => {
 
   it('adds an order for a client with their files; it lands as received', async () => {
     const { calls, sheet, clientField, service } = await openForm();
-    expect(within(service).getByRole('option', { name: 'Shorts from your long video, no price yet' }).hasAttribute('disabled')).toBe(true);
+    // C4 task 11: an unpriced service can be picked so the form says how to set its price; it never submits.
+    expect(within(service).getByRole('option', { name: 'Shorts from your long video, no price yet' })).toBeTruthy();
     expect((service as HTMLSelectElement).value).toBe('offer_sponsor');
     fireEvent.change(clientField, { target: { value: 'c-boat' } });
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });

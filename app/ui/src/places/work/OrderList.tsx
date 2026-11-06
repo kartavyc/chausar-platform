@@ -6,17 +6,21 @@ import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatDay } from '../../../../../platform/runtime/owner-format';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
+import { ConsentWords } from '../../parts/ConsentWords';
+import { InlineError } from '../../parts/InlineError';
+import { allowClientAi } from '../clients/AiConsent';
 import { StateChip } from '../../parts/Chip';
 import { Figure, proofOf } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import { Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
-import { EngineError, type ClientLite } from '../../engine/types';
+import { EngineError, type ClientAiConsentView, type ClientLite } from '../../engine/types';
 import type { OrderAction, OrderView } from './orders';
 import { refusalWords } from '../../parts/custody';
 // W4 4J19: the order's stage steps and what waits on the owner.
 import { OrderSteps } from './OrderSteps';
 import s from './Work.module.css';
+import { useFlip } from '../../parts/flip';
 
 /** One plain sentence for where an order stands (CogSend wording). */
 export function orderSentence(view: OrderView, t: T): string {
@@ -68,8 +72,9 @@ const ACTION_FAILED: Record<OrderAction, string> = { start: 'work.failed.start',
  * One order as D's inner card (`.oc`): what the client asked for (it opens the newest run when the engine lists it),
  * a status chip in the engine's own words (the invoice's once there is one, else the draft's), when it was ordered
  * and the receipt behind its price, its invoice with the total, receipt and due day, the one CogSend sentence, and at
- * most one action: Start, Run again, or Mark delivered (which asks once more). An order that waits on the owner says
- * "Open on Today", where it is decided. The steps from Agreed to Paid wait for the engine's order steps (W4 4J).
+ * most one action: Start, Run again, or Mark delivered (which asks once more). C4 task 13: an order whose draft is ready
+ * or approved says "Read draft", which opens it here (DraftSheet.tsx); one that waits on Today for anything else says
+ * "Open on Today". The steps from Agreed to Paid wait for the engine's order steps (W4 4J).
  */
 function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boolean; onChanged: () => void }) {
   const t = useT();
@@ -81,9 +86,13 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'busy'>('idle');
   const [problem, setProblem] = useState<string>();
   const [needsConsent, setNeedsConsent] = useState(false);
+  /** B4 task 4: the permission as it stands, read at the refusal: its words show and Allow and start agrees to them. */
+  const [consent, setConsent] = useState<ClientAiConsentView | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { order, state, action, invoice } = view;
   const run = view.run && !view.run.practice ? view.run : undefined;
+  // C4 task 13: a draft ready to read or approved opens where the owner is. Only an order with text to read: a practice row reads the same.
+  const readable = view.run && (typeof view.run.renderedText === 'string' || typeof view.run.editedText === 'string') && (state === 'draft-ready' || state === 'approved' || state === 'practice') ? view.run : undefined;
   // The invoice's total shows only with its receipt, as the engine's list sends both.
   const totalReceipt = invoice?.total && invoice.receiptId?.trim() ? invoice.receiptId : undefined;
 
@@ -93,21 +102,44 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
     setPhase('busy');
     setProblem(undefined);
     setNeedsConsent(false);
+    setConsent(null);
     try {
       if (kind === 'deliver') await client.request('venture.order.deliver', { orderId: order.id, deliveredOn: todayOf(now(), zone) });
       else await client.request('venture.delivery.run', { orderId: order.id });
       onChanged();
     } catch (error) {
       setProblem(t(ACTION_FAILED[kind], { message: refusalWords(error, t) }));
-      setNeedsConsent(error instanceof EngineError && ['CLIENT_AI_CONSENT_REQUIRED','CLIENT_AI_CONSENT_CHANGED'].includes(error.code));
+      if (error instanceof EngineError && ['CLIENT_AI_CONSENT_REQUIRED','CLIENT_AI_CONSENT_CHANGED'].includes(error.code)) {
+        setNeedsConsent(true);
+        readConsent();
+      }
     } finally {
       setPhase('idle');
     }
   }
 
+  function readConsent() {
+    client.request('venture.client.aiConsent.get', { clientId: order.clientId }).then(setConsent, () => setConsent(null));
+  }
+
+  /** Records the permission through the same call as the client sheet, on the words shown here, then starts the order. */
+  async function allowAndStart(view: ClientAiConsentView) {
+    setPhase('busy');
+    setProblem(undefined);
+    try {
+      await allowClientAi(client, order.clientId, view);
+    } catch (error) {
+      setProblem(refusalWords(error, t));
+      readConsent();
+      setPhase('idle');
+      return;
+    }
+    await act(action === 'run-again' ? 'run-again' : 'start');
+  }
+
   return (
     <li
-      className={s.order} data-card="" data-row="" data-row-id={`order-${order.id}`} data-second-ask={action === 'deliver' ? '' : undefined}
+      className={s.order} data-card="" data-row="" data-flip-id={order.id} data-row-id={`order-${order.id}`} data-second-ask={action === 'deliver' ? '' : undefined}
       tabIndex={-1} aria-labelledby={titleId}
     >
       <div className={s.orderTop}>
@@ -121,9 +153,13 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       <p className={s.orderMeta}>
         <span>{t('work.order.ordered', { date: day(order.at) })}</span>
         <span aria-hidden="true">·</span>
-        {/* The engine sends the order's price receipt, not its amount (W4 4J order steps): say where the price is. */}
-        <span>{t('work.order.priced')}</span>
-        <Receipt id={order.priceReceiptId} />
+        {/* C4 task 11: the order's price as its receipt says it; without one, where the price is. */}
+        {order.price && proofOf(order.price) ? <Figure value={order.price.display} receiptId={order.price.receiptId} /> : (
+          <>
+            <span>{t('work.order.priced')}</span>
+            <Receipt id={order.priceReceiptId} />
+          </>
+        )}
       </p>
       {invoice?.number && (
         <p className={s.orderMeta}>
@@ -145,10 +181,12 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       <OrderSteps order={order} />
       <div className={s.orderFoot}>
         <p className={cx(s.say, state === 'waiting' && s.wait)}>{orderSentence(view, t)}</p>
-        {(waitsOnYou(view) || (action && phase !== 'confirm')) && (
+        {(waitsOnYou(view) || readable || (action && phase !== 'confirm' && !needsConsent)) && (
           <div className={s.orderActs}>
-            {waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
-            {action && phase !== 'confirm' && (
+            {readable
+              ? <Button onClick={(event) => openSheet('draft', readable.id, event.currentTarget)}>{t('work.readDraft')}</Button>
+              : waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
+            {action && phase !== 'confirm' && !needsConsent && (
               <Button variant="primary" data-key="primary" disabled={phase === 'busy'} onClick={() => (action === 'deliver' ? setPhase('confirm') : void act(action))}>
                 {t(ACTION_LABEL[action])}
               </Button>
@@ -163,7 +201,13 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
           <Button variant="primary" data-confirm="" onClick={() => void act('deliver')}>{t('work.deliver')}</Button>
         </div>
       )}
-      {problem && <p className={s.problem} role="status">{problem}</p>}
+      {problem && (
+        <InlineError
+          tone={needsConsent ? 'expected' : 'failure'}
+          fix={needsConsent && consent ? { label: t('clients.ai.allowStart'), onSelect: () => void allowAndStart(consent), busy: phase === 'busy' } : undefined}
+        >{problem}</InlineError>
+      )}
+      {needsConsent && consent && <ConsentWords text={consent.disclosure} />}
       {needsConsent && <Button variant="quiet" onClick={event=>openSheet('client',order.clientId,event.currentTarget)}>{t('clients.ai.review')}</Button>}
     </li>
   );
@@ -183,6 +227,8 @@ interface ClientOrdersProps {
  *  what they owe with its receipt; then each of their orders as a card. */
 function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged }: ClientOrdersProps) {
   const t = useT();
+  // One-shot C3 task 13: an order that moves within its client's list slides to its new place.
+  const cards = useFlip<HTMLUListElement>(views.map((view) => view.order.id).join(' '));
   const day = useDay();
   const nameId = useId();
   const name = client?.name ?? (clientsRead ? t('work.order.client') : '');
@@ -208,7 +254,7 @@ function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged 
           </div>
         )}
       </header>
-      <ul className={cx(s.orderCards, wide && s.orderCardsTwo)}>
+      <ul ref={cards} className={cx(s.orderCards, wide && s.orderCardsTwo)}>
         {views.map((view) => <OrderCard key={view.order.id} view={view} canOpen={!!view.run && runIds.has(view.run.id)} onChanged={onChanged} />)}
       </ul>
     </Tile>

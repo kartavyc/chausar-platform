@@ -15,6 +15,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { setQuery, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
@@ -25,6 +26,7 @@ import { DraftRecover, DraftWord, useSettingsDraft } from '../business/settingsD
 // 4Z3: the rate said once per page (4A2's rule), on its own line; the limits show only their rupee amounts.
 import { withoutRate } from '../team/departments';
 import s from './Money.module.css';
+import { Select } from '../../parts/Select';
 
 const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-run-cap'];
 /** 4Z3: which currency leads AI spend: Auto (by where the business is), rupees first or dollars first. */
@@ -72,6 +74,14 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
   const [rates, setRates] = useState<RateDraft[]>([]);
   const leadId = useId();
   useEffect(() => { setSaved(null); }, [policy.data]);
+  // C4 (T23): "Set a rupee rate" lands here with the settings open on the rate; the address is cleared so the link works again.
+  const wantsRate = useRoute().query.set === 'rate';
+  const current = policy.data;
+  useEffect(() => {
+    if (!wantsRate || !current) return;
+    edit(current);
+    setQuery({});
+  }, [wantsRate, current]);
   // W4 4J21: the edits, kept as a draft of exactly what venture.spend.policy.set takes, and offered back.
   const [touched, setTouched] = useState(false);
   const values = { capUsd: figureOrNull(cap), askFirstUsd: figureOrNull(askFirst), inrPerUsd: figureOrNull(inrPerUsd), currencyLead: lead, rates: rates.map(inputOf) };
@@ -111,6 +121,22 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
     })));
     setTouched(true);
     draft.taken();
+  }
+
+  async function takeReference() {
+    setSending(true);
+    setProblem(null);
+    try {
+      const reply = await engine.request('venture.spend.policy.set', { useReference: true });
+      setSaved(reply);
+      onSaved?.();
+      setEditing(false);
+      setTouched(false);
+    } catch (error) {
+      setProblem(t('money.failed', { message: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setSending(false);
+    }
   }
 
   async function save() {
@@ -208,6 +234,12 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
             label={t('money.policy.askFirst')} hint={t('money.policy.askFirstHint')} value={askFirst} inputMode="decimal" autoComplete="off" disabled={sending}
             onChange={(event) => { setAskFirst(event.currentTarget.value); setAsking(false); setTouched(true); }}
           />
+          {view.reference && (
+            <p className={s.sheetLine}>
+              {/* C5 task 15: one tap takes the dated figure shipped with this release; the owner can type their own. */}
+              <Button variant="quiet" disabled={sending} onClick={() => void takeReference()}>{view.reference.line}</Button>
+            </p>
+          )}
           <Field
             label={t('money.policy.inrPerUsd')} hint={t('money.policy.inrPerUsdHint')} value={inrPerUsd} inputMode="decimal" autoComplete="off" disabled={sending}
             onChange={(event) => { setInrPerUsd(event.currentTarget.value); setAsking(false); setTouched(true); }}
@@ -215,12 +247,12 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
           {/* 4Z3: which currency leads AI spend everywhere it shows; the engine sends each figure led that way. */}
           <div className={s.field}>
             <label htmlFor={leadId} className={s.fieldLabel}>{t('money.policy.lead')}</label>
-            <select
+            <Select
               id={leadId} className={s.select} value={lead} disabled={sending} aria-describedby={`${leadId}-hint`}
               onChange={(event) => { setLead(event.currentTarget.value as CurrencyLead); setAsking(false); setTouched(true); }}
             >
               {LEADS.map((choice) => <option key={choice} value={choice}>{t(`money.policy.lead.${choice}`)}</option>)}
-            </select>
+            </Select>
             <p id={`${leadId}-hint`} className={s.fieldHint}>{t('money.policy.leadHint')}</p>
           </div>
           <div className={s.rateCard} role="group" aria-label={t('money.policy.rates')}>
@@ -273,9 +305,9 @@ function RateEditor({ rate, disabled, onChange, onRemove }: { rate: RateDraft; d
       <Field label={t('money.policy.item')} hint={t('money.policy.itemHint')} value={rate.item} autoComplete="off" disabled={disabled} onChange={(event) => onChange({ item: event.currentTarget.value })} />
       <div className={s.field}>
         <label htmlFor={unitId} className={s.fieldLabel}>{t('money.policy.unit')}</label>
-        <select id={unitId} className={s.select} value={rate.unit} disabled={disabled} onChange={(event) => onChange({ unit: event.currentTarget.value as SpendRateUnit })}>
+        <Select id={unitId} className={s.select} value={rate.unit} disabled={disabled} onChange={(event) => onChange({ unit: event.currentTarget.value as SpendRateUnit })}>
           {UNITS.map((unit) => <option key={unit} value={unit}>{t(`money.policy.unit.${unit}`)}</option>)}
-        </select>
+        </Select>
       </div>
       {rate.unit === 'per-million-tokens' ? (
         <>

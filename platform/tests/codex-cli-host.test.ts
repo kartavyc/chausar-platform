@@ -361,9 +361,11 @@ const entrypoints = [
 ];
 
 for (const entrypoint of entrypoints) {
-  test(`synthetic ${entrypoint.label} factory injects pinned profile and preserves production environment options`, async () => {
+  test(`synthetic ${entrypoint.label} factory injects pinned profile and preserves production environment options`, async t => {
+    // D3: the vault folder is outside the code folder (a temp folder; making the engine opens no vault).
+    const vault = await mkdtemp(join(tmpdir(), 'chausar-synthetic-vault-')); t.after(() => rm(vault, { recursive: true, force: true }));
     const f = syntheticEvidence(); const environment = {
-      ...f.environment, CHAUSAR_VAULT_DIRECTORY: resolve('synthetic-vault'), CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1',
+      ...f.environment, CHAUSAR_VAULT_DIRECTORY: vault, CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1',
       CHAUSAR_POSTGRES_URL: 'postgresql://synthetic-user:synthetic-fixture-password@127.0.0.1/synthetic',
       CHAUSAR_PYTHON: 'synthetic-python', CHAUSAR_UPDATE_PUBLIC_KEY: 'synthetic-public-key',
       CHAUSAR_JOB_WORKER_ID: 'synthetic-worker', CHAUSAR_JOB_MAX_ACTIVE: '2', CHAUSAR_JOB_LEASE_MS: '45000',

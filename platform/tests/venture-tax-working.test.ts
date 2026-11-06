@@ -90,7 +90,7 @@ test('any other business: the plan says what it charges, each issued invoice wit
   await seedBlueprint(assumed, { taxAssumed: true });
   const lines = section(await working(assumed, { period: '2026-10' }), 'tax').lines;
   assert.deepEqual(lines, [
-    { label: 'What your plan says', value: 'You do not charge GST (Chausar assumed this; confirm it in the business menu)' },
+    { label: 'What your plan says', value: 'You do not charge GST (Chausar assumed this; confirm it under Business, Prices)' },
     { label: 'GST on invoices issued in October 2026', value: 'No invoices issued' },
   ]);
   await assert.rejects(working(env, { period: 'soon' }), code('INVALID_VENTURE_REQUEST'));
@@ -148,7 +148,7 @@ test('CA firm: no GST registration means no GST working; a year shows each month
   const unregistered = await setup();
   await caFirm(unregistered, { registered: false });
   const none = await working(unregistered, { period: '2025-10' });
-  assert.equal(section(none, 'gst').note, 'Your plan says you do not charge GST, so there is no GST working. Chausar assumed this; confirm it in the business menu.');
+  assert.equal(section(none, 'gst').note, 'Your plan says you do not charge GST, so there is no GST working. Chausar assumed this; turn on I charge GST under Business, Prices if you do.');
   assert.deepEqual(section(none, 'gst').lines, []);
 
   const env = await setup();

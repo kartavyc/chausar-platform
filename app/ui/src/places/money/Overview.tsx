@@ -16,7 +16,7 @@ import { useId, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { useRoute } from '../../shell/navigation';
-import { BarChart } from '../../parts/charts/BarChart';
+import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import { CashLine } from '../../parts/charts/CashLine';
 import { GoalBar } from '../../parts/charts/GoalBar';
 import { SplitBar } from '../../parts/charts/SplitBar';
@@ -27,7 +27,8 @@ import { DueNext } from './DueNext';
 import { NextWeeks } from './NextWeeks';
 import { OwedTile } from './OwedTile';
 import { splitFigure } from '../../parts/Figure';
-import { Failed, MoneyTile, ProvedFigure, isPhrase, lineProof, spendShown } from './parts';
+import { Receipt } from '../../parts/Receipt';
+import { Failed, MoneyTile, ProvedFigure, SET_RATE_HREF, isPhrase, lineProof } from './parts';
 import { useMoneyViews, type FlowData, type MoneyViews } from './views';
 import { byDue, onMoney, onRuns, useChosenMonth, useMonthWords } from './words';
 import { GOAL_EVENTS, goalFromView } from '../today/goal';
@@ -37,17 +38,18 @@ import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
 import { LayoutNotice } from '../../parts/layout/LayoutNotice';
 import ls from '../../parts/layout/Layout.module.css';
 import v from './MoneyViews.module.css';
+import { Fold } from '../../parts/Fold';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
 const onOverview = (event: VentureRunEvent) => onMoney(event) || onRuns(event);
 
 /** A closed fold under the headline tiles: its title is all it shows until the owner opens it. */
-function Fold({ title, children }: { title: string; children: ReactNode }) {
+function MoneyFold({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className={v.moreFold}>
-      <summary className={v.moreSummary}>{title}</summary>
+    <Fold summary={title} className={v.moreFold} summaryClassName={v.moreSummary}>
       {children}
-    </details>
+    </Fold>
   );
 }
 
@@ -79,8 +81,8 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const drawn = drawnBlocks('money', layout.data);
   const foldTitle = (id: string, own: string) => drawn.find((block) => block.id === id)?.name ?? own;
   const folds: Readonly<Record<string, () => ReactNode>> = {
-    flow: () => (flow ? <Fold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></Fold> : null),
-    weeks: () => (ahead ? <Fold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></Fold> : null),
+    flow: () => (flow ? <MoneyFold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></MoneyFold> : null),
+    weeks: () => (ahead ? <MoneyFold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></MoneyFold> : null),
   };
   const slot = (index: number, content: () => ReactNode) => {
     const block = drawn[index];
@@ -96,6 +98,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
       {overview.error && <Failed error={overview.error} />}
       {books.error && <Failed error={books.error} />}
       {views.failed && <Failed error={views.failed} />}
+      <LoadingPlace shape="tiles" loading={!overview.data && !books.data && !overview.error && !books.error} />
       {slot(0, () => (
         <Bento className={`${s.glance} ${v.glanceRow}`}>
           <InvoicedTile billed={billed} goal={views.goal} month={month === thisMonth ? null : month} />
@@ -183,6 +186,11 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
           {pastBy && <span className={s.goalFootItem}>{t('today.goal.foot.past')}<ProvedFigure value={pastBy.display} proof={{ receiptId: pastBy.receiptId }} /></span>}
         </p>
       )}
+      {/* One-shot C6 (SCREENS 94): the engine's line when every invoice of the month is paid, with its receipt; shown
+          only when true. Seam: C3 task 13's arrival wraps it, still when animations are off. */}
+      {view?.paidInFull && (
+        <p className={s.tileSub} data-paid-in-full="">{view.paidInFull.line} <Receipt id={view.paidInFull.receiptId} /></p>
+      )}
     </MoneyTile>
   );
 }
@@ -221,28 +229,30 @@ function ReceivedTile({ line, books, chosen }: { line: MoneyOverviewLine | undef
 }
 
 /**
- * What AI and tools cost this month, in rupees too at the owner's own rate; each call is one step away, on Spend. When
+ * What AI and tools cost this month, in one currency (C4 T23): the one the engine leads with, the other in the receipt.
+ * With no rupee rate on a rupee business, the dollars and "Set a rupee rate". Each call is one step away, on Spend. When
  * the engine writes only words ("No price"), the figure is set smaller, in the body face,
  * and wraps inside the tile (`data-phrase`), so words never run in a typewriter face past the tile's edge.
  */
 function SpendTile({ line, split }: { line: MoneyOverviewLine | undefined; split: MoneyViews['split'] }) {
   const t = useT();
   const proof = lineProof(line);
-  // 4Z3: the figure as the engine says it leads (rupees or dollars first), the other currency beneath it.
-  const shown = line && spendShown(line.lead, line.value, line.rupees);
+  // 4Z3: the figure as the engine says it leads (rupees or dollars first).
+  const shown = line && (line.lead?.figure ?? line.value);
   // Words after an amount are the Figure's own (splitFigure); only words with no amount at all are a phrase.
-  const phrase = shown !== undefined && isPhrase(splitFigure(shown.value).amount);
+  const phrase = shown !== undefined && isPhrase(splitFigure(shown).amount);
   return (
     <MoneyTile label={t('money.tile.spent')} icon="bot" span={4}>
       {line && proof && (
         <div className={s.tileValue} data-phrase={phrase ? '' : undefined}>
-          <ProvedFigure value={shown!.value} proof={proof} size={phrase ? 'tile' : 'stat'} rupees={shown!.rupees} />
+          <ProvedFigure value={shown!} proof={proof} size={phrase ? 'tile' : 'stat'} />
         </div>
       )}
       {/* The split by department (W4 4A2) only under the very figure it splits: the same receipt, whose sum its parts make. */}
       {split && line?.receiptId && split.proof.receiptId === line.receiptId && <div className={s.tileChart}><SplitBar data={split} /></div>}
       <p className={s.tileFoot}>
         <a className={s.more} href="#/money/spend">{t('money.spentEach')}</a>
+        {line?.needsRate && <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a>}
       </p>
     </MoneyTile>
   );
@@ -261,6 +271,8 @@ function InOutTile({ flow, notes, span }: { flow: FlowData; notes: FlowView | un
   const first = months[0]?.month;
   const last = months[months.length - 1]?.month;
   const left = notes?.basis.notCounted?.line ?? [...new Set(months.map((row) => row.note).filter((note): note is string => Boolean(note)))].join(' ');
+  // B4 task 6: no month with money in or out, or a single month, is nothing to compare: no tile at all.
+  if (!hasBars(...flow.series)) return null;
   return (
     <Tile as="section" labelledBy={id} span={span}>
       <TileHead id={id} title={t('money.flow.title')} meta={first && last ? t('money.flow.meta', { from: monthWords(first), to: monthWords(last) }) : undefined} />

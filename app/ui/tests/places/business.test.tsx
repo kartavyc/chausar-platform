@@ -57,7 +57,7 @@ describe('Business: plan and playbook', () => {
     expect(screen.getByText('Draft the sponsor script')).toBeTruthy();
     expect(screen.getByText('Anything posted in your name')).toBeTruthy();
     expect(screen.getAllByText('assumption').length).toBeGreaterThan(0);
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'How the work is done' }).getAttribute('aria-current')).toBe('page');
   });
 
@@ -221,43 +221,74 @@ describe('Business: prices', () => {
     expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
-  it('sets a price as typed; the engine prices it with a receipt and the change waits on Today, asking twice', async () => {
+  it("C4 task 33: the owner's own price applies on Save, says so with Undo, and nothing waits on Today", async () => {
     const { engine } = start('#/business/prices');
+    const before = ((await engine.request('venture.queue.list', {})) as QueueList).rows.map((row) => row.id);
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
     await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000'));
-    const waiting = await region('Waiting on you');
-    const row = within(waiting).getByText('New price for Shorts from your long video').closest('li')!;
-    expect(row.textContent).toContain('Not set');
-    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
-    expect(within(row).getByText(/Check it once more/)).toBeTruthy();
-    await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
-    // B3 (row 33, bug 9): one decided line in the engine's words; the card never comes back with Read and Accept.
-    await waitFor(() => expect(waiting.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
-    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(waiting.querySelectorAll('[data-row]')).toHaveLength(1);
-    expect(within(waiting).queryByRole('button', { name: 'Read' })).toBeNull();
-    expect(within(waiting).queryByRole('button', { name: 'Accept' })).toBeNull();
-    expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000');
-    // Opened again in this session: the line, not a card.
-    await act(async () => { window.location.hash = '#/business/plan'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    await act(async () => { window.location.hash = '#/business/prices'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    const again = await region('Waiting on you');
-    await waitFor(() => expect(again.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
-    expect(within(again).queryByRole('button', { name: 'Accept' })).toBeNull();
+    const decided = await screen.findByText('You set the price of Shorts from your long video to ₹12,000 a project.');
+    expect(decided.closest('[data-price-decided]')).not.toBeNull();
+    expect(screen.queryByText('Waiting on you', { selector: 'h2' })).toBeNull();
+    const queue = (await engine.request('venture.queue.list', {})) as QueueList;
+    expect(queue.rows.map((row) => row.id).filter((id) => !before.includes(id))).toEqual([]);
+    // Undo puts back exactly the version before: no price again, and the line says what happened.
+    const holder = decided.closest('[data-price-decided]') as HTMLElement;
+    await act(async () => { fireEvent.click(within(holder).getByRole('button', { name: 'Undo' })); });
+    await screen.findByText('You took back the new price for Shorts from your long video.');
+    await waitFor(async () => expect((await plan(engine)).blueprint.offers.find((offer) => offer.id === 'offer_shorts')?.pricing.unitPriceMinor).toBeNull());
+    await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('Price not set'));
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 
-  it('a price decided on Prices shows the same line on Today, not "resolved elsewhere" (B3)', async () => {
-    start('#/business/prices');
+  it('Undo on an accepted price restores the old price and the row, and every screen reads again (B4)', async () => {
+    const engine = new FakeEngine();
+    window.location.hash = '#/business/prices';
+    const client = createFakeClient(engine);
+    const asked: string[] = [];
+    const base = client.request.bind(client);
+    client.request = ((method: string, params: unknown) => { asked.push(method); return base(method as never, params as never); }) as typeof client.request;
+    render(<App client={client} language="en" />);
     const shorts = await offerRow('Shorts from your long video');
-    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
-    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    // C4 task 33: Save on this page applies at once, so this row is a price from elsewhere (B4 task 7).
+    await act(async () => { await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '12000' }] } }); });
     const waiting = await region('Waiting on you');
     const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
-    await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
+    const undo = await within(waiting).findByRole('button', { name: 'Undo' });
+    await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
+    asked.length = 0;
+    await act(async () => { fireEvent.click(undo); });
+    // The same reads a decision refreshes: the queue, the plan and its prices.
+    await waitFor(() => { expect(asked).toContain('venture.queue.list'); expect(asked).toContain('venture.blueprint.get'); });
+    expect(asked).toContain('venture.queue.undo');
+    await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('draft'));
+    const again = await region('Waiting on you');
+    await waitFor(() => expect(again.textContent).toContain('You took back the new price for Shorts from your long video.'));
+    expect(again.querySelector('[data-decided]')).toBeNull();
+    const back = (await within(again).findByText('New price for Shorts from your long video')).closest('li')!;
+    // Decided again, it is one press again.
+    await act(async () => { fireEvent.click(within(back).getByRole('button', { name: 'Accept' })); });
+    await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
+    expect(await within(again).findByRole('button', { name: 'Undo' })).toBeTruthy();
+    // Too late once a quote uses it: the line says so and Undo leaves.
+    const shortsOffer = (await plan(engine)).blueprint.offers.find((offer) => offer.name.value === 'Shorts from your long video')!;
+    await engine.request('venture.price.quote', { offerId: shortsOffer.id });
+    await act(async () => { fireEvent.click(within(again).getByRole('button', { name: 'Undo' })); });
+    await waitFor(() => expect(again.querySelector('[data-decided]')?.textContent).toContain('Too late to undo: this price is already in use.'));
+    expect(within(again).queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
+  it('a price decided on Prices shows the same line on Today, not "resolved elsewhere" (B3)', async () => {
+    const { engine } = start('#/business/prices');
+    const shorts = await offerRow('Shorts from your long video');
+    // C4 task 33: Save on this page applies at once, so this row is a price from elsewhere (B4 task 7).
+    await act(async () => { await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '12000' }] } }); });
+    const waiting = await region('Waiting on you');
+    const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
     await waitFor(() => expect(waiting.querySelector('[data-decided]')).not.toBeNull());
     await act(async () => { window.location.hash = '#/today'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const needs = await screen.findByRole('region', { name: 'Needs you' });
@@ -266,6 +297,18 @@ describe('Business: prices', () => {
     await act(async () => { fireEvent.click(more); });
     await waitFor(() => expect(needs.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
     expect(needs.textContent).not.toContain(common['approval.elsewhere']);
+  });
+
+  it('C4 task 33: Undo says when it is too late, once a quote used the new price', async () => {
+    const { engine } = start('#/business/prices');
+    const shorts = await offerRow('Shorts from your long video');
+    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    const decided = await screen.findByText('You set the price of Shorts from your long video to ₹12,000 a project.');
+    await act(async () => { await engine.request('venture.price.quote', { offerId: 'offer_shorts', quantity: '3' }); });
+    await act(async () => { fireEvent.click(within(decided.closest('[data-price-decided]') as HTMLElement).getByRole('button', { name: 'Undo' })); });
+    expect((await screen.findByRole('alert')).textContent).toContain('Too late to undo');
+    expect((await plan(engine)).blueprint.offers.find((offer) => offer.id === 'offer_shorts')?.pricing.unitPriceMinor).not.toBeNull();
   });
 
   it('an offer with no price says so and the engine refuses to price it', async () => {
@@ -344,7 +387,7 @@ describe('Business: the addresses other places link to', () => {
     it(`${hash} opens ${title}`, async () => {
       start(hash);
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
-      const nav = screen.getByRole('navigation', { name: 'Business pages' });
+      const nav = screen.getByRole('navigation', { name: 'Settings' });
       expect(within(nav).getByRole('link', { name: title }).getAttribute('aria-current')).toBe('page');
     });
   }
@@ -493,15 +536,14 @@ describe('Business menu', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ })).toBeTruthy());
   });
 
-  it('leads to plan and playbook, prices, goals, website build, practice, notifications and a new business', async () => {
+  // C1 task 9: one short menu; the settings pages live in Settings.
+  it('leads to Settings, a new business, Away and the accountant invite', async () => {
     start('#/today');
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
-    // W5 5A2: Go or no go, after Goals.
-    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Old chats', '#/business/chats'], ['Reports', '#/business/reports'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
-    expect(hrefs).toHaveLength(13);
+    expect(hrefs).toEqual([['Settings', '#/business'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
@@ -512,7 +554,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     start('#/business/ca', await ledgerline());
     expect(await screen.findByRole('heading', { level: 1, name: 'Your CA' })).toBeTruthy();
     expect(await screen.findByText('Meera Joshi')).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('aria-current')).toBe('page'));
     expect(screen.getByText('412345')).toBeTruthy();
     expect(screen.getByText(/Agents never file or sign/)).toBeTruthy();
@@ -637,19 +679,17 @@ describe('Business: your CA (CA firm playbook)', () => {
   it('a business that is not a CA firm says so in one line, and its pages have no CA', async () => {
     start('#/business/ca');
     expect(await screen.findByText('Only a CA firm has a CA of record.')).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).queryByRole('link', { name: 'Your CA' })).toBeNull();
   });
 
-  it('the business menu of a CA firm leads to Your CA', async () => {
-    start('#/today', await ledgerline());
+  it('a CA firm reaches Your CA through Settings (C1: the business menu keeps one Settings link)', async () => {
+    start('#/business', await ledgerline());
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
+    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Ledgerline/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
-    await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
-    const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/go-no-go', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/chats', '#/business/reports', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
-    expect(hrefs).toHaveLength(14);
-    expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
+    expect(within(menu).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#/business', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
   });
 });
 

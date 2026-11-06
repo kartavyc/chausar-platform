@@ -75,20 +75,17 @@ function taxFields(root: Element): string[] {
 }
 
 describe('Business in the Ink v2 look', () => {
-  it('the pages are a segmented nav with the current page marked, Your CA only on a CA firm', async () => {
+  // C1 task 7: the pages are the Settings list, in four groups, every page listed (Your CA only on a CA firm).
+  it('the pages are the Settings list with the current page marked, Your CA only on a CA firm', async () => {
     start('#/business/prices');
-    const nav = await screen.findByRole('navigation', { name: 'Business pages' });
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
     expect(within(nav).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
-      ['Practice and improve', '#/business/practice'],
-      // W4 4J22a: routines on a schedule, after Practice.
-      ['Routines', '#/business/routines'],
-      ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'],
-      // W4 4J21: About you, the owner's first name and the services the business does not sell.
-      // W4 4J19: Decisions, who decided each thing and on what rule.
-      ['Away', '#/business/away'], ['Decisions', '#/business/decisions'], ['About you', '#/business/owner'],
-      // W4 4J22b: the business's voice, and what the AI knows.
-      ['Voice', '#/business/voice'], ['What AI knows', '#/business/knowledge'],
+      ['How the work is done', '#/business/plan'], ['About you', '#/business/owner'], ['Voice', '#/business/voice'], ['What AI knows', '#/business/knowledge'],
+      ['Website build', '#/business/build'], ['This app', '#/business/app'],
+      ['Practice and improve', '#/business/practice'], ['Routines', '#/business/routines'], ['Notifications', '#/business/notifications'], ['Away', '#/business/away'],
+      ['Old chats', '#/business/chats'],
+      ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'],
+      ['Keep this business', '#/business/keep'], ['Decisions', '#/business/decisions'], ['Your rules', '#/business/rules'], ['Reports', '#/business/reports'], ['Updates', '#/business/updates'],
     ]);
     expect(within(nav).getByRole('link', { name: 'Prices' }).getAttribute('aria-current')).toBe('page');
   });
@@ -124,9 +121,10 @@ describe('Business in the Ink v2 look', () => {
       const main = document.querySelector('main')!;
       await within(main).findByText('Sponsor slot', { selector: '[data-offer-name]' });
       await waitFor(() => expect(main.querySelector('[data-figure]')).not.toBeNull());
-      expect(visibleText(main), hash).not.toMatch(/GST/);
+      // C5 task 13: the one way in is the switch on Prices, "I charge GST", with no field behind it until it is on.
+      expect(visibleText(main).replace('I charge GST', ''), hash).not.toMatch(/GST/);
       for (const fold of main.querySelectorAll('details')) fold.open = true;
-      expect(taxFields(main), hash).toEqual([]);
+      expect(taxFields(main).filter((field) => field !== 'I charge GST'), hash).toEqual([]);
       if (hash.endsWith('plan')) expect(main.textContent).toContain('Invoices in INR.');
       view.unmount();
     }
@@ -142,7 +140,7 @@ describe('Business in the Ink v2 look', () => {
       await waitFor(() => expect(main.querySelectorAll('h2, h3').length, hash).toBeGreaterThan(1));
       for (let i = 0; i < 3; i++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
       for (const fold of main.querySelectorAll('details')) fold.open = true;
-      expect(main.textContent, hash).not.toMatch(/GST/);
+      expect((main.textContent ?? '').replace('I charge GST', ''), hash).not.toMatch(/GST/);
       view.unmount();
     }
   });
@@ -297,5 +295,19 @@ describe('Business in the Ink v2 look', () => {
     expect(screen.queryByLabelText('One line')).toBeNull();
     fireEvent.click(change);
     expect(screen.getByLabelText('One line')).toBeTruthy();
+  });
+
+  it('C4 task 1: the change-plan form adds an offer, and takes out one the owner added', async () => {
+    const engine = start('#/business/plan');
+    fireEvent.click(await screen.findByRole('button', { name: 'Change plan' }));
+    fireEvent.change(screen.getByLabelText('Add an offer'), { target: { value: 'Wedding albums' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
+    await waitFor(async () => expect((await createFakeClient(engine).request('venture.blueprint.get', {}))!.blueprint.offers.map((o) => o.name.value)).toContain('Wedding albums'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Change plan' }));
+    const added = await screen.findByRole('checkbox', { name: 'Wedding albums' });
+    expect((added as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(added);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
+    await waitFor(async () => expect((await createFakeClient(engine).request('venture.blueprint.get', {}))!.blueprint.offers.map((o) => o.name.value)).not.toContain('Wedding albums'));
   });
 });

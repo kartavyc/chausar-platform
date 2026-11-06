@@ -13,7 +13,7 @@ import { greetingKey } from '../../src/places/today/Greeting';
 import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 
 /*
- * Today in the direction D look (w3 package 3C, docs/superpowers/designs/ink-v2-direction-d/D-Today.dc.html): the
+ * Today in the direction D look (w3 package 3C, chausar-private/docs/superpowers/designs/ink-v2-direction-d/D-Today.dc.html): the
  * greeting, the goal card (from the goals view since W4 4I2; today-goal.test.tsx), the team at work, needs you as cards with
  * filter chips, Working now and Earlier. Only what the engine sends is drawn.
  */

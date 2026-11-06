@@ -60,6 +60,23 @@
   flex: none;
 }
 
+.notSent {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.notSentWhy {
+  max-width: min(320px, 85%);
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+  text-align: end;
+}
+
 .mineText {
   max-width: min(320px, 85%);
   padding: calc(var(--sp-5) / 2) var(--pad-card);

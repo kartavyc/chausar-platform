@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { Vault, wrappersDigestOf } from '../runtime/vault.ts';
 import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
-import { AUTO_BACKUP, CUSTODY_WORDS, TRANSFER } from '../runtime/workspace-custody-contracts.ts';
+import { AUTO_BACKUP, CUSTODY_WORDS, TRANSFER, exportFileName } from '../runtime/workspace-custody-contracts.ts';
 import { keepBackups, makeTransferCode, normalizeTransferCode, parseBackupName, slugFolder } from '../runtime/workspace-custody.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import type { ModelPreset, ModelReplayFixture } from '../runtime/venture/contracts.ts';
@@ -289,7 +289,7 @@ test('moving to another computer: one file and one code; a wrong code is refused
   await a.ask('trust.update', { retentionDays: 77 });
   const exported = await a.ask('workspace.transfer.export');
   assert.match(exported.transferCode, /^CHT-[0-9ABCDEFGHJKMNPQRSTVWXYZ]{24}$/);
-  assert.match(exported.fileName, /^chausar-move-\d{4}-\d{2}-\d{2}\.backup$/);
+  assert.match(exported.fileName, /^chausar-move-\d{4}-\d{2}-\d{2}\.chausar-move$/);
   assert.equal(exported.bytes, Buffer.byteLength(exported.text));
   assert.ok(!exported.text.includes('Moving Shop') && !exported.text.includes(exported.transferCode));
   assert.deepEqual(JSON.parse(exported.text).transfer.recovery, 'made');
@@ -671,4 +671,144 @@ test('one-shot A1 row 8: moving a business in after deleting the original works,
   await ask('workspace.lock');
   await ask('workspace.open', { folder: moved.folder });
   assert.equal((await ask('workspace.status')).workspace.name, 'Moving Back Shop');
+});
+
+test('C4 task 36: an export goes where the desktop chose, named with the business and the local day; nothing lands in the exports folder', async t => {
+  const directory = await folder(t), away = await folder(t, 'chausar-chosen-');
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Pune Frames', pack: 'services', folder: null });
+  const custody = await ask('workspace.custody.get');
+  assert.match(custody.business.exportName, /^Pune Frames, \d{1,2} [A-Z][a-z]{2} \d{4}\.vault$/);
+  const chosen = join(away, 'Pune Frames, 3 Nov 2026.vault');
+  const saved = await ask('workspace.export', { confirmed: true, plaintext: false, path: chosen });
+  assert.deepEqual([saved.name, saved.encrypted], ['Pune Frames, 3 Nov 2026.vault', true]);
+  assert.ok((await readFile(chosen)).length > 0, 'the copy is where the owner chose');
+  assert.deepEqual(await readdir(join(directory, 'exports')).catch(() => []), [], 'nothing in Chausar\'s exports folder');
+  const readable = join(away, 'Pune Frames readable.json');
+  assert.equal((await ask('workspace.export', { confirmed: true, plaintext: true, path: readable })).encrypted, false);
+  for (const path of ['relative.vault', join(away, 'wrong.json'), join(away, 'no-extension'), 42]) {
+    await assert.rejects(ask('workspace.export', { confirmed: true, plaintext: false, path }), code('INVALID_PATH'), String(path));
+  }
+  // Without a chosen path (the web, older callers): Chausar's own exports folder, as before, and the name comes back.
+  const managed = await ask('workspace.export', { confirmed: true, plaintext: false });
+  assert.match(managed.name, /^chausar-.+-\d+\.vault$/);
+  // The default name: the business name and the day where the owner is, at 00:30 IST already the next day.
+  assert.equal(exportFileName('Pune Frames', new Date('2026-11-02T19:00:00.000Z'), 'Asia/Kolkata', false), 'Pune Frames, 3 Nov 2026.vault');
+  assert.equal(exportFileName('A/B: C?', new Date('2026-11-02T19:00:00.000Z'), 'Asia/Kolkata', true), 'A B C, 3 Nov 2026.json');
+  assert.equal(exportFileName('   ', new Date('2026-11-02T19:00:00.000Z'), 'UTC', false), 'Chausar business, 2 Nov 2026.vault');
+});
+
+test('C4 task 37: the custody view counts the exports in Chausar\'s own folder; Delete names the business and how many backups went', async t => {
+  const directory = await folder(t), away = await folder(t, 'chausar-chosen-');
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Count Shop', pack: 'services', folder: null });
+  assert.equal((await ask('workspace.custody.get')).business.exportsHere, 0);
+  await ask('workspace.export', { confirmed: true, plaintext: false });
+  await ask('workspace.export', { confirmed: true, plaintext: false, path: join(away, 'elsewhere.vault') });
+  await ask('workspace.backups.create');
+  const custody = await ask('workspace.custody.get');
+  assert.equal(custody.business.exportsHere, 1, 'a copy saved elsewhere is not counted here');
+  const removed = await ask('workspace.delete', { confirmation: 'Count Shop' });
+  assert.equal(removed.name, 'Count Shop');
+  assert.equal(removed.backupsRemoved, removed.copiesRemoved.filter((path: string) => path.startsWith('backups/')).length);
+  assert.ok(removed.backupsRemoved >= 1);
+});
+
+test('C4 task 38: a move file ends .chausar-move and an old .backup one still imports; peek names the business with the right code, refuses a wrong one as import does, and writes nothing; the made line stays until dismissed', async t => {
+  const here = await folder(t, 'chausar-move-a-'), there = await folder(t, 'chausar-move-b-');
+  const a = engineAt(t, here, { keys: memoryDeviceKeyStore() }), b = engineAt(t, there, { keys: memoryDeviceKeyStore() });
+  await a.ask('workspace.create', { name: 'Peek Shop', pack: 'services', folder: null });
+  assert.equal((await a.ask('workspace.custody.get')).business.moveMadeAt, null);
+  const exported = await a.ask('workspace.transfer.export');
+  assert.match(exported.fileName, /^chausar-move-\d{4}-\d{2}-\d{2}\.chausar-move$/);
+  const made = (await a.ask('workspace.custody.get')).business.moveMadeAt;
+  assert.match(made, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(await a.ask('workspace.transfer.export', { dismiss: true }), { dismissed: true });
+  assert.equal((await a.ask('workspace.custody.get')).business.moveMadeAt, null);
+
+  const before = await files(there);
+  const peeked = await b.ask('workspace.transfer.peek', { fileText: exported.text, transferCode: exported.transferCode });
+  assert.deepEqual(Object.keys(peeked).sort(), ['movedOutAt', 'name']);
+  assert.equal(peeked.name, 'Peek Shop');
+  assert.match(peeked.movedOutAt, /^\d{4}-\d{2}-\d{2}T/);
+  const wrong = makeTransferCode();
+  const asImport = await b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: wrong }).catch((error: any) => error);
+  const asPeek = await b.ask('workspace.transfer.peek', { fileText: exported.text, transferCode: wrong }).catch((error: any) => error);
+  assert.deepEqual([asPeek.code, asPeek.message], [asImport.code, asImport.message]);
+  assert.equal(asPeek.code, 'TRANSFER_CODE_WRONG');
+  await assert.rejects(b.ask('workspace.transfer.peek', { fileText: '{"not":"a move file"}', transferCode: exported.transferCode }), code('TRANSFER_INVALID'));
+  await assert.rejects(b.ask('workspace.transfer.peek', { fileText: exported.text, transferCode: exported.transferCode, extra: 1 }), code('INVALID_REQUEST'));
+  assert.deepEqual(await files(there), before, 'peek writes nothing');
+  // The text is the same whatever the file was called, so a move file named .backup by an older Chausar still imports.
+  const moved = await b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode });
+  assert.match(moved.folder, /^moved-/);
+});
+
+// One-shot C6 task 1: what a backup holds and what restoring it would take back, read in memory, nothing written.
+test('C6: inspect a backup says what it holds and what changed since, writes nothing, and refuses another business or a closed one', async t => {
+  const directory = await folder(t);
+  const { engine, ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Inspect Shop', pack: 'services', folder: null });
+  await ask('venture.create', { idea: 'Bookkeeping for small cafes, done by templates with me checking every report.', countryCode: 'IN', workingName: 'Inspect Shop' });
+  const aroma = await ask('venture.client.add', { name: 'Cafe Aroma Private', email: 'owner@aroma.example', countryCode: 'IN', stateCode: '27' });
+  await ask('venture.client.add', { name: 'Tea Room', countryCode: 'IN', stateCode: '27' });
+  const copy = await ask('workspace.backups.create');
+  // An order and an invoice are added and one client changes after the backup (written straight to the records: the
+  // order and invoice paths need an accepted plan, which this test does not need).
+  const vault = (engine as any).store() as Vault;
+  await vault.update(state => {
+    const at = new Date().toISOString(), ventureId = aroma.ventureId;
+    state.conversations.push({ id: 'order_c6', kind: 'venture-order', ventureId, memberId: 'owner', epoch: 1, at, clientId: aroma.id, request: 'October books' });
+    state.conversations.push({ id: 'invoice_c6', kind: 'venture-invoice', ventureId, memberId: 'owner', epoch: 1, at, orderId: 'order_c6' });
+    const client = state.conversations.find((record: any) => record.id === aroma.id); client.note = 'Pays on the 5th';
+  });
+  const revision = vault.read().revision;
+  const listed = await files(directory);
+  const temp = await files(tmpdir()).catch(() => [] as string[]);
+
+  const seen = await ask('workspace.backups.inspect', { file: copy.file });
+  assert.equal(seen.file, copy.file);
+  assert.equal(seen.at, copy.at);
+  assert.deepEqual(seen.counts, [{ kind: 'clients', words: 'clients', count: 2 }, { kind: 'other', words: 'other records', count: 1 }],
+    'the backup\'s own counts (the plan interview is an other record; the clients\' evidence is not counted)');
+  assert.deepEqual(seen.since, [
+    { kind: 'clients', words: 'clients', added: 0, changed: 1, removed: 0 },
+    { kind: 'orders', words: 'orders', added: 1, changed: 0, removed: 0 },
+    { kind: 'invoices', words: 'invoices', added: 1, changed: 0, removed: 0 },
+  ]);
+  // Nothing was written: the revision, the business folder and the temp folder are as they were.
+  assert.equal(vault.read().revision, revision);
+  assert.deepEqual(await files(directory), listed);
+  const after = await files(tmpdir()).catch(() => [] as string[]);
+  for (const path of after.filter(path => !temp.includes(path))) {
+    const text = await readFile(path, 'utf8').catch(() => '');
+    assert.ok(!text.includes('Cafe Aroma Private'), `a new temp file holds the client's name: ${path}`);
+  }
+  await assert.rejects(ask('workspace.backups.inspect', { file: '../escape.backup' }), code('BACKUP_NOT_FOUND'));
+  await assert.rejects(ask('workspace.backups.inspect', {}), code('BACKUP_NOT_FOUND'));
+
+  // Another business's backup is refused; a closed business refuses.
+  await ask('workspace.lock');
+  await assert.rejects(ask('workspace.backups.inspect', { file: copy.file }), code('VAULT_LOCKED'));
+  await ask('workspace.create', { name: 'Other Shop', pack: 'services', folder: null });
+  await assert.rejects(ask('workspace.backups.inspect', { file: copy.file }), (error: any) => error.code === 'BACKUP_OTHER_BUSINESS' && error.message === CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
+  const owner = engine.bootstrapContext();
+  await assert.rejects(engine.requestAs({ ...owner, channel: 'phone' as any }, 'workspace.backups.inspect', { file: copy.file }), code('APP_APPROVAL_REQUIRED'));
+});
+
+test('C6: the vault reads a backup of itself in memory, frozen, and refuses another vault or a file over its size cap', async t => {
+  const directory = await folder(t);
+  const { engine, ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Read Shop', pack: 'services', folder: null });
+  const copy = await ask('workspace.backups.create');
+  const vault = (engine as any).store() as Vault, path = join(directory, 'backups', copy.file);
+  const state = await vault.readBackupState(path);
+  assert.equal(state.workspace.name, 'Read Shop');
+  assert.ok(Object.isFrozen(state) && Object.isFrozen(state.conversations), 'the state comes back frozen');
+  const big = join(directory, 'backups', 'big.backup');
+  await writeFile(big, Buffer.alloc(64 * 1024 * 1024 + 1, 32));
+  await assert.rejects(vault.readBackupState(big), code('VAULT_TOO_LARGE'));
+  await ask('workspace.lock');
+  await ask('workspace.create', { name: 'Other Read Shop', pack: 'services', folder: null });
+  await assert.rejects(((engine as any).store() as Vault).readBackupState(path), code('BACKUP_OTHER_BUSINESS'));
 });

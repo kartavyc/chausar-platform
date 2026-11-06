@@ -4,9 +4,9 @@
 // client's pipeline cards, and invoices). Forget of a person erases the history and timeline kept about them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { ClientRecord, InvoiceRecord, OpportunityRecord } from '../runtime/venture/contracts.ts';
+import type { BlueprintRecord, ClientRecord, DeliveryRunRecord, InvoiceRecord, OpportunityRecord, OrderRecord } from '../runtime/venture/contracts.ts';
 import type { ClientCrmView, CompanyRow, CompanyView, CrmListRow, CrmListView } from '../runtime/venture/crm/crm-data.ts';
-import { addClient } from '../runtime/venture/money/clients.ts';
+import { addClient, listClients } from '../runtime/venture/money/clients.ts';
 import { evidenceApply, recordEvidence } from '../runtime/venture/evidence/ledger.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { code, owner, phone, setup, type Env } from './venture-views-env.ts';
@@ -152,6 +152,40 @@ test('pipelines as lists: each list has its own stages, and every move is a chan
   assert.equal((await view(env, aroma.id)).history[0].line, 'You took this out of Workshop leads');
 });
 
+// One-shot C4 task 18: the timeline holds the client's orders and drafts too, and what they owe keeps its receipt.
+test('C4: orders and drafts join a client\'s timeline in order, only that client\'s; what they owe is the invoices\' balance with a receipt', async () => {
+  const env = await setup();
+  const aroma = await client(env, 'Cafe Aroma Demo');
+  const other = await client(env, 'Someone Else');
+  await ventureAction(env.deps, owner, 'admin', 'seed.orders', tx => {
+    tx.put({ ...tx.base('venture-blueprint'), version: 1, status: 'accepted', offers: [{ id: 'offer_1', name: { value: 'Monthly visits' } }] } as unknown as BlueprintRecord);
+    const order = { offerId: 'offer_1', quantity: '1', request: 'Visits for the cafe', priceReceiptId: 'r_1', saleFactId: null };
+    const mine = tx.put({ ...tx.base('venture-order'), ...order, clientId: aroma.id, status: 'delivered', deliveredOn: '2026-10-20', at: '2026-10-10T05:00:00.000Z' } as OrderRecord);
+    const theirs = tx.put({ ...tx.base('venture-order'), ...order, clientId: other.id, status: 'open', deliveredOn: null, at: '2026-10-11T05:00:00.000Z' } as OrderRecord);
+    tx.put({ ...tx.base('venture-order'), ...order, internal: true, clientId: aroma.id, status: 'open', deliveredOn: null } as OrderRecord);
+    const run = { practice: false, deliverable: null };
+    tx.put({ ...tx.base('venture-delivery-run'), ...run, orderId: mine.id, status: 'accepted', verdict: { choice: 'accepted', reason: null, at: '2026-10-15T05:00:00.000Z' } } as unknown as DeliveryRunRecord);
+    tx.put({ ...tx.base('venture-delivery-run'), ...run, orderId: mine.id, status: 'rejected', verdict: { choice: 'rejected', reason: null, at: '2026-10-14T05:00:00.000Z' } } as unknown as DeliveryRunRecord);
+    tx.put({ ...tx.base('venture-delivery-run'), ...run, orderId: mine.id, status: 'ready-for-review', verdict: null } as unknown as DeliveryRunRecord);
+    tx.put({ ...tx.base('venture-delivery-run'), ...run, practice: true, orderId: mine.id, status: 'accepted', verdict: { choice: 'accepted', reason: null, at: '2026-10-16T05:00:00.000Z' } } as unknown as DeliveryRunRecord);
+    tx.put({ ...tx.base('venture-delivery-run'), ...run, orderId: theirs.id, status: 'accepted', verdict: { choice: 'accepted', reason: null, at: '2026-10-17T05:00:00.000Z' } } as unknown as DeliveryRunRecord);
+    const invoice = { orderId: mine.id, clientId: aroma.id, currency: 'INR', dueDate: null, dueInDays: 7, lines: [], subtotalMinor: '200000', discountMinor: '0', taxMinor: '0', totalMinor: '200000', balanceMinor: '200000' } as unknown as InvoiceRecord;
+    tx.put({ ...tx.base('venture-invoice'), ...invoice, number: 'INV-0001', issueDate: '2026-10-18', status: 'issued' } as InvoiceRecord);
+  });
+  const timeline = (await view(env, aroma.id)).timeline;
+  assert.deepEqual(timeline.map(entry => [entry.kind, entry.on, entry.line]), [
+    ['order', '2026-10-20', 'Order for Monthly visits delivered'],
+    ['invoice', '2026-10-18', 'Invoice INV-0001 issued'],
+    ['draft', '2026-10-15', 'Draft approved'],
+    ['draft', '2026-10-14', 'Draft rejected'],
+    ['order', '2026-10-10', 'Order for Monthly visits added'],
+  ]);
+  assert.deepEqual((await view(env, other.id)).timeline.map(entry => entry.line), ['Draft approved', 'Order for Monthly visits added']);
+  const row = (await listClients(env.deps, owner, {})).find(item => item.id === aroma.id)!;
+  assert.equal(row.owed!.display, '₹2,000');
+  assert.ok(listRecords(env.store.read(), 'venture-sum-receipt').some((item: { id: string }) => item.id === row.owed!.receiptId), 'with its receipt');
+});
+
 test('Forget of a person erases the history, timeline, company link and list places kept about them and their client', async () => {
   const env = await setup();
   const aroma = await client(env, 'Asha Rao', 'asha@dewdrop.example');
@@ -166,6 +200,12 @@ test('Forget of a person erases the history, timeline, company link and list pla
   const list = await net<CrmListView>(env, 'venture.crm.list.save', { name: 'Gifting', stages: ['Asked', 'Said yes'] });
   await net(env, 'venture.crm.list.place', { listId: list.list.id, member: `person:${asha.id}`, stage: 'Asked' });
   await net(env, 'venture.crm.company.save', { companyId: company.company.id, note: 'Asha Rao runs it.' });
+  // C4 task 18: her client's orders and drafts stay in the books, and leave the timeline with the rest.
+  await ventureAction(env.deps, owner, 'admin', 'seed.order', tx => {
+    const order = tx.put({ ...tx.base('venture-order'), offerId: 'offer_1', quantity: '1', request: 'Samples', priceReceiptId: 'r_1', saleFactId: null, clientId: aroma.id, status: 'open', deliveredOn: null } as OrderRecord);
+    tx.put({ ...tx.base('venture-delivery-run'), practice: false, deliverable: null, orderId: order.id, status: 'accepted', verdict: { choice: 'accepted', reason: null, at: tx.now } } as unknown as DeliveryRunRecord);
+  });
+  assert.ok((await view(env, aroma.id)).timeline.some(entry => entry.kind === 'order'));
 
   await net(env, 'venture.network.forget', { id: asha.id });
   const state = env.store.read();

@@ -8,7 +8,7 @@ import { notifyListHandler, notifyReadHandler, notifyRefresh as refreshCentre, t
 import { countShown, currentNotifySettings, notifySettingsHandler } from './settings.ts';
 import { deliverPush, endPushSessions, pushKeyHandler, pushSubscribeHandler, pushUnsubscribeHandler } from './push-methods.ts';
 import { deliverRelay, relayHandler } from './relay.ts';
-import { deliverTelegram, telegramHandler } from './telegram.ts';
+import { deliverTelegram, telegramFindChatHandler, telegramHandler } from './telegram.ts';
 import { phoneAccessHandler } from './phone.ts';
 
 export { endPushSessions };
@@ -113,5 +113,6 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.notify.relay': relayHandler,
   // W6 6F6 Telegram alerts, 6F7 phone access
   'venture.notify.telegram': telegramHandler,
+  'venture.notify.telegram.findChat': telegramFindChatHandler,
   'venture.phone.access': phoneAccessHandler,
 });

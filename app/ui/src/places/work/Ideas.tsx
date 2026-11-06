@@ -18,9 +18,10 @@ import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
-import { SectionHead } from '../../parts/Tile';
 import { dayOf } from '../business/shared';
 import s from './Ideas.module.css';
+import { Fold } from '../../parts/Fold';
+import { Reveal } from '../../parts/RevealBlock';
 
 const FORWARD: readonly IdeaStage[] = ['inbox', 'triage', 'drafted', 'made', 'published'];
 const GRADES: readonly IdeaGrade[] = ['worked', 'so-so', 'did-not'];
@@ -36,7 +37,6 @@ function wordsOf(error: unknown, t: T): string {
 export function Ideas() {
   const t = useT();
   const engine = useEngine();
-  const headingId = useId();
   const view = useResource('venture.ideas.list', {}, { refreshOn: IDEA_EVENTS });
   const team = useResource('venture.team.list', {});
   const [adding, setAdding] = useState(false);
@@ -64,6 +64,7 @@ export function Ideas() {
   const stageName = (stage: IdeaStage) => t(`kit-rules.stage.${stage}`);
   const handlers: CardHandlers = {
     busy,
+    lead: FORWARD.flatMap((stage) => (view.data?.pipeline ?? []).filter((idea) => idea.stage === stage)).find((idea) => idea.next.some((stage) => stage !== 'dropped'))?.id,
     names: new Map((team.data?.agents ?? []).map((agent) => [agent.id, agent.name] as const)),
     move: (idea, stage) => act(() => engine.request('venture.ideas.move', { id: idea.id, stage }), t('kit-rules.done.moved', { stage: stageName(stage) })),
     drop: (idea, reason) => act(() => engine.request('venture.ideas.move', { id: idea.id, stage: 'dropped', reason }), t('kit-rules.done.moved', { stage: stageName('dropped') })),
@@ -77,20 +78,20 @@ export function Ideas() {
   const open = all.length - dropped.length;
 
   return (
-    <section aria-labelledby={headingId} className={s.ideas}>
-      <SectionHead
-        id={headingId} title={t('kit-rules.heading')}
-        end={adding || open === 0 ? undefined : <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={16} />{t('kit-rules.add')}</Button>}
-      />
-      <p className={s.line}>{t('kit-rules.line')}</p>
-      {adding && (
+    // C1 task 5: the page's title says Ideas, so this section says it once, to screen readers.
+    <section aria-label={t('kit-rules.heading')} className={s.ideas}>
+      <div className={s.head}>
+        <p className={s.line}>{t('kit-rules.line')}</p>
+        {!adding && open > 0 && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={16} />{t('kit-rules.add')}</Button>}
+      </div>
+      <Reveal open={adding}>
         <AddForm
           busy={busy} onCancel={() => setAdding(false)}
           onAdd={async (text, source) => {
             if (await act(() => engine.request('venture.ideas.add', { text, source }), t('kit-rules.done.added'))) setAdding(false);
           }}
         />
-      )}
+      </Reveal>
       {said && <p className={s.said} role="status" data-said="">{said}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {open === 0 && !adding ? (
@@ -101,8 +102,7 @@ export function Ideas() {
         </div>
       )}
       {dropped.length > 0 && (
-        <details className={s.fold} data-fold="dropped">
-          <summary>{t('kit-rules.dropped', { count: dropped.length })}<Icon name="chevron-down" size={16} /></summary>
+        <Fold summary={t('kit-rules.dropped', { count: dropped.length })} className={s.fold} data-fold="dropped">
           <ul className={s.droppedList}>
             {dropped.map((idea) => (
               <li key={idea.id} data-idea={idea.id}>
@@ -111,7 +111,7 @@ export function Ideas() {
               </li>
             ))}
           </ul>
-        </details>
+        </Fold>
       )}
     </section>
   );
@@ -119,6 +119,8 @@ export function Ideas() {
 
 interface CardHandlers {
   busy: boolean;
+  /** The one idea whose next step holds the page's fill (B4 task 2: one filled button per view). */
+  lead: string | undefined;
   /** The team's names by role id (venture.team.list: an agent's id is its role's), for Suggested by. */
   names: ReadonlyMap<string, string>;
   move: (idea: PipelineIdeaView, stage: IdeaStage) => Promise<boolean>;
@@ -180,14 +182,13 @@ function Card({ idea, handlers }: { idea: PipelineIdeaView; handlers: CardHandle
       ) : idea.gradeFrom && <p className={s.meta}>{t('kit-rules.gradeFrom', { day: dayOf(idea.gradeFrom, language) })}</p>)}
       {forward.length > 0 && (
         <div className={s.actions}>
-          <Button variant="primary" size="sm" disabled={handlers.busy} onClick={() => { void handlers.move(idea, forward[0]!); }}>
+          <Button variant={handlers.lead === idea.id ? 'primary' : 'secondary'} size="sm" disabled={handlers.busy} onClick={() => { void handlers.move(idea, forward[0]!); }}>
             {t('kit-rules.moveTo', { stage: stageName(forward[0]!) })}
           </Button>
         </div>
       )}
       {(forward.length > 1 || canDrop) && (
-        <details className={s.more}>
-          <summary>{t('kit-rules.more')}<Icon name="chevron-down" size={16} /></summary>
+        <Fold summary={t('kit-rules.more')} className={s.more}>
           <div className={s.moreBody}>
             {forward.slice(1).map((stage) => (
               <Button key={stage} variant="quiet" size="sm" disabled={handlers.busy} onClick={() => { void handlers.move(idea, stage); }}>
@@ -201,7 +202,7 @@ function Card({ idea, handlers }: { idea: PipelineIdeaView; handlers: CardHandle
               </form>
             )}
           </div>
-        </details>
+        </Fold>
       )}
     </article>
   );
@@ -220,7 +221,7 @@ function AddForm({ busy, onAdd, onCancel }: { busy: boolean; onAdd: (text: strin
       <Field label={t('kit-rules.add.text')} value={text} maxLength={300} onChange={(event) => setText(event.target.value)} />
       <Field label={t('kit-rules.add.source')} hint={t('kit-rules.add.sourceHint')} value={source} maxLength={120} onChange={(event) => setSource(event.target.value)} />
       <div className={s.actions}>
-        <Button variant="quiet" onClick={onCancel}>{t('kit-rules.add.cancel')}</Button>
+        <Button onClick={onCancel}>{t('kit-rules.add.cancel')}</Button>
         <Button variant="primary" type="submit" disabled={busy}>{t('kit-rules.add.save')}</Button>
       </div>
     </form>

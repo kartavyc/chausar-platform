@@ -8,6 +8,8 @@ import { Button } from '../../../parts/Button';
 import { ExternalLink } from '../../connections/external';
 import type { CommunityInput, CommunityPost } from '../../../../../../platform/runtime/venture/playbooks/lead-generation/community-core';
 import s from './LeadGenerationDesk.module.css';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 const base = { playbook: 'lead-generation' as const, kind: 'source' };
 type Report = { sourceId: string; posts: CommunityPost[]; coverage: string };
 const fresh = () => ({ community: '', url: '', rulesUrl: '', rulesCheckedOn: '', on: '', text: '', painQuote: '', fitQuote: '', intentQuote: '', painScore: '1', fitScore: '1', intentScore: '1' });
@@ -32,7 +34,7 @@ export function CommunityLeadPanel() {
   async function read(id: string) { try { const answer = await engine.request('venture.desk.get', { ...base, id }); setReport(answer.item as Report); } catch { setError(t('pb-lead-generation.error.REQUEST_FAILED')); } }
   const coverage = report?.coverage.match(/\d+/g) ?? [];
   const rows = (saved.data?.rows ?? []) as { id: string; type: string; name: string }[];
-  return <Tile as="section" label={t('pb-lead-generation.community')}><details><summary>{t('pb-lead-generation.community')}</summary>
+  return <Tile as="section" label={t('pb-lead-generation.community')}><Fold summary={t('pb-lead-generation.community')}>
     <p className={s.line}>{t('pb-lead-generation.communityBoundary')}</p>
     {error && <p className={s.error} role="alert">{error}</p>}
     <form className={s.form} aria-label={t('pb-lead-generation.community')} onSubmit={create}>
@@ -46,7 +48,7 @@ export function CommunityLeadPanel() {
         <label className={s.label}>{t('pb-lead-generation.postText')}<textarea value={post.text} onChange={event => change(index, 'text', event.target.value)} required /></label>
         {(['pain', 'fit', 'intent'] as const).map(dimension => <div key={dimension} className={s.pair}>
           <Field label={t('pb-lead-generation.' + dimension + 'Quote')} value={post[(dimension + 'Quote') as keyof typeof post]} onChange={event => change(index, (dimension + 'Quote') as keyof typeof post, event.target.value)} required />
-          <label className={s.label}>{t('pb-lead-generation.' + dimension + 'Score')}<select value={post[(dimension + 'Score') as keyof typeof post]} onChange={event => change(index, (dimension + 'Score') as keyof typeof post, event.target.value)}>{[1, 2, 3, 4, 5].map(score => <option key={score} value={score}>{score}</option>)}</select></label>
+          <label className={s.label}>{t('pb-lead-generation.' + dimension + 'Score')}<Select value={post[(dimension + 'Score') as keyof typeof post]} onChange={event => change(index, (dimension + 'Score') as keyof typeof post, event.target.value)}>{[1, 2, 3, 4, 5].map(score => <option key={score} value={score}>{score}</option>)}</Select></label>
         </div>)}
       </div>)}
       <Button type="button" disabled={busy || posts.length >= 100} onClick={() => { setPosts(old => [...old, fresh()]); setConfirmed(false); }}>{t('pb-lead-generation.addPost')}</Button>
@@ -60,5 +62,5 @@ export function CommunityLeadPanel() {
       <Button disabled={busy} onClick={() => void forget()}>{t('pb-lead-generation.forgetCommunity')}</Button>
     </div>}
     {rows.filter(row => row.type === 'community').map(row => <p className={s.line} key={row.id}><span data-content>{row.name}</span> <Button onClick={() => void read(row.id)}>{t('pb-lead-generation.readCommunity')}</Button></p>)}
-  </details></Tile>;
+  </Fold></Tile>;
 }

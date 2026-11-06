@@ -35,12 +35,12 @@ test('venture.bank.import: an Indian statement becomes exact minor units, and th
   assert.deepEqual([first.added, first.duplicates, first.transactions], [4, 0, 4]);
   assert.equal(first.rejected.length, 1, 'the end-of-statement line');
   assert.match(first.rejected[0].reason, /date/);
-  assert.equal(first.line, 'Added 4 transactions. 1 row could not be read.');
+  assert.match(first.line, /^Added 4 transactions from .+\. See them under Connections, in your bank account\. 1 row could not be read\.$/);
 
   const again = await call<BankImportResult>(env, 'venture.bank.import', { csv, account: ACCOUNT.toUpperCase() });
   assert.equal(again.accountId, first.accountId, 'the same account, whatever the letter case');
   assert.deepEqual([again.added, again.duplicates, again.transactions], [0, 4, 4]);
-  assert.match(again.line, /already here and were not counted again/);
+  assert.match(again.line, /^Already imported, nothing added\./);
 
   const state = env.store.read();
   const [account] = listRecords(state, 'venture-bank-account');

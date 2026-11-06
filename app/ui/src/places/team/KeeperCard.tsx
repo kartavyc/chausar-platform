@@ -10,6 +10,7 @@ import type { DeptId } from '../../parts/icons';
 import type { Member } from './departments';
 import { RING } from './shared';
 import s from './Team.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** Keeper's jobs change when one of them runs (keeper.ran), and with the business. */
 const onKeeper = (event: VentureRunEvent) => event.type === 'keeper.ran' || event.type === 'queue.changed';
@@ -99,10 +100,9 @@ export function KeeperCard({ member, dept, ground, open = false }: { member: Mem
         <KeeperSummary jobs={keeper.data?.jobs} />
         {/* Operations shown alone has room for the jobs as rows; among all five departments they wait one step away. */}
         {open ? <JobList name={agent.name} keeper={keeper} /> : (
-          <details className={s.keeperFold}>
-            <summary className={s.keeperSee}>{t('team.keeper.see')}</summary>
+          <Fold summary={t('team.keeper.see')} className={s.keeperFold} summaryClassName={s.keeperSee}>
             <JobList name={agent.name} keeper={keeper} />
-          </details>
+          </Fold>
         )}
       </Card>
     </li>

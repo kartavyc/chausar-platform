@@ -415,6 +415,8 @@ export class FakeMoneyViews {
       points: weeks.map((week, k) => ({ week, label: k === 0 ? 'Today' : `Week to ${dayMonthYear(week)}`, actual: k === 0 ? openingFigure : null, forecast: forecasts[k]!, actualPermille: k === 0 ? at(minors[0]!) : null, forecastPermille: at(minors[k]!) })),
       lowest: { onTime, ifLateNeverPay: ifLate }, usualCosts: null, assumptions, nextWeeks, ifIssued,
       ticks: levelTicks(lo, hi, value => this.money(value)), basis: forecastBasis, line,
+      // C4 (T28), as money/cash.ts: nothing due in or out, and the sample takes no usual costs.
+      ...(flows.length === 0 ? { flat: `Nothing due in or out in the next ${WEEKS} weeks, so it stays flat.` } : {}),
     };
   }
 
@@ -447,6 +449,7 @@ export class FakeMoneyViews {
     const leftOut = rate === null ? { count: calls, one: `paid call with ${this.noRate()}`, many: `paid calls with ${this.noRate()}` } : { count: calls, one: 'paid call no order can claim', many: 'paid calls no order can claim' };
     return {
       month, rows,
+      ...(rate === null && this.country().currency === 'INR' ? { needsRate: true } : {}),
       line: rate === null ? `${words}: invoiced before tax. The AI and tool spend is not counted: ${this.noRate()}.` : `${words}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`,
       basis: this.basis(
         [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its run and order"],
@@ -455,11 +458,25 @@ export class FakeMoneyViews {
     };
   }
 
+  private exportFormat(month: string, format: unknown): MoneyExportFile {
+    if (format !== 'tally-xml' && format !== 'gstr1-csv') throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose CSV, Tally or GSTR-1.');
+    const period = monthRange(month);
+    const invoices = this.host.ledger().invoices.filter((i) => this.issuedIn(i, period));
+    const count = `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'}`;
+    const slug = this.host.name().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'chausar';
+    if (format === 'tally-xml') {
+      return { format, fileName: `${slug}-${month}-tally.xml`, csv: `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDATA>${invoices.map((i) => `<TALLYMESSAGE><VOUCHER VCHTYPE="Sales" ACTION="Create"><VOUCHERNUMBER>${i.number}</VOUCHERNUMBER></VOUCHER></TALLYMESSAGE>`).join('')}</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>\n`, rows: invoices.length, line: `${monthWords(month)} for Tally: ${invoices.length} ${invoices.length === 1 ? 'sale' : 'sales'}. Your CA imports it and can rename the ledgers there. Chausar files nothing.` };
+    }
+    return { format, fileName: `${slug}-${month}-gstr1.csv`, csv: `\uFEFFSheet,Invoice\r\n${invoices.map((i) => `B2CS,${i.number}`).join('\r\n')}\r\n`, rows: invoices.length, line: `${monthWords(month)} shaped for GSTR-1: ${count}. Your CA checks it and files the return. Chausar files nothing.` };
+  }
+
   /** venture.money.export {month}: the month for the owner's CA as CSV text, each row in its currency, totals with receipts. */
   private export(p: Record<string, unknown>): MoneyExportFile {
-    exact(p, ['month'], ['month']);
+    exact(p, ['month', 'format'], ['month']);
     const month = monthText(p.month);
     this.open();
+    // C5 task 18, as money/export-formats.ts: the same words and refusal; the rehearsal's file holds the month's invoices only.
+    if (p.format !== undefined && p.format !== 'csv') return this.exportFormat(month, p.format);
     const ledger = this.host.ledger();
     const period = monthRange(month);
     const name = this.host.name();
@@ -510,6 +527,7 @@ export class FakeMoneyViews {
     const slug = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
     // 4J10: the business's signed receipts ride with the file; the sample engine signs nothing, so the list is empty.
     const receipts = { format: 'chausar-signed-receipts/1', business: name, algorithm: 'ed25519', publicKey: null, keys: [], receipts: [] };
-    return { fileName: `${slug || 'chausar'}-${month}-for-ca.csv`, csv, rows: rows.length, line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`, receipts };
+    const long = monthWords(month);
+    return { fileName: `${slug || 'chausar'}-${month}-for-ca.csv`, ownerFileName: `${name}, sales, ${long.slice(0, 3)} ${month.slice(0, 4)}.csv`, business: name, period: long, csv, rows: rows.length, line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`, receipts };
   }
 }

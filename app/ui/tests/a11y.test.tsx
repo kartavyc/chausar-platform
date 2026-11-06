@@ -102,7 +102,7 @@ const PLACES: Case[] = [
   // W4 4J19: who decided what; Today with Approve several open, and with a draft's Send back box open.
   { name: 'Business, decisions', hash: '#/business/decisions' },
   { name: 'Today, approve several', hash: '#/today', press: ['Approve several'] },
-  { name: 'Today, send back a draft', hash: '#/today', press: ['Send back'] },
+  { name: 'Today, send back a draft', hash: '#/today', press: ['More', 'Send back'] },
   // W4 4J22b: the business's voice, what the AI knows, and Today's folds opened (an overdue invoice makes an idea).
   { name: 'Business, your voice', hash: '#/business/voice' },
   { name: 'Business, what the AI knows', hash: '#/business/knowledge' },
@@ -370,4 +370,31 @@ describe('axe on a phone', () => {
       expect(await violations(root)).toEqual([]);
     }, timeoutOf(each));
   }
+});
+
+describe('axe on the command bar (C2)', () => {
+  it('the list open, with records, pages, actions and the Ask row', async () => {
+    const root = await settle({ name: 'the bar', hash: '#/money' });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' });
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
+    expect(await violations(root)).toEqual([]);
+  }, 30_000);
+});
+
+describe('axe on the command bar on a phone (C2)', () => {
+  it('the dialog open with a list', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === NARROW, media: query, onchange: null,
+      addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
+    }) as unknown as MediaQueryList);
+    const root = await settle({ name: 'the bar on a phone', hash: '#/today' });
+    const [button] = await screen.findAllByRole('button', { name: 'Find or ask' });
+    await act(async () => { fireEvent.click(button!); });
+    const box = screen.getByRole('combobox', { name: 'Find or ask' });
+    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
+    expect(await violations(root)).toEqual([]);
+  }, 30_000);
 });

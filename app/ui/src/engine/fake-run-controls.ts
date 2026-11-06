@@ -13,12 +13,12 @@
  */
 
 import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
-import { EngineError, type AwayView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
+import { EngineError, type AwayView, type BillView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
 import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
 
 export const FAKE_4F3_METHODS: readonly string[] = [
-  'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get',
+  'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get', 'venture.away.preview',
 ];
 
 /** The engine's words (delivery/harness/controls.ts, delivery/run-controls.ts, views/runs.ts, delivery/away.ts). */
@@ -74,6 +74,10 @@ const day = (iso: string) => iso.slice(0, 10);
 const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
 /** '2026-10-01' as '1 Oct 2026', the engine's day-month-year order (records.ts formatVentureDate). */
 const say = (iso: string) => formatDay(iso.slice(0, 10), 'UTC');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** C4 task 40, as the engine's delivery/away.ts replyDay: '10 Nov', or '2 Jan 2027' when it is not this year. */
+const replyDay = (iso: string, year: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}${iso.slice(0, 4) === year ? '' : ` ${iso.slice(0, 4)}`}`;
+const replyRange = (from: string, to: string, year: string) => (from.slice(0, 7) === to.slice(0, 7) ? `${Number(from.slice(8, 10))} to ${replyDay(to, year)}` : `${replyDay(from, year)} to ${replyDay(to, year)}`);
 const isDay = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
 
 export class FakeRunControls {
@@ -155,6 +159,7 @@ export class FakeRunControls {
       case 'venture.business.pause': return this.pause(p);
       case 'venture.away.set': return this.awaySet(p);
       case 'venture.away.get': return this.awayView();
+      case 'venture.away.preview': return this.awayPreview(p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
@@ -354,7 +359,19 @@ export class FakeRunControls {
     return { paused: p.paused, stopped, line };
   }
 
-  private awaySet(p: Record<string, unknown>): AwayView {
+  /** C5 task 2 venture.away.preview: the setter's checks, then what falls due between the days; nothing is kept. */
+  private awayPreview(p: Record<string, unknown>): { from: string; to: string; items: AwayView['promises'] } {
+    this.checkDays(p);
+    const from = p.from as string, to = p.to as string;
+    const read = <T>(method: string): T | null => { try { return this.host.ask(method, {}) as T; } catch { return null; } };
+    const bills = (read<{ bills: BillView[] }>('venture.bills.list')?.bills ?? [])
+      .filter((bill) => bill.state !== 'paid' && bill.dueDate >= from && bill.dueDate <= to)
+      .map((bill) => ({ due: bill.dueDate, line: `The bill from ${bill.vendor} is due.` }));
+    const items = [...this.promises(from, to), ...bills].sort((a, b) => a.due.localeCompare(b.due) || a.line.localeCompare(b.line));
+    return { from, to, items };
+  }
+
+  private checkDays(p: Record<string, unknown>): void {
     if (Object.keys(p).some((key) => key !== 'from' && key !== 'to')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (!isDay(p.from)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The first day away must be a date like 2026-10-15.');
     if (!isDay(p.to)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The last day away must be a date like 2026-10-15.');
@@ -363,7 +380,18 @@ export class FakeRunControls {
     if (Date.parse(`${p.to}T00:00:00.000Z`) - Date.parse(`${p.from}T00:00:00.000Z`) >= MAX_AWAY_DAYS * DAY_MS) {
       throw new EngineError('INVALID_VENTURE_REQUEST', `Chausar plans for at most ${MAX_AWAY_DAYS} days away at a time.`);
     }
-    this.away = { from: p.from, to: p.to };
+  }
+
+  private awaySet(p: Record<string, unknown>): AwayView {
+    // C4 task 40, as the engine: { clear: true } ends Away now, planned or under way.
+    if (Object.hasOwn(p, 'clear')) {
+      if (Object.keys(p).length !== 1 || p.clear !== true) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send clear: true to clear the days away.');
+      if (!this.away || this.away.to < day(this.host.now())) throw new EngineError('INVALID_VENTURE_REQUEST', 'You are not away, so there are no days to clear.');
+      this.away = null;
+      return this.awayView();
+    }
+    this.checkDays(p);
+    this.away = { from: p.from as string, to: p.to as string };
     return this.awayView();
   }
 
@@ -376,7 +404,11 @@ export class FakeRunControls {
     if (!live) return { away: null, promises: [], keepsRunning, approvalsWaiting: waiting, autoReply: null, line: NOT_AWAY };
     const back = addDays(live.to, 1);
     const name = this.businessName(this.host.current());
-    const autoReply = `Thank you for your message. I am away from ${say(live.from)} to ${say(live.to)} and back on ${say(back)}. I will reply after I am back.\n\n${name}`;
+    // C4 task 40, as the engine: the owner's words, signed with their first name and the business.
+    let first: string | null = null;
+    try { first = (this.host.ask('venture.owner.get', {}) as { firstName?: string | null } | null)?.firstName ?? null; } catch { first = null; }
+    const year = today.slice(0, 4);
+    const autoReply = `Thanks for your message! I'm away ${replyRange(live.from, live.to, year)} and back on ${replyDay(back, year)}. I'll reply then.\n\n${first ? `${first}, ${name}` : name}`;
     const waits = `${waiting} ${waiting === 1 ? 'thing waits' : 'things wait'} for you.`;
     const started = today >= live.from;
     const line = today > live.to ? `You were away from ${say(live.from)} to ${say(live.to)}.`

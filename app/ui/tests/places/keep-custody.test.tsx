@@ -77,7 +77,8 @@ describe('Keep this business: all backups and their restore', () => {
       expect.stringContaining('You made it. Opens with an older passphrase or code.'),
     ]);
     await press(within(rows[2]!).getByRole('button', { name: 'Restore' }));
-    expect(within(rows[2]!).getByText('Your business goes back to how it was then. Chausar saves a copy of how it is now first.')).toBeTruthy();
+    // C6: the ask leads with what restoring takes back (the sample's manual copy, from before many changes).
+    expect(await within(rows[2]!).findByText(/^Since .*: 1 client, 5 orders, 2 invoices and 1 payment added, 1 client, 2 orders and 1 invoice changed. Restoring takes these back. How it is now is saved as a backup first.$/)).toBeTruthy();
     expect(sent(calls, 'workspace.backups.restore')).toEqual([]);
     await press(within(rows[2]!).getByRole('button', { name: 'Keep it as it is' }));
     expect(within(rows[2]!).queryByRole('button', { name: 'Restore this copy' })).toBeNull();
@@ -157,6 +158,39 @@ describe('Keep this business: moving to another computer', () => {
     expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
     expect(document.body.textContent).not.toContain(SAMPLE_PASSPHRASE);
   });
+
+  // C4 task 38 (219.x1): the line stays after Done, with its local time, until the owner takes it away.
+  it('a made file leaves a lasting line with its time; Dismiss takes it away', async () => {
+    const { calls } = start('#/business/keep');
+    const move = await fold('Move to another computer');
+    expect(screen.queryByText(/^Move file made /)).toBeNull();
+    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await waitFor(() => expect(screen.getByText(/^Move file made .+. Delete it once the move is done.$/)).toBeTruthy());
+    expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
+    await press(within(move).getByRole('button', { name: 'Done' }));
+    expect(screen.getByText(/^Move file made /)).toBeTruthy();
+    await press(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(sent(calls, 'workspace.transfer.export').at(-1)).toEqual({ dismiss: true });
+    await waitFor(() => expect(screen.queryByText(/^Move file made /)).toBeNull());
+  });
+
+  // C4 task 38 (217.x1): no recovery code yet: the fold says to make one first, with its button.
+  it('with no recovery code the fold says to make one first, and its button shows the code', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    await engine.request('workspace.create', { name: 'Kite Studio', pack: 'services' });
+    const { calls } = start('#/business/keep', engine);
+    const move = await fold('Move to another computer');
+    expect(within(move).getByText('Make a recovery code first, in case the move goes wrong.')).toBeTruthy();
+    await press(within(move).getByRole('button', { name: 'Make the code' }));
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(1);
+    expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
+  });
+
+  it('with a recovery code the fold does not ask for one', async () => {
+    start('#/business/keep');
+    const move = await fold('Move to another computer');
+    expect(within(move).queryByText('Make a recovery code first, in case the move goes wrong.')).toBeNull();
+  });
 });
 
 describe('Keep this business: closing and locking', () => {
@@ -191,18 +225,56 @@ describe('Keep this business: export a copy', () => {
     expect((within(box).getByRole('radio', { name: 'Encrypted' }) as HTMLInputElement).checked).toBe(true);
     await press(within(box).getByRole('button', { name: 'Export a copy' }));
     expect(sent(calls, 'workspace.export')).toEqual([{ confirmed: true, plaintext: false }]);
-    expect(within(box).getByText(/^Saved to \/Users\/you\/Chausar\/exports\/chausar-lumen-\d+\.vault$/)).toBeTruthy();
+    // C4 task 36: the saved line names the file, never a path on this computer.
+    expect(within(box).getByText(/^Saved chausar-lumen-\d+\.vault\.$/)).toBeTruthy();
+    expect(box.textContent).not.toContain('/Users/');
 
     fireEvent.click(within(box).getByRole('radio', { name: 'Readable, not encrypted' }));
     expect(within(box).getByText('Anyone who opens a readable copy can read everything in it: clients, invoices and notes.')).toBeTruthy();
-    await press(within(box).getByRole('button', { name: 'Export a copy' }));
-    expect(within(box).getByRole('alert').textContent).toBe('Tick the box to make a readable copy.');
+    // B4: no red line before anything was pressed. The button waits and says why; the old "Saved to" line goes with the old choice.
+    expect(within(box).queryByRole('alert')).toBeNull();
+    expect(within(box).queryByText(/^Saved to /)).toBeNull();
+    expect(within(box).getByRole('button', { name: 'Export a copy', description: 'Tick the box to make a readable copy.' })).toHaveProperty('disabled', true);
     expect(sent(calls, 'workspace.export')).toHaveLength(1);
     fireEvent.click(within(box).getByRole('checkbox', { name: 'I understand. Make it readable.' }));
     await press(within(box).getByRole('button', { name: 'Export a copy' }));
     expect(sent(calls, 'workspace.export')).toEqual([{ confirmed: true, plaintext: false }, { confirmed: true, plaintext: true }]);
-    expect(within(box).getByText(/^Saved to .*\.json$/)).toBeTruthy();
+    expect(within(box).getByText(/^Saved chausar-lumen-\d+\.json\.$/)).toBeTruthy();
     expect(within(box).getByText("This copy isn't encrypted. Delete it once you're done with it.")).toBeTruthy();
+  });
+});
+
+describe('C4 task 36: backups and export', () => {
+  it('on the desktop, Export asks where to save; the saved line names the file and offers Show in folder; a cancel says nothing', async () => {
+    const saveBusinessExport = vi.fn(async (_plaintext: boolean) => ({ name: 'Pune Frames, 3 Nov 2026.vault', encrypted: true, id: 'a1b2c3d4e5f6a7b8c9' }) as { name: string; encrypted: boolean; id: string } | null);
+    const showSavedExport = vi.fn(async (_id: string) => {});
+    const { calls } = start('#/business/keep', new FakeEngine(), 'desktop', { saveBusinessExport, showSavedExport });
+    const box = await fold('Export a copy');
+    await press(within(box).getByRole('button', { name: 'Export a copy' }));
+    expect(saveBusinessExport).toHaveBeenCalledWith(false);
+    expect(sent(calls, 'workspace.export')).toEqual([]);
+    const said = within(box).getByRole('status');
+    expect(said.textContent).toContain('Saved Pune Frames, 3 Nov 2026.vault.');
+    await press(within(said).getByRole('button', { name: 'Show in folder' }));
+    expect(showSavedExport).toHaveBeenCalledWith('a1b2c3d4e5f6a7b8c9');
+    saveBusinessExport.mockResolvedValueOnce(null);
+    await press(within(box).getByRole('button', { name: 'Export a copy' }));
+    expect(within(box).queryByRole('status')).toBeNull();
+  });
+
+  it('Back up now says "Backed up just now"; each backup shows its size; after a restore one line says where it went back to', async () => {
+    const { calls } = start('#/business/keep');
+    const backupNow = await screen.findByRole('button', { name: 'Back up now' });
+    await press(backupNow);
+    expect(sent(calls, 'workspace.backups.create')).toHaveLength(1);
+    expect((await screen.findByText('Backed up just now')).closest('[role="status"]')).not.toBeNull();
+    const all = await fold(/^All backups, \d$/);
+    const rows = within(all).getAllByRole('listitem');
+    expect(rows.at(-1)!.textContent).toContain('47 KB');
+    await press(within(rows[0]!).getByRole('button', { name: 'Restore' }));
+    await press(within(rows[0]!).getByRole('button', { name: 'Restore this copy' }));
+    const line = await screen.findByText(/^Back to .+\. How it was a moment ago is saved as a backup\.$/);
+    expect(line.closest('[role="status"]')).not.toBeNull();
   });
 });
 
@@ -213,10 +285,14 @@ describe('Keep this business: delete this business', () => {
     const box = await fold('Delete this business');
     expect(await within(box).findByText('This deletes Lumen Studio and its backups from this computer. Copies you exported stay.')).toBeTruthy();
     expect(within(box).getByText("It can't delete a move file or a copy kept somewhere else.")).toBeTruthy();
+    // C4 task 37: what goes and what stays, from the custody view, and a copy first.
+    expect(box.querySelector('[data-delete-counts]')?.textContent).toBe('This removes 3 backups.');
+    await press(within(box).getByRole('button', { name: 'Export a copy first' }));
+    expect(((await screen.findByText('Export a copy', { selector: 'summary' })).closest('details') as HTMLDetailsElement).open).toBe(true);
     const name = within(box).getByLabelText('Type Lumen Studio to delete it') as HTMLInputElement;
     fireEvent.change(name, { target: { value: 'lumen studio' } });
-    await press(within(box).getByRole('button', { name: 'Delete this business' }));
-    expect(within(box).getByRole('alert').textContent).toBe("Type the name exactly as it's shown.");
+    // B4: Delete stays dim until the name matches, and says so.
+    await press(within(box).getByRole('button', { name: 'Delete this business', description: 'Type the business name to delete it' }));
     expect(sent(calls, 'workspace.delete')).toEqual([]);
     fireEvent.change(name, { target: { value: 'Lumen Studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));
@@ -224,6 +300,7 @@ describe('Keep this business: delete this business', () => {
     // B3: Delete goes straight to Welcome back, which says what was deleted; there is no Continue to press.
     expect(await screen.findByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
     expect(screen.getByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
+    expect(screen.getByText('Lumen Studio is deleted. 3 backups removed.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
     expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledgerline']);
     expect(sent(calls, 'workspace.open')).toEqual([]);
@@ -235,11 +312,13 @@ describe('Keep this business: delete this business', () => {
   it('review of A1 row 1: after Delete it lists the exported copies it kept, says which is readable, and shows one in its folder', async () => {
     const engine = new FakeEngine({ only: ['lumen', 'ledgerline'] });
     const shown: string[] = [];
-    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
     const client = createFakeClient(engine);
     const sealed = (await client.request('workspace.export', { confirmed: true, plaintext: false })) as { path: string };
     const readable = (await client.request('workspace.export', { confirmed: true, plaintext: true })) as { path: string };
+    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
     const box = await fold('Delete this business');
+    // C4 task 37: the two exports made above stay, and the line says so.
+    await waitFor(() => expect(box.querySelector('[data-delete-counts]')?.textContent).toBe('This removes 3 backups. Your 2 exports stay.'));
     fireEvent.change(await within(box).findByLabelText('Type Lumen Studio to delete it'), { target: { value: 'Lumen Studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));
     expect(await screen.findByText('These copies you exported are still on this computer:')).toBeTruthy();
@@ -296,6 +375,25 @@ describe('Keep this business: the recovery code shown once', () => {
     await press(screen.getByRole('button', { name: 'Done' }));
     expect(document.body.textContent).not.toContain(code);
   });
+
+  // C4 task 35 (25.x1): Print is a view of the code and the business name, nothing else, gone after the print.
+  it('Print opens the print view with the code and the business name only; it goes after printing', async () => {
+    const print = vi.fn();
+    vi.stubGlobal('print', print);
+    start('#/business/keep');
+    await press(await screen.findByRole('button', { name: 'Make a new one' }));
+    const code = (await screen.findByRole('group', { name: 'Recovery code' })).textContent!;
+    expect(document.querySelector('[data-print-view]')).toBeNull();
+    await press(screen.getByRole('button', { name: 'Print' }));
+    expect(print).toHaveBeenCalledTimes(1);
+    const view = document.querySelector('[data-print-view]')!;
+    expect(view.textContent).toContain(code);
+    expect(view.textContent).toContain('Lumen Studio');
+    expect(view.querySelectorAll('button, input, a')).toHaveLength(0);
+    await act(async () => { window.dispatchEvent(new Event('afterprint')); });
+    expect(document.querySelector('[data-print-view]')).toBeNull();
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('Keep this business: secrets', () => {
@@ -308,5 +406,44 @@ describe('Keep this business: secrets', () => {
     await waitFor(() => expect(document.body.textContent).not.toContain(SAMPLE_MOVE_CODE));
     for (const input of document.querySelectorAll('input')) expect(input.value).not.toBe(SAMPLE_PASSPHRASE);
     expect(sent(calls, 'workspace.transfer.export')).toEqual([{ passphrase: SAMPLE_PASSPHRASE }]);
+  });
+});
+
+// One-shot C6 task 2 (SCREENS 204.f1, 208.x1, 213.x1): what is in each backup, and what a restore takes back.
+describe('Keep this business: what is in a backup, and what a restore takes back', () => {
+  it("\"What's in it\" is closed at rest and asks the engine once, when opened", async () => {
+    const { calls } = start('#/business/keep');
+    const all = await fold('All backups, 3');
+    expect(sent(calls, 'workspace.backups.inspect')).toEqual([]);
+    const row = within(all).getAllByRole('listitem')[0]!;
+    const inside = within(row).getByText("What's in it", { selector: 'summary' }).closest('details')!;
+    expect(inside.open).toBe(false);
+    fireEvent.click(within(inside).getByText("What's in it", { selector: 'summary' }));
+    expect(await within(inside).findByText('3 clients, 12 orders, 4 invoices and 3 payments')).toBeTruthy();
+    expect(sent(calls, 'workspace.backups.inspect')).toEqual([{ file: 'chausar-lumen-auto.backup' }]);
+  });
+
+  it('the restore ask leads with what changed since, before the button, and the restore still makes its safety copy', async () => {
+    const { calls } = start('#/business/keep');
+    const all = await fold('All backups, 3');
+    const row = within(all).getAllByRole('listitem')[0]!;
+    await press(within(row).getByRole('button', { name: 'Restore' }));
+    const change = await within(row).findByText(/^Since .*: 2 orders and 1 invoice added, 1 client changed\. Restoring takes these back\. How it is now is saved as a backup first\.$/);
+    const go = within(row).getByRole('button', { name: 'Restore this copy' });
+    expect(change.compareDocumentPosition(go) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await press(go);
+    expect(sent(calls, 'workspace.backups.restore')).toEqual([{ file: 'chausar-lumen-auto.backup', confirmed: true }]);
+    const after = await fold('All backups, 4');
+    expect(within(after).getAllByRole('listitem')[0]!.textContent).toContain('Before a change.');
+  });
+
+  it('with nothing changed since, the ask says so', async () => {
+    const engine = new FakeEngine();
+    await engine.request('workspace.backups.create', {});
+    start('#/business/keep', engine);
+    const all = await fold('All backups, 4');
+    const row = within(all).getAllByRole('listitem')[0]!;
+    await press(within(row).getByRole('button', { name: 'Restore' }));
+    expect(await within(row).findByText('Nothing changed since then. How it is now is saved as a backup first.')).toBeTruthy();
   });
 });

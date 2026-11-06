@@ -1,9 +1,51 @@
-/* Business in the D look (D-STYLE section 4; no board of its own): the pages as a segmented nav, then tiles. The
-   simple path sits at rest; tax details, a price's working, rate-table sources and other inner workings wait one fold
-   away. Text classes carry no margin of their own: the tile body and forms space them with grid gaps. */
+/* Settings in the D look (D-STYLE section 4; no board of its own): the grouped list beside the page (C1 task 7), then
+   tiles. The simple path sits at rest; tax details, a price's working, rate-table sources and other inner workings
+   wait one fold away. Text classes carry no margin of their own: the tile body and forms space them with grid gaps. */
 
-.nav {
-  margin-bottom: var(--sp-6);
+/* From 760 px: the list on the left, sticky in the page's scroll and scrolling on its own when taller than the window,
+   and the page on the right. A phone shows one or the other (index.tsx). */
+.settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap-section);
+  align-items: start;
+}
+
+@media (min-width: 760px) {
+  .settings {
+    grid-template-columns: calc(var(--sp-12) * 4 + var(--sp-2)) minmax(0, 1fr);
+  }
+
+  .settingsList {
+    position: sticky;
+    top: 0;
+    max-height: calc(100dvh - var(--sp-12));
+    overflow-y: auto;
+  }
+}
+
+.settingsPage {
+  min-width: 0;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.settingsBack {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.settingsBack {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.settingsBack:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
 }
 
 /* ---- Layout ---- */
@@ -22,7 +64,7 @@
 
 .split[data-ratio='8-4'] {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  align-items: stretch;
+  align-items: start;
 }
 
 .split[data-ratio='5-7'] {
@@ -31,7 +73,7 @@
 
 .split[data-ratio='even'] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
+  align-items: start;
 }
 
 .column {
@@ -39,6 +81,12 @@
   align-content: start;
   gap: var(--gap-grid);
   min-width: 0;
+}
+
+/* A plain section after another in the same column is parted by one hairline rule (B4 task 1). */
+.section + .section[data-plain] {
+  padding-top: var(--gap-grid);
+  border-top: var(--hair) solid var(--line-soft);
 }
 
 /* A tile's words under its head, spaced by the grid. */
@@ -415,23 +463,6 @@
   color: var(--fg2);
 }
 
-.fold > summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-sm);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.fold > summary:hover {
-  color: var(--link-hover);
-}
-
-.fold[open] > summary {
-  margin-bottom: var(--sp-2);
-}
-
 .foldBody {
   display: grid;
   gap: var(--sp-2);
@@ -659,5 +690,41 @@
   margin: 0;
   font-size: var(--text-tile);
   font-weight: var(--weight-strong);
-  color: var(--fg);
+}
+
+/* C4 task 35: the recovery code print view: only this prints; on screen it is not drawn. */
+.printView {
+  display: none;
+}
+
+@media print {
+  :global(body) > *:not(.printView) {
+    display: none !important;
+  }
+
+  .printView {
+    display: grid;
+    gap: var(--sp-3);
+    padding: var(--sp-6);
+  }
+}
+
+/* C4 task 17: a practice client's row in a rehearsal's result, which opens its draft. */
+.rowLink {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rowLink:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+/* C5 task 13: I charge GST, a quiet switch above the prices; its fields show only once it is on. */
+.gst {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-block: var(--sp-3);
 }

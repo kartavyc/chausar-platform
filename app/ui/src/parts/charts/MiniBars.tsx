@@ -16,10 +16,11 @@ export interface MiniBarsProps {
 /**
  * The small bars in a stat tile (D's "Done this week" bars, 80 by 32): 8 px bars 4 px apart, the current one in chart
  * ink and the rest in the lighter grey. Heights stay per mille in the markup; the group scales them to 32 px (1000 per
- * mille is 32 px, so the 2 px rounded top that Charts.module.css clips is 62.5 per mille tall). No heights, no bars.
+ * mille is 32 px, so the 2 px rounded top that Charts.module.css clips is 62.5 per mille tall). No heights, all zeros or
+ * a single bar: no bars.
  */
 export function MiniBars({ heights, label, dept, current = true }: MiniBarsProps) {
-  if (heights.length === 0) return null;
+  if (heights.length < 2 || heights.every((height) => height <= 0)) return null;
   const last = current ? heights.length - 1 : -1;
   const a11y = label === undefined ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label };
   return (

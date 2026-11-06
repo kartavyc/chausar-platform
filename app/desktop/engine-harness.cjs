@@ -75,12 +75,14 @@ function flowsRelay(harness, child, message) {
 }
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
-  constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
+  constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128, onTiming = null }) {
     super();
-    this.options = { workerPath, environment, execPath, forkProcess, startupTimeoutMs, requestTimeoutMs, lifecycleTimeoutMs, shutdownTimeoutMs, maxPending };
+    this.options = { workerPath, environment, execPath, forkProcess, startupTimeoutMs, requestTimeoutMs, lifecycleTimeoutMs, shutdownTimeoutMs, maxPending, onTiming };
     this.worker = null; this.state = 'stopped'; this.waiting = new Map(); this.startup = null; this.shutdown = null;
   }
   status(state) { this.state = state; this.emit('status', Object.freeze({ state, healthy: state === 'ready' })); }
+  /** C5 task 29: main is starting a fresh worker after this one died; requests until then get plain words. */
+  reconnecting() { this.status('reconnecting'); }
   failPending(error) { for (const pending of this.waiting.values()) { clearTimeout(pending.timer); pending.reject(error); } this.waiting.clear(); }
   start() {
     if (this.startup && this.state === 'stopped') return Promise.reject(failure('ENGINE_RESTART_REFUSED', 'Create a fresh harness before restarting the engine.'));
@@ -133,12 +135,20 @@ class EngineHarness extends EventEmitter {
   request(method, payload = {}) {
     let input;
     try { input = validateRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
-    return this.#send(input, this.options.requestTimeoutMs);
+    const sent = this.#send(input, this.options.requestTimeoutMs), timing = this.options.onTiming;
+    if (!timing) return sent;
+    // C5 task 26: the method, the milliseconds and the bytes each way go to rpc.jsonl; never what was asked or answered.
+    const started = Date.now(), requestBytes = Buffer.byteLength(JSON.stringify(input.payload));
+    const report = fields => { try { timing({ method: input.method, ms: Date.now() - started, requestBytes, ...fields }); } catch { /* a help, never a gate */ } };
+    return sent.then(result => { report({ answerBytes: Buffer.byteLength(JSON.stringify(result ?? null)), ok: true }); return result; },
+      error => { report({ answerBytes: 0, ok: false, code: error?.code }); throw error; });
   }
   // A2 second review: main's own route for the owner's Codex choice (codex-choice.cjs). No renderer method can make
   // these: renderer requests are { method, payload } only (validateRequest), and these carry a kind and no method.
   codexChoice(payload) { return this.#send({ kind: 'host-codex-choice', payload: codexPayload(payload) }, this.options.requestTimeoutMs); }
   confirmCodex(payload) { return this.#send({ kind: 'host-codex-confirm', payload: confirmPayload(payload) }, this.options.requestTimeoutMs); }
+  // C5 task 32: at quit, before the engine stops: is a run busy, and the safety copy. Main's own route, like the two above.
+  prepareUpdateInstall(payload) { return this.#send({ kind: 'host-update-prepare', payload: { backup: payload?.backup === true } }, this.options.requestTimeoutMs); }
   // Trusted main-process lifecycle only. No renderer method can manufacture this cancellation.
   closeForms() { try { if (this.worker?.connected) this.worker.send({ kind: 'host-forms-closed' }, () => {}); } catch {} }
   // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert
@@ -161,6 +171,7 @@ class EngineHarness extends EventEmitter {
     });
   }
   #send(input, timeoutMs) {
+    if (this.state === 'reconnecting') return Promise.reject(failure('ENGINE_UNAVAILABLE', 'Chausar is reconnecting. Try again in a moment.'));
     if (this.state !== 'ready' || !this.worker?.connected) return Promise.reject(failure('ENGINE_UNAVAILABLE', 'The engine is unavailable. Restart Chausar.'));
     if (this.waiting.size >= this.options.maxPending) return Promise.reject(failure('ENGINE_BUSY', 'Too many desktop requests are pending. Wait for them to finish.'));
     return new Promise((resolve, reject) => {

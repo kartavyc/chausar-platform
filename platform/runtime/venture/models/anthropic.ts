@@ -38,7 +38,7 @@ export function parseAnthropic(response: ModelHttpResponse): Parsed {
   let data: unknown;
   try { data = JSON.parse(response.body); } catch { return { ok: false, code: 'MODEL_FAILED', message: 'Anthropic sent an answer Chausar could not read.', usage: null }; }
   if (!isPlainRecord(data)) return { ok: false, code: 'MODEL_FAILED', message: 'Anthropic sent an answer Chausar could not read.', usage: null };
-  const usage = readUsage(data.usage);
+  const usage = readUsage(data.usage, 'anthropic');
   if (data.stop_reason === 'refusal') return { ok: false, code: 'MODEL_REFUSAL', message: 'The model declined this request. Nothing was retried.', usage };
   if (data.stop_reason === 'max_tokens') return { ok: false, code: 'MODEL_INCOMPLETE', message: 'The model ran out of room before it finished. Nothing was retried.', usage };
   if (data.stop_reason !== 'end_turn') return { ok: false, code: 'MODEL_INCOMPLETE', message: 'The model stopped before it finished. Nothing was retried.', usage };

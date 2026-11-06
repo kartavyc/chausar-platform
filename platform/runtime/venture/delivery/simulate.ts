@@ -398,7 +398,7 @@ export type RehearsalOutcome = { episodes: Episode[]; spend: Spend[]; tables: Wo
  * loop's gate both use it, so a candidate playbook is rehearsed exactly as the current one is. budgetMicros (Ink v2
  * 4J16, Q16): what is left of the improvement run's budget; once the episodes spent it, no further episode starts.
  */
-export async function rehearse(deps: VentureDeps, ctx: Context, playbook: PlaybookRecord, scenarios: readonly Scenario[], options: { useTemplate: boolean; episodes: number | null; budgetMicros?: bigint }): Promise<RehearsalOutcome> {
+export async function rehearse(deps: VentureDeps, ctx: Context, playbook: PlaybookRecord, scenarios: readonly Scenario[], options: { work?: import('../../work-progress.ts').Work; useTemplate: boolean; episodes: number | null; budgetMicros?: bigint }): Promise<RehearsalOutcome> {
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
   const offer = blueprint.offers.find(item => item.id === 'offer_1') ?? blueprint.offers[0];
@@ -419,6 +419,9 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
   const spent = () => outcome.spend.reduce((total, item) => total + BigInt(item.costMicros), 0n);
   for (const scenario of scenarios) {
     const count = options.episodes ?? scenario.episodes;
+    // One-shot C3 task 9: one step per practice client, when the caller watches (a plain rehearsal, not the loop's).
+    options.work?.step(scenario.id, 'current');
+    const from = outcome.episodes.length;
     for (let index = 0; index < count; index += 1) {
       if (options.budgetMicros !== undefined && spent() >= options.budgetMicros) { outcome.stopped = true; return outcome; }
       const result = await runEpisode(env, scenario, index);
@@ -428,6 +431,7 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
       outcome.tables.push(...result.tables);
       outcome.receipts.push(...result.receipts);
     }
+    options.work?.step(scenario.id, 'done', { passed: outcome.episodes.slice(from).every(episode => episode.passed) });
   }
   return outcome;
 }
@@ -475,7 +479,16 @@ export async function simulationRunHandler(deps: VentureDeps, ctx: Context, payl
     ? scenarioIds.map(id => { const found = available.find(scenario => scenario.id === id); check(found, 'SCENARIO_NOT_FOUND', 'That practice client is not in this business.'); return found; })
     : available.filter(scenario => scenario.source === 'template');
 
-  const outcome = await rehearse(deps, ctx, playbook, selected, { useTemplate, episodes });
+  const work = deps.work?.begin('rehearse', selected.map(scenario => scenario.id));
+  let outcome: RehearsalOutcome;
+  try {
+    outcome = await rehearse(deps, ctx, playbook, selected, { useTemplate, episodes, ...(work ? { work } : {}) });
+  } catch (error) {
+    work?.failCurrent();
+    throw error;
+  } finally {
+    work?.end();
+  }
   const results = outcome.episodes;
   const scenarioPassed = selected.map(scenario => results.filter(episode => episode.scenarioId === scenario.id).every(episode => episode.passed));
   const passedCount = scenarioPassed.filter(Boolean).length;
@@ -521,7 +534,8 @@ export async function simulationFromSignalHandler(deps: VentureDeps, ctx: Contex
   readAs(deps, ctx, 'prepare');
   return ventureAction(deps, ctx, 'prepare', 'simulation.fromSignal', tx => {
     const signal = tx.find('venture-signal', signalId);
-    check(signal, 'SIGNAL_NOT_FOUND', 'That signal was not found.');
+    // C4 task 15: a signal the owner took back is no longer one to learn from.
+    check(signal && !signal.withdrawnAt, 'SIGNAL_NOT_FOUND', 'That signal was not found.');
     const type = serviceTypeOf(tx.state, tx.venture!);
     const scenario = signalScenario(signal, type, tx.state);
     if (signal.scenarioId !== scenario.id) tx.replace({ ...signal, scenarioId: scenario.id });

@@ -15,7 +15,7 @@ describe('fake engine: the CRM (6G3)', () => {
     const engine = new FakeEngine({ now: () => NOW });
     const fresh = await ask<ClientCrmView>(engine, 'venture.crm.client', { clientId: 'c-boat' });
     expect(fresh.history.map((row) => row.line)).toEqual(['Added to Clients']);
-    await expect(ask(engine, 'venture.crm.client.edit', { clientId: 'c-boat', field: 'taxId', value: 'x' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'Choose the name, the email or the note.' });
+    await expect(ask(engine, 'venture.crm.client.edit', { clientId: 'c-boat', field: 'taxId', value: 'x' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'Choose the name, the email, the phone or the note.' });
     await expect(ask(engine, 'venture.crm.client.edit', { clientId: 'c-nobody', field: 'note', value: 'Hi' })).rejects.toMatchObject({ code: 'CLIENT_NOT_FOUND' });
     await expect(ask(engine, 'venture.crm.client.edit', { clientId: 'c-boat', field: 'email', value: 'partners@boataudio.in' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST', message: 'That is the email as it is now.' });
     const edited = await ask<ClientCrmView>(engine, 'venture.crm.client.edit', { clientId: 'c-boat', field: 'email', value: 'team@boataudio.in' });

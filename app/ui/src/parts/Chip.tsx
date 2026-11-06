@@ -6,6 +6,7 @@ import { Count } from './Figure';
 import { Icon } from './Icon';
 import type { DeptId, IconName } from './icons';
 import { stateWord, type StateKind, type StateTone, type StateValue } from './states';
+import { SwapWords } from './Swap';
 import s from './Chip.module.css';
 
 /** A chip's tone: a state tone from states.ts, or `line` (a plain bordered label, D's `.chip.line`). */
@@ -30,7 +31,8 @@ export function Chip({ tone = 'neutral', children, className }: ChipProps) {
     <span className={cx(s.chip, className)} data-tone={tone}>
       {DOTTED.has(tone) && <span className={s.dot} data-dot="" aria-hidden="true" />}
       {tone === 'done' && <Icon name="check" size={12} />}
-      {children}
+      {/* One-shot C3 task 8: a state word that changes (Idle to Working, Draft to Issued) fades in place. */}
+      {typeof children === 'string' ? <SwapWords>{children}</SwapWords> : children}
     </span>
   );
 }
@@ -56,7 +58,7 @@ export function DeptChip({ dept, className }: { dept: DeptId; className?: string
 }
 
 /** D's `.sdot`: a department's small solid dot before its name in a toggle or filter row. Hidden: the name says it.
- *  The one place the department dot colours live (Segmented and FilterChips both draw this). */
+ *  The one place the department dot colours live (Tabs and FilterChips both draw this). */
 export function DeptDot({ dept, className }: { dept: DeptId; className?: string | undefined }) {
   return <span className={cx(s.deptDot, className)} data-dept={dept} aria-hidden="true" />;
 }
@@ -138,8 +140,9 @@ export interface CountChipProps {
   className?: string | undefined;
 }
 
-/** D's `.count`: a count in DM Mono on a small pill. A count is never money, so it carries no proof. */
+/** D's `.count`: a count in DM Mono on a small pill. A count is never money, so it carries no proof. Zero draws nothing. */
 export function CountChip({ value, tone = 'wait', label, className }: CountChipProps) {
+  if (Number(value) === 0) return null;
   return (
     <span className={cx(s.count, className)} data-tone={tone}>
       {label ? (

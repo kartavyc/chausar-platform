@@ -5,6 +5,7 @@
  * owner can upload one.
  */
 
+import { AiDefault } from './AiConsent';
 import { useT } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
@@ -18,6 +19,7 @@ import type { ClientLite, OrderLite, VentureRunEvent } from '../../engine/types'
 import { Owed } from './ClientSheet';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
@@ -41,13 +43,14 @@ export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
       />
     );
   }
-  if (list.length === 0) return null;
+  if (list.length === 0) return <LoadingPlace shape="list" />;
   // Until the orders arrive (or when they cannot be read) a row says nothing about orders: "No orders yet." is said
   // only when the engine answered with none.
   const ordersKnown = orders.data !== undefined;
   return (
     <>
       {orders.error && <p className={s.failed} role="alert">{t('clients.order.failed', { message: orders.error.message })}</p>}
+      <AiDefault />
       <Tile pad="compact">
         <ul className={s.list} aria-label={t('place.clients')}>
           {list.map((client) => <ClientRow key={client.id} client={client} ordersKnown={ordersKnown} last={lastOrder.get(client.id)} />)}

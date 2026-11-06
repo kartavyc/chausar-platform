@@ -71,22 +71,6 @@
 }
 
 /* W6 6F7: the pairing link's QR code (as the invoice sheet draws the UPI code) and the link itself, which may wrap. */
-.qr {
-  inline-size: calc(var(--sp-12) * 4);
-  block-size: calc(var(--sp-12) * 4);
-  padding: var(--sp-2);
-  border-radius: var(--r-card);
-  background: var(--qr-light);
-}
-
-.qrLight {
-  fill: var(--qr-light);
-}
-
-.qrDark {
-  fill: var(--qr-dark);
-}
-
 .link {
   margin: 0;
   font-size: var(--text-read);
@@ -99,4 +83,12 @@
   display: grid;
   gap: var(--sp-2);
   margin-bottom: var(--sp-3);
+}
+
+/* C4 task 39: a part of the phone group, under its fold. */
+.partTitle {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
 }

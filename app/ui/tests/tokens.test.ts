@@ -81,6 +81,13 @@ describe('Ink tokens', () => {
     expect(number!['font-variant-numeric']).toBe('tabular-nums');
   });
 
+  it('the exit, stagger and exit-ease tokens exist (one-shot C3)', () => {
+    const [root] = blocks(css, /^:root$/);
+    expect(root!['--t-exit']).toBe('140ms');
+    expect(root!['--t-stagger']).toBe('30ms');
+    expect(root!['--ease-exit']).toBe('cubic-bezier(0.4, 0, 1, 1)');
+  });
+
   it('motion.css has the swipe snap, and nothing in it loops', () => {
     const motion = read('../src/tokens/motion.css');
     expect(motion).toMatch(/@keyframes ink-snap\s*\{/);
@@ -101,7 +108,7 @@ describe('Ink tokens', () => {
 });
 
 /**
- * Ink v2 colours, exactly as the w3 plan's token table (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md,
+ * Ink v2 colours, exactly as the w3 plan's token table (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md,
  * "Tokens"), whose contrast tests/contrast.test.ts checks. The accent is Jade, the founder's pick of 23 October.
  */
 const DEPTS = {

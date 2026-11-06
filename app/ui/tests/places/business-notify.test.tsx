@@ -3,7 +3,7 @@
 // the browser only on that press and follows its permission live, the tray and the relay on this computer, and what
 // keeps running while Chausar is closed. Every state shown is the engine's or the browser's; nothing is assumed.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -63,10 +63,38 @@ const said = (calls: [string, unknown][], method: string) => calls.filter(([m]) 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('Business > Notifications on this computer', () => {
+  // C4 task 39 (17.d2): one group under the relay, Telegram first; open while nothing is set up.
+  it('one fold holds Telegram before phone access, with nothing else under Save relay; it opens while nothing is set up', async () => {
+    start();
+    const reach = await region('How alerts reach you');
+    const summary = await within(reach).findByText('Get alerts on your phone', { selector: 'summary' });
+    const fold = summary.closest('details') as HTMLDetailsElement;
+    await waitFor(() => expect(fold.open).toBe(true));
+    expect([...reach.querySelectorAll('summary')].map((item) => item.textContent)).toEqual(['Get alerts on your phone', 'Type the chat id yourself']);
+    expect(reach.querySelectorAll('a')).toHaveLength(0);
+    const headings = await within(fold).findAllByRole('heading');
+    expect(headings.map((item) => item.textContent)).toEqual(['Telegram alerts', 'Phone access']);
+  });
+
+  it('with something set up, the fold stays closed until the owner opens it', async () => {
+    const { engine } = start();
+    await engine.request('venture.phone.access', { action: 'link', via: 'wifi' });
+    cleanup();
+    window.location.hash = '#/business/notifications';
+    const client = createFakeClient(engine);
+    render(<ClockProvider now={() => new Date(NOW)}><BrowserPushContext.Provider value={fakeBrowser().browser}><App client={client} language="en" /></BrowserPushContext.Provider></ClockProvider>);
+    const reach = await region('How alerts reach you');
+    const summary = await within(reach).findByText('Get alerts on your phone', { selector: 'summary' });
+    const fold = summary.closest('details') as HTMLDetailsElement;
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(fold.open).toBe(false);
+    expect(within(fold).queryByRole('heading', { name: 'Telegram alerts' })).toBeNull();
+  });
+
   it('is a business page that says what the engine says, and that phone alerts need the hosted app', async () => {
     start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
     await screen.findByText('The tray shows how many things need you. Quiet hours: 10:00 pm to 7:00 am. Daily summary at 8:00 am.');
     const reach = await region('How alerts reach you');
@@ -154,7 +182,7 @@ describe('Business > Notifications: what each setting means, and what the engine
     const quiet = await region('Quiet times');
     await within(quiet).findByText("During quiet hours, alerts outside the app wait, then one count comes when they end. Items that expire soon still come. Times are in the business's time zone.");
     expect(within(quiet).getByText('The summary stays in the bell: its words never go to your phone or the tray.')).toBeTruthy();
-    expect(within(quiet).getByText('30 days at most. Nothing is replayed after it ends. The bell still lists everything.')).toBeTruthy();
+    expect(within(quiet).getByText('At most 30 days. Nothing replays later.')).toBeTruthy();
   });
 
   it('shows the tray and the relay only when the engine answers for the relay', async () => {

@@ -82,7 +82,9 @@ export const DECIDE_SCHEMA: Json = {
   },
 };
 
-const REPAIR_LINE = (problem: string) => `Your last answer was refused: ${problem} Answer again, following every rule.`;
+// D2: the repair line is fixed text; the reason the last answer was refused is in the input (problem), so the fixed
+// prompt stays the same from one call to the next.
+const REPAIR_LINE = 'Your last answer was refused for the reason given as problem in the input. Answer again, following every rule.';
 
 export function decideInput(text: string, country: CountryProfile, problem: string | null = null): Json {
   const input: { [key: string]: Json } = {
@@ -121,7 +123,7 @@ export function decideTask(text: string, country: CountryProfile, problem: strin
   const allowed = copiedTokens(text);
   return {
     purpose: 'decide',
-    instructions: problem === null ? DECIDE_INSTRUCTIONS : `${DECIDE_INSTRUCTIONS.replace(ONBOARDING_MARKERS.decide, ONBOARDING_MARKERS.redecide)} ${REPAIR_LINE(problem)}`,
+    instructions: problem === null ? DECIDE_INSTRUCTIONS : `${DECIDE_INSTRUCTIONS.replace(ONBOARDING_MARKERS.decide, ONBOARDING_MARKERS.redecide)} ${REPAIR_LINE}`,
     input: decideInput(text, country, problem),
     schemaName: ONBOARDING_SCHEMAS.decide,
     schema: structuredClone(DECIDE_SCHEMA),
@@ -420,7 +422,7 @@ export function composeTask(decision: ComposeDecision, problem: string | null = 
   const allowed = copiedTokens(decision.text);
   return {
     purpose: 'compose',
-    instructions: problem === null ? COMPOSE_INSTRUCTIONS : `${COMPOSE_INSTRUCTIONS.replace(ONBOARDING_MARKERS.compose, ONBOARDING_MARKERS.recompose)} ${REPAIR_LINE(problem)}`,
+    instructions: problem === null ? COMPOSE_INSTRUCTIONS : `${COMPOSE_INSTRUCTIONS.replace(ONBOARDING_MARKERS.compose, ONBOARDING_MARKERS.recompose)} ${REPAIR_LINE}`,
     input: composeInput(decision, problem),
     schemaName: ONBOARDING_SCHEMAS.compose,
     schema: composeSchema(decision.views),

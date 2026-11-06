@@ -93,11 +93,11 @@ describe('RunSheet', () => {
     expect(onAnswer).toHaveBeenCalledWith('Yes, share a private link');
   });
 
-  it('a finished run folds to "Worked for" with its result and receipt', () => {
+  it('a finished run folds to "Took" with its result and receipt', () => {
     const { container } = render(<RunSheetView run={run('27')} onClose={() => {}} />);
     const fold = container.querySelector('details[data-fold="worked"]') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
-    expect(fold.querySelector('summary')!.textContent).toBe('Worked for 4 min');
+    expect(fold.querySelector('summary')!.textContent).toBe('Took 4 min');
     expect(container.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(screen.getAllByRole('button', { name: receiptMark('R-0412') }).length).toBeGreaterThan(0);
   });
@@ -366,13 +366,14 @@ describe('Ink v2 look', () => {
   it('the sheet and a decided card run the keyframes motion.css defines once compiled, not a renamed copy', async () => {
     const config = await resolveConfig({ configFile: join(import.meta.dirname, '../../vite.config.ts'), logLevel: 'silent' }, 'serve');
     const keyframes = readFileSync(join(import.meta.dirname, '../../src/tokens/motion.css'), 'utf8');
-    for (const [file, name] of [['Sheet.module.css', 'ink-sheet-in'], ['ApprovalRow.module.css', 'ink-settle']] as const) {
-      expect(keyframes, name).toContain(`@keyframes ${name} `);
+    // C3 tasks 5 and 13: a sheet also leaves and cross-fades; each of those is motion.css's too.
+    for (const [file, names] of [['Sheet.module.css', ['ink-sheet-in', 'ink-fade-in', 'ink-sheet-out']], ['ApprovalRow.module.css', ['ink-settle']]] as const) {
+      for (const name of names) expect(keyframes, name).toContain(`@keyframes ${name} `);
       const path = join(import.meta.dirname, '../../src/parts', file);
       const { code } = await preprocessCSS(readFileSync(path, 'utf8'), path, config);
       const animations = [...code.matchAll(/animation:\s*([^;}]+)/g)].map((m) => m[1]!.trim());
       expect(animations.length, file).toBeGreaterThan(0);
-      for (const animation of animations) expect(animation.split(/\s+/)[0], `${file}: ${animation}`).toBe(name);
+      for (const animation of animations) expect(names as readonly string[], `${file}: ${animation}`).toContain(animation.split(/\s+/)[0]);
     }
   }, 30000);
 });

@@ -4,18 +4,39 @@ import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { PageTitle } from '../../src/parts/PageTitle';
 import { TextProvider } from '../../src/text';
+import { rule } from '../helpers/css';
 import type { ReactNode } from 'react';
 
 const draw = (node: ReactNode, language: 'en' = 'en') => render(<TextProvider language={language}>{node}</TextProvider>);
 
 describe('PageTitle', () => {
-  it('renders one h1 and nothing else when given only a title', () => {
+  it('renders one h1 and an empty line slot when given only a title', () => {
     const { container } = draw(<PageTitle title="Team" />);
     const header = container.querySelector('header')!;
     expect(screen.getAllByRole('heading')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Team' })).toBeTruthy();
-    expect(header.querySelectorAll('p')).toHaveLength(0);
+    expect(header.querySelectorAll('p')).toHaveLength(1);
+    expect(header.querySelector('[data-line-slot]')!.textContent).toBe('');
     expect(within(header).queryByRole('group')).toBeNull();
+  });
+
+  it('B4 task 5: the line slot holds one line of height with or without a line, so sub-pages keep one header', () => {
+    const { container, rerender } = draw(<PageTitle title="Money" line="Every figure opens its receipt." />);
+    const slot = container.querySelector('[data-line-slot]')!;
+    expect(slot.textContent).toBe('Every figure opens its receipt.');
+    expect(rule('PageTitle.module.css', '.line')).toContain('min-height: 1lh');
+    rerender(<TextProvider language="en"><PageTitle title="Money" /></TextProvider>);
+    expect(container.querySelector('[data-line-slot]')).toBe(slot);
+    expect(slot.textContent).toBe('');
+  });
+
+  it('B4 task 5: below 900 px an empty slot and a long line give their height back', () => {
+    const narrow = rule('PageTitle.module.css', '.line:empty', '(max-width: 899px)');
+    expect(narrow).toContain('display: none');
+    const { container, rerender } = draw(<PageTitle title="Money" line="Short." />);
+    expect(container.querySelector('[data-line-slot]')!.hasAttribute('data-long')).toBe(false);
+    rerender(<TextProvider language="en"><PageTitle title="Money" line={'A line long enough that it wraps on a small window, so it would push the page.'} /></TextProvider>);
+    expect(container.querySelector('[data-line-slot]')!.hasAttribute('data-long')).toBe(true);
   });
 
   it('puts the eyebrow in a p before the h1', () => {

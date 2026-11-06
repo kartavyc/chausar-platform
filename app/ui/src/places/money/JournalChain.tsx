@@ -7,6 +7,7 @@ import { Chip } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
 import s from './Money.module.css';
 import c from './JournalChain.module.css';
+import { Fold } from '../../parts/Fold';
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 /** The reasons that mean the receipt is not what was signed: changed after signing, or unsigned though signing had begun. */
@@ -95,8 +96,7 @@ function CheckReceipt() {
   }
 
   return (
-    <details className={c.fold} data-fold="verify">
-      <summary>{t('money.chain.check')}</summary>
+    <Fold summary={t('money.chain.check')} className={c.fold} data-fold="verify">
       <form className={c.form} onSubmit={check}>
         <Field label={t('money.chain.receipt')} value={id} maxLength={200} onChange={(event) => setId(event.currentTarget.value)} />
         <div className={s.buttons}><Button type="submit" disabled={busy || !id.trim()}>{t('money.chain.checkButton')}</Button></div>
@@ -112,6 +112,6 @@ function CheckReceipt() {
         </p>
       )}
       {problem && <p className={s.failed} role="alert">{problem}</p>}
-    </details>
+    </Fold>
   );
 }

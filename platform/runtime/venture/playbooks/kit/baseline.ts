@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { ChausarError } from '../../../contracts.ts';
 import type { KitBaselineCase, PlaybookDefinition } from './define.ts';
+import { runtimeUrl } from '../../../engine-paths.ts';
 
 export type KitBaselineFile = { version: 1; playbook: string; recordedAt: string; baseline: { passed: number; of: number }; cases: KitBaselineCase[] };
 export type KitBaselineResult = {
@@ -40,7 +41,7 @@ export function validateKitBaseline(definition: Pick<PlaybookDefinition, 'regist
 /** A playbook's committed baseline, read from playbooks/<id>/<folder>/<id>.json and checked. */
 export function loadKitBaseline(definition: Pick<PlaybookDefinition, 'registration' | 'baseline'>): KitBaselineFile {
   const id = definition.registration.id;
-  const url = new URL(`../${id}/${definition.baseline.folder}/${id}.json`, import.meta.url);
+  const url = runtimeUrl(`venture/playbooks/${id}/${definition.baseline.folder}/${id}.json`);
   return validateKitBaseline(definition, JSON.parse(readFileSync(url, 'utf8')));
 }
 

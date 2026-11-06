@@ -1,0 +1,108 @@
+{
+  "about": {
+    "instructionChars": 1575,
+    "inputChars": 6224,
+    "schemaChars": 1784
+  },
+  "country-suggestion": {
+    "instructionChars": 643,
+    "inputChars": 621,
+    "schemaChars": 267
+  },
+  "interview": {
+    "instructionChars": 294,
+    "inputChars": 240,
+    "schemaChars": 721
+  },
+  "decide": {
+    "instructionChars": 799,
+    "inputChars": 1295,
+    "schemaChars": 761
+  },
+  "decide-repair": {
+    "instructionChars": 912,
+    "inputChars": 1367,
+    "schemaChars": 761
+  },
+  "compose": {
+    "instructionChars": 667,
+    "inputChars": 7637,
+    "schemaChars": 4147
+  },
+  "compose-repair": {
+    "instructionChars": 780,
+    "inputChars": 7709,
+    "schemaChars": 4147
+  },
+  "plan-suggest": {
+    "instructionChars": 822,
+    "inputChars": 363,
+    "schemaChars": 1107
+  },
+  "plan-suggest-repair": {
+    "instructionChars": 950,
+    "inputChars": 450,
+    "schemaChars": 1107
+  },
+  "brief": {
+    "instructionChars": 257,
+    "inputChars": 289,
+    "schemaChars": 709
+  },
+  "brief-fill": {
+    "instructionChars": 334,
+    "inputChars": 434,
+    "schemaChars": 259
+  },
+  "delivery": {
+    "instructionChars": 1035,
+    "inputChars": 500,
+    "schemaChars": 906
+  },
+  "agent-turn": {
+    "instructionChars": 1620,
+    "inputChars": 1673,
+    "schemaChars": 548,
+    "toolManifestChars": 377
+  },
+  "harness-write": {
+    "instructionChars": 1323,
+    "inputChars": 761,
+    "schemaChars": 906
+  },
+  "judge": {
+    "instructionChars": 807,
+    "inputChars": 344,
+    "schemaChars": 451
+  },
+  "judge-pairwise": {
+    "instructionChars": 293,
+    "inputChars": 149,
+    "schemaChars": 227
+  },
+  "client-sim": {
+    "instructionChars": 366,
+    "inputChars": 164,
+    "schemaChars": 282
+  },
+  "triage-rule": {
+    "instructionChars": 493,
+    "inputChars": 119,
+    "schemaChars": 328
+  },
+  "app-make": {
+    "instructionChars": 2138,
+    "inputChars": 103,
+    "schemaChars": 176
+  },
+  "goal-suggest": {
+    "instructionChars": 287,
+    "inputChars": 112,
+    "schemaChars": 193
+  },
+  "outreach-draft": {
+    "instructionChars": 795,
+    "inputChars": null,
+    "schemaChars": null
+  }
+}

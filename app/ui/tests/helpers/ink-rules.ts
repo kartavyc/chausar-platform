@@ -1,10 +1,11 @@
 import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 /**
  * The Ink rules a test can see in rendered output, as plain assertions every part and place test calls
- * (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold").
+ * (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold").
  *
  *   assertFiguresProved(root?)  every money figure carries its proof: a receipt, or the "model estimate" label
  *   assertOnePrimary(root?)     every card and list row holds at most one filled primary button
+ *   assertOnePrimaryPerView(root?)  the page, and each open sheet, shows at most one filled button that can be pressed
  *   assertNoInlineStyles(root?) nothing carries a style attribute (lengths are svg attributes, states are data-*)
  *   assertInkRules(root?)       all three, with every problem reported at once
  *
@@ -21,7 +22,7 @@ import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
  *   [data-figure-words]  the engine's words after a figure's amount ("includes estimates"), in the body face; they
  *                        never hold an amount of their own
  *   [data-receipt="id"]  a Receipt control (src/parts/Receipt.tsx): a button or link with a non-empty receipt id. 4Z3:
- *                        it is a small receipt mark, named "Receipt for <amount>" (or "Receipt"); its code never shows
+ *                        it is a small receipt mark, named "Open receipt for <amount>" (or "Receipt"); its code never shows
  *                        on the page, only inside the receipt sheet it opens. Find one with `receiptMark(id)`.
  *   [data-estimate]      the "model estimate" chip, or a model-written value with its chip (src/parts/ModelEstimate.tsx)
  *   [data-figure-group]  a block whose amounts are proved together by the one receipt control or estimate chip inside
@@ -116,12 +117,12 @@ function estimatesIn(scope: Element): Element[] {
 
 /**
  * 4Z3: a receipt mark by its receipt id, as the `name` of a role query: `getByRole('button', { name: receiptMark('R-0419') })`.
- * The mark carries the id in `data-receipt` and is named for what it proves ("Receipt for ₹1,12,400", or "Receipt"),
+ * The mark carries the id in `data-receipt` and is named for what it proves ("Open receipt for ₹1,12,400", or "Receipt"),
  * never by its code, so a test finds it by the id it opens and checks the name says it is a receipt.
  */
 export function receiptMark(id: string | RegExp): (name: string, element: Element) => boolean {
   const opens = (receipt: string) => (typeof id === 'string' ? receipt === id : id.test(receipt));
-  return (name, element) => opens(element.getAttribute('data-receipt') ?? '') && /^Receipt(?:\s|$)|रसीद/u.test(name);
+  return (name, element) => opens(element.getAttribute('data-receipt') ?? '') && /^Open receipt(?:\s|$)/u.test(name);
 }
 
 /**
@@ -134,7 +135,7 @@ function markProblems(root: Root): string[] {
     const id = (mark.getAttribute('data-receipt') ?? '').trim();
     if (!id) continue;
     if ((mark.textContent ?? '').includes(id)) problems.push(`receipt mark "${id}" prints its code: show the mark only; the code belongs inside the receipt sheet`);
-    if (!(mark.getAttribute('aria-label') ?? '').trim()) problems.push(`receipt mark "${id}" has no name: name it for what it proves ("Receipt for ₹1,12,400")`);
+    if (!(mark.getAttribute('aria-label') ?? '').trim()) problems.push(`receipt mark "${id}" has no name: name it for what it proves ("Open receipt for ₹1,12,400")`);
   }
   return problems;
 }
@@ -240,6 +241,38 @@ function primaryProblems(root: Root): string[] {
  */
 export function assertOnePrimary(root: Root = document.body): void {
   fail('one filled primary per card', primaryProblems(root));
+}
+
+/** A filled button an owner can press and can see: enabled, not locked, not inside a closed fold or a hidden block. */
+function pressableFilled(scope: Element): Element[] {
+  return [...scope.querySelectorAll('[data-variant="primary"]')].filter((button) => {
+    if (button.hasAttribute('data-locked') || button.getAttribute('aria-disabled') === 'true' || (button as HTMLButtonElement).disabled) return false;
+    if (button.closest('[hidden]')) return false;
+    const fold = button.closest('details');
+    return !fold || fold.open;
+  });
+}
+
+function viewProblems(root: Root): string[] {
+  const problems: string[] = [];
+  const check = (what: string, filled: Element[]) => {
+    if (filled.length > 1) problems.push(`${what} holds ${filled.length} filled buttons (${filled.map((p) => `"${p.getAttribute('aria-label') ?? textOf(p)}"`).join(', ')})`);
+  };
+  const mains = within(root, 'main');
+  const sheets = within(root, '[data-sheet]');
+  if (!mains.length && !sheets.length) problems.push('no <main> and no open sheet to check');
+  for (const main of mains) check('the page', pressableFilled(main).filter((button) => !button.closest('[data-sheet]')));
+  for (const sheet of sheets) check(`sheet ${nameOf(sheet)}`, pressableFilled(sheet));
+  return problems;
+}
+
+/**
+ * One-shot B4 task 2: one filled primary per view. `main` shows at most one filled button the owner can press, and so
+ * does each open sheet. A disabled or locked one does not count (a locked primary is drawn as an outline), nor does one
+ * inside a closed fold. assertOnePrimary still holds per card: a locked primary keeps its place there.
+ */
+export function assertOnePrimaryPerView(root: Root = document.body): void {
+  fail('one filled primary per view', viewProblems(root));
 }
 
 function styleProblems(root: Root): string[] {

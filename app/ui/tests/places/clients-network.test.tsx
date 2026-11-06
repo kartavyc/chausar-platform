@@ -85,12 +85,15 @@ describe('Clients: three tabs (founder decision: Clients, Pipeline, Network)', (
 });
 
 describe('Network: the search box', () => {
-  it('offers starters that fill the box and never send, and the web choice with its line', async () => {
+  // C5 task 10: the chips come from the owner's own network (network/chips.ts): the commonest company and title, and
+  // the quiet-clients search; they fill the box and never send.
+  it('offers chips from the network that fill the box and never send, and the web choice with its line', async () => {
     const { spy } = await start();
     await screen.findByRole('searchbox', { name: 'Who are you looking for?' });
-    for (const label of ['Clients quiet for 6 months', 'An intro to Zomato', 'Paste a client brief']) expect(screen.getByRole('button', { name: label })).toBeTruthy();
-    await click(screen.getByRole('button', { name: 'An intro to Zomato' }));
-    expect((searchBox() as HTMLInputElement).value).toBe('An intro to Zomato');
+    const tries = await screen.findByRole('group', { name: 'Try' });
+    await waitFor(() => expect(within(tries).getAllByRole('button').map((b) => b.textContent)).toEqual(['Who works at Kettle Audio?', 'Who is a founder?', 'Clients quiet for 6 months']));
+    await click(within(tries).getByRole('button', { name: 'Who works at Kettle Audio?' }));
+    expect((searchBox() as HTMLInputElement).value).toBe('Who works at Kettle Audio?');
     expect(calls(spy, 'venture.network.search')).toHaveLength(0);
   });
 
@@ -414,6 +417,51 @@ describe('Network: the import sheet', () => {
     await click(screen.getByRole('button', { name: 'Yes, undo it' }));
     await settle();
     expect(screen.getByText(/Undid Connections\.csv/)).toBeTruthy();
+  });
+
+  // C4 task 19 (229, 81.x1): the sheet starts fresh each time and says how to get each file.
+  it('reopening the sheet shows the first step, not the last result; moving to another kind clears a refusal', async () => {
+    await start('#/clients/network?sheet=network-import:new');
+    await screen.findByRole('heading', { name: 'Import a file' });
+    fireEvent.click(screen.getByRole('radio', { name: /LinkedIn connections/ }));
+    pick(FILE);
+    await settle();
+    await click(screen.getByRole('button', { name: 'Import' }));
+    await settle();
+    expect(screen.getByText(/Imported 1 person from Connections\.csv/)).toBeTruthy();
+    window.location.hash = '#/clients/network';
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await settle();
+    expect(screen.queryByRole('heading', { name: 'Import a file' })).toBeNull();
+    window.location.hash = '#/clients/network?sheet=network-import:new';
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await screen.findByRole('heading', { name: 'Import a file' });
+    expect(screen.queryByText(/Imported 1 person/)).toBeNull();
+    expect(screen.getByText('Which file?')).toBeTruthy();
+    expect(screen.getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked)).toEqual([]);
+    // From "Import a newer file" of one kind to another: the same sheet, a new start.
+    window.location.hash = '#/clients/network?sheet=network-import:vcard';
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await settle();
+    expect((screen.getByRole('radio', { name: /Phone contacts/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('each kind of file has its own How to get this file fold', async () => {
+    await start('#/clients/network?sheet=network-import:new');
+    await screen.findByRole('heading', { name: 'Import a file' });
+    expect(screen.queryByText('How to get this file')).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: /LinkedIn connections/ }));
+    const fold = screen.getByText('How to get this file', { selector: 'summary' }).closest('details') as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(fold.textContent).toContain('Get a copy of your data');
+    fireEvent.click(screen.getByRole('radio', { name: /Phone contacts/ }));
+    const phone = screen.getByText('How to get this file', { selector: 'summary' }).closest('details') as HTMLDetailsElement;
+    expect(phone.textContent).toContain('.vcf');
+    expect(phone.textContent).not.toContain('Get a copy of your data');
+    for (const kind of [/LinkedIn messages/, /Contacts file/, /Calendar/, /Email export/]) {
+      fireEvent.click(screen.getByRole('radio', { name: kind }));
+      expect(screen.getByText('How to get this file', { selector: 'summary' })).toBeTruthy();
+    }
   });
 
   it('a refusal shows the engine\'s words: the size, or the line it could not read', async () => {

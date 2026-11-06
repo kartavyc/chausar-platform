@@ -1,6 +1,9 @@
 // P3 money: price receipts, tax treatment, clients, orders, invoices, payments and the books.
 // Every money number comes from BigInt code with a receipt; the existing calculator proves billed,
 // received and earned from the facts written here. Loaded by the venture host on first use.
+import { accountantGetHandler, accountantSetHandler } from './accountant.ts';
+import { caPackDone, caPackScheduleGet, caPackScheduleSet } from './ca-pack.ts';
+import { getClientAiDefault, setClientAiDefault } from '../clients/ai-default.ts';
 import { ChausarError } from '../../contracts.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
 import { booksSummary } from './books.ts';
@@ -28,7 +31,9 @@ import { orderContractGet, orderContractPropose, orderContractSign } from './ord
 import { moneyAcross } from './across.ts';
 import { billingGet, billingSet } from './billing.ts';
 import { invoicePdf } from './invoice-pdf.ts';
+import { paymentReceipt } from './payment-receipt.ts';
 import { invoicePayLink } from './razorpay.ts';
+import { invoiceShared } from './invoice-share.ts';
 
 export { computePrice, type PriceInput } from './price.ts';
 // 4J6: the open business's summary for the others on this computer; the host's snapshot() reads it.
@@ -46,6 +51,13 @@ export const handlers: VentureHandlerTable = {
   'venture.client.aiConsent.get': getClientAiConsent,
   'venture.client.aiConsent.agree': agreeClientAiConsent,
   'venture.client.aiConsent.withdraw': withdrawClientAiConsent,
+  'venture.client.aiDefault.get': getClientAiDefault,
+  'venture.accountant.get': accountantGetHandler,
+  'venture.accountant.set': accountantSetHandler,
+  'venture.accountant.schedule.get': caPackScheduleGet,
+  'venture.accountant.schedule.set': caPackScheduleSet,
+  'venture.accountant.pack.done': caPackDone,
+  'venture.client.aiDefault.set': setClientAiDefault,
   'venture.order.create': createOrder,
   'venture.order.list': listOrders,
   'venture.order.deliver': deliverOrder,
@@ -90,5 +102,8 @@ export const handlers: VentureHandlerTable = {
   'venture.billing.get': billingGet,
   'venture.billing.set': billingSet,
   'venture.invoice.pdf': invoicePdf,
+  'venture.payment.receipt': paymentReceipt, // one-shot C6
   'venture.invoice.payLink': invoicePayLink,
+  // One-shot C4 (T20): a share the owner made, or their "Mark as sent".
+  'venture.invoice.shared': invoiceShared,
 };

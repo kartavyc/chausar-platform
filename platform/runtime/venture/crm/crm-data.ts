@@ -35,7 +35,7 @@ export type FieldChangeView = {
   /** The values in words (a reference named at read time), or null. They are the owner's or the client's words. */
   before: string | null; after: string | null;
 };
-export type TimelineKind = CrmEntryKind | 'sent' | 'reply' | 'invoice';
+export type TimelineKind = CrmEntryKind | 'sent' | 'reply' | 'invoice' | 'order' | 'draft';
 export type TimelineEntryView = {
   id: string; kind: TimelineKind; on: string; at: string; line: string;
   /** The owner's own words for a logged entry; null otherwise. */
@@ -90,13 +90,17 @@ export function crmId(value: unknown, field: string): string {
 }
 const fold = (text: string) => text.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** venture.crm.client.edit { clientId, field, value }: one of the client fields the ledger writes back (name, email, note). */
-export function parseClientEdit(payload: unknown): { clientId: string; field: 'name' | 'email' | 'note'; value: string } {
+/**
+ * venture.crm.client.edit { clientId, field, value }: one of the client fields the ledger writes back (name, email, note,
+ * and one-shot C6's phone, whose WhatsApp digits the ledger works out again; clients/phone.ts checks it there).
+ */
+export function parseClientEdit(payload: unknown): { clientId: string; field: 'name' | 'email' | 'note' | 'phone'; value: string } {
   const body = crmPayload(payload, ['clientId', 'field', 'value'], ['clientId', 'field', 'value']);
   const clientId = crmId(body.clientId, 'Client');
-  check(body.field === 'name' || body.field === 'email' || body.field === 'note', BAD, 'Choose the name, the email or the note.');
+  check(body.field === 'name' || body.field === 'email' || body.field === 'note' || body.field === 'phone', BAD, 'Choose the name, the email, the phone or the note.');
   const field = body.field;
-  const value = field === 'name' ? crmText(body.value, 'Client name', 2, 120, true) : field === 'email' ? crmText(body.value, 'Email', 3, 200, true) : crmText(body.value, 'Note', 1, 500);
+  const value = field === 'name' ? crmText(body.value, 'Client name', 2, 120, true) : field === 'email' ? crmText(body.value, 'Email', 3, 200, true)
+    : field === 'phone' ? crmText(body.value, 'Phone or WhatsApp', 3, 40, true) : crmText(body.value, 'Note', 1, 500);
   if (field === 'email') check(EMAIL.test(value), BAD, 'Use an email address like name@example.com.');
   return { clientId, field, value };
 }
@@ -167,7 +171,7 @@ export const sameName = (a: string, b: string) => fold(a) === fold(b);
 // ---------------------------------------------------------------------------
 
 const FIELD_LABEL: Readonly<Record<string, string>> = Object.freeze({
-  name: 'Name', email: 'Email', note: 'Note', domain: 'Website', company: 'Company', member: 'Member', stages: 'Stages',
+  name: 'Name', email: 'Email', phone: 'Phone or WhatsApp', note: 'Note', domain: 'Website', company: 'Company', member: 'Member', stages: 'Stages',
 });
 
 /** Who made a change, in words. */
@@ -219,6 +223,10 @@ export type TimelineInput = {
   logged: readonly ({ id: string; at: string } & CrmEntryBody)[];
   touches: readonly { id: string; what: 'sent' | 'reply'; on: string; at: string; channel: string | null }[];
   invoices: readonly { id: string; number: string | null; status: string; on: string | null; at: string }[];
+  /** C4 task 18: the client's orders (offer: the offer's name as the plan holds it, null when it left the plan). */
+  orders?: readonly { id: string; offer: string | null; on: string; at: string; deliveredOn: string | null }[];
+  /** C4 task 18: the client's drafts the owner decided, practice ones left out. */
+  drafts?: readonly { id: string; choice: 'accepted' | 'edited' | 'rejected'; on: string; at: string }[];
 };
 
 /** A client's timeline, newest first (day, then time, then id): at most MAX_TIMELINE entries. Draft invoices are left out. */
@@ -235,6 +243,15 @@ export function timelineOf(input: TimelineInput): TimelineEntryView[] {
   for (const invoice of input.invoices) {
     if (!invoice.number || !invoice.on || !INVOICE_WORDS[invoice.status]) continue;
     entries.push({ id: invoice.id, kind: 'invoice', on: invoice.on, at: invoice.at, line: `Invoice ${invoice.number} ${INVOICE_WORDS[invoice.status]}`, text: null, clientId: input.clientId });
+  }
+  for (const order of input.orders ?? []) {
+    const named = order.offer ? `Order for ${order.offer}` : 'Order';
+    entries.push({ id: `${order.id}:added`, kind: 'order', on: order.on, at: order.at, line: `${named} added`, text: null, clientId: input.clientId });
+    // The record keeps the day it was delivered, not the time, so it reads after what else happened that day.
+    if (order.deliveredOn) entries.push({ id: `${order.id}:delivered`, kind: 'order', on: order.deliveredOn, at: `${order.deliveredOn}T23:59:59.999Z`, line: `${named} delivered`, text: null, clientId: input.clientId });
+  }
+  for (const draft of input.drafts ?? []) {
+    entries.push({ id: draft.id, kind: 'draft', on: draft.on, at: draft.at, line: draft.choice === 'rejected' ? 'Draft rejected' : 'Draft approved', text: null, clientId: input.clientId });
   }
   return newestFirst(entries).slice(0, MAX_TIMELINE);
 }

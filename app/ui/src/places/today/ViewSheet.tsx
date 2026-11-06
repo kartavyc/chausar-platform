@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { Sheet } from '../../parts/Sheet';
+import { AmountsText } from '../../parts/AmountsText';
 import type { SheetComponentProps } from '../../shell/sheets';
 import type { QueueItemView } from '../../engine/types';
 import { useTodaySession } from './session';
@@ -44,7 +45,7 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const words = (text: string) => (quoted ? text : <EngineViewText text={text} />);
   if (!data) {
     return (
-      <Sheet label={label} title={view.error ? t('today.view.missing') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
+      <Sheet label={label} loading={!view.error} title={view.error ? t('today.view.missing') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus}>
         {view.error && <p className={s.failed}>{view.error.message}</p>}
       </Sheet>
     );
@@ -64,7 +65,7 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
         <section key={`${section.heading ?? ''}:${i}`} className={s.part}>
           {section.heading && <h3 className={s.partHeading}>{section.heading}</h3>}
           <ul className={s.lines} data-content={quoted ? '' : undefined} data-engine-line={quoted ? undefined : ''}>
-            {section.lines.map((text, j) => <li key={`${j}:${text}`}>{words(text)}</li>)}
+            {section.lines.map((text, j) => <li key={`${j}:${text}`}>{quoted && data.amounts?.length ? <AmountsText text={text} amounts={data.amounts} /> : words(text)}</li>)}
           </ul>
         </section>
       ))}

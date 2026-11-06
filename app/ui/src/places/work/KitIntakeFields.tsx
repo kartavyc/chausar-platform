@@ -8,6 +8,9 @@ import { Button } from '../../parts/Button';
 import type { OfferIntakeLite } from '../../engine/types';
 import { KIT_FILE_ACCEPT, isKitFile, kitFileProblem, type KitAnswers, type KitPerson } from './kit-intake';
 import s from './Work.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
 /** The selected service alone supplies the questions. Every value remains owner input, with no UI money arithmetic. */
 export function KitIntakeFields({ ask, answers, onChange, currency = null }: { ask: OfferIntakeLite | null; currency?: string | null; answers: KitAnswers; onChange: (answers: KitAnswers) => void }) {
   const t = useT();
@@ -23,17 +26,17 @@ export function KitIntakeFields({ ask, answers, onChange, currency = null }: { a
       const selected=typeof value==='string'?value.split('\n').filter(Boolean):[];
       return <fieldset className={s.group} key={field.id}><legend className={s.label}>{label}</legend><p className={s.hint}>{help}</p>{field.options.map(option=><label key={option} className={s.choice}><input type="checkbox" checked={selected.includes(option)} onChange={event=>put(field.id,(event.currentTarget.checked?[...selected,option]:selected.filter(item=>item!==option)).join('\n'))}/><span>{kitIntakeWords(t,option)}</span></label>)}</fieldset>;
     }
-    if (field.id === 'questions' && ask?.kit?.some(item=>item.id==='incomeKinds')) return <details key={field.id}><summary>{label}</summary><Field multiline label={label} hint={help} value={typeof value==='string'?value:''} maxLength={2000} onChange={event=>put(field.id,event.currentTarget.value)}/></details>;
+    if (field.id === 'questions' && ask?.kit?.some(item=>item.id==='incomeKinds')) return <Fold summary={label} key={field.id}><Field multiline label={label} hint={help} value={typeof value==='string'?value:''} maxLength={2000} onChange={event=>put(field.id,event.currentTarget.value)}/></Fold>;
     if (field.kind === 'consent') return <div className={s.field} key={field.id}>
       <label className={s.choice}><input type="checkbox" checked={value === true} onChange={event => put(field.id, event.currentTarget.checked)} aria-describedby={`${inputId}-help`} /><span>{label}</span></label>
       <p id={`${inputId}-help`} className={s.hint}>{help}</p>
     </div>;
     if (field.kind === 'choice' || field.kind === 'yes-no') return <div className={s.field} key={field.id}>
       <label className={s.label} htmlFor={inputId}>{label}</label>
-      <select id={inputId} className={s.select} aria-describedby={`${inputId}-help`} value={typeof value === 'boolean' ? value ? 'yes' : 'no' : typeof value === 'string' ? value : ''} onChange={event => put(field.id, field.kind === 'yes-no' && event.currentTarget.value !== '' ? event.currentTarget.value === 'yes' : event.currentTarget.value)}>
+      <Select id={inputId} className={s.select} aria-describedby={`${inputId}-help`} value={typeof value === 'boolean' ? value ? 'yes' : 'no' : typeof value === 'string' ? value : ''} onChange={event => put(field.id, field.kind === 'yes-no' && event.currentTarget.value !== '' ? event.currentTarget.value === 'yes' : event.currentTarget.value)}>
         <option value="">{t('kit-intake.choose')}</option>
         {field.kind === 'yes-no' ? <><option value="yes">{t('kit-intake.yes')}</option><option value="no">{t('kit-intake.no')}</option></> : field.options?.map(option => <option key={option} value={option}>{kitIntakeWords(t, option)}</option>)}
-      </select><p id={`${inputId}-help`} className={s.hint}>{help}</p>
+      </Select><p id={`${inputId}-help`} className={s.hint}>{help}</p>
     </div>;
     if (field.kind === 'people') {
       const people = Array.isArray(value) ? value : [];
@@ -41,10 +44,10 @@ export function KitIntakeFields({ ask, answers, onChange, currency = null }: { a
         {people.map((person, index) => <div className={s.form} key={index}>
           <div className={s.field}>
             <label className={s.label} htmlFor={inputId + '-' + index}>{t('kit-intake.consent')}</label>
-            <select className={s.select} id={inputId + '-' + index} value={person.consentId ?? ''} aria-describedby={inputId + '-consent-help'} onChange={event => {
+            <Select className={s.select} id={inputId + '-' + index} value={person.consentId ?? ''} aria-describedby={inputId + '-consent-help'} onChange={event => {
               const consent = currentConsents.find(item => item.id === event.currentTarget.value);
               put(field.id, people.map((item, at) => at === index ? { name: consent?.speaker ?? '', consentId: consent?.id ?? null } : item));
-            }}><option value="">{t('kit-intake.choose')}</option>{currentConsents.map(consent => <option key={consent.id} value={consent.id}>{consent.speaker}</option>)}</select>
+            }}><option value="">{t('kit-intake.choose')}</option>{currentConsents.map(consent => <option key={consent.id} value={consent.id}>{consent.speaker}</option>)}</Select>
           </div>
           <Button onClick={() => put(field.id, people.filter((_, at) => at !== index))}>{t('kit-intake.remove')}</Button>
         </div>)}<Button onClick={() => put(field.id, [...people, { name: '', consentId: null }])}>{t('kit-intake.addPerson')}</Button>
@@ -53,8 +56,7 @@ export function KitIntakeFields({ ask, answers, onChange, currency = null }: { a
     if (field.kind === 'file') {
       const problem = isKitFile(value) ? kitFileProblem(value) : null;
       return <div className={s.field} key={field.id}>
-        <label className={s.label} htmlFor={inputId}>{label}</label>
-        <input id={inputId} className={s.file} type="file" accept={KIT_FILE_ACCEPT} aria-describedby={inputId + '-file-help'} onChange={event => put(field.id, event.currentTarget.files?.[0] ?? '')} />
+        <FilePick label={label} accept={KIT_FILE_ACCEPT} aria-describedby={inputId + '-file-help'} onChange={event => put(field.id, event.currentTarget.files?.[0] ?? '')} />
         <p id={inputId + '-file-help'} className={s.hint}>{help} {t('kit-intake.fileHint')}</p>
         {problem && <p className={s.problem} role="status">{t('kit-intake.fileError')}</p>}
       </div>;

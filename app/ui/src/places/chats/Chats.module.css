@@ -88,8 +88,8 @@
   color: var(--mute);
 }
 
-.search:focus-within {
-  border-color: var(--fg);
+.search:has(input:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .searchInput {
@@ -144,6 +144,10 @@
 }
 
 .chat {
+  /* One-shot C3 task 16: a row off screen costs nothing until it nears the view. Room is kept for a focus ring. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+  overflow-clip-margin: var(--sp-1);
   position: relative;
   display: flex;
   align-items: center;
@@ -332,8 +336,11 @@
   flex: 1;
 }
 
+/* B4 task 4: a long failure line can make this taller than the pane holds. It scrolls; the pane never cuts it. */
 .compose {
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--sp-3) var(--pad-tile) var(--sp-4);
   border-top: var(--hair) solid var(--line-soft);
 }
@@ -727,4 +734,26 @@
 
 .choiceSelect {
   composes: input from '../../parts/Field.module.css';
+}
+
+/* C4 task 8: Pick a time, a day and a time on one quiet line. */
+.pickTime {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* C7: a part of Chausar's guide in a Chats answer: its title, its words as written, and the link to read it there. */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+}
+
+.guideText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
 }

@@ -7,6 +7,7 @@ import { Icon } from './Icon';
 import type { IconName } from './icons';
 import s from './ApprovalMeta.module.css';
 import { formatCount, HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
+import { Fold } from './Fold';
 
 /**
  * W4 4J19: what the engine says about a Today row beyond its title and line (4J1's views/row-meta.ts, 4J16's quote
@@ -119,7 +120,9 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
   // was a number to puzzle over. Over the limit it always shows.
   const counts = row.counts?.filter((count) => count.count * 10 >= count.limit * 9);
   const stale = row.meta?.staleDraft;
-  if (!sendsTo && !attempt && !counts?.length && !changeCount && !stale) return null;
+  // B4: one price and nothing else is all on the card already, so its count adds nothing (no second ask: views/price-only.ts).
+  const counted = changeCount && !(row.kind === 'price' && row.change && changeCount.details.length === 1 && !row.actions.some((action) => action.secondAsk));
+  if (!sendsTo && !attempt && !counts?.length && !counted && !stale) return null;
   return (
     <div className={s.facts} data-facts="">
       {(sendsTo || attempt || counts?.length) ? (
@@ -147,9 +150,8 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
           {attempt.lastError ? t('approval.meta.attemptError', { n: String(attempt.n), error: attempt.lastError }) : t('approval.meta.attempt', { n: String(attempt.n) })}
         </p>
       )}
-      {changeCount && (
-        <details className={s.changes} data-change-count="">
-          <summary>{changeCount.line}</summary>
+      {counted && changeCount && (
+        <Fold summary={changeCount.line} className={s.changes} data-change-count="">
           {changeCount.details.length > 0 && (
             <ul className={s.details}>
               {changeCount.details.map((detail, index) => {
@@ -159,7 +161,7 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
             </ul>
           )}
           <p className={s.coverage} data-coverage="">{changeCount.coverage}</p>
-        </details>
+        </Fold>
       )}
       {stale && <p className={s.stale} data-stale-draft="">{stale}</p>}
     </div>

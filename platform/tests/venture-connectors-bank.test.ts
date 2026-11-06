@@ -62,7 +62,7 @@ test('fingerprints: the bank reference when there is one, a hash otherwise, and 
   assert.equal(again.added.length, 0);
   assert.equal(again.duplicates, 4);
   assert.equal(again.ledger.transactions.length, 4);
-  assert.match(again.line, /not counted again/);
+  assert.match(again.line, /^Already imported, nothing added\./);
 
   // An overlapping, longer statement adds only what is new; a row with more cents than the currency has is refused, not rounded.
   const next = importStatement(again.ledger, await fixture('bank-statement-us-2.csv'), USD);

@@ -9,12 +9,28 @@ import { localDayAt } from '../local-day.ts';
 import { invoiceCountry } from '../core/country-history.ts';
 import { creditedOn, issuedCredits, METHOD_WORDS, paymentState } from './ledger.ts';
 import { reminderStep, remindersOf } from './reminders.ts';
-import type { InvoiceNext, InvoiceRecord, InvoiceTimelineEntry, IsoDate, PaymentRecord, VentureRecord } from '../contracts.ts';
+import type { InvoiceNext, InvoiceRecord, InvoiceShareRecord, InvoiceTimelineEntry, IsoDate, PaymentRecord, VentureRecord } from '../contracts.ts';
 
 function paymentsOn(state: State, venture: VentureRecord, invoiceId: string): PaymentRecord[] {
   return listRecords(state, 'venture-payment', venture.id).filter(payment => payment.invoiceId === invoiceId)
     .sort((a, b) => a.receivedOn.localeCompare(b.receivedOn) || a.at.localeCompare(b.at));
 }
+
+/** One-shot C4 (T20): the invoice's shares (money/invoice-share.ts), oldest first. */
+export function sharesOf(state: State, venture: VentureRecord, invoiceId: string): InvoiceShareRecord[] {
+  return listRecords(state, 'venture-invoice-share', venture.id).filter(share => share.invoiceId === invoiceId)
+    .sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/** One-shot C4 (T20): true only once the owner marked the invoice sent. Opening their own app with it is not sending. */
+export function sentOf(state: State, venture: VentureRecord, invoiceId: string): boolean {
+  return sharesOf(state, venture, invoiceId).some(share => share.how === 'marked');
+}
+
+/** One-shot C4 (T20): a share's timeline words. Chausar never says "Sent" on its own. */
+const SHARE_WORDS: Record<InvoiceShareRecord['how'], string> = {
+  whatsapp: 'Opened in WhatsApp to share', email: 'Opened in your mail app to share', file: 'Saved the PDF', marked: 'You marked it sent',
+};
 
 /** How a settled invoice was settled, in words. */
 function settledWords(paid: bigint, credited: bigint): string {
@@ -86,6 +102,12 @@ export function invoiceTimeline(state: State, venture: VentureRecord, invoice: I
     events.push(reminder.sent
       ? { what: 'reminded', on: day(reminder.sent.at), line: `Reminder sent on ${date(day(reminder.sent.at))}` }
       : { what: 'reminder', on: day(reminder.at), line: `Reminder drafted on ${date(day(reminder.at))}, not sent yet` });
+  }
+  // One-shot C4 (T20): each share the owner made, and their mark.
+  for (const share of sharesOf(state, venture, invoice.id)) {
+    const on = day(share.at);
+    const line = `${SHARE_WORDS[share.how]}, ${date(on)}`;
+    events.push(share.how === 'marked' ? { what: 'marked', on, line } : { what: 'shared', on, line, how: share.how });
   }
   const ordered = events.map((event, index) => ({ event, index }))
     .sort((a, b) => a.event.on.localeCompare(b.event.on) || a.index - b.index).map(item => item.event);

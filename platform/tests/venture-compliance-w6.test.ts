@@ -72,3 +72,17 @@ test('a tutor business records its answer and keeps outreach on', async () => {
   assert.doesNotThrow(() => refuseRegulatorForbidden(env.store.read(), 'outreach'));
   await assert.rejects(outreachDraft(env.deps, owner, {}), (error: any) => error.code !== 'REGULATOR_FORBIDS');
 });
+
+// One-shot C4 task 3: "I don't have a day job" is a fourth answer. It is recorded and read back, the view carries its
+// own line, and an unknown answer is still refused.
+test('C4: no-day-job is recorded and read back, with its line; an unknown answer is still refused', async () => {
+  const env = await kitBusiness({ now: new Date('2026-10-27T10:00:00Z') }, { idea: 'Tuition classes for school students' });
+  const get = (payload: unknown) => coreHandlers['venture.compliance.get']!(env.deps, owner, payload) as Promise<ComplianceView>;
+  const set = (payload: unknown) => coreHandlers['venture.compliance.set']!(env.deps, owner, payload) as Promise<ComplianceView>;
+  const view = await get({ profession: 'teaching' });
+  assert.equal(view.noDayJob, "You don't have a day job, so no contract limits this business.");
+  await assert.rejects(set({ profession: 'teaching', sideWork: 'freelance', digest: view.digest }), code('INVALID_VENTURE_REQUEST'));
+  const recorded = await set({ profession: 'teaching', sideWork: 'no-day-job', digest: view.digest });
+  assert.equal(recorded.recorded?.sideWork, 'no-day-job');
+  assert.equal((await get({ profession: 'teaching' })).recorded?.sideWork, 'no-day-job');
+});

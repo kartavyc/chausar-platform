@@ -98,6 +98,20 @@ export function formatCount(n: number | bigint, countryCode: string): string {
   return `${negative ? '-' : ''}${grouped(digits, countryCode === 'IN')}`;
 }
 
+/**
+ * One-shot C4 task 36: a file's size as the owner reads it, in steps of 1024: "512 bytes", "1 byte", "47 KB", "1.2 MB",
+ * "12 MB", "1.5 GB". One decimal below 10 of a unit (dropped when it is .0), whole above; never 0 KB for a small file.
+ */
+export function formatBytes(bytes: number): string {
+  const n = Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : 0;
+  if (n < 1024) return n === 1 ? '1 byte' : `${n} bytes`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = n / 1024, unit = 0;
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+  const shown = unit === 0 || value >= 10 ? String(Math.max(1, Math.round(value))) : String(Math.round(value * 10) / 10);
+  return `${shown} ${units[unit]}`;
+}
+
 // Days, times and durations (one-shot B2 task 2). An instant reads in the zone given (the business's zone, from
 // ownerZone); a calendar day ('YYYY-MM-DD') is a day on every calendar and never shifts; nothing here reads the
 // computer's own zone, so the same instant reads the same on every machine.
@@ -163,8 +177,25 @@ function calendarDay(value: When): { year: number; month: number; day: number } 
 }
 
 const asGiven = (value: When): string => (typeof value === 'string' ? value : '');
-const dayWords = (d: { year: number; month: number; day: number }, size: 'full' | 'short') => `${d.day} ${MONTHS[d.month - 1]}${size === 'full' ? ` ${d.year}` : ''}`;
-const clockWords = (l: Local) => `${l.hour % 12 || 12}:${String(l.minute).padStart(2, '0')} ${l.hour < 12 ? 'am' : 'pm'}`;
+
+// C5 task 38: the words of a date under the Hindi pack. Only the app sets a locale (parts/when.ts); the engine never does,
+// so the lines it writes stay English. The locale keeps Latin digits. Amounts and counts above never read it.
+let dateLocale: string | null = null;
+export function setDateLocale(locale: string | null): void { dateLocale = locale; }
+const localeForms = new Map<string, Intl.DateTimeFormat>();
+function inLocale(locale: string, options: Intl.DateTimeFormatOptions, ms: number): string {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let form = localeForms.get(key);
+  if (!form) { form = new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' }); localeForms.set(key, form); }
+  return form.format(ms);
+}
+
+const dayWords = (d: { year: number; month: number; day: number }, size: 'full' | 'short') => (dateLocale
+  ? inLocale(dateLocale, { day: 'numeric', month: 'short', ...(size === 'full' ? { year: 'numeric' as const } : {}) }, Date.UTC(d.year, d.month - 1, d.day))
+  : `${d.day} ${MONTHS[d.month - 1]}${size === 'full' ? ` ${d.year}` : ''}`);
+const clockWords = (l: Local) => (dateLocale
+  ? inLocale(dateLocale, { hour: 'numeric', minute: '2-digit', hour12: true }, Date.UTC(2000, 0, 1, l.hour, l.minute))
+  : `${l.hour % 12 || 12}:${String(l.minute).padStart(2, '0')} ${l.hour < 12 ? 'am' : 'pm'}`);
 
 /**
  * A day as the owner reads it: "3 Nov 2026" ("3 Nov" short). A 'YYYY-MM-DD' is a calendar day and reads as itself; an
@@ -190,7 +221,12 @@ export function formatMoment(value: When, zone: string, size: 'full' | 'short' =
 /** The weekday and day in the zone, for a page's date line: "Tuesday, 3 November". */
 export function formatWeekday(value: When, zone: string): string {
   const local = localIn(value, zone);
-  return local ? `${WEEKDAYS[local.weekday]}, ${local.day} ${LONG_MONTHS[local.month - 1]}` : asGiven(value);
+  if (!local) return asGiven(value);
+  if (dateLocale) {
+    const at = Date.UTC(local.year, local.month - 1, local.day);
+    return `${inLocale(dateLocale, { weekday: 'long' }, at)}, ${inLocale(dateLocale, { day: 'numeric', month: 'long' }, at)}`;
+  }
+  return `${WEEKDAYS[local.weekday]}, ${local.day} ${LONG_MONTHS[local.month - 1]}`;
 }
 
 /** A month ('2026-11') as "November 2026" (long), "November" (name, a goal's month) or "Nov" (short, a chart's column); anything else comes back as it came. */
@@ -198,7 +234,26 @@ export function formatMonth(month: string, size: 'long' | 'name' | 'short' = 'lo
   const found = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
   if (!found) return month;
   const index = Number(found[2]) - 1;
+  if (dateLocale) {
+    const at = Date.UTC(Number(found[1]), index, 1);
+    return inLocale(dateLocale, size === 'long' ? { month: 'long', year: 'numeric' } : { month: size === 'name' ? 'long' : 'short' }, at);
+  }
   return size === 'long' ? `${LONG_MONTHS[index]} ${found[1]}` : size === 'name' ? LONG_MONTHS[index]! : MONTHS[index]!;
+}
+
+/**
+ * Two calendar days as a range, in the owner form: "1 to 31 Oct 2026", "20 Oct to 2 Nov 2026", "20 Dec 2025 to 2 Jan 2026",
+ * "3 Oct 2026" for one day; without the year when `year` is false and both days are in one year ("1 to 31 Oct"). Calendar
+ * days never shift with a zone.
+ */
+export function formatDayRange(from: string, to: string, options: { year?: boolean } = {}): string {
+  const parts = (day: string) => ({ year: day.slice(0, 4), month: formatMonth(day.slice(0, 7), 'short'), day: day.slice(8, 10).replace(/^0/, '') });
+  const a = parts(from), b = parts(to);
+  if (a.year !== b.year) return `${a.day} ${a.month} ${a.year} to ${b.day} ${b.month} ${b.year}`;
+  const tail = options.year === false ? '' : ` ${b.year}`;
+  if (from === to) return `${a.day} ${a.month}${tail}`;
+  if (a.month !== b.month) return `${a.day} ${a.month} to ${b.day} ${b.month}${tail}`;
+  return `${a.day} to ${b.day} ${b.month}${tail}`;
 }
 
 /** The calendar day in the zone at an instant, as 'YYYY-MM-DD' (a key and a date field's value, never shown as is). */
@@ -251,6 +306,7 @@ export function formatClock(hhmm: string): string {
   const found = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
   if (!found) return hhmm;
   const hour = Number(found[1]);
+  if (dateLocale) return inLocale(dateLocale, { hour: 'numeric', minute: '2-digit', hour12: true }, Date.UTC(2000, 0, 1, hour, Number(found[2])));
   return `${hour % 12 || 12}:${found[2]} ${hour < 12 ? 'am' : 'pm'}`;
 }
 

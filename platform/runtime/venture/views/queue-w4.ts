@@ -14,7 +14,7 @@ import type { Display, QueueAction, QueueActionId, QueueChange, QueueKind, Queue
  * 5A3): a published idea waiting for its grade (playbooks/kit/ideas.ts), whose only actions are Open and Later.
  * 'sales-proposal' (5A2): a sales proposal waiting for the owner to read and approve (playbooks/kit/proposal.ts).
  */
-export type W4RowSource = 'proposal' | 'followup' | 'reply' | 'notice' | 'run-control' | 'money' | 'routine' | 'idea' | 'sales-proposal';
+export type W4RowSource = 'proposal' | 'followup' | 'reply' | 'notice' | 'run-control' | 'money' | 'routine' | 'idea' | 'sales-proposal' | 'readable-copy';
 /**
  * A row a wave 4 source makes, before queue.ts adds the business, the id (subject and version) and the digest.
  * subject: what the row stands for, the same across its versions, in identifier characters only (letters, digits and
@@ -99,6 +99,8 @@ const BY_SOURCE: Readonly<Record<W4RowSource, Decide>> = {
   idea: async () => { throw new ChausarError('INVALID_VENTURE_REQUEST', 'Open Work, then Ideas, to grade it.'); },
   // 5A2: Approve on a sales proposal the owner read (playbooks/kit/proposal.ts), loaded on use.
   'sales-proposal': async (deps, ctx, decision) => (await import('../playbooks/kit/proposal.ts')).decideSalesProposalRow(deps, ctx, decision),
+  // C5 task 22: Delete or Keep it on a readable copy, loaded on use.
+  'readable-copy': async (deps, ctx, decision) => (await import('./readable-copy.ts')).decideReadableCopy(deps, ctx, decision),
 };
 
 /** Runs one decision on a wave 4 row: a new action id goes to its own function, any other to its row's source. */

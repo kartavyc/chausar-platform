@@ -4,7 +4,11 @@
  * owner presses Create. Held in memory for the one sheet that opens next, never in the address or browser storage.
  */
 
-export interface OrderPrefill { offerId: string | null; request: string }
+export interface OrderPrefill {
+  offerId: string | null; request: string;
+  /** C4 task 11: the client chosen (or a new client's typed name) when the owner left the form to set a price. */
+  clientId?: string; clientName?: string;
+}
 
 let next: OrderPrefill | null = null;
 

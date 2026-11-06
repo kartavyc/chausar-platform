@@ -1,6 +1,6 @@
 # Ink: the new frontend and the engine pieces behind it
 
-Ink is the React app in `app/ui`, and since 22 October it is Chausar's only app, on the desktop and on the hosted web tier. It is built around one idea: the owner approves, the team works. The spec is `docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md` and the build plan is `docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. This page says what was built on 21 October, how to run it, and what is still missing.
+Ink is the React app in `app/ui`, and since 22 October it is Chausar's only app, on the desktop and on the hosted web tier. It is built around one idea: the owner approves, the team works. The spec is `chausar-private/docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md` and the build plan is `chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. This page says what was built on 21 October, how to run it, and what is still missing.
 
 ## The switch-over (22 October)
 
@@ -57,11 +57,11 @@ Only the hosted web tier serves the link, at `/share/<token>`, and only when `CH
 
 ## Ink v2, wave 3: the look (26 October)
 
-Wave 3 gave every place the direction D look the founder chose on 23 October (B's bento and department panels with C's greeting, dark goal card, stories and preview cards, made cohesive; the Jade accent #2FB67C; the theme follows the computer): the tokens, the new parts, every place, the phone layout and Hindi for every new string. The plan is `docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md`; the boards, the board-by-board walk (`WALK.md`) and the founder's side-by-side page (`side-by-side.html`) are in `docs/superpowers/designs/ink-v2-direction-d/`.
+Wave 3 gave every place the direction D look the founder chose on 23 October (B's bento and department panels with C's greeting, dark goal card, stories and preview cards, made cohesive; the Jade accent #2FB67C; the theme follows the computer): the tokens, the new parts, every place, the phone layout and Hindi for every new string. The plan is `chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md`; the boards, the board-by-board walk (`WALK.md`) and the founder's side-by-side page (`side-by-side.html`) are in `chausar-private/docs/superpowers/designs/ink-v2-direction-d/`.
 
 ### The walk and the real-browser checks
 
-- `node scripts/ui-shots/walk.mjs` opens every place, its main states, its sheets and the forms and second asks inside them on the fake engine, at 1280 and 390 px, light and dark, and in Hindi at 390. It takes a full-height shot of each into `app/ui/.shots/` (not committed), runs axe-core on the whole page with colour contrast on, presses through the focus plan (J and K, the second ask, a sheet, the business menu), and checks what jsdom cannot: no sideways scroll, no text key on screen, no em dash, no console error, and Hindi counts in the body face. It exits 1 on anything not listed, with its reason, in `scripts/ui-shots/accepted.mjs`. `--base=http://localhost:<port>` uses a running `npm run dev:ui` (otherwise it starts its own on 5179); `--cdp=9481 --workers=4` gives each headless Chrome its own debugging port, with its profile inside the output folder; `--only=today,team` walks some cases; `--publish` copies the shots that match a board (1280 and 390, light) into the designs folder and rewrites `side-by-side.html` and `WALK.md` from `scripts/ui-shots/boards.mjs`.
+- `node scripts/ui-shots/walk.mjs` opens every place, its main states, its sheets and the forms and second asks inside them on the fake engine, at 1280 and 390 px, light and dark, and in Hindi at 390. It takes a full-height shot of each into the run root (`CHAUSAR_RUN_ROOT/ui-shots`, else the temp folder's `chausar-runs`; never the code folder), runs axe-core on the whole page with colour contrast on, presses through the focus plan (J and K, the second ask, a sheet, the business menu), and checks what jsdom cannot: no sideways scroll, no text key on screen, no em dash, no console error, and Hindi counts in the body face. It exits 1 on anything not listed, with its reason, in `scripts/ui-shots/accepted.mjs`. `--base=http://localhost:<port>` uses a running `npm run dev:ui` (otherwise it starts its own on 5179); `--cdp=9481 --workers=4` gives each headless Chrome its own debugging port, with its profile inside the output folder; `--only=today,team` walks some cases; `--publish` copies the shots that match a board (1280 and 390, light) into the designs folder and rewrites `side-by-side.html` and `WALK.md` from `scripts/ui-shots/boards.mjs`.
 - It drives headless Chrome, not Electron as the plan first said: the same Chromium engine, on the debugging ports and profiles every wave 3 package already used.
 - The parts page, `app/ui/parts.html` with `app/ui/specimens/` (outside `src/`, on the dev server only, never built), draws the app on other fake starts (nothing waiting, the department views W4 4A1 sends) and the parts W4 feeds with sample props, so the boards with no place yet (one department, Network, Chats) and the charts have a picture. It says "sample props, not engine data" at the top.
 - Word budgets: `app/ui/tests/budgets.test.tsx` holds each place at rest to its baseline in `app/ui/tests/baselines/words.json` (measured on 26 October, rounded up to the next 10; they may only shrink), a page's sub line to 20 words and an approval card's own copy to 12. Direction D carries far more than Ink v1's 35 to 45 words (Today 660, Connections 740); the founder confirms the baselines in the wave 3 PR.
@@ -81,7 +81,7 @@ Where a board shows data the engine does not send yet, the place draws what is r
 
 | Place | Waits for | W4 package |
 |---|---|---|
-| Rail and header | Chats in the rail, the Ask Chausar box and Ctrl K, the bell with its count; there is no account button | 4C, 4G |
+| Rail and header | Chats in the rail, the Find or ask bar and Ctrl K (one-shot C2: finds records and pages, opens forms, asks Chausar), the bell with its count; there is no account button | 4C, 4G, C2 |
 | Today | goal progress, pace, days left, ready to issue and the next best step (the goal card shows what was invoiced until then); departments on agents (tints, badges, chips); the Chausar story and Add agent; card previews (frames, durations, chapters, invoice lines, post text, title choices, check counts); row meta (client, expiry, "Sends to the client"); Stop on running rows; the owner's first name in the greeting | 4I; 4A; 4C; 4J queue previews; 4J approvals; 4F; 4J owner profile |
 | Team | departments and their summaries, the toggle and `?dept=`, the one-department view, the six-week chart, Done this week, Add an agent, Keeper, held spend; the Chat button and tab, the instructions version, standing orders, "set by" lines | 4A; 4B |
 | Work | Stop, Force stop, Resume, the breaker's words, "Run again keeps step 1", How to fix it; order stage steps and the price on an order; frames on run tiles; runs across a locked business | 4F; 4J order steps; 4J queue previews; 4J |
@@ -95,7 +95,7 @@ Where a board shows data the engine does not send yet, the place draws what is r
 
 ## Ink v2, wave 4: new features (26 October)
 
-Wave 4 put real engine data behind every place the direction D boards draw. Wave 3 left placeholders where the engine sent nothing; those are now filled. The plan is `docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md`. The boards, `WALK.md` and the side-by-side page in `docs/superpowers/designs/ink-v2-direction-d/` now show the wave 4 app.
+Wave 4 put real engine data behind every place the direction D boards draw. Wave 3 left placeholders where the engine sent nothing; those are now filled. The plan is `chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md`. The boards, `WALK.md` and the side-by-side page in `chausar-private/docs/superpowers/designs/ink-v2-direction-d/` now show the wave 4 app.
 
 ### What the owner can now do
 
@@ -133,7 +133,7 @@ Wave 4 put real engine data behind every place the direction D boards draw. Wave
 
 ## Known limits
 
-- **The walk.** Done in waves 3 and 4: see "Ink v2, wave 3" and "Ink v2, wave 4" above and `docs/superpowers/designs/ink-v2-direction-d/WALK.md`. Run `node scripts/ui-shots/walk.mjs` again after any change to a place.
+- **The walk.** Done in waves 3 and 4: see "Ink v2, wave 3" and "Ink v2, wave 4" above and `chausar-private/docs/superpowers/designs/ink-v2-direction-d/WALK.md`. Run `node scripts/ui-shots/walk.mjs` again after any change to a place.
 - **Other businesses are locked rows.** Each business is its own encrypted vault and the engine keeps one open, so Today shows other businesses as locked rows until a read-only vault open exists.
 - **Auto with spot checks is not open.** The spot-check decision is now recorded when a run's write finishes at that posture, but the launch ladder keeps the stage planned, `venture.launch.advance` refuses it, the delivery runs allow only shadow and approve each, and every model turn on a real order still waits for the owner to approve its exact text. Opening it needs the ladder step, a stage the runs accept, and a decision on unattended turns for client data.
 - **The hosted tick.** The hosted server sweeps the journal when a business opens, but does not run the engine's five-minute tick.
@@ -187,7 +187,7 @@ The wave's privacy hooks remove private client copies from its desks, source rep
 
 New UI strings have machine-drafted Hindi listed in `app/ui/src/text/hi-review.json`; a native review is still needed. Source text and engine-written free text can remain English. Measured word budgets rose for Connections and Connections/AI from 870 to 1810 each (1804 measured), and onboarding from 330 to 1150 (1148 measured). Those rises are listed for the founder in the wave 5 PR.
 
-Package evidence, test-first repairs, independent spec and quality reviews, and limits are recorded in `docs/superpowers/plans/w5/NOTES-5-0.md` and the individual package notes. The pre-PR local checkpoint passed typechecks, source checks, UI build and all 2977 UI tests. Five engine shards pass; shard 3 has only the documented comparison with the founder's separate local architecture file. The 488-check browser walk passes, its 52 published images are in the repository gallery, and the recorded cold-review findings are closed within the capture limits listed in HANDOFF. Latest Ubuntu/Windows CI results are recorded on [wave-five PR #9](https://github.com/kartavyc/chausar-platform/pull/9); its follow-up changes only cross-platform test fixtures. These checks do not establish that a live provider works.
+Package evidence, test-first repairs, independent spec and quality reviews, and limits are recorded in `chausar-private/docs/superpowers/plans/w5/NOTES-5-0.md` and the individual package notes. The pre-PR local checkpoint passed typechecks, source checks, UI build and all 2977 UI tests. Five engine shards pass; shard 3 has only the documented comparison with the founder's separate local architecture file. The 488-check browser walk passes, its 52 published images are in the repository gallery, and the recorded cold-review findings are closed within the capture limits listed in HANDOFF. Latest Ubuntu/Windows CI results are recorded on [wave-five PR #9](https://github.com/kartavyc/chausar-platform/pull/9); its follow-up changes only cross-platform test fixtures. These checks do not establish that a live provider works.
 
 ## Planned
 

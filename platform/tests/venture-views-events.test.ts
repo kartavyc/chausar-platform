@@ -101,7 +101,7 @@ test('the reads Today, Money and Practice use publish nothing through the host',
     await host.request(owner, 'venture.queue.list', { scope: 'all' });
     for (const [method, payload] of [
       ['venture.blueprint.get', {}], ['venture.runs.list', {}], ['venture.team.list', {}], ['venture.journal.list', {}],
-      ['venture.invoice.list', {}], ['venture.improve.status', {}],
+      ['venture.invoice.list', {}], ['venture.improve.status', {}], ['venture.find', { text: 'cafe' }],
     ] as const) await host.request(owner, method, payload);
     const viewed = queue.rows.find(row => row.viewRef);
     if (viewed?.viewRef) await host.request(owner, 'venture.queue.view', { kind: viewed.viewRef.kind, id: viewed.viewRef.id, opened: true });
@@ -161,7 +161,7 @@ test('engine and local server: run events reach onVentureEvent and stream over G
   await engine.request('workspace.create', { name: 'Ledgerline', passphrase: 'long-enough-passphrase', pack: 'services' });
   await engine.request('venture.create', { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN' });
   const heard: VentureRunEvent[] = [];
-  const off = engine.onVentureEvent(event => heard.push(event));
+  const off = engine.onVentureEvent(event => { if (event.type !== 'work.step') heard.push(event); });
 
   const refused = await fetch(`${origin}/api/events`);
   assert.equal(refused.status, 401);
@@ -214,7 +214,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['getAskLater', 'getBackground', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickNetworkFile', 'request', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'shareInvoice', 'showExport', 'showShared']);
+  assert.deepEqual(Object.keys(api).sort(), ['firstPaint', 'getAskLater', 'getBackground', 'importCopy', 'onEngineStatus', 'onEvent', 'openExternal', 'openSocialProject', 'openYoutubeProject', 'pickAppTestApk', 'pickCopy', 'pickNetworkFile', 'previewDiagnostics', 'request', 'saveBriefFile', 'saveBusinessExport', 'saveDiagnostics', 'saveMoneyExport', 'saveReport', 'saveSocialProject', 'saveYoutubeProject', 'setAskLater', 'setBackground', 'setBackupFolder', 'shareInvoice', 'sharePack', 'shareReceipt', 'showExport', 'showSavedExport', 'showShared', 'showUpdateInstaller']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });

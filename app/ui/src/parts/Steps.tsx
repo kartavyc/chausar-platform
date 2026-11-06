@@ -1,8 +1,10 @@
 import { useT } from '../text';
 import { Icon } from './Icon';
+import { StillArc } from './StepMark';
 import type { IconName } from './icons';
 import type { RunStep, RunSummary, RunToolLine } from '../engine/types';
 import s from './Steps.module.css';
+import { Fold } from './Fold';
 
 const WORD: Record<RunStep['state'], string> = { done: 'steps.done', current: 'steps.current', pending: 'steps.pending', waiting: 'steps.waiting', failed: 'steps.failed' };
 
@@ -20,16 +22,6 @@ export interface StepsProps {
   waitingWord?: string | undefined;
   /** 4Z2: false leaves a failed step's error out, where the caller says the failure in plain words and keeps it a step away. */
   errors?: boolean;
-}
-
-/** The current step: a quarter arc on a ring, drawn once and never turning (nothing loops). */
-function StillArc() {
-  return (
-    <svg className={s.arc} data-arc="" viewBox="0 0 20 20" width="20" height="20" focusable="false" aria-hidden="true">
-      <circle className={s.arcTrack} cx="10" cy="10" r="7.5" fill="none" />
-      <path className={s.arcPart} d="M10 2.5a7.5 7.5 0 0 1 7.5 7.5" fill="none" />
-    </svg>
-  );
 }
 
 /** W4 4F3 (U7): each tool call's state as a shape beside its words: a check, a warning, a cross (never colour alone). */
@@ -78,10 +70,11 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                     <span className={s.time}>{step.elapsed}</span>
                   ) : null}
                 </div>
+                {/* C5 task 4: the wait for the owner just before this step, apart from its working time. */}
+                {step.waiting && <p className={s.time}>{t('steps.waitedBefore', { waited: step.waiting })}</p>}
                 {errors && step.error && <p className={s.error}>{step.error}</p>}
                 {showTools && step.tools && step.tools.length > 0 && (
-                  <details className={s.tools}>
-                    <summary>{t('steps.tools', { count: step.tools.length })}</summary>
+                  <Fold summary={t('steps.tools', { count: step.tools.length })} className={s.tools}>
                     {step.tools.map((tool, i) => (
                       <p key={i} className={s.tool} data-tool-state={tool.state}>
                         {tool.state && <ToolMark state={tool.state} />}
@@ -91,7 +84,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                         {tool.ms !== undefined && <> <span className={s.time}>{msWords(t, tool.ms)}</span></>}
                       </p>
                     ))}
-                  </details>
+                  </Fold>
                 )}
               </li>
             );

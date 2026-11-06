@@ -93,7 +93,7 @@ export const CONNECTOR_CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
 
   // Booking and calendar
   entry('booking', 'cal-com', 'Cal.com', 'https://cal.com/', ['read'], GI, 'API key',
-    'A booking page for calls. You can put its link on your site yourself; adding it through the brief is planned.'),
+    'A booking page for calls. Put its link on your site yourself; the brief is planned. A booking can start a routine, read through your own relay and checked with your key (stand-ins so far).'),
   entry('booking', 'calendly', 'Calendly', 'https://calendly.com/', ['read'], GI, 'Personal access token',
     'A booking page for calls. You can put its link on your site yourself; adding it through the brief is planned.'),
   entry('booking', 'google-calendar', 'Google Calendar', 'https://calendar.google.com/', ['read', 'write'], GI, 'A private calendar address you paste',

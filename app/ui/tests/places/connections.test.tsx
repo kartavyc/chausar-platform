@@ -120,18 +120,18 @@ describe('Connections', () => {
     await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
     // The one import path opens the bank account sheet, with the import form inside it (Ink v2 wave 2, 2D).
     const sheet = await screen.findByRole('complementary', { name: 'Bank account' });
-    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
-    expect(within(sheet).getByRole('alert').textContent).toBe('Choose the statement file first.');
+    // B4: Import waits for the account and the file, and says so.
+    expect(within(sheet).getByRole('button', { name: 'Import', description: 'Name the account and choose the statement file.' })).toHaveProperty('disabled', true);
     const csv = 'Date,Amount,Description\n2026-10-01,-1200.00,Office rent\n2026-10-02,26200.00,Boat Audio\n2026-10-03,abc,Unknown\n';
     const spy = vi.spyOn(engine, 'request');
     fireEvent.change(within(sheet).getByLabelText('Account'), { target: { value: 'HDFC current' } });
     fireEvent.change(within(sheet).getByLabelText('Statement file (CSV)'), { target: { files: [new File([csv], 'october.csv', { type: 'text/csv' })] } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
-    await waitFor(() => expect(within(sheet).getByText('Added 2 transactions to HDFC current. 1 line was not read.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Added 2 transactions from 1 to 2 Oct. See them under Connections, in your bank account. 1 row could not be read.')).toBeTruthy());
     expect(spy.mock.calls.find(([method]) => method === 'venture.bank.import')![1]).toEqual({ csv, account: 'HDFC current' });
     expect(within(sheet).getByText('Line 4: The amount is not a number.')).toBeTruthy();
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
-    await waitFor(() => expect(within(sheet).getByText('Added 0 transactions to HDFC current. 2 were already here, so they were skipped. 1 line was not read.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Already imported, nothing added. 1 row could not be read.')).toBeTruthy());
   });
 
   it('on the web, Visit site is a normal link that opens apart from Chausar', async () => {

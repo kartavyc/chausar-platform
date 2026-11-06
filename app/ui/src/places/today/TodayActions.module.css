@@ -44,6 +44,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--sp-2);
+  text-align: end;
 }
 
 .hint,

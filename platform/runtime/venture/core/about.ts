@@ -25,9 +25,23 @@ import { familyIdea, keywordFamily } from './family-plan.ts';
 import { PROFESSIONS, professionOf } from './professions.ts';
 
 import type { AboutFile, AboutRead, FamilyTile } from './first-run-types.ts';
+import { NO_WORK, type Work } from '../../work-progress.ts';
+import { WORK_STEPS } from '../views/work-steps.ts';
 
 export type { AboutFile, AboutRead, FamilyTile } from './first-run-types.ts';
-type AboutAnswer = { familyId: FamilyId | null; professionId: string | null; offers: FamilyOffer[]; countryCode: CountryCode | null; evidence: string | null };
+type AboutAnswer = { familyId: FamilyId | null; professionId: string | null; offers: FamilyOffer[]; countryCode: CountryCode | null; evidence: string | null; reply?: string };
+
+/**
+ * C5 task 6: the AI's first reply to the owner, kept only when it is at most two sentences of plain words with no
+ * digit at all (no figure is needed there, and a model figure would need a "model estimate" label); otherwise none.
+ */
+export function keptReply(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const words = value.replace(/\s+/g, ' ').trim();
+  if (words.length < 8 || words.length > 280 || /\p{Nd}/u.test(words) || /https?:|www\./i.test(words)) return null;
+  const sentences = words.split(/(?<=[.!?।])\s+/).filter(Boolean);
+  return sentences.length <= 2 ? words : null;
+}
 
 const OFFER_MAX = 3;
 const NAME_MAX = 60;
@@ -50,6 +64,8 @@ export const ABOUT_INSTRUCTIONS = [
   // One-shot A4 (hands-on row 9): a file sent alone has no owner words, so the file counts as much as the words do.
   'If neither the owner words nor the owner file say what work they do, return null for familyId and professionId and an empty offers list.',
   COUNTRY_INSTRUCTIONS.replace('owner sentence', 'owner words'),
+  // C5 task 6: the first reply the owner reads after About you.
+  'As reply, write at most two short sentences to the owner, in plain words, about what you understood of their work and the offers you suggested. Use no numbers, amounts or links in reply; return null for reply when there is nothing to say.',
 ].join(' ');
 
 /** The strict task. file: the screened owner file that goes with the words, whose text may hold the country evidence. */
@@ -62,7 +78,7 @@ export function aboutTask({ text, file }: { text: string; file: DroppedFile | nu
     purpose: 'decide', instructions: ABOUT_INSTRUCTIONS,
     input: { ownerWords: text, families, professions, countries }, schemaName: 'chausar-owner-about-v2',
     schema: {
-      type: 'object', additionalProperties: false, required: ['familyId', 'professionId', 'offers', 'countryCode', 'evidence'],
+      type: 'object', additionalProperties: false, required: ['familyId', 'professionId', 'offers', 'countryCode', 'evidence', 'reply'],
       properties: {
         familyId: { type: ['string', 'null'], enum: [...FAMILY_IDS, null] },
         professionId: { type: ['string', 'null'], enum: [...professions.map(item => item.id), null] },
@@ -72,13 +88,16 @@ export function aboutTask({ text, file }: { text: string; file: DroppedFile | nu
         },
         countryCode: { type: ['string', 'null'], enum: [...countries.map(country => country.code), null] },
         evidence: { type: ['string', 'null'] },
+        reply: { type: ['string', 'null'] },
       },
     },
     containsClientData: false, maxOutputTokens: 600,
     // A2: the offers this read answered stay on its call record, so a kept card is the AI's only with these offers.
     keep: answer => ({ offers: answer.offers.map(offer => ({ name: offer.name, line: offer.line })) }),
     validate(raw): AboutAnswer {
-      const body = exactPayload(raw, ['familyId', 'professionId', 'offers', 'countryCode', 'evidence'], ['familyId', 'offers', 'countryCode', 'evidence'], 'MODEL_OUTPUT_REJECTED');
+      const body = exactPayload(raw, ['familyId', 'professionId', 'offers', 'countryCode', 'evidence', 'reply'], ['familyId', 'offers', 'countryCode', 'evidence'], 'MODEL_OUTPUT_REJECTED');
+      const reply = keptReply(body.reply);
+      const said = reply ? { reply } : {};
       check(body.familyId === null || isFamilyId(body.familyId), 'MODEL_OUTPUT_REJECTED', 'Choose a family from the supplied list.');
       // A5: a pick stands only as a real profession of the chosen family. Anything else (missing, unknown, an older
       // alias, another family's) is no pick, and the owner chooses from the family's list: a profession is never made up.
@@ -101,9 +120,9 @@ export function aboutTask({ text, file }: { text: string; file: DroppedFile | nu
         // One-shot A4 (live on Codex): evidence not copied from the owner's words or file never sets the country, and the
         // read stands without one (the owner picks it later), rather than the whole read being thrown away.
         const copied = typeof body.evidence === 'string' && body.evidence.trim().length >= 3 && source.includes(body.evidence);
-        if (!copied) return { familyId: body.familyId as FamilyId | null, professionId, offers, countryCode: null, evidence: null };
+        if (!copied) return { familyId: body.familyId as FamilyId | null, professionId, offers, countryCode: null, evidence: null, ...said };
       }
-      return { familyId: body.familyId as FamilyId | null, professionId, offers, countryCode: body.countryCode as CountryCode | null, evidence: (body.evidence as string | null) ?? null };
+      return { familyId: body.familyId as FamilyId | null, professionId, offers, countryCode: body.countryCode as CountryCode | null, evidence: (body.evidence as string | null) ?? null, ...said };
     },
   };
 }
@@ -181,6 +200,18 @@ function ideaFor(id: FamilyId | null, text: string, offers: readonly FamilyOffer
  * contentBase64 }. With an AI connected, its strict answer; without one, the keyword guess and the family's own offers.
  */
 export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AboutRead> {
+  const work = deps.work?.begin('about', WORK_STEPS.about.map(step => step.id)) ?? NO_WORK;
+  try {
+    return await aboutReadSteps(deps, ctx, payload, work);
+  } catch (error) {
+    work.failCurrent();
+    throw error;
+  } finally {
+    work.end();
+  }
+}
+
+async function aboutReadSteps(deps: VentureDeps, ctx: Context, payload: unknown, work: Work): Promise<AboutRead> {
   requireAppChannel(ctx, 'venture.about.read');
   check(ctx.role === 'owner' || ctx.role === 'cofounder', 'FORBIDDEN', 'An owner says what they do.');
   check(deps.host !== 'hosted-web', 'HOSTED_NOT_AVAILABLE', 'About you uses your AI in the desktop app.');
@@ -191,6 +222,7 @@ export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknow
 
   let file: DroppedFile | null = null;
   let fileNote: AboutFile | undefined;
+  work.step('read', 'current');
   if (body.attachment !== undefined) {
     const attachment = exactPayload(body.attachment, ['name', 'kind', 'contentBase64'], ['name', 'kind', 'contentBase64']);
     const name = singleLine(attachment.name, 'The file name', { min: 1, max: 200 });
@@ -201,18 +233,28 @@ export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknow
     fileNote = { name, included: file !== null, line: file ? null : screened.note.line ?? null };
   }
 
+  work.step('read', 'done');
+  work.step('field', 'current');
   if (deps.models.status(ctx).tiers.fast.presetId === 'built-in-templates') {
     const familyId = keywordFamily(`${text}\n${file?.text ?? ''}`);
+    work.step('field', 'done');
+    work.step('offers', 'current');
     const offers = familyId ? familyOf(familyId).offers.map(offer => ({ ...offer })) : [];
+    work.step('offers', 'done');
     return { family: familyView(familyId), profession: null, offers, country: null, evidence: null, idea: ideaFor(familyId, text, offers), source: 'keywords', ...(fileNote ? { file: fileNote } : {}) };
   }
   check(text.length > 0 || file !== null, 'INVALID_VENTURE_REQUEST', fileNote?.line ?? 'Write a few words about your work.');
   const task = aboutTask({ text, file });
+  // One answer holds the field and the offers: the two steps end together, when it lands.
   const outcome = file ? await sendFileDropTask(deps.models, ctx, withFile(task, file)) : await deps.models.generate(ctx, task);
   const answer = outcome.value;
+  work.step('field', 'done');
+  work.step('offers', 'current');
+  work.step('offers', 'done');
   return {
     family: familyView(answer.familyId), profession: professionView(answer.professionId), offers: answer.offers, country: countryView(answer.countryCode), evidence: answer.evidence,
     idea: ideaFor(answer.familyId, text, answer.offers), source: 'ai', ...(outcome.callId ? { callId: outcome.callId } : {}), ...(fileNote ? { file: fileNote } : {}),
+    ...(answer.reply ? { reply: answer.reply } : {}),
   };
 }
 

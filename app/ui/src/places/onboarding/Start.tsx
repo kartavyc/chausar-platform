@@ -13,6 +13,7 @@ import { Examples } from './Examples';
 import { FileDrop, type DroppedFile } from './FileDrop';
 import { computerCountry, cleanSentence, countryWords, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
 import s from './Onboarding.module.css';
+import { Select } from '../../parts/Select';
 
 type Step = 'read' | 'vault' | 'plan' | 'suggest';
 type Stage = { kind: 'idle' } | { kind: 'working'; step: Step } | { kind: 'code'; code: string };
@@ -280,9 +281,9 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
       ) : choosing && countries ? (
         <>
           <label htmlFor={countryId}>{t('onboarding.country')}</label>
-          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCheck(null); setCountryCode(event.target.value); }}>
+          <Select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCheck(null); setCountryCode(event.target.value); }}>
             {countries.map((c) => <option key={c.code} value={c.code}>{countryWords(c, language, t)}</option>)}
-          </select>
+          </Select>
         </>
       ) : country ? (
         <>

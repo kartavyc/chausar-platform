@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { ChausarError, check, hash, internalCheck } from './contracts.ts';
 import type { CalculationReceipt } from './calculator.ts';
 import { assertCompiledSingleSum } from './compiled-calculation.ts';
+import { runtimeEntry } from './engine-paths.ts';
 
 export type SQLConnection = {
   execute(sql: string, parameters?: (string | number | null)[]): Promise<Record<string, unknown>[]>;
@@ -17,7 +18,6 @@ export type DatabaseCalculatorOptions = { connectionFactory?: (signal: AbortSign
 export type DatabaseVerification = { verified: true; engine: 'duckdb' | 'postgres' | 'injected-sql'; receiptId: string; operation: string; projectionDigest: string; compiledDigest?: string; checks: string[] };
 type ProjectionRow = { id: string; kind: string; amount: string; date: string; due: string | null; invoice: string | null; customer: string | null };
 type Projection = { receiptId: string; operation: string; currency: string; requestedCurrency?: string; compiledCalculation: CalculationReceipt['compiledCalculation'] | null; compiledDefinition: CalculationReceipt['definitions'][number] | null; ontologyVersion: number; definitions: { name: string; kind: string; sign: number }[]; rows: ProjectionRow[]; period: { from: string; to: string } | null; comparePeriod: { from: string; to: string } | null; onDate: string | null; priceChangeBps: string | null; expected: Record<string, string> };
-const FILE = fileURLToPath(import.meta.url);
 const MAX_BYTES = 16 * 1024 * 1024;
 const OPERATIONS: Record<string, string[]> = { billed: ['billed'], received: ['received'], earned: ['earned'], refunds: ['refunds'], costs: ['costs'], purchases: ['purchases'], revenue: ['earned'], net_sales: ['earned', 'refunds'], margin: ['earned', 'refunds', 'costs'], aging: ['billed', 'received', 'refunds'], change: ['earned'], scenario: ['earned'] };
 const absolute = (n: bigint) => n < 0n ? -n : n;
@@ -198,7 +198,7 @@ export class DatabaseCalculator {
     const directory = await mkdtemp(join(tmpdir(),'chausar-sql-'));
     try {
       return await new Promise((accept,reject) => {
-        const child = spawn(process.execPath,[FILE,'--duckdb-worker'],{ cwd: directory, windowsHide: true, shell: false, stdio: ['pipe','pipe','pipe'], env: process.platform === 'win32' ? { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows', TEMP: directory, TMP: directory } : { ELECTRON_RUN_AS_NODE: '1', TMPDIR: directory } });
+        const child = spawn(process.execPath,[runtimeEntry('analytics-worker')],{ cwd: directory, windowsHide: true, shell: false, stdio: ['pipe','pipe','pipe'], env: process.platform === 'win32' ? { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows', TEMP: directory, TMP: directory } : { ELECTRON_RUN_AS_NODE: '1', TMPDIR: directory } });
         let bytes = 0; let output = ''; let settled = false; let failure: ChausarError | undefined;
         const timer = setTimeout(() => { failure = new ChausarError('SQL_TIMEOUT','The database calculation exceeded its process deadline.'); child.kill('SIGKILL'); },this.options.operationTimeoutMs);
         const finish = (error?: Error, result?: DatabaseVerification) => { if (settled) return; settled = true; clearTimeout(timer); if (error) reject(error); else accept(result!); };
@@ -217,7 +217,8 @@ export class DatabaseCalculator {
   }
 }
 
-async function workerMain() {
+/** D7: DuckDB's own process (analytics-worker.ts starts it), reading the projection from stdin. */
+export async function workerMain() {
   let connection: SQLConnection | undefined;
   try {
     const chunks: Buffer[] = []; let length = 0;
@@ -234,4 +235,4 @@ async function workerMain() {
   } catch (error) { process.stdout.write(JSON.stringify({ok:false,code:error instanceof ChausarError ? error.code : 'SQL_EXECUTION_FAILED'})); process.exitCode = 1; }
   finally { await connection?.close(); }
 }
-if (process.argv[1] && resolve(process.argv[1]) === resolve(FILE) && process.argv[2] === '--duckdb-worker') await workerMain();
+

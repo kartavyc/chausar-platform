@@ -41,6 +41,14 @@ export function groupsOf(code: string): string[] {
 }
 
 /** A moment in the owner's zone (`useOwnerZone`): "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
+/**
+ * C4 task 35 (32.x1): a passphrase just opened this business. Today's first view says so once, then nothing remembers
+ * it. Only that it happened is kept, never the passphrase.
+ */
+let openedWithPassphrase = false;
+export function noteOpenedWithPassphrase(): void { openedWithPassphrase = true; }
+export function takeOpenedWithPassphrase(): boolean { const was = openedWithPassphrase; openedWithPassphrase = false; return was; }
+
 export function momentOf(at: string, zone: string): string {
   return formatMoment(at, zone);
 }

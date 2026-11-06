@@ -11,6 +11,7 @@ import { backs, EVIDENCE_TYPE_IDS, EVIDENCE_TYPES, scoreEvidence, UNCHECKED, typ
 import { redactSecrets } from '../core/secrets.ts';
 // W6 6G3 (D44): a client field the ledger writes back is a row in the client's field history.
 import { crmChange, crmWhoOf } from '../crm/history.ts';
+import { clientPhone, phoneShapeOk } from '../clients/phone.ts';
 import type { CrmWho } from '../crm/crm-data.ts';
 
 const SUBJECT = /^(?:business|client:[A-Za-z0-9_-]{1,80})$/;
@@ -95,6 +96,8 @@ const CLIENT_FIELDS: Readonly<Record<string, (value: string) => boolean>> = Obje
   name: value => value.length >= 2 && value.length <= 120,
   email: value => value.length <= 200 && EMAIL.test(value),
   note: value => value.length >= 1 && value.length <= MAX_VALUE,
+  // One-shot C6: the phone's WhatsApp digits are worked out again on write-back (writeThrough).
+  phone: value => phoneShapeOk(value),
 });
 
 function writeThrough(tx: VentureTx, record: EvidenceRecord, by: CrmWho) {
@@ -104,10 +107,12 @@ function writeThrough(tx: VentureTx, record: EvidenceRecord, by: CrmWho) {
   const client = tx.find('venture-client', record.subject.slice('client:'.length));
   if (!valid || !client) return;
   check(valid(record.value), 'INVALID_VENTURE_REQUEST', `This ${record.field} is not one Chausar can keep for a client.`);
-  const key = record.field as 'name' | 'email' | 'note';
+  const key = record.field as 'name' | 'email' | 'note' | 'phone';
   if (client[key] === record.value) return;
-  crmChange(tx, { subject: record.subject, field: key, before: client[key], after: record.value, by, ref: record.id });
-  tx.replace<ClientRecord>({ ...client, [key]: record.value });
+  // C6: the client's own country, else the business's, decides the code a phone without + gets.
+  const reach = key === 'phone' ? clientPhone(record.value, client.countryCode ?? tx.venture?.country.code ?? null) : null;
+  crmChange(tx, { subject: record.subject, field: key, before: client[key] ?? null, after: record.value, by, ref: record.id });
+  tx.replace<ClientRecord>({ ...client, [key]: record.value, ...(reach ? { whatsapp: reach.whatsapp } : {}) });
 }
 
 /** Makes a record the stored value for its field: the field's other records stop being applied. */

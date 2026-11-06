@@ -5,6 +5,10 @@
 const names = new Set(['model:anthropic-haiku-5-5', 'model:anthropic-sonnet-5-5', 'model:openai-gpt-6-luna', 'model:openrouter', 'payments:razorpay', 'alerts:telegram',
   // Wave 6 (6F3): the owner's own web search key (web/search.ts); 6F8: their own people search keys (people/services.ts).
   'search:brave', 'search:exa', 'search:tavily', 'people:happenstance', 'people:probe42',
+  // C5 task 24: the refresh token for the owner's Google Drive backups.
+  'backups:google-drive',
+  // C7: the owner's event relay address and their Cal.com key (build/event-triggers.ts).
+  'events:relay', 'events:calcom',
   // A2 review: the key that seals the owner's choice of Codex (platform/runtime/codex-trust.ts), host scope only.
   'trust:codex-seal']);
 /** A2 second review: the seal key lives only under the host's own scope, never a business workspace. */

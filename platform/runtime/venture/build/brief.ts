@@ -197,6 +197,8 @@ export function validateBriefOutput(raw: unknown, allowed: readonly string[]): B
   return { whatToBuild, whoItIsFor, pages, lookAndFeel, doneMeans };
 }
 
+const FILL_LINE = 'Write only the fields listed in writeOnly; the rest of the brief is written.';
+
 /** The words a brief task lets the model copy (its own validate closes over them; the fill task needs the same). */
 const ALLOWED_OF = new WeakMap<object, readonly string[]>();
 
@@ -210,8 +212,9 @@ export function briefFillTask(base: ModelTask<BriefModelOutput>, missing: readon
   const properties = (BRIEF_SCHEMA as { properties: Record<string, Json> }).properties;
   return {
     purpose: base.purpose,
-    instructions: `${base.instructions} Write only ${missing.map(name => TEXT_FIELDS[name].words).join(' and ')}; the rest of the brief is written.`,
-    input: { ...(base.input as Record<string, Json>), written, writtenPages: words.pages.map(page => ({ ...page })) } as Json,
+    // D2: a fixed line; which fields to write is in the input (writeOnly), so the fixed prompt stays the same.
+    instructions: `${base.instructions} ${FILL_LINE}`,
+    input: { ...(base.input as Record<string, Json>), writeOnly: missing.map(name => TEXT_FIELDS[name].words), written, writtenPages: words.pages.map(page => ({ ...page })) } as Json,
     schemaName: 'venture-brief-fill',
     schema: { type: 'object', additionalProperties: false, required: [...missing], properties: Object.fromEntries(missing.map(name => [name, properties[name]!])) },
     validate: raw => {
@@ -337,13 +340,17 @@ export function assembleBrief(parts: BriefParts): string {
     [h[7], countryLine],
     [h[8],
       'Keep GitHub sync on, on the main branch. Create AGENTS.md (Lovable) or replit.md (Replit) at the root, starting with these two lines:',
-      `chausar-brief-id: ${briefId}`,
-      'Money numbers come from Chausar. Do not compute totals or tax.',
+      ...briefMarkerLines(briefId),
       `Add <meta name="chausar-brief" content="${briefId}"> to the page head.`],
     [h[9], ...words.doneMeans.map(item => `- [ ] ${item}`)],
     [h[10], 'No invented reviews, client counts, awards or results. No features beyond this brief. Ask before guessing.'],
   ];
   return blocks.map(block => block.join('\n')).join('\n\n');
+}
+
+/** The two lines AGENTS.md or replit.md starts with: the brief's own words, and the file a saved brief comes with. */
+export function briefMarkerLines(briefId: string): string[] {
+  return [`chausar-brief-id: ${briefId}`, 'Money numbers come from Chausar. Do not compute totals or tax.'];
 }
 
 export function briefIdFor(ventureId: string, version: number): string {
@@ -390,6 +397,22 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
 // ---------------------------------------------------------------------------
 
 export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BriefRecord> {
+  // One-shot C3 task 9: one model call, so one step.
+  const work = deps.work?.begin('brief', ['write']);
+  work?.step('write', 'current');
+  try {
+    const brief = await writeBriefNow(deps, ctx, payload);
+    work?.step('write', 'done');
+    return brief;
+  } catch (error) {
+    work?.failCurrent();
+    throw error;
+  } finally {
+    work?.end();
+  }
+}
+
+async function writeBriefNow(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BriefRecord> {
   const body = exactPayload(payload ?? {}, ['useTemplate']);
   if (body.useTemplate !== undefined) check(typeof body.useTemplate === 'boolean', 'INVALID_VENTURE_REQUEST', 'useTemplate must be true or false.');
   authorize(deps.store, ctx, 'prepare'); // before any model call, so a reader never starts one

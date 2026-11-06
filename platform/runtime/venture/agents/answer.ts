@@ -24,6 +24,7 @@ import type { ChatAgent } from './roles.ts';
 import { usableNoteText } from './recall.ts';
 import { assertAgentAnswerCurrent } from '../agent-runtime/native-job.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
+import { hiredFacts } from './hired-facts.ts';
 
 // ---------------------------------------------------------------------------
 // One chat call: preview, then the send the owner's message in the app approves, under the chat consent
@@ -240,8 +241,10 @@ function factsOf(deps: VentureDeps, state: State, venture: VentureRecord, agent:
 type RawPart = { kind: 'text' | 'figure'; text: string; receiptId: string; key: string };
 export type AnswerOutput = { parts: RawPart[] };
 
-const ANSWER_INSTRUCTIONS = [
+/** One-shot C4 task 10 (154.f1): the length rule is part of the fixed instructions, early, before anything per question. */
+export const ANSWER_INSTRUCTIONS = [
   'You are one agent of a small business the owner runs with Chausar. The owner asks you about your work. Answer briefly, in plain words, from the facts given only: your runs and their steps, the file names, your notes and the standing orders the owner gave you.',
+  'Keep the answer to at most two short paragraphs, under 60 words, unless the owner asks for more.',
   'Give every amount, count or total as a figure part that names one of the figures given, by its receiptId and key; never write money in words. Any other number you write is shown to the owner as a model estimate.',
   'Never claim work the runs do not show. Never say you will publish, send, pay or change a price: those wait for the owner on Today.',
   'Use text parts for words, with receiptId and key empty; use figure parts with text empty.',
@@ -331,7 +334,7 @@ export function templateAnswer(deps: VentureDeps, state: State, venture: Venture
   return lines.map(text => ({ kind: 'text', text }));
 }
 
-export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: string | null; line: string | null };
+export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: string | null; line: string | null; suggestion?: { kind: 'connect-ai' } };
 
 /**
  * One answer to the owner's question: the AI's typed parts from the agent's facts, checked by code (chatCall), or the
@@ -340,6 +343,11 @@ export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: 
 export async function answerQuestion(deps: VentureDeps, ctx: Context, route: ChatRoute | null, input: { state: State; venture: VentureRecord; agent: ChatAgent; question: string; waiting: AgentWaiting | null }): Promise<Answer> {
   const { state, venture, agent, question, waiting } = input;
   const facts = factsOf(deps, state, venture, agent);
+  // C7: a hired agent answers only from what its hire says it reads.
+  if (agent.hired) {
+    const read = await hiredFacts(deps, ctx, agent);
+    Object.assign(facts, { reads: read.reads, figures: read.figures, duties: agent.hired.role?.duties ?? [] });
+  }
   const included = new Set([...facts.runs.map(run => run.runId), ...(waiting ? [waiting.runId] : [])]);
   const contextRuns = listRecords(state, 'venture-delivery-run', venture.id).filter(run => included.has(run.id)).map(run => {
     const order = listRecords(state, 'venture-order', venture.id).find(order => order.id === run.orderId)!;
@@ -371,7 +379,8 @@ export async function answerQuestion(deps: VentureDeps, ctx: Context, route: Cha
   const answered = await chatCall(deps, ctx, route, task, guard);
   if (!answered) {
     const line = route ? "Your AI's answer did not pass Chausar's checks, so this is what Chausar can say from its records." : null;
-    return { parts: templateAnswer(deps, state, venture, agent, waiting), author: 'template', callId: null, line };
+    // C5 task 5: with no AI the reply's tail says to connect one, and code puts the button under it.
+    return { parts: templateAnswer(deps, state, venture, agent, waiting), author: 'template', callId: null, line, ...(route ? {} : { suggestion: { kind: 'connect-ai' as const } }) };
   }
   const { parts, leftOut } = checkedParts(answered.value, facts.figures, question);
   const kept = parts.length ? parts : [{ kind: 'text' as const, text: 'I could not answer that with figures I can prove. Ask me another way.' }];

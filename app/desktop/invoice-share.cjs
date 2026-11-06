@@ -20,17 +20,25 @@ const { buildEml, cleanSubject, FILE_NAME, TYPES } = require('./mail-draft.cjs')
 const DAY_MS = 24 * 60 * 60_000;
 const MAX_LINK = 30_000;
 const INVOICE_ID = /^[A-Za-z0-9_.:-]{1,200}$/;
-const OURS = /^[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml)$/;
-const STAGED = /^\.[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml)\.[0-9a-f]{12}\.tmp$/;
+const OURS = /^[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml|csv)$/;
+const STAGED = /^\.[A-Za-z0-9-]{1,80}\.(?:pdf|html|eml|csv)\.[0-9a-f]{12}\.tmp$/;
 const failure = (code, message) => Object.assign(new Error(message), { code });
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const notMade = () => failure('REQUEST_FAILED', 'The invoice file could not be made. Try again.');
 
-/** { invoiceId, how } and nothing else: never a path, a link or words from the window. */
+/**
+ * { invoiceId, how } and nothing else: never a path, a link or words from the window. One-shot C6: or
+ * { document: 'receipt', paymentId, how: 'whatsapp' | 'save' }, a payment's thank-you receipt, sent on WhatsApp or just kept.
+ */
 function shareRequest(input) {
+  if (isRecord(input) && input.document === 'receipt') {
+    if (Object.keys(input).some(key => key !== 'document' && key !== 'paymentId' && key !== 'how') || typeof input.paymentId !== 'string' || !INVOICE_ID.test(input.paymentId)
+      || (input.how !== 'whatsapp' && input.how !== 'save')) throw failure('INVALID_REQUEST', 'Choose a payment, and Send on WhatsApp or Save the receipt.');
+    return { method: 'venture.payment.receipt', payload: { paymentId: input.paymentId }, how: input.how };
+  }
   if (!isRecord(input) || Object.keys(input).some(key => key !== 'invoiceId' && key !== 'how') || typeof input.invoiceId !== 'string' || !INVOICE_ID.test(input.invoiceId)
     || (input.how !== 'email' && input.how !== 'whatsapp')) throw failure('INVALID_REQUEST', 'Choose an invoice, and Email it or Share on WhatsApp.');
-  return { invoiceId: input.invoiceId, how: input.how };
+  return { method: 'venture.invoice.pdf', payload: { invoiceId: input.invoiceId }, how: input.how };
 }
 
 /** The engine's file, checked: a name Chausar made, the type that goes with it, and real base64 bytes. */
@@ -218,8 +226,8 @@ async function emlHandler({ platform = process.platform, run = quietRun, limitMs
 async function shareInvoice(event, input, deps) {
   try {
     deps.assertTrustedSender(event, deps.window?.webContents);
-    const { invoiceId, how } = shareRequest(input);
-    const file = engineFile(await deps.engine.request('venture.invoice.pdf', { invoiceId }));
+    const { method, payload, how } = shareRequest(input);
+    const file = engineFile(await deps.engine.request(method, payload));
     const fs = deps.fs ?? fsp;
     // Everything is checked before anything is written or opened.
     let eml = null, mail = null, appLink = null, webLink = null;
@@ -242,7 +250,7 @@ async function shareInvoice(event, input, deps) {
       // Fix round 1 (low 3): a subject that cleans to nothing with no address would make a link the gate refuses (an
       // empty email); the checked link as the engine gave it opens instead.
       mail = { to: parts.address !== '', link: subject || parts.address ? `mailto:${encodeURIComponent(parts.address).replace(/%40/g, '@')}${query ? `?${query}` : ''}` : link };
-    } else {
+    } else if (how === 'whatsapp') {
       appLink = whatsappAppUrl(file.share.whatsappUrl);
       if (!appLink) throw notMade();
       try { webLink = validateExternalUrl(file.share.whatsappUrl); } catch { throw notMade(); }
@@ -264,6 +272,8 @@ async function shareInvoice(event, input, deps) {
       // A6 round 2: the draft attaches the file under the engine's name; kept is the file on disk, for Show the PDF in its folder.
       return { ok: true, result: { how, opened, file: kept, attached: file.name, to: mail.to, note: file.note } };
     }
+    // One-shot C6: Save the receipt keeps the file and opens nothing.
+    if (how === 'save') return { ok: true, result: { how, opened: 'none', file: kept, note: file.note } };
     let opened = 'web';
     if (deps.whatsappApp()) {
       try { await deps.shell.openExternal(appLink); opened = 'app'; } catch { opened = 'web'; }
@@ -292,4 +302,4 @@ async function showShared(event, input, deps) {
   }
 }
 
-module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl, emlHandler });
+module.exports = Object.freeze({ shareInvoice, showShared, whatsappAppUrl, emlHandler, keepFile, prune });

@@ -88,8 +88,8 @@ describe('first run: the name the owner asked for is the name kept (A3, S1)', ()
     await act(async () => { fireEvent.submit(screen.getByRole('textbox', { name: 'Message Chausar' }).closest('form')!); });
     expect(await screen.findByText('Renamed it to Pune Frames Studio.')).toBeTruthy();
     expect(reads).toHaveLength(1);
-    const card = document.querySelector('[data-plan-name]')!;
-    expect(card.textContent).toBe('Pune Frames Studio');
+    const card = document.querySelector<HTMLInputElement>('[data-plan-name]')!;
+    expect(card.value).toBe('Pune Frames Studio');
     expect(screen.getByText('Shop product photos')).toBeTruthy();
 
     const keep = await screen.findByRole('button', { name: 'Keep this plan' });
@@ -136,6 +136,6 @@ describe('a rename with more asked after it (A3 review, L2)', () => {
     await waitFor(() => expect(reads).toHaveLength(2));
     expect(reads[1]!.text).toContain('add wedding shoots too');
     expect(reads[1]!.text).not.toContain('Call it');
-    await waitFor(() => expect(document.querySelector('[data-plan-name]')!.textContent).toBe('Pune Frames'));
+    await waitFor(() => expect(document.querySelector<HTMLInputElement>('[data-plan-name]')!.value).toBe('Pune Frames'));
   });
 });

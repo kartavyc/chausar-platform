@@ -1,11 +1,12 @@
 // Chausar venture launcher, package P4: build brief, its lint, builder handoff links, the GitHub reader and the
 // connector catalogue. The host loads this file on first use of a method it owns.
+import { EVENT_HANDLERS } from './event-triggers.ts';
 import { ChausarError } from '../../contracts.ts';
 import type { VentureHandler, VentureHandlerTable } from '../contracts.ts';
 import { writeBrief } from './brief.ts';
 import { listConnectors } from './connectors.ts';
 import { buildStatus, linkRepo, syncRepo } from './github.ts';
-import { markHandoffOpened, prepareHandoff } from './handoff.ts';
+import { markHandoffOpened, prepareBriefFile, prepareHandoff } from './handoff.ts';
 import { bankAlertsGet, bankAlertsSet, bankApply, bankConsent, bankImport, bankLedger } from './bank-methods.ts';
 import { siteApply, siteRevert, siteStage } from './site-methods.ts';
 import { leadsAdd, leadsBlock, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
@@ -35,8 +36,11 @@ const connectors: VentureHandler<'venture.connectors.list'> = listConnectors;
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = Object.freeze({
+  // C7: event triggers
+  ...EVENT_HANDLERS,
   'venture.build.brief': brief,
   'venture.build.handoff': handoff,
+  'venture.build.briefFile': prepareBriefFile satisfies VentureHandler<'venture.build.briefFile'>,
   'venture.build.handoffOpened': handoffOpened,
   'venture.build.link': link,
   'venture.build.sync': sync,

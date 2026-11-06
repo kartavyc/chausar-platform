@@ -1,0 +1,26 @@
+/* Swap (one-shot C3 task 8): the old and new copies share one grid cell, so the wider sets the size and nothing shifts
+   for the moment both stand. The old one fades over the exit time, the new one comes in over the press time. */
+
+.swap {
+  display: inline-grid;
+}
+
+.old,
+.now {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.old {
+  animation: global(ink-page-out) var(--t-exit) var(--ease-exit) 1 both;
+  pointer-events: none;
+}
+
+.now[data-swap-new] {
+  animation: global(ink-fade-in) var(--t-press) var(--ease) 1 both;
+}
+
+.swap[data-slow] .old,
+.swap[data-slow] .now[data-swap-new] {
+  animation-duration: var(--t-sheet);
+}

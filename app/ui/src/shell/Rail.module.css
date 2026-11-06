@@ -65,30 +65,36 @@
 
 .on,
 .on:hover {
-  background: var(--selected);
-  color: var(--on-selected);
+  background: var(--nav-on);
+  color: var(--nav-on-fg);
 }
 
 .on .icon {
-  color: var(--on-selected);
+  color: var(--nav-on-fg);
 }
 
-/* Today's count. On the selected item it sits on a lighter step of the selected ground; elsewhere it is amber. */
+/* Today's count. On the selected item it sits on the surface of the grey fill; elsewhere it is amber. */
 .count {
   min-width: var(--sp-6);
   margin-left: auto;
   padding: 0 var(--sp-2);
   border-radius: var(--r-chip);
-  background: var(--count-on-selected);
+  background: var(--nav-count);
   font-size: var(--text-label);
   line-height: var(--sp-5);
   text-align: center;
-  color: var(--on-selected);
+  color: var(--nav-count-fg);
 }
 
 .count[data-tone='wait'] {
   background: var(--wait-soft);
   color: var(--wait);
+}
+
+/* C1 task 8: Settings sits at the foot of the rail. */
+.foot {
+  margin-top: auto;
+  padding-top: var(--sp-4);
 }
 
 /* W4 4C2: Chats says "New" (D's `.new`) until the open business has its first chat: the accent's soft ground. */
@@ -101,4 +107,49 @@
   font-weight: var(--weight-medium);
   line-height: var(--sp-5);
   color: var(--accent-text);
+}
+
+/* C1 task 8: from 760 to 959 px the rail folds to its icons (--rail-compact). The words stay in the page as each
+   link's name, visually hidden (never display: none), and each link has a title. Today's count sits on its icon's
+   corner. No width animation here. */
+@media (min-width: 760px) and (max-width: 959px) {
+  .rail {
+    padding-right: var(--sp-2);
+    padding-left: var(--sp-2);
+  }
+
+  .brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .logo > :last-child,
+  .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .place {
+    position: relative;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .count {
+    position: absolute;
+    top: var(--sp-1);
+    right: var(--sp-1);
+    min-width: var(--sp-4);
+    padding: 0 var(--sp-1);
+    line-height: var(--sp-4);
+  }
+
+  /* "New" is said to screen readers by its own words; the folded rail has no room to draw it. */
+  .new {
+    display: none;
+  }
 }

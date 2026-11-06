@@ -2,13 +2,14 @@
  * The notification centre (Ink v2 wave 4, 4G4; spec 5.7, catalogue O12), the sheet the bell opens: what the engine's
  * centre lists for the open business, newest first, each with its kind and time and "New" until read; the newest daily
  * digest in the engine's own words with its receipt; Mark all read; and the way to the settings. An item is a link to
- * its approval on the standalone page (`#/approve/<rowId>`, O11), where the same decision is made as on Today; following
- * it marks the item read. Alerts outside the app never carry any of this: they say a count only.
+ * its card on Today (`#/today?focus=<rowId>`, one-shot C4 task 7), where Today scrolls to it and focuses it; following
+ * it marks the item read. An ended item stays plain text. The items are grouped by the owner's day: Today and Earlier. Alerts outside the app never carry any of this: they say a count only.
  */
 
 import { useId, useState } from 'react';
 import { useT } from '../text';
 import { useOwnerZone } from './clock';
+import { useDayKey, useLocalToday } from '../parts/when';
 import { formatMoment } from '../../../../platform/runtime/owner-format';
 import { useEngine } from '../engine/context';
 import { Button } from '../parts/Button';
@@ -21,6 +22,7 @@ import type { NotificationView } from '../engine/types';
 import { useNotifyList } from './Bell';
 import type { SheetComponentProps } from './sheets';
 import s from './NotificationCentre.module.css';
+import { LoadingPlace } from '../parts/Skeleton';
 
 /** When an item came, in the owner's zone on the 12-hour clock: "21 Oct, 3:36 pm". Empty for a bad date. */
 export function whenOf(at: string, zone: string): string {
@@ -35,6 +37,8 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
   const client = useEngine();
   const list = useNotifyList();
   const digestId = useId();
+  const dayOf = useDayKey();
+  const today = useLocalToday()();
   const [problem, setProblem] = useState<string | null>(null);
   const title = t('centre.title');
   const data = list.data;
@@ -55,7 +59,7 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
     <Sheet label="" title={title} name={title} line={line} onClose={onClose} returnFocus={returnFocus}>
       <div className={s.centre} data-centre="">
         {list.error && !data && <p className={s.problem}>{t('sheet.failed', { message: list.error.message })}</p>}
-        {!data && !list.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+        {!data && !list.error && <LoadingPlace shape="sheet" />}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         {data && data.unread > 0 && (
           <div className={s.tools}>
@@ -72,11 +76,20 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
             </p>
           </section>
         )}
-        {data && data.items.length > 0 && (
-          <ul className={s.items} aria-label={title}>
-            {data.items.map((item) => <Item key={item.id} item={item} zone={zone} onFollow={() => { if (!item.read) void read({ ids: [item.id] }); }} />)}
-          </ul>
-        )}
+        {data && data.items.length > 0 && (['today', 'earlier'] as const).map((group) => {
+          // C4 task 7: by the owner's day, newest first within each group as the engine lists them.
+          const items = data.items.filter((item) => (dayOf(item.at) === today) === (group === 'today'));
+          if (items.length === 0) return null;
+          const name = t(group === 'today' ? 'centre.today' : 'centre.earlier');
+          return (
+            <section key={group} className={s.group} aria-label={name}>
+              <h3 className={s.heading}>{name}</h3>
+              <ul className={s.items} aria-label={name}>
+                {items.map((item) => <Item key={item.id} item={item} zone={zone} onFollow={() => { if (!item.read) void read({ ids: [item.id] }); }} />)}
+              </ul>
+            </section>
+          );
+        })}
         {data && data.items.length === 0 && <EmptyState title={t('centre.empty')} />}
         <a className={s.settings} href="#/business/notifications">{t('centre.settings')}</a>
       </div>
@@ -86,16 +99,19 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
 
 function Item({ item, zone, onFollow }: { item: NotificationView; zone: string; onFollow: () => void }) {
   const t = useT();
+  const words = (
+    <>
+      <span className={s.title}>{item.title}</span>
+      <span className={s.meta}>
+        <span data-kind="">{stateText(t, 'queue', item.kind)}</span>
+        <span aria-hidden="true" data-sep="">·</span>
+        <time dateTime={item.at}>{whenOf(item.at, zone)}</time>
+      </span>
+    </>
+  );
   return (
-    <li className={s.item} data-unread={item.read ? undefined : ''}>
-      <a className={s.link} href={`#/approve/${item.rowId}`} onClick={onFollow}>
-        <span className={s.title}>{item.title}</span>
-        <span className={s.meta}>
-          <span data-kind="">{stateText(t, 'queue', item.kind)}</span>
-          <span aria-hidden="true" data-sep="">·</span>
-          <time dateTime={item.at}>{whenOf(item.at, zone)}</time>
-        </span>
-      </a>
+    <li className={s.item} data-item="" data-unread={item.read ? undefined : ''}>
+      {item.ended ? <span className={s.link}>{words}</span> : <a className={s.link} href={`#/today?focus=${encodeURIComponent(item.rowId)}`} onClick={onFollow}>{words}</a>}
       {!item.read && <Chip className={s.fresh}>{t('centre.new')}</Chip>}
     </li>
   );

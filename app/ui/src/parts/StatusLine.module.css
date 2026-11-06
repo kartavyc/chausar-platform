@@ -23,6 +23,7 @@
 }
 
 .line[data-state='unpaired'],
+.line[data-state='reconnecting'],
 .line[data-state='starting'] {
   background: var(--wait-soft);
   color: var(--wait);

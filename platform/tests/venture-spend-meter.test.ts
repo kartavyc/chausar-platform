@@ -96,6 +96,23 @@ test('limit reached: only a key at its own monthly limit offers connecting anoth
   assert.equal(env.sent.length, 0);
 });
 
+// D3 fix (review 1, item 3): a held call (cache tokens reported with no saved cache rate: its recorded cost is null
+// beside its usage) counts toward its key's own monthly limit at its reservation, in the view and in the port.
+test('D3 fix: a held call counts at its reservation toward its key\'s own monthly limit, in the view and the port', async () => {
+  const env = await realPortEnv();
+  await env.connect('anthropic-haiku-5-5');
+  // This key's own limit is $5.00 a month; one held call reserved all of it.
+  await ventureAction(env.deps, portOwner, 'prepare', 'seed.calls', tx => tx.put({
+    ...tx.base('venture-model-call'), purpose: 'interview', tier: 'fast', presetId: 'anthropic-haiku-5-5', status: 'completed', costMicros: null,
+    usage: { inputTokens: 1000, outputTokens: 200, cachedInputTokens: 4000 }, estimatedMaxCostMicros: '5000000',
+  } as never));
+  const view = await env.money('venture.spend.policy.get');
+  assert.deepEqual(view.keyLimits?.map((item: { presetId: string }) => item.presetId), ['anthropic-haiku-5-5'], 'the view counts the reservation');
+  const { outcome } = await env.approveTask(wordsTask('interview', { containsClientData: true }));
+  await assert.rejects(outcome, code('BUDGET_REACHED'));
+  assert.equal(env.sent.length, 0, 'the port counts it too, before anything is sent');
+});
+
 test('daily cap: through preview then approve, a call that would pass today\'s cap is refused in the claim, before it is sent; the next day starts again', async () => {
   const env = await realPortEnv();
   await env.connect('anthropic-haiku-5-5');

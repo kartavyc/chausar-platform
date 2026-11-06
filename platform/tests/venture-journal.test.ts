@@ -426,7 +426,7 @@ test('static: the journal files throw only declared codes, keep the house style,
   const folder = new URL('../runtime/venture/journal/', import.meta.url);
   const files = (await readdir(folder)).filter(name => name.endsWith('.ts'));
   // Ink v2 wave 4 (4J1): the decision record and the system-line grammar. 4J10: the chain, signatures, end states, extras.
-  assert.deepEqual(files.sort(), ['action-extras.ts', 'chain.ts', 'decisions.ts', 'end-states.ts', 'index.ts', 'journal.ts', 'list.ts', 'seal-json.ts', 'signing.ts', 'simulation.ts', 'system-lines.ts', 'tokens.ts']);
+  assert.deepEqual(files.sort(), ['action-extras.ts', 'backup-labels.ts', 'chain.ts', 'decisions.ts', 'end-states.ts', 'index.ts', 'journal.ts', 'list.ts', 'seal-json.ts', 'signing.ts', 'simulation.ts', 'system-lines.ts', 'tokens.ts']);
   let all = '';
   for (const file of files) {
     const source = await readFile(new URL(file, folder), 'utf8');

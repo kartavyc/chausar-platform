@@ -21,6 +21,7 @@ import { flagshipDelivery } from '../playbooks/steps.ts';
 import { roleOfStep } from '../agents/roles.ts';
 import { deliverableWords } from './judge/claim-check.ts';
 import { currentPlaybook } from './playbook.ts';
+import { liveSignals } from './check-signals.ts';
 
 export type Expectation = CorrectionExpectation;
 
@@ -111,8 +112,10 @@ function requiredOf(state: State, ventureId: string): string[] {
 export function correctionCases(state: State, ventureId: string): RegressionCase[] {
   const required = requiredOf(state, ventureId);
   const cases: RegressionCase[] = [];
-  for (const signal of listRecords(state, 'venture-signal', ventureId)) {
+  for (const signal of liveSignals(state, ventureId)) {
     if (signal.source !== 'owner-edited' && signal.source !== 'owner-rejected') continue;
+    // C5 task 9: a draft rejected as not needed was not wrong, so it is no rehearsal case.
+    if (signal.reason === 'not-needed') continue;
     const run = findRecord(state, 'venture-delivery-run', signal.runId);
     if (!run) continue;
     const edited = signal.source === 'owner-edited' ? run.editedText : null;

@@ -95,12 +95,13 @@ export class Browser {
     await this.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   }
 
-  async theme(dark) {
-    await this.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] });
+  /** reduce: the computer asks for reduced motion too (one-shot C3, the walk's --motion=reduce). */
+  async theme(dark, reduce = false) {
+    await this.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, ...(reduce ? [{ name: 'prefers-reduced-motion', value: 'reduce' }] : [])] });
   }
 
   /** The computer's languages as the page reads them (navigator.languages, Accept-Language), for pages loaded after
-   *  this: the app picks Hindi from them itself (main.tsx, pickLanguage), as it would on a computer set to Hindi. */
+   *  this. The app never picks a language from them (C5 task 36): the owner does, in Settings or on Welcome back. */
   async languages(list) {
     if (!this.userAgent) this.userAgent = (await this.send('Browser.getVersion')).userAgent;
     await this.send('Emulation.setUserAgentOverride', { userAgent: this.userAgent, acceptLanguage: list });

@@ -6,8 +6,11 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { TileSection, messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './VoiceView.module.css';
+import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The six sections, in the engine's order (agents/voice.ts VOICE_SECTIONS). */
 const SECTIONS: readonly (keyof VoiceSections)[] = ['audience', 'howITalk', 'neverUse', 'wordsIUse', 'willNotClaim', 'format'];
@@ -52,7 +55,7 @@ export function VoiceView() {
   }
 
   if (view.error) return <p className={b.problem} role="alert">{messageOf(view.error)}</p>;
-  if (!data) return <p className={b.note}>{t('business.loading')}</p>;
+  if (!data) return <LoadingPlace shape="settings" />;
   const inUse = new Set(data.voices.map(keyOf));
   const fresh = added.filter((voice) => !inUse.has(keyOf(voice)));
 
@@ -168,8 +171,7 @@ function VoiceTile({ voice, said, onSet }: { voice: Voice; said: string | null; 
           />
         ))}
       </div>
-      {problem && <p className={b.problem} role="alert">{problem}</p>}
-      {said && <p className={b.said} role="status">{said}</p>}
+      <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said}</ResultLine>
       {asking ? <SecondAsk busy={busy} onYes={() => void yes()} onNo={() => setAsking(null)} /> : (
         <div className={s.buttons}>
           {voice.undo && (
@@ -213,16 +215,16 @@ function AddVoice({ taken, onAdd }: { taken: ReadonlySet<string>; onAdd: (voice:
       <div className={s.pickers}>
         <div className={s.picker}>
           <label className={s.label} htmlFor={`${id}-language`}>{t('business.voice.language')}</label>
-          <select id={`${id}-language`} className={s.select} value={language} onChange={(event) => setLanguage(event.currentTarget.value as 'en' | 'hi')}>
+          <Select id={`${id}-language`} className={s.select} value={language} onChange={(event) => setLanguage(event.currentTarget.value as 'en' | 'hi')}>
             {LANGUAGES.map((one) => <option key={one} value={one}>{t(`business.voice.language.${one}`)}</option>)}
-          </select>
+          </Select>
         </div>
         <div className={s.picker}>
           <label className={s.label} htmlFor={`${id}-channel`}>{t('business.voice.channel')}</label>
-          <select id={`${id}-channel`} className={s.select} value={channel} onChange={(event) => setChannel(event.currentTarget.value)}>
+          <Select id={`${id}-channel`} className={s.select} value={channel} onChange={(event) => setChannel(event.currentTarget.value)}>
             <option value="">{t('business.voice.channel.any')}</option>
             {CHANNELS.map((one) => <option key={one} value={one}>{t(`business.voice.channel.${one}`)}</option>)}
-          </select>
+          </Select>
         </div>
       </div>
       {exists && <p className={b.note}>{t('business.voice.exists')}</p>}
@@ -240,7 +242,6 @@ function LearnTile({ draft, line, onLearned, onSet }: {
   const t = useT();
   const engine = useEngine();
   const name = useVoiceName();
-  const noteId = useId();
   const [texts, setTexts] = useState<string[]>(() => Array.from({ length: MIN_TEXTS }, () => ''));
   const [asking, setAsking] = useState<VoiceInput | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -297,15 +298,12 @@ function LearnTile({ draft, line, onLearned, onSet }: {
           size="sm"
           variant={draft ? 'secondary' : 'primary'}
           disabled={busy}
-          locked={filled < MIN_TEXTS}
-          lockedReason={t('business.voice.needTexts')}
-          lockedNoteId={filled < MIN_TEXTS ? noteId : undefined}
+          disabledReason={filled < MIN_TEXTS ? t('business.voice.needTexts') : undefined}
           onClick={() => void learn()}
         >
           {t('business.voice.learnButton')}
         </Button>
       </div>
-      {filled < MIN_TEXTS && <p id={noteId} className={b.note}>{t('business.voice.needTexts')}</p>}
       {problem && <p className={b.problem} role="alert">{problem}</p>}
       {draft && (
         <section className={s.draft} aria-label={t('business.voice.draft')}>

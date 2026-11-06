@@ -6,6 +6,8 @@ import { Button } from './Button';
 import { Figure } from './Figure';
 import { Field } from './Field';
 import s from './AgentProgress.module.css';
+import { Fold } from './Fold';
+import { Select } from './Select';
 
 const TOOLS:Record<string,string>={read_business:'business',read_client:'client',read_order:'order',list_files:'files',read_file:'file',calculate:'calculate',draft_document:'draft',propose_action:'propose',search_records:'search',Read:'file',Write:'write',Edit:'write',Glob:'files',Grep:'search',WebSearch:'web',WebFetch:'page'};
 
@@ -20,8 +22,7 @@ export function AgentProgress({progress,onDecide}:{progress:RunDetail['agentProg
       : <PendingStep key={progress.pendingApproval.digest} pending={progress.pendingApproval} onDecide={onDecide}/>)}
     {progress.unavailableSites && progress.unavailableSites.length>0 && <p className={s.model}>{t('run.sitesUnavailable',{sites:progress.unavailableSites.join(', ')})}</p>}
     {progress.cost && <div className={s.cost}><span>{t('question.costs')}</span>{progress.cost.state==='priced'?<Figure value={progress.cost.display} {...(progress.cost.receiptId?{receiptId:progress.cost.receiptId}:{estimate:true as const})}/>:<span>{progress.cost.display}</span>}</div>}
-    {(progress.messages.length>0 || progress.tools.length>0) && <details className={s.progress}>
-    <summary className={s.summary}>{t('run.agentUpdates')}</summary>
+    {(progress.messages.length>0 || progress.tools.length>0) && <Fold summary={t('run.agentUpdates')} className={s.progress} summaryClassName={s.summary}>
     <div className={s.stack}>
       {progress.model && <p className={s.model} data-content>{progress.model}</p>}
       {progress.tools.length>0 && <ul className={s.tools} aria-label={t('run.agentTools')}>
@@ -34,7 +35,7 @@ export function AgentProgress({progress,onDecide}:{progress:RunDetail['agentProg
         {progress.messages.map(message=><div key={message.id} data-estimate="" data-content className={s.message}><p>{message.text}</p><ModelEstimate/></div>)}
       </div>
     </div>
-  </details>}
+  </Fold>}
   </>;
 }
 
@@ -84,7 +85,7 @@ function PendingQuestion({pending,onDecide}:{pending:Pending;onDecide:Decision|u
     {Object.entries(form).map(([key,field])=>field.type==='boolean'
       ? <label key={key} className={s.field}><input type="checkbox" checked={values[key]===true} onChange={event=>setValues({...values,[key]:event.currentTarget.checked})}/><span data-content>{field.title??key}</span></label>
       : field.enum
-        ? <label key={key} className={s.field}><span data-content>{field.title??key}</span><select value={String(values[key]??'')} onChange={event=>setValues({...values,[key]:event.currentTarget.value})}><option value=""></option>{field.enum.map(option=><option key={option} value={option}>{option}</option>)}</select></label>
+        ? <label key={key} className={s.field}><span data-content>{field.title??key}</span><Select value={String(values[key]??'')} onChange={event=>setValues({...values,[key]:event.currentTarget.value})}><option value=""></option>{field.enum.map(option=><option key={option} value={option}>{option}</option>)}</Select></label>
         : <Field key={key} label={field.title??key} type={field.type==='string'?'text':'number'} value={String(values[key]??'')} onChange={event=>setValues({...values,[key]:event.currentTarget.value})}/>)}
     <ModelEstimate/>
     {error && <p role="alert">{error}</p>}

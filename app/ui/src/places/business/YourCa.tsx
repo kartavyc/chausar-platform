@@ -10,6 +10,8 @@ import { Receipt } from '../../parts/Receipt';
 import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Your CA (venture.ca.*), for a business on the CA firm playbook, as tiles: the CA of record (initials drawn here,
@@ -25,7 +27,7 @@ export function YourCa() {
 
   if (venture.data !== undefined && venture.data?.playbook?.id !== 'ca-firm') return <p className={s.note}>{t('business.ca.notFirm')}</p>;
   if (ca.error) return <p className={s.problem} role="alert">{t('business.failed', { message: ca.error.message })}</p>;
-  if (!ca.data) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!ca.data) return <LoadingPlace shape="settings" />;
   const { ca: of, pendingRates, requests, latestPapers } = ca.data;
   return (
     <div className={s.page}>
@@ -267,12 +269,11 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
                 <span className={s.stepWho}>{t('business.ca.version', { version: rate.version })} · {validity(rate, t, zone)}</span>
                 {/* Where each table comes from, one fold away (simple first: rate tables' detail is for the CA). */}
                 {rate.citations.length > 0 && (
-                  <details className={s.fold}>
-                    <summary>{t('business.ca.sources')}</summary>
+                  <Fold summary={t('business.ca.sources')} className={s.fold}>
                     <ul className={s.plain}>
                       {rate.citations.map((citation) => <li key={citation}>{citation}</li>)}
                     </ul>
-                  </details>
+                  </Fold>
                 )}
               </li>
             ))}

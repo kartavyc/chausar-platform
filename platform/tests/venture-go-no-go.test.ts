@@ -97,3 +97,65 @@ test('each card is stored and listed, newest first; inputs are checked before an
   await assert.rejects(card(env, { playbook: 'general', subject: 'x', inputs: INPUTS, extra: true }), code('INVALID_VENTURE_REQUEST'));
   assert.equal(listRecords(env.store.read(), 'venture-go-no-go').length, 2, 'a refused card stores nothing');
 });
+
+// One-shot C4 task 25 (114.x1, 114.x2): how the number was reached, and Remove.
+const remove = (env: Env, payload: unknown) => (playbooks as Record<string, Handler>)['venture.goNoGo.remove'](env.deps, owner, payload);
+
+test('C4: the card says how the number was reached, rebuilt from the steps its receipt holds', async () => {
+  const env = await setup();
+  const made = await card(env, { playbook: 'general', subject: 'A reels pack for gyms', inputs: { upfront: '5,000', monthly: '1,000', months: '6', limit: '50000' } });
+  assert.equal(made.working, '₹5,000 to start + 6 months × ₹1,000');
+  const proof = await receipt(env, made.id);
+  assert.deepEqual(proof.figures.map(figure => figure.display).slice(0, 2), ['₹5,000', '₹1,000']);
+  // One month reads as one month; a Hold with amounts missing has no working.
+  const one = await card(env, { playbook: 'general', subject: 'One month', inputs: { upfront: '5,000', monthly: '1,000', months: '1', limit: '50000' } });
+  assert.equal(one.working, '₹5,000 to start + 1 month × ₹1,000');
+  const hold = await card(env, { playbook: 'general', subject: 'Not known yet', inputs: { upfront: '5,000', monthly: null, months: null, limit: null } });
+  assert.equal(hold.working, null);
+});
+
+test('C4: Remove takes away only that card, says so as a decision, and refuses another business\'s card', async () => {
+  const env = await setup();
+  const kept = await card(env, { playbook: 'general', subject: 'Kept idea', inputs: INPUTS });
+  const gone = await card(env, { playbook: 'general', subject: 'weekend photo shoot packs', inputs: INPUTS });
+  const answer = await remove(env, { cardId: gone.id });
+  assert.deepEqual(answer, { removed: true, line: 'You removed the card for weekend photo shoot packs.' });
+  assert.deepEqual((await list(env)).cards.map(item => item.id), [kept.id]);
+  const decisions = listRecords(env.store.read(), 'venture-decision');
+  const said = decisions.find(item => item.subject === `go-no-go:${gone.id}`)!;
+  assert.equal(said.reason, 'You removed the card for weekend photo shoot packs.');
+  assert.equal(said.action, 'remove-card');
+  // Its receipt no longer opens, and a second Remove finds nothing.
+  await assert.rejects(receipt(env, gone.id), code('RECEIPT_NOT_FOUND'));
+  await assert.rejects(remove(env, { cardId: gone.id }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(remove(env, { cardId: 'gonogo_nothing' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(remove(env, { cardId: kept.id, extra: true }), code('INVALID_VENTURE_REQUEST'));
+  // A card of another business.
+  const records = env.store.read().conversations.filter(item => item.kind === 'venture-go-no-go' && item.id === kept.id) as { ventureId: string }[];
+  await env.store.update(state => { const row = state.conversations.find(item => item.id === kept.id) as unknown as { ventureId: string }; row.ventureId = 'venture_other'; });
+  assert.equal(records.length, 1);
+  await assert.rejects(remove(env, { cardId: kept.id }), code('INVALID_VENTURE_REQUEST'));
+});
+
+// C5 task 14: "What would make it a go?" On NO-GO, code works out the months that fit and the monthly cost that fits
+// over the same months, each rebuilt on the receipt; when nothing fits it says so.
+test('NO-GO says what would make it a go: 6 months fit, or 5,000 a month; the receipt rebuilds both', async () => {
+  const env = await setup();
+  const made = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '20,000', monthly: '10,000', months: '12', limit: '80,000' } });
+  assert.equal(made.verdict, 'NO-GO');
+  assert.deepEqual(made.toGo, { line: 'It would be a go at 6 months, or at ₹5,000 a month.', months: 6, monthly: { minor: '500000', display: '₹5,000' } });
+  const proof = await receipt(env, made.id);
+  assert.equal(proof.stale, false);
+  assert.deepEqual(proof.figures.filter(figure => figure.key.startsWith('fit-')).map(figure => [figure.key, figure.amount, figure.display]), [
+    ['fit-months', '6', '6 months'], ['fit-monthly', '500000', '₹5,000'],
+  ]);
+  const rounded = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '0', monthly: '100', months: '3', limit: '100' } });
+  assert.deepEqual(rounded.toGo, { line: 'It would be a go at 1 month, or at ₹33.33 a month.', months: 1, monthly: { minor: '3333', display: '₹33.33' } });
+  const tight = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '10,000', monthly: '5,000', months: '4', limit: '12,000' } });
+  assert.deepEqual(tight.toGo, { line: 'It would be a go at ₹500 a month.', months: null, monthly: { minor: '50000', display: '₹500' } });
+  const over = await card(env, { playbook: 'general', subject: 'A studio', inputs: { upfront: '90,000', monthly: '1,000', months: '2', limit: '80,000' } });
+  assert.deepEqual(over.toGo, { line: 'Even with no monthly cost, the upfront cost is over your limit.', months: null, monthly: null });
+  assert.equal((await receipt(env, over.id)).figures.some(figure => figure.key.startsWith('fit-')), false);
+  const go = await card(env, { playbook: 'general', subject: 'A studio', inputs: INPUTS });
+  assert.equal(go.toGo, undefined);
+});

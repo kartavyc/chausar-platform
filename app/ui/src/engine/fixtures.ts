@@ -250,6 +250,8 @@ export const RUNS: RunDetail[] = [
   {
     runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', elapsed: '4 min',
     progress: { done: 3, total: 3 }, result: 'Matched 212 of 214 lines. 2 need your data.', receiptId: 'R-0412',
+    // C4 task 12: the client the run worked for, as the engine's summary carries it.
+    client: { id: 'c-mehta', name: 'Mehta Traders' },
     // 4H2 (U17): Ledgerline's main tier is its own Sonnet key (fixtures-business.ts), and the call named it.
     writtenBy: 'Written by Claude Sonnet 5.5',
     steps: [
@@ -333,7 +335,7 @@ export const AGENTS: Record<string, AgentView[]> = {
 };
 
 export const RECEIPTS: ReceiptLite[] = [
-  { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
+  { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', basis: 'Counted: invoices still open, tax included', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
   { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: '$0.72' }] },
   { id: 'R-0412', at: '2026-10-21T07:34:00.000Z', explanation: 'Bank lines matched to issued invoices by amount, date and reference.', stale: false, figures: [{ key: 'total', label: 'Lines matched', display: '212 of 214' }] },
   // W6 6G5 (D44): the sums behind the spend meter rows and a run's model receipt, as money/spend-meter.ts spentByPlan words them.
@@ -355,7 +357,7 @@ export const RECEIPTS: ReceiptLite[] = [
     figures: [{ key: 'unit', label: 'Per mention', display: '₹13,100' }, { key: 'subtotal', label: 'Two mentions', display: '₹26,200' }, { key: 'total', label: 'Total before tax', display: '₹26,200' }],
   },
   { id: 'R-0401', at: '2026-10-01T00:00:00.000Z', explanation: 'Invoices issued in October.', stale: false, figures: [{ key: 'total', label: 'Billed', display: '₹1,12,400' }] },
-  { id: 'R-0402', at: '2026-10-01T00:00:00.000Z', explanation: 'Payments recorded in October.', stale: false, figures: [{ key: 'total', label: 'Received', display: '₹86,200' }] },
+  { id: 'R-0402', at: '2026-10-01T00:00:00.000Z', explanation: 'Payments recorded in October.', basis: 'Counted: payments dated 1 to 31 Oct 2026', stale: false, figures: [{ key: 'total', label: 'Received', display: '₹86,200' }] },
   { id: 'R-0403', at: '2026-10-01T00:00:00.000Z', explanation: 'Billed less tax for October.', stale: false, figures: [{ key: 'total', label: 'Earned', display: '₹95,254.24' }] },
 ];
 

@@ -1,15 +1,58 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { openSheet, useRoute } from '../../shell/navigation';
 import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
+import { fromSections, ownerLineOf, toSections, type DraftSections } from '../../parts/draft-text';
 import type { SheetComponentProps } from '../../shell/sheets';
 import type { DraftChangeView, DraftChangesView, QueueRow } from '../../engine/types';
 import { useTodaySession } from './session';
 import { draftRunOf, undoFor } from './SendBack';
 import s from './TodayActions.module.css';
+
+/** A box tall enough for its words: it grows as they do. */
+function boxRows(text: string, least: number): number {
+  const lines = text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 72)), 0);
+  return Math.max(least, lines + 1);
+}
+
+/**
+ * One-shot C4 task 14: the draft as the owner reads it, one labelled box per section with no Markdown marks; the Markdown
+ * the engine keeps is written back on each change. The engine's own line on a template outline stays out of the boxes
+ * and in the text. With no sections the whole text is one box; a draft the simple editor could not write back is one
+ * box of its Markdown, with a line that says so.
+ */
+function DraftBoxes({ text, doc, onText, onDoc }: { text: string; doc: DraftSections | null; onText: (text: string) => void; onDoc: (doc: DraftSections) => void }) {
+  const t = useT();
+  if (!doc || (doc.title === null && doc.sections.length === 0)) {
+    const opening = doc?.opening ?? null;
+    return (
+      <>
+        {!doc && <p className={s.hint}>{t('today.edit.cantKeep')}</p>}
+        <Field
+          multiline rows={boxRows(opening ?? text, 10)} label={t('today.edit.text')} value={opening ?? text}
+          onChange={(event) => (doc ? onDoc({ ...doc, opening: event.currentTarget.value }) : onText(event.currentTarget.value))}
+        />
+      </>
+    );
+  }
+  const showOpening = doc.opening !== null && ownerLineOf(doc.opening) !== doc.opening;
+  return (
+    <>
+      {showOpening && <Field multiline rows={boxRows(doc.opening!, 2)} label={t('today.edit.opening')} value={doc.opening!} onChange={(event) => onDoc({ ...doc, opening: event.currentTarget.value })} />}
+      {doc.title !== null && <Field label={t('today.edit.titleBox')} value={doc.title} onChange={(event) => onDoc({ ...doc, title: event.currentTarget.value })} />}
+      {doc.sections.map((section, index) => (
+        <Field
+          key={index} multiline rows={boxRows(section.text, 2)} label={section.heading} value={section.text}
+          onChange={(event) => { const value = event.currentTarget.value; onDoc({ ...doc, sections: doc.sections.map((item, at) => (at === index ? { ...item, text: value } : item)) }); }}
+        />
+      ))}
+    </>
+  );
+}
 
 /**
  * W4 4J19 (O6): a draft's own text, open for the owner to edit (sheet `edit-draft:<row id>`). Save is venture.queue.edit:
@@ -23,6 +66,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const client = useEngine();
   const session = useTodaySession();
+  const route = useRoute();
   const queue = useResource('venture.queue.list', { scope: 'all' });
   // The version the owner edits: the row the sheet opened, then the engine's latest after a stale save (it may come back
   // under a new version id), kept here so a refresh of the list never loses it.
@@ -38,6 +82,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const [shown, setShown] = useState<DraftChangesView | undefined>();
   const original = run?.editedText ?? run?.renderedText ?? null;
   const [text, setText] = useState<string | null>(null);
+  const [doc, setDoc] = useState<DraftSections | null>(null);
   const [said, setSaid] = useState<{ line: string; problem?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewing, setReviewing] = useState(false);
@@ -46,14 +91,16 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   // A failed read leaves `text` null: Save stays locked and Try again reads it once more.
   const [newer, setNewer] = useState<{ text: string | null; seen: boolean } | null>(null);
 
-  useEffect(() => { if (original !== null && text === null) setText(original); }, [original, text]);
+  useEffect(() => { if (original !== null && text === null) { setText(original); setDoc(toSections(original)); } }, [original, text]);
   useEffect(() => { if (changes.data) setShown(changes.data); }, [changes.data]);
 
   const title = row?.title ?? t('today.edit.title');
+  // C4 task 13: opened from the draft on Work, the editor goes back to that draft.
+  const leave = () => { if (route.place === 'work' && runId) openSheet('draft', runId); else onClose(); };
   if (!row || !runId) {
     const missing = queue.data !== undefined;
     return (
-      <Sheet label={t('today.edit.label')} title={missing ? t('today.edit.gone') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus} />
+      <Sheet label={t('today.edit.label')} loading={!missing} title={missing ? t('today.edit.gone') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus} />
     );
   }
 
@@ -66,7 +113,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       const decision = await client.request('venture.queue.edit', { rowId: row.id, digest: row.digest, text });
       if (decision.outcome === 'done') {
         session.keep(row, decision.line, decision.receiptId, true, undoFor(client, row.id));
-        onClose();
+        leave();
         return;
       }
       setSaid({ line: decision.outcome === 'stale' ? t('approval.staleClick') : decision.line, problem: decision.outcome !== 'stale' });
@@ -169,12 +216,14 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       )}
       {text !== null && (
         <form className={s.boxForm} onSubmit={(event) => { event.preventDefault(); void save(); }}>
-          <Field multiline rows={10} label={t('today.edit.text')} value={text} onChange={(event) => setText(event.currentTarget.value)} />
+          <DraftBoxes text={text} doc={doc} onText={setText} onDoc={(next) => { setDoc(next); setText(fromSections(next)); }} />
           <p className={s.hint}>{t('today.edit.hint')}</p>
           <div className={s.boxButtons}>
-            <Button onClick={onClose}>{t('approval.cancel')}</Button>
+            <Button onClick={leave}>{t('approval.cancel')}</Button>
             <Button
-              variant="primary" type="submit" disabled={busy || !text.trim() || text === original}
+              variant="primary" type="submit" disabled={busy}
+              // B4: says why it can't be pressed; a newer version to read locks it instead, which says so itself.
+              disabledReason={newer !== null && !newer.seen ? undefined : !text.trim() ? t('today.edit.writeFirst') : text === original ? t('today.edit.changeFirst') : undefined}
               locked={newer !== null && !newer.seen} lockedReason={t('today.edit.readNewer')}
             >
               {t('today.edit.save')}

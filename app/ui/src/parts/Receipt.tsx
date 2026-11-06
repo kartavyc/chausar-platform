@@ -6,8 +6,8 @@ import s from './Receipt.module.css';
 export interface ReceiptProps {
   id: string;
   /**
-   * 4Z3: the amount this receipt proves, as the engine wrote it ("₹1,12,400"). The mark is named for it ("Receipt for
-   * ₹1,12,400"); left out, where the receipt stands for a line or a set rather than one amount, it is named "Receipt".
+   * 4Z3: the amount this receipt proves, as the engine wrote it ("₹1,12,400"). The mark is named for it ("Open receipt
+   * for ₹1,12,400"); left out, where the receipt stands for a line or a set rather than one amount, it is named "Open receipt".
    */
   amount?: string | undefined;
   onOpen?: ((id: string) => void) | undefined;
@@ -25,7 +25,7 @@ export interface ReceiptProps {
  * A receipt: a small, quiet receipt mark (the receipt icon) that opens the receipt sheet. A receipted figure is always
  * reachable this way; the UI never shows a bare amount where a receipt belongs. 4Z3 (founder, 27 Oct): the mark never
  * prints the receipt's code beside the amount (it read like accounting software); the code is shown inside the sheet
- * the mark opens, and stays on the mark as `data-receipt`. The mark's name says what it is ("Receipt for ₹1,12,400").
+ * the mark opens, and stays on the mark as `data-receipt`. The mark's name says what it does ("Open receipt for ₹1,12,400"), and its title says so to a pointer.
  */
 export function Receipt({ id, amount, onOpen, tone, source }: ReceiptProps) {
   const t = useT();
@@ -34,6 +34,7 @@ export function Receipt({ id, amount, onOpen, tone, source }: ReceiptProps) {
       type="button"
       className={s.receipt}
       aria-label={amount ? t('receipt.for', { amount }) : t('receipt.mark')}
+      title={t('receipt.mark')}
       data-receipt={id}
       data-tone={tone}
       data-receipt-source={source}

@@ -41,6 +41,13 @@
   justify-content: flex-end;
 }
 
+/* The second ask's words, over the buttons that took the first ones' place. */
+.askLine {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
 .sending {
   opacity: 0.6;
 }
@@ -224,7 +231,7 @@
   margin-top: var(--sp-3);
 }
 
-/* The second ask and the answer box open inside the card, on the inner grey. */
+/* The answer box opens inside the card, on the inner grey. */
 .confirm {
   display: grid;
   gap: var(--sp-3);
@@ -343,4 +350,16 @@
    post") puts each on a line of its own at full width rather than wrapping a label to three lines (3C). */
 .compact > .acts > button {
   min-width: fit-content;
+}
+
+/* One-shot C3 task 13: a decided card leaves over the exit time, a fade and a small slip, into its decided line. */
+[data-row][data-leaving] {
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit);
+}
+
+/* Hindi words run longer: the chip may take two lines rather than push the name off the card. */
+.kind:lang(hi) {
+  white-space: normal;
 }

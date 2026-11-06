@@ -13,11 +13,11 @@
  * in the fake, so no line carries rupees.
  */
 
-import { EngineError, type AgentView, type CliStatusView, type ModelStatusLite, type ModelTier, type RoleModelView } from './types';
+import { EngineError, type AgentView, type CliStatusView, type ModelStatusLite, type ModelTier, type PlanToolLite, type PlanViewLite, type RoleModelView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import { AGENTS } from './fixtures';
 
-export const FAKE_4H2_METHODS: readonly string[] = ['venture.models.cli.status', 'venture.models.roles'];
+export const FAKE_4H2_METHODS: readonly string[] = ['venture.models.cli.status', 'venture.models.roles', 'venture.models.plan'];
 
 /** The engine's words, word for word (CLI_STATUS_WORDS, ROLE_WORDS). */
 const HOSTED = 'The hosted app uses keys only.';
@@ -92,3 +92,27 @@ export function fakeRoles(host: W4DeskHost, p: Record<string, unknown>): { roles
   const waiting = roles.length > 0 && roles.every((role) => role.tiers.every((tier) => !tier.usable));
   return { roles, line: waiting ? `${ONE_AGENT} ${CONNECT}` : ONE_AGENT };
 }
+
+/**
+ * C7: venture.models.plan {fresh?}, as models/plan-view.ts words it. Nothing is reported at rest; Check now ({fresh:
+ * true}) reads this fake Codex's plan once (62% of the 5-hour window, 18% of the week), and the reading is kept until the
+ * page reloads. Claude Code is never asked.
+ */
+let fakePlanRead = false;
+const UNKNOWN_PLAN = (cli: 'claude-code' | 'codex', label: string): PlanToolLite => ({ cli, label, state: 'unknown', windows: [], readAt: null, source: `${label} hasn't reported its plan use yet.`, canCheck: cli === 'codex' });
+export function fakePlan(host: W4DeskHost, p: Record<string, unknown>): PlanViewLite {
+  exact(p, ['fresh']);
+  if (p.fresh !== undefined && typeof p.fresh !== 'boolean') throw invalid('Send fresh as true or false, or leave it out.');
+  if (host.hosted()) throw new EngineError('TIER_UNAVAILABLE', 'The plan meter reads the AI tools on your own computer. Open the desktop app to see it.');
+  if (p.fresh === true) fakePlanRead = true;
+  const codex: PlanToolLite = fakePlanRead ? {
+    cli: 'codex', label: 'Codex', state: 'ok', readAt: '2026-11-06T04:25:00.000Z', source: 'As Codex reported at 9:55 am.', canCheck: true,
+    windows: [
+      { kind: 'five-hour', usedPercent: 62, resetsAt: '2026-11-06T11:00:00.000Z', state: 'ok', line: '5-hour window: 62% used, resets 4:30 pm' },
+      { kind: 'week', usedPercent: 18, resetsAt: '2026-11-09T05:00:00.000Z', state: 'ok', line: 'This week: 18% used, resets Mon' },
+    ],
+  } : UNKNOWN_PLAN('codex', 'Codex');
+  return { tools: [UNKNOWN_PLAN('claude-code', 'Claude Code'), codex] };
+}
+/** Test seam: forget the fake's reading. */
+export function resetFakePlan() { fakePlanRead = false; }

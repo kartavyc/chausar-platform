@@ -17,6 +17,7 @@ import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
 import { HostedApp, SHARE_TOKEN_PATTERN, type FileRequestPageView, type SharePageView } from './app.ts';
 import { hostedConfig, type HostedConfig } from './config.ts';
+import { refuseInsideRepo } from '../data-home.ts';
 import { HostedCustody } from './custody.ts';
 import { hostedPushPort } from './notify.ts';
 import { NOT_A_TRIAL_LINE, TRIAL_OFF_LINE } from './trial.ts';
@@ -700,6 +701,8 @@ async function openDirectory(config: HostedConfig, custody: HostedCustody, conne
  */
 export async function startHosted(config: HostedConfig, print: (line: string) => void = line => console.log(line),
   connect: (options: NonNullable<HostedConfig['postgres']>) => Promise<PostgresPool> = options => openLoopbackPool(options, 'chausar-hosted')) {
+  // D3: a data folder inside the code folder is refused before anything is listed, made or opened (data-home.ts).
+  refuseInsideRepo(config.dataDirectory, { variable: 'CHAUSAR_HOSTED_DATA' });
   // Listed before anything opens, so an unbuilt Ink app stops the start with its own plain reason (UI_NOT_BUILT).
   const ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) };
   await mkdir(config.dataDirectory, { recursive: true, mode: 0o700 });

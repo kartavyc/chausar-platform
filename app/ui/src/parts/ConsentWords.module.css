@@ -10,14 +10,6 @@
   color: var(--fg2);
 }
 
-.summary {
-  cursor: pointer;
-  font-size: var(--text-read);
-  color: var(--fg2);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .text {
   margin-top: var(--sp-1);
   font-size: var(--text-read);

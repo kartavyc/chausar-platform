@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
+import { SETTINGS_HREF, settingsPage } from '../../src/shell/settings';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function start() {
   window.location.hash = '#/today';
@@ -64,7 +67,7 @@ describe('Business menu: a popover over the page', () => {
   it('Tab past its last item closes it and returns focus to the button; moving between its items keeps it open', async () => {
     start();
     const { button, menu } = await open();
-    const prices = within(menu).getByRole('link', { name: 'Prices' });
+    const prices = within(menu).getByRole('link', { name: 'Settings' });
     const last = within(menu).getByRole('link', { name: 'New business' });
     last.focus();
     fireEvent.focusOut(prices, { relatedTarget: last });
@@ -93,7 +96,7 @@ describe('Business menu: a popover over the page', () => {
     expect(button.getAttribute('aria-expanded')).toBe('true');
 
     // Shift+Tab from any later item is the browser's own.
-    const prices = within(menu).getByRole('link', { name: 'Prices' });
+    const prices = within(menu).getByRole('link', { name: 'Settings' });
     prices.focus();
     expect(fireEvent.keyDown(prices, { key: 'Tab', shiftKey: true })).toBe(true);
     expect(document.activeElement).toBe(prices);
@@ -161,5 +164,66 @@ describe('Business menu: the name while venture.get loads (4Z3)', () => {
     render(<App client={client} language="en" />);
     const rail = screen.getByRole('navigation', { name: 'Places' });
     expect(await within(rail).findByRole('button', { name: /No business open/ })).toBeTruthy();
+  });
+});
+
+describe('C1: the business menu, built from the settings list', () => {
+  it('its links are Settings, New business, Away and Invite your accountant; Settings and Away are the list\'s addresses', async () => {
+    start();
+    const { menu } = await open();
+    const links = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
+    expect(links).toEqual([['Settings', SETTINGS_HREF], ['New business', '#/onboarding'], ['Away', settingsPage('away').href], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(within(menu).queryByRole('link', { name: 'Prices' })).toBeNull();
+    expect(menu.querySelector('a[href="#/business/prices"]')).toBeNull();
+  });
+
+  it('the open business has a check, "open now" for screen readers only, and no visible "Open now"', async () => {
+    start();
+    const { menu } = await open();
+    const current = await within(menu).findByRole('button', { name: /^Lumen Studio/ });
+    expect(current.getAttribute('aria-current')).toBe('true');
+    expect(current.querySelector('svg')).toBeTruthy();
+    expect(within(current).getByText(', open now').className).toBe('sr-only');
+    expect(current.textContent).not.toContain('Open now');
+    expect(current.textContent).toContain('open now');
+  });
+
+  it('a business named after its kind shows the name once', async () => {
+    window.location.hash = '#/today';
+    const base = createFakeClient(new FakeEngine());
+    const request = base.request.bind(base);
+    const client = {
+      ...base,
+      request: (async (method: string, params?: unknown) => {
+        const answer = await request(method as never, params as never) as Record<string, unknown>;
+        if (method === 'venture.get' && answer) return { ...answer, venture: { ...(answer.venture as object), workingName: 'YouTube channel' } };
+        if (method === 'workspace.list') return { ...answer, businesses: (answer.businesses as { folder: string; name: string }[]).map((b) => (b.folder === 'lumen' ? { ...b, name: 'YouTube channel' } : b)) };
+        return answer;
+      }) as typeof base.request,
+    };
+    render(<App client={client} language="en" />);
+    const button = await within(screen.getByRole('navigation', { name: 'Places' })).findByRole('button', { name: /^YouTube channel/ });
+    expect(button.textContent!.match(/YouTube channel/g)).toHaveLength(1);
+    await act(async () => { fireEvent.click(button); });
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for YouTube channel' });
+    const current = await within(menu).findByRole('button', { name: /^YouTube channel/ });
+    expect(current.textContent!.match(/YouTube channel/g)).toHaveLength(1);
+  });
+
+  it('closes when the address changes by any route, not only its own links', async () => {
+    start();
+    await open();
+    await act(async () => { window.location.hash = '#/money'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    expect(screen.queryByRole('dialog', { name: 'Business menu for Lumen Studio' })).toBeNull();
+  });
+
+  it('the button has the full name as its title, and the menu is no wider than the rail', async () => {
+    start();
+    const { button } = await open();
+    expect(button.getAttribute('title')).toBe('Lumen Studio');
+    const css = readFileSync(join(import.meta.dirname, '../../src/shell/BusinessMenu.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const menu = /\n\.menu \{([^}]*)\}/.exec(css)![1]!;
+    expect(menu).toMatch(/width:\s*calc\(var\(--rail\) - 2 \* var\(--sp-3\)\)/);
+    expect(menu).not.toMatch(/width:\s*260px/);
   });
 });

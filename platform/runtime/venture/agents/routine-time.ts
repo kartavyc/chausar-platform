@@ -1,7 +1,8 @@
 // Existing Intl schedule arithmetic, shared exactly with browser rehearsal.
-export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string};
+export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string}|{kind:'event';source:'razorpay'|'cal-com';event:'payment'|'booking'|'booking-cancelled'}|{kind:'monthly';day:number;time:string;timeZone:string};
 type IsoTime=string;
 const MINUTE_MS=60_000,DAY_MS=24*60*MINUTE_MS;
+const iso = (ms: number) => new Date(ms).toISOString();
 const formats = new Map<string, Intl.DateTimeFormat>();
 function format(timeZone: string): Intl.DateTimeFormat {
   let found = formats.get(timeZone);
@@ -50,8 +51,8 @@ export type Occurrences = { count: number; latest: IsoTime | null; previous: Iso
 /** The schedule's occurrences in (afterMs, upToMs]. A calendar schedule looks back at most ten years. */
 export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, upToMs: number): Occurrences {
   const none: Occurrences = { count: 0, latest: null, previous: null };
-  if (upToMs <= afterMs) return none;
-  const iso = (ms: number) => new Date(ms).toISOString();
+  // C7: a trigger has no times: an event starts it (build/event-triggers.ts).
+  if (upToMs <= afterMs || schedule.kind === 'event') return none;
   if (schedule.kind === 'once') {
     const at = Date.parse(schedule.at);
     return at > afterMs && at <= upToMs ? { count: 1, latest: schedule.at, previous: null } : none;
@@ -65,6 +66,7 @@ export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, u
     return { count: last - first + 1, latest: iso(from + last * step), previous: last > first ? iso(from + (last - 1) * step) : null };
   }
   const [hour, minute] = schedule.time.split(':').map(Number);
+  if (schedule.kind === 'monthly') return monthsBetween(schedule, hour!, minute!, afterMs, upToMs);
   // Walk the local calendar day by day (never 24-hour steps, which slip across a clock change), from the day before
   // the start to the day after the end, and read each day's time where it falls.
   const first = wall(Math.max(afterMs, upToMs - 3660 * DAY_MS), schedule.timeZone);
@@ -87,18 +89,49 @@ export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, u
 
 /** The schedule's next occurrence after an instant, or null when there is none (a once that has passed). */
 export function nextOccurrence(schedule: RoutineSchedule, afterMs: number): IsoTime | null {
+  if (schedule.kind === 'event') return null;
   if (schedule.kind === 'once') return Date.parse(schedule.at) > afterMs ? schedule.at : null;
   if (schedule.kind === 'interval') {
     const from = Date.parse(schedule.from), step = schedule.everyMinutes * MINUTE_MS;
     const k = afterMs < from ? 0 : Math.floor((afterMs - from) / step) + 1;
     return new Date(from + k * step).toISOString();
   }
+  if (schedule.kind === 'monthly') {
+    // A monthly day falls within the next two months, whichever month the clock is in.
+    const found = occurrencesBetween(schedule, afterMs, afterMs + 63 * DAY_MS);
+    if (!found.count) return null;
+    const [hour, minute] = schedule.time.split(':').map(Number);
+    const start = wall(afterMs, schedule.timeZone);
+    for (let i = 0; i < 3; i += 1) {
+      const date = new Date(Date.UTC(start.y, start.m - 1 + i, schedule.day));
+      const at = instantAt(date.getUTCFullYear(), date.getUTCMonth() + 1, schedule.day, hour!, minute!, schedule.timeZone);
+      if (at > afterMs) return iso(at);
+    }
+    return null;
+  }
   return firstOf(schedule, afterMs);
 }
 
-/** The first calendar occurrence after an instant, looked for a day further at a time, for eight days. */
-function firstOf(schedule: Extract<RoutineSchedule, { kind: 'calendar' }>, afterMs: number): IsoTime | null {
-  for (let span = DAY_MS; span <= 8 * DAY_MS; span += DAY_MS) {
+/** C5 task 17: a monthly schedule's occurrences in (afterMs, upToMs], walking the local months. Day 1 to 28 exists in every month. */
+function monthsBetween(schedule: Extract<RoutineSchedule, { kind: 'monthly' }>, hour: number, minute: number, afterMs: number, upToMs: number): Occurrences {
+  const first = wall(Math.max(afterMs, upToMs - 3660 * DAY_MS), schedule.timeZone), last = wall(upToMs, schedule.timeZone);
+  const months = (last.y - first.y) * 12 + last.m - first.m;
+  const found: number[] = [];
+  let count = 0;
+  for (let i = 0; i <= months; i += 1) {
+    const date = new Date(Date.UTC(first.y, first.m - 1 + i, 1));
+    const at = instantAt(date.getUTCFullYear(), date.getUTCMonth() + 1, schedule.day, hour, minute, schedule.timeZone);
+    if (at <= afterMs || at > upToMs) continue;
+    count += 1;
+    found.push(at);
+    if (found.length > 2) found.shift();
+  }
+  return count ? { count, latest: iso(found.at(-1)!), previous: found.length > 1 ? iso(found[0]!) : null } : { count: 0, latest: null, previous: null };
+}
+/** The first calendar occurrence after an instant, looked for a day further at a time, for eight days (a month's 32). */
+function firstOf(schedule: Extract<RoutineSchedule, { kind: 'calendar' | 'monthly' }>, afterMs: number): IsoTime | null {
+  const days = schedule.kind === 'monthly' ? 32 : 8;
+  for (let span = DAY_MS; span <= days * DAY_MS; span += DAY_MS) {
     const found = occurrencesBetween(schedule, afterMs, afterMs + span);
     if (found.count) return found.count === 1 ? found.latest : found.previous;
   }

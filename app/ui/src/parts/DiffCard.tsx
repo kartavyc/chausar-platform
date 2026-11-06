@@ -39,6 +39,8 @@ export interface DiffCardProps {
   /** What the owner decided, once the engine has it. `undone`: accepted, then put back. */
   decided?: 'accepted' | 'rejected' | 'undone' | undefined;
   className?: string | undefined;
+  /** C7: an offered way of working: who offered it and after which approval. The card asks "Keep this as a way of working?". */
+  offered?: string | undefined;
 }
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -53,7 +55,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * has the decision the outcome line (a status) takes focus, so focus is never dropped to the page.
  */
 export function DiffCard({
-  agent, dept, appliesTo, lines, fromVersion, toVersion, onAccept, onReject, onUndo, busy = false, stale = false, staleLine, decided, className,
+  agent, dept, appliesTo, lines, fromVersion, toVersion, onAccept, onReject, onUndo, busy = false, stale = false, staleLine, decided, className, offered,
 }: DiffCardProps) {
   const t = useT();
   const id = useId();
@@ -110,7 +112,8 @@ export function DiffCard({
           <Icon name="file-pen" size={18} />
         </span>
         <div className={s.headText}>
-          <h3 id={id} className={s.title}>{t('diff.title', { name: agent })}</h3>
+          <h3 id={id} className={s.title}>{offered ? t('team.chat.way.title') : t('diff.title', { name: agent })}</h3>
+          {offered && <p className={s.applies} data-offered="">{offered}</p>}
           <p className={s.applies}>{appliesTo}</p>
         </div>
       </div>
@@ -146,10 +149,10 @@ export function DiffCard({
       {stale && decided === undefined && <p className={s.note} data-tone="wait">{staleLine ?? t('diff.stale')}</p>}
       {open && (
         <div className={s.actions}>
-          <Button onClick={(event) => void decide(onReject, event)} disabled={held}>{t('diff.reject')}</Button>
+          <Button onClick={(event) => void decide(onReject, event)} disabled={held}>{t(offered ? 'team.chat.way.no' : 'diff.reject')}</Button>
           <Button variant="primary" onClick={(event) => void decide(onAccept, event)} disabled={held}>
             <Icon name="check" size={16} />
-            {t('diff.accept')}
+            {t(offered ? 'team.chat.way.keep' : 'diff.accept')}
           </Button>
         </div>
       )}

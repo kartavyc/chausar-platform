@@ -11,6 +11,7 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import { copyText, performHandoff } from '../../clients/handoff';
 import { reserveTab } from '../../connections/external';
 import s from './LessonBooking.module.css';
+import { Select } from '../../../parts/Select';
 
 type SlotRow = { id: string; start: string; words: string; minutes: number; note: string; state: 'open' | 'held' | 'booked' | 'closed' };
 type MessageView = { id: string; channel: 'email' | 'whatsapp'; text: string; handedOffAt: string | null };
@@ -89,7 +90,7 @@ function Enquiry({ busy, w, save }: { busy: boolean; w: W; save: (payload: unkno
   const [client, setClient] = useState(''), [request, setRequest] = useState(''), [address, setAddress] = useState(''), [phone, setPhone] = useState('');
   return (
     <form className={s.form} onSubmit={event => { event.preventDefault(); void save({ clientId: client, request, ...(address ? { address } : {}), ...(phone ? { phone } : {}) }); }}>
-      <label className={s.label}>{w('client')}<select value={client} onChange={e => setClient(e.target.value)}><option value="">{w('choose')}</option>{(clients.data ?? []).filter(row => !row.self).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+      <label className={s.label}>{w('client')}<Select value={client} onChange={e => setClient(e.target.value)}><option value="">{w('choose')}</option>{(clients.data ?? []).filter(row => !row.self).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</Select></label>
       <label className={s.label}>{w('request')}<textarea rows={3} value={request} onChange={e => setRequest(e.target.value)} /></label>
       <label className={s.label}>{w('address')}<input value={address} onChange={e => setAddress(e.target.value)} /></label>
       <label className={s.label}>{w('phone')}<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label>
@@ -121,7 +122,7 @@ function Booking({ booking, digest, slots, busy, act, w }: { booking: BookingVie
       {booking.quote && <p className={s.row}><span>{w('quoteLabel')}</span><Figure value={booking.quote.total} receiptId={booking.quote.receiptId} /></p>}
       {live && !booking.deposit && (
         <div className={s.form}>
-          <label className={s.label}>{w('order')}<select value={order} onChange={e => setOrder(e.target.value)}><option value="">{w('choose')}</option>{(orders.data ?? []).filter(row => row.clientId === booking.clientId && row.status !== 'cancelled').map(row => <option key={row.id} value={row.id}>{row.request.slice(0, 60)}</option>)}</select></label>
+          <label className={s.label}>{w('order')}<Select value={order} onChange={e => setOrder(e.target.value)}><option value="">{w('choose')}</option>{(orders.data ?? []).filter(row => row.clientId === booking.clientId && row.status !== 'cancelled').map(row => <option key={row.id} value={row.id}>{row.request.slice(0, 60)}</option>)}</Select></label>
           <div className={s.row}><Button disabled={busy} onClick={() => void run('quote', { orderId: order })}>{w('quote')}</Button></div>
         </div>
       )}
@@ -129,7 +130,7 @@ function Booking({ booking, digest, slots, busy, act, w }: { booking: BookingVie
         ? <p className={s.row}><span>{w('heldLine', { when: booking.slot.words })}</span>{booking.status === 'held' && <Button variant="quiet" disabled={busy} onClick={() => void run('release', {})}>{w('release')}</Button>}</p>
         : live && (
           <div className={s.form}>
-            <label className={s.label}>{w('slot')}<select value={slot} onChange={e => setSlot(e.target.value)}><option value="">{w('choose')}</option>{slots.filter(row => row.state === 'open').map(row => <option key={row.id} value={row.id}>{row.words}</option>)}</select></label>
+            <label className={s.label}>{w('slot')}<Select value={slot} onChange={e => setSlot(e.target.value)}><option value="">{w('choose')}</option>{slots.filter(row => row.state === 'open').map(row => <option key={row.id} value={row.id}>{row.words}</option>)}</Select></label>
             <div className={s.row}><Button disabled={busy} onClick={() => void run('hold', { slotId: slot })}>{w('hold')}</Button></div>
           </div>
         )}
@@ -149,8 +150,8 @@ function Booking({ booking, digest, slots, busy, act, w }: { booking: BookingVie
         )}
       {live && (
         <div className={s.form}>
-          <label className={s.label}>{w('remindKind')}<select value={kind} onChange={e => setKind(e.target.value as 'appointment' | 'deposit')}><option value="appointment">{w('kind.appointment')}</option><option value="deposit">{w('kind.deposit')}</option></select></label>
-          <label className={s.label}>{w('channel')}<select value={channel} onChange={e => setChannel(e.target.value as 'email' | 'whatsapp')}><option value="whatsapp">{w('channel.whatsapp')}</option><option value="email">{w('channel.email')}</option></select></label>
+          <label className={s.label}>{w('remindKind')}<Select value={kind} onChange={e => setKind(e.target.value as 'appointment' | 'deposit')}><option value="appointment">{w('kind.appointment')}</option><option value="deposit">{w('kind.deposit')}</option></Select></label>
+          <label className={s.label}>{w('channel')}<Select value={channel} onChange={e => setChannel(e.target.value as 'email' | 'whatsapp')}><option value="whatsapp">{w('channel.whatsapp')}</option><option value="email">{w('channel.email')}</option></Select></label>
           <div className={s.row}><Button disabled={busy} onClick={() => void run('remind', { kind, channel })}>{w('remind')}</Button></div>
         </div>
       )}

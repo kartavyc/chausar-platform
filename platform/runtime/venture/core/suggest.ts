@@ -207,13 +207,19 @@ export function planChanges(blueprint: BlueprintRecord, output: SuggestOutput): 
   return { patch, changes };
 }
 
+/** D2: the repair line is fixed text; why the last answer was refused rides in the input, so the fixed prompt stays the same. */
+export const SUGGEST_REPAIR_LINE = 'Your last answer was refused for the reason given as lastAnswerRefusedBecause in the input. Answer again, following every rule.';
+export function suggestRepairTask(task: ModelTask<SuggestOutput>, problem: string): ModelTask<SuggestOutput> {
+  return { ...task, instructions: `${task.instructions} ${SUGGEST_REPAIR_LINE}`, input: { ...(task.input as Record<string, Json>), lastAnswerRefusedBecause: problem } };
+}
+
 /** One call, and one repair with the engine's own words for what was wrong; a second refusal is said plainly. */
 async function sendOnce(deps: VentureDeps, ctx: Context, task: ModelTask<SuggestOutput>): Promise<ModelOutcome<SuggestOutput>> {
   try { return await sendFileDropTask(deps.models, ctx, task); } catch (error: any) {
     if (error?.code !== REJECTED) throw error;
     const problem = typeof error.message === 'string' && error.message ? error.message : "The answer did not pass Chausar's checks.";
     try {
-      return await sendFileDropTask(deps.models, ctx, { ...task, instructions: `${task.instructions} Your last answer was refused: ${problem} Answer again, following every rule.` });
+      return await sendFileDropTask(deps.models, ctx, suggestRepairTask(task, problem));
     } catch (again: any) {
       if (again?.code === REJECTED) throw new ChausarError(REJECTED, SUGGEST_REFUSED);
       throw again;

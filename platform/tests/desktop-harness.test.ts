@@ -46,10 +46,12 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   let deep: any = {}; for (let i = 0; i < 34; i++) deep = { child: deep };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: deep }), code('INVALID_REQUEST'));
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
-  const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z]+(?:\.[a-zA-Z][a-zA-Z0-9]*)+)'/g)].map(match => match[1]);
+  const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z][a-zA-Z]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+)'/g)].map(match => match[1]);
   assert.ok(implemented.includes('jobs.calendar.configure'), 'Nested calendar methods must be included in the contract comparison.');
   assert.ok(implemented.includes('workspace.backup.v2.restoreInert'), 'Versioned archive methods must be included in the contract comparison.');
-  assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].sort(), 'Engine additions need an explicit desktop contract decision.');
+  // C5 tasks 21, 23: these two name a path, so only main asks them, after its own pick (keep-files.cjs): the decision is no.
+  const mainOnly = ['workspace.import', 'workspace.backups.copyTo'];
+  assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].filter(method => !mainOnly.includes(method)).sort(), 'Engine additions need an explicit desktop contract decision.');
 });
 
 test('headless desktop worker joins exact owner phone methods to its actual synthetic Vault', async t => {
@@ -218,4 +220,72 @@ test('sandbox bridge unwraps typed envelopes and removes only its status listene
   ipc.invoke = async () => ({ ok: false, error: { code: 'VAULT_BUSY', message: 'Wait.' } }); await assert.rejects(api.request('workspace.status'), code('VAULT_BUSY'));
   let status: any; const remove = api.onEngineStatus((value: any) => { status = value; }); ipc.emit('chausar:engine-status', {}, { healthy: false, state: 'failed', private: 'not forwarded' });
   assert.equal(status.state, 'failed'); assert.equal(status.private, undefined); assert.equal(Object.isFrozen(status), true); remove(); assert.equal(ipc.listenerCount('chausar:engine-status'), 0);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 26: each request's timing: the method, the milliseconds and the bytes, never what was asked or answered.
+// ---------------------------------------------------------------------------
+
+test('C5 task 26: a request writes one timing line holding no payload text', async t => {
+  const { mkdtemp: makeFolder, realpath } = await import('node:fs/promises');
+  const { createRequire } = await import('node:module');
+  const { createDiagnostics } = createRequire(import.meta.url)('../../app/desktop/diagnostics.cjs');
+  const folder = await makeFolder(join(await realpath(tmpdir()), 'chausar-rpc-c5-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const log = createDiagnostics({ folder });
+  const context = setup({ onTiming: (line: unknown) => { void log.line('rpc.jsonl', line); } });
+  await ready(context);
+  const asked = context.harness.request('sources.preview', { content: 'secret-marker in the request' });
+  const { id } = context.child.sent.at(-1);
+  context.child.emit('message', { id, result: { text: 'secret-marker in the answer' } });
+  assert.deepEqual(await asked, { text: 'secret-marker in the answer' });
+  const refused = context.harness.request('sources.preview', { content: 'secret-marker again' });
+  context.child.emit('message', { id: context.child.sent.at(-1).id, error: { code: 'NOT_ALLOWED', message: 'secret-marker in the words' } });
+  await assert.rejects(refused, code('NOT_ALLOWED'));
+  await log.flushed();
+  const text = await readFile(join(folder, 'rpc.jsonl'), 'utf8');
+  assert.equal(text.includes('secret-marker'), false);
+  const lines = text.trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(lines.length, 2);
+  const { at: _a, ms: first, ...rest } = lines[0];
+  assert.ok(Number.isInteger(first) && first >= 0);
+  assert.deepEqual(rest, { method: 'sources.preview', requestBytes: Buffer.byteLength(JSON.stringify({ content: 'secret-marker in the request' })), answerBytes: Buffer.byteLength(JSON.stringify({ text: 'secret-marker in the answer' })), ok: true });
+  assert.equal(lines[1].ok, false);
+  assert.equal(lines[1].code, 'NOT_ALLOWED');
+  assert.equal(lines[1].answerBytes, 0);
+});
+
+test('C5 task 26: the host hooks write no timing line, and a broken timing writer changes nothing', async () => {
+  const seen: unknown[] = [];
+  const context = setup({ onTiming: (line: unknown) => { seen.push(line); throw new Error('no disk'); } });
+  await ready(context);
+  const lifecycle = context.harness.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  context.child.emit('message', { id: context.child.sent.at(-1).id, kind: 'host-lifecycle', applied: true, result: { applied: true } });
+  await lifecycle;
+  assert.deepEqual(seen, []);
+  const asked = context.harness.request('workspace.status');
+  context.child.emit('message', { id: context.child.sent.at(-1).id, result: { open: false } });
+  assert.deepEqual(await asked, { open: false });
+  assert.equal(seen.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 29: a dead worker fails what was pending; nothing is kept to send to the next one.
+// ---------------------------------------------------------------------------
+
+test('C5 task 29: a pending approval fails when the worker dies, and a harness said to be reconnecting refuses in plain words', async () => {
+  const context = setup({ requestTimeoutMs: 1000 });
+  await ready(context);
+  const statuses: unknown[] = [];
+  context.harness.on('status', (status: unknown) => statuses.push(status));
+  const approval = context.harness.request('venture.queue.decide', { id: 'x', decision: 'approve' });
+  const sent = context.child.sent.length;
+  context.child.connected = false;
+  context.child.emit('exit', 1, null);
+  await assert.rejects(approval, code('ENGINE_EXITED'));
+  assert.equal(context.child.sent.length, sent, 'not sent again');
+  context.harness.reconnecting();
+  assert.equal(context.harness.state, 'reconnecting');
+  assert.deepEqual(statuses.at(-1), { state: 'reconnecting', healthy: false });
+  await assert.rejects(context.harness.request('workspace.status'), (error: any) => error.code === 'ENGINE_UNAVAILABLE' && /reconnecting/i.test(error.message));
 });

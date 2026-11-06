@@ -31,9 +31,57 @@
 }
 
 .input:focus-visible {
-  border-color: var(--fg);
   outline: var(--focus) solid var(--link);
-  outline-offset: 1px;
+  outline-offset: 0;
+}
+
+/* A single line stops at a sensible width; a text area keeps the column. */
+[data-single] .input {
+  max-width: var(--field-max);
+}
+
+/* A mark inside the box, or a date's word while it is empty: the box only holds them in place. */
+.box {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-width: 0;
+}
+
+.adornment {
+  position: absolute;
+  inset-inline-start: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--mute);
+  pointer-events: none;
+}
+
+[data-adorned] > .input {
+  padding-inline-start: calc(var(--sp-3) + var(--sp-8));
+}
+
+.input[type='date'] {
+  font-family: var(--font);
+}
+
+.input[type='date']::-webkit-datetime-edit {
+  font-family: var(--font);
+}
+
+[data-date-empty] > .input:not(:focus)::-webkit-datetime-edit {
+  color: transparent;
+}
+
+.dateWord {
+  position: absolute;
+  inset-inline-start: var(--sp-3);
+  font-size: var(--text-body);
+  color: var(--mute);
+  pointer-events: none;
+}
+
+.input:focus + .dateWord {
+  visibility: hidden;
 }
 
 .input[aria-invalid='true'] {

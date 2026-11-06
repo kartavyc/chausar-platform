@@ -54,8 +54,8 @@
   transition: border-color var(--t-press) var(--ease);
 }
 
-.box:focus-within {
-  border-color: var(--fg);
+.box:has(.text:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .text {
@@ -92,13 +92,6 @@
   border-radius: var(--r-button);
 }
 
-.error {
-  font-size: var(--text-read);
-  line-height: 1.4;
-  color: var(--fail);
-  overflow-wrap: anywhere;
-}
-
 .hint {
   display: flex;
   align-items: center;
@@ -107,4 +100,22 @@
   line-height: 1.4;
   color: var(--mute);
   overflow-wrap: anywhere;
+}
+
+/* C5 task 8: an app idea with its preview line under it; plain text, no box. */
+.idea {
+  display: block;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-read);
+  text-align: start;
+  cursor: pointer;
+}
+
+.ideaPreview {
+  display: block;
+  color: var(--mute);
 }

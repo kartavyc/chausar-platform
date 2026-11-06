@@ -1,0 +1,15 @@
+.qr {
+  inline-size: calc(var(--sp-12) * 4);
+  block-size: calc(var(--sp-12) * 4);
+  padding: var(--sp-2);
+  border-radius: var(--r-card);
+  background: var(--qr-light);
+}
+
+.qrLight {
+  fill: var(--qr-light);
+}
+
+.qrDark {
+  fill: var(--qr-dark);
+}

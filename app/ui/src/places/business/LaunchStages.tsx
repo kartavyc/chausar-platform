@@ -5,6 +5,7 @@ import { Button } from '../../parts/Button';
 import type { LaunchStatusView, VentureRunEvent } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Business > Practice: the launch stage (wave 6, 6C4 / D19). Two stages only, Practice and Live (you approve each), as
@@ -22,6 +23,8 @@ export function LaunchStages() {
   const [phase, setPhase] = useState<'idle' | 'ask' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const [view, setView] = useState<LaunchStatusView | null>(null);
+  // C4 task 17: right after going live, one line and an Undo (back to Practice is allowed any time, delivery/launch.ts).
+  const [justLive, setJustLive] = useState(false);
   const reasonId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (phase === 'ask') cancelRef.current?.focus(); }, [phase]);
@@ -32,6 +35,7 @@ export function LaunchStages() {
     setProblem(null);
     try {
       setView(await client.request('venture.launch.advance', { to }));
+      setJustLive(to === 'live');
     } catch (error) {
       setProblem(t('business.launch.failed', { message: messageOf(error) }));
     } finally {
@@ -46,7 +50,7 @@ export function LaunchStages() {
   return (
     <TileSection title={t('business.launch')}>
       {status.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: status.error.message })}</p>}
-      {!data && !status.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!data && !status.error && <LoadingPlace shape="settings" />}
       {data && (
         <>
           <ul className={s.steps}>
@@ -60,6 +64,12 @@ export function LaunchStages() {
           {data.stage === 'practice' && live && !live.allowed
             ? <p className={s.note} id={reasonId}>{live.reason}</p>
             : current && <p className={s.line}>{current.reason}</p>}
+          {justLive && data.stage === 'live' && (
+            <p className={s.line} role="status" data-live-line="">
+              {t('business.launch.liveLine')}{' '}
+              <Button variant="quiet" size="sm" disabled={phase !== 'idle'} onClick={() => void move('practice')}>{t('business.launch.undo')}</Button>
+            </p>
+          )}
           {phase === 'ask' ? (
             <div className={s.foldBody} data-second-ask="">
               <p className={s.line}>{t('business.launch.ask')}</p>

@@ -12,14 +12,18 @@
 // venture.team.clearQuarantine lets the owner clear a quarantined agent, or the team ('team'), with the health digest
 // they saw; this file installs the quarantine check delivery runs before work moves on (delivery/quarantine-gate.ts).
 // Keeper has no steps or posture to change. The team's flagship comes from views/team-shape.ts, shared with Money.
+import { hiredRecord, hiredRecords } from '../agents/hire-store.ts';
+import { HIRE_POSTURE_LINE } from '../agents/hired-facts.ts';
+import { formatDay, ownerZone } from '../../owner-format.ts';
+import { isRetired } from '../agents/retired.ts';
 import { formatUsd } from '../../owner-format.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
 import type { AgentHealth, AgentPostureRecord, AgentView, HealthClearRecord, PlaybookStep, Posture, TeamGateRecord, TeamListView, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
-import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
+import { effectivePosture, stepFloorReason } from '../policy/context.ts';
 import { POSTURES, postureOfStage, postureRank, stepGate } from '../policy/posture.ts';
-import { ESTIMATE_WORDS } from '../models/cost.ts';
+import { ESTIMATE_WORDS, recordedCallMicros } from '../models/cost.ts';
 import { departmentOfMember, teamLedger, type TeamLedger } from '../money/department-spend.ts';
 import { installQuarantineCheck } from '../delivery/quarantine-gate.ts';
 import { deliveryRunDetails } from './runs.ts';
@@ -30,6 +34,7 @@ import { departmentViews } from './team-series.ts';
 import { teamFlagship } from './team-shape.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { introductions } from '../agents/intro.ts';
 import { AGENT_ID, AGENT_PURPOSES, agentName, clientNameFor, lastEventAt, plain } from './shared.ts';
 import { pausedNow } from '../delivery/run-guards.ts';
 import { aiWaitLine } from '../models/roles.ts';
@@ -46,7 +51,6 @@ function aiWaitFor(deps: VentureDeps, ctx: Context): string | null {
 }
 
 const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
-export const FLOOR_WORDS = STEP_FLOOR_WORDS;
 const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 
@@ -75,10 +79,11 @@ function knownAgent(flagship: FlagshipDelivery | null, steps: readonly PlaybookS
 }
 
 function spendOf(state: State, venture: VentureRecord): string {
-  const calls = state.conversations.filter((record: any) => record?.kind === 'venture-model-call' && record.ventureId === venture.id
-    && AGENT_PURPOSES.includes(record.purpose) && typeof record.costMicros === 'string' && /^\d{1,30}$/.test(record.costMicros)) as { costMicros: string; priceConfirmed?: unknown }[];
-  const total = formatUsd(sumMicros(calls.map(call => call.costMicros)));
-  return calls.some(call => call.priceConfirmed === false) ? `${total}${ESTIMATE_WORDS}` : total;
+  // D3 fix: a held call (its cost null beside reported usage) counts at its reservation, and the total is an estimate.
+  const calls = (state.conversations as any[]).filter(record => record?.kind === 'venture-model-call' && record.ventureId === venture.id && AGENT_PURPOSES.includes(record.purpose))
+    .flatMap(record => { const micros = recordedCallMicros(record); return micros === null ? [] : [{ micros, estimate: record.priceConfirmed === false || record.costMicros === null }]; });
+  const total = formatUsd(sumMicros(calls.map(call => call.micros)));
+  return calls.some(call => call.estimate) ? `${total}${ESTIMATE_WORDS}` : total;
 }
 
 /**
@@ -86,6 +91,15 @@ function spendOf(state: State, venture: VentureRecord): string {
  * agent or code step (playbooks/steps.ts), each with its own steps. One harness agent runs every role's steps, so
  * the gates, the posture and the spend are the team's: stored and read under AGENT_ID, as the policy reads them.
  */
+/** C7: a hired agent as Team shows it: its department, the day it was hired, its duties and reads, always approve each. */
+function hiredAgentViews(state: State, venture: VentureRecord, now: string): AgentView[] {
+  const zone = ownerZone(venture.country?.code, 'UTC');
+  return hiredRecords(state, venture.id).filter(hired => hired.role && !isRetired(state, venture.id, hired.id)).map(hired => ({
+    id: hired.id, name: hired.role!.name, role: hired.role!.job, now, posture: 'approve-each' as Posture, spend: '', steps: [], department: hired.department, kind: 'agent' as const, state: 'idle' as const, postureSetBy: 'agent' as const, chat: true,
+    hired: { line: `Hired by you on ${formatDay(hired.hiredAt ?? hired.at, zone, 'short')}`, duties: [...hired.role!.duties], reads: hired.reads.map(item => ({ ...item })) },
+  }));
+}
+
 function agentViews(deps: VentureDeps, state: State, venture: VentureRecord, ledger: TeamLedger = teamLedger(state, venture), aiWait: string | null = null): AgentView[] {
   return teamNow(deps, state, venture, ledger, aiWait).agents;
 }
@@ -139,8 +153,10 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
   });
   const keeper = keeperAgent(state, venture, posture);
   const teamHealth = teamHealthOf(known);
+  // C7: the agents the owner hired, after the playbook's: chat, routines and trackers only, always approve each.
+  const hiredNow = hiredAgentViews(state, venture, pausedNow(state, venture.id) ? 'Paused' : aiWait ?? 'Idle');
   if (!flagship) {
-    return { agents: [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView), ...facts(members[0]) }), keeper], teamHealth };
+    return { agents: [plain({ id: AGENT_ID, name: agentName(state, venture), role: ROLE, now: nowFor(() => true), posture, spend: spendOf(state, venture), ...last, steps: steps.map(stepView), ...facts(members[0]) }), ...hiredNow, keeper], teamHealth };
   }
   const spend = `${spendOf(state, venture)} for the whole team`;
   const drafter = holder(flagship.draftStep(null));
@@ -154,7 +170,7 @@ function teamNow(deps: VentureDeps, state: State, venture: VentureRecord, ledger
     });
   }), flagship, () => roleSpend(ledger), spendOf(state, venture).endsWith(ESTIMATE_WORDS) ? ESTIMATE_WORDS : '');
   return {
-    agents: [...nested, keeper],
+    agents: [...nested, ...hiredNow, keeper],
     teamHealth,
   };
 }
@@ -175,7 +191,9 @@ export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: 
   const { agents, teamHealth } = teamNow(deps, state, venture, ledger, aiWaitFor(deps, ctx));
   // W6 6G2: the Retired shelf, sent only when someone is on it.
   const shelf = retiredShelf(state, venture.id, ledger.flagship);
-  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}) };
+  // C5 task 1: the agents this member has not met yet, with their code-written lines.
+  const introduce = introductions(state, venture.id, ctx.memberId, agents);
+  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}), introduce };
 }
 
 /**
@@ -249,6 +267,8 @@ export async function teamPostureHandler(deps: VentureDeps, ctx: Context, payloa
   check(typeof body.posture === 'string' && (POSTURES as readonly string[]).includes(body.posture), 'INVALID_VENTURE_REQUEST',
     'Choose practice, practice on real orders, approve each or spot checks.');
   check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', KEEPER_IS_CODE);
+  // C7: a hired agent's posture is always approve each, and no setting loosens it.
+  { const { venture: current, state: now } = { venture: currentVenture(deps.store.read()), state: deps.store.read() }; check(!(current && hiredRecord(now, current.id, agentId)), 'HIRE_POSTURE_FIXED', HIRE_POSTURE_LINE); }
   const posture = body.posture as Posture;
   autoLocked(posture); // 4J15: auto with spot checks is built but locked (policy/auto-lock.ts), whatever readiness says.
   await ventureAction(deps, ctx, 'approve', 'team.posture', tx => {

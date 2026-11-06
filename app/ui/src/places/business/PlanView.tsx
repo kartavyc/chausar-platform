@@ -16,6 +16,9 @@ import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -34,7 +37,7 @@ export function PlanView() {
   const [changing, setChanging] = useState(false);
 
   if (plan.error) return <p className={s.problem} role="alert">{t('business.failed', { message: plan.error.message })}</p>;
-  if (plan.data === undefined) return <p className={s.note}>{t('business.loading')}</p>;
+  if (plan.data === undefined) return <LoadingPlace shape="settings" />;
   if (plan.data === null) {
     return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
   }
@@ -86,12 +89,11 @@ export function PlanView() {
                   </li>
                 ))}
               </ol>
-              <details className={s.fold}>
-                <summary>{t('business.stepsMore')}</summary>
+              <Fold summary={t('business.stepsMore')} className={s.fold}>
                 <div className={s.foldBody}>
                   {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {step.note}</p>)}
                 </div>
-              </details>
+              </Fold>
             </>
           )}
         </TileSection>
@@ -150,8 +152,7 @@ function Checklist({ items }: { items: ChecklistItemLite[] }) {
           </ul>
         </>
       )}
-      <details className={s.fold}>
-        <summary>{t('business.owner.allSteps', { count: String(items.length) })}</summary>
+      <Fold summary={t('business.owner.allSteps', { count: String(items.length) })} className={s.fold}>
         <ul className={cx(s.foldBody, s.list)}>
           {items.map((item) => (
             <li key={item.id} className={cx(s.line, s.checkItem)}>
@@ -160,7 +161,7 @@ function Checklist({ items }: { items: ChecklistItemLite[] }) {
             </li>
           ))}
         </ul>
-      </details>
+      </Fold>
     </>
   );
 }
@@ -176,15 +177,14 @@ function BackOffice({ plan }: { plan: BlueprintLite }) {
     <TileSection title={t('business.backOffice')}>
       <p className={s.line}>{t('business.invoicesIn', { currency: office.currency })}</p>
       {office.taxRegistered.value && (
-        <details className={s.fold}>
-          <summary>{t('business.taxDetails')}</summary>
+        <Fold summary={t('business.taxDetails')} className={s.fold}>
           <div className={s.foldBody}>
             <p className={s.line} data-tax-line="">{t('business.taxRegisteredLine', { tax: office.taxLabel })}<LabelTag line={office.taxRegistered} /></p>
             {office.taxInvoiceMissing.length > 0 && (
               <p className={s.note} data-tax-line="">{t('business.taxMissing', { list: office.taxInvoiceMissing.join(', ') })}</p>
             )}
           </div>
-        </details>
+        </Fold>
       )}
     </TileSection>
   );
@@ -247,6 +247,9 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
   const [name, setName] = useState(plan.name.value);
   const [oneLiner, setOneLiner] = useState(plan.oneLiner.value);
   const [customer, setCustomer] = useState(plan.customer.value);
+  /** C4 task 1: offers the owner added that are marked to take out, and a new offer's name. */
+  const [takeOut, setTakeOut] = useState<readonly string[]>([]);
+  const [newOffer, setNewOffer] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -257,11 +260,16 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
     if (name.trim() && name.trim() !== plan.name.value) patch.name = name.trim();
     if (oneLiner.trim() && oneLiner.trim() !== plan.oneLiner.value) patch.oneLiner = oneLiner.trim();
     if (customer.trim() && customer.trim() !== plan.customer.value) patch.customer = customer.trim();
-    if (Object.keys(patch).length === 0) { setProblem(t('business.nothingChanged')); return; }
+    // C4 task 1: a new offer has no price yet (Set your prices names it); its one line is its name until the owner writes one.
+    const adding = newOffer.trim();
+    if (adding.length >= 2) patch.addOffer = { name: adding, description: adding, pricingModel: 'project' };
+    if (Object.keys(patch).length === 0 && takeOut.length === 0) { setProblem(t('business.nothingChanged')); return; }
     setBusy(true);
     setProblem(null);
     try {
-      await client.request('venture.blueprint.update', { patch });
+      // The engine takes out one offer per change: each one first, then the rest of the change.
+      for (const id of takeOut) await client.request('venture.blueprint.update', { patch: { removeOffer: { id } } });
+      if (Object.keys(patch).length > 0) await client.request('venture.blueprint.update', { patch });
       await quoteAgain(client);
       onDone();
     } catch (error) {
@@ -272,16 +280,30 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
 
   return (
     <form className={s.form} onSubmit={(event) => void save(event)}>
-      <div className={fields.field}>
-        <label className={fields.label} htmlFor={countryId}>{t('business.country')}</label>
-        <select className={fields.input} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} aria-describedby={countryCode !== initialCountry ? countryId + '-warning' : undefined}>
+      <Select label={t('business.country')} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} hint={countryCode !== initialCountry ? t('business.countryChange') : undefined}>
           {(countries.data ?? []).map(country => <option key={country.code} value={country.code}>{country.name}</option>)}
-        </select>
-        {countryCode !== initialCountry && <p id={countryId + '-warning'} className={fields.hint}>{t('business.countryChange')}</p>}
-      </div>
+      </Select>
       <Field label={t('business.fieldName')} value={name} maxLength={60} onChange={(event) => setName(event.currentTarget.value)} />
       <Field label={t('business.fieldOneLiner')} value={oneLiner} maxLength={160} onChange={(event) => setOneLiner(event.currentTarget.value)} />
       <Field multiline label={t('business.fieldCustomer')} value={customer} maxLength={200} rows={2} onChange={(event) => setCustomer(event.currentTarget.value)} />
+      {/* C4 task 1: the offers; one the owner added can be taken out (the plan's own stay), and a new one added. */}
+      <fieldset className={fields.field}>
+        <legend className={fields.label}>{t('business.offers')}</legend>
+        <ul className={s.checks}>
+          {plan.offers.map((offer) => (
+            <li key={offer.id}>
+              {offer.addedByOwner ? (
+                <label>
+                  <input type="checkbox" checked={!takeOut.includes(offer.id)}
+                    onChange={(event) => { const keep = event.currentTarget.checked; setTakeOut((was) => (keep ? was.filter((id) => id !== offer.id) : [...was, offer.id])); }} />
+                  {' '}{offer.name.value}
+                </label>
+              ) : <span>{offer.name.value}</span>}
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+      <Field label={t('business.addOffer')} value={newOffer} maxLength={60} onChange={(event) => setNewOffer(event.currentTarget.value)} />
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <div className={s.buttons}>
         <Button onClick={onCancel}>{t('business.cancel')}</Button>

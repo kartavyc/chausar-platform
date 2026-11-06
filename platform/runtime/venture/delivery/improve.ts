@@ -9,6 +9,7 @@
 // as an experiment with its control, budget and rules; a change that did not help against a real control waits its
 // retry spacing; the run stops at its budget (Ink v2 wave 4, 4J16, experiments.ts).
 import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
+import { liveSignals } from './check-signals.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
 import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
 import type {
@@ -32,6 +33,8 @@ import {
 } from './experiments.ts';
 import { formatUsd } from '../../owner-format.ts';
 import { scanTrace } from './trace-scan.ts';
+import { NO_WORK, type Work } from '../../work-progress.ts';
+import { WORK_STEPS } from '../views/work-steps.ts';
 
 export const MAX_ROUNDS = 4;
 const DEFAULT_ROUNDS = 2;
@@ -328,6 +331,19 @@ function budgetOf(value: unknown): string {
 
 /** venture.improve.run { maxRounds?, useTemplate?, budgetMicros? }: one improvement run; stores its record and, if one was kept, the candidate. */
 export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ImprovementRunRecord> {
+  // One-shot C3 task 9: the job begins after the checks below pass, so a refused run shows no steps.
+  let work: Work = NO_WORK;
+  try {
+    return await improveRun(deps, ctx, payload, (next) => { work = next; });
+  } catch (error) {
+    work.failCurrent();
+    throw error;
+  } finally {
+    work.end();
+  }
+}
+
+async function improveRun(deps: VentureDeps, ctx: Context, payload: unknown, started: (work: Work) => void): Promise<ImprovementRunRecord> {
   const startedAt = deps.clock().toISOString();
   const body = exactPayload(payload, ['maxRounds', 'useTemplate', 'budgetMicros']);
   const maxRounds = body.maxRounds === undefined ? DEFAULT_ROUNDS : smallInteger(body.maxRounds, 'Rounds', 1, MAX_ROUNDS);
@@ -340,7 +356,7 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
   const type = blueprint.serviceType;
-  const signals = listRecords(state, 'venture-signal', venture.id);
+  const signals = liveSignals(state, venture.id);
   const latestEpisodes = newestFirst(listRecords(state, 'venture-simulation-run', venture.id)).filter(run => run.playbookHash === parent.hash).flatMap(run => run.episodes);
   check(signals.length > 0 || latestEpisodes.some(episode => !episode.passed), 'IMPROVEMENT_NOT_READY',
     'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.');
@@ -371,6 +387,8 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
   const budgetLine = `The run reached its budget of ${budgetWords(capMicros, rupees)}, so it stopped.`;
   const left = () => BigInt(capMicros) - BigInt(spendSummary(spend).costMicros);
 
+  const work = deps.work?.begin('improve', WORK_STEPS.improve.map((step) => step.id)) ?? NO_WORK;
+  started(work);
   // The reserve is held back from the proposer: its rehearsal episodes never reach the diagnosis, in any round.
   const reserveIds = new Set(frozen.cases.reserve.map(item => item.scenarioId));
   for (let round = 1; round <= maxRounds; round += 1) {
@@ -379,7 +397,9 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
       break;
     }
     const episodes = (retained.rehearsal ? retained.rehearsal.episodes : latestEpisodes).filter(episode => !reserveIds.has(episode.scenarioId));
+    work.step('read', 'current');
     const diagnosis = diagnose(pool, episodes, tried);
+    work.step('read', 'done');
     if (!diagnosis.chosen) {
       const spaced = !rounds.length && fresh.length < frozen.pool.length;
       incompleteReason = spaced ? spacingReason(waiting)
@@ -388,13 +408,16 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
       break;
     }
     tried.add(diagnosis.chosen.reason);
+    work.step('write', 'current');
     const { patch, refused, body: candidateBody, costs } = await propose(deps, ctx, { useTemplate, retained, diagnosis, type, entryIds, tried: rounds });
     spend.push(...costs);
+    work.step('write', 'done');
     if (!patch || !candidateBody) {
       rounds.push({ round, diagnosis, patch, refused, candidateHash: null, gate: null });
       continue;
     }
     const candidate = candidateRecord(parent, candidateBody, [...(retained.record.patches ?? []), patch], Math.max(0, ...versions) + 1);
+    work.step('test', 'current');
     if (!retained.scores) {
       const before = await rehearse(deps, ctx, retained.record, scenarios, { useTemplate, episodes: 1, budgetMicros: left() });
       spend.push(...before.spend);
@@ -414,6 +437,8 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
       rounds.push({ round, diagnosis, patch, refused: budgetLine, candidateHash: null, gate: null });
       break;
     }
+    work.step('test', 'done');
+    work.step('compare', 'current');
     const scores = scoresOf(rehearsal);
     const sameDrafts = useTemplate || rehearsal.spend.every(item => item.by === 'template');
     const scored = gateCases.map((item, index) => ({ item, scenario: scenarios[index], parent: retained.scores!.get(item.scenarioId)!, candidate: scores.get(item.scenarioId)! }));
@@ -430,6 +455,7 @@ export async function improveRunHandler(deps: VentureDeps, ctx: Context, payload
       spentMicros: spendSummary(spend).costMicros, maxRounds, capMicros, rupees,
     });
     rounds.push({ round, diagnosis, patch, refused: null, candidateHash: candidate.hash, gate: result, experiment });
+    work.step('compare', 'done');
     if (result.decision === 'keep-candidate') retained = { record: candidate, body: candidateBody, scores, rehearsal };
   }
 

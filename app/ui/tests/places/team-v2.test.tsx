@@ -342,8 +342,9 @@ describe('Team v2: with departments from the engine', () => {
   it('shows the toggle and one tinted panel per department the engine lists, an empty one with its way forward', async () => {
     start('#/team', { intercept: withDepartments });
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
-    expect(within(toggle).getByRole('button', { name: 'All departments' }).getAttribute('aria-pressed')).toBe('true');
+    // C1 task 2: the row carries its counts at every width.
+    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
+    expect(within(toggle).getByRole('button', { name: /^All departments/ }).getAttribute('aria-pressed')).toBe('true');
     const panels = within(main()).getAllByRole('article').filter((a) => a.hasAttribute('data-dept'));
     expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod', 'money', 'ops']);
     const marketing = within(main()).getByRole('article', { name: 'Marketing' });
@@ -360,13 +361,13 @@ describe('Team v2: with departments from the engine', () => {
   it('the toggle shows one department at a time, held in the address', async () => {
     start('#/team', { intercept: withDepartments });
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    await click(within(toggle).getByRole('button', { name: 'Production' }));
+    await click(within(toggle).getByRole('button', { name: /^Production/ }));
     expect(window.location.hash).toBe('#/team?dept=prod');
-    expect(within(toggle).getByRole('button', { name: 'Production' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(toggle).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
     const hero = await within(main()).findByRole('region', { name: 'Production' });
     expect(hero.getAttribute('data-dept')).toBe('prod');
     expect(within(main()).queryByRole('article', { name: 'Marketing' })).toBeNull();
-    await click(within(toggle).getByRole('button', { name: 'All departments' }));
+    await click(within(toggle).getByRole('button', { name: /^All departments/ }));
     expect(window.location.hash).toBe('#/team');
   });
 
@@ -536,6 +537,15 @@ describe('Team v2: the agent panel', () => {
     await click(within(items[1]!).getByRole('button', { name: 'Rendering the thumbnail set' }));
     expect(window.location.hash).toBe('#/team?sheet=run%3A28');
     assertInkRules(document.body);
+  });
+
+  it('C4 task 10 (58.x1): an empty Jobs tab says it starts with an order on Work, with the way there', async () => {
+    start('#/team', { intercept: (method) => (method === 'venture.runs.list' ? Promise.resolve({ runs: [] }) : undefined) });
+    const panel = await openPanel();
+    await click(within(panel).getByRole('tab', { name: 'Jobs' }));
+    await settle();
+    expect(within(panel).getByText(/It starts when you add an order on Work\./)).toBeTruthy();
+    expect(within(panel).getByRole('link', { name: 'Open Work' }).getAttribute('href')).toBe('#/work');
   });
 
   it('passes axe on both tabs', async () => {

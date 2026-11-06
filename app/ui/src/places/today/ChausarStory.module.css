@@ -18,12 +18,10 @@
 .name {
   max-width: 100%;
   margin-top: var(--sp-3);
-  overflow: hidden;
   font-size: var(--text-read);
   font-weight: var(--weight-medium);
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .status {

@@ -7,7 +7,7 @@ import type { EngineClient } from '../../src/engine/types';
 import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 
 /*
- * Money's documents and limits in wave 4 (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md, package 4J20, from
+ * Money's documents and limits in wave 4 (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md, package 4J20, from
  * 4J4, 4J5 and 4F2): lateness and Remind on the invoices, cheques that wait to clear, the client's TDS, credit notes on
  * the always-ask floor, the timeline, invoices that repeat, bills, margins per client, the spend meter and the limit
  * sheet, and the accountant's read-only month. The fake engine answers each with the engine's codes and shapes.
@@ -262,8 +262,8 @@ describe('Money w4: the accountant', () => {
     await click(within(menu).getByRole('link', { name: 'Invite your accountant' }));
     await act(async () => { window.location.hash = '#/money?sheet=accountant:books'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const panel = await sheet();
-    expect(within(panel).getByText("It shows that month's invoices and payments. Nothing else.")).toBeTruthy();
-    await click(within(panel).getByRole('button', { name: 'Make the link' }));
+    expect(within(panel).getByText("A read-only link to that month's invoices and payments. Lasts 7 days. You can take it back.")).toBeTruthy();
+    await click(within(panel).getByRole('button', { name: 'Make a link' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.share.create', { kind: 'books', month: '2026-10' }]));
     // On this computer the engine keeps the link but has no public address, and says so.
     expect(await within(panel).findByText(/open only on the hosted Chausar with a public address/)).toBeTruthy();

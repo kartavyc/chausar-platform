@@ -1,8 +1,10 @@
-// Writes and checks NOTICE: every third-party package the desktop app ships, read from the installed node_modules.
+// Writes and checks NOTICE: every third-party package the desktop app ships, read from package-lock.json.
 // `node scripts/third-party-notices.mjs --write` rewrites NOTICE; `--check` exits 1 when NOTICE is out of date.
-// It reads package.json files only. It never reads credentials, never runs package scripts and never downloads.
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+// D1 fix: it reads package.json and package-lock.json only, never node_modules, so NOTICE is the same on every system
+// (the lockfile records each platform-specific build, such as the Agent SDK's and DuckDB's, for every system).
+// It never reads credentials, never runs package scripts and never downloads.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // SPDX ids that may be bundled inside an AGPL-3.0 program (permissive, weak copyleft or GPLv3-family).
@@ -46,6 +48,11 @@ function readManifest(dir) {
 // Packages that declare no licence in package.json but ship a licence file, read by hand: name@version to its licence.
 const LICENCE_FROM_FILE = { 'map-stream@0.1.0': 'MIT' };
 
+/** The lockfile's packages, keyed by install path ('' is the project itself). */
+function lockPackages(root) {
+  try { return JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8')).packages ?? {}; } catch { return {}; }
+}
+
 function declaredLicence(manifest) {
   const listed = list => list.map(item => typeof item === 'string' ? item : item?.type).filter(Boolean).join(' OR ');
   if (typeof manifest.license === 'string') return manifest.license;
@@ -55,48 +62,53 @@ function declaredLicence(manifest) {
   return LICENCE_FROM_FILE[`${manifest.name}@${manifest.version}`] ?? '';
 }
 
-/** Node's lookup: the nearest node_modules/<name> from `fromDir` upward, never above `root`. */
-function resolvePackage(fromDir, name, root) {
-  let dir = fromDir;
+/** Node's lookup over the lockfile's install paths: the nearest node_modules/<name> from `from` upward. */
+function resolvePackage(packages, from, name) {
+  let at = from;
   for (;;) {
-    const candidate = join(dir, 'node_modules', ...name.split('/'));
-    if (existsSync(join(candidate, 'package.json'))) return candidate;
-    if (resolve(dir) === resolve(root)) return null;
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
+    const candidate = `${at ? `${at}/` : ''}node_modules/${name}`;
+    if (packages[candidate]) return candidate;
+    if (!at) return null;
+    const cut = at.lastIndexOf('/node_modules/');
+    at = cut < 0 ? '' : at.slice(0, cut);
   }
 }
 
 function walk(root, startNames) {
+  const packages = lockPackages(root);
   const found = new Map();
   const seen = new Set();
-  const visit = (fromDir, names) => {
+  const visit = (from, names) => {
     for (const name of names) {
       if (name.startsWith('@types/')) continue; // type declarations are erased at build time and never ship
-      const dir = resolvePackage(fromDir, name, root);
-      if (!dir) continue; // an optional dependency for another platform, or a peer nobody installed
-      const real = realpathSync(dir);
-      if (seen.has(real)) continue;
-      seen.add(real);
-      const manifest = readManifest(dir);
-      if (!manifest) continue;
-      const entry = { name: manifest.name ?? name, version: String(manifest.version ?? ''), license: declaredLicence(manifest),
+      let path = resolvePackage(packages, from, name);
+      if (!path) continue; // a peer nobody installs
+      if (packages[path].link && packages[packages[path].resolved]) path = packages[path].resolved;
+      if (seen.has(path)) continue;
+      seen.add(path);
+      const locked = packages[path];
+      const manifest = { ...locked, name: locked.name ?? path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length) };
+      const entry = { name: manifest.name, version: String(manifest.version ?? ''), license: declaredLicence(manifest),
         fromFile: Boolean(LICENCE_FROM_FILE[`${manifest.name}@${manifest.version}`]),
-        platformSpecific: Boolean(manifest.os || manifest.cpu), path: relative(root, dir).split(sep).join('/') };
+        platformSpecific: Boolean(manifest.os || manifest.cpu), path };
       const key = `${entry.name}@${entry.version}`;
       if (!found.has(key)) found.set(key, entry);
-      visit(dir, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies }));
+      // Every optional dependency the lockfile records is followed, so each system's build is listed wherever it ships.
+      visit(path, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies }));
     }
   };
-  visit(root, startNames);
+  visit('', startNames);
   return [...found.values()].sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version, undefined, { numeric: true }));
 }
+
+// D5 (founder, 5 Nov): no installer carries the Agent SDK's platform packages (its Claude Code program file); the
+// builder files leave them out (desktop-package.mjs TRIM), so NOTICE does not list them.
+const NOT_SHIPPED = name => name.startsWith('@anthropic-ai/claude-agent-sdk-');
 
 /** Every package electron-builder copies into the app: the production dependencies and theirs. Dev tools are left out. */
 export function collectShippedPackages(root) {
   const manifest = readManifest(root) ?? {};
-  return walk(root, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies }));
+  return walk(root, Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })).filter(item => !NOT_SHIPPED(item.name));
 }
 
 // Built into app/ui/dist by Vite (imported by app/ui/src), so they ship even though package.json lists them for development.
@@ -105,10 +117,8 @@ const SCREEN_LIBRARIES = ['react', 'react-dom', 'lucide-react', '@noble/hashes']
 // Plain-English detail for packages whose terms need the founder's decision before publishing or shipping.
 const FLAG_DETAIL = {
   '@anthropic-ai/claude-agent-sdk': 'Its LICENSE.md reads "Anthropic PBC. All rights reserved" and points to Anthropic\'s legal agreements. It is not open source, so it cannot become part of an AGPL program as is. Founder decision: an AGPL section 7 additional permission for it, or do not ship it and ask the owner to install it.',
-  '@anthropic-ai/claude-agent-sdk-win32-x64': "the Agent SDK's Claude Code program file for this system, under the same terms as the Agent SDK.",
 };
-// Each platform build of the Agent SDK carries the same terms as the SDK itself.
-const flagDetail = name => FLAG_DETAIL[name] ?? (name.startsWith('@anthropic-ai/claude-agent-sdk-') ? FLAG_DETAIL['@anthropic-ai/claude-agent-sdk-win32-x64'] : null);
+const flagDetail = name => FLAG_DETAIL[name] ?? null;
 
 // The founder's AGPL section 7 additional permission (2 November 2026) covers the Claude Agent SDK and its platform
 // builds, so they are listed with their own terms but are not flagged.
@@ -135,10 +145,29 @@ function line(item) {
   return `${item.name} ${item.version} ${item.license || '(none declared)'}${item.fromFile ? ' (from its licence file)' : ''}${flag}`;
 }
 
-/** NOTICE text. Deterministic: the same node_modules always gives the same file. */
+/**
+ * The fonts in app/ui/assets/fonts, from their manifest: each family, its copyright line and the one licence they share.
+ * The licence travels here because the screens' build carries the font files but not the text files beside them.
+ */
+function fontLines(root) {
+  const folder = join(root, 'app', 'ui', 'assets', 'fonts');
+  const manifest = JSON.parse(readFileSync(join(folder, 'manifest.json'), 'utf8'));
+  const families = [...new Set(manifest.fonts.map(font => font.family))].sort();
+  const licences = manifest.notices.map(notice => readFileSync(join(folder, notice.file), 'utf8').replace(/\r\n/g, '\n'));
+  const lines = families.map(family => {
+    const file = manifest.fonts.find(font => font.family === family).file.split('-')[0];
+    const text = licences[manifest.notices.findIndex(notice => notice.file.startsWith(file))] ?? '';
+    const copyright = text.split('\n').find(line => line.startsWith('Copyright')) ?? '';
+    return `${family}, SIL Open Font License 1.1${/Devanagari/.test(family) ? ', loaded only with the Hindi pack' : ''}. ${copyright}`.trim();
+  });
+  const body = licences[0].slice(licences[0].indexOf('This Font Software is licensed')).trim();
+  return [...lines, '', body];
+}
+
+/** NOTICE text. Deterministic: the same lockfile always gives the same file, on any system. */
 export function renderNotice(shipped, root) {
   const screens = walk(root, SCREEN_LIBRARIES);
-  const electron = readManifest(join(root, 'node_modules', 'electron'));
+  const electron = lockPackages(root)['node_modules/electron'];
   const flaggedItems = [...shipped, ...screens].filter(flagged);
   return [
     'Chausar',
@@ -153,8 +182,8 @@ export function renderNotice(shipped, root) {
     '',
     'Chausar includes third-party software under its own licences, listed below as name, version and the licence the',
     'package declares. Each package\'s full licence text is in its folder inside the app (node_modules/<name>).',
-    'This file is generated from the installed packages by `node scripts/third-party-notices.mjs --write`; run it on',
-    'the packaging machine, because platform-specific builds (DuckDB bindings, the Agent SDK binary) differ per system.',
+    'This file is generated from package-lock.json by `node scripts/third-party-notices.mjs --write`. A package built',
+    'for one system (the DuckDB bindings) is listed for every system; each installer carries only its own.',
     'A line marked FLAG has a licence that is not known to fit the AGPL and needs a decision before shipping.',
     '',
     `Flagged packages: ${flaggedItems.length}`,
@@ -167,6 +196,10 @@ export function renderNotice(shipped, root) {
     '',
     ...screens.map(line),
     '',
+    '== Fonts built into the app screens (app/ui/assets/fonts) ==',
+    '',
+    ...fontLines(root),
+    '',
     '== Runtime ==',
     '',
     ...(electron ? [line({ name: 'electron', version: String(electron.version), license: declaredLicence(electron) })] : []),
@@ -178,8 +211,9 @@ export function renderNotice(shipped, root) {
     'Codex CLI (OpenAI, Apache-2.0) and the parts inside it (Ratatui, ripgrep, PCRE2) are bundled by the beta',
     'installer. Their notices are in app/desktop/notices/THIRD-PARTY-NOTICES.md with each licence text beside it',
     '(resources/notices in an installed app); Codex also keeps its own LICENSE and NOTICE in resources/codex.',
-    'Chausar does not install Claude Code itself. The Agent SDK platform package (listed above, under the section 7',
-    "permission) contains a Claude Code program file under Anthropic's terms.",
+    "Chausar does not ship Claude Code. No installer carries the Agent SDK's platform packages (its Claude Code",
+    "program file). When the owner has no Claude Code, Chausar can download Anthropic's official installer, unmodified,",
+    "only after the owner says yes; Claude Code stays under Anthropic's terms and the owner signs in to it themselves.",
     'PostgreSQL (PostgreSQL License) and Python (Python Software Foundation License) ship only in a native release,',
     'under runtime-binaries/, with their licence files listed in runtime-binaries/manifest.json.',
     '',
@@ -196,7 +230,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } else if (process.argv.includes('--check')) {
     const current = existsSync(target) ? readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : '';
     if (current !== text) { console.error('NOTICE is out of date: run node scripts/third-party-notices.mjs --write'); process.exit(1); }
-    console.log('NOTICE matches the installed packages.');
+    console.log('NOTICE matches package-lock.json.');
   } else {
     process.stdout.write(text);
   }

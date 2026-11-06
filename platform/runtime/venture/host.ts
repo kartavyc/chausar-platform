@@ -10,6 +10,7 @@
 import { settleError } from './refusals.ts';
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type State, type StateStore } from '../contracts.ts';
+import type { WorkKind } from './views/work-steps.ts';
 import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
@@ -31,7 +32,7 @@ const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YE
  * method this list leaves out, so the host can never again forget to forward one (it forwarded only seven, and every
  * Codex agent job on the desktop was refused for want of codexVerifiedProgram).
  */
-export const MODEL_PORT_METHODS = Object.freeze(['status', 'presets', 'checkCli', 'inspectCli', 'generate', 'preview', 'runPreview', 'codexSetup', 'codexProgram', 'codexVerifiedProgram', 'toolSaid', 'codexModels'] as const satisfies readonly (keyof ModelPort)[]);
+export const MODEL_PORT_METHODS = Object.freeze(['status', 'presets', 'checkCli', 'inspectCli', 'generate', 'preview', 'runPreview', 'codexSetup', 'codexProgram', 'codexVerifiedProgram', 'toolSaid', 'codexModels', 'codexPlan'] as const satisfies readonly (keyof ModelPort)[]);
 type Unforwarded = Exclude<keyof ModelPort, (typeof MODEL_PORT_METHODS)[number]>;
 const EVERY_METHOD_FORWARDED: [Unforwarded] extends [never] ? true : never = true;
 void EVERY_METHOD_FORWARDED;
@@ -66,6 +67,7 @@ export function forwardModels(port: () => ModelPort): ModelPort {
     },
     toolSaid(callId: string) { const real = port(); return real.toolSaid ? real.toolSaid(callId) : null; },
     async codexModels() { const real = port(); return real.codexModels ? real.codexModels() : pickCodexModels(null); },
+    async codexPlan() { const real = port(); return real.codexPlan ? real.codexPlan() : null; },
   });
 }
 
@@ -186,7 +188,13 @@ function latestBriefId(store: StateStore): string {
   return typeof latest?.briefId === 'string' ? latest.briefId : '';
 }
 
-type HostOptions = VentureHostOptions & { demo: boolean; storage: VentureStorage };
+/** D4 task 6: the desktop's file of tool looks kept between starts (models/cli-look-file.ts), never on the hosted app. */
+type HostOptions = VentureHostOptions & { demo: boolean; storage: VentureStorage; cliLooks?: import('./models/cli-look-file.ts').CliLookPort };
+/** One-shot C3 task 9: the long methods whose handlers have no boundary inside them, each one step. */
+const SINGLE_STEP_WORK: Readonly<Record<string, { kind: WorkKind; step: string }>> = Object.freeze({
+  'venture.drills.run': { kind: 'drills', step: 'run' },
+  'venture.network.import': { kind: 'import', step: 'import' },
+});
 type Handler = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>;
 
 export class VentureHost {
@@ -225,6 +233,7 @@ export class VentureHost {
       ...(options.credentials && options.host !== 'hosted-web' ? { credentials: options.credentials } : {}),
       ...(options.phoneAccess && options.host !== 'hosted-web' ? { phoneAccess: options.phoneAccess } : {}),
       ...(options.aiSetup && options.host !== 'hosted-web' ? { aiSetup: options.aiSetup } : {}),
+      ...(options.work ? { work: options.work } : {}),
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
@@ -310,7 +319,20 @@ export class VentureHost {
     await this.#modelsReady();
     if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'This business is closed. Open it first.');
     try {
-      const answer = await handler(this.#deps, ctx, payload ?? {});
+      // One-shot C3 task 9: work with no inner boundary is one step.
+      const single = SINGLE_STEP_WORK[name];
+      const work = single ? this.#deps.work?.begin(single.kind, [single.step]) : undefined;
+      if (single) work?.step(single.step, 'current');
+      let answer: unknown;
+      try {
+        answer = await handler(this.#deps, ctx, payload ?? {});
+        if (single) work?.step(single.step, 'done');
+      } catch (error) {
+        work?.failCurrent();
+        throw error;
+      } finally {
+        work?.end();
+      }
       // 4J2 (O22): a settings form's autosaved draft is cleared once its real method succeeded with the same values.
       if (SETTINGS_SAVE_METHODS.has(name)) await import('./core/settings-drafts.ts').then(drafts => drafts.clearSavedDraft(this.#deps, ctx, name, payload ?? {})).catch(() => false);
       return answer;
@@ -546,9 +568,10 @@ export class VentureHost {
         if (key !== null) this.#secrets.set(name, key);
       }
     }
-    const portOptions: ModelPortOptions = {
+    const portOptions: ModelPortOptions & { cliLooks?: import('./models/cli-look-file.ts').CliLookPort } = {
       store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
+      ...(options.cliLooks && this.#deps.host !== 'hosted-web' ? { cliLooks: options.cliLooks } : {}),
       claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'accepted',
     };
     const port = (create as (options: ModelPortOptions) => ModelPort)(portOptions);

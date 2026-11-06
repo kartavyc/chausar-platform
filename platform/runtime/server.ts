@@ -15,12 +15,19 @@ import { workspaceCustodyEnv } from './workspace-custody.ts';
 import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 import { createPhoneAccess, privatePeer } from './phone-access.ts';
 import { ownerError } from './owner-error.ts';
+// D3: the data folder is the data home, never ./data where the server was started (data-home.ts).
+import { serverDataDirectory } from './data-home.ts';
+export { serverDataDirectory };
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.ai.setup.trust', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  // One-shot C3: the app's preference on this computer is the computer owner's to change.
+  'app.preferences.set',
+  // C5 task 31: only the owner on this computer changes how it updates.
+  'updates.settings', 'updates.check',
   ...CUSTODY_METHODS]);
 
 /** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */
@@ -207,7 +214,7 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
   // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
   let engine: Engine | null = null;
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }) });
-  return engine = new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true, phoneAccess } });
+  return engine = new Engine({ directory: serverDataDirectory(environment, args), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true, phoneAccess } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -219,7 +226,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try { ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }; }
   catch (error) { if ((error as { code?: string }).code !== 'UI_NOT_BUILT') throw error; console.error((error as Error).message); process.exit(1); }
   const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), ink });
-  const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
+  const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}\nData: ${engine.options.directory}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { clearInterval(scheduler); void app.close().finally(() => process.exit(0)); });
 }

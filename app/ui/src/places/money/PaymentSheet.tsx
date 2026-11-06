@@ -12,18 +12,22 @@
  * exactly and refuses otherwise, so nothing is added up here. A split payment carries no TDS.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { ThankYou } from './ThankYou';
 import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 type Phase = 'form' | 'confirm' | 'sending' | 'done';
 /** The ways money comes in: the engine's list, and a cheque, which waits to clear (4J5). */
@@ -33,12 +37,13 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const t = useT();
   const day = useDay();
   const engine = useEngine();
-  const methodId = useId();
   const today = useLocalToday();
   const view = useResource('venture.invoice.get', { invoiceId: id });
   const [amount, setAmount] = useState('');
   const [receivedOn, setReceivedOn] = useState(today);
   const [method, setMethod] = useState<PaymentMethod>('bank-transfer');
+  // C5 task 12: the method starts from the engine's default, until the owner picks one.
+  const methodPicked = useRef(false);
   const [tdsSection, setTdsSection] = useState('');
   const [tdsAmount, setTdsAmount] = useState('');
   const [split, setSplit] = useState(false);
@@ -49,15 +54,17 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const [phase, setPhase] = useState<Phase>('form');
   const [refusal, setRefusal] = useState<string | null>(null);
   const [recorded, setRecorded] = useState<{ view: InvoiceViewLite; receiptId: string | null; note: string | null } | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = recorded?.view ?? view.data;
+  const startMethod = current?.paymentDefaults?.method;
+  useEffect(() => { if (startMethod && !methodPicked.current) setMethod(startMethod); }, [startMethod]);
   const balance = current?.figures.find((figure) => figure.key === 'balance');
   const takesPayment = current?.invoice.status === 'issued' || current?.invoice.status === 'part-paid';
   // A split needs at least one part typed before it can be recorded.
   const ready = amount.trim() !== '' && receivedOn !== '' && (!split || allocations.length > 0);
+  /** The first thing still missing, said under Record payment (B4). */
+  const missing = ready ? undefined : amount.trim() === '' ? t('money.payment.needAmount') : receivedOn === '' ? t('money.payment.needDate') : t('money.payment.needSplit');
   // TDS is an Indian tax: offered by the business's country, whatever the invoice's currency.
   const business = useResource('venture.get', {});
   const india = (current?.country?.code ?? business.data?.venture.country?.code) === 'IN';
@@ -106,6 +113,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           {recorded.receiptId && <Receipt id={recorded.receiptId} />}
         </p>
         {recorded.note && <p className={s.quietLine} data-engine-line="">{recorded.note}</p>}
+        {/* One-shot C6: when this payment cleared the invoice, its thank-you receipt. */}
+        <ThankYou view={recorded.view} />
         <p className={s.sheetLine}>
           <Button variant="quiet" onClick={(event) => openSheet('invoice', id, event.currentTarget)}>{t('money.payment.back')}</Button>
         </p>
@@ -122,27 +131,24 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
             label={t('money.payment.amount')} hint={t('money.payment.amountHint', { currency })} value={amount} inputMode="decimal" autoComplete="off"
             disabled={locked} onChange={(event) => setAmount(event.currentTarget.value)}
           />
+          {/* C5 task 12: copies the engine's balance figure as it reads; nothing is worked out here. */}
+          {balance && <p className={s.sheetLine}><Button variant="quiet" disabled={locked} onClick={() => setAmount(balance.display)}>{t('money.payment.full')}</Button></p>}
           <Field label={t('money.payment.on')} type="date" value={receivedOn} disabled={locked} onChange={(event) => setReceivedOn(event.currentTarget.value)} />
-          <div className={s.field}>
-            <label htmlFor={methodId} className={s.fieldLabel}>{t('money.payment.method')}</label>
-            <select id={methodId} className={s.select} value={method} disabled={locked} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
+          <Select label={t('money.payment.method')} value={method} disabled={locked} onChange={(event) => { methodPicked.current = true; setMethod(event.currentTarget.value as PaymentMethod); }}>
               {METHODS.map((option) => <option key={option} value={option}>{t(`money.method.${option}`)}</option>)}
-            </select>
-          </div>
+            </Select>
           {method === 'cheque' && <p className={s.quietLine}>{t('money.payment.chequeNote')}</p>}
           {/* One step away, for a business in India: the TDS the client deducted, as they wrote it (4J5, M15). Kept while
               the payment is split, though a split payment carries none: closing Split brings it back as typed. */}
           {india && (
-            <details className={s.fold}>
-              <summary>{t('money.payment.tds')}</summary>
+            <Fold summary={t('money.payment.tds')} className={s.fold}>
               {split && <p className={s.quietLine}>{t('money.payment.tdsSplit')}</p>}
               <Field label={t('money.payment.tdsSection')} hint={t('money.payment.tdsSectionHint')} value={tdsSection} autoComplete="off" disabled={locked || split} onChange={(event) => setTdsSection(event.currentTarget.value)} />
               <Field label={t('money.payment.tdsAmount')} hint={t('money.payment.amountHint', { currency })} value={tdsAmount} inputMode="decimal" autoComplete="off" disabled={locked || split} onChange={(event) => setTdsAmount(event.currentTarget.value)} />
-            </details>
+            </Fold>
           )}
           {/* One step away: the payment split across invoices (4J5, M11). */}
-          <details className={s.fold} onToggle={(event) => setSplit(event.currentTarget.open)}>
-            <summary>{t('money.payment.split')}</summary>
+          <Fold summary={t('money.payment.split')} className={s.fold} onToggle={(event) => setSplit(event.currentTarget.open)}>
             <p className={s.quietLine}>{t('money.payment.splitLine')}</p>
             <Field
               label={t('money.payment.splitThis', { number: current.invoice.number ?? '' })} hint={t('money.payment.amountHint', { currency })} value={parts[id] ?? ''}
@@ -155,15 +161,15 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
               />
             ))}
             {list.data && others.length === 0 && <p className={s.quietLine}>{t('money.payment.splitNone')}</p>}
-          </details>
+          </Fold>
           {phase === 'form' && (
             <div className={s.buttons}>
-              <Button variant="primary" type="submit" disabled={!ready}>{t('money.payment.record')}</Button>
+              <Button variant="primary" type="submit" disabledReason={missing}>{t('money.payment.record')}</Button>
             </div>
           )}
         </form>
         {(phase === 'confirm' || phase === 'sending') && (
-          <div className={`${s.ask} ${s.block}`}>
+          <div className={s.block}><Confirm action={t('money.payment.confirm')} busy={phase === 'sending'} onCancel={() => setPhase('form')} onConfirm={() => void record(current)}>
             <p>{split ? t('money.payment.splitAsk', { amount: typedWords(amount, currency), date: day(receivedOn), count: String(allocations.length) }) : t('money.payment.ask', { amount: typedWords(amount, currency), date: day(receivedOn) })}</p>
             {/* A split's second ask names each part as typed, like every other second ask. */}
             {split && (
@@ -172,11 +178,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
               </ul>
             )}
             {!split && india && tdsSection.trim() !== '' && tdsAmount.trim() !== '' && <p>{t('money.payment.tdsAsk', { amount: typedWords(tdsAmount, currency), section: tdsSection.trim() })}</p>}
-            <div className={s.buttons}>
-              <Button ref={cancelRef} disabled={phase === 'sending'} onClick={() => setPhase('form')}>{t('approval.cancel')}</Button>
-              <Button variant="primary" data-confirm="" disabled={phase === 'sending'} onClick={() => void record(current)}>{t('money.payment.confirm')}</Button>
-            </div>
-          </div>
+          </Confirm></div>
         )}
         {refusal && <p className={s.refusal} role="status" data-engine-line="">{refusal}</p>}
       </>

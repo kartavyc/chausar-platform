@@ -24,6 +24,7 @@ const EXACT: Readonly<Record<string, readonly [calls: number, why: string]>> = {
   'records.ts': [1, 'formatMicros is defined here'],
   // Files, links and messages that leave the app.
   'money/document.ts': [1, 'the invoice PDF leaves the app, and its standard font has no rupee sign'],
+  'money/payment-receipt.ts': [3, 'the receipt and the thank-you words go to the client (C6)'],
   'money/invoice-pdf.ts': [2, 'the PDF caption and the words sent with it go to the client'],
   'money/how-to-pay.ts': [1, "the client's copy of the invoice says how to pay, and it leaves the app"],
   'money/reminders.ts': [1, 'the payment reminder goes to the client'],
@@ -77,4 +78,10 @@ test('under venture/, no own number grouping (toLocaleString) and no raw clock s
   assert.deepEqual(locale, [], 'counts and amounts go through owner-format.ts');
   const clock = code.filter(({ f, text }) => /\.slice\(11, ?16\)/.test(text) && !Object.hasOwn(TIME_KEYS, f)).map(({ f }) => f);
   assert.deepEqual(clock, [], 'times the owner reads go through ownerClock or formatTime');
+});
+
+test('C4 task 36: formatBytes reads a size in steps of 1024, never 0 KB', async () => {
+  const { formatBytes } = await import('../runtime/owner-format.ts');
+  assert.deepEqual([0, 1, 512, 1023, 1024, 1500, 47_902, 1_048_576, 1_258_291, 12_582_912, 1_610_612_736].map(formatBytes),
+    ['0 bytes', '1 byte', '512 bytes', '1023 bytes', '1 KB', '1 KB', '47 KB', '1 MB', '1.2 MB', '12 MB', '1.5 GB']);
 });

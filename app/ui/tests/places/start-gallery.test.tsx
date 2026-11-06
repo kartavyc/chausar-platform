@@ -213,7 +213,7 @@ describe('Start: the flagship tiles (5A1)', () => {
 describe('Start: the business picker', () => {
   it('"Start a new business" first; "Add this to Lumen Studio" suggests a plan change the owner applies, with no price in it', async () => {
     const { calls } = await start({}, { ai: true });
-    const pick = await screen.findByRole('group', { name: 'Where should this go?' });
+    const pick = await screen.findByRole('radiogroup', { name: 'Where should this go?' });
     const fresh = within(pick).getByRole('radio', { name: 'Start a new business' }) as HTMLInputElement;
     expect(fresh.checked).toBe(true);
     expect(screen.getByRole('button', { name: /Make my plan/ })).toBeTruthy();
@@ -343,7 +343,7 @@ describe('Start: the business picker', () => {
   it('the first run has no picker: there is no business to add to', async () => {
     await start({ fresh: true });
     await screen.findByRole('textbox', { name: 'What do you want to start?' });
-    expect(screen.queryByRole('group', { name: 'Where should this go?' })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Where should this go?' })).toBeNull();
   });
 });
 

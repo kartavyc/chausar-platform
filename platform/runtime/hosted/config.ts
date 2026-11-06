@@ -4,6 +4,8 @@
 // outside development, a missing custody key, the Rivet runtime, a database off this computer, a real mail sender.
 import { resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
+// D3: CHAUSAR_HOSTED_DATA, else CHAUSAR_HOME/hosted, else the per-user folder; never data/hosted in the checkout.
+import { dataHome } from '../data-home.ts';
 import { loopbackPostgresUrl, type LoopbackPostgres } from '../postgres.ts';
 import { parseMasterKey } from './custody.ts';
 import { DEFAULT_LIMITS, type HostedLimits } from './limits.ts';
@@ -151,7 +153,7 @@ export function hostedConfig(env: NodeJS.ProcessEnv, args: readonly string[] = [
 
   return {
     dev, origin: url.origin, rp: { id: url.hostname, name: 'Chausar', origin: url.origin }, publicUrl, push,
-    listen: { host: listenHost, port }, dataDirectory: resolve(env.CHAUSAR_HOSTED_DATA ?? 'data/hosted'),
+    listen: { host: listenHost, port }, dataDirectory: dataHome('hosted', { env }),
     custody, tls, trustProxy: proxyHops > 0, proxyHops,
     mailer: mailerName === 'dev-outbox' ? 'dev-outbox' : 'not-configured', replay, storage, postgres, runtime: 'local', limits, trials,
   };

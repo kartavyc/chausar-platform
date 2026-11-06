@@ -1,0 +1,20 @@
+/* Count (one-shot C3 task 14): the old number slides up and out, the new one in, once, over the press time, in one grid
+   cell that clips, so the row around it never moves. */
+
+.roll {
+  display: inline-grid;
+  overflow: hidden;
+}
+
+.out,
+.in {
+  grid-area: 1 / 1;
+}
+
+.out {
+  animation: global(ink-roll-out) var(--t-press) var(--ease-exit) 1 both;
+}
+
+.in {
+  animation: global(ink-roll-in) var(--t-press) var(--ease) 1 both;
+}

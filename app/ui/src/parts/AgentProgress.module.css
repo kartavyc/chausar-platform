@@ -1,8 +1,5 @@
 .summary {
   composes: hit from './touch.module.css';
-  cursor: pointer;
-  color: var(--fg2);
-  font-size: var(--text-read);
 }
 .progress {
   min-width: 0;

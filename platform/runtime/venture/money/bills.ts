@@ -28,6 +28,7 @@ import { BOOKS_SOURCE_ID } from '../records.ts';
 import type {
   BillLine, BillRecord, BillResult, BillsView, BillView, IsoDate, MinorString, PaymentMethod, SumReceiptSubject, VentureDeps, VentureRecord,
 } from '../contracts.ts';
+import type { W4RowItem } from '../views/queue-w4.ts';
 
 /** The most lines one bill keeps, and the most expected bills one sweep drafts for one vendor. */
 const MAX_LINES = 50;
@@ -56,12 +57,61 @@ export function billState(bill: BillRecord, today: IsoDate): BillView['state'] {
   return BigInt(bill.paidMinor) > 0n ? 'partial' : 'posted';
 }
 
+/** One-shot C4 (T22): a new bill's due date is this many days after its bill date when its vendor has no earlier bill. */
+export const DEFAULT_DUE_DAYS = 15;
+
+/** One-shot C4 (T22): a posted bill with money left, due on the owner's day today. */
+export function dueToday(bill: BillRecord, today: IsoDate): boolean {
+  return bill.status === 'posted' && balanceOf(bill) > 0n && bill.dueDate === today;
+}
+
+/** One-shot C4 (T22): what the bill is for, from its lines; null when its only line just names the vendor. */
+export function billPurpose(bill: Pick<BillRecord, 'vendor' | 'lines'>): string | null {
+  const [first, ...rest] = bill.lines;
+  if (!first) return null;
+  if (rest.length === 0) return vendorKey(first.description) === vendorKey(bill.vendor) ? null : first.description;
+  return `${first.description}, and ${rest.length} more`;
+}
+
+/** One-shot C4 (T22): each vendor's terms, the days from bill date to due date on its newest bill. */
+export function vendorTerms(bills: readonly BillRecord[]): { vendor: string; days: number }[] {
+  const newest = new Map<string, BillRecord>();
+  for (const bill of bills) {
+    if (bill.status === 'cancelled') continue;
+    const key = vendorKey(bill.vendor);
+    const held = newest.get(key);
+    if (!held || bill.billDate > held.billDate || (bill.billDate === held.billDate && bill.at > held.at)) newest.set(key, bill);
+  }
+  return [...newest.values()].map(bill => ({ vendor: bill.vendor, days: daysFrom(bill.billDate, bill.dueDate) }));
+}
+
 /** One bill as the screens show it. */
 export function billView(bill: BillRecord, today: IsoDate): BillView {
   return {
     id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: formatMoney(bill.totalMinor, bill.currency),
     paid: formatMoney(bill.paidMinor, bill.currency), balance: formatMoney(balanceOf(bill), bill.currency), state: billState(bill, today), recurring: bill.recurring,
+    dueToday: dueToday(bill, today), purpose: billPurpose(bill),
   };
+}
+
+/**
+ * One-shot C4 (T22): Today's notice for each posted bill with money left that is due today or overdue on the owner's
+ * day: "A bill to Sharma Traders is due today." Its only action is Open, to Money's bills; it leaves once the bill is
+ * paid. Read from records only, through views/queue-w4.ts's notice source.
+ */
+export function billDueRows(deps: VentureDeps, _ctx: Context, state: State, venture: VentureRecord): W4RowItem[] {
+  if (!venture.country) return [];
+  const today = localDayAt(deps.clock(), venture.country);
+  return listRecords(state, 'venture-bill', venture.id)
+    .filter(bill => bill.status === 'posted' && balanceOf(bill) > 0n && bill.dueDate <= today)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.at.localeCompare(b.at))
+    .map(bill => ({
+      kind: 'notice' as const, subject: `bill-due:${bill.id}`, version: `${bill.dueDate}:${bill.paidMinor}:${bill.dueDate === today ? 'today' : 'late'}`, createdAt: bill.at,
+      title: bill.dueDate === today ? `A bill to ${bill.vendor} is due today.` : `A bill to ${bill.vendor} was due on ${formatVentureDate(bill.dueDate, venture.country.dateOrder)}.`,
+      actions: [{ id: 'open' as const, label: 'Open', primary: true }],
+      navigate: 'Open Money, then Bills.',
+      notice: { probe: 'bill' as const, severity: 'medium' as const, link: '#/money/bills' },
+    }));
 }
 
 /** The 'bills' subject's plan: what posted bills still owe, those due on or before a day or all of them. */
@@ -186,11 +236,14 @@ async function costReceipt(deps: VentureDeps, ctx: Context, date: IsoDate, minor
  */
 export async function billsAdd(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BillResult> {
   requireAppChannel(ctx, 'venture.bills.add');
-  const body = exactPayload(payload, ['vendor', 'lines', 'billDate', 'dueDate', 'recurring'], ['vendor', 'lines', 'billDate', 'dueDate']);
+  const body = exactPayload(payload, ['vendor', 'lines', 'billDate', 'dueDate', 'recurring'], ['vendor', 'lines', 'billDate']);
   const vendor = singleLine(body.vendor, 'The vendor', { min: 1, max: 120 }).replace(/\s+/g, ' ');
-  const lines = linesInput(body.lines, readVenture(deps, ctx).venture.country.currency);
+  const read = readVenture(deps, ctx);
+  const lines = linesInput(body.lines, read.venture.country.currency);
   const billDate = isoDate(body.billDate, 'Bill date');
-  const dueDate = isoDate(body.dueDate, 'Due date');
+  // C4 (T22): no due date given: the vendor's last terms, else DEFAULT_DUE_DAYS after the bill date.
+  const terms = vendorTerms(listRecords(read.state, 'venture-bill', read.venture.id)).find(item => vendorKey(item.vendor) === vendorKey(vendor));
+  const dueDate = body.dueDate === undefined ? addDaysUtc(billDate, terms?.days ?? DEFAULT_DUE_DAYS) : isoDate(body.dueDate, 'Due date');
   check(dueDate >= billDate, 'INVALID_VENTURE_REQUEST', 'The due date must be on or after the bill date.');
   check(body.recurring === undefined || body.recurring === null || body.recurring === 'monthly' || body.recurring === 'quarterly', 'INVALID_VENTURE_REQUEST', 'A bill repeats monthly or quarterly, or not at all.');
   const given = body.recurring as BillRecord['recurring'] | undefined;
@@ -296,9 +349,11 @@ export async function billsList(deps: VentureDeps, ctx: Context, payload: unknow
     bills.push({ ...billView(bill, today), receiptId: own.id });
   }
   const plan = billsPlan(state, venture, { type: 'bills', due: null });
-  if (!plan.addends.length) return { bills, owed: null };
+  // C4 (T22): each vendor's last terms, for the add form's due date.
+  const terms = { terms: vendorTerms(records), defaultDueDays: DEFAULT_DUE_DAYS };
+  if (!plan.addends.length) return { bills, owed: null, ...terms };
   const receipt = await sumReceipt(deps, ctx, venture.id, plan);
-  return { bills, owed: { display: formatMoney(receipt.totalMinor, receipt.currency), receiptId: receipt.id } };
+  return { bills, owed: { display: formatMoney(receipt.totalMinor, receipt.currency), receiptId: receipt.id }, ...terms };
 }
 
 /** The latest bill of each vendor whose bills repeat, with the day of the month its chain started on. */

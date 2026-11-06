@@ -7,6 +7,7 @@ import { cx } from '../parts/cx';
 import { Icon } from '../parts/Icon';
 import { Logo } from '../parts/Logo';
 import type { IconName } from '../parts/icons';
+import { SETTINGS_HREF } from './settings';
 import s from './Rail.module.css';
 
 type RailPlace = (typeof RAIL_PLACES)[number];
@@ -25,7 +26,9 @@ const PLACE_ICONS: Readonly<Record<RailPlace, IconName>> = {
 
 /**
  * The rail (D's `.rail`, 232 px): the brand, which goes home to Today; the business button and its menu; then the
- * seven places with their icons. Today carries the count of what needs the owner across every business on this
+ * places with their icons; and at the foot Settings (C1 task 8), current on every `#/business/...` page. From 760 to
+ * 959 px it folds to icons (64 px): the words stay in the page as the links' names, visually hidden, each link with a
+ * `title`, and Today's count sits on its icon. Today carries the count of what needs the owner across every business on this
  * computer, amber while the owner is elsewhere. A phone never draws it: under 760 px the shell shows the top bar and
  * the bottom tabs instead (TopBar.tsx).
  */
@@ -50,9 +53,9 @@ export function Rail({ route }: { route: Route }) {
           const here = route.place === place;
           return (
             <li key={place}>
-              <a className={cx(s.place, here && s.on)} href={`#/${place}`} aria-current={here ? 'page' : undefined}>
+              <a className={cx(s.place, here && s.on)} href={`#/${place}`} aria-current={here ? 'page' : undefined} title={t(`place.${place}`)}>
                 <Icon name={PLACE_ICONS[place]} className={s.icon} />
-                <span>{t(`place.${place}`)}</span>
+                <span className={s.label}>{t(`place.${place}`)}</span>
                 {place === 'today' && needsYou > 0 && (
                   <>
                     <span className={s.count} data-num="" aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
@@ -69,6 +72,14 @@ export function Rail({ route }: { route: Route }) {
             </li>
           );
         })}
+      </ul>
+      <ul className={cx(s.places, s.foot)}>
+        <li>
+          <a className={cx(s.place, route.place === 'business' && s.on)} href={SETTINGS_HREF} aria-current={route.place === 'business' ? 'page' : undefined} title={t('place.business')}>
+            <Icon name="settings" className={s.icon} />
+            <span className={s.label}>{t('place.business')}</span>
+          </a>
+        </li>
       </ul>
     </nav>
   );

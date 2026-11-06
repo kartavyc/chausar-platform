@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { refusalWords } from '../parts/custody';
-import { Button } from '../parts/Button';
+import { Confirm } from '../parts/Confirm';
 import { stoppable } from '../places/work/StopDialog';
 import menu from './BusinessMenu.module.css';
 import { useOpenBusiness } from './openBusiness';
+import { settingsPage } from './settings';
 import s from './RunControlsMenu.module.css';
 
 /**
@@ -25,7 +26,6 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ line: string; problem: boolean } | null>(null);
   const runs = useResource('venture.runs.list', { state: 'all' });
-  const notNow = useRef<HTMLButtonElement>(null);
   const pauseItem = useRef<HTMLButtonElement>(null);
   const stopItem = useRef<HTMLButtonElement>(null);
   const paused = venture.data?.paused;
@@ -34,7 +34,6 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
   const { businessId } = useOpenBusiness();
   const going = (runs.data?.runs ?? []).filter((run) => (businessId === undefined || run.businessId === businessId) && stoppable(run)).length;
 
-  useEffect(() => { if (ask) notNow.current?.focus(); }, [ask]);
 
   async function pause(next: boolean, stopRunning = false) {
     if (busy) return;
@@ -75,19 +74,20 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
           <button ref={stopItem} type="button" className={menu.item} aria-expanded={ask === 'stop'} onClick={() => setAsk(ask === 'stop' ? null : 'stop')}>{t('business.stopAll')}</button>
         </li>
         <li>
-          <a className={menu.item} href="#/business/away" onClick={onLeave}>{t('business.away')}</a>
+          {/* C1 task 9: Away's address comes from the one settings list. */}
+          <a className={menu.item} href={settingsPage('away').href} onClick={onLeave}>{t(settingsPage('away').title)}</a>
         </li>
       </ul>
       {paused && <p className={menu.notice}>{paused.line}</p>}
       {ask && (
-        <div className={s.ask} role="group" aria-label={question}>
-          <p className={s.askLine}>{question}</p>
-          <div className={s.askActs}>
-            <Button ref={notNow} size="sm" variant="quiet" onClick={() => { (ask === 'stop' ? stopItem : pauseItem).current?.focus(); setAsk(null); }}>{t('approval.cancel')}</Button>
-            <Button size="sm" variant="primary" data-confirm="" onClick={() => void pause(true, ask === 'stop')}>
-              {t(ask === 'pause' ? 'business.pauseAll' : 'business.stopAll')}
-            </Button>
-          </div>
+        <div className={s.ask}>
+          {/* B4: Stop all stops work: the danger tone, never the green fill. Keyed, so Cancel takes the focus each time it asks. */}
+          <Confirm
+            key={ask} size="sm" label={question} action={t(ask === 'pause' ? 'business.pauseAll' : 'business.stopAll')} tone={ask === 'stop' ? 'danger' : undefined}
+            onCancel={() => { (ask === 'stop' ? stopItem : pauseItem).current?.focus(); setAsk(null); }} onConfirm={() => void pause(true, ask === 'stop')}
+          >
+            <p>{question}</p>
+          </Confirm>
         </div>
       )}
       {said && <p className={said.problem ? menu.problem : menu.notice} role="status">{said.line}</p>}

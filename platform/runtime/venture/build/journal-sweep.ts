@@ -52,6 +52,7 @@ export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLi
   await import('../playbooks/social/scheduled.ts').then(module => module.runSocialScheduledDue(deps, ctx)).catch(() => undefined); // 5D1 S12: exact approved single slots
   await settleInbound(deps, ctx); // 4E3: replies whose row can no longer be are marked processed, so unread means unread
   await runMoneySchedules(deps, ctx); // 4J5: recurring invoices and bills due today, or missed, drafted (never throws)
+  await import('../money/ca-pack.ts').then(module => module.runCaPackDue(deps, ctx)).catch(() => undefined); // C5 task 17: the month's pack for the CA, once (never throws)
   await import('../agents/routine-runner.ts').then(module => module.routineTick(deps, ctx, claimLimitMs)).catch(() => undefined); // 4J13: leases, timed questions, routines (never throws)
   // 4G2: Keeper's needs-you checks (recordProbeRuns never throws); a probes file that cannot even load is recorded as
   // a failed Keeper run, not swallowed, and the sweep stands.

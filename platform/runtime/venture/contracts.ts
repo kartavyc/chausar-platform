@@ -2,6 +2,10 @@
 // Every type, record kind, RPC method name, payload and result shape used by the venture packages.
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
 // Owned by package P0. Other packages import from here and never redefine these shapes.
+import type { AccountantView } from './money/accountant.ts';
+import type { CaPackScheduleView } from './money/ca-pack.ts';
+import type { TelegramFound } from './notify/telegram.ts';
+import type { ClientAiDefaultView } from './clients/ai-consent-core.ts';
 import type { Context, StateStore } from '../contracts.ts';
 import type { PlaybookOrigin } from './playbook-origins.ts';
 import type {
@@ -19,6 +23,7 @@ import type { SocialChannel } from './playbooks/social/channels.ts';
 import type { PriceGuideView } from './core/price-ranges.ts';
 import type { LayoutBy, LayoutChange, LayoutPlace, LayoutRequest, LayoutState } from './views/layout-core.ts';
 import type { LayoutChangeResult, LayoutView } from './views/layout.ts';
+import type { FindRequest, FindView } from './views/find-core.ts';
 import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 // Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
@@ -198,6 +203,13 @@ export const VENTURE_RECORD_KINDS = [
   // Wave 6 (6H3, D40): each owner's layout of a place, one record per change (the newest is in use), and the AI's
   // requests to open a place.
   'venture-layout', 'venture-layout-go',
+  // C5 task 1: the agents each member has met on Team (the newest record of theirs holds them all).
+  'venture-team-intro',
+  // C5 task 7: Allow AI for new clients.
+  'venture-client-ai-default',
+  // C5 task 16: who the owner's CA is.
+  'venture-accountant',
+  'venture-ca-pack-order', 'venture-ca-pack',
   'venture-person', 'venture-network-import', 'venture-forgotten',
   'venture-tie', 'venture-network-search',
   'venture-opportunity', 'venture-pipeline-settings',
@@ -289,6 +301,14 @@ export const VENTURE_RECORD_KINDS = [
   'venture-flow', 'venture-flow-run',
   // Wave 6 (6J2, D47): the owner's report choices (newest wins) and each crash or answer waiting for Send report (core/feedback.ts).
   'venture-feedback-setting', 'venture-feedback-item',
+  // One-shot C4 (T20): one share of an invoice the owner made (the desktop share, Save file) or "Mark as sent".
+  'venture-invoice-share',
+  // C7: owner-made trackers and their rows (trackers/trackers.ts).
+  'venture-tracker', 'venture-tracker-row',
+  // C7: one more agent the owner hired, and the interview on the way (agents/hire-store.ts).
+  'venture-agent-hire',
+  // C7: one event a relay brought in, ids and its confirmed facts only (build/event-triggers.ts).
+  'venture-relay-event',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -304,6 +324,10 @@ export type RecordBase<K extends VentureRecordKind> = {
 
 export type VentureRecord = RecordBase<'venture-record'> & {
   aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
+  /** C7: the backup AI for routines (agents/routine-backup.ts): off by default; at is when the owner last set it. */
+  routineBackup?: { on: boolean; order: ModelPresetId[]; at: IsoTime };
+  /** C7: the event relay's host and when it was last read (build/event-triggers.ts). The address itself is in protected storage. */
+  eventRelay?: { host: string | null; calKey: boolean; since: IsoTime; lastRead?: IsoTime };
   /** Host-owned revocation generations; owner settings never accept these counters. */
   aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   idea: string;
@@ -557,6 +581,11 @@ export type BlueprintView = {
    * reliable data". Information only: it never sets or changes a price. Absent when the plan maps to no beta profession.
    */
   priceGuide?: PriceGuideView;
+  /**
+   * One-shot C4 task 33: present only on the answer to the owner's own price saved in the app, which applied at once: the
+   * decided line and the row id venture.queue.undo takes to put back the version before. Not part of the record.
+   */
+  decided?: { line: string; undoRowId: string };
 };
 
 /** W6 6C3 (D17): the price range views, defined beside their code (core/price-ranges.ts) so the app's fake engine can use them. */
@@ -645,6 +674,9 @@ export type ModelPriceTable = {
   currency: 'USD';
   inputMicrosPerMillion: MicroString; // micro-USD per million input tokens
   outputMicrosPerMillion: MicroString;
+  /** D2: prompt cache prices, when saved; a reported cache read or write with no price here leaves the call's cost held. */
+  cacheReadMicrosPerMillion?: MicroString;
+  cacheWriteMicrosPerMillion?: MicroString;
   source: string; // where the list price came from
   checkedOn: IsoDate;
   confirmed: boolean; // false: every cost from this table is shown as 'estimate, price unconfirmed'
@@ -728,8 +760,9 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   approvedBy: string | null; // memberId of the person who approved a client-data send
   estimatedMaxCostMicros: MicroString; // reserved against the monthly cap while dispatching
   priceConfirmed: boolean;
-  usage: { inputTokens: number; outputTokens: number } | null;
-  costMicros: MicroString | null;
+  /** D2: inputTokens is the uncached input; the cache counts appear only when the provider reported more than zero. */
+  usage: { inputTokens: number; outputTokens: number; cachedInputTokens?: number; cacheWriteTokens?: number } | null;
+  costMicros: MicroString | null; // null: failed before a price, or held (a reported cache kind has no saved price)
   outputDigest: string | null;
   error: { code: string; message: string; cause?: string } | null; // cause (4F2): the transport's class, such as 'not-connected', when it said one
   replay: boolean; // true when served from a synthetic recording
@@ -831,6 +864,8 @@ export interface ModelPort {
   toolSaid?(callId: string): string | null;
   /** A2: the models Codex offers this account (codex debug models), and the ones Chausar uses; the fixed ids when unread. */
   codexModels?(): Promise<import('./models/codex-models.ts').CodexModels>;
+  /** C7: Codex's own answer to the account's rate-limit read (a short app-server start, no thread, no turn); null when it could not be read. */
+  codexPlan?(): Promise<unknown>;
 }
 
 /**
@@ -1014,6 +1049,15 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   taxId: string | null; // the client's GSTIN or VAT number, when they gave one
   stateCode: string | null; // India only: the client's GST state code, for place of supply
   note: string | null;
+  /** C4 task 18: Forget of the person behind this client: the timeline holds nothing from before this time. */
+  timelineClearedAt?: IsoTime;
+  /**
+   * One-shot C6: the phone or WhatsApp number as the owner typed it, and its WhatsApp digits (country code first, no
+   * plus) worked out by code (clients/phone.ts). Absent means none. Used only to open WhatsApp; never read by a model
+   * (clients/phone.ts CLIENT_AI_FIELDS); erased by Forget.
+   */
+  phone?: string | null;
+  whatsapp?: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
   sellerShopify?: import('./playbooks/online-seller/shopify-records.ts').SellerShopifyBody;
@@ -1102,7 +1146,9 @@ export interface OrderStageView { id: OrderStageId; label: Display; state: Order
 /** What waits on the owner in one order (4J3): "2 wait on you: the new price and the episode draft." */
 export interface OrderWaitsOnYou { count: number; items: { stage: OrderStageId; what: Display }[]; line: Display }
 /** venture.order.list's row (4J3): the order as stored, with its stage steps and what waits on the owner, or null. */
-export type OrderListRow = OrderRecord & { stages: OrderStageView[]; waitsOnYou: OrderWaitsOnYou | null };
+export type OrderListRow = OrderRecord & { stages: OrderStageView[]; waitsOnYou: OrderWaitsOnYou | null; price: OrderPrice | null };
+/** One-shot C4 task 11: an order's price as its receipt's Total figure says it, with that receipt's id. */
+export interface OrderPrice { display: Display; receiptId: string }
 /** taxRateBps (4J5, M15): the rate charged on this line when it was drafted; absent on invoices drafted before. */
 export type InvoiceLine = { description: string; quantity: string; unitMinor: MinorString; amountMinor: MinorString; taxRateBps?: BpsString };
 export type InvoiceRecord = RecordBase<'venture-invoice'> & {
@@ -1172,9 +1218,11 @@ export type PaymentRecord = RecordBase<'venture-payment'> & {
 export type InvoiceNext = { action: 'issue' | 'wait' | 'remind' | 'clear' | 'none'; line: Display; draftId?: string };
 /** One line of an invoice's short timeline (4J5, M12): events by date, then where it stands now. */
 export type InvoiceTimelineEntry = {
-  what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled';
+  what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled' | 'shared' | 'marked';
   on: IsoDate;
   line: Display;
+  /** One-shot C4 (T20): on a 'shared' line, how the owner shared it. */
+  how?: Exclude<InvoiceShareHow, 'marked'>;
 };
 export type InvoiceView = {
   /** Profile saved with this invoice's price, even if the owner later moves. */
@@ -1197,6 +1245,12 @@ export type InvoiceView = {
   billed?: import('./money/billing-types.ts').OrderBilledView;
   /** Wave 6 (6D2, 6D3): how the client pays this invoice, built by code from its balance. */
   howToPay?: import('./money/billing-types.ts').HowToPayView;
+  /** One-shot C4 (T20): true only once the owner marked it sent; a share that opened their own app is not sending. */
+  sent: boolean;
+  /** C5 task 12: the method a new payment starts from (the newest payment's, else UPI in rupees, else bank transfer). */
+  paymentDefaults?: { method: PaymentMethod };
+  /** One-shot C6: an issued invoice with nothing left to pay. */
+  paidInFull?: boolean;
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
@@ -1257,9 +1311,15 @@ export type HandoffPlan = {
   label: 'handoff';
   status: 'available' | 'planned';
 };
+/** C5 task 35: the brief by file: website-brief.md, and the note file the builder reads the brief id from. */
+export type BriefFilePlan = {
+  handoffId: string; // send it back with venture.build.handoffOpened once the file is saved
+  builder: BuilderId;
+  files: { name: string; text: string }[];
+};
 export type HandoffRecord = RecordBase<'venture-handoff'> & {
   builder: BuilderId;
-  mode: 'link' | 'copy';
+  mode: 'link' | 'copy' | 'file';
   briefId: string;
   briefDigest: string;
   urlChars: number;
@@ -1463,6 +1523,14 @@ export type UntrustedReleaseRecord = RecordBase<'venture-untrusted-release'> & {
  * whose approval showed the judge's notice and cost ('default', entryId that approved journal entry), or when the owner
  * sends a judge call that waited for want of it ('send', entryId that send's entry); null while off (delivery/judge-run.ts).
  */
+/** C5 task 7: Allow AI for new clients, on or off, with the digest of the words the owner confirmed; the newest is in use. */
+export type ClientAiDefaultRecord = RecordBase<'venture-client-ai-default'> & { on: boolean; digest: string };
+/** C5 task 16: the CA's email and WhatsApp number; the newest is in use. */
+export type AccountantRecord = RecordBase<'venture-accountant'> & { email: string | null; whatsapp: string | null };
+/** C5 task 17: the standing order for the monthly CA pack. The newest is in use. */
+export type CaPackOrderRecord = RecordBase<'venture-ca-pack-order'> & { on: boolean };
+/** C5 task 17: one month's pack, made once. file: its name in Chausar's exports folder. doneAt: the owner sent it, so its row left Today. */
+export type CaPackRecord = RecordBase<'venture-ca-pack'> & { month: string; file: string; what: string; doneAt: IsoTime | null };
 export type JudgeSettingRecord = RecordBase<'venture-judge-setting'> & {
   auto: boolean;
   consent: { at: IsoTime; by: string; how: 'set' | 'default' | 'send'; entryId: string | null } | null;
@@ -1674,7 +1742,7 @@ export type LeadSettingsRecord = RecordBase<'venture-lead-settings'> & {
 
 /** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs. */
 export const EXTERNAL_ORIGINS = Object.freeze([
-  'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
+  'https://accounts.google.com', 'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com', 'https://www.paddle.com', 'https://dodopayments.com',
   'https://workspace.google.com', 'https://www.zoho.com', 'https://resend.com', 'https://postmarkapp.com',
@@ -1893,7 +1961,9 @@ export type SimulationRunRecord = RecordBase<'venture-simulation-run'> & {
   modelMode: 'model' | 'template' | 'mixed';
 };
 
-export const DELIVERY_REASONS = ['wrong-fact', 'missing-fact', 'missing-section', 'off-brief', 'tone', 'format', 'too-long', 'too-short', 'wrong-number', 'late', 'claims-work-not-done', 'other'] as const;
+export const DELIVERY_REASONS = ['wrong-fact', 'missing-fact', 'missing-section', 'off-brief', 'tone', 'format', 'too-long', 'too-short', 'wrong-number', 'late', 'claims-work-not-done', 'other',
+  // C5 task 9: the work was not wanted; it was not wrong, so it teaches nothing.
+  'not-needed'] as const;
 export type DeliveryReason = typeof DELIVERY_REASONS[number];
 /**
  * 'needs-answer': the agent handed off with a question, and the run waits for the owner's answer. 'brief-waiting': the
@@ -1965,6 +2035,11 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   renderedText: string | null;
   checks: CheckResult[];
   verdict: { choice: 'accepted' | 'edited' | 'rejected'; reason: DeliveryReason | null; at: IsoTime } | null;
+  /**
+   * One-shot C4 task 15: what a reject changed, so Undo puts it back exactly. Left out when the reject moved the order on
+   * as well (a chain's stage), which Undo can't take back: only a reject with this can be undone.
+   */
+  rejectedFrom?: { verdict: DeliveryRunRecord['verdict']; editedText: string | null; practice: boolean } | null;
   editedText: string | null;
   /** The agent loop, for an order with files. Each model turn waits for the owner's approval of its exact text. */
   harness?: HarnessState | null;
@@ -2084,6 +2159,8 @@ export type SignalRecord = RecordBase<'venture-signal'> & {
   /** Also the id of the first rule the rules judge failed a real draft on (a JudgeRule id, judge-run.ts). */
   reason: DeliveryReason | CheckId | (string & {}) | null;
   scenarioId: string | null; // set once turned into a rehearsal case
+  /** One-shot C4 task 15: the owner took back the reject this came from. Nothing reads it from then on (liveSignals). */
+  withdrawnAt?: IsoTime | null;
 };
 export type ImprovementReadiness = {
   judged: number;
@@ -2713,7 +2790,8 @@ export type SpendPolicyRecord = RecordBase<'venture-spend-policy'> & {
  * The owner's own rate for showing spend in rupees too: rupees per US dollar in ten-thousandths of a rupee (83.50 is
  * 835000), and the day the owner set it. Spend is still counted and capped in US dollars; rupees are shown, never kept.
  */
-export type RupeeRate = { perUsd: string; setOn: IsoDate };
+/** source (C5 task 15): where a rate came from when it is not the owner's own figure; setOn is then the figure's day. */
+export type RupeeRate = { perUsd: string; setOn: IsoDate; source?: string };
 /**
  * 4Z3 (founder, 27 Oct): which currency leads a spend figure, as the owner chose it in the spend settings. 'auto' (the
  * default): rupees lead for a business in India once a rupee rate is set. 'inr': rupees lead whenever a rate is set.
@@ -2772,6 +2850,8 @@ export type SpendRateUsd = {
  * capRupees and askFirstRupees: the limits in rupees at that rate. All null or absent without a rate.
  */
 export interface SpendPolicyView {
+  /** C5 task 15: the offer of the reference rate shipped with this release; gone once it is in use. */
+  reference?: { perUsd: string; on: IsoDate; line: Display; source: Display; url: string };
   capMicros: MicroString | null; askFirstMicros: MicroString | null;
   capUsd: string | null; askFirstUsd: string | null;
   cap: Display; askFirst: Display;
@@ -2881,7 +2961,7 @@ export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; na
  * gate (4F1); 'resume' goes on with a stopped run (4F1).
  */
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
-  | 'sent' | 'continue' | 'stop' | 'resume';
+  | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file';
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
 export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
 /**
@@ -2922,13 +3002,13 @@ export interface QueueRow {
  * The needs-you probes (4G2, O10): failed posts, a broken connection, drafts waiting, a calendar gap, a sharp move, a
  * stalled client. 'idea' (Ink v2 wave 5, 5A3): a published idea whose seven days are over, waiting for its grade.
  */
-export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea';
+export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill' | 'ca-pack' | 'readable-copy';
 /**
  * A probe's notice (4G2): which probe made it, how much it matters, the screen Open goes to (an app address such as
  * #/connections), and each amount its line states, written exactly as there, with the receipt behind it, in the order
  * the line states them (any currency: the text is matched as written, not by a money pattern).
  */
-export type QueueNotice = { probe: NoticeProbe; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
+export type QueueNotice = { probe: NoticeProbe; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[]; /** C5 task 17: the file of Chausar's exports folder Show in folder shows. */ file?: string };
 /**
  * A reply row's parts (4E3): which mail, why it waits on the owner (a match to confirm, a move to Talking, a reply to
  * write yourself, the fixed answer to "are you a bot", notes after a call), who, the card, what it asks about, and for a
@@ -2992,10 +3072,16 @@ export type PreviewWords = { text: Display; estimate?: true };
 /** A length worked out by code: whole seconds, "11 min 42 s", "11:42", and what it was measured from. */
 export type PreviewLength = { seconds: number; display: Display; clock: Display; from: 'edit-list' | 'transcript' };
 export interface QueueList { rows: QueueRow[]; summary: Display; needsYou: number; businesses: number }
-export interface QueueDecision { outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string }
+export interface QueueDecision {
+  outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string;
+  /** B4 task 7: a done decision venture.queue.undo can take back (one price accepted on one press). */
+  undoable?: true;
+}
 export type RunState = 'active' | 'waiting' | 'done' | 'failed';
 export interface RunStep {
   id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;
+  /** C5 task 4: this step's own working time, and the time the run waited for the owner just before it; both from stamped times only. */
+  working?: Display; waiting?: Display;
   tools?: RunToolLine[]; evidence?: { kind: string; id: string; label: string }[]; error?: string; audited?: boolean;
   /** 4J14 (Q6): on the read step, how much of the client's files code handed over; on the run's own sheet only. */
   coverage?: CoverageView;
@@ -3050,11 +3136,26 @@ export type RunToolLine = { name: string; line: string; state?: 'done' | 'error'
  */
 export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  /**
+   * C5 task 4: the run's time apart: worked (elapsed less every wait for the owner) and waited (each span from the run
+   * waiting to the next thing it did). Only on runs whose calls carry stamped times; an older run shows elapsed alone.
+   */
   progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
   usually?: Display; stop?: { state: 'stopping' | 'stopped'; line: Display; trigger?: 'same-error' | 'same-action' | 'failures-in-row' };
   poster?: { uploadId: string; src: string | null } | null;
   /** 4H2 (U17): which engine wrote the run's draft, the line DeliveryRunView.writtenBy carries; absent before an answer. */
   writtenBy?: Display;
+  /**
+   * One-shot C4 task 12 (views/runs.ts runTimes): elapsed is the time the run worked, without its waits on the owner;
+   * waited is those waits together, absent when the run's events show none; waitingSince is when the current wait on
+   * the owner began, on a run waiting now.
+   */
+  waited?: Display;
+  waitingSince?: IsoTime;
+  /** One-shot C4 task 12: the client a delivery run worked for (never the own shop), for a link to the client sheet. */
+  client?: { id: string; name: string };
+  /** One-shot C4 task 17: on an improvement run, its kept version still waits to be adopted (Work's row links to Use this version). */
+  adoptReady?: true;
 }
 /**
  * screen: one line saying what the untrusted screen noted in the run's outside content, never the words (W1 H9).
@@ -3110,6 +3211,8 @@ export interface RunScopeView { tools: Display[]; actions: Display[]; cap: Displ
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
+  /** C7: an agent the owner hired: the day, its duties and what it reads. It owns no steps and always asks. */
+  hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
   last?: { line: Display; receiptId?: string; estimate?: boolean };
   steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
   // Ink v2 wave 4 (4A1 unless named): the agent's department; 'code' for the code role and for Keeper; its state from
@@ -3127,6 +3230,11 @@ export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | '
   | 'chain.changed' | 'desk.changed' | 'idea.changed' | 'privacy.forgotten';
 /** seq: the event's place in the business's log, so a client that reconnects replays the gap (4G1); count: on notify.new only. */
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
+/**
+ * One-shot C3 task 9: what goes to the screens: a run event, or a `work.step` frame (work-progress.ts), which has no seq
+ * and is never in the event log. businessId is '' before any business is open.
+ */
+export type VentureFrame = VentureRunEvent | import('../work-progress.ts').WorkStepEvent;
 // phase 2 views (SpendRow is in section 8c)
 /**
  * Ink v2 wave 4 (4J1, O17): allowedBy, on an entry for a step that ran without asking: the saved rule, the agent and step
@@ -3174,7 +3282,7 @@ export const VENTURE_RUN_EVENT_TYPES: readonly VentureRunEventType[] = Object.fr
 ] as const);
 export const QUEUE_ACTION_IDS: readonly QueueActionId[] = Object.freeze([
   'approve', 'deny', 'later', 'watch', 'read', 'answer', 'send-to-ca', 'open', 'connect', 'set-prices', 'keep', 'issue', 'run-again',
-  'sent', 'continue', 'stop', 'resume',
+  'sent', 'continue', 'stop', 'resume', 'show-file',
 ] as const);
 
 /** One owner decision on a Today row. Decide-once: a second decision on the same row id is refused. */
@@ -3223,6 +3331,8 @@ export interface QueueItemView {
   kind: 'draft' | 'file' | 'plan'; id: string; businessName: string; agent?: string;
   title: string; line?: Display;
   sections: { heading?: string; lines: Display[] }[];
+  /** One-shot C4 task 16: on a draft, each amount its text holds, with its receipt or as a model estimate (delivery/deliverable.ts draftAmounts). */
+  amounts?: { display: Display; receiptId?: string; receiptKind?: 'work'; estimate?: true }[];
 }
 /**
  * venture.money.overview: three lines code adds up in BigInt, each with the receipt behind it. rupees: the AI spend line
@@ -3233,9 +3343,14 @@ export interface MoneyOverviewLine {
   id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display;
   /** 4Z3: the AI spend line as the owner's currency leads it (the 'spent' line only). */
   lead?: SpendLead;
+  /** C4 (T23): a business billing in rupees with no rupee rate set, so the owner can be offered "Set a rupee rate". */
+  needsRate?: boolean;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
-export interface MoneyOverview { lines: MoneyOverviewLine[] }
+/** One-shot C6: every invoice issued in a month has nothing left to pay, with the receipt that lists them and their payments. */
+export type PaidInFullView = { line: Display; receiptId: string };
+/** paidInFull (one-shot C6): this month on the owner's calendar; absent while the business has no country. */
+export interface MoneyOverview { lines: MoneyOverviewLine[]; paidInFull?: PaidInFullView | null }
 /** venture.tax.working: the tax working for a period, every figure from code with its receipt. */
 export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
 export interface TaxWorkingSection { id: string; title: Display; lines: TaxWorkingLine[]; note?: Display }
@@ -3261,7 +3376,7 @@ export type ClientListRow = ClientRecord & { owed?: { display: Display; receiptI
 /** venture.invoice.list rows: the invoice total, formatted, and the price receipt behind it. */
 /** next (4J5, M12): the invoice's one next step by its state, the same as its view's. */
 /** late (4J4, M9): on an open invoice past its due day, the days on the owner's calendar ("71 days late"). */
-export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: string; next?: InvoiceNext; late?: { days: number; line: Display } };
+export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: string; next?: InvoiceNext; late?: { days: number; line: Display }; /** One-shot C4 (T20): as InvoiceView.sent. */ sent?: boolean };
 
 /**
  * A receipt for a sum code made from venture records: what clients owe on open invoices, what came in this month, what
@@ -3285,6 +3400,8 @@ export type SumReceiptSubject =
   // How the month stands against its goal (4I1): day null, still to invoice or past the goal by; a day, today's pace on
   // that day, ahead or behind by (a new receipt each day). Both add up the goal in use, so a replaced goal reads stale.
   | { type: 'goal'; month: string; goalId: string; day: IsoDate | null }
+  // One-shot C6: what is left to pay on every invoice issued in the month (each total less its payments and credits).
+  | { type: 'paid-in-full'; month: string }
   // Open balances in five buckets by days late (4J4).
   // late (4J20): the late ones alone, more than zero days past their due date.
   | { type: 'aging'; asOf: IsoDate; late?: true }
@@ -3320,6 +3437,8 @@ export type SumReceiptSubject =
 /** 4J6. The figures a snapshot keeps and the across views show. */
 export type AcrossFigureId = 'invoiced' | 'received' | 'owed' | 'spend';
 export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
+  /** C4 (T27): what was counted and over which dates, in code words; added when served, never stored or signed. */
+  basis?: Display;
   subject: SumReceiptSubject;
   operation: 'venture.sum';
   currency: string;
@@ -3521,6 +3640,8 @@ export type RuleLocksView = {
 export type ComplianceView = {
   profession: { id: string; label: string; family: string | null };
   question: string; responsibility: string;
+  /** One-shot C4 task 3: the line shown when the owner has no day job. */
+  noDayJob: string;
   /**
    * W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. W6 (3 November
    * 2026): verdict is the line at the owner's size for a statute with a size threshold, else null.
@@ -3529,7 +3650,7 @@ export type ComplianceView = {
   switchedOff: { tool: string; line: string }[];
   hardStops: { id: string; line: string }[];
   digest: string;
-  recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
+  recorded: { professionId: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
   /** W6 (3 November 2026): the size question (core/business-size.ts), or null when no rule of the profession counts size. */
   size: import('./core/business-size.ts').SizeAsk | null;
 };
@@ -3628,9 +3749,12 @@ export type AgentMessageFrom = 'owner' | 'agent' | 'chausar';
 export type ChatPart =
   | { kind: 'text'; text: string }
   | { kind: 'figure'; receiptId: string; key: string; display: Display }
-  | { kind: 'estimate'; text: string };
+  | { kind: 'estimate'; text: string }
+  /** C7: a section of Chausar's own guide, its words filled in by code from guide-data.json, with the link to it. */
+  | { kind: 'guide'; anchor: string; title: string; text: string; link: string };
 /** What an agent's reply suggests the screen opens: a New order sheet prefilled with the owner's request. Nothing is created (4B1). */
-export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string };
+/** C5 task 5: connect-ai is the next step under a reply written without an AI; set by code, never read from model text. */
+export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string } | { kind: 'connect-ai' };
 /** One message in an agent's thread (4B1). answered: it was recorded as the answer to that run's open question (A2). */
 export type AgentMessageRecord = RecordBase<'venture-agent-message'> & {
   agent: string;
@@ -3680,6 +3804,8 @@ export type AgentProposalRecord = RecordBase<'venture-agent-proposal'> & {
   decidedBy: string | null;
   /** 4J17 (A18), kind 'import': the owner patches an agent file adds, the persona it sets, and what was left out with why. */
   imported?: { patches: PlaybookPatch[]; persona: PersonaFields | null; skipped: string[] };
+  /** C7: an instruction the agent offered after the owner signed off a draft they edited (agents/way-of-working.ts). */
+  offered?: { runId: string; digest: string };
 };
 /**
  * One chat consent per business covers agent chat, Chats and network search, which send client or contact data to the
@@ -3691,6 +3817,8 @@ export type ChatConsentRecord = RecordBase<'venture-chat-consent'> & {
   connectionId: string | null;
   model: string | null;
   by: string;
+  /** C7: a backup AI's consent for routines, given when the owner turned the backup on; the main chat consent ignores it. */
+  backup?: true;
 };
 
 /** A note an agent keeps (4B2), from the owner's own words only. scope 'client:<id>' when the words name a client. */
@@ -3724,6 +3852,8 @@ export type ChiefThreadRecord = RecordBase<'venture-chief-thread'> & {
 /** W6 6G1: the owner's number of quiet days before a chat settles on its own (0 is never); the newest is in use. */
 export type ChatSettleRecord = RecordBase<'venture-chat-settle'> & { days: number };
 /** W6 6H3 (D40): one change to an owner's layout of a place (views/layout-core.ts), who made it and its line. */
+/** C5 task 1: every agent this member has met on Team; the newest of theirs is in use. */
+export type TeamIntroRecord = RecordBase<'venture-team-intro'> & { agentIds: string[] };
 export type LayoutRecord = RecordBase<'venture-layout'> & { place: LayoutPlace; state: LayoutState; by: LayoutBy; line: string; op: LayoutChange['op'] };
 /** W6 6H3: the owner's AI offered a place; the app shows a link the owner opens, never opening it by itself. */
 export type LayoutGoRecord = RecordBase<'venture-layout-go'> & { href: string; title: string };
@@ -3749,6 +3879,8 @@ export type ChiefMessageRecord = RecordBase<'venture-chief-message'> & {
   dropped?: string[];
   /** 4C2 review: the counts by code (4J14, Q21) when the AI's answer failed or there is no AI, for the screen to word. */
   counted?: ChiefCounted | null;
+  /** C5 task 5: an answer written with no AI carries Connect your AI as a button. */
+  suggestion?: { kind: 'connect-ai' };
 };
 /** 4C2 review: what code counted from the vault: each kind's records, and the new ones in each month (oldest first). */
 export type ChiefCounted = { entities: { kind: string; count: number }[]; months: { month: string; count: number }[] };
@@ -4297,6 +4429,12 @@ export type BillRecord = RecordBase<'venture-bill'> & {
   /** Whether its GST was left out of the costs as claimable, kept from its first payment so later ones agree. */
   taxClaimed?: boolean;
 };
+/**
+ * One-shot C4 (T20): one share of an issued invoice. 'whatsapp' and 'email': the owner's own app opened with it; 'file':
+ * the file was saved; 'marked': the owner said it was sent. Only 'marked' makes the invoice sent: opening an app is not sending.
+ */
+export type InvoiceShareHow = 'whatsapp' | 'email' | 'file' | 'marked';
+export type InvoiceShareRecord = RecordBase<'venture-invoice-share'> & { invoiceId: string; how: InvoiceShareHow };
 /** A credit note against one invoice (4J5): on the always-ask floor, so it waits on Today until issued. */
 export type CreditNoteRecord = RecordBase<'venture-credit-note'> & {
   invoiceId: string;
@@ -4446,10 +4584,16 @@ export type AgentRelayRecord = RecordBase<'venture-agent-relay'> & {
 export type RoutineSchedule =
   | { kind: 'once'; at: IsoTime }
   | { kind: 'interval'; everyMinutes: number; from: IsoTime }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  /** C4 task 32: one day of the month (1 to 28) at a time in a named zone ("On the 1st of each month, 9:00 am"). */
+  | { kind: 'monthly'; day: number; time: string; timeZone: string }
+  /** C7: a trigger: it starts on a confirmed event and only drafts (build/event-triggers.ts). */
+  | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
 /** A routine (4J13): a standalone prompt on a schedule, for an agent or the chief. It never approves anything. */
 export type RoutineRecord = RecordBase<'venture-routine'> & {
   recordReport?: 'va-morning'|'va-weekly';
+  /** C7: a trigger's facts: the blanks its prompt uses, shown when it is saved and sent with each event. */
+  facts?: string[];
   name: string;
   agent: string | null;
   setBy: 'owner' | 'agent' | 'chief';
@@ -4468,6 +4612,18 @@ export type RoutineRunRecord = RecordBase<'venture-routine-run'> & {
   missed: number;
   runId: string | null;
   threadId: string | null;
+  /** C7: a run parked as queued until the AI plan resets (resetsAt null: no reset known, looked at again every 30 minutes). */
+  waitsFor?: { cli: DelegateCli; resetsAt: IsoTime | null };
+  /** C7: when the run started waiting for the plan. */
+  waitingSince?: IsoTime;
+  /** C7: when the run last parked on Today, if after it was made; its 24 hours count from here. */
+  parkedAt?: IsoTime;
+  /** C7: the backup AI a run went to and why ("Ran on Claude Code because your Codex plan was used up."). */
+  ranOn?: { presetId: ModelPresetId; label: string; why: string } | null;
+  /** C7: the client whose data the run carries (an event trigger's run), if any. */
+  clientId?: string | null;
+  /** C7: a trigger's prompt with its blanks filled by code; sent instead of the routine's own words. */
+  filled?: string;
 };
 
 /** One run of the guardrail drills against the playbook hash (4J15). */
@@ -4586,6 +4742,8 @@ export interface TeamListView {
   teamHealth?: AgentHealth;
   /** W6 6G2: the Retired shelf, oldest first; sent only when an agent is retired. */
   retired?: RetiredAgentView[];
+  /** C5 task 1: the agents this member has not met yet, each with its code-written line (name and job). */
+  introduce?: { agentId: string; line: string }[];
 }
 /**
  * W6 6G2 (D43): an agent the owner retired. to: the agent that took over its steps, or the owner. routines: the ids
@@ -4640,6 +4798,8 @@ export type MiniAppCard = { id: string; name: string; version: number; summary: 
  */
 export type MiniAppView = MiniAppCard & {
   uri: string; document: string;
+  /** C4 task 29: the app reads the business, and every read it may make has nothing to show now. */
+  empty: boolean;
   versions: { version: number; at: IsoTime; summary: Display; current: boolean }[];
   permissions: MiniAppPermissionView[];
   grant: { permissions: AppPermission[]; at: IsoTime } | null;
@@ -4666,6 +4826,8 @@ export type AgentProposalView = {
   quote: string; title: Display; appliesTo: Display | null; diff: DiffLine[];
   fromVersion: number | null; toVersion: number | null; note: { text: string; scope: AgentNoteScope } | null;
   digest: string; line: Display | null;
+  /** C7: an offer the agent made after an edited sign-off: "Offered by {agent} after you approved {run}". */
+  offered?: Display;
 };
 /**
  * 4B1. One run the agent owned a step in, folded in its thread; recalled: the notes its turns carried (4B2), a note the
@@ -4754,6 +4916,8 @@ export type ChiefMessageView = {
   routedTo: { agent: string; name: string } | null; worked: { label: Display; value: Display; receiptId: string }[]; dropped: Display[];
   /** 4C2 review: the counts by code, or null. */
   counted: ChiefCounted | null;
+  /** C5 task 5: Connect your AI, under an answer written with no AI. */
+  suggestion?: { kind: 'connect-ai' };
 };
 /** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
 export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean; snooze: ChiefSnoozeOption[] }
@@ -4773,7 +4937,8 @@ export type MergeSuggestion = { a: string; b: string; line: Display };
  * 4D4: consent, the chat consent a network search needs, when it is needed (state 'needed' or 'stale', with the text the
  * owner reads and its digest for venture.chats.consent); null when it holds or nothing is sent (templates only).
  */
-export interface PeopleView { people: PersonSummary[]; suggestions: MergeSuggestion[]; total: number; consent: ChatConsentView | null }
+/** chips (C5 task 10): up to three search chips built by code from the owner's own network; none from hidden people. */
+export interface PeopleView { people: PersonSummary[]; suggestions: MergeSuggestion[]; total: number; consent: ChatConsentView | null; chips?: string[] }
 /** 4D1. One field Chausar keeps about a person, with its source row: the DPDP "What Chausar keeps about this person". */
 export type PersonFieldView = { field: string; value: Display; source: Display; sourceId: string };
 /** 4D2. A warm path; a connector leg with no fact behind it is "possible path, not confirmed". */
@@ -4959,7 +5124,8 @@ export type WriteCapKind = 'drafts' | 'books-lines' | 'messages';
 export interface AllowWritesView { kind: WriteCapKind; line: Display }
 
 /** 4G1. title: the row's title, for the in-app centre only. */
-export type NotificationView = { id: string; rowId: string; kind: QueueKind; title: Display; at: IsoTime; read: boolean };
+/** ended (one-shot C4 task 7): present once the item no longer waits on the owner; the centre shows it as plain text. */
+export type NotificationView = { id: string; rowId: string; kind: QueueKind; title: Display; at: IsoTime; read: boolean; ended?: true };
 /**
  * 4G1. digest: the newest daily digest, for the centre only: its line, the items it listed for the first time, how many
  * earlier ones still wait, and the sum receipts behind its money figures. Null before the first digest.
@@ -5043,6 +5209,8 @@ export interface GoalView {
   line: Display;
   next: NextBestStep | null;
   briefing: { rowIds: string[]; more: number } | null;
+  /** One-shot C6: the month's invoices are all paid (at least one issued, none with a balance), else null. */
+  paidInFull: PaidInFullView | null;
 }
 /** 4I1. A goal the owner's AI suggested from the plan's offers and prices only: a model estimate. */
 /** 4I2: typed is the amount as the owner would type it in the goal field ("150000.00"), read back by goals.set. */
@@ -5060,7 +5228,10 @@ export type DecisionView = {
   mine: boolean;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;
+  /** C4 (T26): what the decision was about, for the screen to open; null when that thing is gone or cannot be opened. */
+  opens: DecisionOpens;
 };
+export type DecisionOpens = { kind: 'invoice' | 'run' | 'order' | 'plan' | 'price' | 'client'; id: string } | null;
 export interface DecisionsView { decisions: DecisionView[] }
 export interface AllowSessionView { stepId: string; line: Display }
 
@@ -5158,6 +5329,8 @@ export interface CashView {
   lowest: { onTime: CashLowest | null; ifLateNeverPay: CashLowest | null };
   /** The weekly usual costs the forecast takes as given (an assumption), with the receipt of the first week that uses it. */
   usualCosts: KindedFigure | null;
+  /** C4 (T28): nothing is due in or out in the window and no usual costs are taken, so the line stays flat: why, in words. */
+  flat?: Display;
   assumptions: Display[];
   nextWeeks: CashItemView[];
   /** 4J20: each draft invoice issued today, the week its money is due in and its total, proved by its price receipt. */
@@ -5169,9 +5342,9 @@ export interface CashView {
   line: Display;
 }
 export type MarginRowView = { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null };
-export interface MarginsView { month: string; rows: MarginRowView[]; line: Display; basis: TotalBasis }
+export interface MarginsView { month: string; rows: MarginRowView[]; line: Display; basis: TotalBasis; /** C4 (T23): the spend is left out only for want of a rupee rate. */ needsRate?: boolean }
 /** 4J4. The month's CSV for the owner's CA; cells that could run as a formula are prefixed. */
-export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
+export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; /** C4 (T24): the name in owner words, and the business and the month for the read-me. */ ownerFileName?: string; business?: Display; period?: Display; format?: 'csv' | 'tally-xml' | 'gstr1-csv' }
 /**
  * 4J10: the business's signed receipts with their signatures and the public halves of its keys, which the CA's export
  * carries and node scripts/verify-receipts.mjs checks offline. Never a private half.
@@ -5187,9 +5360,17 @@ export type BillView = {
   state: 'draft' | 'posted' | 'partial' | 'paid' | 'overdue'; recurring: 'monthly' | 'quarterly' | null;
   /** 4J20 (bills.list): the receipt of this bill's balance (its lines and tax less what was paid). */
   receiptId?: string;
+  /** One-shot C4 (T22): a posted bill with money left on it, due on the owner's own day today. */
+  dueToday: boolean;
+  /** One-shot C4 (T22): what it is for, from its lines ("Printer paper, and 1 more"); null when a line only names the vendor. */
+  purpose: string | null;
 };
-/** owed: what open bills add up to, with its receipt; null when nothing is owed. */
-export interface BillsView { bills: BillView[]; owed?: MoneyFigureView | null }
+/**
+ * owed: what open bills add up to, with its receipt; null when nothing is owed. One-shot C4 (T22): terms, each vendor's
+ * days from bill date to due date on its newest bill, and defaultDueDays for a vendor with none, which bills.add uses
+ * when no due date is given.
+ */
+export interface BillsView { bills: BillView[]; owed?: MoneyFigureView | null; terms?: { vendor: string; days: number }[]; defaultDueDays?: number }
 export interface BillResult { bill: BillView; receiptId?: string }
 export type CreditNoteView = { id: string; invoiceId: string; amount: Display; reason: string; state: 'waiting' | 'issued' | 'cancelled'; number: string | null; rowId: string | null; line: Display;
   /** 4J20: the receipt that names the note's amount (the invoice's balance with it), while waiting or issued; null once cancelled. */
@@ -5321,10 +5502,17 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
 
 /** 4J13. when: the schedule in words with its time zone. prompt (4J22a): sent back to turn it off, on or change it; only
  * for a role that may change routines (owner, cofounder). */
-export type RoutineView = { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
+export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
+/**
+ * One-shot C4 task 32: a ready routine the plan already names, for the owner to add through the form (nothing stored).
+ * step: the plan's step it comes from; when: the schedule in words.
+ */
+export type RoutineSuggestion = { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string };
+export interface RoutineSuggestionsView { suggestions: RoutineSuggestion[] }
 /** receipt (W6 6G5): the model receipt of a run that asked an AI; absent before it ran. */
-export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView };
+/** ranOn (C7): the backup AI the run went to and why, in owner words. */
+export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView; ranOn?: Display };
 export interface RoutineRunsView { runs: RoutineRunView[] }
 export type RoutineInput = { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; recordReport?: 'va-morning'|'va-weekly' };
 
@@ -5419,6 +5607,17 @@ export type VentureWorkspacePort = {
    */
   backups?(): Promise<{ auto: boolean; count: number; newestAt: IsoTime | null; nextDueAt: IsoTime | null; lastError: string | null } | null>;
   /**
+   * C5 task 17: writes one file of the open business in Chausar's own exports folder, under the managed name
+   * chausar-<workspace id>-<tail>, and answers its name; null where this host keeps no folder (the hosted app).
+   */
+  keepFile?(tail: string, text: string): Promise<string | null>;
+  /** C5 task 22: the open business's readable copies on this computer the owner hasn't said to keep, by file name and time. */
+  readableExports?(): Promise<{ file: string; at: IsoTime }[]>;
+  /** C5 task 22: Keep it: that copy is never asked about again. */
+  keepReadable?(file: string): Promise<void>;
+  /** C5 task 22: Delete: removes exactly that copy. */
+  deleteReadable?(file: string): Promise<void>;
+  /**
    * Ink v2 wave 4 (4J6): what Chausar saved about each other business on this computer when it was last open, the open
    * one left out. A business that opens with a passphrase (or whose key this computer lost) is never read: `locked`. A
    * saved file that is tampered with, from another computer, or for another vault is `unreadable`. Empty on hosted.
@@ -5456,7 +5655,7 @@ export type BusinessSnapshotRead = VentureBusinessRef & { read: 'saved' | 'none'
 export type Department = DepartmentId;
 export type { IntakeValue, SharePrice, StartTile };
 // The kit (5A2, 5A4, 5A5, 5A6)
-export type GoNoGoRecord = RecordBase<'venture-go-no-go'> & GoNoGoBody;
+export type GoNoGoRecord = RecordBase<'venture-go-no-go'> & GoNoGoBody & { /** C4 (T25): the owner took the card off the list. */ removedAt?: IsoTime };
 /** 5A2: a sales proposal drafted for a client or a pipeline person (playbooks/kit/records-sales.ts SalesProposalBody). */
 export type SalesProposalRecord = RecordBase<'venture-sales-proposal'> & SalesProposalBody;
 export type BrandKitRecord = RecordBase<'venture-brand-kit'> & BrandKitBody;
@@ -5550,7 +5749,7 @@ export type PackRecord = RecordBase<'venture-pack'> & import('./packs/packs.ts')
 /** Wave 6 (6F9): one Sunra generation, its code-computed rupee quote and rights record (media/sunra.ts). */
 export type MediaGenerationRecord = RecordBase<'venture-media-generation'> & import('./media/sunra.ts').MediaGenerationBody;
 export type ComplianceRecord = RecordBase<'venture-compliance'> & {
-  professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
+  professionId: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
   /** W6 (3 November 2026): the owner's size ranges, by measure; null or left out (records before it) when none. */
   size?: import('./core/business-size.ts').SizeAnswers | null;
 };
@@ -5573,7 +5772,7 @@ export type AnyVentureRecord =
   | ChannelHoldRecord
   | ScreenSettingRecord | UntrustedReleaseRecord
   | PostingStepsRecord | BankMatchRecord | PostingLimitsRecord
-  | JudgeSettingRecord
+  | JudgeSettingRecord | ClientAiDefaultRecord | AccountantRecord | CaPackOrderRecord | CaPackRecord
   | TranscriptionSetupRecord
   | TalkSettingRecord
   | TalkHeardRecord
@@ -5585,7 +5784,7 @@ export type AnyVentureRecord =
   | AgentNoteRecord | AgentNoteChangeRecord
   | ChiefThreadRecord | ChiefMessageRecord | ProposalRecord
   | ChatSettleRecord
-  | LayoutRecord | LayoutGoRecord
+  | LayoutRecord | LayoutGoRecord | TeamIntroRecord
   | PersonRecord | NetworkImportRecord | ForgottenRecord
   | TieRecord | NetworkSearchRecord
   | OpportunityRecord | PipelineSettingsRecord
@@ -5630,7 +5829,11 @@ export type AnyVentureRecord =
   | CrmChangeRecord | CompanyRecord | CrmLinkRecord | CrmEntryRecord | CrmListRecord | CrmListItemRecord | MemoryFactRecord
   | AgentRetirementRecord
   | MiniAppRecord
-  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord;
+  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord
+  | InvoiceShareRecord
+  | import('./trackers/trackers.ts').TrackerRecord | import('./trackers/trackers.ts').TrackerRowRecord
+  | import('./agents/hire-store.ts').HireRecord
+  | import('./build/event-triggers.ts').RelayEventRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5742,7 +5945,7 @@ export const W5_METHODS = [
   // 5A1 the chain of an order's stages, from a kit offer's stages
   'venture.order.chain',
   // 5A2 the sales proposal and the GO, HOLD or NO-GO card (5A2 added goNoGo.list, so Business lists the stored cards)
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list', 'venture.goNoGo.remove',
   // 5A3 the idea pipeline, beside 4J18's venture.ideas.list, .start and .dismiss
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   // 5A4 brand kits, asset records and voice consent
@@ -5778,6 +5981,8 @@ export const VENTURE_METHODS = [
   'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   // Wave 6 money (6D1 to 6D4): billing settings, an invoice's PDF and share links, Razorpay Payment Links
   'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
+  // One-shot C6: a thank-you receipt for one payment, its words and its file (the owner sends it).
+  'venture.payment.receipt',
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
@@ -5848,8 +6053,23 @@ export const VENTURE_METHODS = [
   'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   // Wave 6 (6H3, D40): a place's layout, read and changed by the owner; the AI's own changes come through the MCP tools (views)
   'venture.layout.get', 'venture.layout.change',
+  // C2: the command bar's find across clients, invoices, orders, runs and chats (views)
+  'venture.find',
   // Wave 6 (6H2, D41): recorded flows, record once and run with no AI (build)
   'venture.flows.list', 'venture.flows.act',
+  // C5: new product ideas (W6-ALL-IDEAS section 2)
+  'venture.team.introduced',
+  'venture.away.preview',
+  'venture.client.aiDefault.get',
+  'venture.client.aiDefault.set',
+  'venture.notify.telegram.findChat',
+  'venture.accountant.get',
+  'venture.accountant.set',
+  'venture.accountant.schedule.get',
+  'venture.accountant.schedule.set',
+  'venture.accountant.pack.done',
+  'venture.build.briefFile',
+  'venture.diagnostics.today',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -5864,6 +6084,31 @@ export const VENTURE_METHODS = [
   'venture.needs.list',
   // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
   'venture.ai.setup.trust',
+  // One-shot C3: which step long work is on, for a page opened mid-job (work-progress.ts), answered by the engine.
+  'venture.work.list',
+  // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent" (money/invoice-share.ts).
+  'venture.invoice.shared',
+  // One-shot C4 (T32): the ready routines the plan already names, for the owner to add (agents/routines.ts).
+  'venture.routines.suggestions',
+  'venture.models.plan',
+  'venture.routines.backup.get',
+  'venture.routines.backup.set',
+  'venture.trackers.list',
+  'venture.trackers.get',
+  'venture.trackers.set',
+  'venture.trackers.remove',
+  'venture.trackers.rows.add',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.undo',
+  'venture.agents.hire.start',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.cancel',
+  'venture.events.get',
+  'venture.events.relay.set',
+  'venture.events.calKey.set',
+  'venture.agents.hire.duties',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -5887,7 +6132,7 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
  * A2: answered by the engine itself (engine.ts), with or without a vault, never by a package: the owner's yes to the
  * Codex found on this computer. The engine checks the app channel and the owner's role itself.
  */
-export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust'] as const);
+export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust', 'venture.work.list'] as const);
 
 /**
  * Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). Wave 5 adds playbooks
@@ -5895,130 +6140,438 @@ export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.
  */
 export type VenturePackageId = 'core' | 'models' | 'money' | 'build' | 'delivery' | 'views' | 'agents' | 'chief' | 'network' | 'notify' | 'playbooks';
 export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = Object.freeze({
-  'venture.countries': 'core', 'venture.preview': 'core', 'venture.create': 'core', 'venture.get': 'core', 'venture.events': 'core',
-  'venture.interview.next': 'core', 'venture.interview.answer': 'core',
-  'venture.blueprint.draft': 'core', 'venture.blueprint.get': 'core', 'venture.blueprint.update': 'core', 'venture.blueprint.accept': 'core',
-  'venture.models.presets': 'models', 'venture.models.connect': 'models', 'venture.models.disconnect': 'models', 'venture.models.status': 'models', 'venture.models.calls': 'models',
-  'venture.agentSettings.get': 'models', 'venture.agentSettings.set': 'models', 'venture.mcpCredential.set': 'models',
-  'venture.mcpRegistry.list': 'models', 'venture.mcpOAuth.start': 'models', 'venture.packs.list': 'models', 'venture.packs.add': 'models', 'venture.packs.remove': 'models',
-  'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
-  'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
-  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money',
-  'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
-  'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
-  'venture.payment.record': 'money', 'venture.books.summary': 'money',
-  'venture.spend.list': 'money', 'venture.spend.policy.get': 'money', 'venture.spend.policy.set': 'money',
-  'venture.build.brief': 'build', 'venture.build.handoff': 'build', 'venture.build.handoffOpened': 'build', 'venture.build.link': 'build', 'venture.build.sync': 'build', 'venture.build.status': 'build',
+  'venture.countries': 'core',
+  'venture.preview': 'core',
+  'venture.create': 'core',
+  'venture.get': 'core',
+  'venture.events': 'core',
+  'venture.interview.next': 'core',
+  'venture.interview.answer': 'core',
+  'venture.blueprint.draft': 'core',
+  'venture.blueprint.get': 'core',
+  'venture.blueprint.update': 'core',
+  'venture.blueprint.accept': 'core',
+  'venture.models.presets': 'models',
+  'venture.models.connect': 'models',
+  'venture.models.disconnect': 'models',
+  'venture.models.status': 'models',
+  'venture.models.calls': 'models',
+  'venture.agentSettings.get': 'models',
+  'venture.agentSettings.set': 'models',
+  'venture.mcpCredential.set': 'models',
+  'venture.mcpRegistry.list': 'models',
+  'venture.mcpOAuth.start': 'models',
+  'venture.packs.list': 'models',
+  'venture.packs.add': 'models',
+  'venture.packs.remove': 'models',
+  'venture.price.quote': 'money',
+  'venture.receipt.get': 'money',
+  'venture.client.add': 'money',
+  'venture.client.list': 'money',
+  'venture.client.aiConsent.get': 'money',
+  'venture.client.aiConsent.agree': 'money',
+  'venture.client.aiConsent.withdraw': 'money',
+  'venture.billing.get': 'money',
+  'venture.billing.set': 'money',
+  'venture.invoice.pdf': 'money',
+  'venture.invoice.payLink': 'money',
+  'venture.payment.receipt': 'money',
+  'venture.order.create': 'money',
+  'venture.order.list': 'money',
+  'venture.order.deliver': 'money',
+  'venture.invoice.prepare': 'money',
+  'venture.invoice.issue': 'money',
+  'venture.invoice.get': 'money',
+  'venture.invoice.list': 'money',
+  'venture.payment.record': 'money',
+  'venture.books.summary': 'money',
+  'venture.spend.list': 'money',
+  'venture.spend.policy.get': 'money',
+  'venture.spend.policy.set': 'money',
+  'venture.build.brief': 'build',
+  'venture.build.handoff': 'build',
+  'venture.build.handoffOpened': 'build',
+  'venture.build.link': 'build',
+  'venture.build.sync': 'build',
+  'venture.build.status': 'build',
   'venture.connectors.list': 'build',
-  'venture.delivery.playbook': 'delivery', 'venture.simulation.scenarios': 'delivery', 'venture.simulation.run': 'delivery', 'venture.simulation.get': 'delivery', 'venture.simulation.fromSignal': 'delivery',
-  'venture.launch.status': 'delivery', 'venture.launch.advance': 'delivery',
-  'venture.delivery.run': 'delivery', 'venture.delivery.review': 'delivery', 'venture.delivery.list': 'delivery',
+  'venture.delivery.playbook': 'delivery',
+  'venture.simulation.scenarios': 'delivery',
+  'venture.simulation.run': 'delivery',
+  'venture.simulation.get': 'delivery',
+  'venture.simulation.fromSignal': 'delivery',
+  'venture.launch.status': 'delivery',
+  'venture.launch.advance': 'delivery',
+  'venture.delivery.run': 'delivery',
+  'venture.delivery.review': 'delivery',
+  'venture.delivery.list': 'delivery',
   'venture.agentApproval.decide': 'delivery',
   'venture.capabilities': 'delivery',
-  'venture.files.add': 'delivery', 'venture.files.list': 'delivery', 'venture.work.get': 'delivery',
-  'venture.improve.status': 'delivery', 'venture.improve.run': 'delivery', 'venture.improve.get': 'delivery', 'venture.improve.adopt': 'delivery',
+  'venture.files.add': 'delivery',
+  'venture.files.list': 'delivery',
+  'venture.work.get': 'delivery',
+  'venture.improve.status': 'delivery',
+  'venture.improve.run': 'delivery',
+  'venture.improve.get': 'delivery',
+  'venture.improve.adopt': 'delivery',
   'venture.delegate.get': 'delivery',
-  'venture.queue.list': 'views', 'venture.queue.decide': 'views', 'venture.runs.list': 'views', 'venture.runs.get': 'views', 'venture.team.list': 'views', 'venture.team.gate': 'views',
-  'venture.evidence.list': 'core', 'venture.evidence.apply': 'core',
-  'venture.journal.list': 'views', 'venture.journal.resolve': 'views',
-  'venture.untrusted.mode': 'views', 'venture.untrusted.release': 'views',
-  'venture.bank.import': 'build', 'venture.bank.consent': 'build', 'venture.site.stage': 'build', 'venture.site.apply': 'build', 'venture.site.revert': 'build',
-  'venture.leads.add': 'build', 'venture.leads.list': 'build', 'venture.leads.draft': 'build', 'venture.leads.recordSend': 'build',
-  'venture.queue.view': 'views', 'venture.team.posture': 'views', 'venture.evidence.dismiss': 'core', 'venture.money.overview': 'money', 'venture.tax.working': 'money',
-  'venture.ca.get': 'views', 'venture.ca.setOfRecord': 'views', 'venture.ca.recordSignoff': 'views', 'venture.ca.confirmRates': 'views',
-  'venture.leads.block': 'build', 'venture.share.create': 'build', 'venture.share.list': 'build', 'venture.share.revoke': 'build',
-  'venture.delivery.judge': 'delivery', 'venture.delivery.judgeSend': 'delivery', 'venture.improve.rollback': 'delivery', 'venture.files.transcribe': 'delivery',
-  'venture.posting.propose': 'build', 'venture.posting.signIn': 'build', 'venture.posting.checkSteps': 'build', 'venture.share.recordAnswer': 'build', 'venture.social.calendar': 'build',
-  'venture.bank.ledger': 'build', 'venture.bank.apply': 'build', 'venture.bank.alerts.get': 'build', 'venture.bank.alerts.set': 'build',
-  'venture.ca.receipt': 'views', 'venture.ca.explainDiff': 'views', 'venture.rules.list': 'views', 'venture.rules.locks': 'views', 'venture.rules.attest': 'views',
-  'venture.compliance.get': 'core', 'venture.compliance.set': 'core',
-  'venture.judge.auto.get': 'delivery', 'venture.judge.auto.set': 'delivery',
-  'venture.posting.limits.get': 'build', 'venture.posting.limits.set': 'build',
-  'venture.transcription.get': 'delivery', 'venture.transcription.set': 'delivery',
+  'venture.queue.list': 'views',
+  'venture.queue.decide': 'views',
+  'venture.runs.list': 'views',
+  'venture.runs.get': 'views',
+  'venture.team.list': 'views',
+  'venture.team.gate': 'views',
+  'venture.evidence.list': 'core',
+  'venture.evidence.apply': 'core',
+  'venture.journal.list': 'views',
+  'venture.journal.resolve': 'views',
+  'venture.untrusted.mode': 'views',
+  'venture.untrusted.release': 'views',
+  'venture.bank.import': 'build',
+  'venture.bank.consent': 'build',
+  'venture.site.stage': 'build',
+  'venture.site.apply': 'build',
+  'venture.site.revert': 'build',
+  'venture.leads.add': 'build',
+  'venture.leads.list': 'build',
+  'venture.leads.draft': 'build',
+  'venture.leads.recordSend': 'build',
+  'venture.queue.view': 'views',
+  'venture.team.posture': 'views',
+  'venture.evidence.dismiss': 'core',
+  'venture.money.overview': 'money',
+  'venture.tax.working': 'money',
+  'venture.ca.get': 'views',
+  'venture.ca.setOfRecord': 'views',
+  'venture.ca.recordSignoff': 'views',
+  'venture.ca.confirmRates': 'views',
+  'venture.leads.block': 'build',
+  'venture.share.create': 'build',
+  'venture.share.list': 'build',
+  'venture.share.revoke': 'build',
+  'venture.delivery.judge': 'delivery',
+  'venture.delivery.judgeSend': 'delivery',
+  'venture.improve.rollback': 'delivery',
+  'venture.files.transcribe': 'delivery',
+  'venture.posting.propose': 'build',
+  'venture.posting.signIn': 'build',
+  'venture.posting.checkSteps': 'build',
+  'venture.share.recordAnswer': 'build',
+  'venture.social.calendar': 'build',
+  'venture.bank.ledger': 'build',
+  'venture.bank.apply': 'build',
+  'venture.bank.alerts.get': 'build',
+  'venture.bank.alerts.set': 'build',
+  'venture.ca.receipt': 'views',
+  'venture.ca.explainDiff': 'views',
+  'venture.rules.list': 'views',
+  'venture.rules.locks': 'views',
+  'venture.rules.attest': 'views',
+  'venture.compliance.get': 'core',
+  'venture.compliance.set': 'core',
+  'venture.judge.auto.get': 'delivery',
+  'venture.judge.auto.set': 'delivery',
+  'venture.posting.limits.get': 'build',
+  'venture.posting.limits.set': 'build',
+  'venture.transcription.get': 'delivery',
+  'venture.transcription.set': 'delivery',
+  'venture.notify.telegram': 'notify',
+  'venture.phone.access': 'notify',
+  'venture.web.search': 'network',
+  'venture.web.read': 'network',
+  'venture.people.services': 'network',
+  'venture.people.lookup': 'network',
+  'venture.crm.client': 'network',
+  'venture.crm.client.edit': 'network',
+  'venture.crm.companies': 'network',
+  'venture.crm.company': 'network',
+  'venture.crm.company.save': 'network',
+  'venture.crm.link': 'network',
+  'venture.crm.log': 'network',
+  'venture.crm.lists': 'network',
+  'venture.crm.list': 'network',
+  'venture.crm.list.save': 'network',
+  'venture.crm.list.place': 'network',
+  'venture.memory.list': 'agents',
+  'venture.memory.add': 'agents',
+  'venture.memory.replace': 'agents',
+  'venture.memory.visibility': 'agents',
+  'venture.memory.forget': 'agents',
+  'venture.chief.thread.state': 'chief',
+  'venture.chief.settle.set': 'chief',
+  'venture.agents.retire.check': 'agents',
+  'venture.agents.retire': 'agents',
+  'venture.agents.restore': 'agents',
+  'venture.apps.list': 'views',
+  'venture.apps.get': 'views',
+  'venture.apps.make': 'views',
+  'venture.apps.grant': 'views',
+  'venture.apps.revoke': 'views',
+  'venture.apps.restore': 'views',
+  'venture.apps.pin': 'views',
+  'venture.apps.export': 'views',
+  'venture.apps.call': 'views',
+  'venture.apps.remove': 'views',
+  'venture.talk.get': 'agents',
+  'venture.talk.consent': 'agents',
+  'venture.talk.setup': 'agents',
+  'venture.talk.start': 'agents',
+  'venture.talk.hear': 'agents',
+  'venture.talk.say': 'agents',
+  'venture.feedback.get': 'core',
+  'venture.feedback.consent': 'core',
+  'venture.feedback.send': 'core',
+  'venture.feedback.answer': 'core',
+  'venture.feedback.crash': 'core',
+  'venture.feedback.delete': 'core',
+  'venture.layout.get': 'views',
+  'venture.layout.change': 'views',
   // Wave 6 (6F6, 6F7, 6F3, 6F8): kept in VENTURE_METHODS order.
-  'venture.notify.telegram': 'notify', 'venture.phone.access': 'notify',
-  'venture.web.search': 'network', 'venture.web.read': 'network', 'venture.people.services': 'network', 'venture.people.lookup': 'network',
-  'venture.crm.client': 'network', 'venture.crm.client.edit': 'network', 'venture.crm.companies': 'network', 'venture.crm.company': 'network', 'venture.crm.company.save': 'network', 'venture.crm.link': 'network',
-  'venture.crm.log': 'network', 'venture.crm.lists': 'network', 'venture.crm.list': 'network', 'venture.crm.list.save': 'network', 'venture.crm.list.place': 'network',
-  'venture.memory.list': 'agents', 'venture.memory.add': 'agents', 'venture.memory.replace': 'agents', 'venture.memory.visibility': 'agents', 'venture.memory.forget': 'agents',
   // Wave 6 (6G1)
-  'venture.chief.thread.state': 'chief', 'venture.chief.settle.set': 'chief',
   // Wave 6 (6G2)
-  'venture.agents.retire.check': 'agents', 'venture.agents.retire': 'agents', 'venture.agents.restore': 'agents',
   // Wave 6 (6H1)
-  'venture.apps.list': 'views', 'venture.apps.get': 'views', 'venture.apps.make': 'views', 'venture.apps.grant': 'views', 'venture.apps.revoke': 'views',
-  'venture.apps.restore': 'views', 'venture.apps.pin': 'views', 'venture.apps.export': 'views', 'venture.apps.call': 'views', 'venture.apps.remove': 'views',
   // Wave 6 (6I1)
-  'venture.talk.get': 'agents', 'venture.talk.consent': 'agents', 'venture.talk.setup': 'agents', 'venture.talk.start': 'agents', 'venture.talk.hear': 'agents', 'venture.talk.say': 'agents',
   // Wave 6 (6J2)
-  'venture.feedback.get': 'core', 'venture.feedback.consent': 'core', 'venture.feedback.send': 'core', 'venture.feedback.answer': 'core', 'venture.feedback.crash': 'core', 'venture.feedback.delete': 'core',
   // Wave 6 (6H3)
-  'venture.layout.get': 'views', 'venture.layout.change': 'views',
+  'venture.find': 'views',
+  'venture.flows.list': 'build',
+  'venture.flows.act': 'build',
+  'venture.team.introduced': 'agents',
+  'venture.away.preview': 'views',
+  'venture.client.aiDefault.get': 'money',
+  'venture.client.aiDefault.set': 'money',
+  'venture.notify.telegram.findChat': 'notify',
+  'venture.accountant.get': 'money',
+  'venture.accountant.set': 'money',
+  'venture.accountant.schedule.get': 'money',
+  'venture.accountant.schedule.set': 'money',
+  'venture.accountant.pack.done': 'money',
+  'venture.build.briefFile': 'build',
+  'venture.diagnostics.today': 'views',
+  'venture.team.keeper': 'views',
+  'venture.team.clearQuarantine': 'views',
+  'venture.agents.thread.list': 'agents',
+  'venture.agents.thread.send': 'agents',
+  'venture.agents.proposal.decide': 'agents',
+  'venture.agents.version.undo': 'agents',
+  'venture.agents.orders.list': 'agents',
+  'venture.chats.consent': 'agents',
+  'venture.agents.notes.list': 'agents',
+  'venture.agents.notes.edit': 'agents',
+  'venture.agents.notes.forget': 'agents',
+  'venture.agents.notes.undo': 'agents',
+  'venture.chief.threads': 'chief',
+  'venture.chief.thread.list': 'chief',
+  'venture.chief.thread.send': 'chief',
+  'venture.chief.thread.pin': 'chief',
+  'venture.chief.fit': 'chief',
+  'venture.proposals.raise': 'chief',
+  'venture.proposals.dismiss': 'chief',
+  'venture.network.import': 'network',
+  'venture.network.importUndo': 'network',
+  'venture.network.merge': 'network',
+  'venture.network.split': 'network',
+  'venture.network.forget': 'network',
+  'venture.network.hide': 'network',
+  'venture.network.people': 'network',
+  'venture.network.person': 'network',
+  'venture.network.sources': 'network',
+  'venture.network.recompute': 'network',
+  'venture.network.know': 'network',
+  'venture.network.link': 'network',
+  'venture.network.search': 'network',
+  'venture.network.searchMore': 'network',
+  'venture.network.saveSearch': 'network',
+  'venture.network.research': 'network',
+  'venture.pipeline.list': 'network',
+  'venture.pipeline.followups': 'network',
+  'venture.pipeline.add': 'network',
+  'venture.pipeline.setNext': 'network',
+  'venture.pipeline.move': 'network',
+  'venture.pipeline.settings': 'network',
+  'venture.outreach.draft': 'network',
+  'venture.outreach.open': 'network',
+  'venture.outreach.sent': 'network',
+  'venture.outreach.restricted': 'network',
+  'venture.mailbox.connect': 'network',
+  'venture.mailbox.disconnect': 'network',
+  'venture.mailbox.sync': 'network',
+  'venture.inbound.list': 'network',
+  'venture.inbound.confirm': 'network',
+  'venture.network.calendar': 'network',
+  'venture.meeting.digest': 'network',
+  'venture.runs.stop': 'views',
+  'venture.runs.resume': 'views',
+  'venture.runs.roundGate': 'views',
+  'venture.runs.steer': 'views',
+  'venture.business.pause': 'views',
+  'venture.away.set': 'views',
+  'venture.away.get': 'views',
   // Wave 6 (6H2)
-  'venture.flows.list': 'build', 'venture.flows.act': 'build',
   // Ink v2 wave 4
-  'venture.team.keeper': 'views', 'venture.team.clearQuarantine': 'views',
-  'venture.agents.thread.list': 'agents', 'venture.agents.thread.send': 'agents', 'venture.agents.proposal.decide': 'agents', 'venture.agents.version.undo': 'agents',
-  'venture.agents.orders.list': 'agents', 'venture.chats.consent': 'agents',
-  'venture.agents.notes.list': 'agents', 'venture.agents.notes.edit': 'agents', 'venture.agents.notes.forget': 'agents', 'venture.agents.notes.undo': 'agents',
-  'venture.chief.threads': 'chief', 'venture.chief.thread.list': 'chief', 'venture.chief.thread.send': 'chief', 'venture.chief.thread.pin': 'chief', 'venture.chief.fit': 'chief',
-  'venture.proposals.raise': 'chief', 'venture.proposals.dismiss': 'chief',
-  'venture.network.import': 'network', 'venture.network.importUndo': 'network', 'venture.network.merge': 'network', 'venture.network.split': 'network', 'venture.network.forget': 'network',
-  'venture.network.hide': 'network', 'venture.network.people': 'network', 'venture.network.person': 'network', 'venture.network.sources': 'network',
-  'venture.network.recompute': 'network', 'venture.network.know': 'network', 'venture.network.link': 'network',
-  'venture.network.search': 'network', 'venture.network.searchMore': 'network', 'venture.network.saveSearch': 'network', 'venture.network.research': 'network',
-  'venture.pipeline.list': 'network', 'venture.pipeline.followups': 'network', 'venture.pipeline.add': 'network', 'venture.pipeline.setNext': 'network', 'venture.pipeline.move': 'network', 'venture.pipeline.settings': 'network',
-  'venture.outreach.draft': 'network', 'venture.outreach.open': 'network', 'venture.outreach.sent': 'network', 'venture.outreach.restricted': 'network',
-  'venture.mailbox.connect': 'network', 'venture.mailbox.disconnect': 'network', 'venture.mailbox.sync': 'network', 'venture.inbound.list': 'network', 'venture.inbound.confirm': 'network',
-  'venture.network.calendar': 'network', 'venture.meeting.digest': 'network',
-  'venture.runs.stop': 'views', 'venture.runs.resume': 'views', 'venture.runs.roundGate': 'views', 'venture.runs.steer': 'views', 'venture.business.pause': 'views', 'venture.away.set': 'views', 'venture.away.get': 'views',
   'venture.runs.allowWrites': 'views',
-  'venture.notify.list': 'notify', 'venture.notify.read': 'notify', 'venture.notify.settings': 'notify',
-  'venture.notify.push.key': 'notify', 'venture.notify.push.subscribe': 'notify', 'venture.notify.push.unsubscribe': 'notify', 'venture.notify.relay': 'notify',
-  'venture.models.cli.status': 'models', 'venture.models.roles': 'models',
-  'venture.goals.get': 'money', 'venture.goals.set': 'money', 'venture.goals.suggest': 'money',
-  'venture.decisions.list': 'views', 'venture.policy.allowSession': 'views',
-  'venture.queue.sendBack': 'views', 'venture.queue.edit': 'views', 'venture.queue.undo': 'views', 'venture.queue.set': 'views', 'venture.triage.set': 'views', 'venture.triage.preview': 'views',
-  'venture.delivery.fix': 'delivery', 'venture.delivery.decideChange': 'delivery', 'venture.delivery.changes': 'delivery', 'venture.settings.draft': 'core', 'venture.settings.drafts': 'core',
-  'venture.queue.setPreview': 'views', 'venture.delivery.copy': 'delivery',
+  'venture.notify.list': 'notify',
+  'venture.notify.read': 'notify',
+  'venture.notify.settings': 'notify',
+  'venture.notify.push.key': 'notify',
+  'venture.notify.push.subscribe': 'notify',
+  'venture.notify.push.unsubscribe': 'notify',
+  'venture.notify.relay': 'notify',
+  'venture.models.cli.status': 'models',
+  'venture.models.roles': 'models',
+  'venture.goals.get': 'money',
+  'venture.goals.set': 'money',
+  'venture.goals.suggest': 'money',
+  'venture.decisions.list': 'views',
+  'venture.policy.allowSession': 'views',
+  'venture.queue.sendBack': 'views',
+  'venture.queue.edit': 'views',
+  'venture.queue.undo': 'views',
+  'venture.queue.set': 'views',
+  'venture.triage.set': 'views',
+  'venture.triage.preview': 'views',
+  'venture.delivery.fix': 'delivery',
+  'venture.delivery.decideChange': 'delivery',
+  'venture.delivery.changes': 'delivery',
+  'venture.settings.draft': 'core',
+  'venture.settings.drafts': 'core',
+  'venture.queue.setPreview': 'views',
+  'venture.delivery.copy': 'delivery',
   'venture.files.poster': 'delivery',
-  'venture.money.aging': 'money', 'venture.money.flow': 'money', 'venture.money.cash': 'money', 'venture.money.margins': 'money', 'venture.money.export': 'money',
-  'venture.bills.add': 'money', 'venture.bills.pay': 'money', 'venture.bills.list': 'money', 'venture.credit.issue': 'money', 'venture.invoice.recurring': 'money', 'venture.invoice.recurringList': 'money',
-  'venture.invoice.remind': 'money', 'venture.payment.clear': 'money', 'venture.bills.stop': 'money',
-  'venture.money.across': 'money', 'venture.runs.across': 'views',
-  'venture.connectors.check': 'build', 'venture.share.request': 'build',
-  'venture.playbooks.list': 'core', 'venture.blueprint.suggest': 'core',
-  'venture.owner.get': 'core', 'venture.owner.set': 'core',
-  'venture.receipt.verify': 'money', 'venture.journal.chain': 'views', 'venture.journal.acceptBreak': 'views',
-  'venture.order.contract': 'money', 'venture.order.contract.propose': 'money', 'venture.order.contract.sign': 'money',
-  'venture.routines.list': 'agents', 'venture.routines.runs': 'agents', 'venture.routines.set': 'agents', 'venture.routines.remove': 'agents',
+  'venture.money.aging': 'money',
+  'venture.money.flow': 'money',
+  'venture.money.cash': 'money',
+  'venture.money.margins': 'money',
+  'venture.money.export': 'money',
+  'venture.bills.add': 'money',
+  'venture.bills.pay': 'money',
+  'venture.bills.list': 'money',
+  'venture.credit.issue': 'money',
+  'venture.invoice.recurring': 'money',
+  'venture.invoice.recurringList': 'money',
+  'venture.invoice.remind': 'money',
+  'venture.payment.clear': 'money',
+  'venture.bills.stop': 'money',
+  'venture.money.across': 'money',
+  'venture.runs.across': 'views',
+  'venture.connectors.check': 'build',
+  'venture.share.request': 'build',
+  'venture.playbooks.list': 'core',
+  'venture.blueprint.suggest': 'core',
+  'venture.owner.get': 'core',
+  'venture.owner.set': 'core',
+  'venture.receipt.verify': 'money',
+  'venture.journal.chain': 'views',
+  'venture.journal.acceptBreak': 'views',
+  'venture.order.contract': 'money',
+  'venture.order.contract.propose': 'money',
+  'venture.order.contract.sign': 'money',
+  'venture.routines.list': 'agents',
+  'venture.routines.runs': 'agents',
+  'venture.routines.set': 'agents',
+  'venture.routines.remove': 'agents',
   'venture.options.rerank': 'delivery',
-  'venture.drills.run': 'delivery', 'venture.drills.list': 'delivery', 'venture.auto.readiness': 'views', 'venture.shadow.summary': 'views',
+  'venture.drills.run': 'delivery',
+  'venture.drills.list': 'delivery',
+  'venture.auto.readiness': 'views',
+  'venture.shadow.summary': 'views',
   'venture.playbook.guidance': 'delivery',
-  'venture.voice.get': 'agents', 'venture.voice.set': 'agents', 'venture.voice.learn': 'agents', 'venture.persona.get': 'agents', 'venture.persona.set': 'agents', 'venture.persona.test': 'agents',
-  'venture.agents.export': 'agents', 'venture.agents.import': 'agents',
-  'venture.knowledge.list': 'agents', 'venture.knowledge.add': 'agents', 'venture.knowledge.remove': 'agents', 'venture.knowledge.test': 'agents',
-  'venture.ideas.list': 'agents', 'venture.ideas.start': 'agents', 'venture.ideas.dismiss': 'agents', 'venture.agents.capabilities': 'agents',
+  'venture.voice.get': 'agents',
+  'venture.voice.set': 'agents',
+  'venture.voice.learn': 'agents',
+  'venture.persona.get': 'agents',
+  'venture.persona.set': 'agents',
+  'venture.persona.test': 'agents',
+  'venture.agents.export': 'agents',
+  'venture.agents.import': 'agents',
+  'venture.knowledge.list': 'agents',
+  'venture.knowledge.add': 'agents',
+  'venture.knowledge.remove': 'agents',
+  'venture.knowledge.test': 'agents',
+  'venture.ideas.list': 'agents',
+  'venture.ideas.start': 'agents',
+  'venture.ideas.dismiss': 'agents',
+  'venture.agents.capabilities': 'agents',
   // Ink v2 wave 5 (named by package 5-0)
   'venture.order.chain': 'playbooks',
-  'venture.salesProposal.draft': 'playbooks', 'venture.salesProposal.get': 'playbooks', 'venture.goNoGo.card': 'playbooks', 'venture.goNoGo.list': 'playbooks',
-  'venture.ideas.add': 'playbooks', 'venture.ideas.move': 'playbooks', 'venture.ideas.grade': 'playbooks',
-  'venture.brandKit.get': 'playbooks', 'venture.brandKit.set': 'playbooks', 'venture.assets.list': 'playbooks', 'venture.assets.rerun': 'playbooks', 'venture.assets.reuse': 'playbooks',
-  'venture.voiceConsent.record': 'playbooks', 'venture.voiceConsent.revoke': 'playbooks', 'venture.voiceConsent.list': 'playbooks',
-  'venture.report.render': 'playbooks', 'venture.report.share': 'playbooks', 'venture.report.shareRotate': 'playbooks', 'venture.report.shareDisable': 'playbooks',
+  'venture.salesProposal.draft': 'playbooks',
+  'venture.salesProposal.get': 'playbooks',
+  'venture.goNoGo.card': 'playbooks',
+  'venture.goNoGo.list': 'playbooks',
+  'venture.goNoGo.remove': 'playbooks',
+  'venture.ideas.add': 'playbooks',
+  'venture.ideas.move': 'playbooks',
+  'venture.ideas.grade': 'playbooks',
+  'venture.brandKit.get': 'playbooks',
+  'venture.brandKit.set': 'playbooks',
+  'venture.assets.list': 'playbooks',
+  'venture.assets.rerun': 'playbooks',
+  'venture.assets.reuse': 'playbooks',
+  'venture.voiceConsent.record': 'playbooks',
+  'venture.voiceConsent.revoke': 'playbooks',
+  'venture.voiceConsent.list': 'playbooks',
+  'venture.report.render': 'playbooks',
+  'venture.report.share': 'playbooks',
+  'venture.report.shareRotate': 'playbooks',
+  'venture.report.shareDisable': 'playbooks',
   'venture.report.list': 'playbooks',
-  'venture.monitors.list': 'build', 'venture.monitors.add': 'build', 'venture.monitors.remove': 'build', 'venture.mail.import': 'build', 'venture.mail.threads': 'build',
-  'venture.localApps.list': 'build', 'venture.webhook.set': 'build', 'venture.webhook.send': 'build', 'venture.speechOut.providers': 'build',
-  'venture.ca.confirmCitations': 'playbooks', 'venture.ca.signoff.get': 'playbooks', 'venture.ca.differential.add': 'playbooks', 'venture.ca.dataPack.export': 'playbooks',
-  'venture.desk.list': 'playbooks', 'venture.desk.get': 'playbooks', 'venture.desk.act': 'playbooks',
+  'venture.monitors.list': 'build',
+  'venture.monitors.add': 'build',
+  'venture.monitors.remove': 'build',
+  'venture.mail.import': 'build',
+  'venture.mail.threads': 'build',
+  'venture.localApps.list': 'build',
+  'venture.webhook.set': 'build',
+  'venture.webhook.send': 'build',
+  'venture.speechOut.providers': 'build',
+  'venture.ca.confirmCitations': 'playbooks',
+  'venture.ca.signoff.get': 'playbooks',
+  'venture.ca.differential.add': 'playbooks',
+  'venture.ca.dataPack.export': 'playbooks',
+  'venture.desk.list': 'playbooks',
+  'venture.desk.get': 'playbooks',
+  'venture.desk.act': 'playbooks',
+  'venture.ai.options': 'models',
+  'venture.ai.connect': 'models',
+  'venture.ai.disconnect': 'models',
+  'venture.ai.status': 'models',
+  'venture.ai.calls': 'models',
+  'venture.compose.decide': 'core',
+  'venture.compose.fill': 'core',
+  'venture.compose.get': 'core',
+  'venture.compose.update': 'core',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
-  'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
-  'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
   'venture.country.suggest': 'core',
-  'venture.ai.tools': 'models', 'venture.ai.login.start': 'models', 'venture.ai.login.cancel': 'models',
-  'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
+  'venture.ai.tools': 'models',
+  'venture.ai.login.start': 'models',
+  'venture.ai.login.cancel': 'models',
+  'venture.about.read': 'core',
+  'venture.about.pick': 'core',
+  'venture.about.families': 'core',
   'venture.needs.list': 'core',
   'venture.ai.setup.trust': 'models',
+  'venture.work.list': 'views',
+  'venture.invoice.shared': 'money',
+  'venture.routines.suggestions': 'agents',
+  'venture.models.plan': 'models',
+  'venture.routines.backup.get': 'agents',
+  'venture.routines.backup.set': 'agents',
+  'venture.trackers.list': 'agents',
+  'venture.trackers.get': 'agents',
+  'venture.trackers.set': 'agents',
+  'venture.trackers.remove': 'agents',
+  'venture.trackers.rows.add': 'agents',
+  'venture.trackers.rows.edit': 'agents',
+  'venture.trackers.rows.remove': 'agents',
+  'venture.trackers.rows.undo': 'agents',
+  'venture.agents.hire.start': 'agents',
+  'venture.agents.hire.answer': 'agents',
+  'venture.agents.hire.confirm': 'agents',
+  'venture.agents.hire.cancel': 'agents',
+  'venture.events.get': 'build',
+  'venture.events.relay.set': 'build',
+  'venture.events.calKey.set': 'build',
+  'venture.agents.hire.duties': 'agents',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6027,7 +6580,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.mcpOAuth.start', 'venture.packs.add', 'venture.packs.remove',
   'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   'venture.rules.attest', 'venture.compliance.set',
-  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
+  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.review',
   'venture.files.add', 'venture.improve.adopt',
@@ -6097,7 +6650,28 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable',
   'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set', 'venture.webhook.send',
   'venture.ca.confirmCitations', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
+  'venture.client.aiDefault.set',
+  'venture.notify.telegram.findChat',
+  'venture.accountant.set',
+  'venture.accountant.schedule.set',
+  'venture.accountant.pack.done',
   'venture.desk.act',
+  // One-shot C4 (T20): the owner's own share or mark, from the invoice sheet.
+  'venture.invoice.shared',
+  'venture.routines.backup.set',
+  'venture.trackers.set',
+  'venture.trackers.remove',
+  'venture.trackers.rows.add',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.undo',
+  'venture.agents.hire.start',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.cancel',
+  'venture.events.relay.set',
+  'venture.events.calKey.set',
+  'venture.agents.hire.duties',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6152,7 +6726,7 @@ export const W4_METHOD_LEVELS: Readonly<Record<W4Method, MethodLevel>> = Object.
  */
 export const W5_METHOD_LEVELS: Readonly<Record<W5Method, MethodLevel>> = Object.freeze({
   'venture.order.chain': 'read',
-  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare', 'venture.goNoGo.list': 'read',
+  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare', 'venture.goNoGo.list': 'read', 'venture.goNoGo.remove': 'prepare',
   'venture.ideas.add': 'prepare', 'venture.ideas.move': 'prepare', 'venture.ideas.grade': 'prepare',
   'venture.brandKit.get': 'read', 'venture.brandKit.set': 'approve', 'venture.assets.list': 'read', 'venture.assets.rerun': 'prepare', 'venture.assets.reuse': 'prepare',
   'venture.voiceConsent.record': 'approve', 'venture.voiceConsent.revoke': 'approve', 'venture.voiceConsent.list': 'read',
@@ -6183,7 +6757,7 @@ export type VenturePayloads = {
   'venture.blueprint.draft': { useTemplate?: boolean; shown?: { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] } };
   'venture.blueprint.get': Empty;
   /** basedOn (4J8): refused APPROVAL_STALE unless the newest plan is still this one, as a suggestion read it. */
-  'venture.blueprint.update': { patch: BlueprintPatch; basedOn?: { blueprintId: string; digest: string } };
+  'venture.blueprint.update': { patch: BlueprintPatch; basedOn?: { blueprintId: string; digest: string }; ownerSave?: true };
   'venture.blueprint.accept': { digest: string };
   'venture.models.presets': Empty;
   'venture.models.connect': { presetId: ModelPresetId; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string };
@@ -6207,6 +6781,7 @@ export type VenturePayloads = {
   'venture.billing.get': Empty;
   'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay'>> & { razorpayKeys?: { keyId: string; keySecret: string } | null };
   'venture.invoice.pdf': { invoiceId: string };
+  'venture.payment.receipt': { paymentId: string };
   'venture.invoice.payLink': { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' };
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
@@ -6240,6 +6815,8 @@ export type VenturePayloads = {
   'venture.spend.list': Empty;
   'venture.spend.policy.get': Empty;
   'venture.spend.policy.set': {
+    /** C5 task 15: use the reference rate shipped with this release; not together with inrPerUsd. */
+    useReference?: true;
     capUsd?: string | null; askFirstUsd?: string | null; cap?: MicroString | null; askFirst?: MicroString | null; rates?: SpendRateInput[]; inrPerUsd?: string | null;
     /** W6 6G5: each routine's own monthly limit in US dollars; the list replaces the one in force. */
     routineCaps?: { routine: string; capUsd: string }[];
@@ -6344,7 +6921,7 @@ export type VenturePayloads = {
   /** size: picked ranges to judge the verdicts by, kept nowhere. */
   'venture.compliance.get': { profession?: string; size?: { turnover?: string; headcount?: string } };
   /** size alone changes only the size answer (Business settings); with the side-work answer, left out keeps the saved one. */
-  'venture.compliance.set': { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: { turnover?: string; headcount?: string } } | { size: { turnover?: string; headcount?: string } };
+  'venture.compliance.set': { profession: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: { turnover?: string; headcount?: string } } | { size: { turnover?: string; headcount?: string } };
   'venture.judge.auto.get': Empty;
   /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
   'venture.judge.auto.set': { auto: boolean };
@@ -6428,7 +7005,8 @@ export type VenturePayloads = {
   'venture.runs.roundGate': { runId: string; on: boolean; every?: 1 | 2 | 3 | 5 };
   'venture.runs.steer': { runId: string; text: string };
   'venture.business.pause': { paused: boolean; stopRunning?: boolean };
-  'venture.away.set': { from: IsoDate; to: IsoDate };
+  /** C4 task 40: { clear: true } clears the days away now. */
+  'venture.away.set': { from: IsoDate; to: IsoDate } | { clear: true };
   'venture.away.get': Empty;
   'venture.runs.allowWrites': { kind: WriteCapKind };
   'venture.notify.list': Empty;
@@ -6456,9 +7034,22 @@ export type VenturePayloads = {
   'venture.apps.list': Empty; 'venture.apps.get': { app: string }; 'venture.apps.make': { ask: string; app?: string };
   'venture.apps.grant': { app: string; digest: string }; 'venture.apps.revoke': { app: string }; 'venture.apps.restore': { app: string; version: number };
   'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
-  'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
+  'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json>; sample?: true }; 'venture.apps.remove': { app: string };
   'venture.layout.get': { place: LayoutPlace };
+  'venture.diagnostics.today': Empty;
+  'venture.build.briefFile': { builder: BuilderId };
+  'venture.accountant.pack.done': { month: string };
+  'venture.accountant.schedule.set': { on: boolean };
+  'venture.accountant.schedule.get': Empty;
+  'venture.accountant.set': { email?: string | null; whatsapp?: string | null };
+  'venture.accountant.get': Empty;
+  'venture.notify.telegram.findChat': { token: string };
+  'venture.client.aiDefault.set': { on: boolean; digest: string };
+  'venture.client.aiDefault.get': Empty;
+  'venture.away.preview': { from: IsoDate; to: IsoDate };
+  'venture.team.introduced': { agentIds: string[] };
   'venture.layout.change': LayoutRequest;
+  'venture.find': FindRequest;
   'venture.talk.get': Empty; 'venture.talk.consent': TalkConsentInput; 'venture.talk.setup': TalkSetupInput; 'venture.talk.start': Empty;
   'venture.talk.hear': { sessionId: string; audioBase64: string }; 'venture.talk.say': { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string };
   'venture.feedback.get': Empty; 'venture.feedback.consent': FeedbackConsentInput; 'venture.feedback.send': { digest: string };
@@ -6518,7 +7109,7 @@ export type VenturePayloads = {
   'venture.money.flow': { months?: number };
   'venture.money.cash': Empty;
   'venture.money.margins': { month: string };
-  'venture.money.export': { month: string };
+  'venture.money.export': { month: string; format?: 'csv' | 'tally-xml' | 'gstr1-csv' };
   /** recurring: left out, a bill taking an expected one's place keeps its repeat; null says it does not repeat. */
   'venture.bills.add': { vendor: string; lines: BillLineInput[]; billDate: IsoDate; dueDate: IsoDate; recurring?: 'monthly' | 'quarterly' | null };
   'venture.bills.pay': { billId: string; paidOn: IsoDate; method: PaymentMethod } & TypedAmount;
@@ -6586,6 +7177,7 @@ export type VenturePayloads = {
   /** inputs: typed by the owner; money as rupee text the engine reads like a price (5A2 records-sales.ts GoNoGoInputs). */
   'venture.goNoGo.card': { playbook: string; subject: string; inputs: GoNoGoInputs };
   'venture.goNoGo.list': Empty;
+  'venture.goNoGo.remove': { cardId: string };
   'venture.ideas.add': { text: string; source: string };
   /** reason: one sentence, required when the stage is 'dropped'. */
   'venture.ideas.move': { id: string; stage: IdeaStage; reason?: string };
@@ -6636,6 +7228,28 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.work.list': Record<string, never>;
+  'venture.invoice.shared': { invoiceId: string; how: InvoiceShareHow };
+  'venture.routines.suggestions': Empty;
+  'venture.agents.hire.duties': { agent: string; duties: string[] };
+  'venture.events.calKey.set': { key: string | null };
+  'venture.events.relay.set': { address: string | null };
+  'venture.events.get': Record<string, never>;
+  'venture.agents.hire.cancel': { hireId: string };
+  'venture.agents.hire.confirm': { hireId: string; digest: string };
+  'venture.agents.hire.answer': { hireId: string; phase: string; edits?: Record<string, unknown> };
+  'venture.agents.hire.start': { sentence: string };
+  'venture.trackers.rows.undo': { rowId: string };
+  'venture.trackers.rows.remove': { rowId: string };
+  'venture.trackers.rows.edit': { rowId: string; cells: Record<string, unknown> };
+  'venture.trackers.rows.add': { trackerId: string; cells: Record<string, unknown> };
+  'venture.trackers.remove': { id: string };
+  'venture.trackers.set': { tracker: { id?: string; name: string; columns: unknown[]; boardBy?: string | null; keptBy?: string[] } };
+  'venture.trackers.get': { id: string };
+  'venture.trackers.list': Record<string, never>;
+  'venture.routines.backup.set': { on: boolean; order: ModelPresetId[]; digests?: string[] };
+  'venture.routines.backup.get': Record<string, never>;
+  'venture.models.plan': { fresh?: boolean };
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -6684,6 +7298,7 @@ export type VentureResults = {
   'venture.billing.get': import('./money/billing-types.ts').BillingView;
   'venture.billing.set': import('./money/billing-types.ts').BillingView;
   'venture.invoice.pdf': import('./money/invoice-pdf.ts').InvoicePdfView;
+  'venture.payment.receipt': import('./money/payment-receipt.ts').PaymentReceiptView;
   'venture.invoice.payLink': InvoiceView;
   'venture.client.list': ClientListRow[];
   'venture.order.create': OrderRecord;
@@ -6704,7 +7319,7 @@ export type VentureResults = {
   'venture.build.handoffOpened': HandoffRecord;
   'venture.build.link': BuildFollowRecord;
   'venture.build.sync': BuildStatus;
-  'venture.build.status': { follow: BuildFollowRecord | null; brief: BriefRecord | null; handoffs: HandoffRecord[]; tokenLink: string };
+  'venture.build.status': { follow: BuildFollowRecord | null; brief: BriefRecord | null; handoffs: HandoffRecord[]; tokenLink: string; linkFits: { lovable: boolean; replit: boolean } | null };
   'venture.connectors.list': ConnectorCard[];
   'venture.delivery.playbook': PlaybookRecord;
   'venture.simulation.scenarios': Scenario[];
@@ -6872,13 +7487,26 @@ export type VentureResults = {
   'venture.agents.retire.check': RetireCheckView;
   'venture.agents.retire': AgentRetired;
   'venture.agents.restore': AgentRestored;
-  'venture.apps.list': { apps: MiniAppCard[]; ideas: Display[]; never: Display }; 'venture.apps.get': { app: MiniAppView };
+  'venture.apps.list': { apps: MiniAppCard[]; ideas: { label: Display; preview: Display }[]; never: Display }; 'venture.apps.get': { app: MiniAppView };
   'venture.apps.make': { app: MiniAppView; line: Display }; 'venture.apps.grant': { app: MiniAppView; line: Display };
   'venture.apps.revoke': { app: MiniAppView; line: Display }; 'venture.apps.restore': { app: MiniAppView; undo: { version: number }; line: Display };
   'venture.apps.pin': { app: MiniAppView; undo: { pinned: boolean }; line: Display }; 'venture.apps.export': { fileName: string; document: string; mediaType: 'text/html' };
   'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
   'venture.layout.get': LayoutView;
+  'venture.diagnostics.today': import('./views/diagnostics-core.ts').DiagnosticsTodayView;
+  'venture.build.briefFile': BriefFilePlan;
+  'venture.accountant.pack.done': { done: boolean };
+  'venture.accountant.schedule.set': CaPackScheduleView;
+  'venture.accountant.schedule.get': CaPackScheduleView;
+  'venture.accountant.set': AccountantView;
+  'venture.accountant.get': AccountantView;
+  'venture.notify.telegram.findChat': TelegramFound;
+  'venture.client.aiDefault.set': ClientAiDefaultView;
+  'venture.client.aiDefault.get': ClientAiDefaultView;
+  'venture.away.preview': { from: IsoDate; to: IsoDate; items: AwayView['promises'] };
+  'venture.team.introduced': { met: string[] };
   'venture.layout.change': LayoutChangeResult;
+  'venture.find': FindView;
   'venture.talk.get': TalkView; 'venture.talk.consent': TalkView; 'venture.talk.setup': TalkView; 'venture.talk.start': TalkStarted;
   'venture.talk.hear': TalkHeard; 'venture.talk.say': TalkSaid;
   'venture.feedback.get': FeedbackView; 'venture.feedback.consent': FeedbackView; 'venture.feedback.send': FeedbackView;
@@ -6986,6 +7614,7 @@ export type VentureResults = {
   'venture.salesProposal.get': SalesProposalView;
   'venture.goNoGo.card': GoNoGoCardView;
   'venture.goNoGo.list': GoNoGoListView;
+  'venture.goNoGo.remove': { removed: true; line: Display };
   'venture.ideas.add': IdeaAddedView;
   'venture.ideas.move': IdeaMovedView;
   'venture.ideas.grade': IdeaGradedView;
@@ -7030,6 +7659,28 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.work.list': { work: import('../work-progress.ts').WorkJobView[] };
+  'venture.invoice.shared': InvoiceView;
+  'venture.routines.suggestions': RoutineSuggestionsView;
+  'venture.agents.hire.duties': import('./agents/hire.ts').HireView;
+  'venture.events.calKey.set': import('./build/event-triggers.ts').EventsView;
+  'venture.events.relay.set': import('./build/event-triggers.ts').EventsView;
+  'venture.events.get': import('./build/event-triggers.ts').EventsView;
+  'venture.agents.hire.cancel': { cancelled: true };
+  'venture.agents.hire.confirm': import('./agents/hire.ts').HireView;
+  'venture.agents.hire.answer': import('./agents/hire.ts').HireView;
+  'venture.agents.hire.start': import('./agents/hire.ts').HireView;
+  'venture.trackers.rows.undo': { undone: true };
+  'venture.trackers.rows.remove': { removed: true };
+  'venture.trackers.rows.edit': { row: import('./trackers/trackers.ts').TrackerRowView };
+  'venture.trackers.rows.add': { row: import('./trackers/trackers.ts').TrackerRowView };
+  'venture.trackers.remove': { removed: true };
+  'venture.trackers.set': { tracker: import('./trackers/trackers.ts').TrackerView };
+  'venture.trackers.get': import('./trackers/trackers.ts').TrackerDetail;
+  'venture.trackers.list': import('./trackers/trackers.ts').TrackersView;
+  'venture.routines.backup.set': import('./agents/routine-backup.ts').BackupView;
+  'venture.routines.backup.get': import('./agents/routine-backup.ts').BackupView;
+  'venture.models.plan': import('./models/plan-view.ts').PlanView;
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];
@@ -7051,7 +7702,15 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // C5 task 18: the GST return is for a registered business with a GSTIN.
+  'GST_NOT_REGISTERED',
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
+  // C7: a tracker's refusals (trackers/cells.ts, trackers/trackers.ts).
+  'TRACKER_MONEY', 'TRACKER_NOT_FOUND', 'TRACKER_LIMIT', 'TRACKER_WORDS_HELD',
+  // C7: event triggers (build/event-relay.ts, build/event-confirm.ts).
+  'EVENT_RELAY_REFUSED', 'EVENT_NOT_CONFIRMED', 'EVENT_ANSWER_TOO_BIG', 'NETWORK_NOT_GIVEN',
+  // C7: hiring one more agent (agents/hire-check.ts, agents/hire.ts).
+  'HIRE_HARD_STOP', 'HIRE_FLOOR', 'HIRE_NOT_FOUND', 'HIRE_LIMIT', 'HIRE_POSTURE_FIXED',
   'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
   'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
   // One-shot A4: Chausar's own PDF reader (core/pdf-text-core.ts) refuses a locked, unreadable or too complex file.
@@ -7128,7 +7787,7 @@ export const VENTURE_ERRORS = [
   // A2 second review: the seal's port only (credential-port.ts noStore): this computer has no protected store at all.
   'CREDENTIAL_NO_STORE',
   'MODEL_FAILED', 'MODEL_TIMEOUT', 'BUDGET_REACHED', 'CLIENT_DATA_NEEDS_APPROVAL', 'SEND_DISABLED', 'FIXTURE_MISSING', 'CLI_UNAVAILABLE', 'PRESET_UNAVAILABLE',
-  'PLAN_ALREADY_KEPT', 'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
+  'PLAN_ALREADY_KEPT', 'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'PAYMENT_NOT_FOUND', 'PAYMENT_NOT_CLEARED', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
   'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED',
   'AI_SETTING_UNSUPPORTED',
   'RECEIPT_NOT_FOUND', 'BRIEF_NOT_FOUND', 'BRIEF_LINT_FAILED', 'HANDOFF_NOT_FOUND', 'REPO_NOT_LINKED', 'INVALID_REPO', 'TOKEN_NOT_FINE_GRAINED',
@@ -7278,6 +7937,8 @@ export const VENTURE_ERRORS = [
   'FORM_READBACK_UNAVAILABLE', 'FORM_RECORD_EXISTS', 'FORM_RECORD_NOT_FOUND', 'FORM_SEND_UNCONFIRMED',
   'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING',
   'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
+  // D5: Install Claude Code (models/claude-code-install.ts), wired to a method after the main lane.
+  'CLAUDE_INSTALL_NEEDS_YES', 'CLAUDE_INSTALL_DOWNLOAD_FAILED', 'CLAUDE_INSTALL_FAILED', 'CLAUDE_INSTALL_UNSUPPORTED',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -7345,7 +8006,11 @@ export interface PhoneAccessPort {
   stop(): Promise<void>;
 }
 export type VentureDeps = {
+  /** One-shot C3 task 9: says which step long work is on (work-progress.ts). Absent in tests that pass none. */
+  work?: VentureWork;
   /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
+  /** C7: stand-ins for the event relay and the source checks in tests; the host passes none, so the real guard is used. */
+  eventPorts?: import('./build/event-triggers.ts').EventPorts;
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
   phoneAccess?: PhoneAccessPort;
@@ -7471,7 +8136,11 @@ export type ModelPortOptions = {
 };
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */
+/** A handler's way to WorkProgress, bound to its business. */
+export type VentureWork = { begin(kind: import('./views/work-steps.ts').WorkKind, stepIds: readonly string[]): import('../work-progress.ts').Work };
 export type VentureHostOptions = {
+  /** One-shot C3 task 9: the engine's WorkProgress, never supplied by an engine request. */
+  work?: VentureWork;
   /** Trusted host composition for a tool driver, never supplied by an engine request. */
   agentRoute?: VentureDeps['agentRoute'];
   credentials?: import('./models/credential-port.ts').HostCredentialPort;

@@ -111,7 +111,7 @@
 }
 
 .select:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: var(--focus) solid var(--link);
   outline-offset: 2px;
 }
 
@@ -120,6 +120,7 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   justify-content: flex-end;
+  text-align: end;
 }
 
 /* A fold: the timeline's log form, the history, edits. The chevron turns when open. */
@@ -128,33 +129,7 @@
 }
 
 .moreSummary {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
   min-height: var(--target);
-  list-style: none;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--fg2);
-  cursor: pointer;
-}
-
-.moreSummary::-webkit-details-marker {
-  display: none;
-}
-
-.moreSummary > svg {
-  flex: none;
-  color: var(--mute);
-  transition: transform var(--t-press) var(--ease);
-}
-
-.more[open] > .moreSummary > svg {
-  transform: rotate(90deg);
-}
-
-.moreSummary:hover {
-  color: var(--fg);
 }
 
 .moreBody {

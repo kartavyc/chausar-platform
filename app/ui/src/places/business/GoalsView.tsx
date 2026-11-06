@@ -10,8 +10,11 @@ import { EngineError, type GoalView } from '../../engine/types';
 import { GOAL_EVENTS, goalAmount, goalFromView, monthBefore, monthOf, useGoalSuggestion } from '../today/goal';
 import { TileSection, messageOf, usePlan } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './GoalsView.module.css';
+import { Select } from '../../parts/Select';
+import { Progress } from '../../parts/Progress';
 
 /**
  * Business > Goals (W4 4I2): the owner's monthly goal, money invoiced in the month before tax (founder, 23 Oct). The
@@ -153,17 +156,13 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             )}
           </dl>
           <GoalBar data={data.bar} tone="light" />
+          {/* C4 task 34 (140.x1): the pace sentence Today's goal shows, from the same engine field (pacePercent). */}
+          {shown?.pace && <p className={b.line} data-goal-pace="">{t('today.goal.bar.pace', { pace: `${shown.pacePercent}%` })}</p>}
         </>
       )}
       {data?.state === 'unset' && (
         <>
           <p className={b.line}>{t('business.goals.none', { month: words(month) })}</p>
-          {data.lastMonth && (
-            <p className={s.inline}>
-              <span>{t('today.goal.lastMonth', { month: data.lastMonth.month })}</span>
-              <Figure value={data.lastMonth.amount.value} receiptId={data.lastMonth.amount.receiptId!} />
-            </p>
-          )}
           {suggestion.state === 'sent' && (
             <>
               <p className={s.inline}>
@@ -175,6 +174,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             </>
           )}
           {suggestion.state === 'none' && <p className={b.quiet}>{t('today.goal.noSuggestion')}</p>}
+          <Progress kind="goal-suggest" active={suggestion.state === 'asking'} />
           {suggestion.state === 'failed' && <p className={b.problem} role="alert">{t('today.goal.suggestFailed', { message: suggestion.message })}</p>}
           {suggestion.state !== 'sent' && (
             <div>
@@ -187,9 +187,9 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
       <form className={b.priceForm} onSubmit={(event) => void save(event)} noValidate>
         <div className={s.field}>
           <label htmlFor={monthId} className={s.label}>{t('business.goals.monthField')}</label>
-          <select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => onMonth(event.currentTarget.value)}>
+          <Select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => onMonth(event.currentTarget.value)}>
             {months.map((option) => <option key={option} value={option}>{words(option)}</option>)}
-          </select>
+          </Select>
         </div>
         <Field
           label={t('business.goals.amountField')}
@@ -197,8 +197,13 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
           inputMode="decimal" autoComplete="off" value={typed} disabled={busy}
           onChange={(event) => { setTyped(event.currentTarget.value); setProblem(null); }}
         />
-        {problem && <p className={b.problem} role="alert">{problem}</p>}
-        {saved && <p className={b.quiet} role="status">{saved}</p>}
+        {/* C4 task 34 (13.x1): last month's invoiced figure beside the field, set or not, with its receipt. */}
+        {shown && (
+          shown.lastMonth?.receiptId
+            ? <p className={s.inline} data-last-month=""><span>{t('today.goal.lastMonth', { month: monthOf(monthBefore(month)) })}</span><Figure value={shown.lastMonth.display} receiptId={shown.lastMonth.receiptId} /></p>
+            : <p className={b.quiet} data-last-month="">{t('business.goals.noLastMonth')}</p>
+        )}
+        <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? saved}</ResultLine>
         <div className={b.formEnd}>
           <DraftWord saved={draft.saved} refused={draft.refused} shown={typed.trim() !== ''} />
           <Button variant="primary" type="submit" disabled={busy}>{t(shown?.state === 'set' ? 'business.goals.change' : 'business.goals.set')}</Button>

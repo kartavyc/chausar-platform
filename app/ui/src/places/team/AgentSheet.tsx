@@ -1,15 +1,17 @@
-import { useEffect, useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
-import { useResource } from '../../engine/context';
+import { useEngine, useResource } from '../../engine/context';
 import type { RunSummary } from '../../engine/types';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
+import { Field } from '../../parts/Field';
 import { Chip, DeptChip, StateChip } from '../../parts/Chip';
 import { cx } from '../../parts/cx';
 import { ProgressRing, measuredSteps } from '../../parts/ProgressRing';
 import { Sheet } from '../../parts/Sheet';
+import { Tabs } from '../../parts/Tabs';
 import { AgentChat } from './AgentChat';
 import { AgentNotes } from './AgentNotes';
 // W4 4J22b: its skills and what it can and cannot do (how it talks sits in Instructions).
@@ -23,6 +25,7 @@ import { Instructions } from './Instructions';
 import { KeeperJobs } from './KeeperCard';
 import { RING, Result, agentRow, currentRun, elapsedOf, refreshOn, stateWords, toneOf } from './shared';
 import s from './Team.module.css';
+import { Fold } from '../../parts/Fold';
 import c from './AgentChat.module.css';
 
 /** A role whose steps are code has no chat and keeps no notes (engine 4B1 AGENT_IS_CODE): its instructions and runs. */
@@ -96,18 +99,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     setQuery({ ...route.query, tab: next });
   }
 
-  function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const at = tabs.indexOf(tab);
-    const next = event.key === 'ArrowRight' ? tabs[(at + 1) % tabs.length]
-      : event.key === 'ArrowLeft' ? tabs[(at + tabs.length - 1) % tabs.length]
-        : event.key === 'Home' ? tabs[0]
-          : event.key === 'End' ? tabs[tabs.length - 1] : undefined;
-    if (!next) return;
-    event.preventDefault();
-    choose(next);
-    document.getElementById(tabId(next))?.focus();
-  }
-
   // Keeper is code, not AI (W4 4A1): no posture to choose, no steps to gate and no runs of its own; its jobs instead.
   if (isKeeper(agent)) {
     return (
@@ -130,19 +121,15 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     );
   }
 
-  const label = (which: AgentTab) => {
+  /** Each tab's words, and after them the instructions version or the count of jobs (read once, so not in the tab's name). */
+  const label = (which: AgentTab): { label: string; after?: ReactNode } => {
     if (which === 'instructions') {
-      return (
-        <>
-          {t('team.instructions.tab')}
-          {version !== undefined && <>{' '}<span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
-        </>
-      );
+      return { label: t('team.instructions.tab'), after: version !== undefined ? <span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span> : undefined };
     }
     if (which === 'runs') {
-      return <>{t('team.runs')}{runs.data && <span className={c.tabBadge} data-num="" aria-hidden="true">{` ${mine.length}`}</span>}</>;
+      return { label: t('team.runs'), after: runs.data ? <span className={c.tabBadge} data-num="" aria-hidden="true">{String(mine.length)}</span> : undefined };
     }
-    return t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`);
+    return { label: t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`) };
   };
 
   return (
@@ -167,23 +154,18 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       returnFocus={returnFocus}
     >
       <HealthLine health={agent.health} agentId={agent.id} onCleared={team.reload} />
-      <div role="tablist" aria-label={agent.name} className={s.tabs} onKeyDown={onTabKey}>
-        {tabs.map((which) => (
-          <button
-            key={which}
-            type="button"
-            role="tab"
-            id={tabId(which)}
-            className={s.tab}
-            aria-selected={tab === which}
-            aria-controls={tab === which ? `${tabId(which)}-panel` : undefined}
-            tabIndex={tab === which ? 0 : -1}
-            onClick={() => choose(which)}
-          >
-            {label(which)}
-          </button>
-        ))}
-      </div>
+      {/* C7: an agent the owner hired: the day, its duties and what it reads. It always asks you first. */}
+      {agent.hired && (
+        <div className={s.hireForm} data-hired-agent="">
+          <p className={s.hireLine}>{agent.hired.line}</p>
+          <ul className={s.hireList}>{agent.hired.duties.map((duty) => <li key={duty} data-content="">{duty}</li>)}</ul>
+          <HiredDuties agent={agent.id} duties={agent.hired.duties} onChanged={team.reload} />
+          {agent.hired.reads.length > 0 && <p className={s.hireLine}>{t('team.hire.readsLine', { reads: agent.hired.reads.map((item) => t(`team.hire.read.${item.read}`)).join(', ') })}</p>}
+          <p className={s.hireLine}>{t('team.hire.alwaysAsks')}</p>
+        </div>
+      )}
+      {/* C1 task 2: the one Tabs part, in its tabs mode; the panel below stays this sheet's own. */}
+      <Tabs mode="tabs" label={agent.name} value={tab} idOf={(which) => tabId(which as AgentTab)} items={tabs.map((which) => ({ id: which, ...label(which) }))} onChange={(which) => choose(which as AgentTab)} />
 
       <div role="tabpanel" id={`${tabId(tab)}-panel`} aria-labelledby={tabId(tab)} className={s.tabPanel} data-tab={tab}>
         {tab === 'chat' && (
@@ -204,7 +186,8 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <section className={s.section}>
             <h3 id={runsId} className={s.small}>{t('team.runs')}</h3>
             {runs.error && <p className={s.failed}>{t('team.failed', { message: runs.error.message })}</p>}
-            {runs.data && mine.length === 0 && <p className={s.quiet}>{t('team.runsNone')}</p>}
+            {/* C4 task 10 (58.x1): an empty Runs tab says when it starts, with the way to Work. */}
+            {runs.data && mine.length === 0 && <p className={s.quiet}>{t('team.runsStart')} <a href="#/work">{t('team.runsStartLink')}</a></p>}
             {mine.length > 0 && (
               <ul className={s.runs} aria-labelledby={runsId}>
                 {mine.map((one) => <RunLine key={one.runId} run={one} agentId={agent.id} />)}
@@ -240,5 +223,27 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
         {run.writtenBy && <p className={s.quiet} data-written-by="">{run.writtenBy}</p>}
       </div>
     </li>
+  );
+}
+
+/** C7: a hired agent's duties, one fold away. The engine checks them again; the refusal shows beside the field. */
+function HiredDuties({ agent, duties, onChanged }: { agent: string; duties: string[]; onChanged: () => void }) {
+  const t = useT();
+  const client = useEngine();
+  const [text, setText] = useState(duties.join('\n'));
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  async function save() {
+    setBusy(true); setProblem(null);
+    try { await client.request('venture.agents.hire.duties', { agent, duties: text.split('\n').map((line) => line.trim()).filter(Boolean) }); onChanged(); }
+    catch (error) { setProblem(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Fold summary={t('team.hire.change')} className={s.hireFold}>
+      <Field multiline rows={4} label={t('team.hire.duties')} hint={t('team.hire.dutiesHint')} value={text} onChange={(event) => setText(event.currentTarget.value)} />
+      {problem && <p className={s.hireProblem} role="alert">{problem}</p>}
+      <Button size="sm" disabled={busy} onClick={() => void save()}>{t('team.hire.saveDuties')}</Button>
+    </Fold>
   );
 }

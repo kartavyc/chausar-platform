@@ -10,6 +10,7 @@ import { readFile } from 'node:fs/promises';
 import { ChausarError, check } from '../../../contracts.ts';
 import { houseStyleFindings } from '../../records.ts';
 import { checkClaims, type SourceText } from './claim-check.ts';
+import { runtimeUrl } from '../../../engine-paths.ts';
 
 /** A case kept out of rehearsal and improvement, so it can tell whether a playbook really got better. */
 export type HeldBackCase = {
@@ -37,7 +38,7 @@ export type SuiteResult = { playbook: string; passed: number; of: number; baseli
 export type DraftMaker = (item: HeldBackCase) => string | Promise<string>;
 
 /** Where the baselines for the built-in service types live. A playbook folder may keep its own and load it by path. */
-export const BASELINE_DIR = new URL('./baselines/', import.meta.url);
+export const BASELINE_DIR = runtimeUrl('venture/delivery/judge/baselines/');
 const PLAYBOOK_NAME = /^[a-z][a-z0-9-]{0,40}$/;
 const MAX_CASES = 200;
 

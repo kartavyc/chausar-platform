@@ -72,8 +72,8 @@ describe('Clients: the tabs', () => {
     await waitFor(() => expect(clients.querySelector('[data-count]')?.textContent).toBe('2'));
     await waitFor(() => expect(pipeline.querySelector('[data-count]')?.textContent).toBe('9'));
     expect(within(nav).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBeNull();
-    // An icon sits before each word, hidden from screen readers.
-    for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    // C1: one quiet look, no icons in tabs.
+    for (const link of links) expect(link.querySelector('svg')).toBeNull();
     assertInkRules();
   });
 
@@ -97,6 +97,46 @@ describe('Clients: the tabs', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/clients/pipeline'));
     await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(await board()).toBeTruthy();
+  });
+});
+
+/** A new business: no client, nobody on the pipeline, nobody in the network. */
+function emptyBusiness(client: Fake) {
+  const base = client.request.bind(client);
+  client.request = (async (m: string, params?: unknown) => {
+    if (m === 'venture.client.list') return [];
+    if (m === 'venture.network.people') return { ...(await base(m as never, params as never) as object), total: 0, people: [] };
+    if (m === 'venture.pipeline.list') {
+      const board = await base(m as never, params as never) as { columns: { count: number; cards: unknown[] }[] };
+      return { ...board, columns: board.columns.map((column) => ({ ...column, count: 0, cards: [] })) };
+    }
+    if (m === 'venture.leads.list') return { leads: [] };
+    return base(m as never, params as never);
+  }) as EngineClient['request'];
+}
+
+describe('Clients: Pipeline and Network wait for a client (C1 task 4)', () => {
+  it('a new business has no Clients tab row; its title stays', async () => {
+    await start('#/clients', { override: emptyBusiness });
+    await settle();
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: 'Clients' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Clients views' })).toBeNull();
+  });
+
+  it('with one client it has Clients, Pipeline and Network', async () => {
+    await start('#/clients');
+    await screen.findByRole('list', { name: 'Clients' });
+    await waitFor(() => expect(within(tabs()).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['#/clients', '#/clients/pipeline', '#/clients/network']));
+  });
+
+  it('a link to #/clients/network on a new business lands, with the row and Network current', async () => {
+    await start('#/clients/network', { override: emptyBusiness });
+    await settle();
+    await settle();
+    const links = within(tabs()).getAllByRole('link');
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['#/clients', '#/clients/network']);
+    expect(within(tabs()).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBe('page');
   });
 });
 
@@ -129,6 +169,23 @@ describe('Clients: the Clients tab', () => {
     // What they owe, in the sheet line, is a Figure too.
     const figure = await waitFor(() => sheet.querySelector('[data-figure]') as HTMLElement);
     expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200');
+    assertInkRules();
+  });
+
+  // C4 task 18 (79.x1): the sheet leads with orders, invoices and what they owe; the timeline holds them too.
+  it('the sheet leads with Orders and invoices, the amount owed with its receipt, and the timeline holds the orders', async () => {
+    await start('#/clients?sheet=client:c-boat');
+    const sheet = await screen.findByRole('complementary', { name: 'Boat Audio' });
+    const first = await within(sheet).findByRole('region', { name: 'Orders and invoices' });
+    expect(sheet.querySelector('section')).toBe(first);
+    await within(first).findByRole('list', { name: 'Orders' });
+    const invoices = await within(first).findByRole('list', { name: 'Invoices' });
+    expect(within(invoices).getAllByRole('button', { name: /^Invoice / }).length).toBeGreaterThan(0);
+    const owes = within(first).getByText('Owes').parentElement!;
+    expect(owes.textContent).toMatch(/^Owes ₹26,200/);
+    expect(within(owes).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
+    const timeline = await waitFor(() => { const list = sheet.querySelector('[data-timeline]'); expect(list).toBeTruthy(); return list as HTMLElement; });
+    await waitFor(() => expect(timeline.querySelector('[data-kind="order"]')?.textContent).toMatch(/^Order for .+ (added|delivered)/));
     assertInkRules();
   });
 
@@ -338,5 +395,35 @@ describe('Clients: the lead sheet', () => {
     // The owner's send is read on this computer's clock, as on the card: never the raw stored time.
     expect(sheet.textContent).toContain('You sent it 21 Oct');
     expect(sheet.textContent).not.toContain('2026-10-21');
+  });
+});
+
+// One-shot C6 task 3 (SCREENS 62, 159.x1): a phone or WhatsApp number on a client, above Email.
+describe('Clients: a phone or WhatsApp number', () => {
+  it('Add client asks for it above Email and sends it as typed', async () => {
+    const { spy } = await start('#/clients?sheet=client:new');
+    const sheet = await screen.findByRole('complementary', { name: 'Add a client' });
+    const phoneBox = within(sheet).getByLabelText('Phone or WhatsApp');
+    const emailBox = within(sheet).getByLabelText('Email');
+    expect(phoneBox.compareDocumentPosition(emailBox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(within(sheet).getByLabelText('Name'), { target: { value: 'Kapoor Films' } });
+    fireEvent.change(phoneBox, { target: { value: '98765 43210' } });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add client' })); });
+    expect(spy.mock.calls.find(([method]) => method === 'venture.client.add')?.[1]).toEqual({ name: 'Kapoor Films', phone: '98765 43210' });
+    const made = await screen.findByRole('complementary', { name: 'Kapoor Films' });
+    await waitFor(() => expect(within(made).getAllByText('Phone or WhatsApp').length).toBeGreaterThan(0));
+    // The field list comes first; the change form's options under it name the same fields.
+    const label = within(made).getAllByText('Phone or WhatsApp')[0]!, email = within(made).getAllByText('Email')[0]!;
+    expect(label.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(made).getByText('98765 43210')).toBeTruthy();
+  });
+
+  it("a number that is not one is refused in the engine's words, and nothing is added", async () => {
+    await start('#/clients?sheet=client:new');
+    const sheet = await screen.findByRole('complementary', { name: 'Add a client' });
+    fireEvent.change(within(sheet).getByLabelText('Name'), { target: { value: 'Kapoor Films' } });
+    fireEvent.change(within(sheet).getByLabelText('Phone or WhatsApp'), { target: { value: '12' } });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add client' })); });
+    expect((await within(sheet).findByRole('alert')).textContent).toContain('Use a phone number like 98765 43210');
   });
 });

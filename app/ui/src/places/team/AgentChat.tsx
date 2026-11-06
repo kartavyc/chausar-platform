@@ -5,12 +5,13 @@ import {
   EngineError, type AgentMessageView, type AgentProposalView, type AgentRunItem, type AgentThreadItem, type AgentView, type ChatConsentView,
   type StandingPlaybookView,
 } from '../../engine/types';
-import { openSheet } from '../../shell/navigation';
+import { goTo, openSheet } from '../../shell/navigation';
 import { useClock } from '../../shell/clock';
 import type { DeptId } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
 import { Composer } from '../../parts/Composer';
+import { useUnsent } from '../../parts/useUnsent';
 import { DiffCard } from '../../parts/DiffCard';
 import { Figure } from '../../parts/Figure';
 import { ModelEstimate } from '../../parts/ModelEstimate';
@@ -22,6 +23,11 @@ import c from './AgentChat.module.css';
 
 const CONSENT_CODES = new Set(['CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE']);
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/** The owner said no to the consent: nothing failed, so the words go back to the box. */
+class ConsentDeclined extends Error {}
+/** C4 task 30: these stay in the box; a key or an id number never sits in the thread, and a no to the consent is not a failure. */
+const staysInBox = (error: unknown) => error instanceof ConsentDeclined || (error instanceof EngineError && error.code === 'CHAT_KEY_REFUSED');
 
 export interface AgentChatProps {
   agent: AgentView;
@@ -96,6 +102,8 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
     thread.reload();
   }
 
+  const unsent = useUnsent(send, { scope: agent.id, now: clock, staysInBox });
+
   async function agree() {
     if (!asking) return;
     try {
@@ -114,7 +122,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   }
 
   function decline() {
-    asking?.reject(new Error(t('team.chat.consent.declined')));
+    asking?.reject(new ConsentDeclined(t('team.chat.consent.declined')));
     setAsking(null);
   }
 
@@ -162,7 +170,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   // Earlier pages sit in the part of the log that is not read out; the page the thread read now is announced as it grows.
   const recentIds = new Set((data?.items ?? []).map(itemId));
   const olderEntries = entriesOf(items.filter((item) => !recentIds.has(itemId(item))));
-  const entries = entriesOf(items.filter((item) => recentIds.has(itemId(item))));
+  const entries = [...entriesOf(items.filter((item) => recentIds.has(itemId(item)))), ...unsent.entries];
 
   /** A proposal as decided here, until the thread is read again. */
   function proposal(view: AgentProposalView): AgentProposalView {
@@ -185,6 +193,10 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
     }
     const suggestion = message.suggestion;
     if (!suggestion) return [said];
+    // C5 task 5: a reply written with no AI: its next step, set by code, opens Connections.
+    if (suggestion.kind === 'connect-ai') {
+      return [said, { kind: 'card', id: `${message.id}-connect`, at: message.at, node: <Button onClick={() => goTo('connections')}>{t('team.chat.connect')}</Button> }];
+    }
     return [said, {
       kind: 'card', id: `${message.id}-order`, at: message.at,
       node: (
@@ -231,6 +243,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
           stale={view.status === 'stale'}
           staleLine={view.line ?? undefined}
           decided={view.status === 'accepted' ? 'accepted' : view.status === 'rejected' ? 'rejected' : undefined}
+          offered={view.offered}
           onAccept={() => decide(view, 'accept')}
           onReject={() => decide(view, 'reject')}
           onUndo={() => undo(view.id)}
@@ -289,10 +302,11 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
         <div className={c.compose}>
           {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
           <Composer
+            waitLabel={t('progress.writing')}
             key={initialKey ?? 0}
             initial={initial || undefined}
             label={t('team.chat.label', { name: agent.name })}
-            onSend={send}
+            onSend={unsent.sendKeeping}
             suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
             hint={t('team.chat.hint', { name: agent.name })}
           />
@@ -370,6 +384,8 @@ function ProposalCard({ proposal, agentName, onDecide }: { proposal: AgentPropos
   return (
     <article className={c.prop} aria-labelledby={titleId} data-card="" data-proposal={proposal.kind} data-status={proposal.status}>
       <h3 id={titleId} className={c.propTitle}>{title}</h3>
+      {/* C7: an offered way of working says who offered it and after which approval. */}
+      {proposal.offered && <p className={c.applies} data-offered="">{proposal.offered}</p>}
       {proposal.line && <p className={c.quote} data-content="">{proposal.line}</p>}
       {proposal.note && proposal.note.text && <p className={c.noteText} data-content="">{proposal.note.text}</p>}
       {proposal.diff.length > 0 && (
@@ -386,8 +402,8 @@ function ProposalCard({ proposal, agentName, onDecide }: { proposal: AgentPropos
       {proposal.status === 'drafted' && (
         <div className={c.actions}>
           {/* The engine's reply says nothing is saved until the owner accepts: the note's buttons use those words. */}
-          <Button size="sm" onClick={() => void decide('reject')} disabled={busy}>{t('diff.reject')}</Button>
-          <Button size="sm" variant="primary" onClick={() => void decide('accept')} disabled={busy}>{t('diff.accept')}</Button>
+          <Button size="sm" onClick={() => void decide('reject')} disabled={busy}>{t(proposal.offered ? 'team.chat.way.no' : 'diff.reject')}</Button>
+          <Button size="sm" variant="primary" onClick={() => void decide('accept')} disabled={busy}>{t(proposal.offered ? 'team.chat.way.keep' : 'diff.accept')}</Button>
         </div>
       )}
       {outcomeLine && <p ref={outcome} className={c.outcome} role="status" tabIndex={-1}>{outcomeLine}</p>}

@@ -50,7 +50,7 @@ describe('rules the UI keeps (spec section 6)', () => {
     // Each place, how many exact calls or exact amounts it writes, and why; the engine's own list is
     // platform/tests/owner-format-sources-b2.test.ts. A hand-made formatter (its own digit grouping) is never allowed.
     const EXACT: Record<string, [count: number, why: string]> = {
-      'engine/fake-money.ts': [1, 'the words sent with a shared invoice leave the app, as money/invoice-pdf.ts writes them'],
+      'engine/fake-money.ts': [3, 'the words sent with a shared invoice and a thank-you receipt leave the app, as money/invoice-pdf.ts and money/payment-receipt.ts write them'],
       'engine/fake-work.ts': [1, 'the client room keeps the exact price, as playbooks/kit/client-room-state.ts does'],
       'engine/fake-model-receipt.ts': [1, "a model call's receipt keeps four decimals, as money/model-receipt.ts does"],
     };
@@ -95,9 +95,13 @@ describe('rules the UI keeps (spec section 6)', () => {
   it('colours come from tokens: no hex colours outside tokens.css', () => {
     for (const { f, text } of code.filter((c) => c.f.endsWith('.css') && !c.f.endsWith('tokens.css'))) expect(text, f).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
+  it('one tab part (C1): nothing imports parts/Segmented, and only parts/Tabs.tsx draws a tablist', () => {
+    expect(code.filter(({ text }) => /parts\/Segmented['"]/.test(text)).map(({ f }) => f)).toEqual([]);
+    expect(code.filter(({ text }) => /role=["']tablist["']/.test(text)).map(({ f }) => f)).toEqual(['parts/Tabs.tsx']);
+  });
 });
 
-/* Ink v2 rules (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold"), package 3A1. */
+/* Ink v2 rules (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold"), package 3A1. */
 
 const app = join(src, '..');
 const TEXT_FILE = /\.(tsx?|css|json|svg|html|js|mjs|cjs|webmanifest|md|txt)$/;
@@ -160,7 +164,8 @@ const EMBEDDED_HEX = /(?<=[\s(,:])(?<!url\()#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-
 const SVG_PAINT = /\b(?:fill|stroke|stopColor|floodColor|lightingColor)=\{?(['"`])([^'"`]*)\1/g;
 
 // W6 6C2 (DECISIONS D16a): About you turns A into B on Send, one motion of --t-settle.
-const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css'];
+// One-shot C3: motion.css animates the view-transition pseudo elements of a place change; Swap fades a word in place.
+const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css', 'motion.css', 'Swap.module.css', 'Count.module.css'];
 const SPACING = /^(?:(?:padding|margin)(?:-[a-z]+)*|(?:row-|column-|grid-|grid-row-|grid-column-)?gap)$/;
 
 /** Each check takes one stylesheet (comments removed), or code for codeColours, and returns what breaks the rule. */
@@ -185,10 +190,11 @@ const check = {
       const at = `${property}: ${value}`;
       const parts = value.split(/,(?![^(]*\))/).map((p) => p.trim());
       if (RAW_TIME.test(value)) found.push(`${at} has a raw time`);
-      if ([...value.matchAll(/var\((--[\w-]+)/g)].some(([, name]) => !name!.startsWith('--t-') && name !== '--ease')) found.push(`${at} uses a variable other than --t-* or --ease`);
+      if ([...value.matchAll(/var\((--[\w-]+)/g)].some(([, name]) => !name!.startsWith('--t-') && name !== '--ease' && name !== '--ease-exit')) found.push(`${at} uses a variable other than --t-*, --ease or --ease-exit`);
       if (property.startsWith('animation') && !ANIMATED.includes(file.split('/').pop()!)) found.push(`${at} outside ${ANIMATED.join(', ')}`);
       if ((property === 'animation' || property === 'transition') && value !== 'none' && parts.some((p) => !/var\(--t-[\w-]+\)/.test(p))) found.push(`${at} needs a var(--t-...) duration`);
-      if (/-(?:duration|delay)$/.test(property) && parts.some((p) => !/^var\(--t-[\w-]+\)$/.test(p))) found.push(`${at}: durations and delays are var(--t-...)`);
+      // One-shot C3: a stagger's delay may be calc(var(--t-stagger) * n), for the first five places alone.
+      if (/-(?:duration|delay)$/.test(property) && parts.some((p) => !/^var\(--t-[\w-]+\)$/.test(p) && !(property.endsWith('delay') && /^calc\(var\(--t-stagger\) \* [1-4]\)$/.test(p)))) found.push(`${at}: durations and delays are var(--t-...)`);
       if (property === 'animation-iteration-count' && value !== '1') found.push(`${at} repeats`);
       if (property === 'animation' && parts.some((p) => p.replace(/\([^()]*\)/g, '()').split(/\s+/).some((t) => /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(t) && Number(t) !== 1))) found.push(`${at} repeats`);
     }
@@ -218,7 +224,8 @@ const check = {
  */
 const LITERALS: Record<string, Partial<Record<keyof typeof check, string[]>>> = {
   'tokens/base.css': { rawSpacing: ['-1px'], customProperties: ['--line'] },
-  'tokens/motion.css': { customProperties: ['--t-press', '--t-sheet', '--t-settle'] },
+  // The five time tokens twice: once under reduced motion, once under [data-motion='off'] (one-shot C3).
+  'tokens/motion.css': { customProperties: ['--t-press', '--t-sheet', '--t-settle', '--t-exit', '--t-stagger', '--t-press', '--t-sheet', '--t-settle', '--t-exit', '--t-stagger'] },
 };
 type Sheet = (typeof sheets)[number];
 /** What breaks a rule in one stylesheet, less the literals listed above for it. */
@@ -231,6 +238,51 @@ function broken(rule: Exclude<keyof typeof check, 'codeColours'>, { f, css }: Sh
     return false;
   });
 }
+
+describe('one fold (B4 task 8)', () => {
+  it('every disclosure is parts/Fold.tsx: no raw <summary anywhere else in src', () => {
+    const found = scripts.filter(({ f, text }) => f !== 'parts/Fold.tsx' && text.includes('<summary')).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
+  it('no stylesheet colours a fold: a summary rule sets no colour of its own, and never link blue', () => {
+    // Apps .summary and YoutubeDesk .summary are text blocks, not folds.
+    const NOT_FOLDS = ['places/apps/Apps.module.css .summary', 'places/work/desks/YoutubeDesk.module.css .summary'];
+    const found = sheets
+      .filter(({ f }) => f !== 'parts/Fold.module.css')
+      .flatMap(({ f, css }) =>
+        rules(css).filter(({ selector, decls }) => /summary/i.test(selector) && !selector.includes(':not(summary)') && !NOT_FOLDS.includes(`${f} ${selector}`) && decls.some(([p]) => p === 'color')).map(({ selector }) => `${f} ${selector}`),
+      );
+    expect(found).toEqual([]);
+  });
+});
+
+describe('sentence case (B4 task 10)', () => {
+  it('no text-transform: uppercase in any stylesheet', () => {
+    const found = sheets.filter(({ css }) => declarations(css, /^text-transform$/).some(([, value]) => /uppercase/i.test(value))).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
+});
+
+describe('one set of controls (B4 task 9)', () => {
+  it('no raw <select or file input outside the parts that draw them', () => {
+    const OWNERS = ['parts/Select.tsx', 'parts/FilePick.tsx'];
+    const found = scripts.filter(({ f, text }) => !OWNERS.includes(f) && /<select\b|type="file"/.test(text)).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
+  it('one focus ring: an outline on focus is the --focus width in the link colour, under :focus-visible only', () => {
+    const found = sheets.flatMap(({ f, css }) =>
+      rules(css)
+        .filter(({ selector }) => selector.includes(':focus'))
+        .flatMap(({ selector, decls }) =>
+          decls
+            .filter(([p, v]) => p === 'outline' && !/^(?:none|0)$/.test(v))
+            .filter(([, v]) => v !== 'var(--focus) solid var(--link)' || selector.split(',').some((item) => !item.includes(':focus-visible')))
+            .map(([, v]) => `${f} ${selector}: ${v}`),
+        ),
+    );
+    expect(found).toEqual([]);
+  });
+});
 
 describe('Ink v2 rules the UI keeps (w3 plan)', () => {
   it('the CSS checks catch what they should, on samples', () => {
@@ -321,12 +373,28 @@ describe('Ink v2 rules the UI keeps (w3 plan)', () => {
   });
 
   it('no emoji in src or the text catalogues', () => {
-    expect(everything.some(({ f }) => f.startsWith('text/hi/'))).toBe(false);
+    expect(everything.some(({ f }) => f.startsWith('text/hi/'))).toBe(true);
     for (const { f, text } of everything) expect(text.match(/\p{Extended_Pictographic}/u)?.[0], f).toBeUndefined();
   });
 
   it(`motion runs once on the time tokens, and only ${ANIMATED.join(', ')} animate`, () => {
     for (const sheet of sheets) expect(broken('motion', sheet), sheet.f).toEqual([]);
+  });
+
+  it('every time token is 0 ms under reduced motion and when the owner turns animations off (one-shot C3)', () => {
+    const motion = uncomment(readFileSync(join(src, 'tokens/motion.css'), 'utf8'));
+    const times = [...TOKEN_NAMES].filter((name) => name.startsWith('--t-'));
+    expect(times).toEqual(expect.arrayContaining(['--t-press', '--t-sheet', '--t-settle', '--t-exit', '--t-stagger']));
+    const reduced = motion.match(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*:root\s*\{([^}]*)\}/)?.[1];
+    const off = motion.match(/:root\[data-motion='off'\]\s*\{([^}]*)\}/)?.[1];
+    expect(reduced, 'the reduced-motion block').toBeDefined();
+    expect(off, "the [data-motion='off'] block").toBeDefined();
+    for (const name of times) {
+      expect(reduced, name).toMatch(new RegExp(`${name}:\\s*0ms`));
+      expect(off, name).toMatch(new RegExp(`${name}:\\s*0ms`));
+    }
+    // The exit ease is a motion token beside --ease (C3 task 1).
+    expect(check.motion('.a { transition: opacity var(--t-exit) var(--ease-exit) }', 'parts/Row.module.css')).toEqual([]);
   });
 
   it('type sizes in stylesheets are tokens: font-size is a --text-* or --fig-* variable', () => {

@@ -12,7 +12,7 @@
  * exactly that digest, never one read later, and sends. No agent is needed for it. If the engine says the words changed
  * meanwhile (APPROVAL_STALE), it says so and shows the consent as it stands now, to agree again. A key or an id
  * number is refused in the engine's words and the box is emptied, so it is never sent again by accident; any other
- * refusal leaves the words in the box with the engine's reason.
+ * refusal (C4 task 30) stays in the thread as a bubble marked "Not sent" with Try again and the engine's reason under it.
  *
  * W6 6G1 (D42): the head's Chat actions are Pin, Snooze (the engine's presets, each with its wake time) or Wake now, and
  * Settle or Reopen. Each change shows the engine's words with Undo, which sends the request the engine returned. A chat
@@ -23,26 +23,30 @@
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useT } from '../../text';
+import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
-import { navigate } from '../../shell/navigation';
+import { goTo, navigate } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatMonth, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
 import { ChausarAvatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ConsentWords } from '../../parts/ConsentWords';
 import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
+import { useUnsent } from '../../parts/useUnsent';
 import { Composer } from '../../parts/Composer';
 import { cx } from '../../parts/cx';
 import { Figure } from '../../parts/Figure';
+import { InlineError } from '../../parts/InlineError';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { DEPT_OF } from '../team/departments';
 import { PlanCard, type AgentLookup } from './PlanCard';
 import { ChangeNotice } from './ChangeNotice';
 import { PushToTalk } from './PushToTalk';
 import { ReadAloud } from './ReadAloud';
+import { PickTime } from './PickTime';
 import s from './Chats.module.css';
+import { Reveal } from '../../parts/RevealBlock';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
@@ -62,15 +66,17 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 export interface ChiefThreadProps {
   /** The chat to show; left out, a new chat. */
   threadId: string | undefined;
-  /** Words handed over from the header box, Ctrl K, Today or Start, each with its own count: they go in the box, unsent. */
-  ask: { words: string; n: number } | null;
+  /** Words handed over from Today or Start, each with its own count, go in the box, unsent; the bar's Ask row (send) sends them. */
+  ask: { words: string; n: number; send: boolean } | null;
+  /** The handed-over words that are sent are taken once, so coming back to this pane never sends them again. */
+  onAskTaken: () => void;
   /** The list reads again (a chat was read, or a new one was made). */
   onListChanged: () => void;
   /** A phone shows the way back to the list. */
   phone: boolean;
 }
 
-export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThreadProps) {
+export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }: ChiefThreadProps) {
   const t = useT();
   const zone = useOwnerZone();
   const clock = useClock();
@@ -91,9 +97,22 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
   const [snoozing, setSnoozing] = useState(false);
   const [lockedNote, setLockedNote] = useState(false);
 
-  // Words handed over arrive in the box, unsent, with the cursor in it.
+  // Words handed over arrive in the box, unsent, with the cursor in it. The bar's Ask row (F1) sends them once, in a new
+  // chat, by this pane's own send: a consent refusal shows the card with the words waiting, and any other failure
+  // leaves them in the box with its line.
+  const sentAsk = useRef<unknown>(null);
   useEffect(() => {
-    if (ask) setBox((was) => ({ words: ask.words, n: was.n + 1 }));
+    if (!ask) return;
+    if (!ask.send) { setBox((was) => ({ words: ask.words, n: was.n + 1 })); return; }
+    if (sentAsk.current === ask) return;
+    sentAsk.current = ask;
+    onAskTaken();
+    void send(ask.words, true).catch((error: unknown) => {
+      setBox((was) => ({ words: ask.words, n: was.n + 1 }));
+      setRefusal(messageOf(error));
+    });
+    // Only a new handover starts this; send reads the pane as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ask]);
   useEffect(() => {
     if (box.n > 0) area.current?.querySelector<HTMLTextAreaElement>('form textarea')?.focus();
@@ -127,20 +146,28 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     return agent ? { name: agent.name, dept: agent.department ? DEPT_OF[agent.department] : undefined } : undefined;
   };
 
-  async function send(words: string): Promise<void> {
+  async function send(words: string, newChat = false): Promise<void> {
     setRefusal(null);
+    const into = newChat ? undefined : threadId;
     try {
-      const result = await engine.request('venture.chief.thread.send', threadId ? { threadId, text: words } : { text: words });
-      setSent({ thread: result.thread, messages: [...(threadId ? messages : []), ...result.added] });
+      const result = await engine.request('venture.chief.thread.send', into ? { threadId: into, text: words } : { text: words });
+      setSent({ thread: result.thread, messages: [...(into ? messages : []), ...result.added] });
       if (result.thread.id !== threadId) navigate({ place: 'chats', query: { thread: result.thread.id } });
       onListChanged();
     } catch (error) {
       const code = codeOf(error);
       if (code === 'CHAT_CONSENT_REQUIRED' || code === 'CHAT_CONSENT_STALE') { await askConsent(words, code === 'CHAT_CONSENT_STALE', messageOf(error), null); return; }
-      if (code === 'CHAT_KEY_REFUSED') { setRefusal(messageOf(error)); return; }
+      if (code === 'CHAT_KEY_REFUSED') {
+        // Handed over from the bar, the words are nowhere else: they wait in the box, where the owner can change them.
+        if (newChat) setBox((was) => ({ words, n: was.n + 1 }));
+        setRefusal(messageOf(error));
+        return;
+      }
       throw new Error(messageOf(error));
     }
   }
+
+  const unsent = useUnsent(send, { scope: threadId ?? '', now: clock });
 
   /**
    * Reads the consent once, as the thread list carries it, and shows it: its words and the digest Agree will send.
@@ -178,8 +205,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     try {
       await send(words);
     } catch (error) {
-      setBox((was) => ({ words, n: was.n + 1 }));
-      setRefusal(messageOf(error));
+      unsent.keep(words, error);
     }
   }
 
@@ -206,13 +232,30 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     }
   }
 
+  /** C4 task 8: a snooze to a time the owner picked; the engine's refusal comes back to show in place. */
+  async function snoozeUntil(threadId: string, until: string): Promise<string | null> {
+    setPinning(true);
+    try {
+      const result = await engine.request('venture.chief.thread.state', { threadId, state: 'snoozed', until });
+      setSnoozing(false);
+      setChange({ threadId, line: result.line, undo: result.undo });
+      view.reload();
+      onListChanged();
+      return null;
+    } catch (error) {
+      return messageOf(error);
+    } finally {
+      setPinning(false);
+    }
+  }
+
   const snoozeOptions: readonly ChiefSnoozeOption[] = shown?.snooze ?? [];
   const waiting = thread?.waiting ?? false;
   const shownChange = change && change.threadId === threadId ? change : null;
 
-  const entries: ThreadEntry[] = messages.map((message): ThreadEntry => (message.from === 'owner'
+  const entries: ThreadEntry[] = [...messages.map((message): ThreadEntry => (message.from === 'owner'
     ? { kind: 'owner', id: message.id, at: message.at, text: plainOf(message.parts) }
-    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> }));
+    : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> })), ...unsent.entries];
 
   return (
     <section ref={area} className={s.pane} aria-labelledby={titleId}>
@@ -248,16 +291,18 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           </div>
         )}
       </header>
-      {thread && snoozing && !waiting && snoozeOptions.length > 0 && (
-        <div className={cx(s.snooze, s.paneNote)} role="group" aria-label={t('chats.snooze.title')}>
+      {/* One-shot C3 task 7: the snooze choices open in place and close the same way. */}
+      <Reveal open={Boolean(thread && snoozing && !waiting && snoozeOptions.length > 0)}>
+        {thread && <div className={cx(s.snooze, s.paneNote)} role="group" aria-label={t('chats.snooze.title')}>
           {snoozeOptions.map((option) => (
             <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
               <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
               <time data-num="" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
             </Button>
           ))}
-        </div>
-      )}
+        </div>}
+      </Reveal>
+      {thread && snoozing && !waiting && <div className={s.paneNote}><PickTime busy={pinning} onPick={(until) => snoozeUntil(thread.id, until)} /></div>}
       {thread && waiting && lockedNote && <p className={cx(s.quiet, s.paneNote)}>{t('chats.thread.waiting')}</p>}
       {shownChange && <ChangeNotice className={s.paneNote} line={shownChange.line} busy={pinning} onUndo={() => void setState(shownChange.undo)} />}
       {threadId && view.error && !shown && !fallback ? (
@@ -267,15 +312,16 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
       ) : (
         <p className={cx(s.quiet, s.paneNote)}>{threadId ? '' : t('chats.thread.start')}</p>
       )}
-      {refusal && <p className={cx(s.problem, s.paneNote)} role="alert">{refusal}</p>}
+      {refusal && <InlineError className={s.paneNote}>{refusal}</InlineError>}
       {consent && <Consent stale={consent.stale} text={consent.text} words={consent.words} problem={consent.problem} busy={consent.busy} onAgree={() => void agree()} onNotNow={notNow} />}
       <div className={s.compose}>
         <Composer
+          waitLabel={t('progress.writing')}
           key={box.n}
           initial={box.words}
           label={t('chats.composer.label')}
           placeholder={t('chats.composer.placeholder')}
-          onSend={send}
+          onSend={unsent.sendKeeping}
           suggestions={SUGGESTIONS.map((key) => t(key))}
           hint={t('chats.composer.hint')}
         />
@@ -317,7 +363,7 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
         <span className={s.whoName}>{t('chats.chief.name')}</span>
         {time && <time data-num="" dateTime={message.at}>{time}</time>}
       </p>
-      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts)}</p>}
+      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts, t)}</p>}
       {message.worked.length > 0 && (
         <table className={s.worked}>
           <caption className={s.workedTitle}>{t('chats.worked.title')}</caption>
@@ -339,6 +385,8 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
         </a>
       )}
       {message.proposals.length > 0 && <PlanCard proposals={message.proposals} agentOf={agentOf} onChanged={onChanged} />}
+      {/* C5 task 5: an answer written with no AI: its next step, set by code, opens Connections. */}
+      {message.suggestion?.kind === 'connect-ai' && <p><Button onClick={() => goTo('connections')}>{t('chats.connect')}</Button></p>}
       {threadId && message.parts.length > 0 && <ReadAloud threadId={threadId} messageId={message.id} />}
     </div>
   );
@@ -369,12 +417,20 @@ function Counted({ counted }: { counted: ChiefCounted }) {
 }
 
 /** The parts in order, a space between them: words, receipted figures, and model-written numbers with their label. */
-function partsOf(parts: readonly ChatPart[]): ReactNode[] {
+function partsOf(parts: readonly ChatPart[], t: T): ReactNode[] {
   return parts.flatMap((part, index) => {
     const gap = index > 0 ? [' '] : [];
     if (part.kind === 'figure') return [...gap, <Figure key={index} value={part.display} receiptId={part.receiptId} />];
     if (part.kind === 'estimate') {
       return [...gap, <span key={index} className={s.estimate}><span data-estimate="">{part.text}</span> <ModelEstimate /></span>];
+    }
+    // C7: a part of Chausar's guide, quoted as written there, with the link to read it in the guide.
+    if (part.kind === 'guide') {
+      return [...gap, <span key={index} className={s.guide} data-guide={part.anchor}>
+        <strong>{part.title}</strong>
+        <span className={s.guideText} data-content="">{part.text}</span>
+        <a href={part.link} target="_blank" rel="noreferrer">{t('chats.guide.read')}</a>
+      </span>];
     }
     return [...gap, <span key={index}>{part.text}</span>];
   });

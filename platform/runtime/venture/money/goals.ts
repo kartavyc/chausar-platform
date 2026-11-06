@@ -25,6 +25,7 @@ import {
   requireGoalCurrency, taxRegistered,
 } from './goal-plans.ts';
 import { nextBestStep } from './next-step.ts';
+import { paidInFull } from './paid-in-full.ts';
 import { creditsElsewhere, invoicesElsewhere, paymentsElsewhere } from './figure-kinds.ts';
 
 const REJECTED = 'MODEL_OUTPUT_REJECTED';
@@ -153,9 +154,9 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
       paceReceiptId = paceSteps.id;
       paceBy = { display: paceSteps.figures[0].display, receiptId: paceSteps.id };
     }
-  } else {
-    lastMonth = await figureFor(deps, ctx, venture.id, invoicedPlan(state, venture, { type: 'invoiced', month: previousMonth(chosen), which: 'issued' }));
   }
+  // C4 task 34 (13.x1): last month's invoiced sum with its receipt, set or not, for the figure beside the goal's field.
+  lastMonth = await figureFor(deps, ctx, venture.id, invoicedPlan(state, venture, { type: 'invoiced', month: previousMonth(chosen), which: 'issued' }));
 
   let ahead: Pick<GoalView, 'next' | 'briefing'> = { next: null, briefing: null };
   if (isCurrent) {
@@ -168,6 +169,8 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
     invoicedPermille, readyPermille, pacePermille, pace, paceReceiptId,
     invoicedPercent, pacePercent: Math.floor(pacePermille / 10), past: pastBy !== null, pastBy, paceBy,
     elapsedDays: elapsed, monthDays: days, daysLeft: days - elapsed, lastDay: isCurrent && elapsed === days, lastMonth,
+    // One-shot C6: every invoice issued in the month is paid, with its receipt.
+    paidInFull: await paidInFull(deps, ctx, state, venture, chosen),
     line: [goalLine(chosen, goal, invoicedMinor, pace, pacePermille, taxRegistered(state, venture)),
       ...(movedGoal ? [`Your previous goal is in ${previousGoal!.currency}. Set a new goal in ${currency}.`] : []),
       ...(otherCurrencies ? [`Totals are in ${currency}; other currencies are excluded without conversion.`] : [])].join(' '), ...ahead,
@@ -226,7 +229,7 @@ export function validateSuggestion(raw: unknown, currency: string): string {
   return minor;
 }
 
-function suggestTask(month: string, currency: string, offers: PricedOffer[]): ModelTask<string> {
+export function goalSuggestTask(month: string, currency: string, offers: PricedOffer[]): ModelTask<string> {
   return {
     purpose: 'goal-suggest',
     instructions: [
@@ -253,6 +256,22 @@ function suggestTask(month: string, currency: string, offers: PricedOffer[]): Mo
  * or one Chausar's checks refused. Nothing is stored as a goal.
  */
 export async function suggestGoal(deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoalSuggestion | null> {
+  // One-shot C3 task 9: one model call, so one step.
+  const work = deps.work?.begin('goal-suggest', ['suggest']);
+  work?.step('suggest', 'current');
+  try {
+    const suggestion = await suggestGoalNow(deps, ctx, payload);
+    work?.step('suggest', 'done');
+    return suggestion;
+  } catch (error) {
+    work?.failCurrent();
+    throw error;
+  } finally {
+    work?.end();
+  }
+}
+
+async function suggestGoalNow(deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoalSuggestion | null> {
   const body = exactPayload(payload, ['month'], ['month']);
   const month = monthText(body.month);
   authorize(deps.store, ctx, 'prepare');
@@ -265,7 +284,7 @@ export async function suggestGoal(deps: VentureDeps, ctx: Context, payload: unkn
   const currency = venture.country.currency;
   let amountMinor: string;
   try {
-    const outcome = await deps.models.generate(ctx, suggestTask(month, currency, offers));
+    const outcome = await deps.models.generate(ctx, goalSuggestTask(month, currency, offers));
     if (outcome.by !== 'model') return null;
     amountMinor = outcome.value;
   } catch (error) {

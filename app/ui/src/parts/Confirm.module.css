@@ -1,0 +1,21 @@
+/* The one second ask: plain words, then the buttons on the right, where the asking button was. */
+
+.confirm {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.words {
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+  text-align: end;
+}

@@ -45,14 +45,13 @@ export function BottomTabs({ tabs, current, label, className }: BottomTabsProps)
             data-current={on ? '' : undefined}
           >
             {on && <span className={s.line} data-tab-line="" aria-hidden="true" />}
-            <Icon name={tab.icon} size={22} />
+            {/* C1 task 10: the badge is pinned to the icon's holder, so a two-figure count sits on its corner, never over it. */}
+            <span className={s.iconHolder} data-tab-icon="">
+              <Icon name={tab.icon} size={22} />
+              {badge !== undefined && <span className={s.badge} data-badge="" aria-hidden="true"><Count value={badge} /></span>}
+            </span>
             <span className={s.word}>{tab.label}</span>
-            {badge !== undefined && (
-              <>
-                <span className={s.badge} data-badge="" aria-hidden="true"><Count value={badge} /></span>
-                <span className="sr-only">{`, ${t('tabs.needYou', { count: badge })}`}</span>
-              </>
-            )}
+            {badge !== undefined && <span className="sr-only">{`, ${t('tabs.needYou', { count: badge })}`}</span>}
           </a>
         );
       })}

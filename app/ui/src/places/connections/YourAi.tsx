@@ -13,6 +13,8 @@ import { useCliChecks } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
 import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
+import { Fold } from '../../parts/Fold';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The built-in templates' preset id: no AI, nothing sent (Your AI and the agent panel's Its AI). */
 export const TEMPLATES = 'built-in-templates';
@@ -134,7 +136,7 @@ export function YourAi({ focus }: { focus: boolean }) {
         </div>
         {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
         {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}
-        {!data && !status.error && <p className={s.note}>{t('connections.ai.loading')}</p>}
+        {!data && !status.error && <LoadingPlace shape="cards" />}
         {data && (
           <>
             <div className={s.jobs} data-one={bothTemplates ? '' : undefined}>
@@ -177,8 +179,7 @@ export function YourAi({ focus }: { focus: boolean }) {
             <h3 className={s.subheading}>{t('connections.ai.add')}</h3>
             {/* The recommended pair at rest; every single choice, grouped by how it is paid for, one fold away. */}
             {atRest && <ul className={s.rows}>{choiceRow(atRest)}</ul>}
-            <details className={s.fold}>
-              <summary>{t('connections.ai.every')}</summary>
+            <Fold summary={t('connections.ai.every')} className={s.fold}>
               {recommended && atRest !== recommended && <ul className={s.rows}>{choiceRow(recommended)}</ul>}
               {RUNS_ON.map((runsOn) => {
                 const here = singles.filter((choice) => choice.presets[0]!.preset.runsOn === runsOn && inFold(choice));
@@ -190,7 +191,7 @@ export function YourAi({ focus }: { focus: boolean }) {
                   </div>
                 );
               })}
-            </details>
+            </Fold>
           </>
         )}
       </Tile>

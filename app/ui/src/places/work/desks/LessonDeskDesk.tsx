@@ -12,6 +12,7 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import { performHandoff } from '../../clients/handoff';
 import { reserveTab } from '../../connections/external';
 import s from './LessonBooking.module.css';
+import { Select } from '../../../parts/Select';
 
 type Mark = 'present' | 'late' | 'absent';
 type Fee = { invoiceId: string; number: string | null; status: string; total: string; receiptId: string };
@@ -121,8 +122,8 @@ function Batch({ batch, busy, act, w }: { batch: BatchView; busy: boolean; act: 
         <form className={s.form} onSubmit={async event => { event.preventDefault(); const done = await act('add-learner', { name, minor, guardianClientId: guardian, ...(order ? { orderId: order } : {}) }); if (done) { setName(''); setMinor(false); setOrder(''); } }}>
           <label className={s.label}>{w('learnerName')}<input value={name} onChange={e => setName(e.target.value)} /></label>
           <label className={s.check}><input type="checkbox" checked={minor} onChange={e => setMinor(e.target.checked)} />{w('minor')}</label>
-          <label className={s.label}>{w('guardian')}<select value={guardian} onChange={e => { setGuardian(e.target.value); setOrder(''); }}><option value="">{w('none')}</option>{guardians.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-          <label className={s.label}>{w('order')}<select value={order} onChange={e => setOrder(e.target.value)}><option value="">{w('none')}</option>{feeOrders.map(row => <option key={row.id} value={row.id}>{row.request.slice(0, 60)}</option>)}</select></label>
+          <label className={s.label}>{w('guardian')}<Select value={guardian} onChange={e => { setGuardian(e.target.value); setOrder(''); }}><option value="">{w('none')}</option>{guardians.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></label>
+          <label className={s.label}>{w('order')}<Select value={order} onChange={e => setOrder(e.target.value)}><option value="">{w('none')}</option>{feeOrders.map(row => <option key={row.id} value={row.id}>{row.request.slice(0, 60)}</option>)}</Select></label>
           <div className={s.row}><Button type="submit" disabled={busy}>{w('addLearner')}</Button></div>
         </form>
       </Tile>
@@ -134,10 +135,10 @@ function Batch({ batch, busy, act, w }: { batch: BatchView; busy: boolean; act: 
               <span><span className={s.line}>{session.on}</span> <span data-content>{session.topic}</span></span>
               {batch.learners.map(learner => (
                 <label key={learner.id} className={s.label}>{w('markFor', { name: learner.name, date: session.on })}
-                  <select value={session.marks[learner.id] ?? ''} disabled={busy} onChange={e => { if (e.target.value) void act('attendance', { sessionId: session.id, marks: { [learner.id]: e.target.value } }); }}>
+                  <Select value={session.marks[learner.id] ?? ''} disabled={busy} onChange={e => { if (e.target.value) void act('attendance', { sessionId: session.id, marks: { [learner.id]: e.target.value } }); }}>
                     <option value="">{w('mark.none')}</option>
                     {(['present', 'late', 'absent'] as const).map(mark => <option key={mark} value={mark}>{w('mark.' + mark)}</option>)}
-                  </select>
+                  </Select>
                 </label>
               ))}
             </li>
@@ -164,7 +165,7 @@ function Work({ batch, busy, act, w }: { batch: BatchView; busy: boolean; act: A
       <TileHead title={w('work')} />
       <ul className={s.list}>{batch.works.map(work => <li key={work.id} className={s.line}><span data-content>{work.title}</span> {w('kind.' + work.kind)}</li>)}</ul>
       <form className={s.form} onSubmit={async event => { event.preventDefault(); if (await act('work', { kind, title, topic, items: items() })) { setTitle(''); setQuestions(''); } }}>
-        <label className={s.label}>{w('workKind')}<select value={kind} onChange={e => setKind(e.target.value as 'quiz' | 'worksheet')}><option value="quiz">{w('kind.quiz')}</option><option value="worksheet">{w('kind.worksheet')}</option></select></label>
+        <label className={s.label}>{w('workKind')}<Select value={kind} onChange={e => setKind(e.target.value as 'quiz' | 'worksheet')}><option value="quiz">{w('kind.quiz')}</option><option value="worksheet">{w('kind.worksheet')}</option></Select></label>
         <label className={s.label}>{w('workTitle')}<input value={title} onChange={e => setTitle(e.target.value)} /></label>
         <label className={s.label}>{w('workTopic')}<input value={topic} onChange={e => setTopic(e.target.value)} /></label>
         <label className={s.label}>{w('questions')}<textarea rows={4} value={questions} onChange={e => setQuestions(e.target.value)} /></label>
@@ -172,8 +173,8 @@ function Work({ batch, busy, act, w }: { batch: BatchView; busy: boolean; act: A
       </form>
       {batch.works.some(work => work.kind === 'quiz') && (
         <form className={s.form} onSubmit={async event => { event.preventDefault(); if (await act('scores', { workId: quiz, answers: { [learner]: answers.split('\n') } })) setAnswers(''); }}>
-          <label className={s.label}>{w('scoreQuiz')}<select value={quiz} onChange={e => setQuiz(e.target.value)}><option value="">{w('none')}</option>{batch.works.filter(work => work.kind === 'quiz').map(work => <option key={work.id} value={work.id}>{work.title}</option>)}</select></label>
-          <label className={s.label}>{w('learner')}<select value={learner} onChange={e => setLearner(e.target.value)}><option value="">{w('none')}</option>{batch.learners.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+          <label className={s.label}>{w('scoreQuiz')}<Select value={quiz} onChange={e => setQuiz(e.target.value)}><option value="">{w('none')}</option>{batch.works.filter(work => work.kind === 'quiz').map(work => <option key={work.id} value={work.id}>{work.title}</option>)}</Select></label>
+          <label className={s.label}>{w('learner')}<Select value={learner} onChange={e => setLearner(e.target.value)}><option value="">{w('none')}</option>{batch.learners.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</Select></label>
           <label className={s.label}>{w('answers')}<textarea rows={3} value={answers} onChange={e => setAnswers(e.target.value)} /></label>
           <div className={s.row}><Button type="submit" disabled={busy}>{w('score')}</Button></div>
         </form>
@@ -199,8 +200,8 @@ function Messages({ batch, busy, act, w }: { batch: BatchView; busy: boolean; ac
     <Tile as="section" label={w('messages')}>
       <TileHead title={w('messages')} />
       <form className={s.form} onSubmit={event => event.preventDefault()}>
-        <label className={s.label}>{w('learner')}<select value={learner} onChange={e => setLearner(e.target.value)}><option value="">{w('none')}</option>{batch.learners.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
-        <label className={s.label}>{w('channel')}<select value={channel} onChange={e => setChannel(e.target.value as 'email' | 'whatsapp')}><option value="email">{w('channel.email')}</option><option value="whatsapp">{w('channel.whatsapp')}</option></select></label>
+        <label className={s.label}>{w('learner')}<Select value={learner} onChange={e => setLearner(e.target.value)}><option value="">{w('none')}</option>{batch.learners.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</Select></label>
+        <label className={s.label}>{w('channel')}<Select value={channel} onChange={e => setChannel(e.target.value as 'email' | 'whatsapp')}><option value="email">{w('channel.email')}</option><option value="whatsapp">{w('channel.whatsapp')}</option></Select></label>
         {channel === 'whatsapp' && <label className={s.label}>{w('phone')}<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label>}
         <label className={s.label}>{w('note')}<textarea rows={3} value={note} onChange={e => setNote(e.target.value)} /></label>
         <div className={s.row}>

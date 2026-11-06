@@ -262,7 +262,7 @@ export function useCardPreview(row: QueueRow, { unseen, enabled, taxRegistered }
     return () => (
       <>
         <div data-content="">
-          <PreviewFrame variant="text" view={{ title: data.title, line: data.line, sections: data.sections }} />
+          <PreviewFrame variant="text" view={{ title: data.title, line: data.line, sections: data.sections, amounts: data.amounts }} />
         </div>
         {written}
       </>

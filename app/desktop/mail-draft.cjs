@@ -16,8 +16,8 @@ const BREAKS = /[\p{Cc}\u0085\u2028\u2029]/u;
 const HIDDEN = /(?!\u{200C}|\u{200D})\p{Cf}/gu;
 /** The subject as it goes in the draft: hidden marks out, white space folded to one space, as the engine folds a name. */
 const cleanSubject = subject => subject.replace(HIDDEN, '').replace(/\s+/g, ' ').trim();
-const FILE_NAME = /^[A-Za-z0-9-]{1,80}\.(pdf|html)$/;
-const TYPES = Object.freeze({ pdf: 'application/pdf', html: 'text/html' });
+const FILE_NAME = /^[A-Za-z0-9-]{1,80}\.(pdf|html|csv)$/;
+const TYPES = Object.freeze({ pdf: 'application/pdf', html: 'text/html', csv: 'text/csv' });
 const MAX_SUBJECT = 1000;
 const MAX_BODY = 200_000;
 const MAX_FILE = 20 * 1024 * 1024;

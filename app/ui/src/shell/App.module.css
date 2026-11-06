@@ -11,6 +11,9 @@
   height: 100dvh;
   background: var(--bg);
   color: var(--fg);
+  /* One-shot C3: the page column makes room for a sheet, and takes it back after the sheet left, over the sheet time
+     (0 with motion off, tokens/motion.css). */
+  transition: grid-template-columns var(--t-sheet) var(--ease);
 }
 
 .app[data-sheet-open] {
@@ -69,7 +72,13 @@
   grid-area: main;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: var(--sp-7) var(--gutter) var(--sp-12);
+}
+
+/* Two bars never stand side by side. The page's bar is only painted out, not removed, so its width does not change. */
+.app[data-sheet-open] > .main {
+  scrollbar-color: transparent transparent;
 }
 
 .main:focus {
@@ -80,6 +89,8 @@
 .page {
   max-width: var(--page-max);
   margin: 0 auto;
+  /* One-shot C3: a place change cross-fades this column alone (tokens/motion.css); the rail and the bars stay still. */
+  view-transition-name: page;
 }
 
 .sheet {
@@ -87,6 +98,7 @@
   grid-area: sheet;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border-left: var(--hair) solid var(--line);
   background: var(--surface);
 }
@@ -161,4 +173,12 @@
 .app[data-phone] select {
   min-width: var(--target);
   min-height: var(--target);
+}
+
+/* C1 task 8: from 760 to 959 px the rail folds to its icons, so it no longer takes a third of a small window. */
+@media (min-width: 760px) and (max-width: 959px) {
+  .app,
+  .app[data-sheet-open] {
+    grid-template-columns: var(--rail-compact) minmax(0, 1fr);
+  }
 }

@@ -13,7 +13,8 @@ import type { EngineClient, QueueActionId, QueueDecision, QueueRow } from '../..
 
 /**
  * undo (W4 4J19): a send back or an edit made here can be taken back until its revision starts; it answers the line to
- * show. untilRevision (B3): a send back's Undo leaves once the queue lists the revision (subjectOf).
+ * show. untilRevision (B3): a send back's Undo leaves once the queue lists the revision (subjectOf). B4: a price accepted
+ * on one press carries one too, and its Undo leaves once the plan has a newer version the same way.
  */
 export interface DecidedLine { row: QueueRow; line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined; untilRevision?: true | undefined }
 
@@ -36,6 +37,8 @@ export const seenKey = (row: Pick<QueueRow, 'id' | 'digest'>) => `${row.id}@${ro
 
 export class TodaySession {
   private decided = new Map<string, DecidedLine>();
+  /** B4: rows whose decision was taken back: what to say on the card until it is decided again. */
+  private saidLines = new Map<string, string>();
   private viewed = new Set<string>();
   /** Sheets asked for and not shown yet: ref -> the row versions waiting on it. */
   private waiting = new Map<string, Set<string>>();
@@ -61,10 +64,18 @@ export class TodaySession {
   /** Keep a decided row as one line. `replace: false` never overwrites a line already kept. */
   keep(row: QueueRow, line: string, receiptId?: string, replace = true, undo?: () => Promise<string>, untilRevision = false) {
     if (!replace && this.decided.has(row.id)) return;
+    this.saidLines.delete(row.id);
     this.decided.set(row.id, { row, line, receiptId, ...(undo ? { undo } : {}), ...(undo && untilRevision ? { untilRevision: true as const } : {}) });
     this.changed();
   }
   line(id: string): DecidedLine | undefined { return this.decided.get(id); }
+  /** B4: the decision was taken back: the row is open again, and the card says what happened. */
+  reopen(id: string, said: string) {
+    this.decided.delete(id);
+    this.saidLines.set(id, said);
+    this.changed();
+  }
+  said(id: string): string | undefined { return this.saidLines.get(id); }
   /** Note the engine's order for rows not seen before; known rows keep their place. */
   placeRows(rows: readonly QueueRow[]) { for (const row of rows) if (!this.places.has(row.id)) this.places.set(row.id, this.places.size); }
   place(id: string): number { return this.places.get(id) ?? Number.MAX_SAFE_INTEGER; }
@@ -92,8 +103,8 @@ export class TodaySession {
    * already decided or resolved elsewhere is kept as such (never over a line already kept); stale and VIEW_FIRST have
    * to be looked at again.
    */
-  settle(row: QueueRow, decision: QueueDecision, t: T): QueueDecision {
-    if (decision.outcome === 'done') this.keep(row, decision.line, decision.receiptId);
+  settle(row: QueueRow, decision: QueueDecision, t: T, undo?: () => Promise<string>): QueueDecision {
+    if (decision.outcome === 'done') this.keep(row, decision.line, decision.receiptId, true, undo, Boolean(undo));
     else if (decision.outcome === 'stale' || decision.reason === 'VIEW_FIRST') this.unview(row.id);
     else if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') this.keep(row, t('approval.elsewhere'), undefined, false);
     return decision;
@@ -151,6 +162,25 @@ export function sessionFor(client: EngineClient): TodaySession {
 }
 
 /**
+ * B4: take back a decision the engine said it can (QueueDecision.undoable, a price on one press). On success the row is
+ * open again; refused, the line says why and no Undo stays. B3's read layer refreshes the screens after this write, as it
+ * does after a decision. A failure that is not the engine's refusal leaves the Undo to try again.
+ */
+function takeBack(client: EngineClient, row: QueueRow): () => Promise<string> {
+  return async () => {
+    const session = sessionFor(client);
+    try {
+      const { line } = await client.request('venture.queue.undo', { rowId: row.id });
+      session.reopen(row.id, line);
+      return line;
+    } catch (error) {
+      if (/^UNDO_/.test(String((error as { code?: unknown } | null)?.code))) session.keep(row, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  };
+}
+
+/**
  * B3: the one way to decide a row, from Today, the approval page, Prices and the plan page, the run sheet, Run again
  * and the round gate. The session holds the row while the decision is on its way and keeps the engine's line after, so
  * every place shows the same line and none calls it resolved elsewhere.
@@ -159,7 +189,13 @@ export async function decide(client: EngineClient, row: QueueRow, action: QueueA
   const session = sessionFor(client);
   session.begin(row);
   try {
-    return session.settle(row, await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra }), t);
+    const answer = await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra });
+    const decision = session.settle(row, answer, t, answer.undoable ? takeBack(client, row) : undefined);
+    // C4 task 15: a rejected draft's line carries Undo for as long as the engine allows it; it leaves once the row's subject moves on.
+    if (decision.outcome === 'done' && action === 'deny' && row.kind === 'draft' && row.viewRef?.kind === 'draft') {
+      session.keep(row, decision.line, decision.receiptId, true, async () => (await client.request('venture.queue.undo', { rowId: row.id })).line, true);
+    }
+    return decision;
   } finally {
     session.end(row.id);
   }

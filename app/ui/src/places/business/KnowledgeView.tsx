@@ -7,10 +7,13 @@ import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
 import { TileSection, dayOf, messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './KnowledgeView.module.css';
 // W6 6G4: the business's dated facts (since when, what they replaced, source, who may see them).
 import { FactsBody } from '../clients/FactsSection';
+import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 type Kind = KnowledgeSourceInput['kind'];
 const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work'];
@@ -52,14 +55,13 @@ export function KnowledgeView() {
   }
 
   if (view.error) return <p className={b.problem} role="alert">{messageOf(view.error)}</p>;
-  if (!data) return <p className={b.note}>{t('business.loading')}</p>;
+  if (!data) return <LoadingPlace shape="settings" />;
   return (
     <div className={b.page}>
       <div className={b.split}>
         <TileSection title={t('business.knowledge.sources')} meta={data.sources.length ? t('business.knowledge.count', { count: data.sources.length }) : undefined}>
           <p className={b.line}>{data.line}</p>
-          {said && <p className={b.said} role="status">{said}</p>}
-          {problem && <p className={b.problem} role="alert">{problem}</p>}
+          <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said}</ResultLine>
           {data.sources.length === 0 ? <p className={b.note}>{t('business.knowledge.none')}</p> : (
             <ul className={s.sources}>
               {data.sources.map((source) => (
@@ -197,7 +199,7 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
         {kind === 'past-work' && <p className={b.note}>{t('business.knowledge.workNote')}</p>}
         {problem && <p className={b.problem} role="alert">{problem}</p>}
         <div className={s.buttons}>
-          <Button size="sm" variant="primary" type="submit" disabled={busy || !ready}>{t('business.knowledge.addButton')}</Button>
+          <Button size="sm" variant="primary" type="submit" disabled={busy} disabledReason={ready ? undefined : t(`business.knowledge.need.${kind}`)}>{t('business.knowledge.addButton')}</Button>
         </div>
       </form>
     </TileSection>
@@ -210,15 +212,15 @@ function Choice({ label, none, value, onChange, options, loaded }: {
 }) {
   const t = useT();
   const id = useId();
-  if (!loaded) return <p className={b.note}>{t('business.loading')}</p>;
+  if (!loaded) return <LoadingPlace shape="settings" />;
   if (options.length === 0) return <p className={b.note}>{none}</p>;
   return (
     <div className={s.choice}>
       <label className={s.label} htmlFor={id}>{label}</label>
-      <select id={id} className={s.select} value={value} onChange={(event) => onChange(event.currentTarget.value)}>
+      <Select id={id} className={s.select} value={value} onChange={(event) => onChange(event.currentTarget.value)}>
         <option value="">{t('business.knowledge.choose')}</option>
         {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-      </select>
+      </Select>
     </div>
   );
 }

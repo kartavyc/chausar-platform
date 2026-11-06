@@ -156,6 +156,30 @@ describe('The Chat tab', () => {
     expect(within(panel).getByRole('alert').textContent).toContain('That looks like a key. Keys go in Connections, never in chat.');
     expect((within(panel).getByRole('textbox', { name: 'Message Researcher' }) as HTMLTextAreaElement).value).toContain('sk-ant-');
   });
+
+  // C4 task 30: a send that fails stays in the thread as a bubble; Try again sends the same words and it becomes a normal one.
+  it('a failed send stays as a bubble marked Not sent; Try again sends the same words', async () => {
+    let refuse = true;
+    const { spy } = start('#/team?sheet=agent:researcher&tab=chat', { intercept: (method) => {
+      if (method === 'venture.agents.thread.send' && refuse) return Promise.reject(new EngineError('MODEL_UNAVAILABLE', 'Your AI did not answer. Try again in a minute.'));
+      return undefined;
+    } });
+    const panel = await panelOf('Researcher');
+    await within(panel).findByRole('log');
+    await type(panel, 'Which thumbnails did best?');
+    expect((within(panel).getByRole('textbox', { name: 'Message Researcher' }) as HTMLTextAreaElement).value).toBe('');
+    const bubble = within(panel).getByText('Which thumbnails did best?').closest('[data-from="owner"]') as HTMLElement;
+    expect(bubble.hasAttribute('data-unsent')).toBe(true);
+    expect(within(bubble).getByText('Not sent')).toBeTruthy();
+    expect(within(bubble).getByRole('alert').textContent).toContain('Your AI did not answer. Try again in a minute.');
+
+    refuse = false;
+    await click(within(bubble).getByRole('button', { name: 'Try again' }));
+    await settle();
+    expect(calls(spy, 'venture.agents.thread.send').map((params) => params.text)).toEqual(['Which thumbnails did best?', 'Which thumbnails did best?']);
+    expect(within(panel).queryByText('Not sent')).toBeNull();
+    await waitFor(() => expect(within(panel).getByText('Which thumbnails did best?').closest('[data-from="owner"]')!.hasAttribute('data-unsent')).toBe(false));
+  });
 });
 
 describe('The chat consent', () => {
@@ -472,4 +496,34 @@ describe('Review 4B3: Today opens the card a chat links to', () => {
     expect(card.textContent).toContain('Publish the titles to YouTube');
     await waitFor(() => expect(window.location.hash).toBe('#/today'));
   }, 15_000);
+});
+
+describe('C7: a way of working, offered by the agent', () => {
+  const offered = 'Offered by Editor after you approved the draft for Asha';
+  const asOffer = (method: string, params: Record<string, unknown>, base: EngineClient) => (method === 'venture.agents.thread.list'
+    ? base.request('venture.agents.thread.list', params as never).then((view: AgentThreadView) => ({
+        ...view, items: view.items.map((item) => (item.type === 'proposal' && item.proposal.kind === 'instruction' ? { ...item, proposal: { ...item.proposal, title: 'Keep this as a way of working?', offered } } : item)),
+      }))
+    : undefined);
+  it('shows who offered it and after which approval, the change as before and after lines, Keep and Not this', async () => {
+    const { spy } = start('#/team?sheet=agent:editor&tab=chat', { intercept: asOffer });
+    const panel = await panelOf('Editor');
+    const card = await within(panel).findByRole('article', { name: 'Keep this as a way of working?' });
+    expect(card.querySelector('[data-offered]')!.textContent).toBe(offered);
+    expect(within(card).getByRole('group', { name: 'The change, with the lines around it' })).toBeTruthy();
+    expect(card.querySelectorAll('[data-variant="primary"]')).toHaveLength(1);
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Not this' })); });
+    await settle();
+    expect(calls(spy, 'venture.agents.proposal.decide').at(-1)).toMatchObject({ decision: 'reject' });
+  });
+
+  it('Keep writes a new playbook version', async () => {
+    const { spy } = start('#/team?sheet=agent:editor&tab=chat', { intercept: asOffer });
+    const panel = await panelOf('Editor');
+    const card = await within(panel).findByRole('article', { name: 'Keep this as a way of working?' });
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Keep' })); });
+    await settle();
+    expect(calls(spy, 'venture.agents.proposal.decide').at(-1)).toMatchObject({ decision: 'accept' });
+    expect(within(panel).getByRole('tab', { name: 'Instructions v5' })).toBeTruthy();
+  });
 });

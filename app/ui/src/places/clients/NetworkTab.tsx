@@ -14,7 +14,7 @@
  * pipeline's (4E4). Someone forgotten from the person sheet leaves the results at once.
  */
 
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { memo, useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
@@ -28,15 +28,17 @@ import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
+import { WindowedList } from '../../parts/WindowedList';
 import { StrengthDots } from '../../parts/StrengthDots';
 import { Tile, TileHead } from '../../parts/Tile';
-import type { NetworkSearchView, NetworkSourcesView, PeopleView, PipelineStage, SearchResultView } from '../../engine/types';
+import type { NetworkSearchView, NetworkSourcesView, PeopleView, PersonSummary, PipelineStage, SearchResultView } from '../../engine/types';
 import { ExternalLink } from '../connections/external';
 import { clientsChanged, useClientsChanged } from './signals';
 import { NetworkSources } from './NetworkSources';
 import { NetworkDrafts } from './NetworkDrafts';
 import { codeOf, dotsOf, LinkedInButton, messageOf, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
 import s from './Network.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** How many people Browse everyone shows at a time. */
 const PAGE = 8;
@@ -109,6 +111,8 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
   const [text, setText] = useState('');
   const [web, setWeb] = useState(false);
   const askWeb = webSearch === 'set-up' && web;
+  // C5 task 10: the chips the engine built from this network.
+  const chips = useResource('venture.network.people', { limit: 0 }, { refreshOn: networkRefresh }).data?.chips ?? [];
 
   async function run(words = text) {
     if (words.trim().length < 2) return;
@@ -172,11 +176,14 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
           <span className={s.meta}>{t('clients.network.web.line')}</span>
         </div>
       ) : <p className={s.meta}>{t('clients.network.web.notSetUp')}</p>}
-      <div className={s.starters}>
-        <span className={s.meta}>{t('clients.network.try')}</span>
-        {STARTERS.map((starter) => (
-          <button key={starter.label} type="button" className={s.starter} onClick={() => setText(t(starter.fill))}>{t(starter.label)}</button>
-        ))}
+      <div className={s.starters} role="group" aria-label={t('clients.network.try')}>
+        <span className={s.meta} aria-hidden="true">{t('clients.network.try')}</span>
+        {/* C5 task 10: chips from the owner's own network when the engine has some, else the fixed starters. */}
+        {chips.length > 0
+          ? chips.map((chip) => <button key={chip} type="button" className={s.starter} onClick={() => setText(chip)}>{chip}</button>)
+          : STARTERS.map((starter) => (
+            <button key={starter.label} type="button" className={s.starter} onClick={() => setText(t(starter.fill))}>{t(starter.label)}</button>
+          ))}
       </div>
       {search.kind === 'consent' && (
         <Inner card={false} className={s.consent}>
@@ -342,8 +349,7 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
         </div>
         <p className={s.why} data-why="">{why}</p>
         {result.checks.length > 0 && (
-          <details className={s.checks}>
-            <summary className={s.checksSummary}><Icon name="chevron-right" size={14} />{t('clients.network.checks')}</summary>
+          <Fold summary={t('clients.network.checks')} className={s.checks}>
             <ul className={s.checkList}>
               {result.checks.map((check, index) => (
                 <li key={index} data-check={check.check}>
@@ -353,7 +359,7 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
                 </li>
               ))}
             </ul>
-          </details>
+          </Fold>
         )}
         {result.path && person && <Inner card={false} className={s.pathBox}><WarmPath path={result.path} name={person.name} /></Inner>}
         <div className={s.resultActions}>
@@ -370,6 +376,24 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
     </li>
   );
 }
+
+/** One person in Browse everyone. Kept apart and memoised, so a row redraws only when its person does. */
+const PersonRow = memo(function PersonRow({ person, t }: { person: PersonSummary; t: ReturnType<typeof useT> }) {
+  return (
+    <Row
+      id={person.id}
+      mark={<Avatar name={person.name} size={32} />}
+      title={person.name}
+      line={roleLine(t, person) ?? undefined}
+      onOpen={(origin) => openSheet('person', person.id, origin)}
+      aside={<StrengthDots level={dotsOf(person)} />}
+    />
+  );
+});
+
+/** Over this many rows, the list is windowed; each row is this many layout pixels tall (the Row part at 32 px avatars). */
+const WINDOW_OVER = 300;
+const WINDOW_ROW = 56;
 
 /** Browse everyone: a page at a time, filtered by name or company once the typing stops (the engine's own match). */
 function Everyone() {
@@ -396,19 +420,15 @@ function Everyone() {
       {people.error && <p className={s.problem} role="alert">{t('sheet.failed', { message: people.error.message })}</p>}
       {view && view.people.length === 0 && <p className={s.quiet}>{t('clients.network.people.none')}</p>}
       {view && view.people.length > 0 && (
-        <ul className={s.peopleList} aria-labelledby={titleId}>
-          {view.people.map((person) => (
-            <Row
-              key={person.id}
-              id={person.id}
-              mark={<Avatar name={person.name} size={32} />}
-              title={person.name}
-              line={roleLine(t, person) ?? undefined}
-              onOpen={(origin) => openSheet('person', person.id, origin)}
-              aside={<StrengthDots level={dotsOf(person)} />}
-            />
-          ))}
-        </ul>
+        view.people.length > WINDOW_OVER ? (
+          // One-shot C3 task 16: a long list keeps only the rows near the view in the page.
+          <WindowedList items={view.people} keyOf={(person) => person.id} rowHeight={WINDOW_ROW} label={t('clients.network.people.filter')}
+            renderRow={(person) => <ul className={s.peopleList}><PersonRow person={person} t={t} /></ul>} />
+        ) : (
+          <ul className={s.peopleList} aria-labelledby={titleId}>
+            {view.people.map((person) => <PersonRow key={person.id} person={person} t={t} />)}
+          </ul>
+        )
       )}
       {view && view.total > view.people.length && <div className={s.actions}><Button size="sm" onClick={() => setLimit((now) => Math.min(now + PAGE, 500))}>{t('clients.network.people.more')}</Button></div>}
     </Tile>

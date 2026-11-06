@@ -4,13 +4,13 @@ Chausar is a desktop app for ordinary professionals (India first, global too) wh
 
 ## Where the plan lives
 
-Plans, specs, research and requirements are private. They live in the private repository `kartavyc/chausar-private`, checked out next to this one (`../chausar-private`), not in this public repository. Paths below are inside that checkout; older comments in the code that say `docs/superpowers/...` mean the same path there.
+Plans, specs, research and requirements are private. They live in the private repository `kartavyc/chausar-private`, checked out next to this one (`../chausar-private`), not in this public repository. Paths below are inside that checkout; older comments in the code that say `chausar-private/docs/superpowers/...` mean the same path there.
 
-- Wave 6 (current): decisions `docs/superpowers/plans/w6/DECISIONS.md`, work packages `docs/superpowers/plans/w6/PACKAGES.md`, review checklist `docs/superpowers/plans/w6/REVIEW.md`, notes `docs/superpowers/plans/w6/NOTES-6.md`, new screens `docs/superpowers/plans/w6/reference-ui/`. Where wave 6 decisions differ from older docs, wave 6 wins.
-- Spec: `docs/superpowers/designs/2026-10-23-chausar-ink-v2.md`.
-- Master plan and "How every wave runs": `docs/superpowers/plans/2026-10-23-chausar-ink-v2.md`.
-- Wave plans: `docs/superpowers/plans/2026-10-23-chausar-ink-v2-w{2,3,4,5}.md`.
-- Wave 5 working notes (briefs, review brief, what was actually built): `docs/superpowers/plans/w5/`.
+- Wave 6 (current): decisions `chausar-private/docs/superpowers/plans/w6/DECISIONS.md`, work packages `chausar-private/docs/superpowers/plans/w6/PACKAGES.md`, review checklist `chausar-private/docs/superpowers/plans/w6/REVIEW.md`, notes `chausar-private/docs/superpowers/plans/w6/NOTES-6.md`, new screens `chausar-private/docs/superpowers/plans/w6/reference-ui/`. Where wave 6 decisions differ from older docs, wave 6 wins.
+- Spec: `chausar-private/docs/superpowers/designs/2026-10-23-chausar-ink-v2.md`.
+- Master plan and "How every wave runs": `chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2.md`.
+- Wave plans: `chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w{2,3,4,5}.md`.
+- Wave 5 working notes (briefs, review brief, what was actually built): `chausar-private/docs/superpowers/plans/w5/`.
 - Catalogue of research rows: `docs/research/harvest/cards2/CATALOGUE.md`.
 - The enterprise engine (formerly `enterprise/` here) is in that repository too.
 
@@ -28,7 +28,7 @@ What the app does and its known limits stays public, in this repository: `docs/v
 - Prices are always owner-set. Share prices are an advanced option one step away; a fixed price is the default. GST and tax fields only for businesses that need them.
 - AI voices and presenters are disclosed; rights are recorded at intake.
 - DPDP: minimum data, Forget really deletes, an opt-out is honoured at once.
-- India first; rupees by default from the owner's time zone and words, never from the computer's language setting. English only for now (Hindi was removed in wave 6; keep the translation plumbing so it can return).
+- India first; rupees by default from the owner's time zone and words, never from the computer's language setting. English and Hindi: Hindi is a pack the owner picks, loaded only then; a missing Hindi key shows the English words.
 - Plain English, no em dashes anywhere (tests check).
 - Out of scope: GST e-invoicing, Account Aggregator feeds, AIS/26AS/Form 16/2B readers.
 
@@ -36,7 +36,7 @@ What the app does and its known limits stays public, in this repository: `docs/v
 
 - Test first: write the failing test, see it fail for the right reason, then implement.
 - Engine tests: `node --test platform/tests/<file>.test.ts`. UI tests: `npx vitest run --config app/ui/vitest.config.ts <path>`.
-- Before a commit: `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the six engine shards (`node scripts/bench.mjs --shard=N/6 --output results/<name>.json`, one at a time) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`).
+- Before a commit: `npm ci` if a pull changed `package-lock.json`, then `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the three engine shards (`node scripts/bench.mjs --shard=N/3`, one at a time; each receipt goes to the run root) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`).
 - Ink UI rules (held by tests): tokens only, no inline styles, type never below 12 px, motion once and at most 400 ms, one filled primary per card, quotes in `[data-content]`, contrast 4.5:1 in both themes, locked buttons `aria-disabled`, no sideways scroll at 390 px, word budgets per place in `app/ui/tests/baselines/words.json` (they only shrink; raises go to the founder in the PR).
 - The fake engine (`app/ui/src/engine/fake*.ts`) must answer exactly like the engine: same codes, shapes, order and field-exact checks.
 - Live checks: a package that talks to an installed tool or an outside service is not done until it has run once for real on harmless sample data (the founder's own Codex on this machine, test-mode accounts), with the result written in the notes. Fixture tests alone hid a Windows bug for weeks.
@@ -45,12 +45,12 @@ What the app does and its known limits stays public, in this repository: `docs/v
 ## Traps already hit (read before you lose an hour)
 
 - Engine tests need the default temp folder on C:. Many assert C-drive scratch, so never point TMP at another drive for `node --test` or the bench.
-- `scripts/bench.mjs` writes its output only inside the repo (use `results/`, which git ignores).
+- Outputs (bench and UI receipts, the screenshot walk) go to the run root: `CHAUSAR_RUN_ROOT`, else the OS temp folder under `chausar-runs`. Servers keep data in the data home: `CHAUSAR_HOME`, else your user data folder. Neither is ever inside the code folder; `npm run guard:data` checks.
 - A shard that times out at the same test number every run is a hang, not slowness: run that file alone with a time limit.
-- `node --check` (scripts/check.mjs) only strips TypeScript from a file whose first statement is an import or export. A file that opens with a bare `type` alias or a typed `const` fails.
+- `check.mjs` checks the whole tree in one process; a `.ts` file must still be erasable syntax (`erasableSyntaxOnly`), as the worker runs it by type stripping.
 - This machine converts line endings on commit. A fixture that must be byte for byte (CRLF shims, binary samples) needs a `-text` line in `.gitattributes`, or Linux CI reads a different file.
 - A row's `businessId` is the workspace id; `venture.get().venture.id` is a `venture_...` record id. Never compare them.
 - Test fixtures must never contain strings shaped like real provider keys or tokens (GitHub push protection blocks the push). Build them at runtime.
 - Port 5432 is Postgres on the founder's machine. Stop dev servers and headless Chrome you start; leftovers pile up.
 - `docs/venture/architecture.md` "copied as is" fails only on the founder's machine (it compares a local working file); CI skips it.
-- Never commit the root `package-lock.json` (a stray leftover).
+- The root `package-lock.json` is committed. Install with `npm ci`. Change a dependency only with an exact pin in `package.json` and `npm install --package-lock-only`, and commit both files together.

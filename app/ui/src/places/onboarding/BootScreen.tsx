@@ -18,6 +18,7 @@ import { LeftContext, StartedContext, type Leaving } from './started';
 import { openByItself, readBoot, type Openable, type WelcomeFound } from './boot';
 import type { Deleted } from '../../engine/types';
 import s from './Onboarding.module.css';
+import { withViewTransition } from '../../parts/motion';
 
 type WelcomeShown = WelcomeFound & { ask?: Leaving['ask'] };
 type Shown = { kind: 'checking' } | { kind: 'leaving' } | { kind: 'app' } | { kind: 'first-run'; back?: WelcomeShown } | WelcomeShown;
@@ -26,7 +27,8 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 
 export function BootScreen({ status, children }: { status: ReactNode; children: (checking: boolean) => ReactNode }) {
   const client = useEngine();
-  const ready = useEngineStatus().state === 'ok';
+  const engineState = useEngineStatus().state;
+  const ready = engineState === 'ok';
   const hosted = client.transport === 'hosted';
   const [shown, setShown] = useState<Shown>({ kind: 'checking' });
   const [generation, setGeneration] = useState(0);
@@ -39,14 +41,20 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
   /** Set while the open business was just closed, locked or deleted: what Welcome back does next. */
   const leaving = useRef<Leaving | null>(null);
 
-  const started = useCallback(() => {
-    settled.current = true;
-    leaving.current = null;
-    setProblem(null);
-    setDeleted(null);
-    setShown({ kind: 'app' });
-    setGeneration((g) => g + 1);
+  /** The app opens on a business. `swap`: the window cross-fades to it once (one-shot C3); never at the first boot. */
+  const enter = useCallback((swap: boolean) => {
+    const go = () => {
+      settled.current = true;
+      leaving.current = null;
+      setProblem(null);
+      setDeleted(null);
+      setShown({ kind: 'app' });
+      setGeneration((g) => g + 1);
+    };
+    if (swap) void withViewTransition(go, 'window');
+    else go();
   }, []);
+  const started = useCallback(() => enter(true), [enter]);
 
   const left = useCallback((after: Leaving = {}) => {
     leaving.current = after;
@@ -68,6 +76,18 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
     }
   }, [client, started]);
 
+  // C5 task 29: a restarted worker has no business open, so once it is back the start-up check runs again: a business
+  // this computer can open comes back by itself, and one that needs its passphrase asks on Welcome back.
+  const reconnected = useRef(false);
+  useEffect(() => {
+    if (engineState === 'reconnecting') reconnected.current = true;
+    else if (engineState === 'ok' && reconnected.current) {
+      reconnected.current = false;
+      settled.current = false;
+      setCheck((c) => c + 1);
+    }
+  }, [engineState]);
+
   useEffect(() => {
     if (settled.current) return;
     if (!ready) { setShown((now) => (now.kind === 'checking' ? { kind: 'app' } : now)); return; }
@@ -82,10 +102,13 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
         setDeleted(after?.deleted ?? null);
         const only = after?.autoOpen === false || after?.problem ? null : openByItself(found);
         if (only) {
-          try { await client.request('workspace.open', only.params); started(); return; }
+          try { await client.request('workspace.open', only.params); enter(Boolean(after)); return; }
           catch (error) { setProblem(messageOf(error)); }
         }
-        setShown(found.kind === 'welcome' && after?.ask ? { ...found, ask: after.ask } : found);
+        const show = () => setShown(found.kind === 'welcome' && after?.ask ? { ...found, ask: after.ask } : found);
+        // One-shot C3: after a close, lock or delete, Welcome back cross-fades in once; the first boot never moves.
+        if (after) void withViewTransition(show, 'window');
+        else show();
       },
       (error: unknown) => {
         if (!live || settled.current) return;
@@ -101,7 +124,7 @@ export function BootScreen({ status, children }: { status: ReactNode; children: 
       },
     );
     return () => { live = false; };
-  }, [client, ready, started, check]);
+  }, [client, ready, enter, check]);
 
   if (shown.kind === 'leaving') {
     return (

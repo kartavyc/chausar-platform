@@ -1,12 +1,14 @@
 {
   "chats.title": "Chats",
+  "chats.connect": "Connect your AI",
   "chats.line": "Ask Chausar about your business. Every figure comes with its receipt.",
   "chats.failed": "Couldn't read your chats. {message}",
   "chats.list.title": "Your chats",
   "chats.list.new": "New chat",
   "chats.list.search": "Search chats",
   "chats.list.none": "No chats yet. Ask Chausar anything.",
-  "chats.list.noMatch": "No chat has those words in its title.",
+  "chats.list.noMatch": "No chat has those words.",
+  "chats.list.oldFound": {"one": "{count} old chat matches", "other": "{count} old chats match"},
   "chats.list.unread": "unread",
   "chats.group.pinned": "Pinned",
   "chats.group.today": "Today",
@@ -26,6 +28,10 @@
   "chats.thread.reopen": "Reopen",
   "chats.thread.waiting": "This chat is waiting for you. Answer it or decide its step first.",
   "chats.snooze.title": "Snooze until",
+  "chats.snooze.pick": "Pick a time",
+  "chats.snooze.day": "Day",
+  "chats.snooze.time": "Time",
+  "chats.snooze.pickBoth": "Pick a day and a time.",
   "chats.snooze.later": "In 3 hours",
   "chats.snooze.tomorrow": "Tomorrow",
   "chats.snooze.next-week": "Next Monday",
@@ -89,5 +95,6 @@
   "chats.talk.failed": "Couldn't use push-to-talk. {message}",
   "chats.read.label": "Read aloud",
   "chats.read.quote": "Read aloud for {figure}",
-  "chats.read.failed": "Couldn't read this aloud. {message}"
+  "chats.read.failed": "Couldn't read this aloud. {message}",
+  "chats.guide.read": "Read it in the guide"
 }

@@ -1,0 +1,53 @@
+/* Skeleton (one-shot C3 task 12): grey blocks at the final layout's sizes. Still: no animation of any kind. */
+
+.skeleton {
+  display: block;
+}
+
+.blocks {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.blocks[data-grid] {
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--sp-12) * 4), 1fr));
+}
+
+.title,
+.line,
+.row,
+.card,
+.tile,
+.block {
+  display: block;
+  border-radius: var(--radius);
+  background: var(--line-soft);
+}
+
+.title {
+  grid-column: 1 / -1;
+  width: 40%;
+  height: var(--text-title);
+  margin-bottom: var(--sp-3);
+}
+
+.line {
+  width: 60%;
+  height: var(--text-body);
+}
+
+.row {
+  height: var(--target);
+}
+
+.card {
+  height: calc(var(--sp-12) * 3);
+}
+
+.tile {
+  height: calc(var(--sp-12) * 2);
+}
+
+.block {
+  height: calc(var(--sp-12) * 4);
+}

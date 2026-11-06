@@ -8,6 +8,7 @@ coverage/
 *.log
 *.vault
 *.backup
+# This matches yarn and other lock files only, not package-lock.json, which is committed (install with npm ci).
 *.lock
 data/
 vaults/
@@ -19,9 +20,21 @@ exports/
 *.zip
 .DS_Store
 Thumbs.db
-# The Ink screenshot walk's output (node scripts/ui-shots/walk.mjs); the board-matched shots are copied into docs.
-app/ui/.shots/
 # The Codex files staged for the beta installer (npm run package:codex; 6J1). Copied from a local Codex install.
 vendor/codex-bundle/
 # The report keys a build ships (resources/feedback.json), written by desktop-package.mjs from CHAUSAR_FEEDBACK_* (6J2).
 vendor/feedback/
+# D3: runs and dev servers write to the run root and the data home, outside the code folder; npm run guard:data and the
+# CI after-run check are the real guard. These lines only stop an accident reaching git add. D10 moved the old
+# .tap logs and build notes out of docs/ to the private repo.
+.b2c-work/
+.w3check/
+app/ui/.vitest/
+app/ui/results/
+.shots/
+*.tap
+*.key
+tenants/
+*.encrypted.json
+# D7: the engine bundle, its source maps and the bundle test folders (scripts/bundle-engine.mjs).
+app/engine/

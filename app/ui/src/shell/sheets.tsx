@@ -14,8 +14,11 @@ import { RunSheet } from '../parts/RunSheet';
 import { Sheet } from '../parts/Sheet';
 import { useRoute } from './navigation';
 import { NotificationCentre } from './NotificationCentre';
+import { HelpSheet } from './HelpSheet';
+import { WhatsNewSheet } from './WhatsNew';
 import type { PlaceId } from './routes';
 import s from './sheets.module.css';
+import { LoadingPlace } from '../parts/Skeleton';
 
 export interface SheetComponentProps {
   id: string;
@@ -35,7 +38,7 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   return (
     <Sheet label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}
-      {!receipt.data && !receipt.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+      {!receipt.data && !receipt.error && <LoadingPlace shape="sheet" />}
       {receipt.data && (
         <>
           {receipt.data.stale && <p className={s.stale}>{t('receipt.stale')}</p>}
@@ -49,6 +52,8 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
               ))}
             </dl>
           ) : <p className={s.quiet}>{t('receipt.none')}</p>}
+          {/* C4 T27: what the sum counted and over which dates, in the engine's words, under the figure. */}
+          {receipt.data.basis && <p className={s.explanation} data-basis="">{receipt.data.basis}</p>}
           <p className={s.explanation}>{receipt.data.explanation}</p>
         </>
       )}
@@ -74,7 +79,7 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       onClose={onClose} returnFocus={returnFocus} receipt
     >
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}
-      {!view && !receipt.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+      {!view && !receipt.error && <LoadingPlace shape="sheet" />}
       {view && (
         <>
           {view.figures.length > 0 ? (
@@ -113,13 +118,14 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
 }
 
 /** The places under the phone's More tab, in the rail's order, then a new business (Start). W4 4C2 moved Clients here,
- *  since Chats took its tab. */
+ *  since Chats took its tab; C1 task 10 moved Team here, since Money took its tab. */
 const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: string }[] = [
+  { place: 'team', href: '#/team', icon: 'users', key: 'place.team' },
   { place: 'clients', href: '#/clients', icon: 'contact', key: 'place.clients' },
-  { place: 'money', href: '#/money', icon: 'wallet', key: 'place.money' },
   { place: 'apps', href: '#/apps', icon: 'layout-grid', key: 'place.apps' },
   { place: 'connections', href: '#/connections', icon: 'plug', key: 'place.connections' },
-  { place: 'business', href: '#/business/plan', icon: 'sliders-horizontal', key: 'place.business' },
+  // C1 task 7: Settings, its list on a phone.
+  { place: 'business', href: '#/business', icon: 'settings', key: 'place.business' },
   { place: 'onboarding', href: '#/onboarding', icon: 'plus', key: 'more.start' },
 ];
 
@@ -158,4 +164,6 @@ export function UnknownSheet({ onClose, returnFocus }: SheetComponentProps) {
 
 export const BASE_SHEETS: Readonly<Record<string, SheetComponent>> = { run: RunSheetKind, receipt: ReceiptSheet, 'ca-receipt': CaReceiptSheet, more: MoreSheet,
   // W4 4G4: the notification centre the bell opens.
-  notifications: NotificationCentre };
+  notifications: NotificationCentre,
+  // C7: Help from the guide, and What's new.
+  help: HelpSheet, 'whats-new': WhatsNewSheet };

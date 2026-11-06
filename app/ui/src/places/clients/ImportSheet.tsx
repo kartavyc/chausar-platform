@@ -8,6 +8,7 @@
  * Chausar keeps (`pickNetworkFile`); mail headers come only that way, with the addresses the owner sends from. On the
  * web the page reads the file and sends it to the engine on this computer; the hosted app imports nothing and says so.
  * Every refusal (too large, a line that can't be read, the same file again) shows the engine's own words.
+ * C4 task 19 (229, 81.x1): each opening starts afresh, and each kind of file says how to get it.
  */
 
 import { useId, useState } from 'react';
@@ -23,7 +24,10 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { clientsChanged } from './signals';
 import { KIND_ICONS } from './NetworkSources';
 import { messageOf } from './network';
+import { Fold } from '../../parts/Fold';
 import s from './Network.module.css';
+import { FilePick } from '../../parts/FilePick';
+import { Progress } from '../../parts/Progress';
 
 const KINDS: readonly NetworkImportKind[] = ['linkedin-connections', 'contacts-csv', 'vcard', 'calendar-ics', 'linkedin-messages', 'mail-headers'];
 const ACCEPT: Readonly<Record<NetworkImportKind, string>> = {
@@ -39,7 +43,12 @@ type Step =
   | { kind: 'undoing'; done: Extract<NetworkImportResult, { mode: 'import' }>; line: string }
   | { kind: 'undone'; line: string };
 
-export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
+/** Keyed by what it was opened for, so "Import a newer file" of another kind starts afresh too. */
+export function ImportSheet(props: SheetComponentProps) {
+  return <ImportSteps key={props.id} {...props} />;
+}
+
+function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
   const kindsId = useId();
@@ -130,20 +139,16 @@ export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                 <Button disabled={step.kind === 'busy'} onClick={() => void pickOnDesktop(kind)}><Icon name="upload" size={16} />{t('clients.import.choose')}</Button>
               )}
               {!desktop && kind !== 'mail-headers' && (
-                <label className={s.fileLabel}>
-                  <Icon name="upload" size={16} />
-                  <span>{t('clients.import.choose')}</span>
-                  <input
-                    type="file"
-                    className="sr-only"
-                    aria-label={t('clients.import.choose')}
+                <FilePick
+                  choose={t('clients.import.choose')}
                     accept={ACCEPT[kind] || undefined}
                     disabled={step.kind === 'busy'}
                     onChange={(event) => { void readInPage(kind, event.target.files?.[0]); event.target.value = ''; }}
-                  />
-                </label>
+                />
               )}
-              {step.kind === 'busy' && <p className={s.quiet} role="status">{t('clients.import.checking')}</p>}
+              {/* One-shot C3 task 11: the one step, with its elapsed time. */}
+              <Progress kind="import" active={step.kind === 'busy'} labelOf={() => t('clients.import.checking')} />
+              <Fold key={kind} summary={t('clients.import.how')}><p className={s.quiet}>{t(`clients.import.how.${kind}`)}</p></Fold>
             </div>
           )}
 
@@ -167,8 +172,9 @@ export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                 </>
               )}
               <div className={s.actions}>
-                <Button variant="quiet" onClick={() => setStep({ kind: 'choose' })}>{t('clients.import.again')}</Button>
-                <Button variant="primary" onClick={() => void importFile(step.file)}>{t('clients.import.go')}</Button>
+                {/* B4: with nobody to import, choosing another file is the one thing left to do. */}
+                <Button variant={step.check.kept === 0 ? 'primary' : 'quiet'} onClick={() => setStep({ kind: 'choose' })}>{t('clients.import.again')}</Button>
+                <Button variant={step.check.kept === 0 ? 'secondary' : 'primary'} disabledReason={step.check.kept === 0 ? t('clients.import.nobody') : undefined} onClick={() => void importFile(step.file)}>{t('clients.import.go')}</Button>
               </div>
             </div>
           )}

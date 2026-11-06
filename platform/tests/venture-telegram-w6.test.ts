@@ -185,3 +185,48 @@ test('the desktop key contract accepts the Telegram credential name', async () =
   const { validate } = await import('../runtime/venture/models/credential-contract.cjs');
   assert.doesNotThrow(() => validate('workspace_1', TELEGRAM_CREDENTIAL, JSON.stringify({ token: TOKEN, chatId: CHAT }), true));
 });
+
+// C5 task 11: Find me reads the bot's own updates once (getUpdates, through the network guard and the stand-in
+// sender), picks the newest private chat that sent /start, and answers its first name and chat id; nothing is stored
+// until the owner saves through venture.notify.telegram. A group is skipped; a webhook (409) and no /start yet answer
+// plain words. The token never reaches a record.
+type Found = { found: { chatId: string; name: string } | null; line: string };
+const findChat = (deps: VentureDeps, payload: unknown, ctx: Context = owner) =>
+  (handlers['venture.notify.telegram.findChat'] as (d: unknown, c: Context, p: unknown) => Promise<Found>)(deps, ctx, payload);
+const update = (id: number, chat: Record<string, unknown>, text: string) => ({ update_id: id, message: { message_id: id, date: 1, chat, text } });
+
+test('Find me: the newest private chat that sent /start gives its id and first name; a group is skipped; nothing is stored', async () => {
+  const env = await setup();
+  const { sent, net } = network([{ status: 200, body: { ok: true, result: [
+    update(1, { id: 111, type: 'private', first_name: 'Old' }, '/start'),
+    update(2, { id: Number(CHAT), type: 'private', first_name: 'Kartavy' }, '/start'),
+    update(3, { id: -555, type: 'group', title: 'Team' }, '/start'),
+    update(4, { id: 222, type: 'private', first_name: 'Hello' }, 'hello'),
+  ] } }]);
+  const { deps, credentials } = wire(env, net);
+  const before = env.store.read().revision;
+  const result = await findChat(deps, { token: TOKEN });
+  assert.deepEqual(result.found, { chatId: CHAT, name: 'Kartavy' });
+  assert.equal(result.line, 'Is this you: Kartavy?');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.method, 'GET');
+  assert.match(sent[0]!.url.pathname, /\/getUpdates$/);
+  assert.equal(env.store.read().revision, before, 'nothing is written');
+  assert.equal(credentials.saved.size, 0, 'nothing is saved until the owner says yes');
+  assert.ok(!JSON.stringify(env.store.read()).includes(TOKEN));
+  await assert.rejects(findChat(deps, { token: TOKEN }, phone), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(findChat(deps, { token: 'nope' }), code('INVALID_VENTURE_REQUEST'));
+});
+
+test('Find me: no /start yet and a webhook each answer plain words', async () => {
+  const env = await setup();
+  const empty = wire(env, network([{ status: 200, body: { ok: true, result: [update(1, { id: -1, type: 'group', title: 'Team' }, '/start')] } }]).net);
+  assert.deepEqual(await findChat(empty.deps, { token: TOKEN }), { found: null, line: 'Send /start to your bot in Telegram, then press Find me again.' });
+  const hooked = wire(env, network([{ status: 409, body: { ok: false, description: 'Conflict: can\'t use getUpdates method while webhook is active' } }]).net);
+  const said = await findChat(hooked.deps, { token: TOKEN });
+  assert.equal(said.found, null);
+  assert.match(said.line, /webhook/);
+  assert.ok(!said.line.includes(TOKEN));
+  const refused = wire(env, network([{ status: 401, body: { ok: false } }]).net);
+  assert.match((await findChat(refused.deps, { token: TOKEN })).line, /refused the bot token/);
+});

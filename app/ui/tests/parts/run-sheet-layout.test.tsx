@@ -1,9 +1,10 @@
-import { it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, within } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { preprocessCSS, resolveConfig } from 'vite';
 import { RunSheetView } from '../../src/parts/RunSheet';
+import { ClockProvider } from '../../src/shell/clock';
 import { Figure } from '../../src/parts/Figure';
 import figureStyles from '../../src/parts/Figure.module.css';
 import controlStyles from '../../src/parts/RunSheetControls.module.css';
@@ -35,7 +36,7 @@ it('lets the run contract wrap its complete multi-amount rate while keeping figu
     expect(getComputedStyle(rate.closest('[data-figure]')!).display).toBe('inline');
     expect(getComputedStyle(numbers.at(-1)!).whiteSpace).toBe('nowrap');
     expect(getComputedStyle(numbers.at(-1)!.closest('[data-figure]')!).display).toBe('inline-flex');
-    expect(within(container).getByRole('button', {name:`Receipt for ${run.scope!.capRupees} at ${run.scope!.capRate}`})).toBeTruthy();
+    expect(within(container).getByRole('button', {name:`Open receipt for ${run.scope!.capRupees} at ${run.scope!.capRate}`})).toBeTruthy();
     expect(container.querySelector('textarea')).toBeTruthy();
     expect(() => assertFiguresProved(container)).not.toThrow();
   } finally { style.remove(); }
@@ -70,4 +71,42 @@ it('preserves unknown scope and rate wording while retaining exact native date d
  for(const date of ['15 Oct 2026','Oct 15, 2026','2026-10-15']){run.scope!.capRate=`₹83.50 per $1 (your rate, set ${date})`;view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(date);expect(view.container.querySelector('p')!.textContent).toContain('your rate');}
  run.scope!.capRate='Owner custom ₹83.50 / $1, checked manually';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.capRate);
  run.scope!.line='Custom policy: $0.40, only this exact work.';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toBe(`Custom policy: $0.40 (${run.scope!.capRupees} at ${run.scope!.capRate}), only this exact work.`);
+});
+
+describe('C4 task 12: the time a run took and the time it waited', () => {
+  const at = (minutes: number) => new Date(Date.parse('2026-10-21T10:00:00.000Z') + minutes * 60000).toISOString();
+  const now = () => new Date(at(8));
+  it('a run waiting on the owner says how long it has waited, and what it worked', () => {
+    const run = structuredClone(RUNS.find((row) => row.runId === '29')!);
+    run.elapsed = '2 min'; run.waitingSince = at(2);
+    const { container } = render(<ClockProvider now={now}><RunSheetView run={run} onClose={() => {}} /></ClockProvider>);
+    expect(container.textContent).toContain('Waiting 6 min');
+    expect(container.textContent).toContain('Worked 2 min');
+    expect(container.textContent).not.toContain('Started 2 min ago');
+  });
+  it('a finished run says what it took without the waits, then the wait itself', () => {
+    const run = structuredClone(RUNS.find((row) => row.runId === '27')!);
+    run.elapsed = '2 min'; run.waited = '6 min';
+    const { container } = render(<RunSheetView run={run} onClose={() => {}} />);
+    expect(container.querySelector('details[data-fold="worked"] summary')!.textContent).toBe('Took 2 min, waited on you 6 min');
+  });
+  it('a run with no call times keeps its one figure and never a wait', () => {
+    const run = structuredClone(RUNS.find((row) => row.runId === '27')!);
+    const { container } = render(<RunSheetView run={run} onClose={() => {}} />);
+    expect(container.querySelector('details[data-fold="worked"] summary')!.textContent).toBe('Took 4 min');
+  });
+});
+
+// C5 task 4: a finished run says how long it worked and how long it waited for the owner, as the engine counted them;
+// the step after the wait says it too.
+it('shows what it took and waited on you on a finished run, and the wait on the step after it', () => {
+  const run = structuredClone(RUNS.find((row) => row.runId === '27')!);
+  run.elapsed = '2 min';
+  run.waited = '6 min';
+  run.steps = run.steps.map((step, index) => (index === 1 ? { ...step, state: 'done', elapsed: '1 min', working: '1 min', waiting: '6 min' } : step));
+  const { container } = render(<RunSheetView run={run} onClose={() => {}} onSteer={async () => {}} />);
+  const fold = container.querySelector('[data-fold="worked"] summary')!;
+  expect(fold.textContent).toBe('Took 2 min, waited on you 6 min');
+  const second = within(container.querySelector('ol')!).getAllByRole('listitem')[1]!;
+  expect(second.textContent).toContain('waited for you 6 min');
 });

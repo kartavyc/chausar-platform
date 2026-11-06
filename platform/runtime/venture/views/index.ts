@@ -15,7 +15,8 @@ import { rulesListHandler } from '../playbooks/rules-view.ts';
 // Wave 6 (6C5): owner attestation of locked rules, and the hard stops.
 import { rulesAttestHandler, rulesLocksHandler } from '../playbooks/rules-attest.ts';
 import { businessPauseHandler, runsResumeHandler, runsRoundGateHandler, runsSteerHandler, runsStopHandler } from '../delivery/run-controls.ts';
-import { awayGetHandler, awaySetHandler } from '../delivery/away.ts';
+import { awayGetHandler, awayPreviewHandler, awaySetHandler } from '../delivery/away.ts';
+import { diagnosticsTodayHandler } from './diagnostics.ts';
 import { runsAllowWritesHandler } from '../delivery/harness/write-caps.ts';
 import { decisionsListHandler } from '../journal/decisions.ts';
 import { allowSessionHandler } from '../policy/allow-session.ts';
@@ -27,6 +28,8 @@ import { queueEditHandler, queueSendBackHandler, queueSetHandler, queueSetPrevie
 import { triagePreviewHandler, triageSetHandler } from './triage.ts';
 // Wave 6 (6H3, D40): a place's layout as data.
 import { layoutChangeHandler, layoutGetHandler } from './layout.ts';
+// C2: the command bar's find across clients, invoices, orders, runs and chats.
+import { findHandler } from './find.ts';
 // Wave 6 (6H1, D39): mini apps and their MCP Apps bridge.
 import { APP_HANDLERS } from '../apps/apps.ts';
 
@@ -38,6 +41,8 @@ export const handlers: VentureHandlerTable = {
   // Wave 6 (6H3, D40): Today's and Money's layout, read and changed by the owner (the AI changes it through MCP tools).
   'venture.layout.get': layoutGetHandler,
   'venture.layout.change': layoutChangeHandler,
+  // C2: the command bar finds things through the lists the owner already reads; it writes nothing.
+  'venture.find': findHandler,
   'venture.queue.decide': queueDecideHandler,
   'venture.runs.list': runsListHandler,
   'venture.runs.get': runsGetHandler,
@@ -74,6 +79,9 @@ export const handlers: VentureHandlerTable = {
   'venture.runs.steer': runsSteerHandler,
   'venture.business.pause': businessPauseHandler,
   'venture.away.set': awaySetHandler,
+  'venture.away.preview': awayPreviewHandler,
+  // C5 task 28: where today's time went.
+  'venture.diagnostics.today': diagnosticsTodayHandler,
   'venture.away.get': awayGetHandler,
   'venture.runs.allowWrites': runsAllowWritesHandler,
   // 4J1 decisions and allow for this session.

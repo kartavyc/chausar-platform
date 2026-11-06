@@ -1,0 +1,7 @@
+{
+  "price-sources.where": "यह दायरा कहाँ से आया",
+  "price-sources.whyNone": "दायरा क्यों नहीं है",
+  "price-sources.checked": "{date} को जाँचा। आपका दाम आप ही तय करते हैं।",
+  "price-sources.perIn": "{per}, {city}",
+  "price-sources.title": "दाम के दायरे"
+}

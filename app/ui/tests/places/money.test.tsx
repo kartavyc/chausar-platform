@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { moreLinks, rowLinks } from '../helpers/tabs';
 
 type Call = [string, unknown];
 type Override = (params: unknown) => unknown;
@@ -43,9 +44,9 @@ describe('Money overview', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeTruthy();
     const owed = await tileOf('Owed to you');
     await waitFor(() => expect(owed.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200'));
-    // W4 4J20: the engine's aging total, under the aging receipt that also proves the five ages drawn under it.
+    // W4 4J20: the engine's aging total, under the aging receipt. B4 task 6: the sample's money sits in one age, so no bar.
     expect(owed.querySelector('[data-figure] [data-receipt]')).not.toBeNull();
-    expect(within(owed).getByRole('img', { name: /^Owed by age/ })).toBeTruthy();
+    expect(within(owed).queryByRole('img', { name: /^Owed by age/ })).toBeNull();
     const received = await tileOf('Received');
     expect(await within(received).findByText('₹86,200')).toBeTruthy();
     expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
@@ -114,11 +115,11 @@ describe('Money overview', () => {
   it('keeps each part of Money in the address; an unknown part shows the overview', async () => {
     start('#/money');
     const nav = screen.getByRole('navigation', { name: 'Money' });
-    // Businesses (W4 4J20) joins once the engine says this computer has more than one business.
-    await within(nav).findByRole('link', { name: 'Businesses' });
+    // Businesses (W4 4J20) joins once the engine says this computer has more than one business; C1 puts it under More.
+    await screen.findByRole('group', { name: 'Businesses' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
+    expect([...rowLinks(nav), ...await moreLinks(nav)]).toEqual([
+      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['For your CA', '#/money/books'], ['Margins', '#/money/margins'],
       ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
     ]);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');

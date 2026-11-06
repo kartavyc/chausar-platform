@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { cx } from './cx';
 import { Icon } from './Icon';
 import type { DeptId } from './icons';
@@ -12,6 +12,25 @@ import s from './Tile.module.css';
  * one exception is a tile that is itself a single card and holds no other card, such as a stat tile: it may pass
  * `card`. Panel takes no `card` at all, because a department panel always holds agent cards.
  */
+
+/**
+ * The founder's comparison (one-shot B4): the tiles and department panels on Today, Team and Money are either plain
+ * (no border, shadow or fill; the head and the words kept, the sections parted by space) or D's bento tiles. Plain is
+ * the default. To see D's tiles again, change this one line to 'd'. Business pages are plain either way.
+ */
+export const PLACE_TILES: 'plain' | 'd' = 'plain';
+
+const PlainTiles = createContext(false);
+
+/** Wraps a place whose tiles follow PLACE_TILES (Today, Team, Money). A tile inside can still pass its own `plain`. */
+export function PlaceTiles({ children }: { children?: ReactNode }) {
+  return <PlainTiles.Provider value={PLACE_TILES === 'plain'}>{children}</PlainTiles.Provider>;
+}
+
+/** Whether the place around asks for plain tiles: for a place's own tile-like cards (the goal card, the next step). */
+export function usePlainTiles(): boolean {
+  return useContext(PlainTiles);
+}
 
 /** How many of the bento's 12 columns a tile takes (D's `.c3` to `.c12`). A phone stacks every tile full width. */
 export type TileSpan = 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
@@ -63,14 +82,18 @@ export type TileProps = SurfaceProps & {
   /** Only for a tile that is itself one card and holds no other card or row (a stat tile): it then carries
    *  `data-card` and at most one filled primary. Never on a tile that holds cards or rows; those are the cards. */
   card?: boolean | undefined;
+  /** No border, no shadow, no surface fill: the head and words kept (B4 task 1). Unset, it follows PlaceTiles. */
+  plain?: boolean | undefined;
 };
 
 /** D's `.tile`: the white surface with a line border, the tile radius and the one tile shadow. Rings inside sit on the
  *  surface. */
-export function Tile({ as: Tag = 'div', span, tone, pad, card, labelledBy, label, className, children }: TileProps) {
+export function Tile({ as: Tag = 'div', span, tone, pad, card, plain, labelledBy, label, className, children }: TileProps) {
+  const placePlain = useContext(PlainTiles);
   return (
     <Tag
       className={cx(s.tile, className)}
+      data-plain={(plain ?? placePlain) ? '' : undefined}
       data-span={span}
       data-tone={tone}
       data-pad={pad && pad !== 'tile' ? pad : undefined}
@@ -92,8 +115,9 @@ export type PanelProps = SurfaceProps & {
  *  (Lift with `card`) are. Rings and badges inside sit on the tint, and amber words on it use --wait-strong, never
  *  plain --wait. */
 export function Panel({ dept, as: Tag = 'div', span, labelledBy, label, className, children }: PanelProps) {
+  const plain = useContext(PlainTiles);
   return (
-    <Tag className={cx(s.panel, className)} data-dept={dept} data-span={span} aria-labelledby={labelledBy} aria-label={label}>
+    <Tag className={cx(s.panel, className)} data-dept={dept} data-plain={plain ? '' : undefined} data-span={span} aria-labelledby={labelledBy} aria-label={label}>
       {children}
     </Tag>
   );

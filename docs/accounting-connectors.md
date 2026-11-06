@@ -1,6 +1,6 @@
 # Accounting adapter slice and parent integration
 
-This document and `accounting-validation.json` record the historical standalone slice `39d15618baf91684c72d0718b5c5c52da9131167`. Current Engine registration, strict TypeScript validation, refused native admission and remaining shared translation contracts are in [Accounting Engine join](accounting-engine-join.md). The later continuation is not included in this join.
+This document and `accounting-validation.json` record the historical standalone slice `39d15618baf91684c72d0718b5c5c52da9131167`. Current Engine registration, strict TypeScript validation, refused native admission and remaining shared translation contracts were recorded in the accounting engine join note, kept with the build logs in the private repository. The later continuation is not included in that join.
 
 This task owns `platform/runtime/adapters/accounting/`, six accounting test files, authored synthetic fixtures and this documentation. Its base is connector-framework commit `af089b75de85b8a07025f29970f609449aefc338`. It changes no framework, engine, database schema, baseline catalogue or main branch. The task-owned clone hosts branch `task-9/accounting-adapters` and its isolated worktree. No provider, network client, credentials, runtime qualification registry or engine entrypoint is installed by importing these adapters.
 

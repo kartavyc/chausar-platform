@@ -7,6 +7,8 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import { Tile, TileHead } from '../../parts/Tile';
+import { tookWords, useWaitingWords, workedWords } from '../../parts/run-time';
+import { useDay } from '../../parts/when';
 import type { DeliveryLite, QueueRow, RunDetail, RunState, RunSummary } from '../../engine/types';
 import { newestRun, previousFailure } from './orders';
 import { againRow, useRunAgain } from './RunAgain';
@@ -67,33 +69,40 @@ interface RunRowProps {
 function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
   const t = useT();
   const again = useRunAgain(row, onChanged);
+  const day = useDay('short');
+  const waitingWords = useWaitingWords();
+  let end: ReactNode;
   let line: ReactNode;
   let aside: ReactNode;
   if (run.state === 'failed') {
     line = <>{run.agent}{SEP}<span className={s.failure}>{previousFailure(run, detail?.error) ?? t('work.failedRun.noReason')}</span></>;
     if (!again.action && noRetry) aside = <span className={s.quiet}>{t('work.noRetry')}</span>;
   } else if (run.state === 'waiting') {
-    line = <>{run.agent}{SEP}<span className={s.wait}>{t('run.waiting')}</span></>;
+    line = <>{run.agent}{SEP}<span className={s.wait}>{waitingWords(run) ?? t('run.waiting')}</span></>;
   } else if (run.state === 'active') {
     // B2: under a second there is no elapsed, so the line is the agent alone, never "Started 0s ago".
-    line = run.elapsed ? <>{run.agent}{SEP}{t('run.started', { elapsed: run.elapsed })}</> : <>{run.agent}</>;
+    line = run.elapsed ? <>{run.agent}{SEP}{workedWords(run, t, 'run.started')}</> : <>{run.agent}</>;
   } else {
     // How long it worked sits in the line, in words, so a narrow Finished tile keeps its titles wide.
-    const took = run.elapsed ? <>{SEP}<span>{t('work.finished.took', { elapsed: run.elapsed })}</span></> : null;
+    const took = run.elapsed ? <>{SEP}<span>{tookWords(run, t, 'work.finished.took')}</span></> : null;
+    // C4 task 12: who it was for (it opens their sheet) and the owner's date for it.
+    const who = run.client ? <>{SEP}<button type="button" className={s.rowClient} onClick={(event) => openSheet('client', run.client!.id, event.currentTarget)}>{run.client.name}</button></> : null;
+    end = day(run.startedAt) || undefined;
     if (run.result === undefined) {
-      line = <>{run.agent}{took}</>;
+      line = <>{run.agent}{who}{took}</>;
     } else if (run.estimate) {
       // A model-written result is the estimate itself, labelled where it stands, and never carries a receipt.
-      line = <>{run.agent}{took}{SEP}<ModelEstimate value={run.result} /></>;
+      line = <>{run.agent}{who}{took}{SEP}<ModelEstimate value={run.result} /></>;
     } else {
-      line = <>{run.agent}{took}{SEP}{run.result}</>;
+      // C4 task 17: better instructions wait: the line leads to Use this version on Practice.
+      line = <>{run.agent}{who}{took}{SEP}{run.adoptReady ? <a className={s.rowClient} href="#/business/practice?focus=adopt">{run.result}</a> : run.result}</>;
       if (run.receiptId) aside = <Receipt id={run.receiptId} />;
     }
   }
   return (
     <Row
       id={`run-${run.runId}`} dense mark={<Avatar name={run.agent} state={RINGS[run.state]} size={32} />}
-      title={run.purpose} line={line} aside={aside} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
+      title={run.purpose} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
       onOpen={(origin) => { again.opened(); openSheet('run', run.runId, origin); }}
     >
       {again.ask}

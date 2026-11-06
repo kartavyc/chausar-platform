@@ -3,6 +3,7 @@ import { useResource } from '../../engine/context';
 import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
 import s from './TodayActions.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * W4 4J19: a work receipt (`work-receipt:<id>`), the receipt behind a working paper's figure that the engine's work tools
@@ -16,7 +17,7 @@ export function WorkReceiptSheet({ id, onClose, returnFocus }: SheetComponentPro
   return (
     <Sheet label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
       {receipt.error && <p className={s.problem}>{t('sheet.failed', { message: receipt.error.message })}</p>}
-      {!view && !receipt.error && <p className={s.hint}>{t('sheet.loading')}</p>}
+      {!view && !receipt.error && <LoadingPlace shape="sheet" />}
       {view && (
         <div className={s.workReceipt}>
           {view.figures.length > 0 && (

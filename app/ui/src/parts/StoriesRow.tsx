@@ -62,7 +62,7 @@ function statusOf(t: T, story: Story): StatusWords {
 }
 
 /**
- * The stories row (D's `ul.stories`): every agent as a 60 px avatar with its status ring and department badge, its
+ * The stories row (D's `ul.stories`): every agent as a 60 px avatar with its status ring and department tint, its
  * name, and its state in words under it (amber "Needs you", green "Working" or "3 of 5", red "Stopped", plain
  * "Idle"). Each story is a button that opens the agent; its name says the agent and the state in one sentence, since
  * the ring is hidden from screen readers. The caller sorts the stories.
@@ -77,7 +77,7 @@ export function StoriesRow({ stories, onOpen, lead, onAdd, scroll = false, label
         return (
           <li key={story.id} className={s.item}>
             <button type="button" className={s.story} aria-label={status.name} onClick={() => onOpen(story.id)}>
-              <Avatar name={story.name} dept={story.dept} state={story.state} badge size={60} />
+              <Avatar name={story.name} dept={story.dept} state={story.state} size={60} />
               <span className={s.name}>{story.name}</span>
               <span className={s.status} data-tone={status.tone} data-count={status.count ? '' : undefined}>{status.word}</span>
             </button>

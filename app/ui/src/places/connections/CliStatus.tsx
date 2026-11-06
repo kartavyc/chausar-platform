@@ -8,11 +8,12 @@ import { Chip, type ChipTone } from '../../parts/Chip';
 import { momentOf } from '../../parts/custody';
 import { Icon } from '../../parts/Icon';
 import { Tile, TileHead } from '../../parts/Tile';
-import { EngineError, type CliStatusView, type ModelAvailability } from '../../engine/types';
+import { EngineError, type CliStatusView, type ModelAvailability, type PlanToolLite } from '../../engine/types';
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
 import { connectionWords } from './ConnectionWords';
 import { ProviderTrouble } from '../../parts/ProviderTrouble';
+import { Fold } from '../../parts/Fold';
 
 /** The state chip: words always say it; colour only repeats it. Ready only once a real task on the tool worked. */
 const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
@@ -53,6 +54,11 @@ export function CliStatus() {
   const client = useEngine();
   const headingId = useId();
   const status = useResource('venture.models.cli.status', {}, { refreshOn });
+  // C7: the plan meter, only what each tool reported (venture.models.plan); the hosted app has none and shows none.
+  const plan = useResource('venture.models.plan', {}, { refreshOn });
+  const [planFresh, setPlanFresh] = useState<typeof plan.data>(undefined);
+  useEffect(() => { setPlanFresh(undefined); }, [plan.data]);
+  const planData = planFresh ?? plan.data;
   const [fresh, setFresh] = useState<typeof status.data>(undefined);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
@@ -90,7 +96,8 @@ export function CliStatus() {
       {data && (
         <>
           <ul className={c.tools}>
-            {data.clis.map((view) => <Tool key={view.cli} view={view} onChosen={() => void checkAgain()} />)}
+            {data.clis.map((view) => <Tool key={view.cli} view={view} onChosen={() => void checkAgain()}
+              plan={planData?.tools.find((reading) => reading.cli === view.cli)} onPlan={setPlanFresh} />)}
           </ul>
           {/* What this look ran, once for the tile, in the engine's words (it names only the tools it started). */}
           <p className={`${s.note} ${c.how}`} data-cli-ran="">{connectionWords(t, data.line)}</p>
@@ -105,7 +112,7 @@ export function CliStatus() {
  * One tool: its name and its state at rest, and while it is not ready its one fix (or, with no fix, the engine's line)
  * as the next step. One fold away: the engine's line when the fix stood in for it, and the facts behind them.
  */
-function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void }) {
+function Tool({ view, onChosen, plan, onPlan }: { view: CliStatusView; onChosen: () => void; plan?: PlanToolLite; onPlan: (next: { tools: PlanToolLite[] }) => void }) {
   const t = useT();
   const client = useEngine();
   const nameId = useId();
@@ -143,11 +150,11 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
         ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
         : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
       {view.provider && <ProviderTrouble trouble={view.provider} className={s.line} />}
+      {plan && <PlanMeter plan={plan} onPlan={onPlan} />}
       {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {note && <p className={s.said} role="status">{note}</p>}
-      <details className={`${s.fold} ${c.more}`}>
-        <summary>{t('connections.cli.details')}</summary>
+      <Fold summary={t('connections.cli.details')} className={`${s.fold} ${c.more}`}>
         {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}
         <dl className={c.facts}>
           {factsOf(view, t).map(([label, value]) => (
@@ -157,8 +164,34 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
             </div>
           ))}
         </dl>
-      </details>
+      </Fold>
     </Inner>
+  );
+}
+
+/**
+ * C7: the plan meter for one tool, in the engine's words: each window's use and reset, then where the figures came from
+ * and when. A figure never shows without its source; nothing reported says so plainly. Check now asks Codex once.
+ */
+function PlanMeter({ plan, onPlan }: { plan: PlanToolLite; onPlan: (next: { tools: PlanToolLite[] }) => void }) {
+  const t = useT();
+  const client = useEngine();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  async function checkNow() {
+    if (busy) return;
+    setBusy(true); setProblem(null);
+    try { onPlan(await client.request('venture.models.plan', { fresh: true })); }
+    catch (error) { setProblem(t('connections.cli.plan.failed', { message: error instanceof Error ? error.message : String(error) })); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className={c.plan} data-plan={plan.state}>
+      {plan.windows.map((window) => <p key={window.kind} className={s.line} data-plan-window={window.kind}>{window.line}</p>)}
+      <p className={s.note} data-plan-source="">{plan.source}</p>
+      {plan.canCheck && <Button size="sm" disabled={busy} aria-busy={busy || undefined} onClick={() => void checkNow()}>{t('connections.cli.plan.check')}</Button>}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+    </div>
   );
 }
 

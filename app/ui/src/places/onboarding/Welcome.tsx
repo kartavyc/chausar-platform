@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useT } from '../../text';
+import { useLanguageChoice, useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import { Field } from '../../parts/Field';
-import { refusalWords } from '../../parts/custody';
+import { PassphraseField } from '../../parts/PassphraseField';
+import { noteOpenedWithPassphrase, refusalWords } from '../../parts/custody';
 import type { Openable, WelcomeFound } from './boot';
 import type { Leaving } from './started';
 import type { Deleted } from '../../engine/types';
 import { DeletedNote } from '../business/KeepMore';
 import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
+import { OpenCopy } from './CopyImport';
 import s from './Onboarding.module.css';
+import { Fold } from '../../parts/Fold';
+import { Reveal } from '../../parts/RevealBlock';
 
-type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' };
+type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' } | { kind: 'copy' };
 
 /**
  * Welcome back: no business is open. A quiet list of the businesses on this computer, each opened the way it opens:
@@ -30,6 +33,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
   deleted?: Deleted | null;
 }) {
   const t = useT();
+  const client = useEngine();
   const { businesses, complete, ask } = found;
   const [way, setWay] = useState<Way>(ask?.with === 'recovery-code' ? { kind: 'recover', folder: ask.folder } : { kind: 'list' });
   const [asking, setAsking] = useState<string | null>(ask?.with === 'passphrase' ? ask.folder : null);
@@ -50,8 +54,9 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
       <Shell status={status}>
         {way.kind === 'recover' && <Recover businesses={businesses} chosen={way.folder} {...shared} />}
         {way.kind === 'restore' && <RestoreBackup {...shared} />}
-        {way.kind === 'move' && <MoveHere {...shared} />}
+        {way.kind === 'move' && <MoveHere {...shared} businesses={businesses} onOpen={(business) => { back(); void choose(business); }} />}
         {way.kind === 'folder' && <ByFolder {...shared} />}
+        {way.kind === 'copy' && <OpenCopy {...shared} />}
       </Shell>
     );
   }
@@ -74,9 +79,9 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
                 <span>{business.name ?? t('onboarding.welcome.noName')}</span>
                 {business.opens !== 'now' && <span className={s.businessNote}>{t(`onboarding.welcome.opens.${business.opens}`)}</span>}
               </button>
-              {asking === business.key && (
+              <Reveal open={asking === business.key}>
                 <PassphraseOpen business={business} onOpened={onOpened} onForgot={() => setWay({ kind: 'recover', folder: business.key })} />
-              )}
+              </Reveal>
             </li>
           ))}
         </ul>
@@ -87,17 +92,30 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         <Button variant="quiet" onClick={onNew}>{t(empty ? 'onboarding.welcome.newFirst' : 'onboarding.welcome.new')}</Button>
         {!hosted && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
       </div>
+      <LanguageLink />
       {!hosted && (
-        <details className={s.more}>
-          <summary>{t('onboarding.welcome.more')}</summary>
+        <Fold summary={t('onboarding.welcome.more')} className={s.more}>
           <div className={s.actions}>
             <Button variant="quiet" onClick={() => setWay({ kind: 'restore' })}>{t('onboarding.welcome.restore')}</Button>
             <Button variant="quiet" onClick={() => setWay({ kind: 'recover' })}>{t('onboarding.welcome.useCode')}</Button>
+            {client.pickCopy && client.importCopy && <Button variant="quiet" onClick={() => setWay({ kind: 'copy' })}>{t('onboarding.copy.title')}</Button>}
             {(!complete || empty) && <Button variant="quiet" onClick={() => setWay({ kind: 'folder' })}>{t('onboarding.welcome.byFolder')}</Button>}
           </div>
-        </details>
+        </Fold>
       )}
     </Shell>
+  );
+}
+
+/** C5 task 36: a small link to the other language, in that language's own words. Never picked from the computer. */
+function LanguageLink() {
+  const { language, available, choose } = useLanguageChoice();
+  if (!available) return null;
+  const next = language === 'hi' ? 'en' : 'hi';
+  return (
+    <div className={s.actions}>
+      <Button variant="quiet" size="sm" lang={next} onClick={() => void choose(next).catch(() => {})}>{next === 'hi' ? 'हिन्दी' : 'English'}</Button>
+    </div>
   );
 }
 
@@ -106,7 +124,7 @@ function Shell({ status, children }: { status: ReactNode; children: ReactNode })
   return (
     <div className={s.first}>
       <div>{status}</div>
-      <main id="main" tabIndex={-1} className={s.firstMain}>
+      <main id="main" tabIndex={-1} className={s.firstMain} data-anchored="">
         <div className={s.alone}>
           <Brand />
           {children}
@@ -116,13 +134,17 @@ function Shell({ status, children }: { status: ReactNode; children: ReactNode })
   );
 }
 
-/** A business locked with a passphrase: its own field under its row, cleared once sent; the cursor goes in it. */
+/**
+ * A business locked with a passphrase: its own field under its row, with the cursor in it. C4 task 35 (31.f2): a wrong
+ * one stays in the field with the cursor, so a typo can be fixed; once it opens the field is gone with the screen.
+ */
 function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; onOpened: () => void; onForgot: () => void }) {
   const t = useT();
   const client = useEngine();
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
   const live = useRef(true);
   // Set on every mount: StrictMode mounts, unmounts and mounts again, and a flag left false would hide the refusal.
   useEffect(() => {
@@ -134,15 +156,17 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!passphrase) { setProblem(t('custody.enterPassphrase')); return; }
-    const typed = passphrase;
-    setPassphrase('');
     setBusy(true);
     setProblem(null);
     try {
-      await client.request('workspace.open', { ...business.params, passphrase: typed });
+      await client.request('workspace.open', { ...business.params, passphrase });
+      noteOpenedWithPassphrase();
       onOpened();
     } catch (error) {
-      if (live.current) setProblem(refusalWords(error, t));
+      if (live.current) {
+        setProblem(refusalWords(error, t));
+        field.current?.focus();
+      }
     } finally {
       if (live.current) setBusy(false);
     }
@@ -150,9 +174,9 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
 
   return (
     <form className={s.ask} onSubmit={(event) => void submit(event)}>
-      <Field
-        label={t('onboarding.welcome.passphraseFor', { name })} type="password" autoComplete="current-password" spellCheck={false}
-        autoFocus value={passphrase} onChange={(event) => setPassphrase(event.currentTarget.value)}
+      <PassphraseField
+        label={t('onboarding.welcome.passphraseFor', { name })} autoComplete="current-password"
+        autoFocus inputRef={field} value={passphrase} onChange={setPassphrase}
       />
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <div className={s.actions}>

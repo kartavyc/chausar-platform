@@ -5,7 +5,7 @@
 import type { Context } from '../../../contracts.ts';
 import type { VentureDeps } from '../../contracts.ts';
 import type { GoNoGoCardView, GoNoGoListView, SalesProposalView } from './records-sales.ts';
-import { goNoGoCard, goNoGoList } from './go-no-go.ts';
+import { goNoGoCard, goNoGoList, goNoGoRemove } from './go-no-go.ts';
 import { draftSalesProposal, getSalesProposal } from './proposal.ts';
 
 /** venture.salesProposal.draft (prepare): a proposal for a client or a pipeline person, waiting for the owner on Today. */
@@ -14,5 +14,7 @@ export const salesProposalDraftHandler = (deps: VentureDeps, ctx: Context, paylo
 export const salesProposalGetHandler = (deps: VentureDeps, ctx: Context, payload: unknown): Promise<SalesProposalView> => getSalesProposal(deps, ctx, payload);
 /** venture.goNoGo.card (prepare): GO, HOLD or NO-GO by code, stored. */
 export const goNoGoCardHandler = (deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoNoGoCardView> => goNoGoCard(deps, ctx, payload);
+/** venture.goNoGo.remove (prepare, C4 T25): takes one card away and says so as a decision. */
+export const goNoGoRemoveHandler = (deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ removed: true; line: string }> => goNoGoRemove(deps, ctx, payload);
 /** venture.goNoGo.list (read): the stored cards, newest first. */
 export const goNoGoListHandler = (deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoNoGoListView> => goNoGoList(deps, ctx, payload);

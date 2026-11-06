@@ -118,11 +118,72 @@ describe('Settled chats (Business, from the business menu)', () => {
     assertInkRules(document.body);
   });
 
-  it('the business menu links to Settled chats', async () => {
-    await start('#/today');
-    const button = await within(screen.getByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ });
-    await act(async () => { fireEvent.click(button); });
-    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
-    expect(within(menu).getByRole('link', { name: 'Old chats' }).getAttribute('href')).toBe('#/business/chats');
+  it('Settings lists Old chats, under Work (C1: the business menu leads to Settings)', async () => {
+    await start('#/business/goals');
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
+    expect(within(nav).getByRole('link', { name: 'Old chats' }).getAttribute('href')).toBe('#/business/chats');
+  });
+});
+
+describe('Old chats from the Chats list (C1 task 12)', () => {
+  async function startWith(settled: 'none' | 'empty') {
+    window.location.hash = '#/chats';
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    }) as unknown as MediaQueryList);
+    const fake = createFakeClient(new FakeEngine({ now: () => NOW }));
+    const request = fake.request.bind(fake);
+    vi.spyOn(fake, 'request').mockImplementation((async (method: string, params?: unknown) => {
+      const answer = await request(method as never, params as never) as Record<string, unknown>;
+      if (method !== 'venture.chief.threads') return answer;
+      return settled === 'none' ? { ...answer, settled: [] } : { ...answer, groups: [], settled: [] };
+    }) as typeof fake.request);
+    render(<App client={fake} language="en" />);
+    await settle();
+  }
+
+  it('with chats and none settled, the list head links to Old chats in Settings', async () => {
+    await startWith('none');
+    const link = await within(chatList()).findByRole('link', { name: 'Old chats' });
+    expect(link.getAttribute('href')).toBe('#/business/chats');
+  });
+
+  it('with no chat ever, there is no link', async () => {
+    await startWith('empty');
+    await waitFor(() => expect(within(chatList()).getByText(/./, { selector: 'p' })).toBeTruthy());
+    expect(within(chatList()).queryByRole('link', { name: /old chat/i })).toBeNull();
+  });
+});
+
+/* One-shot C4 task 8: "Pick a time" sends the instant of the owner's own day and time; a time already past shows the
+ * engine's refusal in place. The business is in India, so 9:00 am on 24 October is 03:30 UTC on any computer. */
+describe('Snooze: Pick a time (C4 task 8)', () => {
+  async function openPick() {
+    const { spy } = await start('#/chats?thread=chiefthread-titles');
+    const snooze = await within(await screen.findByRole('group', { name: 'Chat actions' })).findByRole('button', { name: 'Snooze' });
+    await act(async () => { fireEvent.click(snooze); });
+    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Pick a time' })); });
+    const form = screen.getByRole('form', { name: 'Pick a time' });
+    return { spy, form };
+  }
+
+  it('9:00 am tomorrow in Asia/Kolkata is sent as its instant', async () => {
+    const { spy, form } = await openPick();
+    fireEvent.change(within(form).getByLabelText('Day'), { target: { value: '2026-10-24' } });
+    fireEvent.change(within(form).getByLabelText('Time'), { target: { value: '09:00' } });
+    await act(async () => { fireEvent.click(within(form).getByRole('button', { name: 'Snooze' })); });
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-titles', state: 'snoozed', until: '2026-10-24T03:30:00.000Z' }]);
+    expect((await screen.findByRole('status', { name: 'Chat change' })).textContent).toContain('Snoozed until 24 Oct 2026, 9:00 am.');
+  });
+
+  it('a time already past shows the engine\'s refusal in place', async () => {
+    const { form } = await openPick();
+    fireEvent.change(within(form).getByLabelText('Day'), { target: { value: '2026-10-22' } });
+    fireEvent.change(within(form).getByLabelText('Time'), { target: { value: '09:00' } });
+    await act(async () => { fireEvent.click(within(form).getByRole('button', { name: 'Snooze' })); });
+    await settle();
+    expect(within(form).getByRole('alert').textContent).toBe('Pick a time that is still ahead.');
   });
 });

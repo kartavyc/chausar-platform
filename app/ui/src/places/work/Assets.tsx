@@ -15,6 +15,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Tile, TileHead } from '../../parts/Tile';
 import a from './Assets.module.css';
+import { Select } from '../../parts/Select';
 
 /** The engine codes this tile words itself, in both languages. */
 const WORDED = new Set([
@@ -99,9 +100,9 @@ function AssetRow({ asset, others, onChanged }: { asset: AssetView; others: read
       {reuse && (
         <span className={a.pick}>
           <label htmlFor={pickId} className={a.label}>{t('kit-media.assets.reuseOn')}</label>
-          <select id={pickId} className={a.select} value={target} onChange={(event) => setTarget(event.currentTarget.value)}>
+          <Select id={pickId} className={a.select} value={target} onChange={(event) => setTarget(event.currentTarget.value)}>
             {others.map((item) => <option key={item.id} value={item.id}>{item.request}</option>)}
-          </select>
+          </Select>
           <Button variant="quiet" disabled={busy} onClick={() => setReuse(false)}>{t('kit-media.kit.cancel')}</Button>
           <Button variant="secondary" disabled={busy || !target} onClick={() => void act(() => engine.request('venture.assets.reuse', { id: asset.id, orderId: target }))}>{t('kit-media.assets.reuseGo')}</Button>
         </span>
@@ -209,9 +210,9 @@ function ConsentForm({ recordings, onDone, onCancel }: { recordings: readonly Up
       <Field label={t('kit-media.voice.speaker')} value={draft.speaker} onChange={set('speaker')} />
       <span className={a.pick}>
         <label htmlFor={fileId} className={a.label}>{t('kit-media.voice.recording')}</label>
-        <select id={fileId} className={a.select} value={draft.recordingFileId} onChange={(event) => setDraft((d) => ({ ...d, recordingFileId: event.currentTarget.value }))}>
+        <Select id={fileId} className={a.select} value={draft.recordingFileId} onChange={(event) => setDraft((d) => ({ ...d, recordingFileId: event.currentTarget.value }))}>
           {recordings.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
-        </select>
+        </Select>
       </span>
       <Field multiline label={t('kit-media.voice.transcript')} hint={t('kit-media.voice.transcriptHint')} value={draft.transcript} onChange={set('transcript')} />
       <Field multiline label={t('kit-media.voice.statement')} hint={t('kit-media.voice.statementHint')} value={draft.statement} onChange={set('statement')} />

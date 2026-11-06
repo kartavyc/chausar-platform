@@ -5,6 +5,7 @@ import type { AgentView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import s from './AgentExtras.module.css';
+import { FilePick } from '../../parts/FilePick';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 /** The longest agent file the engine reads is 100,000 characters; a file far past it is not read at all. */
@@ -46,7 +47,6 @@ export function AgentFile({ agent }: { agent: AgentView }) {
   const t = useT();
   const engine = useEngine();
   const headId = useId();
-  const pickId = useId();
   const [said, setSaid] = useState<string | null>(null);
   // The agent an imported file went to: the one the file names, which may be another of the team (export.ts).
   const [imported, setImported] = useState<string | null>(null);
@@ -100,11 +100,7 @@ export function AgentFile({ agent }: { agent: AgentView }) {
           <Icon name="file-text" size={16} />
           {t('team.persona.file.export')}
         </Button>
-        <label className={s.pick} htmlFor={pickId} data-disabled={busy ? '' : undefined}>
-          <Icon name="upload" size={16} />
-          {t('team.persona.file.import')}
-        </label>
-        <input id={pickId} type="file" accept=".json,application/json" className="sr-only" disabled={busy} onChange={(event) => void importFile(event)} />
+        <FilePick choose={t('team.persona.file.import')} accept=".json,application/json" disabled={busy} onChange={(event) => void importFile(event)} />
       </div>
       {said && <p className={s.said} role="status">{said}</p>}
       {imported && importedName && (

@@ -22,7 +22,7 @@ import {eraseClientRooms} from '../playbooks/kit/client-room-privacy.ts';
 // copy of the records cannot be used to test addresses against it. A client with invoices keeps the client and invoice
 // records the law needs, and the reply says which.
 import { check, ChausarError, type Context } from '../../contracts.ts';
-import type { ForgottenRecord, NetworkForgotten, NetworkImportRecord, PersonFact, PersonRecord, VentureDeps } from '../contracts.ts';
+import type { ClientRecord, ForgottenRecord, NetworkForgotten, NetworkImportRecord, PersonFact, PersonRecord, VentureDeps } from '../contracts.ts';
 import { exactPayload, identifier, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { removeRecords } from './people.ts';
 import { readAs } from '../delivery/shared.ts';
@@ -53,6 +53,8 @@ import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
 import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
 import {eraseBooksNaming} from '../playbooks/bookkeeping-cfo/privacy.ts';
 import { eraseRoutinesNaming } from '../agents/routines.ts';
+import { eraseTrackerNaming } from '../trackers/privacy.ts';
+import { eraseEventsNaming } from '../build/event-privacy.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
 import { eraseAgentJobs, eraseAgentJobRecords } from '../agent-runtime/privacy.ts';
 import { stopClientAgentJobs, stopAgentJob } from '../agent-runtime/lifecycle.ts';
@@ -356,6 +358,10 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     if (names) eraseFileRequestsNaming(tx, mentionsName);
     // 4J22a: a routine's prompt or name that names them (the prompt erased, the routine switched off).
     if (names) eraseRoutinesNaming(tx, mentionsName);
+    // C7: a tracker row about them goes (by its person cell), and a cell or a tracker's name that names them is erased.
+    eraseTrackerNaming(tx, new Set([...ids, ...people.flatMap(person => (person.clientId ? [person.clientId] : []))]), mentionsName);
+    // C7: an event's facts and a trigger run's filled words that are about them.
+    eraseEventsNaming(tx, new Set(people.flatMap(person => (person.clientId ? [person.clientId] : []))), mentionsName);
     // 4E3 (NOTES item 28, for every package): after the narrower scrubs above, the stored text of every other model call
     // of any purpose that names them (by a name their files gave, or one of their addresses) is erased the way 4B2 erases
     // a forgotten note: its texts become ERASED_NAMED_CALL with erasedAt, its digest, ids, costs and times kept; a waiting
@@ -474,6 +480,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
         : `${first} is your client, so the client record stays in Clients; everything else Chausar kept about ${first} is gone.`;
     const activeRuns = tx.list('venture-delivery-run').filter(run => run.agentJob).map(run => run.id);
     const removed = removePersonData(tx, [person], { erase: true, secrets: deps.secrets, captions: deps });
+    if (client) forgetClientPhone(tx, client.id);
     forgottenRuns = activeRuns.filter(runId => !tx.find('venture-delivery-run', runId) || tx.find('venture-delivery-run', runId)!.status === 'stopped');
     tx.put<ForgottenRecord>({ ...tx.base('venture-forgotten'), hashes, names: nameHashes, kept, by: ctx.memberId, scheme: 'hmac-sha256' });
     if (removed.cards || removed.drafts) tx.emit('pipeline.changed', {});
@@ -482,6 +489,20 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];
     return { line, kept: [...kept, key ? CHECK_LINE : NO_CHECK_LINE, ...sharedLine, BACKUPS_LINE] };
   }).then(async result=>{for(const runId of forgottenRuns)stopAgentJob(deps.store,runId);if(forgottenClient)stopClientAgentJobs(deps.store,forgottenClient);if(!await clearForgottenAppTests(deps,ctx)){result.line='Client source data was deleted. Emulator data deletion is still pending.';result.kept.push('An exact client app or temporary emulator screen still needs removal. Open the desktop emulator to finish deleting it; new tests stay blocked meanwhile.');}if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}if(!await clearForgottenDemoDesktops(deps,ctx)){result.line='Client source data was deleted. Private demo desktop deletion is still pending.';result.kept.push('A private client demo desktop still needs removal. Open the desktop app to finish deleting it; new demo desktops stay blocked meanwhile.');}return result;});
+}
+
+/**
+ * One-shot C6 (DPDP): Forget takes the client's phone and WhatsApp number with the rest of the person. The client record
+ * stays (for its invoices) without them; the ledger's phone evidence and its change rows go too.
+ */
+function forgetClientPhone(tx: VentureTx, clientId: string): void {
+  const client = tx.find('venture-client', clientId);
+  if (client && ('phone' in client || 'whatsapp' in client)) {
+    const { phone: _phone, whatsapp: _whatsapp, ...rest } = client;
+    tx.replace<ClientRecord>(rest as ClientRecord);
+  }
+  const subject = `client:${clientId}`;
+  removeRecords(tx, record => (record.kind === 'venture-evidence' || record.kind === 'venture-crm-change') && record.subject === subject && record.field === 'phone');
 }
 
 /**

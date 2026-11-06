@@ -315,3 +315,18 @@ test('Claude Code stderr names the failure in owner words, and its raw text goes
     assert.equal(JSON.stringify([result, f.events]).includes('4711'), false, 'the raw stderr is never passed on');
   } finally { await session.close(); await f.cleanup(); }
 });
+
+test('C7: a rate_limit_event in the stream reaches the plan meter', async () => {
+  const f = await fixture(), readings: any[] = [];
+  f.input.onPlan = reading => readings.push(reading);
+  const session = await f.driver.open(f.input);
+  try {
+    const pending = session.run('Sample order'); await f.prompts.next();
+    const reset = Math.floor(Date.parse('2026-11-06T16:30:00Z') / 1000);
+    f.output.push(frame({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: reset } }));
+    finish(f.output); await pending;
+    assert.equal(readings.length, 1);
+    assert.equal(readings[0].cli, 'claude-code'); assert.equal(readings[0].state, 'used-up');
+    assert.equal(readings[0].windows[0].resetsAt, '2026-11-06T16:30:00.000Z');
+  } finally { await session.close(); await f.cleanup(); }
+});

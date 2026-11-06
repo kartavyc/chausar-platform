@@ -13,8 +13,9 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { FactView, FactVisibility } from '../../engine/types';
 import { useDay, useLocalToday } from '../money/words';
-import { Fold, messageOf } from './CrmParts';
+import { CrmFold, messageOf } from './CrmParts';
 import s from './Crm.module.css';
+import { Select } from '../../parts/Select';
 
 /** The facts with their heading, for a sheet. */
 export function FactsSection({ subject }: { subject: string }) {
@@ -49,9 +50,9 @@ export function FactsBody({ subject }: { subject: string }) {
           {facts.map((fact) => <FactRow key={fact.id} fact={fact} onDone={done} onFailed={failed} />)}
         </ul>
       )}
-      <Fold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></Fold>
+      <CrmFold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></CrmFold>
       {earlier.length > 0 && (
-        <Fold summary={t('crm.facts.earlier')}>
+        <CrmFold summary={t('crm.facts.earlier')}>
           <ul className={s.items} data-earlier="">
             {earlier.map((fact) => (
               <li key={fact.id} className={s.item}>
@@ -65,7 +66,7 @@ export function FactsBody({ subject }: { subject: string }) {
               </li>
             ))}
           </ul>
-        </Fold>
+        </CrmFold>
       )}
     </>
   );
@@ -161,12 +162,12 @@ function AddFact({ subject, onDone, onFailed }: { subject: string; onDone: (line
       <Field label={t('crm.facts.sinceLabel')} type="date" value={since} max={localToday()} onChange={(event) => setSince(event.currentTarget.value)} />
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-who`}>{t('crm.facts.who')}</label>
-        <select id={`${ids}-who`} className={s.select} value={who} onChange={(event) => setWho(event.currentTarget.value as FactVisibility)}>
+        <Select id={`${ids}-who`} className={s.select} value={who} onChange={(event) => setWho(event.currentTarget.value as FactVisibility)}>
           <option value="ai">{t('crm.facts.who.ai')}</option>
           <option value="owner">{t('crm.facts.who.owner')}</option>
-        </select>
+        </Select>
       </div>
-      <div className={s.actions}><Button type="submit" disabled={busy || !topic.trim() || !text.trim()}>{t('crm.facts.keep')}</Button></div>
+      <div className={s.actions}><Button type="submit" disabled={busy} disabledReason={!topic.trim() || !text.trim() ? t('crm.facts.needBoth') : undefined}>{t('crm.facts.keep')}</Button></div>
     </form>
   );
 }

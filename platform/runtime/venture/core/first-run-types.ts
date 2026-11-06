@@ -26,6 +26,8 @@ export type AboutRead = {
   /** A1 final check: the AI read's own call, when the AI read it; the kept card names it so the plan can say who wrote it. */
   callId?: string;
   file?: AboutFile;
+  /** C5 task 6: your AI's first reply after About you (at most two sentences, no digits); absent without one. */
+  reply?: string;
 };
 
 /** A family tile (venture.about.families) with its professions in the catalogue's order (A5). */

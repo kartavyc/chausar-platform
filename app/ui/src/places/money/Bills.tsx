@@ -8,10 +8,16 @@
  * asked only of a business registered for GST (its plan says so), and a business that is not never sees GST fields.
  * Paying records a payment the owner made (Chausar moves no money); it asks a second time, repeating what was typed,
  * and the books count it as a cost. A repeating bill can stop repeating, after a second ask.
+ *
+ * One-shot C4 (T22): a bill due today says "Due today" beside its state, and what it is for (the engine's purpose, from
+ * its lines) leads its second line. The add form's due date starts at the vendor's last terms (the engine's terms on
+ * bills.list), else the engine's default days after the bill date; left as it starts, no due date is sent and the
+ * engine works it out the same way.
  */
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useT } from '../../text';
+import { dayPlus } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
@@ -23,6 +29,8 @@ import { Failed, Section } from './parts';
 import { messageOf, onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import { Select } from '../../parts/Select';
+import { Reveal } from '../../parts/RevealBlock';
 
 /** The ways a bill can be paid: the payment sheet's, and a cheque. */
 const METHODS: readonly PaymentMethod[] = [...PAYMENT_METHODS, 'cheque'];
@@ -53,11 +61,11 @@ export function Bills() {
         )}
       </Section>
       {/* Simple first: the form opens on request. */}
-      {adding && (
+      <Reveal open={adding}>
         <Section title={t('money.bills.add')}>
-          <AddBill gst={gst} currency={currency} onAdded={list.reload} onClose={() => setAdding(false)} />
+          <AddBill gst={gst} currency={currency} terms={list.data?.terms ?? []} defaultDays={list.data?.defaultDueDays ?? null} onAdded={list.reload} onClose={() => setAdding(false)} />
         </Section>
-      )}
+      </Reveal>
     </>
   );
 }
@@ -86,10 +94,11 @@ function BillRow({ bill, currency, onChanged }: { bill: BillView; currency: stri
     <Row
       id={bill.id}
       title={bill.vendor}
-      line={t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
+      line={bill.purpose ? t('money.bills.lineFor', { purpose: bill.purpose, bill: day(bill.billDate), due: day(bill.dueDate) }) : t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
       aside={(
         <span className={v.billAside}>
           <span className={v.billState} data-state={bill.state}>{t(`money.bills.state.${bill.state}`)}</span>
+          {bill.dueToday && <span className={v.billState} data-state="due-today" data-due-today="">{t('money.bills.dueToday')}</span>}
           {bill.recurring && <span className={v.quiet}>{t(`money.bills.repeats.${bill.recurring}`)}</span>}
           {/* What is left to pay, with the receipt of how it was made; a paid bill says so in words. */}
           {bill.receiptId && bill.state !== 'paid' && <Figure value={bill.balance} receiptId={bill.receiptId} />}
@@ -123,7 +132,6 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
   const day = useDay();
   const engine = useEngine();
   const today = useLocalToday();
-  const methodId = useId();
   const [amount, setAmount] = useState('');
   const [paidOn, setPaidOn] = useState(today);
   const [method, setMethod] = useState<PaymentMethod>('bank-transfer');
@@ -146,12 +154,9 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
     <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); if (amount.trim() !== '' && paidOn) setPhase('confirm'); else setProblem(t('money.typed.amount', { currency })); }}>
       <Field label={t('money.bills.paid')} hint={t('money.bills.amountHint', { currency })} value={amount} inputMode="decimal" autoComplete="off" disabled={phase !== 'form'} onChange={(event) => setAmount(event.currentTarget.value)} />
       <Field label={t('money.bills.paidOn')} type="date" value={paidOn} disabled={phase !== 'form'} onChange={(event) => setPaidOn(event.currentTarget.value)} />
-      <div className={s.field}>
-        <label htmlFor={methodId} className={s.fieldLabel}>{t('money.payment.method')}</label>
-        <select id={methodId} className={s.select} value={method} disabled={phase !== 'form'} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
+      <Select label={t('money.payment.method')} value={method} disabled={phase !== 'form'} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
           {METHODS.map((option) => <option key={option} value={option}>{t(`money.method.${option}`)}</option>)}
-        </select>
-      </div>
+        </Select>
       {phase === 'form' ? (
         <div className={s.buttons}>
           <Button onClick={onCancel}>{t('approval.cancel')}</Button>
@@ -171,19 +176,23 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
   );
 }
 
+const vendorKey = (vendor: string) => vendor.trim().replace(/\s+/g, ' ').toLowerCase();
+
 /** Add a bill: one line, its dates and whether it repeats; tax only for a GST business. */
-function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: string; onAdded: () => void; onClose: () => void }) {
+function AddBill({ gst, currency, terms, defaultDays, onAdded, onClose }: { gst: boolean; currency: string; terms: readonly { vendor: string; days: number }[]; defaultDays: number | null; onAdded: () => void; onClose: () => void }) {
   const t = useT();
   const engine = useEngine();
   const today = useLocalToday();
-  const repeatId = useId();
   const [vendor, setVendor] = useState('');
   const [what, setWhat] = useState('');
   const [amount, setAmount] = useState('');
   const [taxName, setTaxName] = useState('');
   const [rate, setRate] = useState('');
   const [billDate, setBillDate] = useState(today);
-  const [dueDate, setDueDate] = useState(today);
+  // C4 (T22): null until the owner picks a due date; until then it follows the vendor's last terms.
+  const [dueTyped, setDueTyped] = useState<string | null>(null);
+  const days = terms.find((item) => vendorKey(item.vendor) === vendorKey(vendor))?.days ?? defaultDays;
+  const dueDate = dueTyped ?? (days === null ? billDate : dayPlus(billDate, days));
   const [repeats, setRepeats] = useState<'none' | 'monthly' | 'quarterly'>('none');
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
@@ -194,11 +203,12 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
     setSaid(null);
     try {
       await engine.request('venture.bills.add', {
-        vendor: vendor.trim(), billDate, dueDate, recurring: repeats === 'none' ? null : repeats,
+        // C4 (T22): left as it started, the engine works the due date out from the same terms.
+        vendor: vendor.trim(), billDate, ...(dueTyped !== null || days === null ? { dueDate } : {}), recurring: repeats === 'none' ? null : repeats,
         // As typed: the engine reads the amount in the business's currency and the rate as a percentage.
         lines: [{ description: what.trim() || vendor.trim(), amount: amount.trim(), taxName: typedRate !== '0' ? taxName.trim() : '', taxRate: typedRate }],
       });
-      setVendor(''); setWhat(''); setAmount(''); setTaxName(''); setRate(''); setRepeats('none');
+      setVendor(''); setWhat(''); setAmount(''); setTaxName(''); setRate(''); setRepeats('none'); setDueTyped(null);
       setSaid({ text: t('money.bills.added'), problem: false });
       onAdded();
     } catch (error) {
@@ -219,18 +229,15 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
         </>
       )}
       <Field label={t('money.bills.billDate')} type="date" value={billDate} disabled={busy} onChange={(event) => setBillDate(event.currentTarget.value)} />
-      <Field label={t('money.bills.dueDate')} type="date" value={dueDate} disabled={busy} onChange={(event) => setDueDate(event.currentTarget.value)} />
-      <div className={s.field}>
-        <label htmlFor={repeatId} className={s.fieldLabel}>{t('money.bills.repeat')}</label>
-        <select id={repeatId} className={s.select} value={repeats} disabled={busy} onChange={(event) => setRepeats(event.currentTarget.value as typeof repeats)}>
+      <Field label={t('money.bills.dueDate')} type="date" value={dueDate} disabled={busy} onChange={(event) => setDueTyped(event.currentTarget.value)} />
+      <Select label={t('money.bills.repeat')} value={repeats} disabled={busy} onChange={(event) => setRepeats(event.currentTarget.value as typeof repeats)}>
           <option value="none">{t('money.bills.repeat.none')}</option>
           <option value="monthly">{t('money.bills.repeat.monthly')}</option>
           <option value="quarterly">{t('money.bills.repeat.quarterly')}</option>
-        </select>
-      </div>
+        </Select>
       <div className={s.buttons}>
         <Button disabled={busy} onClick={onClose}>{t('approval.cancel')}</Button>
-        <Button variant="primary" type="submit" disabled={busy || vendor.trim() === '' || amount.trim() === ''}>{t('money.bills.addButton')}</Button>
+        <Button variant="primary" type="submit" disabled={busy} disabledReason={vendor.trim() === '' || amount.trim() === '' ? t('money.bills.needBoth') : undefined}>{t('money.bills.addButton')}</Button>
       </div>
       {said && <p className={said.problem ? s.refusal : s.notice} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</p>}
     </form>

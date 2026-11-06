@@ -449,7 +449,7 @@ test('draft validation: words only, offered refs only, headings from the plan; r
   const receipts = [env.offerReceipt];
   const rendered = renderDeliverable(draft, receipts, IN);
   assert.ok(rendered.startsWith('# Your monthly books plan\n\n## Summary\n'));
-  assert.ok(rendered.includes('Total: INR 2,948.82'));
+  assert.ok(rendered.includes('INR 2,948.82 in total'));
   assert.ok(rendered.includes('This plan is dated 15 Oct 2026 and we will prepare'));
   assert.ok(rendered.endsWith('Questions for you:\n- Which bank account do you use for the cafe?'));
   assert.ok(renderDeliverable(draft, receipts, { dateOrder: 'month-day-year' }).includes('Oct 15, 2026'));
@@ -553,7 +553,7 @@ test('template rehearsal: three practice clients pass their checks, not judged, 
     assert.equal(episode.mocks.length, 1);
     assert.equal(episode.mocks[0].connector, 'mail-app');
     assert.equal(episode.mocks[0].payloadDigest, digest(episode.renderedText));
-    assert.ok(episode.renderedText!.includes('Total: INR 2,948.82'));
+    assert.ok(episode.renderedText!.includes('INR 2,948.82 in total'));
     assert.ok(episode.turns.every(turn => turn.author === 'template'));
   }
   assert.ok(run.episodes.find(episode => episode.scenarioId === 'bookkeeping-messy')!.checks.some(result => result.check === 'questions-raised' && result.passed));
@@ -791,7 +791,7 @@ test('real runs: a template outline at any stage; a model draft in Practice is a
   assert.equal(outline.practice, false);
   assert.equal(outline.callId, null);
   assert.ok(outline.renderedText!.startsWith(`${TEMPLATE_OUTLINE_LINE}\n\n# `));
-  assert.ok(outline.renderedText!.includes('Here is the price for this work. Total: INR 2,948.82'), outline.renderedText!);
+  assert.ok(outline.renderedText!.includes('Here is the price for this work. INR 2,948.82 in total'), outline.renderedText!);
   assert.doesNotMatch(outline.renderedText!, /your plan/i);
   assert.ok(!outline.renderedText!.includes('September'), 'an outline never reads the request');
   assert.ok(outline.checks.every(result => result.passed), JSON.stringify(outline.checks));
@@ -819,7 +819,7 @@ test('real runs: a template outline at any stage; a model draft in Practice is a
 test('real tool jobs preserve practice, money receipts, owner review and private signal cases', async()=>{
  const env=await setup(),{order}=await seedOrder(env);await queueModel(env,{delivery:['draft-order']});await allowAgent(env,order.id);await setStage(env,'shadow');
  const ready=await completed(env,order.id);assert.equal(ready.status,'ready-for-review',JSON.stringify(ready));assert.equal(ready.practice,true);assert.equal(ready.preview,null);assert.ok(ready.agentJob?.proposal);
- assert.match(ready.renderedText!,/Total: INR 2,948.82/);assert.match(ready.renderedText!,/15 Oct 2026/);assert.ok(ready.checks.every(check=>check.passed),JSON.stringify(ready.checks));assert.equal(env.models.previewed.length,0);
+ assert.match(ready.renderedText!,/INR 2,948\.82 in total/);assert.match(ready.renderedText!,/15 Oct 2026/);assert.ok(ready.checks.every(check=>check.passed),JSON.stringify(ready.checks));assert.equal(env.models.previewed.length,0);
  await assert.rejects(call(env,'venture.delivery.review',{runId:ready.id,verdict:'accepted'}),code('PRACTICE_DRAFT'));
  await assert.rejects(call(env,'venture.delivery.review',{runId:ready.id,verdict:'edited'}),code('INVALID_VENTURE_REQUEST'));
  const edited=await call<DeliveryRunRecord>(env,'venture.delivery.review',{runId:ready.id,verdict:'edited',reason:'tone',editedText:'Hello, we will start soon.'});assert.equal(edited.status,'edited');

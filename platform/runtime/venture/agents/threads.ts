@@ -21,6 +21,9 @@ import { chatAgent,type ChatAgent } from './roles.ts';
 import { detectStanding } from './standing.ts';
 import { appendAgentMessage,type AgentMessageInput } from './store.ts';
 import { RETIRED_LINE,retirementOf,SHELF_THREAD_LINE } from './retired.ts';
+import { agentTrackerTurn,keptTrackerNamed } from '../trackers/agent-rows.ts';
+import { HIRE_DUTIES_LINE } from './hired-facts.ts';
+import { currentRoutineScope } from './routine-scope.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
@@ -146,6 +149,14 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   check(!retirementOf(state, venture.id, agentId), 'AGENT_RETIRED', RETIRED_LINE);
   const route = requireChatConsent(deps, ctx, state, venture);
   const kind = options.routine ? null : detectStanding(words);
+  // C7: a hired agent owns no step, so a "from now on" to it changes nothing here: its duties change in its sheet.
+  if (kind === 'standing' && chatAgent(state, venture, agentId).hired) {
+    return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
+      const said = put(tx, { agent: agentId, from: 'owner', text: words, author: 'owner' });
+      const reply = put(tx, { agent: agentId, from: 'agent', text: HIRE_DUTIES_LINE, author: 'engine' });
+      return { added: [asItem(said), asItem(reply)], line: null };
+    });
+  }
 
   // A standing request that would change what always asks the owner, spend, prices, tools, checks or limits is never
   // drafted as guidance: the agent says why, and no model is asked.
@@ -184,10 +195,24 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   if (kind === 'note') return noteRequest(deps, ctx, agentId, words);
 
   const agent = chatAgent(state, venture, agentId);
+  // C7: words that name a tracker this agent keeps: its rows land at once, marked with its name, with Undo.
+  // A trigger's run only drafts, so it adds no rows.
+  const kept = currentRoutineScope()?.draftOnly ? null : keptTrackerNamed(state, venture, agent.id, words);
+  if (kept) {
+    const turn = await agentTrackerTurn(deps, ctx, route, { state, venture, agent, tracker: kept, words });
+    return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
+      const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
+      const reply = put(tx, { agent: agent.id, from: 'agent', text: turn.text, author: turn.callId ? 'model' : 'engine', callId: turn.callId });
+      return { added: [asItem(said), asItem(reply)], line: null };
+    });
+  }
   const waiting = waitingOn(deps, state, venture, agent);
-  const intent = intentOf(words, agent.team);
+  // C7: a trigger's run that asks for a draft is words for the owner to check, whatever nouns it names (a payment, an invoice).
+  const asksDraft = currentRoutineScope()?.draftOnly === true && /^\s*(?:please\s+)?(?:draft|write|prepare|summari[sz]e|list|suggest|note|check)\b/i.test(words);
+  const intent: ReturnType<typeof intentOf> = asksDraft ? { kind: 'question' } : intentOf(words, agent.team);
   if (intent.kind === 'floor') return floorRequest(deps, ctx, agent.id, words, intent);
-  if (intent.kind === 'work') {
+  // C7: a trigger's run asks the agent for words: a draft in its chat, never a New order suggestion.
+  if (intent.kind === 'work' && !currentRoutineScope()?.draftOnly) {
     const offerId = offerFor(state, venture, words);
     return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
       const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
@@ -199,7 +224,7 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
     const said = put(tx, { agent: agent.id, from: 'owner', text: words, author: 'owner' });
     const text = answer.parts.map(part => (part.kind === 'figure' ? part.display : part.text)).join(' ');
-    const reply = put(tx, { agent: agent.id, from: 'agent', text, parts: answer.parts, author: answer.author, callId: answer.callId });
+    const reply = put(tx, { agent: agent.id, from: 'agent', text, parts: answer.parts, author: answer.author, callId: answer.callId, ...(answer.suggestion ? { suggestion: answer.suggestion } : {}) });
     return { added: [asItem(said), asItem(reply)], line: answer.line };
   });
 }

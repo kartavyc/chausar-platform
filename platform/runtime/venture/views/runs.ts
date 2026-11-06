@@ -11,7 +11,7 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
-import { formatRate, formatUsd } from '../../owner-format.ts';
+import { formatElapsed, formatRate, formatUsd } from '../../owner-format.ts';
 import { playbookForRun } from '../delivery/workflow.ts';
 import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
@@ -20,7 +20,7 @@ import { currentVenture, exactPayload, findRecord, identifier, listRecords } fro
 import type {
   CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookCheckResult, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
   ToolCallRecord, VentureDeps, VentureRecord,
-  Posture, RunToolLine, RunScopeView,
+  Posture, RunToolLine, RunScopeView, Display, IsoTime,
 } from '../contracts.ts';
 // 4F3: the scope's cap in rupees at the owner's rate.
 import { rupeeFigure, rupeeRateWords, rupeesOf } from '../money/spend.ts';
@@ -63,10 +63,10 @@ const LOOP_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
 const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
   'wrong-fact': 'a wrong fact', 'missing-fact': 'a missing fact', 'missing-section': 'a missing section', 'off-brief': 'off the brief', tone: 'the tone',
   format: 'the format', 'too-long': 'too long', 'too-short': 'too short', 'wrong-number': 'a wrong number', late: 'late',
-  'claims-work-not-done': 'it claimed work that was not done', other: 'another reason',
+  'claims-work-not-done': 'it claimed work that was not done', other: 'another reason', 'not-needed': 'not needed',
 };
 
-const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
+export const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
 const AGENT_TOOL_KIND:Readonly<Record<string,StepKind>>={read_business:'gather',read_client:'gather',read_order:'gather',list_files:'gather',read_file:'gather',search_records:'gather',calculate:'compute',draft_document:'write'};
 function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position):RunStep['state'] {
   const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);
@@ -148,6 +148,85 @@ function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord):
   try { return plan ? playbookSteps(plan, deliveryFlagship(venture, plan)) : []; } catch { return []; }
 }
 
+/** One event a run wrote, by name and moment, in the order written (venture-event records carrying its runId). */
+export type RunEvent = { name: string; at: string };
+
+/** Each run's own events, in the order written: what runTimes reads. */
+export function runEventsOf(state: State, ventureId: string): Map<string, RunEvent[]> {
+  const byRun = new Map<string, RunEvent[]>();
+  const events = listRecords(state, 'venture-event', ventureId).slice().sort((a, b) => a.seq - b.seq);
+  for (const event of events) {
+    const data = event.data;
+    const runId = data && typeof data === 'object' && !Array.isArray(data) ? data.runId : undefined;
+    if (typeof runId !== 'string') continue;
+    const list = byRun.get(runId) ?? [];
+    list.push({ name: event.name, at: event.at });
+    byRun.set(runId, list);
+  }
+  return byRun;
+}
+
+/** The events that start a wait on the owner: the run hands them a draft or a turn to approve, or asks them a question. */
+const WAIT_STARTS = new Set(['run.waiting', 'delivery-needs-answer']);
+
+export type RunTimes = { worked: Display; workedMs: number; waited?: Display; waitedMs?: number; waitingSince?: IsoTime };
+
+/**
+ * One-shot C4 task 12: a run's time split into the time it worked and the time it waited on the owner, from its own
+ * events only. A wait starts at a waiting event (the run hands the owner a draft or a turn, or asks a question) and
+ * ends at the run's next other event (the owner's answer moves it on); a wait still open is waitingSince and is not
+ * worked time. worked is the span from startedAt to end less the closed waits. A run with no waiting events keeps
+ * its whole span as worked and has no waited figure: a figure is never guessed. C5 builds per-step figures on this.
+ */
+export function runTimes(events: readonly RunEvent[], startedAt: IsoTime, end: IsoTime): RunTimes {
+  const from = Date.parse(startedAt);
+  const to = Math.max(from, Date.parse(end));
+  let waitedMs = 0;
+  let waits = 0;
+  let open: string | undefined;
+  for (const event of events) {
+    if (WAIT_STARTS.has(event.name)) { open ??= event.at; continue; }
+    if (open === undefined) continue;
+    const start = Math.max(from, Date.parse(open));
+    const stop = Math.min(to, Math.max(start, Date.parse(event.at)));
+    waitedMs += Math.max(0, stop - start);
+    waits++;
+    open = undefined;
+  }
+  const workedMs = Math.max(0, to - from - waitedMs);
+  const worked = elapsedText(startedAt, new Date(from + workedMs).toISOString());
+  return {
+    worked, workedMs,
+    ...(waits > 0 ? { waited: elapsedText(startedAt, new Date(from + waitedMs).toISOString()), waitedMs } : {}),
+    ...(open !== undefined ? { waitingSince: open } : {}),
+  };
+}
+
+/** The events that end a wait for the owner: the run moved on, finished, failed or was stopped. */
+const WAIT_ENDS: ReadonlySet<string> = new Set(['run.step', 'run.call', 'run.started', 'run.done', 'run.failed', 'run.stopped']);
+
+/**
+ * C5 task 4: the spans a run waited for the owner, from its own event records: each from a run.waiting to the next
+ * event of the run that moved it on at a later moment (events in the same write share one moment); a wait still open
+ * runs to `openEnd`. Overlapping waits count once.
+ */
+export function waitSpans(state: State, ventureId: string, runId: string, openEnd: string): { from: number; to: number }[] {
+  const events = listRecords(state, 'venture-event', ventureId)
+    .filter(event => (event.data as { runId?: unknown } | null)?.runId === runId)
+    .sort((a, b) => a.seq - b.seq);
+  const spans: { from: number; to: number }[] = [];
+  for (let i = 0; i < events.length; i += 1) {
+    const event = events[i]!;
+    if (event.name !== 'run.waiting') continue;
+    const from = Date.parse(event.at);
+    if (spans.length && spans.at(-1)!.to >= from) continue;
+    const ended = events.slice(i + 1).find(next => WAIT_ENDS.has(next.name) && Date.parse(next.at) > from);
+    const to = ended ? Date.parse(ended.at) : Date.parse(openEnd);
+    if (to > from) spans.push({ from, to });
+  }
+  return spans;
+}
+
 type Position = { kind: StepKind; state: RunStep['state'] };
 
 /** Where a run stands: the step kind it is at and that step's state. Once reviewed, only the owner's send is left. */
@@ -205,6 +284,7 @@ type Built = { summary: RunSummary; detail: RunDetail };
  */
 function deliveryRun(
   deps: VentureDeps, state: State, venture: VentureRecord, record: DeliveryRunRecord, times: Map<string, string>, business: { id: string }, posters: PosterIndex, whole: boolean,
+  events: Map<string, RunEvent[]> = new Map(),
 ): Built {
   const now = deps.clock();
   const run = runView(record, venture, now.getTime(), state);
@@ -228,6 +308,20 @@ function deliveryRun(
   // 4J14: the run's files and what it read of them, on its own sheet only.
   const quality = whole ? runQuality(state, venture, record) : null;
 
+  // C5 task 4: waits for the owner, only when the run's calls carry stamped times (never a guess for older runs).
+  const timed = calls.some(call => typeof call.startedAt === 'string');
+  const openEnd = runState === 'active' || runState === 'waiting' ? now.toISOString() : times.get(run.id) ?? run.at;
+  const waits = timed ? waitSpans(state, venture.id, run.id, openEnd) : [];
+  const firstStart = (kind: StepKind) => calls.filter(call => toolKind(call.tool) === kind && call.startedAt).map(call => Date.parse(call.startedAt!)).sort((a, b) => a - b)[0];
+  const startsByKind = new Map(steps.map(step => [step.kind, firstStart(step.kind)]));
+  // Each wait goes to the step that started first after it ended.
+  const waitedBefore = new Map<StepKind, number>();
+  for (const span of waits) {
+    let best: { kind: StepKind; at: number } | null = null;
+    for (const [kind, at] of startsByKind) if (at !== undefined && at >= span.to && (!best || at < best.at)) best = { kind, at };
+    if (best) waitedBefore.set(best.kind, (waitedBefore.get(best.kind) ?? 0) + (span.to - span.from));
+  }
+
   const built: RunStep[] = steps.map((step, index) => {
     let stepState: RunStep['state'];
     if (record.agentJob) {
@@ -242,6 +336,8 @@ function deliveryRun(
     const tools = stepCalls.map(call => ({ name: TOOL_PURPOSE[call.tool] ?? 'Used a tool', line: toolLine(call, ledger ? audits.get(call.id) : undefined), ...callMeasure(call) }));
     const audited = stepAudited(stepCalls, audits, ledger);
     const elapsed = stepElapsed(stepCalls, now.toISOString(), stepState === 'current');
+    const waitedMs = timed ? waitedBefore.get(step.kind) : undefined;
+    const working = timed && elapsed !== undefined ? elapsed : undefined;
     const evidence: { kind: string; id: string; label: string }[] = [];
     if (step.kind === 'gather' && harness) {
       for (const id of harness.uploadIds) {
@@ -274,6 +370,7 @@ function deliveryRun(
     const notRun = step.kind === 'verify' && quality ? notRunLines(record) : [];
     return plain({
       id: step.id, purpose: step.title, state: stepState, ...(elapsed !== undefined ? { elapsed } : {}),
+      ...(working !== undefined ? { working } : {}), ...(waitedMs ? { waiting: formatElapsed(waitedMs) } : {}),
       ...(tools.length ? { tools } : {}), ...(evidence.length ? { evidence } : {}), ...(stepState === 'failed' && error ? { error } : {}),
       ...(audited !== undefined ? { audited } : {}),
       ...(coverage ? { coverage } : {}), ...(notRun.length ? { notRun } : {}),
@@ -281,14 +378,21 @@ function deliveryRun(
   });
 
   const end = runState === 'active' ? now.toISOString() : times.get(run.id) ?? run.at;
+  // C4 task 12: worked time leaves out the owner's waits; the wait is its own figure.
+  const spent = runTimes(events.get(run.id) ?? [], run.at, end);
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
+  // C4 task 12: the client the run worked for, so a finished row can open the client sheet.
+  const clientRecord = order ? listRecords(state, 'venture-client', venture.id).find(item => item.id === order.clientId && !item.self) : undefined;
   const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null, watchdogLine(record.agentJob));
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
-    state: runState, startedAt: run.at, elapsed: elapsedText(run.at, end),
+    state: runState, startedAt: run.at, elapsed: spent.worked,
+    ...(spent.waited !== undefined ? { waited: spent.waited } : {}),
+    ...(runState === 'waiting' && spent.waitingSince ? { waitingSince: spent.waitingSince } : {}),
+    ...(clientRecord ? { client: { id: clientRecord.id, name: clientRecord.name } } : {}),
     ...(runState === 'active' || runState === 'waiting' ? { progress: built.length ? { done, total: built.length } : 'indeterminate' as const } : {}),
     ...(result ? { result } : {}), ...(receiptId ? { receiptId } : {}),
     ...controlSummary(state, venture, record, runState),
@@ -586,6 +690,8 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
     // says why, in Practice's own words, never that it is ready to adopt.
     result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300)
       : record.status === 'kept-candidate' ? staleReason(state, venture, record) ?? IMPROVEMENT_RESULT[record.status] : IMPROVEMENT_RESULT[record.status],
+    // C4 task 17: Work's row links to Use this version while Practice still offers it.
+    ...(record.status === 'kept-candidate' && staleReason(state, venture, record) === null ? { adoptReady: true as const } : {}),
   };
   const steps: RunStep[] = record.rounds.map(round => plain({
     id: `round-${round.round}`, state: 'done' as const,
@@ -600,9 +706,10 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
 export function deliveryRunDetails(deps: VentureDeps, state: State, venture: VentureRecord): RunDetail[] {
   const business = businessOf(deps, state);
   const times = lastEventAt(state, venture.id);
+  const events = runEventsOf(state, venture.id);
   // Reversed first, so runs started at the same moment keep the later one first.
   const posters = posterIndex(state, venture);
-  return listRecords(state, 'venture-delivery-run', venture.id).reverse().map(record => deliveryRun(deps, state, venture, record, times, business, posters, false).detail)
+  return listRecords(state, 'venture-delivery-run', venture.id).reverse().map(record => deliveryRun(deps, state, venture, record, times, business, posters, false, events).detail)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
@@ -615,8 +722,9 @@ function allRuns(deps: VentureDeps, ctx: Context, whole: boolean): { state: Stat
   if (!venture) return { state, venture, runs };
   const business = businessOf(deps, state);
   const times = lastEventAt(state, venture.id);
+  const events = runEventsOf(state, venture.id);
   const posters = posterIndex(state, venture);
-  for (const record of listRecords(state, 'venture-delivery-run', venture.id)) runs.set(record.id, () => deliveryRun(deps, state, venture, record, times, business, posters, whole));
+  for (const record of listRecords(state, 'venture-delivery-run', venture.id)) runs.set(record.id, () => deliveryRun(deps, state, venture, record, times, business, posters, whole, events));
   for (const record of listRecords(state, 'venture-simulation-run', venture.id)) runs.set(record.id, () => rehearsalRun(state, venture, record, business));
   for (const record of listRecords(state, 'venture-improvement-run', venture.id)) runs.set(record.id, () => improvementRun(state, venture, record, business));
   return { state, venture, runs };

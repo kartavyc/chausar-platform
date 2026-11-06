@@ -228,7 +228,9 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
     const trouble = await providerTrouble(statusReaderOf(deps), view.cli).catch(() => null);
     if (trouble) view.provider = trouble;
   }
-  if (venture) await keepChecks(deps, ctx, clis);
+  // D4: a look answered from the file kept between starts is not a new check; the background look that replaces it is.
+  const checked = clis.filter((_view, index) => (findings[index] as CliFinding & { kept?: true }).kept !== true);
+  if (venture && checked.length) await keepChecks(deps, ctx, checked);
   return { clis, line: cliListLine(findings) };
 }
 
@@ -264,6 +266,7 @@ import { startMcpOAuth } from '../agent-runtime/mcp-oauth.ts';
 import { curatedMcpRequest } from '../agent-runtime/mcp-registry.ts';
 import { addPack, listPacks, removePack } from '../packs/packs.ts';
 import { ProviderStatusReader, providerTrouble } from './provider-status.ts';
+import { planView } from './plan-view.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.agentSettings.get': getAgentSettings,
@@ -283,4 +286,6 @@ export const handlers: VentureHandlerTable = {
   // Ink v2 wave 4 (4H1): the CLI status checked against the installed tools, and per-role models.
   'venture.models.cli.status': cliStatus,
   'venture.models.roles': rolesHandler,
+  // C7: the plan meter, from what the tools reported.
+  'venture.models.plan': planView,
 };

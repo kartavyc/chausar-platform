@@ -6,10 +6,11 @@ import type { Context } from '../../contracts.ts';
 import { exactPayload, readVenture } from '../records.ts';
 import type { MoneyOverview, MoneyOverviewLine, VentureDeps } from '../contracts.ts';
 import { booksPeriods, todayLocal } from './dates.ts';
-import { rupeeRateWords, rupeesBeside, rupeesOf, spendLead } from './spend.ts';
+import { needsRupeeRate, rupeeRateWords, rupeesBeside, rupeesOf, spendLead } from './spend.ts';
 import { owedPlan, planEstimate, planTotal, receivedPlan, spentPlan, sumReceipt } from './sums.ts';
 import { basisOf, hasCountry, notCountedOf, openElsewhere, otherCurrency, paymentsElsewhere } from './figure-kinds.ts';
 import type { Display, FigureKind, FigureSource, TotalBasis } from '../contracts.ts';
+import { paidInFull } from './paid-in-full.ts';
 
 /** 4J4 (M13, M14): each line is calculated by code, with its receipt as its source, and says what it counted. */
 function made(receiptId: string, basis: TotalBasis, uses: Display[] = []): { kind: FigureKind; source: FigureSource; basis: TotalBasis; uses?: Display[] } {
@@ -55,9 +56,11 @@ export async function moneyOverview(deps: VentureDeps, ctx: Context, payload: un
       receiptId: spent.id, ...(estimate ? { estimate: true } : {}), ...(rupees ? { rupees } : {}),
       // 4Z3: the line as the owner's currency leads it, two decimals of dollars at most; the exact figure is the value.
       lead: spendLead(String(planTotal(spentNow)), rate, estimate ? OVERVIEW_LABELS.includesEstimates : ''),
+      ...(needsRupeeRate(rate, venture) ? { needsRate: true } : {}),
       // The rupees beside it rest on the owner's own rate, shown beside it.
       ...made(spent.id, basisOf(['Paid AI and tool calls this UTC month, in US dollars as providers bill']), rate ? [rupeeRateWords(rate)] : []),
     },
   ];
-  return { lines };
+  // One-shot C6: this month's invoices all paid, with its receipt (the same rule as the goals view's month).
+  return { lines, paidInFull: await paidInFull(deps, ctx, state, venture, today.slice(0, 7)) };
 }

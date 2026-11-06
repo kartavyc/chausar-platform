@@ -13,7 +13,7 @@ import type { DirectoryState, HostedDirectory, HostedShareLink, HostedUser } fro
 import { ConcurrencyGate, RateLimiter, type HostedLimits } from './limits.ts';
 import type { Mailer } from './mailer.ts';
 import { OwnerWatch, pushSessionHash } from './notify.ts';
-import { hostedModelTransport, usageFromCalls } from './models.ts';
+import { hostedModelTransport, usageFromCalls, type RecordedCall } from './models.ts';
 import { ACTOR_ACTIONS, ACTOR_EVENTS, type ActorEvent, type ActorKey, type VentureRuntime } from './runtime/contract.ts';
 import { hostedVaultSlot } from './runtime/business.ts';
 import { LocalVentureRuntime } from './runtime/local.ts';
@@ -637,7 +637,7 @@ export class HostedApp {
   async #syncUsage(key: ActorKey) {
     const id = `${key[0]}/${key[1]}`;
     if (!this.#dirty.delete(id)) return;
-    const calls = await this.runtime.get(key).action('venture.models.calls', { limit: 100 }, WEB) as { id: string; at: string; status: string; costMicros: string | null }[];
+    const calls = await this.runtime.get(key).action('venture.models.calls', { limit: 100 }, WEB) as RecordedCall[];
     // The ledger of the account holding the vault (4J23: a kept temporary business's vault keeps its own tenant).
     const directory = this.options.directory.read();
     const known = directory.usage[this.#accountTenant(directory, key)] ?? [];
