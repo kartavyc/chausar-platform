@@ -1,4 +1,4 @@
-import { AI_SETTING_BOUNDARIES, defaultAiSettings, validateAiSettings, type AiSettings, type AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
+import { AI_SETTING_BOUNDARIES, aiModelChoices, defaultAiSettings, validateAiSettings, type AiSettings, type AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
 import { EngineError } from './types';
 import { validateExternalCredentialScope } from '../../../../platform/runtime/venture/agent-runtime/external-config';
 import { listCuratedMcpServers, type CuratedMcpView } from '../../../../platform/runtime/venture/agent-runtime/mcp-registry';
@@ -29,7 +29,7 @@ export class FakeAgentSettings {
       if (JSON.stringify(current.mcpServers) !== JSON.stringify(settings.mcpServers) && p.approveMcpConfiguration !== true) throw new EngineError('MCP_CONFIGURATION_APPROVAL_REQUIRED', 'Review and approve this exact external tool configuration before saving.');
       this.saved.set(this.host.current(), settings); this.host.changed();
     }
-    return structuredClone({ settings: this.saved.get(this.host.current()) ?? defaultAiSettings(), boundaries: AI_SETTING_BOUNDARIES, agents, models: { codex: this.codexModels } });
+    return structuredClone({ settings: this.saved.get(this.host.current()) ?? defaultAiSettings(), boundaries: AI_SETTING_BOUNDARIES, agents, modelChoices: aiModelChoices(), models: { codex: this.codexModels } });
   }
   credential(raw: unknown): { serverId: string; saved: boolean } {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || ![Object.prototype,null].includes(Object.getPrototypeOf(raw))) throw new EngineError('INVALID_VENTURE_REQUEST','Send one request object.');

@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   },
   openExternal: async url => { const reply = await ipcRenderer.invoke('chausar:open-external', String(url)); if (reply?.ok !== true) throw Object.assign(new Error(reply?.error?.message || 'The link could not be opened.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {}); },
   // The network import (4D1): the owner picks one of their own files; a desktop worker reads it and only what Chausar keeps comes back. Null when cancelled.
+  pickTranscriptionFile: async kind => {
+    const reply = await ipcRenderer.invoke('chausar:transcription:pickFile', kind);
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be chosen.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   pickNetworkFile: async (kind, options = {}) => {
     const request = { kind: String(kind) };
     if (Array.isArray(options?.ownerAddresses)) request.ownerAddresses = options.ownerAddresses.map(String);

@@ -1,3 +1,4 @@
+import { checkAiConnections } from './CliStatus';
 import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
@@ -51,11 +52,14 @@ export function ChecksTile() {
   const when = (iso: string) => moment(iso);
 
   async function check() {
+    if (busy) return;
     setBusy(true);
     setProblem(null);
-    try { setView(await client.request('venture.connectors.check', {})); }
-    catch (error) { setProblem(messageOf(error)); }
-    finally { setBusy(false); }
+    const [native, connections] = await Promise.allSettled([checkAiConnections(client), client.request('venture.connectors.check', {})]);
+    if (connections.status === 'fulfilled') setView(connections.value);
+    const failures = [native, connections].filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    setProblem(failures.length ? failures.map(result => messageOf(result.reason)).join(' ') : null);
+    setBusy(false);
   }
 
   const health = view?.health;
@@ -73,7 +77,7 @@ export function ChecksTile() {
           {view.rows.length === 0 ? <p className={s.note} role="status">{t('connections.checks.none')}</p> : (
             <>
               <p className={c.health} data-health="">
-                {t('connections.checks.ready', { count: String(health.ready) })} · {t('connections.checks.warnings', { count: String(health.warnings) })} · {t('connections.checks.blocking', { count: String(health.blocking) })}
+                {!problem && health.warnings === 0 && health.blocking === 0 ? t('connections.checks.good') : <>{t('connections.checks.ready', { count: String(health.ready) })} · {t('connections.checks.warnings', { count: String(health.warnings) })} · {t('connections.checks.blocking', { count: String(health.blocking) })}</>}
               </p>
               <p id={listId} className="sr-only">{t('connections.checks.found')}</p>
               <ul className={c.rows} aria-labelledby={listId}>

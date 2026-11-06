@@ -11,11 +11,15 @@ import { McpServers } from './McpServers';
 import { Packs } from './Packs';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
+import { useSettingsSave } from './useSettingsSave';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-export function AgentSettings() {
+export function AgentSettings({ providers = [] }: { providers?: readonly AiProvider[] }) {
   const t = useT(), engine = useEngine(), id = useId();
+  const business = useResource('venture.get', {});
+  const saveSettings = useSettingsSave(engine, business.data?.venture.id);
   const [open, setOpen] = useState(false);
+  const [advanced, setAdvanced] = useState<Partial<Record<AiProvider, boolean>>>({});
   const resource = useResource('venture.agentSettings.get', {}, { skip: !open, refreshOn: event => event.type === 'queue.changed' });
   const [draft, setDraft] = useState<AiSettings | null>(null), [busy, setBusy] = useState(false);
   const dirty = useRef(false);
@@ -32,7 +36,18 @@ export function AgentSettings() {
   async function save(event: FormEvent) {
     event.preventDefault(); if (!draft || busy) return;
     setBusy(true); setSaid(null);
-    try { const next = await engine.request('venture.agentSettings.set', { settings: draft, ...(mcpChanged && approveMcp ? { approveMcpConfiguration: true as const } : {}) }); dirty.current = false; setApproveMcp(false); setDraft(next.settings); resource.reload(); setSaid({ error: false, text: t('connections.settings.saved') }); }
+    try {
+      const next = await saveSettings(async stillOpen => {
+      // Gmail has its own standing-choice surface. Saving models must not revert a choice made there.
+      const current = await engine.request('venture.agentSettings.get', {});
+      await stillOpen();
+      const settings = structuredClone(draft);
+      for (const name of ['codex', 'claude'] as const) {
+        if (current.settings[name].connectors === undefined) delete settings[name].connectors;
+        else settings[name].connectors = current.settings[name].connectors;
+      }
+      return engine.request('venture.agentSettings.set', { settings, ...(mcpChanged && approveMcp ? { approveMcpConfiguration: true as const } : {}) });
+      }); dirty.current = false; setApproveMcp(false); setDraft(next.settings); resource.reload(); setSaid({ error: false, text: t('connections.settings.saved') }); }
     catch (error) { setSaid({ error: true, text: error instanceof Error ? error.message : String(error) }); }
     finally { setBusy(false); }
   }
@@ -41,34 +56,50 @@ export function AgentSettings() {
       {resource.error && <p role="alert">{resource.error.message}</p>}
       <LoadingPlace shape="settings" loading={!draft && !resource.error} />
       {draft && <>
-        {(['codex', 'claude'] as const).map(name => <fieldset key={name} className={s.group} disabled={busy}>
+        {providers.map(name => <fieldset key={name} className={s.group} disabled={busy}>
           <legend className={connections.subheading}>{t(`connections.settings.${name}`)}</legend>
-          <div className={s.fields}>{(['quick', 'main'] as const).map(kind => <div key={kind} className={s.task}>
+          <div className={s.fields}>{(['quick', 'main'] as const).map(kind => {
+            const choices = resource.data!.modelChoices[name];
+            const choice = draft[name][kind].model === choices.faster ? 'faster' : draft[name][kind].model === choices.smarter ? 'smarter' : '';
+            return <label key={kind} className={s.label}>{t(`connections.settings.simple.${kind}`)}
+              <Select value={choice} onChange={event => task(name, kind, { model: choices[event.currentTarget.value as 'faster' | 'smarter'] })}>
+                {choice === '' && <option value="" disabled>{t('connections.settings.custom')}</option>}
+                <option value="faster">{t('connections.settings.faster')}</option><option value="smarter">{t('connections.settings.smarter')}</option>
+              </Select>
+            </label>;
+          })}</div>
+          <label className={s.label}>{t('connections.settings.thinking')}
+            <Select value={draft[name].quick.effort === draft[name].main.effort ? (['high', 'max'].includes(draft[name].main.effort) ? 'thorough' : 'normal') : ''} onChange={event => {
+              const effort = event.currentTarget.value === 'thorough' ? 'high' : 'medium';
+              provider(name, { quick: { ...draft[name].quick, effort }, main: { ...draft[name].main, effort } });
+            }}>
+              {draft[name].quick.effort !== draft[name].main.effort && <option value="" disabled>{t('connections.settings.custom')}</option>}
+              <option value="normal">{t('connections.settings.normal')}</option><option value="thorough">{t('connections.settings.thorough')}</option>
+            </Select>
+          </label>
+          <label className={s.label}>{t('connections.settings.online')}
+            <Select value={draft[name].network === draft[name].webSearch ? draft[name].network : ''} onChange={event => { const value = event.currentTarget.value as AiNetwork; provider(name, { network: value, webSearch: value }); }}>
+              {draft[name].network !== draft[name].webSearch && <option value="" disabled>{t('connections.settings.custom')}</option>}
+              {(['off', 'research', 'on'] as const).map(mode => <option key={mode} value={mode}>{t(`connections.settings.${mode}`)}</option>)}
+            </Select>
+          </label>
+          <Fold summary={t('connections.settings.advanced')} className={connections.fold} onToggle={event => { const opened = event.currentTarget.open; setAdvanced(was => ({ ...was, [name]: opened })); }}>
+            {advanced[name] && <>
+            <div className={s.fields}>{(['quick', 'main'] as const).map(kind => <div key={kind} className={s.task}>
             {name === 'codex' && listed
               ? <CodexModel listed={listed} model={draft.codex[kind].model} typed={typed[kind] === true} label={t('connections.settings.model', { provider: t('connections.settings.codex'), task: t(`connections.settings.${kind}`) })}
                   otherLabel={t('connections.settings.modelOther', { provider: t('connections.settings.codex'), task: t(`connections.settings.${kind}`) })}
                   onType={on => setTyped(was => ({ ...was, [kind]: on }))} onModel={model => task('codex', kind, { model })} />
               : <Field label={t('connections.settings.model', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })} value={draft[name][kind].model} onChange={event => task(name, kind, { model: event.currentTarget.value })} />}
-            <label className={s.label}>{t('connections.settings.effort', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })}
-              <Select className={s.select} value={draft[name][kind].effort} onChange={event => task(name, kind, { effort: event.currentTarget.value as AiTaskSettings['effort'] })}>
-                {(['low', 'medium', 'high', 'max'] as const).map(effort => <option key={effort} value={effort}>{t(`connections.settings.effort.${effort}`)}</option>)}
-              </Select>
-            </label>
-          </div>)}</div>
-          {name === 'codex' && !listed && <p className={connections.note} data-no-model-list="">{t('connections.settings.modelNoList')}</p>}
-          <div className={s.fields}>{(['network', 'webSearch'] as const).map(field => <label key={field} className={s.label}>
-            {t('connections.settings.access', { provider: t(`connections.settings.${name}`), access: t(`connections.settings.${field}`) })}
-            <Select className={s.select} value={draft[name][field]} onChange={event => provider(name, { [field]: event.currentTarget.value as AiNetwork })}>
-              {(['off', 'research', 'on'] as const).map(mode => <option key={mode} value={mode}>{t(`connections.settings.${mode}`)}</option>)}
-            </Select>
-          </label>)}</div>
-          {/* W6 6F5 (D34): the tool's own Gmail connection, off unless the owner turns it on; every send still asks. */}
-          <label className={s.check}><input type="checkbox" checked={draft[name].connectors === true} onChange={event => provider(name, { connectors: event.currentTarget.checked })} />{t(`connections.settings.gmail.${name}`)}</label>
+            </div>)}</div>
+            {name === 'codex' && !listed && <p className={connections.note} data-no-model-list="">{t('connections.settings.modelNoList')}</p>}
           {name === 'claude' && <label className={s.check}><input type="checkbox" checked={Boolean(draft.claude.fallbackModel)} onChange={event => {
             const { fallbackModel: _fallback, ...rest } = draft.claude;
-            changed(); setDraft({ ...draft, claude: { ...rest, ...(event.currentTarget.checked ? { fallbackModel: 'claude-haiku-5-5' } : {}) } });
+            changed(); setDraft({ ...draft, claude: { ...rest, ...(event.currentTarget.checked ? { fallbackModel: resource.data!.modelChoices.claude.faster } : {}) } });
           }} />{t('connections.settings.fallback')}</label>}
           {name === 'claude' && draft.claude.fallbackModel && <Field label={t('connections.settings.fallbackModel')} value={draft.claude.fallbackModel} onChange={event => provider('claude', { fallbackModel: event.currentTarget.value })} />}
+            </>}
+          </Fold>
         </fieldset>)}
         <fieldset className={s.group} disabled={busy}>
           <legend className={connections.subheading}>{t('connections.settings.approvals')}</legend>

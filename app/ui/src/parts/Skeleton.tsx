@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '../text';
 import s from './Skeleton.module.css';
 
@@ -20,12 +20,17 @@ export function useDelayed(loading: boolean, delayMs = SKELETON_DELAY_MS): boole
 
 /** Whether what just landed followed a skeleton: it then fades in once (data-arrived), and never at any other time. */
 export function useArrived(loading: boolean, delayMs = SKELETON_DELAY_MS): boolean {
-  const late = useDelayed(loading, delayMs);
-  const [arrived, setArrived] = useState(false);
-  useEffect(() => {
-    if (late) setArrived(true);
-  }, [late]);
-  return arrived && !loading;
+  const started = useRef<number | null>(null);
+  const arrived = useRef(false);
+  if (loading && started.current === null) {
+    started.current = performance.now();
+    arrived.current = false;
+  } else if (!loading && started.current !== null) {
+    // A second timer can fire after LoadingPlace's timer at the same deadline. Measure the finished load instead.
+    arrived.current = performance.now() - started.current >= delayMs;
+    started.current = null;
+  }
+  return arrived.current && !loading;
 }
 
 const ROWS: Record<SkeletonShape, readonly string[]> = {
