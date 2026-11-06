@@ -12,7 +12,7 @@ export type FindRequest = { text: string; kinds?: FindKind[]; limit?: number };
 export type ParsedFindRequest = { text: string; kinds: FindKind[]; limit: number };
 /** Where the match is in the item's title, for highlighting: UTF-16 offsets into that field's own text. */
 export type FindHit = { field: string; start: number; length: number };
-export type FindSnippet = { line: string; amounts: ChiefLineAmount[] };
+export type FindSnippet = { line: string; amounts: ChiefLineAmount[]; hit?: { start: number; length: number } };
 type Scored = { id: string; score: number; hit: FindHit | null };
 export type FindItem = Scored & (
   | { kind: 'client'; name: string; at: IsoTime }
@@ -187,7 +187,8 @@ export function snippetOf(parts: readonly ChatPart[], query: string | string[]):
   while (start < end && text[start] === ' ') start++;
   while (end > start && text[end - 1] === ' ') end--;
   const line = text.slice(start, end);
-  return { line, amounts: amounts.filter(amount => amount.start >= start && amount.start + amount.length <= end).map(amount => ({ ...amount, start: amount.start - start })) };
+  const kept = amounts.filter(amount => amount.start >= start && amount.start + amount.length <= end).map(amount => ({ ...amount, start: amount.start - start }));
+  return { line, amounts: kept, ...(hitStart >= start && hitEnd <= end ? { hit: { start: hitStart - start, length: hitEnd - hitStart } } : {}) };
 }
 
 /**

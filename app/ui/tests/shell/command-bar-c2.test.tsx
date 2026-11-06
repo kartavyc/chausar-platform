@@ -94,6 +94,7 @@ describe('the command bar (C2)', () => {
     expect(within(group('Pages')).getAllByRole('option').map((row) => row.textContent)).toContain('Invoices');
     const chat = within(group('Chats')).getAllByRole('option').find((row) => row.textContent!.includes('How much have we billed this month?'))!;
     expect(chat.textContent).toMatch(/invoice INV-0039/);
+    expect(chat.querySelector('mark')?.textContent).toBe('invoice');
     expect(options().at(-1)!.textContent).toBe('Ask Chausar: invoice');
   });
 

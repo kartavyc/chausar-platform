@@ -70,7 +70,7 @@ function RecordRow({ item }: { item: FindItem }) {
       return (
         <span className={s.stack}>
           <span className={s.main} data-content="">{marked(item.title, item.hit)}</span>
-          {item.snippet && <span className={s.snippet} data-content=""><LineWithAmounts line={item.snippet.line} amounts={item.snippet.amounts} /></span>}
+          {item.snippet && <span className={s.snippet} data-content=""><LineWithAmounts line={item.snippet.line} amounts={item.snippet.amounts} mark={item.snippet.hit ?? null} /></span>}
         </span>
       );
   }
