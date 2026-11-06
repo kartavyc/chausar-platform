@@ -1,3 +1,5 @@
+import type { AgentCapView, AgentHealth, AgentMessageView, AgentNoteView, AgentProposalView, AgentRunItem, AgentThreadView, AgentView, ChiefCounted, ChiefFit, ChiefLineAmount, ChiefMessageView, ChiefSnoozeOption, ChiefThreadStateInput, ChiefThreadSummary, ChiefThreadsView, DepartmentId, DepartmentView, ProposalKind, ProposalView, RetireInFlight, RetiredAgentView, RoleModelView, RoutineInput, RoutineSchedule, RoutineSuggestion, RoutineView, StandingOrderView, StandingPlaybookView, StandingStepView, TeamListView } from './contract.gen';
+export type { AgentCapView, AgentHealth, AgentMessageView, AgentNoteView, AgentProposalView, AgentRunItem, AgentThreadView, AgentView, ChiefCounted, ChiefFit, ChiefLineAmount, ChiefMessageView, ChiefSnoozeOption, ChiefThreadStateInput, ChiefThreadSummary, ChiefThreadsView, DepartmentId, DepartmentView, ProposalKind, ProposalView, RetireInFlight, RetiredAgentView, RoleModelView, RoutineInput, RoutineSchedule, RoutineSuggestion, RoutineView, StandingOrderView, StandingPlaybookView, StandingStepView, TeamListView } from './contract.gen';
 import type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendView, LeadView, LostReason, MailboxView, NetworkBandCounts, NetworkImportKind, NetworkImportView, NetworkSourcesView, OutreachDraftView, OutreachKind, OutreachView, PeopleView, PersonSummary, PersonView, PipelineCaps, PipelineCardView, PipelineQuoteView, PipelineStage, PipelineView, TieBand, TriageRule, WarmPathView } from './contract.gen';
 export type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendView, LeadView, LostReason, MailboxView, NetworkBandCounts, NetworkImportKind, NetworkImportView, NetworkSourcesView, OutreachDraftView, OutreachKind, OutreachView, PeopleView, PersonSummary, PersonView, PipelineCaps, PipelineCardView, PipelineQuoteView, PipelineStage, PipelineView, TieBand, TriageRule, WarmPathView } from './contract.gen';
 import type { AcrossLeftOut, AcrossMoneyView, AgingView, BankAlertsView, BankConsentView, BankImportResult, BankLedgerRow, BillLineInput, BillView, CaDiffExplanation, CaReceiptView, CashIssueView, CashView, CreditNoteView, DepartmentSpend, FlowView, InvoiceNext, InvoiceTimelineEntry, MarginsView, MoneyExportFile, MoneyOverview, ReceiptVerifyView, RecurringInvoiceView, SeriesPoint, SignedReceiptsFile, SpendMeterView, SpendPolicyView, SpendRateInput, StatTileView, TotalBasis } from './contract.gen';
@@ -97,22 +99,7 @@ export type QueueKindW4 = 'proposal' | 'followup' | 'reply' | 'notice';
 /** 4F1. A run's scope: tools and outside actions in purpose words, the spend cap and the posture. */
 
 
-export interface AgentView {
-  /** C7: an agent the owner hired: the day, its duties and what it reads. */
-  hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
-  id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
-  last?: { line: Display; receiptId?: string; estimate?: boolean };
-  steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
-  // Ink v2 wave 4 (4A1 unless named): department; 'code' for the code role and Keeper; state from facts; health; the
-  // helper's parent (4J12); who set the posture; whether it has a chat (4B1).
-  department?: DepartmentId;
-  kind?: 'agent' | 'code';
-  state?: 'working' | 'waiting' | 'failed' | 'idle';
-  health?: AgentHealth;
-  parentId?: string | null;
-  postureSetBy?: 'business' | 'agent';
-  chat?: boolean;
-}
+
 
 /** seq: the event's place in the business's log, for replay after a reconnect (4G1); count: on notify.new only. */
 export interface VentureRunEvent {
@@ -178,7 +165,7 @@ export interface SpendRateLine {
 
 /** W6 6G5 (D44): what one run used: tool, model, tier, tokens, cost ('On your plan' with no figure on a plan). */
 
-export interface AgentCapView { agent: string; name: Display; capMicros: string; capUsd: string; cap: Display; used: Display; paused: boolean; capRupees?: Display; usedRupees?: Display }
+
 /** 4F2 (H32): one daily write cap: today's cap, what agents made today, in words. */
 
 /** 4F2 (M6): one price on the rate card: the owner's checked rate, or Chausar's list price with its checked date. */
@@ -1039,7 +1026,7 @@ export interface RulesListView {
 
 /** `DeliveryRunStatus` 'stopped' (4F1): not in DeliveryStatus yet, for the same reason as QueueKindW4 (4F3 folds it in). */
 export type DeliveryStatusW4 = 'stopped';
-export type DepartmentId = 'sales' | 'marketing' | 'production' | 'money' | 'operations';
+
 export interface MoneyFigure { display: Display; receiptId: string }
 /** A point the engine scaled: valuePermille of the largest, null (never 0) where there is no data. */
 /** lead (4Z3): a money point as the owner's currency leads it. */
@@ -1047,32 +1034,18 @@ export interface MoneyFigure { display: Display; receiptId: string }
 
 /** 4A1 departments, Keeper and health. */
 
-export interface AgentHealth { status: AgentHealthStatus; reason: Display | null; digest: string }
+
 /** sharePermille (4A2): the part's share of the month's whole spend, floored by the engine; 0 when nothing was spent. */
 /** rate (4A2): the owner's rupee rate in words, the same words `rupees` and `held` end with, sent with them. */
 
-export interface DepartmentView {
-  id: DepartmentId; name: Display; counts: { working: number; waiting: number; stopped: number; idle: number };
-  /** doneThisWeek.permille (4A2): this week's count scaled to the busiest department's, floored; 0 when none did a job. */
-  doneThisWeek: { count: number; receiptId: string; permille?: number }; spendThisMonth: DepartmentSpend; series: { jobs: SeriesPoint[]; spend: SeriesPoint[] };
-}
+
  // 5A6: page monitors
 export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: string; outcome: 'ok' | 'warn' | 'failed'; line: Display } | null; note: Display | null }
 
-export interface TeamListView {
-  /** C5 task 1: the agents this member has not met yet, each with its one code-written line. */
-  introduce?: { agentId: string; line: string }[];
-  agents: AgentView[]; departments?: DepartmentView[]; shared?: DepartmentSpend | null;
-  /** The team's totals, from the same partition as the departments; spendThisMonth is Money's own figure. */
-  totals?: { doneThisWeek: { count: number; receiptId: string }; spendThisMonth: DepartmentSpend; held: MoneyFigure | null };
-  /** A quarantine no single agent can claim; cleared with agentId 'team'. */
-  teamHealth?: AgentHealth;
-  /** W6 6G2: the Retired shelf, oldest first; sent only when an agent is retired. */
-  retired?: RetiredAgentView[];
-}
+
 /** W6 6G2 (D43). One agent on the Retired shelf; to is null when the owner took over its work. */
-export interface RetiredAgentView { id: string; name: string; role: Display; department?: DepartmentId; at: string; to: { id: string; name: string } | null; line: Display }
-export interface RetireInFlight { id: string; kind: 'run' | 'question' | 'proposal' | 'today'; line: Display }
+
+
 /** W6 6G2. The check before retiring: what it holds, what is in flight, routines that switch off, who can take over. */
 
 
@@ -1084,25 +1057,14 @@ export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-ne
 
 
 /** proposalId (4B3): on the reply to a request on the floor, the proposal it raised to Today (row subject proposal:<id>). */
-export interface AgentMessageView { id: string; at: string; from: 'owner' | 'agent' | 'chausar'; parts: ChatPart[]; suggestion?: AgentSuggestion; answered?: { runId: string }; proposalId?: string }
-export interface AgentProposalView {
-  id: string; at: string; agent: string; kind: 'instruction' | 'note' | 'import'; status: 'drafted' | 'accepted' | 'rejected' | 'stale';
-  quote: string; title: Display; appliesTo: Display | null; diff: DiffLine[]; fromVersion: number | null; toVersion: number | null;
-  note: { text: string; scope: AgentNoteScope } | null; digest: string; line: Display | null;
-  /** C7: an offer the agent made after an edited sign-off, with who offered it and after which approval. */
-  offered?: Display;
-}
-export interface AgentRunItem { runId: string; at: string; purpose: Display; state: RunState; done: number; total: number; steps: RunStep[]; recalled: { id: string; text: string; forgotten?: boolean }[] }
 
-export interface AgentThreadView {
-  agent: { id: string; name: string; role: string }; items: AgentThreadItem[];
-  waiting: { runId: string; rowId: string; question: Display } | null; more: boolean; consent: ChatConsentView;
-  /** W6 6G2: set while the agent is retired; the thread is read only. */
-  retired?: { at: string; line: Display };
-}
 
-export interface StandingOrderView { stepId: string; step: Display; text: string; since: number; quote: string; at: string }
-export interface AgentNoteView { id: string; scope: AgentNoteScope; load: AgentNoteLoad; text: string; source: Display; captured: string; hash: string }
+
+
+
+
+
+
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget. */
 export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
 
@@ -1115,31 +1077,28 @@ export type PlaybookCheckId = 'no-numeric-prose' | 'figures-resolve' | 'required
  * hash is the digest venture.agents.version.undo takes) or null; rebuildDue when the next run or change builds a new
  * version first; the agent's own steps with their guidance and check ids; and what Undo would do now, or null.
  */
-export interface StandingPlaybookView { id: string; version: number; hash: string; origin: 'plan' | 'improvement' | 'owner'; at: string }
-export interface StandingStepView { stepId: string; title: Display; guidance: string[]; checks: PlaybookCheckId[] }
+
+
 
 
 
 /** 4C1 Chats and proposals. */
-export type ProposalKind = 'brief-agent' | 'start-run' | 'start-work' | 'draft-invoice' | 'draft-reminder' | 'quote' | 'outreach-draft' | 'next-step';
+
 
 /** what (4C2 review): the step's own line; line says where it stands. */
-export interface ProposalView { id: string; at: string; kind: ProposalKind; status: ProposalStatus; title: Display; line: Display; what: Display; agent: string | null; rowId: string | null; digest: string; secondAsk: boolean }
+
 /** 4C2 review: each receipted figure lastLine states, exactly as written there, at its offset in UTF-16 code units. */
-export interface ChiefLineAmount { text: Display; start: number; length: number; receiptId: string }
+
 /**
  * W6 6G1 (D42): state is the chat's one state; snoozedUntil while snoozed; settled says when and whether the owner or
  * the quiet days settled it; waiting: a step or the chief's question waits for the owner, so it is never hidden.
  */
-export interface ChiefThreadSummary {
-  id: string; title: string; pinned: boolean; lastAt: string; lastLine: Display; amounts: ChiefLineAmount[]; unread: number;
-  state: ChiefThreadState; snoozedUntil: string | null; settled: { at: string; by: 'owner' | 'auto' } | null; waiting: boolean;
-}
+
 /** W6 6G1. */
 
 
-export interface ChiefSnoozeOption { id: ChiefSnoozePreset; until: string }
-export interface ChiefThreadStateInput { threadId: string; state: ChiefThreadState; preset?: ChiefSnoozePreset; until?: string }
+
+
 /** W6 6G1: undo is the request that puts the chat back exactly; line is the engine's words. */
 
 
@@ -1173,23 +1132,14 @@ export interface LayoutChangeResult { layout: LayoutView; undo: LayoutRequest; l
  * consent (4C2 review): the one chat consent as it stands; the screen shows this text and agrees by this digest.
  * settled (W6 6G1): the archive, latest settled first; settleAfterDays: the owner's quiet days (0 is never).
  */
-export interface ChiefThreadsView {
-  groups: { key: 'pinned' | 'today' | 'this-week' | 'last-week' | 'earlier' | 'snoozed'; label: Display; threads: ChiefThreadSummary[] }[]; consent: ChatConsentView;
-  settled: ChiefThreadSummary[]; settleAfterDays: number;
-}
+
 /** 4C2 review: the counts by code (4J14, Q21): each kind's records, and the new ones in each month (YYYY-MM), oldest first. */
-export interface ChiefCounted { entities: { kind: string; count: number }[]; months: { month: string; count: number }[] }
-export interface ChiefMessageView {
-  id: string; at: string; from: 'owner' | 'chief'; parts: ChatPart[]; proposals: ProposalView[];
-  routedTo: { agent: string; name: string } | null; worked: { label: Display; value: Display; receiptId: string }[]; dropped: Display[];
-  counted: ChiefCounted | null;
-  /** C5 task 5: Connect your AI, under an answer written with no AI. */
-  suggestion?: { kind: 'connect-ai' };
-}
+
+
 /** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
 
 
-export interface ChiefFit { wayId: string; line: Display; estimate: true }
+
 
 /** 4D1 to 4D3 the owner's network. */
 
@@ -1312,7 +1262,7 @@ export interface CodexSetupLite {
   state: 'trusted' | 'review' | 'refused' | 'none'; origin: 'operator' | 'bundled' | 'owner' | null;
   path: string | null; version: string | null; sha256: string | null; line: string;
 }
-export interface RoleModelView { agent: string; name: string; tiers: { tier: ModelTier; presetId: string; model: string | null; price: Display; usable: boolean }[] }
+
 
 /** 4I1 goals and the next best step. */
 
@@ -1518,21 +1468,14 @@ export interface NeedsListLite { family: { id: string; label: string } | null; n
 
 /** proposedBy: an agent's revision changes only scope and checks; items: each deliverable's and check's state (4J12). */
 
-export type RoutineSchedule =
-  | { kind: 'once'; at: string }
-  | { kind: 'interval'; everyMinutes: number; from: string }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
-  /** C4 task 32: one day of the month (1 to 28) at a time in a named zone. */
-  | { kind: 'monthly'; day: number; time: string; timeZone: string }
-  /** C7: a trigger: it starts on a confirmed event and only drafts. */
-  | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
+
 
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
-export interface RoutineView { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+
 /** C4 task 32: a ready routine from the plan (agents/routines.ts routineSuggestions). */
-export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
-export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
+
+
 
 
 
