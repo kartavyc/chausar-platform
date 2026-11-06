@@ -67,9 +67,13 @@ Read by: desktop (the Electron app), worker (its engine process), server (the lo
 | `CHAUSAR_SITE_FOLDER` | The absolute folder of the owner's website on this computer, which staged site edits apply to. | Unset: no site folder; site edits stay staged. | engine |
 | `CHAUSAR_TEST_DATABASE_DISPOSABLE` | Set to 1 to confirm the database-differential check may use a fresh, disposable local database. | Unset: that check refuses to run. | scripts |
 | `CHAUSAR_TEST_DATABASE_URL` (secret) | The disposable local PostgreSQL address for the database-differential check. | Unset: that check refuses to run. | scripts |
+| `CHAUSAR_UPDATES_DIRECTORY` | The folder for the daily update check: its state, the staged installer and the log. The desktop sets it inside its user data folder. | Unset: no daily update check runs. | desktop, worker |
+| `CHAUSAR_UPDATE_CHANNEL` | Which release channel the daily check reads, beta or stable. | Unset: the channel the owner kept, else the build's own. | desktop, worker |
+| `CHAUSAR_UPDATE_FEED` | The address of the signed update feed, from the build's package.json. | Unset: updates read as not set up. | desktop, worker |
 | `CHAUSAR_UPDATE_PUBLIC_KEY` | The publisher's PEM public key that update feeds are checked against; never taken from a model. | Unset: updates are not checked or offered. | engine, scripts |
 | `CHAUSAR_VAULT_DIRECTORY` | The folder that holds the business vaults; the desktop sets it to its own user data folder. | Unset: the data home (CHAUSAR_HOME/&lt;kind&gt;, else the per-user folder); a hand-started worker refuses. | desktop, worker, server, engine, scripts |
 | `CHAUSAR_VENTURE_GITHUB_REPLAY` | A recorded GitHub answers file for the demo, used only with replay on. | Unset: no GitHub replay. | hosted, engine |
 | `CHAUSAR_VENTURE_MODEL_REPLAY` | A recorded AI answers file for the demo, used only with replay on. | Unset: no AI replay. | hosted, engine |
 | `CHAUSAR_VENTURE_REPLAY` | Set to 1 (or pass --replay) in demo or --dev mode to answer from the recorded files. | Unset: off. | hosted, engine |
 | `CHAUSAR_VENTURE_RUNTIME` | Which venture runtime the hosted server uses; only local exists. | Unset: local. | hosted |
+| `CHAUSAR_WINDOWS_PUBLISHER` | The certificate name a Windows installer must be signed with before it may run by itself. | Unset: a Windows owner gets Show installer; nothing runs by itself. | desktop, worker |

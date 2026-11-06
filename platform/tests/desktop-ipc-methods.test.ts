@@ -105,7 +105,8 @@ test('desktop forwards the nine onboarding draft methods, right after venture.pr
 
 test('desktop forwards the two app preference methods, right after the custody methods (C3 added app.preferences)', async () => {
   const { APP_PREFERENCE_METHODS } = await import('../runtime/app-preferences.ts');
-  const at = METHODS.indexOf('workspace.custody.neverContactReset');
+  const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
+  const at = METHODS.indexOf(CUSTODY_METHODS.at(-1)!);
   assert.deepEqual(METHODS.slice(at + 1, at + 1 + APP_PREFERENCE_METHODS.length), [...APP_PREFERENCE_METHODS]);
   assert.deepEqual(validateRequest({ method: 'app.preferences.set', payload: { motion: 'off' } }), { method: 'app.preferences.set', payload: { motion: 'off' } });
   const { BOOTSTRAP_ONLY_METHODS } = await import('../runtime/server.ts');
@@ -113,7 +114,7 @@ test('desktop forwards the two app preference methods, right after the custody m
   assert.ok(!BOOTSTRAP_ONLY_METHODS.includes('app.preferences.get'));
 });
 
-test('desktop forwards the twelve custody methods, right after workspace.delete, in the contract order', async () => {
+test('desktop forwards the custody methods, right after workspace.delete, in the contract order', async () => {
   const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
   assert.equal(CUSTODY_METHODS.length, 16); // 4J6 added workspace.custody.neverContactReset; C4 added workspace.transfer.peek; C5 task 24 the three Drive methods; C6 added workspace.backups.inspect
   const at = METHODS.indexOf('workspace.delete');

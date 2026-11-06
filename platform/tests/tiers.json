@@ -24,6 +24,7 @@
     "platform/tests/conversation-gateway-completion-retention.test.ts",
     "platform/tests/conversation-history.test.ts",
     "platform/tests/desktop-main.test.ts",
+    "platform/tests/desktop-worker-restart-c5.test.ts",
     "platform/tests/durable-jobs.test.ts",
     "platform/tests/journal-execution.test.ts",
     "platform/tests/venture-build.test.ts",
