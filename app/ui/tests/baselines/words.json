@@ -27,7 +27,7 @@
     "money/margins": 70,
     "money/businesses": 110,
     "approve": 60,
-    "business/notifications": 200,
+    "business/notifications": 270,
     "business/reports": 180,
     "business/practice": 250,
     "business/routines": 70
@@ -58,7 +58,7 @@
     "money/margins": 80,
     "money/businesses": 120,
     "approve": 80,
-    "business/notifications": 220,
+    "business/notifications": 270,
     "business/reports": 180,
     "business/practice": 270,
     "business/routines": 80
