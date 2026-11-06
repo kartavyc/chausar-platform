@@ -63,8 +63,11 @@ async function build(t: any, overrides: Build = {}) {
     await mkdir(join(root, 'resources', 'app.asar.unpacked', 'node_modules', '@anthropic-ai', name), { recursive: true });
     await writeFile(join(root, 'resources', 'app.asar.unpacked', 'node_modules', '@anthropic-ai', name, 'package.json'), '{}');
   }
-  await mkdir(join(root, 'resources', 'app.asar.unpacked', 'platform', 'runtime'), { recursive: true });
-  await writeFile(join(root, 'resources', 'app.asar.unpacked', 'platform', 'runtime', 'worker.ts'), 'worker');
+  for (const file of spec.unpackedExtra ?? []) {
+    const path = join(root, 'resources', 'app.asar.unpacked', ...file.split('/'));
+    await mkdir(join(path, '..'), { recursive: true });
+    await writeFile(path, 'x');
+  }
   await writeFile(join(root, 'resources', 'app.asar'), asar(spec.archive));
   for (const file of spec.bundle) {
     const path = join(root, 'resources', 'app.asar.unpacked', 'app', 'engine', 'dist', ...file.split('/'));
@@ -95,12 +98,15 @@ test('a clean build has no problems and reports the size of each piece', async t
   for (const piece of ['codex', 'electron', '@anthropic-ai', '@duckdb', 'locales', 'app.asar.unpacked/platform', 'app.asar', 'app/engine/dist']) assert.equal(typeof contents.sizes[piece], 'number', piece);
   assert.equal(contents.sizes.locales, 9);
   assert.ok(contents.totalBytes > 2048);
-  assert.equal(contents.fileCount, 12);
+  assert.equal(contents.fileCount, 11);
   assert.equal(contents.sizes['app/engine/dist'], 18);
 });
 
 test('each problem is named', async t => {
   const cases: [Build, RegExp][] = [
+    [{ unpackedExtra: ['platform/runtime/worker.ts'] }, /engine source ships: platform\/runtime\/worker\.ts/],
+    [{ archive: { ...CLEAN.archive, 'platform/runtime/engine.ts': 'x' } }, /engine source ships: platform\/runtime\/engine\.ts/],
+    [{ archive: { ...CLEAN.archive, 'platform/runtime/venture/models/credential-contract.cjs': 'x', 'platform/helpers/analytics.py': 'x' } }, /engine source ships: platform\/helpers\/analytics\.py/],
     [{ locales: [...CLEAN.locales, 'ta.pak'] }, /locale ta is not one of en-US, en-GB, hi/],
     [{ locales: ['en-US.pak', 'hi.pak'] }, /locale en-GB is missing/],
     [{ anthropic: ['claude-agent-sdk', 'claude-agent-sdk-win32-x64'] }, /Claude Code program file: claude-agent-sdk-win32-x64/],

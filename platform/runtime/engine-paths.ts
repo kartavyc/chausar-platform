@@ -16,6 +16,11 @@ export function runtimeUrl(path: string): URL {
   return new URL(path, ROOT);
 }
 
+/** The build's own package.json: at the checkout's root from source, at the unpacked app's root in the bundle. */
+export function appMetadataUrl(): URL {
+  return runtimeUrl(FROM_SOURCE ? '../../package.json' : '../../../../package.json');
+}
+
 /** runtimeUrl as a file path. */
 export function runtimeFile(path: string): string {
   return fileURLToPath(runtimeUrl(path));

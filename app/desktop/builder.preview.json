@@ -32,10 +32,6 @@
     "!app/ui/vite.config.ts",
     "!app/ui/vitest.config.ts",
     "!app/desktop/icons/icon.icns",
-    "platform/runtime/**/*",
-    "platform/semantic-qualification/src/**/*",
-    "platform/semantic-qualification/package.json",
-    "platform/helpers/**/*",
     {
       "from": "app/engine/dist",
       "to": "app/engine/dist",
@@ -43,8 +39,8 @@
         "**/*"
       ]
     },
+    "platform/runtime/venture/models/credential-contract.cjs",
     "scripts/postgres-runtime.mjs",
-    "fixtures/**/*",
     "package.json",
     "node_modules/**/*",
     "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
@@ -52,10 +48,6 @@
   "asarUnpack": [
     "package.json",
     "node_modules/**/*",
-    "platform/runtime/**/*",
-    "platform/semantic-qualification/src/**/*",
-    "platform/semantic-qualification/package.json",
-    "platform/helpers/**/*",
     "scripts/postgres-runtime.mjs",
     "app/engine/dist/**/*"
   ],

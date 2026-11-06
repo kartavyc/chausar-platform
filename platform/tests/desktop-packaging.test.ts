@@ -372,7 +372,7 @@ test('the beta configuration: product Chausar, real data, unsigned NSIS per user
   assert.equal(beta.directories.output, 'release/beta');
   // electron-builder 26 lists every unpacked file of a mixed file set in one pattern, and @electron/asar refuses a
   // pattern over 64 KB (the first live build stopped there). Each folder that is unpacked whole is its own file set.
-  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
+  for (const folder of ['app/engine/dist']) {
     assert.ok(beta.files.some((entry: any) => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] })), folder);
     assert.ok(!beta.files.includes(`${folder}/**/*`), folder);
   }
@@ -402,7 +402,7 @@ test('beta checks refuse signing, publishing, the preview identity, other resour
     { ...beta, linux: { ...beta.linux, afterRemove: 'own-remove.sh' } },
     { ...beta, extraMetadata: { ...beta.extraMetadata, homepage: undefined } },
     { ...beta, directories: { output: '../outside' } },
-    { ...beta, files: (beta.files ?? []).map((entry: any) => entry?.from === 'platform/runtime' ? 'platform/runtime/**/*' : entry) },
+    { ...beta, files: (beta.files ?? []).map((entry: any) => entry?.from === 'app/engine/dist' ? 'app/engine/dist/**/*' : entry) },
   ];
   for (const config of variants) {
     const result = await desktopPackagePrerequisites({ root: await fixture(t, preview, config), plan: createDesktopPackagePlan({ mode: 'beta' }), environment: {} });

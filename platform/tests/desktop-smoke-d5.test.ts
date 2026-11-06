@@ -37,7 +37,7 @@ test('--packaged <dir> takes the packaged program and the worker inside that bui
     const parsed = parseSmokeArguments(['--packaged', build], { platform });
     assert.deepEqual(parsed, {
       packaged: resolve(build),
-      worker: join(resolve(build), 'resources', 'app.asar.unpacked', 'platform', 'runtime', 'worker.ts'),
+      worker: join(resolve(build), 'resources', 'app.asar.unpacked', 'app', 'engine', 'dist', 'runtime', 'worker.js'),
       packageJson: join(resolve(build), 'resources', 'app.asar.unpacked', 'package.json'),
     });
     assert.deepEqual(parseElectronSmokeArguments(['--packaged', build], { platform }), {

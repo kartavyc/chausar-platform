@@ -231,14 +231,16 @@ const onlyPinnedHook = config => {
 
 // D5: the installer trim (package-trim.mjs): three Chromium languages and no Claude Code program file.
 export { TRIM };
-// D7 task 6 (additive half): every build carries the engine bundle (scripts/bundle-engine.mjs) as its own file set,
-// unpacked, so the packaged worker can run as plain files. Its maps never ship. The engine source still ships beside it
-// until desktop main runs the bundle (D7 task 5, main lane).
+// D7 task 6: every build carries the engine bundle (scripts/bundle-engine.mjs) as its own file set, unpacked, so the
+// packaged worker runs as plain files. Its maps never ship, and neither does the engine source: desktop main runs the bundle
+// (engine-paths.cjs). The one engine file main still reads is the credential contract, kept inside the archive.
 export const ENGINE_BUNDLE = Object.freeze({
   fileSet: Object.freeze({ from: 'app/engine/dist', to: 'app/engine/dist', filter: Object.freeze(['**/*']) }),
   unpack: 'app/engine/dist/**/*',
   worker: 'app/engine/dist/runtime/worker.js',
   manifest: 'app/engine/dist/engine-manifest.json',
+  contract: 'platform/runtime/venture/models/credential-contract.cjs',
+  source: Object.freeze(['platform/runtime', 'platform/semantic-qualification', 'platform/helpers', 'fixtures']),
 });
 /** Every mode: the bundle as its own file set (never a glob in the main set), unpacked, and no maps. */
 export function validateEngineBundleConfig(config) {
@@ -246,6 +248,10 @@ export function validateEngineBundleConfig(config) {
   const own = files.some(entry => JSON.stringify(entry) === JSON.stringify(ENGINE_BUNDLE.fileSet));
   const glob = files.some(entry => typeof entry === 'string' && entry.replace(/^!/, '').startsWith('app/engine/'));
   if (!own || glob || !(config.asarUnpack ?? []).includes(ENGINE_BUNDLE.unpack)) throw new Error(`the package carries the engine bundle as its own file set (${ENGINE_BUNDLE.fileSet.from}) and unpacks it (${ENGINE_BUNDLE.unpack}); its maps never ship`);
+  const named = entry => (typeof entry === 'string' ? entry : entry?.from ?? '').replace(/^!/, '');
+  const shipped = [...files, ...(config.asarUnpack ?? [])].map(named).find(name => name !== ENGINE_BUNDLE.contract && (name === 'platform/**/*' || ENGINE_BUNDLE.source.some(source => name.startsWith(source))));
+  if (shipped) throw new Error(`the package carries the engine bundle, never the engine source (${shipped})`);
+  if (!files.includes(ENGINE_BUNDLE.contract) || (config.asarUnpack ?? []).includes(ENGINE_BUNDLE.contract)) throw new Error(`the package keeps the credential contract inside its archive (${ENGINE_BUNDLE.contract}): desktop main reads it`);
 }
 /** The receipt's line for the engine bundle, from its engine-manifest.json. */
 export function engineReceipt(manifest) {
@@ -273,12 +279,10 @@ function validatePreviewConfig(config) {
   for (const [key, targets] of Object.entries(expected)) {
     if (JSON.stringify(config[key]?.target) !== JSON.stringify(targets)) throw new Error(`preview ${key} targets must match the documented formats; Windows preview is ZIP only`);
   }
-  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'platform/runtime/**/*', 'fixtures/**/*', 'node_modules/**/*']) {
+  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'node_modules/**/*']) {
     if (!config.files?.includes(glob)) throw new Error(`preview package is missing ${glob}`);
   }
-  for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
-    if (!config.asarUnpack?.includes(glob)) throw new Error(`preview worker execution requires unpacked ${glob}`);
-  }
+  if (!config.asarUnpack?.includes('node_modules/**/*')) throw new Error('preview worker execution requires unpacked node_modules/**/*');
 }
 
 /** The files a preview or beta build leaves. electron-builder names an AppImage and a deb by their own architecture
@@ -312,14 +316,9 @@ export function validateBetaConfig(config) {
     if (!config.files?.includes(glob)) throw new Error(`beta package is missing ${glob}`);
   }
   // electron-builder 26 writes every unpacked file of a mixed file set into one pattern that @electron/asar refuses
-  // over 64 KB, so each folder unpacked whole is its own file set and adds one short entry.
-  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
-    if (!config.files?.some(entry => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] }))) throw new Error(`beta package carries ${folder} as its own file set`);
-    if (config.files.includes(`${folder}/**/*`)) throw new Error(`beta package lists ${folder} once, as its own file set`);
-  }
-  for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
-    if (!config.asarUnpack?.includes(glob)) throw new Error(`beta worker execution requires unpacked ${glob}`);
-  }
+  // over 64 KB, so a folder unpacked whole (the engine bundle) is its own file set and adds one short entry; every mode
+  // checks that (validateEngineBundleConfig).
+  if (!config.asarUnpack?.includes('node_modules/**/*')) throw new Error('beta worker execution requires unpacked node_modules/**/*');
 }
 
 async function dependencyPrerequisites(root, platform) {

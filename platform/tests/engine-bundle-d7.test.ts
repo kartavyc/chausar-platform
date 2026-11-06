@@ -91,6 +91,17 @@ test('the bundled worker, started by EngineHarness with plain Node, answers and 
   }
 });
 
+// D7 task 6: the bundle finds the build's package.json (chausarGoogleClientId and the like) at the root of the unpacked app.
+test('D7: the bundled engine-paths chunk finds the build metadata at the app root', async () => {
+  const chunk = (await readdir(runtime)).find(name => /^engine-paths-.*\.js$/.test(name))!;
+  const exported = Object.values(await import(pathToFileURL(join(runtime, chunk)).href)) as any[];
+  const helpers = new Set(['runtimeUrl', 'runtimeFile', 'runtimeEntry', 'appMetadataUrl']);
+  for (const value of exported) if (typeof value === 'function' && !helpers.has(value.name)) value();
+  const metadata = exported.find(value => typeof value === 'function' && value.name === 'appMetadataUrl') as () => URL;
+  // In the package the bundle is app/engine/dist, so three folders up from it is the unpacked app's root.
+  assert.equal(fileURLToPath(metadata()), join(out, '..', '..', '..', 'package.json'));
+});
+
 // D7 fix (review 1, MEDIUM 4): the bundle's own engine-paths chunk names the bundled .js entries, which exist, and finds
 // the files copied beside them; were it to think it runs from source, it would name .ts files the package does not hold.
 test('D7 fix: the bundled engine-paths chunk starts its bundled .js entries and finds its copied files', async () => {
@@ -100,7 +111,7 @@ test('D7 fix: the bundled engine-paths chunk starts its bundled .js entries and 
   const runtimeEntry = named('runtimeEntry'), runtimeFile = named('runtimeFile');
   assert.ok(runtimeEntry && runtimeFile, 'the chunk exports runtimeEntry and runtimeFile');
   // The chunk's body runs lazily: its importers call its one other export (rolldown's init) first, so the test does too.
-  const helpers = new Set(['runtimeUrl', 'runtimeFile', 'runtimeEntry']);
+  const helpers = new Set(['runtimeUrl', 'runtimeFile', 'runtimeEntry', 'appMetadataUrl']);
   for (const value of exported) if (typeof value === 'function' && !helpers.has(value.name)) value();
   for (const name of ['analytics-worker', 'venture/agent-runtime/stdio-bridge']) {
     const entry = runtimeEntry(name);
