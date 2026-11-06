@@ -730,12 +730,15 @@ test('launch stages: the owner sees two stages, Practice and Live, and no retire
   const record = () => listRecords(env.store.read(), 'venture-record')[0];
   assert.equal(record().launchStage, 'approve-each');
   assert.equal(record().status, 'live');
+  assert.equal((status as LaunchStatus & { liveSince?: string }).liveSince, record().updatedAt);
+  assert.equal((await call<LaunchStatus & { liveSince?: string }>(env, 'venture.launch.status')).liveSince, record().updatedAt);
   // Moving down is always allowed, even with no AI connected.
   env.models.main = 'template';
   status = await call<LaunchStatus>(env, 'venture.launch.advance', { to: 'practice' });
   assert.equal(status.stage, 'practice');
   assert.equal(record().launchStage, 'rehearsal');
   assert.equal(record().status, 'rehearsal');
+  assert.equal((status as LaunchStatus & { liveSince?: string | null }).liveSince, null);
   assert.equal(events(env).filter(name => name === 'launch-stage-changed').length, 2);
   // The fake engine pins the same words (app/ui/tests/engine/fake-launch-w6.test.ts).
   assert.deepEqual([REASON_CONNECT_AI, REASON_ACCEPT_PLAN, PRACTICE_LINE, LIVE_LINE], ['Connect your AI first.', 'Accept your plan first.', 'Real orders get practice drafts that never reach clients.', 'You approve each draft before it reaches a client.']);

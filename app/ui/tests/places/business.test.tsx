@@ -98,7 +98,7 @@ describe('Business: plan and playbook', () => {
   it("accepts a draft plan through its row on Today's queue", async () => {
     const engine = await ledgerline();
     start('#/business/plan', engine);
-    const waiting = await region('Waiting on you');
+    const waiting = screen.getByRole('main');
     const row = (await within(waiting).findByText('Your plan is ready. Read it.')).closest('li')!;
     const accept = within(row).getByRole('button', { name: 'Accept' }) as HTMLButtonElement;
     expect(accept.disabled).toBe(false);
@@ -115,7 +115,7 @@ describe('Business: plan and playbook', () => {
     fireEvent.change(line, { target: { value: 'Audio gear reviews every Friday, with sponsor slots.' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
     await waitFor(() => expect(screen.getByText(/Version 3, not accepted yet/)).toBeTruthy());
-    const waiting = await region('Waiting on you');
+    const waiting = screen.getByRole('main');
     expect(within(waiting).getByText('Your plan changed. Read it, then accept it.')).toBeTruthy();
     const queue = (await engine.request('venture.queue.list', { scope: 'current' })) as QueueList;
     expect(queue.rows.some((r) => r.viewRef?.kind === 'plan' && r.viewRef.id === 'bp-lumen-3')).toBe(true);
@@ -225,7 +225,7 @@ describe('Business: prices', () => {
     const { engine } = start('#/business/prices');
     const before = ((await engine.request('venture.queue.list', {})) as QueueList).rows.map((row) => row.id);
     const shorts = await offerRow('Shorts from your long video');
-    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    fireEvent.change(within(shorts).getByLabelText('New price'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
     await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000'));
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
@@ -254,7 +254,7 @@ describe('Business: prices', () => {
     const shorts = await offerRow('Shorts from your long video');
     // C4 task 33: Save on this page applies at once, so this row is a price from elsewhere (B4 task 7).
     await act(async () => { await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '12000' }] } }); });
-    const waiting = await region('Waiting on you');
+    const waiting = screen.getByRole('main');
     const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
     const undo = await within(waiting).findByRole('button', { name: 'Undo' });
@@ -265,7 +265,7 @@ describe('Business: prices', () => {
     await waitFor(() => { expect(asked).toContain('venture.queue.list'); expect(asked).toContain('venture.blueprint.get'); });
     expect(asked).toContain('venture.queue.undo');
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('draft'));
-    const again = await region('Waiting on you');
+    const again = screen.getByRole('main');
     await waitFor(() => expect(again.textContent).toContain('You took back the new price for Shorts from your long video.'));
     expect(again.querySelector('[data-decided]')).toBeNull();
     const back = (await within(again).findByText('New price for Shorts from your long video')).closest('li')!;
@@ -286,7 +286,7 @@ describe('Business: prices', () => {
     const shorts = await offerRow('Shorts from your long video');
     // C4 task 33: Save on this page applies at once, so this row is a price from elsewhere (B4 task 7).
     await act(async () => { await engine.request('venture.blueprint.update', { patch: { offers: [{ id: 'offer_shorts', unitPrice: '12000' }] } }); });
-    const waiting = await region('Waiting on you');
+    const waiting = screen.getByRole('main');
     const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
     await waitFor(() => expect(waiting.querySelector('[data-decided]')).not.toBeNull());
@@ -302,7 +302,7 @@ describe('Business: prices', () => {
   it('C4 task 33: Undo says when it is too late, once a quote used the new price', async () => {
     const { engine } = start('#/business/prices');
     const shorts = await offerRow('Shorts from your long video');
-    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    fireEvent.change(within(shorts).getByLabelText('New price'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
     const decided = await screen.findByText('You set the price of Shorts from your long video to ₹12,000 a project.');
     await act(async () => { await engine.request('venture.price.quote', { offerId: 'offer_shorts', quantity: '3' }); });
@@ -358,9 +358,11 @@ describe('Business: website build', () => {
   });
 
   it('follows a repo: the read-only key is sent once, cleared, and never shown', async () => {
-    const engine = await ledgerline();
+    const engine = new FakeEngine();
+    await engine.request('venture.build.brief', {});
     const spy = vi.spyOn(engine, 'request');
     start('#/business/build', engine);
+    await act(async () => { fireEvent.click(await screen.findByText('For your developer', { selector: 'summary' })); });
     fireEvent.change(await screen.findByLabelText('Your app repo on GitHub'), { target: { value: 'ledgerline/site' } });
     const key = screen.getByLabelText('Read-only key, for a private repo') as HTMLInputElement;
     expect(key.type).toBe('password');
@@ -373,8 +375,10 @@ describe('Business: website build', () => {
   });
 
   it('links to the engine\'s page for making a read-only GitHub key', async () => {
-    const engine = await ledgerline();
+    const engine = new FakeEngine();
+    await engine.request('venture.build.brief', {});
     start('#/business/build', engine);
+    await act(async () => { fireEvent.click(await screen.findByText('For your developer', { selector: 'summary' })); });
     const link = await screen.findByRole('link', { name: /Create a read-only key/ });
     expect(link.getAttribute('href')).toMatch(/^https:\/\/github\.com\/settings\/personal-access-tokens\/new\?/);
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
@@ -704,7 +708,7 @@ describe('Business: edits to the website', () => {
   /** Opens the stage form and stages one edit, returning the section. */
   async function stage(file: string, summary: string, text: string) {
     const section = await screen.findByRole('region', { name: 'Edits to your site' });
-    fireEvent.click(within(section).getByRole('button', { name: 'Stage an edit' }));
+    fireEvent.click(within(section).getByRole('button', { name: 'Suggest a change' }));
     fireEvent.change(within(section).getByLabelText('File'), { target: { value: file } });
     fireEvent.change(within(section).getByLabelText('What it changes'), { target: { value: summary } });
     fireEvent.change(within(section).getByLabelText('New text'), { target: { value: text } });

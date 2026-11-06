@@ -82,10 +82,10 @@ describe('Work > Ideas is its own page (C1 task 5)', () => {
 });
 
 describe('Work > Ideas (5A3, P13)', () => {
-  it('shows the pipeline one column per stage, each idea with where it came from and one next step', async () => {
+  it('groups the small pipeline by filled stages, each idea with where it came from and one next step', async () => {
     start();
     expect(await screen.findByRole('region', { name: 'Ideas' })).toBeTruthy();
-    for (const stage of ['Inbox', 'Triage', 'Drafted', 'Made', 'Published']) expect(column(stage)).toBeTruthy();
+    for (const stage of ['Inbox', 'Triage', 'Published']) expect(column(stage)).toBeTruthy();
     const inbox = card('A behind-the-scenes short of a recording day');
     expect(within(column('Inbox')).getByRole('article')).toBe(inbox);
     expect(inbox.textContent).toContain('From: My own idea');
@@ -98,7 +98,8 @@ describe('Work > Ideas (5A3, P13)', () => {
     const published = card('A reel on how we price a 30-minute video');
     expect(published.textContent).toContain('Grade it from 27 Oct 2026.');
     expect(within(published).queryByRole('group', { name: 'How did it do?' })).toBeNull();
-    expect(within(column('Drafted')).getByText('Nothing here.')).toBeTruthy();
+    expect(screen.queryByRole('region', { name: /^Drafted/ })).toBeNull();
+    expect(document.querySelector('[data-ideas-layout="list"]')).toBeTruthy();
     // C1 task 5: Ideas is its own page, with a way back to Work, not a filter.
     expect(screen.getByRole('heading', { level: 1, name: 'Ideas' })).toBeTruthy();
     expect(document.querySelector('main [data-back]')!.textContent).toBe('Work');

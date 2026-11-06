@@ -31,7 +31,7 @@ function start(zone?: string, intercept: Partial<Record<MethodName, (params: unk
 }
 
 async function drillDay(): Promise<string> {
-  const tile = await screen.findByRole('region', { name: 'Drills' });
+  const tile = await screen.findByRole('region', { name: 'Safety checks' });
   await waitFor(() => expect(tile.querySelector('[data-drill-run]')).not.toBeNull());
   return within(tile).getByText(/^Run on /).textContent ?? '';
 }
