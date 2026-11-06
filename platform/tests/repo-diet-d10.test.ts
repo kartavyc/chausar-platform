@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -165,3 +165,7 @@ test('task 6: the dead-code review starts from every shipped surface and the tes
   assert.match(read('.github/workflows/nightly.yml'), /npm run knip -- --no-exit-code/);
 });
 
+
+test('task 7: reviewed unused UI and playbook files stay removed', () => {
+  for (const path of ['app/ui/src/parts/JobList.tsx', 'app/ui/src/parts/JobList.module.css', 'app/ui/src/places/stub.tsx', 'platform/runtime/venture/playbooks/it-triage/tile.ts', 'platform/runtime/venture/playbooks/monitored-data/tile.ts', 'platform/runtime/venture/playbooks/online-seller/prepare-run.ts']) assert.equal(existsSync(`${root}/${path}`), false, path);
+});

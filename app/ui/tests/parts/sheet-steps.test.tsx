@@ -5,9 +5,8 @@ import { Sheet } from '../../src/parts/Sheet';
 import { Steps } from '../../src/parts/Steps';
 import { RunSheetView } from '../../src/parts/RunSheet';
 import { evidenceLabel } from '../../src/parts/evidence';
-import { JobList } from '../../src/parts/JobList';
 import { RUNS } from '../../src/engine/fixtures';
-import { EngineError, type RunDetail, type RunSummary } from '../../src/engine/types';
+import { EngineError, type RunDetail } from '../../src/engine/types';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { preprocessCSS, resolveConfig } from 'vite';
@@ -237,38 +236,6 @@ describe('RunSheet: run controls (W4 4F3)', () => {
     expect(tools[2]!.textContent).toContain('cancelled');
     for (const tool of tools) expect(tool.querySelector('svg')).not.toBeNull();
     expect(screen.getByText('Calls now: 1 done, 1 running, 1 failed')).toBeTruthy();
-  });
-});
-
-describe('JobList', () => {
-  const summaries: RunSummary[] = RUNS.map(({ steps: _s, question: _q, error: _e, ...summary }) => summary);
-  it('lists active work above previous work, with per-stage progress or the words for no step count', () => {
-    const { container } = render(<JobList runs={summaries} onOpen={() => {}} />);
-    const sections = [...container.querySelectorAll('section')];
-    expect(sections.map((s) => s.querySelector('h2')!.textContent)).toEqual(['Working now', 'Previous']);
-    expect(sections[0]!.textContent).toContain('Cutting shorts from episode 13');
-    expect(sections[0]!.querySelector('progress')!.getAttribute('max')).toBe('5');
-    // 3B5b's plain words for unmeasured progress (ring.indeterminate) replaced "indeterminate".
-    expect(sections[0]!.textContent).toContain('Working, no step count yet');
-    expect(sections[0]!.textContent).toContain('Waiting on you');
-    expect(sections[1]!.textContent).toContain('Matched September bank lines to invoices');
-  });
-
-  it('a failed job shows its failure text and Run again; opening a job passes it up', () => {
-    const onRunAgain = vi.fn();
-    const onOpen = vi.fn();
-    render(<JobList runs={summaries} onOpen={onOpen} onRunAgain={onRunAgain} />);
-    // 4Z2: the engine sends no result line on a failed run; the row says it failed.
-    expect(screen.getByText('This job failed.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
-    expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Cutting shorts from episode 13' }));
-    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ runId: '31' }), expect.anything());
-  });
-
-  it('says so when nothing runs', () => {
-    render(<JobList runs={[]} onOpen={() => {}} />);
-    expect(screen.getByText('Nothing is running.')).toBeTruthy();
   });
 });
 

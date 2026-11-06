@@ -23,7 +23,7 @@ src/text                       en/*.json, hi/*.json (common.json plus one file p
 src/engine                     types.ts (shared contract), client.ts, events.ts, context.tsx, fake*.ts, fixtures*.ts
 src/shell                      App, Rail, BusinessMenu, routes, navigation, keys, sheets, places registry
 src/parts                      Row, ApprovalRow, Change, Receipt, ModelEstimate, Button, Sheet, RunSheet, Steps,
-                               JobList, EmptyState, Field, Gate, Provenance, ConnectorLabel, StatusLine, PageTitle
+                               EmptyState, Field, Gate, Provenance, ConnectorLabel, StatusLine, PageTitle
 src/places/<place>/index.tsx   one folder per place, exporting Place (and optionally sheets)
 tests                          one file per area; parts, shell, engine, text, tokens, source rules, axe (a11y.test.tsx),
                                text contrast from the tokens (contrast.test.ts), the desktop IPC allowlist
