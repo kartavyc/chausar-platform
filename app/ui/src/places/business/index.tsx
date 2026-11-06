@@ -108,7 +108,7 @@ export function Place() {
   if (narrow && !asked) {
     return (
       <>
-        <PageTitle title={t('place.business')} line={venture.data?.venture.workingName} />
+        <PageTitle title={t('place.business')} />
         <SettingsList groups={groups} current={null} />
       </>
     );
@@ -120,7 +120,7 @@ export function Place() {
       {!narrow && <div className={s.settingsList}><SettingsList groups={groups} current={page.sub} /></div>}
       <div className={s.settingsPage}>
         {narrow && <a className={s.settingsBack} href={SETTINGS_HREF} data-settings-back="">{t('business.settings.back')}</a>}
-        <PageTitle title={t(page.title)} line={venture.data?.venture.workingName} />
+        <PageTitle title={t(page.title)} />
         {page.sub !== 'keep' && <StorageNotice />}
         <View key={page.sub} />
       </div>

@@ -11,12 +11,13 @@ import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './KnowledgeView.module.css';
 // W6 6G4: the business's dated facts (since when, what they replaced, source, who may see them).
-import { FactsBody } from '../clients/FactsSection';
+import { AddFact, FactRow } from '../clients/FactsSection';
 import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { Fold } from '../../parts/Fold';
 
-type Kind = KnowledgeSourceInput['kind'];
-const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work'];
+type Kind = KnowledgeSourceInput['kind'] | 'fact';
+const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work', 'fact'];
 type Tested = { hits: { sourceId: string; title: string; line: string }[]; line: string } | null;
 
 /**
@@ -33,6 +34,8 @@ export function KnowledgeView() {
   const t = useT();
   const engine = useEngine();
   const view = useResource('venture.knowledge.list', {});
+  const memory = useResource('venture.memory.list', { subject: 'business' });
+  const zone = useOwnerZone();
   const [asking, setAsking] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -58,11 +61,11 @@ export function KnowledgeView() {
   if (!data) return <LoadingPlace shape="settings" />;
   return (
     <div className={b.page}>
-      <div className={b.split}>
-        <TileSection title={t('business.knowledge.sources')} meta={data.sources.length ? t('business.knowledge.count', { count: data.sources.length }) : undefined}>
+        <TileSection title={t('business.knowledge.knows')}>
           <p className={b.line}>{data.line}</p>
           <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said}</ResultLine>
-          {data.sources.length === 0 ? <p className={b.note}>{t('business.knowledge.none')}</p> : (
+          {memory.error && <p className={b.problem} role="alert">{messageOf(memory.error)}</p>}
+          {data.sources.length === 0 && memory.data?.facts.length === 0 ? <p className={b.note}>{t('business.knowledge.none')}</p> : (
             <ul className={s.sources}>
               {data.sources.map((source) => (
                 <Source
@@ -75,12 +78,19 @@ export function KnowledgeView() {
                   onYes={() => void remove(source)}
                 />
               ))}
+              {memory.data?.facts.map(fact => <FactRow key={fact.id} fact={fact} onDone={line => { setSaid(line); memory.reload(); }} onFailed={error => setProblem(messageOf(error))} />)}
             </ul>
           )}
+          {!!memory.data?.earlier.length && <Fold summary={t('crm.facts.earlier')}>
+            <ul className={s.sources} data-earlier="">
+              {memory.data.earlier.map(fact => <li key={fact.id}>
+                <p data-content="">{fact.topic}{': '}{fact.text}</p>
+                <p className={b.note}>{t('crm.facts.since', { day: dayOf(fact.since, zone) })}{fact.replacedAt && `, ${t('crm.facts.replacedOn', { day: dayOf(fact.replacedAt, zone) })}`}</p>
+              </li>)}
+            </ul>
+          </Fold>}
+          <AddSource onAdded={(line) => { setSaid(line); view.reload(); memory.reload(); }} />
         </TileSection>
-        <div className={b.column}>
-          <TileSection title={t('crm.facts')}><FactsBody subject="business" /></TileSection>
-          <AddSource onAdded={(line) => { setSaid(line); view.reload(); }} />
           <TestQuestion />
           {data.requests.length > 0 && (
             <TileSection title={t('business.knowledge.requests')}>
@@ -89,8 +99,6 @@ export function KnowledgeView() {
               </ul>
             </TileSection>
           )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -144,6 +152,7 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
   const workChoices = (runs.data ?? []).filter((run) => !run.practice && (run.status === 'accepted' || run.status === 'edited'));
 
   const input = (): KnowledgeSourceInput | null => {
+    if (kind === 'fact') return null;
     if (kind === 'text') return title.trim() && text.trim() ? { kind, title: title.trim(), text: text.trim() } : null;
     if (kind === 'link') return url.trim() ? { kind, url: url.trim() } : null;
     if (kind === 'file') return pick ? { kind, uploadId: pick } : null;
@@ -172,8 +181,7 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
   }
 
   return (
-    <TileSection title={t('business.knowledge.add')}>
-      <form className={s.form} onSubmit={(event) => void add(event)}>
+    <Fold summary={t('business.knowledge.addButton')}>
         <fieldset className={s.kinds}>
           <legend className="sr-only">{t('business.knowledge.kindLabel')}</legend>
           {KINDS.map((one) => (
@@ -183,6 +191,7 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
             </label>
           ))}
         </fieldset>
+      {kind === 'fact' ? <AddFact subject="business" onDone={onAdded} onFailed={error => setProblem(messageOf(error))} /> : <form className={s.form} onSubmit={(event) => void add(event)}>
         {kind === 'text' && (
           <>
             <Field label={t('business.knowledge.title')} value={title} onChange={(event) => setTitle(event.currentTarget.value)} />
@@ -197,12 +206,12 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
           <Choice label={t('business.knowledge.work')} none={t('business.knowledge.noWork')} value={pick} onChange={setPick} options={workChoices.map((run) => ({ id: run.id, label: run.deliverable?.title ?? t('business.knowledge.workOn', { day: dayOf(run.verdict?.at ?? run.at, zone) }) }))} loaded={Boolean(runs.data)} />
         )}
         {kind === 'past-work' && <p className={b.note}>{t('business.knowledge.workNote')}</p>}
-        {problem && <p className={b.problem} role="alert">{problem}</p>}
         <div className={s.buttons}>
           <Button size="sm" variant="primary" type="submit" disabled={busy} disabledReason={ready ? undefined : t(`business.knowledge.need.${kind}`)}>{t('business.knowledge.addButton')}</Button>
         </div>
-      </form>
-    </TileSection>
+      </form>}
+      {problem && <p className={b.problem} role="alert">{problem}</p>}
+    </Fold>
   );
 }
 

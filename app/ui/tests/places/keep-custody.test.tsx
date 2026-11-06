@@ -31,10 +31,17 @@ function start(hash: string, engine = new FakeEngine(), transport?: Transport, e
 const sent = (calls: Calls, method: string) => calls.filter(([m]) => m === method).map(([, p]) => p);
 const fold = async (summary: string | RegExp) => {
   const node = (await screen.findByText(summary, { selector: 'summary' })).closest('details')!;
-  if (!node.open) fireEvent.click(within(node).getByText(summary, { selector: 'summary' }));
+  if (!node.open) await press(within(node).getByText(summary, { selector: 'summary' }));
   return node;
 };
 async function press(button: HTMLElement) { await act(async () => { fireEvent.click(button); }); }
+async function allBackups(count?: number) {
+  const section = await screen.findByRole('region', { name: 'Backups' });
+  const older = within(section).queryByText(/^\d+ older backups$/, { selector: 'summary' });
+  if (older && !older.closest('details')!.open) await press(older);
+  if (count !== undefined) await waitFor(() => expect(within(section).getAllByRole('listitem')).toHaveLength(count));
+  return section;
+}
 async function sitara() {
   const engine = new FakeEngine({ closed: true });
   await engine.request('workspace.open', { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE });
@@ -61,7 +68,7 @@ afterEach(() => {
 
 it('desktop file custody is beta-grade', async () => {
   const desktop = start('#/business/keep', new FakeEngine(), 'desktop');
-  await fold('All backups, 3');
+  await allBackups(3);
   expect(sent(desktop.calls, 'workspace.custody.get').length).toBeGreaterThan(0);
   expect(screen.queryByText(/experimental storage/)).toBeNull();
 });
@@ -69,7 +76,7 @@ it('desktop file custody is beta-grade', async () => {
 describe('Keep this business: all backups and their restore', () => {
   it('lists every backup with its kind and how it opens; a restore asks first and sends nothing until confirmed', async () => {
     const { calls } = start('#/business/keep');
-    const all = await fold('All backups, 3');
+    const all = await allBackups(3);
     const rows = within(all).getAllByRole('listitem');
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringContaining('Automatic. Opens the way your business opens now.'),
@@ -88,14 +95,14 @@ describe('Keep this business: all backups and their restore', () => {
     await press(within(rows[0]!).getByRole('button', { name: 'Restore this copy' }));
     expect(sent(calls, 'workspace.backups.restore')).toEqual([{ file: 'chausar-lumen-auto.backup', confirmed: true }]);
     // The business is read again from the engine: the safety copy of how it was is now the newest backup.
-    const after = await fold('All backups, 4');
+    const after = await allBackups(4);
     expect(within(after).getAllByRole('listitem')[0]!.textContent).toContain('Before a change.');
   });
 
   it("a refused restore shows the engine's words and keeps the business as it is", async () => {
     const engine = new FakeEngine();
     const { calls } = start('#/business/keep', engine);
-    const all = await fold('All backups, 3');
+    const all = await allBackups(3);
     const row = within(all).getAllByRole('listitem')[1]!;
     const original = engine.request.bind(engine);
     vi.spyOn(engine, 'request').mockImplementation(async (method: string, params?: unknown) => {
@@ -268,7 +275,7 @@ describe('C4 task 36: backups and export', () => {
     await press(backupNow);
     expect(sent(calls, 'workspace.backups.create')).toHaveLength(1);
     expect((await screen.findByText('Backed up just now')).closest('[role="status"]')).not.toBeNull();
-    const all = await fold(/^All backups, \d$/);
+    const all = await allBackups();
     const rows = within(all).getAllByRole('listitem');
     expect(rows.at(-1)!.textContent).toContain('47 KB');
     await press(within(rows[0]!).getByRole('button', { name: 'Restore' }));
@@ -413,7 +420,7 @@ describe('Keep this business: secrets', () => {
 describe('Keep this business: what is in a backup, and what a restore takes back', () => {
   it("\"What's in it\" is closed at rest and asks the engine once, when opened", async () => {
     const { calls } = start('#/business/keep');
-    const all = await fold('All backups, 3');
+    const all = await allBackups(3);
     expect(sent(calls, 'workspace.backups.inspect')).toEqual([]);
     const row = within(all).getAllByRole('listitem')[0]!;
     const inside = within(row).getByText("What's in it", { selector: 'summary' }).closest('details')!;
@@ -425,7 +432,7 @@ describe('Keep this business: what is in a backup, and what a restore takes back
 
   it('the restore ask leads with what changed since, before the button, and the restore still makes its safety copy', async () => {
     const { calls } = start('#/business/keep');
-    const all = await fold('All backups, 3');
+    const all = await allBackups(3);
     const row = within(all).getAllByRole('listitem')[0]!;
     await press(within(row).getByRole('button', { name: 'Restore' }));
     const change = await within(row).findByText(/^Since .*: 2 orders and 1 invoice added, 1 client changed\. Restoring takes these back\. How it is now is saved as a backup first\.$/);
@@ -433,7 +440,7 @@ describe('Keep this business: what is in a backup, and what a restore takes back
     expect(change.compareDocumentPosition(go) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await press(go);
     expect(sent(calls, 'workspace.backups.restore')).toEqual([{ file: 'chausar-lumen-auto.backup', confirmed: true }]);
-    const after = await fold('All backups, 4');
+    const after = await allBackups(4);
     expect(within(after).getAllByRole('listitem')[0]!.textContent).toContain('Before a change.');
   });
 
@@ -441,7 +448,7 @@ describe('Keep this business: what is in a backup, and what a restore takes back
     const engine = new FakeEngine();
     await engine.request('workspace.backups.create', {});
     start('#/business/keep', engine);
-    const all = await fold('All backups, 4');
+    const all = await allBackups(4);
     const row = within(all).getAllByRole('listitem')[0]!;
     await press(within(row).getByRole('button', { name: 'Restore' }));
     expect(await within(row).findByText('Nothing changed since then. How it is now is saved as a backup first.')).toBeTruthy();
