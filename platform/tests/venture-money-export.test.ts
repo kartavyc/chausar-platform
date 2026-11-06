@@ -318,3 +318,20 @@ test('4J20: both names are checked before either is written: a new CSV beside an
     assert.deepEqual(await readdir(dir), []);
   });
 });
+
+// C5 task 16: the CA's email and WhatsApp number are remembered, newest wins, set inside the app only.
+test('accountant: remembered, newest wins, checked; a phone cannot set it', async () => {
+  const { setup, code, owner, phone } = await import('./venture-views-env.ts');
+  const { handlers } = await import('../runtime/venture/money/index.ts');
+  const call = (env: any, method: string, payload: unknown, ctx = owner) => (handlers as any)[method](env.deps, ctx, payload);
+  const env = await setup();
+  assert.deepEqual(await call(env, 'venture.accountant.get', {}), { email: null, whatsapp: null, at: null });
+  const saved = await call(env, 'venture.accountant.set', { email: 'ca@example.com', whatsapp: '+91 98765 43210' });
+  assert.equal(saved.email, 'ca@example.com');
+  assert.equal(saved.whatsapp, '919876543210');
+  assert.equal((await call(env, 'venture.accountant.get', {})).email, 'ca@example.com');
+  await assert.rejects(call(env, 'venture.accountant.set', { email: 'not an address' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.accountant.set', { whatsapp: '12' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.accountant.set', { email: 'ca@example.com' }, phone), code('APP_APPROVAL_REQUIRED'));
+  assert.equal((await call(env, 'venture.accountant.set', { whatsapp: '919876543210' })).email, null, 'what is left out is forgotten');
+});

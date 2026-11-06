@@ -8,7 +8,8 @@
 
 import { useId, useState } from 'react';
 import { useT } from '../../text';
-import { useEngine } from '../../engine/context';
+import { useEngine, useResource } from '../../engine/context';
+import { Field } from '../../parts/Field';
 import { Button } from '../../parts/Button';
 import { Sheet } from '../../parts/Sheet';
 import type { ShareLink } from '../../engine/types';
@@ -61,6 +62,7 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
 
   return (
     <Sheet label={t('money.accountant.label')} title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
+      <SendToCa month={month} />
       {!link && (
         <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); void make(); }}>
           <div className={s.field}>
@@ -95,5 +97,73 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
       )}
       {said && <p className={said.problem ? s.refusal : s.notice} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</p>}
     </Sheet>
+  );
+}
+
+/**
+ * C5 task 16: remember the CA, then Send to my CA in one step: a confirm that names what leaves and to whom, then the
+ * desktop opens a mail draft with the month's file attached (or WhatsApp). Chausar sends nothing; the words say so.
+ */
+function SendToCa({ month }: { month: string }) {
+  const t = useT();
+  const engine = useEngine();
+  const contact = useResource('venture.accountant.get', {});
+  const monthWords = useMonthWords();
+  const [email, setEmail] = useState<string | null>(null);
+  const [whatsapp, setWhatsapp] = useState<string | null>(null);
+  const [asking, setAsking] = useState<'email' | 'whatsapp' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
+  const shownEmail = email ?? contact.data?.email ?? '';
+  const shownWhatsapp = whatsapp ?? contact.data?.whatsapp ?? '';
+
+  async function keep() {
+    setBusy(true);
+    setSaid(null);
+    try {
+      await engine.request('venture.accountant.set', { email: shownEmail.trim() || null, whatsapp: shownWhatsapp.trim() || null });
+      contact.reload();
+      setEmail(null);
+      setWhatsapp(null);
+    } catch (error) {
+      setSaid({ text: messageOf(error), problem: true });
+    }
+    setBusy(false);
+  }
+  async function send(how: 'email' | 'whatsapp') {
+    if (!engine.sharePack) return;
+    setBusy(true);
+    setSaid(null);
+    try {
+      const done = await engine.sharePack(month, how);
+      setSaid(done.opened === 'none' ? { text: t('money.ca.noMailApp'), problem: true } : { text: t(how === 'email' ? 'money.ca.draftReady' : 'money.ca.whatsappReady'), problem: false });
+    } catch (error) {
+      setSaid({ text: messageOf(error), problem: true });
+    }
+    setAsking(null);
+    setBusy(false);
+  }
+  const saved = contact.data;
+  const to = asking === 'email' ? saved?.email : saved?.whatsapp;
+  return (
+    <section className={s.form} aria-label={t('money.ca.label')}>
+      <Field label={t('money.ca.email')} type="email" autoComplete="off" value={shownEmail} disabled={busy} onChange={(event) => setEmail(event.currentTarget.value)} />
+      <Field label={t('money.ca.whatsapp')} inputMode="tel" autoComplete="off" value={shownWhatsapp} disabled={busy} onChange={(event) => setWhatsapp(event.currentTarget.value)} />
+      <div className={s.buttons}>
+        <Button variant="quiet" disabled={busy} onClick={() => void keep()}>{t('money.ca.keep')}</Button>
+        {engine.sharePack && saved?.email && <Button disabled={busy} onClick={() => setAsking('email')}>{t('money.ca.send')}</Button>}
+        {engine.sharePack && saved?.whatsapp && <Button variant="quiet" disabled={busy} onClick={() => setAsking('whatsapp')}>{t('money.ca.sendWhatsapp')}</Button>}
+      </div>
+      {asking && (
+        <div className={s.ask}>
+          <p>{t('money.ca.ask', { month: monthWords(month), to: to ?? '' })}</p>
+          <div className={s.buttons}>
+            <Button onClick={() => setAsking(null)}>{t('money.accountant.cancel')}</Button>
+            <Button variant="primary" disabled={busy} onClick={() => void send(asking)}>{t(asking === 'email' ? 'money.ca.openDraft' : 'money.ca.openWhatsapp')}</Button>
+          </div>
+        </div>
+      )}
+      {said && <p className={said.problem ? s.failed : s.quietLine} role="status" data-engine-line="">{said.text}</p>}
+    </section>
   );
 }

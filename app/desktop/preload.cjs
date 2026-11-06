@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // C5 task 16: Send to my CA; only the month and how go to main, which makes the file and opens the owner's app.
+  sharePack: async (month, how) => {
+    const reply = await ipcRenderer.invoke('chausar:pack:share', { month: String(month), how: String(how) });
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be shared.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   // One-shot A6: Email it or Share on WhatsApp on an issued invoice; only the invoice and how go to main, which makes the file.
   shareInvoice: async (invoiceId, how) => {
     const reply = await ipcRenderer.invoke('chausar:invoice:share', { invoiceId: String(invoiceId), how: String(how) });

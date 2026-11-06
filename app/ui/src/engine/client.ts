@@ -7,6 +7,7 @@
  * at once. A transport failure sets the status line; an engine refusal stays with the request that caused it.
  */
 
+import type { PackShareResult } from './types';
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
 import { errorLine, ownerError } from './owner-errors';
 import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
@@ -33,6 +34,8 @@ export interface ChausarBridge {
   showExport?(name: string): Promise<void>;
   /** Desktop only (one-shot A6): Email it or Share on WhatsApp on an invoice, and the kept file shown in its folder. */
   shareInvoice?(invoiceId: string, how: string): Promise<unknown>;
+  /** C5 task 16: Send to my CA. */
+  sharePack?(month: string, how: string): Promise<unknown>;
   showShared?(name: string): Promise<void>;
   /** Desktop only (one-shot A5): start at login and keep running, read back from this computer (background.cjs). */
   getBackground?(): Promise<unknown>;
@@ -268,6 +271,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     // Review of A1 (row 1): a kept export shown in the file manager, with its refusals as engine errors.
     ...(bridge?.showExport ? { showExport: (name: string) => bridge.showExport!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A6: an invoice shared through the owner's own apps, and its file shown, with the desktop's refusals as engine errors.
+    ...(bridge?.sharePack ? { sharePack: (month: string, how: 'email' | 'whatsapp') => bridge.sharePack!(month, how).then((value) => value as PackShareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.shareInvoice ? { shareInvoice: (invoiceId: string, how: 'email' | 'whatsapp') => bridge.shareInvoice!(invoiceId, how).then(shareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.showShared ? { showShared: (name: string) => bridge.showShared!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A5: start at login and keep running, with the desktop's refusals as engine errors.

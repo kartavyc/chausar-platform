@@ -320,6 +320,8 @@ if (singleInstance) app.whenReady().then(async () => {
   // it in Chausar's own share folder, beside the vaults, never in them; the window names only the invoice and how.
   const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine, folder: join(app.getPath('userData'), 'share'), whatsappApp, emlApp: () => invoiceShare.emlHandler() });
   ipcMain.handle('chausar:invoice:share', (event, input) => invoiceShare.shareInvoice(event, input, shareDeps()));
+  // C5 task 16: Send to my CA, a draft or WhatsApp with the month's file; the window names only the month and how.
+  ipcMain.handle('chausar:pack:share', (event, input) => require('./pack-share.cjs').sharePack(event, input, shareDeps()));
   ipcMain.handle('chausar:share:show', (event, input) => invoiceShare.showShared(event, input, shareDeps()));
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
