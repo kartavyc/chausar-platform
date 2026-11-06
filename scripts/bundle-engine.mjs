@@ -17,6 +17,7 @@ const RUNTIME = join(projectRoot, 'platform', 'runtime');
 /** The programs the packaged app starts or imports by path, by their name under runtime/ (without .ts). */
 export const ENGINE_ENTRIES = Object.freeze([
   'worker',
+  'engine-paths', // stable named exports for the packaged runtime's path contract
   'venture/agent-runtime/stdio-bridge',
   'analytics-worker',
   'venture/network/extract-worker',
@@ -100,6 +101,7 @@ export async function bundleEngine({ root = projectRoot, out = join(root, 'app',
   const input = Object.fromEntries(ENGINE_ENTRIES.map(name => [name, join(root, 'platform', 'runtime', `${name}.ts`)]));
   const bundle = await rolldown({
     input,
+    preserveEntrySignatures: 'strict',
     platform: 'node',
     // Every bare package name and every node: import stays an import: nothing from node_modules is inlined.
     external: (id, _importer, isResolved) => !isResolved && !id.startsWith('.') && !isAbsolute(id) && !id.startsWith('\0'),

@@ -1,12 +1,9 @@
-// D7 task 4: the engine bundle. It bundles into a fresh folder under app/engine (git-ignored, removed after; inside the
-// checkout so the bundled worker finds the packages in node_modules, as the packaged one finds app.asar.unpacked's), then checks: every entry is there, nothing from
-// node_modules was inlined, every file the engine finds by path was copied, the founder's model ids survived, no map
-// ships, and the bundled worker started by EngineHarness with plain Node answers and stops gracefully. Slow tier.
+// D7: bundle into an isolated temp app, with a junction to locked dependencies. Nothing is emitted in the checkout.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile, symlink } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,10 +15,11 @@ const { bundleEngine, ENGINE_ENTRIES } = await import(modulePath);
 const { EngineHarness } = createRequire(import.meta.url)('../../app/desktop/engine-harness.cjs');
 const pkg = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
 
-await mkdir(join(ROOT, 'app', 'engine'), { recursive: true });
-const folder = await mkdtemp(join(ROOT, 'app', 'engine', 'bundle-test-'));
+const folder = await mkdtemp(join(tmpdir(), 'chausar-engine-bundle-'));
 test.after(() => rm(folder, { recursive: true, force: true }));
-const out = join(folder, 'dist'), maps = join(folder, 'maps');
+await symlink(join(ROOT, 'node_modules'), join(folder, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
+await writeFile(join(folder, 'package.json'), JSON.stringify({ ...pkg, type: 'module' }));
+const out = join(folder, 'app', 'engine', 'dist'), maps = join(folder, 'maps');
 const built = await bundleEngine({ out, maps });
 const runtime = join(out, 'runtime');
 
@@ -58,7 +56,7 @@ test('every file the engine finds by path is in the bundle at the same place, an
   assert.deepEqual(await selfStartingModules(), ['hosted/server.ts', 'server.ts']);
   assert.ok((await readdir(runtime)).some(name => /^self-server-.*\.js$/.test(name)));
   // engine-paths is a chunk at the runtime root, so it resolves the same layout as from source.
-  assert.ok((await readdir(runtime)).some(name => /^engine-paths-.*\.js$/.test(name)));
+  assert.ok((await readdir(runtime)).includes('engine-paths.js'));
 });
 
 test('the founder\'s model ids survived the bundle', async () => {
@@ -93,11 +91,7 @@ test('the bundled worker, started by EngineHarness with plain Node, answers and 
 
 // D7 task 6: the bundle finds the build's package.json (chausarGoogleClientId and the like) at the root of the unpacked app.
 test('D7: the bundled engine-paths chunk finds the build metadata at the app root', async () => {
-  const chunk = (await readdir(runtime)).find(name => /^engine-paths-.*\.js$/.test(name))!;
-  const exported = Object.values(await import(pathToFileURL(join(runtime, chunk)).href)) as any[];
-  const helpers = new Set(['runtimeUrl', 'runtimeFile', 'runtimeEntry', 'appMetadataUrl']);
-  for (const value of exported) if (typeof value === 'function' && !helpers.has(value.name)) value();
-  const metadata = exported.find(value => typeof value === 'function' && value.name === 'appMetadataUrl') as () => URL;
+  const { appMetadataUrl: metadata } = await import(pathToFileURL(join(runtime, 'engine-paths.js')).href);
   // In the package the bundle is app/engine/dist, so three folders up from it is the unpacked app's root.
   assert.equal(fileURLToPath(metadata()), join(out, '..', '..', '..', 'package.json'));
 });
@@ -105,14 +99,7 @@ test('D7: the bundled engine-paths chunk finds the build metadata at the app roo
 // D7 fix (review 1, MEDIUM 4): the bundle's own engine-paths chunk names the bundled .js entries, which exist, and finds
 // the files copied beside them; were it to think it runs from source, it would name .ts files the package does not hold.
 test('D7 fix: the bundled engine-paths chunk starts its bundled .js entries and finds its copied files', async () => {
-  const chunk = (await readdir(runtime)).find(name => /^engine-paths-.*\.js$/.test(name))!;
-  const exported = Object.values(await import(pathToFileURL(join(runtime, chunk)).href)) as unknown[];
-  const named = (name: string) => exported.find(value => typeof value === 'function' && value.name === name) as ((path: string) => string) | undefined;
-  const runtimeEntry = named('runtimeEntry'), runtimeFile = named('runtimeFile');
-  assert.ok(runtimeEntry && runtimeFile, 'the chunk exports runtimeEntry and runtimeFile');
-  // The chunk's body runs lazily: its importers call its one other export (rolldown's init) first, so the test does too.
-  const helpers = new Set(['runtimeUrl', 'runtimeFile', 'runtimeEntry', 'appMetadataUrl']);
-  for (const value of exported) if (typeof value === 'function' && !helpers.has(value.name)) value();
+  const { runtimeEntry, runtimeFile } = await import(pathToFileURL(join(runtime, 'engine-paths.js')).href);
   for (const name of ['analytics-worker', 'venture/agent-runtime/stdio-bridge']) {
     const entry = runtimeEntry(name);
     assert.equal(entry, join(runtime, `${name}.js`), `${name}: the bundled .js, never the source .ts`);
