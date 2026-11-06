@@ -28,6 +28,7 @@ it('a refresh leaves focus outside after the owner blurs a run and does not move
 it.each(['on', 'off'])('animations %s: a run keeps the same list item and focus from Running now through Needs you to Finished', async motion => {
   document.documentElement.dataset.motion = motion;
   const engine = new FakeEngine();
+  if (motion === 'off') await engine.request('app.preferences.set', { motion: 'off' });
   const reply = await engine.request('venture.runs.list', { state: 'all' }) as { runs: RunSummary[] };
   let run = reply.runs.find(row => row.state === 'active')!;
   const client = createFakeClient(engine);
@@ -36,6 +37,7 @@ it.each(['on', 'off'])('animations %s: a run keeps the same list item and focus 
   window.location.hash = '#/work';
   render(<App client={client} language="en" />);
   const running = await screen.findByRole('region', { name: 'Running now' });
+  if (motion === 'off') await waitFor(() => expect(document.documentElement.dataset.motion).toBe('off'));
   const row = (await within(running).findByText(run.purpose)).closest('li')!;
   within(row).getByRole('button', { name: run.purpose }).focus();
   await act(async () => { run = { ...run, state: 'waiting' }; workChanged(); });
