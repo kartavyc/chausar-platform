@@ -76,7 +76,8 @@ describe('the mini app bridge (6H1)', () => {
     root.setAttribute('data-theme', 'light');
     expect(chausarTheme()).toBe('light');
     root.removeAttribute('data-theme');
-    expect(chausarTheme()).toBe('dark');
+    expect(chausarTheme()).toBe('light');
+    expect(media).not.toHaveBeenCalled();
     media.mockRestore();
     if (before !== null) root.setAttribute('data-theme', before);
   });

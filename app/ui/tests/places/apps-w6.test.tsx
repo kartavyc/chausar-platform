@@ -40,6 +40,26 @@ async function send(label: string, text: string) {
 }
 
 describe('Apps (6H1)', () => {
+  it('B4: keeps rules folded and makes the app name the page title', async () => {
+    const view = await start();
+    await screen.findByRole('article', { name: 'Who owes me' });
+    const rules = screen.getByText("What apps can and can't do", { selector: 'summary' });
+    expect(rules.closest('details')?.open).toBe(false);
+    expect(screen.queryByText('No apps yet. Describe one and your AI writes it.')).toBeNull();
+    view.unmount();
+    await start('#/apps?app=miniapp_sample');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Who owes me' })).toBeTruthy();
+  });
+
+  it('B4: picking an app idea selects it and moves focus to Send', async () => {
+    await start();
+    const ideas = await screen.findByRole('group', { name: 'Ideas to start from' });
+    const idea = within(ideas).getAllByRole('button')[0]!;
+    await click(idea);
+    expect(idea.getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Send' }));
+  });
+
   // C4 task 29 (founder decision 3): the button only when the app has no data; the banner while on sample rows; every call says sample.
   it('an app with no data offers Preview with sample data; the banner stays while it runs on it; Back to your data returns', async () => {
     window.location.hash = '#/apps?app=miniapp_sample';
