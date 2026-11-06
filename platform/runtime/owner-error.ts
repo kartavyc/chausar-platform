@@ -11,7 +11,7 @@ import type { PhoneErrorCode } from './phone/contracts.ts';
 import { refusalTravel } from './owner-flag.ts';
 
 export const UNEXPECTED_CODE = 'REQUEST_FAILED';
-export const UNEXPECTED_WORDS = 'Something went wrong in Chausar, so this did not finish. Nothing was sent. Try again, and if it keeps happening, send feedback from Settings.';
+export const UNEXPECTED_WORDS = 'Something went wrong in Chausar, so this did not finish. Nothing was sent. Try again, and if it keeps happening, send a report from Settings > Safety > Reports.';
 
 /** The engine's own codes that it also puts on plain errors (Object.assign(new Error(words), { code })). */
 const ENGINE_PLAIN_CODES = ['UNAUTHENTICATED', 'PAIRING_FORBIDDEN', 'SOCIAL_INPUT_INVALID', 'SOCIAL_SOURCE_INVALID', 'UNIT_ECONOMICS_HOLD', 'MONITOR_INVALID', 'COMMUNITY_RULES_REQUIRED', 'COMMUNITY_NO_GO'] as const;
