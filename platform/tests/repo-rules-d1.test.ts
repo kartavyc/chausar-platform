@@ -52,8 +52,7 @@ test('D3: no doc points a data folder or a run output into the checkout', async 
     for (const match of text.matchAll(/CHAUSAR_(?:VAULT_DIRECTORY|HOSTED_DATA|HOME|RUN_ROOT)\s*=\s*['"]?(?![A-Za-z]:|[\\/$%~<])[^\s'";`]+/g)) found.push(`${file}: ${match[0]}`);
     if (/\bdata\/hosted\b/.test(text)) found.push(`${file}: data/hosted`);
     if (/app\/ui\/\.shots/.test(text)) found.push(`${file}: app/ui/.shots`);
-    // AGENTS.md's PR commands are swept after the rebase (other batches' gates still name them); everything else now.
-    if (file !== 'AGENTS.md' && /--output results\//.test(text)) found.push(`${file}: --output results/`);
+    if (/--output results\//.test(text)) found.push(`${file}: --output results/`);
   }
   assert.deepEqual(found, []);
 });
