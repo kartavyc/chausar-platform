@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [react()],
   css: { modules: { localsConvention: 'camelCaseOnly' } },
   // C4 task 41: as vite.config.ts (parts/build-info.ts).
-  define: { __CHAUSAR_VERSION__: JSON.stringify(version), __CHAUSAR_BUILT_AT__: JSON.stringify(new Date().toISOString()) },
+  define: { 'import.meta.env.VITE_CHAUSAR_VERSION': JSON.stringify(version), 'import.meta.env.VITE_CHAUSAR_BUILT_AT': JSON.stringify(new Date().toISOString()) },
   test: {
     root,
     environment: 'jsdom',

@@ -26,7 +26,7 @@ export default defineConfig({
   plugins: [react(), strictPolicy()],
   css: { modules: { localsConvention: 'camelCaseOnly' } },
   // C4 task 41: this copy's version and when it was built, from the build's own clock (parts/build-info.ts).
-  define: { __CHAUSAR_VERSION__: JSON.stringify(version), __CHAUSAR_BUILT_AT__: JSON.stringify(new Date().toISOString()) },
+  define: { 'import.meta.env.VITE_CHAUSAR_VERSION': JSON.stringify(version), 'import.meta.env.VITE_CHAUSAR_BUILT_AT': JSON.stringify(new Date().toISOString()) },
   build: {
     outDir: fileURLToPath(new URL('./dist', import.meta.url)),
     emptyOutDir: true,
