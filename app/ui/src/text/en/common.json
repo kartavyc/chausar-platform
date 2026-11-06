@@ -281,6 +281,7 @@
   "custody.refused.INVALID_PATH": "Choose a backup from the list.",
   "custody.enterPassphrase": "Enter your passphrase.",
   "custody.tooLarge": "This file is bigger than Chausar can take in one go.",
+  "custody.after": "after {what}",
   "custody.kind.auto": "Automatic",
   "custody.kind.manual": "You made it",
   "custody.kind.safety": "Before a change",
