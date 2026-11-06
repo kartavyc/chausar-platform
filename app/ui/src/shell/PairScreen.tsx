@@ -1,6 +1,6 @@
 import { useT } from '../text';
-import { Brand } from '../places/onboarding/Start';
-import s from '../places/onboarding/Onboarding.module.css';
+import { Brand } from '../parts/Brand';
+import s from '../parts/Entry.module.css';
 
 /**
  * One-shot C4 task 42 (138.b1, 138.w2, 138.f1): a browser that is not paired, or whose session ended, sees this in place

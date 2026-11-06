@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
-import { decide as decideRow } from '../today/session';
+import { decide as decideRow } from '../../parts/queue-session';
 import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';

@@ -2,7 +2,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
-import { decide as decideRow } from '../today/session';
+import { decide as decideRow } from '../../parts/queue-session';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import type { QueueAction, QueueRow } from '../../engine/types';

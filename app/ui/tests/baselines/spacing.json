@@ -11,9 +11,9 @@
     "places/clients/Clients.module.css": 0,
     "places/connections/Connections.module.css": 0,
     "places/money/Money.module.css": 0,
-    "places/onboarding/Onboarding.module.css": 1,
     "places/team/Team.module.css": 0,
     "places/today/Today.module.css": 0,
-    "places/work/Work.module.css": 0
+    "places/work/Work.module.css": 0,
+    "parts/Entry.module.css": 1
   }
 }
