@@ -30,13 +30,13 @@ test('with no business open, get answers system; set off, then get answers off; 
   const directory = await folder(t);
   const { ask, engine } = engineAt(t, directory);
   assert.equal((await ask('workspace.status')).open, false);
-  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system' });
-  assert.deepEqual(await ask('app.preferences.set', { motion: 'off' }), { motion: 'off' });
-  assert.deepEqual(await ask('app.preferences.get'), { motion: 'off' });
+  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system', language: 'en' });
+  assert.deepEqual(await ask('app.preferences.set', { motion: 'off' }), { motion: 'off', language: 'en' });
+  assert.deepEqual(await ask('app.preferences.get'), { motion: 'off', language: 'en' });
   await engine.close();
   const again = engineAt(t, directory);
-  assert.deepEqual(await again.ask('app.preferences.get'), { motion: 'off' });
-  assert.deepEqual(await again.ask('app.preferences.set', { motion: 'system' }), { motion: 'system' });
+  assert.deepEqual(await again.ask('app.preferences.get'), { motion: 'off', language: 'en' });
+  assert.deepEqual(await again.ask('app.preferences.set', { motion: 'system' }), { motion: 'system', language: 'en' });
 });
 
 test('an unknown value or field is refused in plain words, and nothing is written', async t => {
@@ -54,26 +54,26 @@ test('an unknown value or field is refused in plain words, and nothing is writte
   });
   await assert.rejects(ask('app.preferences.set', {}), code('INVALID_PREFERENCE'));
   await assert.rejects(readFile(join(directory, 'preferences.json'), 'utf8'), { code: 'ENOENT' });
-  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system' });
+  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system', language: 'en' });
 });
 
 test('the file holds only the preference; a broken file reads as the defaults', async t => {
   const directory = await folder(t);
   const { ask } = engineAt(t, directory);
   await ask('app.preferences.set', { motion: 'off' });
-  assert.deepEqual(JSON.parse(await readFile(join(directory, 'preferences.json'), 'utf8')), { motion: 'off' });
+  assert.deepEqual(JSON.parse(await readFile(join(directory, 'preferences.json'), 'utf8')), { motion: 'off', language: 'en' });
   await writeFile(join(directory, 'preferences.json'), '{ not json');
-  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system' });
+  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system', language: 'en' });
   await writeFile(join(directory, 'preferences.json'), JSON.stringify({ motion: 'off', business: 'Asha Studio' }));
-  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system' });
+  assert.deepEqual(await ask('app.preferences.get'), { motion: 'system', language: 'en' });
 });
 
 test('with a business open, only the computer’s owner may change it; anyone may read it', async t => {
   const directory = await folder(t);
   const { ask, engine } = engineAt(t, directory);
   await ask('workspace.create', { name: 'Asha Studio', passphrase: 'a long owner passphrase here', folder: 'main' });
-  assert.deepEqual(await ask('app.preferences.set', { motion: 'off' }), { motion: 'off' });
+  assert.deepEqual(await ask('app.preferences.set', { motion: 'off' }), { motion: 'off', language: 'en' });
   const cofounder = { memberId: 'member_cofounder', role: 'cofounder', epoch: 1, channel: 'web' } as any;
-  await assert.rejects(engine.requestAs(cofounder, 'app.preferences.set', { motion: 'system' }), (error: any) => typeof error?.code === 'string');
-  assert.deepEqual(await ask('app.preferences.get'), { motion: 'off' });
+  await assert.rejects(engine.requestAs(cofounder, 'app.preferences.set', { motion: 'system', language: 'en' }), (error: any) => typeof error?.code === 'string');
+  assert.deepEqual(await ask('app.preferences.get'), { motion: 'off', language: 'en' });
 });

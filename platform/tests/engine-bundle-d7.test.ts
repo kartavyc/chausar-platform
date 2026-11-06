@@ -45,7 +45,7 @@ test('nothing from node_modules is inlined: every package stays an import', () =
 });
 
 test('every file the engine finds by path is in the bundle at the same place, and no map ships', async () => {
-  for (const file of ['wasm-worker.mjs', 'venture/packs/pack-worker.mjs', 'venture/models/credential-contract.cjs', 'venture/delivery/judge/baselines', 'venture/playbooks/social/baselines', 'venture/playbooks/youtube/baselines', 'venture/playbooks/ca-firm/baselines', 'analytics-worker.js', 'venture/agent-runtime/stdio-bridge.js']) {
+  for (const file of ['wasm-worker.mjs', 'venture/core/guide-data.json', 'venture/packs/pack-worker.mjs', 'venture/models/credential-contract.cjs', 'venture/delivery/judge/baselines', 'venture/playbooks/social/baselines', 'venture/playbooks/youtube/baselines', 'venture/playbooks/ca-firm/baselines', 'analytics-worker.js', 'venture/agent-runtime/stdio-bridge.js']) {
     assert.ok(existsSync(join(runtime, file)), file);
   }
   assert.ok(existsSync(join(out, 'helpers', 'analytics.py')));

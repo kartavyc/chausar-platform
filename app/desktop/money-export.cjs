@@ -197,22 +197,25 @@ async function saveMoneyExport(event, input, deps) {
     // failure part way leaves neither.
     const beside = besideNames(name);
     const receiptsPath = isRecord(file.receipts) ? join(dirname(chosen.filePath), beside.receipts) : null;
-    const readmePath = join(dirname(chosen.filePath), beside.readme);
+    // C5 task 18: a Tally or GST file goes alone, under its own name: the read-me speaks of the month's CSV.
+    const alone = (request.format ?? 'csv') !== 'csv';
+    const readmePath = alone ? null : join(dirname(chosen.filePath), beside.readme);
     const replaceCsv = await there(chosen.filePath);
     const replaceReceipts = receiptsPath ? await there(receiptsPath) : false;
     // The read-me carries the CSV's own name too, so one already there is an earlier export's, replaced with the CSV.
-    const replaceReadme = await there(readmePath);
+    const replaceReadme = readmePath ? await there(readmePath) : false;
     const receipts = receiptsPath ? basename(receiptsPath) : null;
     const staged = [await stage(chosen.filePath, file.csv, { replace: replaceCsv, fs })];
     try {
       if (receiptsPath) staged.push(await stage(receiptsPath, `${JSON.stringify(file.receipts, null, 2)}\n`, { replace: replaceReceipts, fs }));
-      staged.push(await stage(readmePath, readMe(file, name, receipts), { replace: replaceReadme, fs }));
+      if (readmePath) staged.push(await stage(readmePath, readMe(file, name, receipts), { replace: replaceReadme, fs }));
     } catch (error) {
       await discard(staged, fs);
       throw error;
     }
     await commit(staged, fs);
     await rememberFolder(deps, fs, dirname(chosen.filePath));
+    if (alone) return { ok: true, result: { saved: true, name, line: `Saved ${name} for your CA. Chausar did not send it anywhere.` } };
     const folder = basename(dirname(chosen.filePath));
     return {
       ok: true,

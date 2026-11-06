@@ -58,7 +58,7 @@ test('C5 task 17: a monthly schedule falls on its own day each month, across a m
   const venture = currentVenture(env.store.read())!;
   const review = weeklyReview(venture);
   const { routine } = await set(env, { ...review, schedule: { kind: 'monthly', day: 5, time: '09:00', timeZone: 'Asia/Kolkata' } });
-  assert.equal(routine.when, 'Every month on the 5th, 9:00 am, Asia/Kolkata');
+  assert.equal(routine.when, 'On the 5th of each month, 9:00 am, Asia/Kolkata');
   for (const day of [0, 29, 31, 1.5, '1']) {
     await assert.rejects(setRaw(env, { ...review, schedule: { kind: 'monthly', day, time: '09:00', timeZone: 'Asia/Kolkata' } }), code('INVALID_VENTURE_REQUEST'), String(day));
   }

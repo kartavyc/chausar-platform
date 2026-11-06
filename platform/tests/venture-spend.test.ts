@@ -292,7 +292,7 @@ test('venture.spend.list is a money read method with an empty payload, listed ev
   }
   const { deps } = await setup();
   // 4Z3: the total as the owner's currency leads it, two decimals of dollars at most.
-  assert.deepEqual(await moneyHandlers['venture.spend.list']!(deps, owner, {}), { rows: [], total: '$0.00 this month', totalLead: { currency: 'USD', figure: '$0.00 this month' } });
+  assert.deepEqual(await moneyHandlers['venture.spend.list']!(deps, owner, {}), { needsRate: true, rows: [], total: '$0.00 this month', totalLead: { currency: 'USD', figure: '$0.00 this month' } });
   await assert.rejects(moneyHandlers['venture.spend.list']!(deps, owner, { limit: 5 }), code('INVALID_VENTURE_REQUEST'));
 });
 

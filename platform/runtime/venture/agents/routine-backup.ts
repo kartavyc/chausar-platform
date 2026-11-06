@@ -79,7 +79,7 @@ export async function backupSetHandler(deps: VentureDeps, ctx: Context, payload:
     check(order.length > 0, 'INVALID_VENTURE_REQUEST', BACKUP_WORDS.notConnected);
     const digests = input.digests;
     check(Array.isArray(digests) && digests.length === order.length && order.every((id, index) => choices.find(choice => choice.presetId === id)!.digest === digests[index]), 'APPROVAL_STALE', BACKUP_WORDS.consent);
-  } else check(input.digests === undefined || Array.isArray(input.digests), 'INVALID_VENTURE_REQUEST', 'Send the digests as a list.');
+  } else check(input.digests === undefined || Array.isArray(input.digests), 'INVALID_VENTURE_REQUEST', 'Send what you agreed to as a list.');
   await ventureAction(deps, ctx, 'approve', 'routines.backup', tx => {
     const venture = tx.venture!;
     tx.replace<VentureRecord>({ ...venture, routineBackup: { on: input.on as boolean, order, at: tx.now } });

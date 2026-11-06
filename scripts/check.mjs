@@ -4,11 +4,11 @@
 // ES module parsing needs vm.SourceTextModule, so without --experimental-vm-modules the script starts itself once
 // with that flag and exits with the child's code.
 import vm from 'node:vm';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import Module, { stripTypeScriptTypes } from 'node:module';
 import { dirname, join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 if (typeof vm.SourceTextModule !== 'function') {
   const child = spawn(process.execPath, ['--experimental-vm-modules', '--no-warnings=ExperimentalWarning', ...process.execArgv, fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: 'inherit' });
@@ -80,7 +80,12 @@ async function main() {
     }
   }
   // C7: the in-app help quotes the guide as indexed at build; a guide that changed needs `node scripts/guide-index.mjs`.
-  const guide = spawnSync(process.execPath, [join(root, 'scripts', 'guide-index.mjs'), '--check'], { encoding: 'utf8' });
-  if (guide.status !== 0) { process.stderr.write(guide.stderr || guide.stdout || 'The guide index is out of date.'); process.exit(1); }
+  const guideScript = join(root, 'scripts', 'guide-index.mjs');
+  const guide = await readFile(join(root, 'docs', 'beta-guide.md'), 'utf8').catch(() => null);
+  if (guide !== null && await readFile(guideScript, 'utf8').then(() => true, () => false)) {
+    const { guideData } = await import(pathToFileURL(guideScript).href);
+    const kept = await readFile(join(root, 'platform', 'runtime', 'venture', 'core', 'guide-data.json'), 'utf8').catch(() => '');
+    if (kept.replace(/\r\n/g, '\n') !== guideData(guide)) { process.stderr.write('guide-data.json is out of date with the guide. Run: node scripts/guide-index.mjs\n'); process.exit(1); }
+  }
   console.log(`Syntax and JSON validation passed for ${files.length} source files.`);
 }

@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ChausarError } from './contracts.ts';
+import { runtimeUrl } from './engine-paths.ts';
 import { CUSTODY_WORDS } from './workspace-custody-contracts.ts';
 import { parseBackupName } from './workspace-custody.ts';
 
@@ -41,7 +42,7 @@ export function driveClientFrom(meta: unknown): { clientId: string | null; clien
 }
 /** This build's Google client. Google's desktop clients come with a secret that isn't one (RFC 8252); it sits beside the id. */
 export function driveClientOfBuild(): { clientId: string | null; clientSecret: string | null } {
-  try { return driveClientFrom(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))); }
+  try { return driveClientFrom(JSON.parse(readFileSync(runtimeUrl('../../package.json'), 'utf8'))); }
   catch { return { clientId: null, clientSecret: null }; }
 }
 

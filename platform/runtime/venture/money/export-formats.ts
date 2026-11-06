@@ -92,11 +92,12 @@ export function tallyFile(state: State, venture: VentureRecord, month: string, b
   };
 }
 
-const GSTR1_HEADER = ['Sheet', 'Buyer GSTIN', 'Buyer', 'Invoice', 'Date', 'Invoice value', 'Place of supply', 'HSN or SAC', 'Rate', 'Invoices', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Note'] as const;
+const IGST = 'IGST', CGST = 'CGST', SGST = 'SGST';
+const GSTR1_HEADER = ['Sheet', 'Buyer GSTIN', 'Buyer', 'Invoice', 'Date', 'Invoice value', 'Place of supply', 'HSN or SAC', 'Rate', 'Invoices', 'Taxable value', IGST, CGST, SGST, 'Note'] as const;
 type Gstr1Row = Partial<Record<typeof GSTR1_HEADER[number], string>>;
 const paise = (minor: bigint | string) => { const value = BigInt(minor); return `${value / 100n}.${String(value % 100n).padStart(2, '0')}`; };
 const percent = (bps: string) => paise(bps);
-const AMOUNTS = new Set<string>(['Invoice value', 'Rate', 'Invoices', 'Taxable value', 'IGST', 'CGST', 'SGST']);
+const AMOUNTS = new Set<string>(['Invoice value', 'Rate', 'Invoices', 'Taxable value', IGST, CGST, SGST]);
 
 /** venture.money.export { format: 'gstr1-csv' }: for a GST-registered business only. */
 export function gstr1File(state: State, venture: VentureRecord, month: string, base: string): MoneyExportFile {

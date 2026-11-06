@@ -92,7 +92,7 @@ test('Undo is refused once an order, an invoice or a quote used the new price, o
 });
 
 test('a price from outside the app, a change with words, or one joining a waiting change still waits on Today', async () => {
-  // From the phone (an agent's or the AI's way in): a draft with the price row and its second ask.
+  // From the phone (an agent's or the AI's way in): a draft with the price row; one price on one offer is one press (B4 task 7).
   {
     const env = await setup();
     await seedBlueprint(env, { status: 'accepted', price2: '1500000' });
@@ -101,7 +101,7 @@ test('a price from outside the app, a change with words, or one joining a waitin
     assert.equal(view.decided, undefined);
     const [row] = (await list(env)).rows.filter(item => item.kind === 'price');
     assert.equal(row.title, 'New price for Monthly books');
-    assert.deepEqual(row.actions.map(action => [action.id, action.secondAsk ?? false]), [['read', false], ['approve', true]]);
+    assert.deepEqual(row.actions.map(action => [action.id, action.secondAsk ?? false]), [['read', false], ['approve', false]]);
     assert.equal(listRecords(env.store.read(), 'venture-decision').length, 0);
   }
   // Only the Prices page's Save says it is the owner's press: the same change from any other caller waits.

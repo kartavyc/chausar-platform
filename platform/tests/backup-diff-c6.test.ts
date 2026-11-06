@@ -36,7 +36,7 @@ test('nothing changed reads as an empty list', () => {
 
 test('a kind not in the table lands in "other records", so a new kind never breaks it', () => {
   const then = state([]);
-  const now = state([{ id: 't1', kind: 'venture-tracker-row' }, { id: 't2', kind: 'venture-hire' }, client('c1')]);
+  const now = state([{ id: 't1', kind: 'venture-other-one' }, { id: 't2', kind: 'venture-other-two' }, client('c1')]);
   assert.deepEqual(backupDiff(now, then), [
     { kind: 'clients', words: 'clients', added: 1, changed: 0, removed: 0 },
     { kind: 'other', words: 'other records', added: 2, changed: 0, removed: 0 },
@@ -57,7 +57,7 @@ test('every kind in the table has words and at least one record kind, and no rec
     for (const kind of row.kinds) { assert.ok(!seen.has(kind), kind); seen.add(kind); }
   }
   assert.deepEqual(BACKUP_KIND_WORDS.map(row => row.kind),
-    ['clients', 'orders', 'drafts', 'invoices', 'payments', 'bills', 'decisions', 'notes', 'routines', 'apps']);
+    ['clients', 'orders', 'drafts', 'invoices', 'payments', 'bills', 'decisions', 'notes', 'routines', 'apps', 'tracker-rows', 'hired-agents']);
 });
 
 test('records without an id or a kind are skipped, never a crash', () => {

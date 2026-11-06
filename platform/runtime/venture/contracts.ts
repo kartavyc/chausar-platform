@@ -7702,6 +7702,8 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // C5 task 18: the GST return is for a registered business with a GSTIN.
+  'GST_NOT_REGISTERED',
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
   // C7: a tracker's refusals (trackers/cells.ts, trackers/trackers.ts).
   'TRACKER_MONEY', 'TRACKER_NOT_FOUND', 'TRACKER_LIMIT', 'TRACKER_WORDS_HELD',

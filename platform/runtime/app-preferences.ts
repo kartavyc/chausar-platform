@@ -4,7 +4,7 @@
 // computer's own reduce-motion setting (which is always followed), 'off' stops every movement in the app. language: what
 // the owner chose; nothing here reads the computer's language, so English stands until the owner picks otherwise.
 //
-// The file holds only these fields, written atomically; a missing or broken file or field reads as its default, and an
+// The file holds only these fields, written atomically; a missing or broken file reads as the defaults, a missing field as its default, and an
 // unknown field or value is refused in plain words. No business word ever goes in it.
 import { join } from 'node:path';
 import { check } from './contracts.ts';
@@ -27,11 +27,12 @@ export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = Object.freeze({
 
 export const APP_PREFERENCES_FILE = 'preferences.json';
 
-/** The fields a kept file holds, each one of its values; a field that is missing or wrong reads as its default. */
+/** A kept file holds only known fields, each one of its values, or it is not read at all; a field it lacks reads as its default. */
 function kept(value: unknown): AppPreferences {
-  const body = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  const read = <K extends keyof AppPreferences>(key: K): AppPreferences[K] => (FIELDS[key].values as readonly unknown[]).includes(body[key]) ? body[key] as AppPreferences[K] : DEFAULT_APP_PREFERENCES[key];
-  return { motion: read('motion'), language: read('language') };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_APP_PREFERENCES };
+  const entries = Object.entries(value);
+  const fine = entries.every(([key, field]) => Object.hasOwn(FIELDS, key) && (FIELDS[key as keyof AppPreferences].values as readonly unknown[]).includes(field));
+  return fine ? { ...DEFAULT_APP_PREFERENCES, ...value as Partial<AppPreferences> } : { ...DEFAULT_APP_PREFERENCES };
 }
 
 /**

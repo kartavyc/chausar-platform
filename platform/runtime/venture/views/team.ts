@@ -21,7 +21,7 @@ import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
 import type { AgentHealth, AgentPostureRecord, AgentView, HealthClearRecord, PlaybookStep, Posture, TeamGateRecord, TeamListView, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
-import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
+import { effectivePosture, stepFloorReason } from '../policy/context.ts';
 import { POSTURES, postureOfStage, postureRank, stepGate } from '../policy/posture.ts';
 import { ESTIMATE_WORDS, recordedCallMicros } from '../models/cost.ts';
 import { departmentOfMember, teamLedger, type TeamLedger } from '../money/department-spend.ts';
@@ -51,7 +51,6 @@ function aiWaitFor(deps: VentureDeps, ctx: Context): string | null {
 }
 
 const ROLE = 'Reads each order, works on it with tools, and drafts the reply for you to check.';
-export const FLOOR_WORDS = STEP_FLOOR_WORDS;
 const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
 

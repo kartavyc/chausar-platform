@@ -2,6 +2,7 @@
 // The chief's guide tool answers section ids and titles only; an answer that names a section gets that section's own
 // words filled in by code, never the model's. Read once, on first use.
 import { readFileSync } from 'node:fs';
+import { runtimeUrl } from '../../engine-paths.ts';
 
 export type GuideSection = { anchor: string; title: string; level: number; part: string; text: string };
 /** The guide's page in the public repository; a section's link is this plus its anchor. */
@@ -11,7 +12,7 @@ let sections: readonly GuideSection[] | null = null;
 /** Every section of the guide but its contents list. */
 export function guideSections(): readonly GuideSection[] {
   if (!sections) {
-    const data = JSON.parse(readFileSync(new URL('./guide-data.json', import.meta.url), 'utf8')) as { sections: GuideSection[] };
+    const data = JSON.parse(readFileSync(runtimeUrl('venture/core/guide-data.json'), 'utf8')) as { sections: GuideSection[] };
     sections = Object.freeze(data.sections.filter(section => section.anchor !== 'contents').map(section => Object.freeze({ ...section })));
   }
   return sections;

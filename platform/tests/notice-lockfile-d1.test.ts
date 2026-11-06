@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,9 @@ test('the NOTICE check passes with no node_modules at all: nothing installed on 
   const directory = await mkdtemp(join(tmpdir(), 'chausar-notice-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await mkdir(join(directory, 'scripts'));
+  // C5: the fonts' lines come from their manifest and licence files, which are tracked, not installed.
+  await mkdir(join(directory, 'app/ui/assets/fonts'), { recursive: true });
+  for (const name of await readdir(join(ROOT, 'app/ui/assets/fonts'))) if (!name.endsWith('.woff2')) await copyFile(join(ROOT, 'app/ui/assets/fonts', name), join(directory, 'app/ui/assets/fonts', name));
   for (const file of ['package.json', 'package-lock.json', 'NOTICE', 'scripts/third-party-notices.mjs']) await copyFile(join(ROOT, file), join(directory, file));
   const result = spawnSync(process.execPath, [join(directory, 'scripts', 'third-party-notices.mjs'), '--check'], { cwd: directory, encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr + result.stdout);

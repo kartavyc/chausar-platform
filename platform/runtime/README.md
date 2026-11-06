@@ -52,6 +52,7 @@ The files at this level are the older engine surface (calculations, forecasts, i
 - `venture/playbooks/`: the ways to earn and their steps (the biggest folder).
 - `venture/policy/`: approval policy ("allow for this session" and the like).
 - `venture/replay/`: capturing a run on a sample business and replaying it against later code (developer-only; the engine and driver hooks come after the D11e rebase).
+- `venture/trackers/`: trackers the owner makes, their rows and the agent's row schema.
 - `venture/views/`: views across businesses (runs, money).
 - `venture/web/`: the web methods.
 

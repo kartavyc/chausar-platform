@@ -103,7 +103,7 @@ export async function runCaPackDue(deps: VentureDeps, ctx: Context): Promise<voi
 export function caPackRows(_deps: VentureDeps, _ctx: Context, state: State, venture: VentureRecord): W4RowItem[] {
   const pack = listRecords(state, 'venture-ca-pack', venture.id).at(-1);
   if (!pack || pack.doneAt !== null) return [];
-  const name = MONTH_NAMES[Number(pack.month.slice(5, 7)) - 1];
+  const name = MONTH_NAMES[parseInt(pack.month.slice(5, 7), 10) - 1];
   const action = (id: QueueAction['id'], label: string, primary: boolean): QueueAction => ({ id, label, primary });
   return [{
     kind: 'notice', subject: `ca-pack:${pack.month}`, version: pack.id, createdAt: pack.at,

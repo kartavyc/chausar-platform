@@ -27,6 +27,7 @@ export const ENGINE_ASSETS = Object.freeze([
   { from: 'platform/runtime/wasm-worker.mjs', to: 'runtime/wasm-worker.mjs' },
   { from: 'platform/runtime/venture/packs/pack-worker.mjs', to: 'runtime/venture/packs/pack-worker.mjs' },
   { from: 'platform/runtime/venture/models/credential-contract.cjs', to: 'runtime/venture/models/credential-contract.cjs' },
+  { from: 'platform/runtime/venture/core/guide-data.json', to: 'runtime/venture/core/guide-data.json' },
   { from: 'platform/helpers/analytics.py', to: 'helpers/analytics.py' },
   // Every judge and playbook baseline folder (venture/**/baselines/*.json), found when bundling.
   { baselines: true },

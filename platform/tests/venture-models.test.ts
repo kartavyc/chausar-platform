@@ -1096,14 +1096,14 @@ test('replay through the port: calls are marked replay and status says synthetic
 // 13. Handlers and house rules
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the fifteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
+test('handlers: exactly the sixteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
   // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
   // Five, and the two Ink v2 wave 4 added (the CLI status and per-role models, 4H1).
   // A2: the owner's Codex choice is owned by models too, but the engine answers it itself (ENGINE_METHODS).
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method) && !ENGINE_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   // W6 6F1 adds the curated MCP list and OAuth sign-in, 6F2 lists, adds and removes packs.
-  assert.equal(owned.length, 15);
+  assert.equal(owned.length, 16);
   assert.ok(owned.includes('venture.agentSettings.get')); assert.ok(owned.includes('venture.agentSettings.set'));
   assert.ok(owned.includes('venture.mcpCredential.set'));
   const { deps } = await setup({ venture: false });

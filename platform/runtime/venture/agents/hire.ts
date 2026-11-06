@@ -85,7 +85,7 @@ const INSTRUCTIONS = {
 } as const;
 
 async function phaseCall<T>(deps: VentureDeps, ctx: Context, route: ChatRoute, task: Pick<ModelTask<T>, 'instructions' | 'input' | 'schemaName' | 'schema' | 'validate'>): Promise<T> {
-  const drafted = await chatCall(deps, ctx, route, { ...task, purpose: 'agent-chat', containsClientData: true, maxOutputTokens: 1024 });
+  const drafted = await chatCall(deps, ctx, route, { ...task, purpose: 'agent-chat', instructions: task.instructions, containsClientData: true, maxOutputTokens: 1024 });
   if (!drafted) throw new ChausarError('MODEL_OUTPUT_REJECTED', HIRE_WORDS.shape);
   return drafted.value;
 }

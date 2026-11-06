@@ -48,6 +48,6 @@ export async function planView(deps: VentureDeps, ctx: Context, payload: unknown
     if (raw !== null) planBookOf(deps.store).note(fromCodexLimits(raw, deps.clock().toISOString()));
   }
   const venture = currentVenture(deps.store.read());
-  const zone = ownerZone(venture?.country?.code, 'UTC'), now = deps.clock().toISOString();
+  const zone = ownerZone(venture?.country?.code, 'Etc/GMT'), now = deps.clock().toISOString();
   return { tools: DELEGATE_CLIS.map(cli => planToolView(deps, cli, now, zone)) };
 }
