@@ -7,7 +7,7 @@ import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canonicalReleaseFeed, canonicalReleaseManifest, type ReleaseFeed, type ReleaseManifest } from '../runtime/updater.ts';
+import { canonicalReleaseFeed, canonicalReleaseManifest, type DownloadResponse, type ReleaseFeed, type ReleaseManifest } from '../runtime/updater.ts';
 import { UpdateService, followingDownload, readFeedFrom, updateCheckDue, updatesOptionsFrom, type UpdateServiceOptions } from '../runtime/update-service.ts';
 import { Engine } from '../runtime/engine.ts';
 import { noNet } from './helpers/no-net.ts';
@@ -170,7 +170,7 @@ test('a release already waiting still reads ready when a later check could not r
 test('a cut download keeps its part: the view says how far, and the next check goes on from there', async t => {
   let cut = true;
   const asked: Record<string, string>[] = [];
-  const { service, advance } = await setup(t, { download: async request => {
+  const { service, advance } = await setup(t, { download: async (request): Promise<DownloadResponse> => {
     asked.push(request.headers);
     const half = FILE.subarray(10);
     if (cut) return { status: 200, url: request.url, headers: {}, body: (async function* () { yield FILE.subarray(0, 10); throw new Error('cut'); })() };
