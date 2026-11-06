@@ -42,3 +42,12 @@ test("an unpaid September invoice does not change October's line, and September 
   assert.equal((await env.money<GoalView>('venture.goals.get', {})).paidInFull?.line, 'All October invoices paid');
   assert.equal((await env.money<GoalView>('venture.goals.get', { month: '2026-09' })).paidInFull, null);
 });
+
+test('an unpaid invoice in another currency in the month means the month is not all paid', async () => {
+  const env = await goalBusiness();
+  const home = await invoice(env, '1', null);
+  await pay(env, home);
+  const abroad = await invoice(env, '1', null);
+  await env.store.update(state => { const record = state.conversations.find((item: any) => item.id === abroad.invoice.id); record.currency = 'USD'; });
+  assert.equal((await env.money<GoalView>('venture.goals.get', {})).paidInFull, null, 'the line never hides an open invoice of another currency');
+});

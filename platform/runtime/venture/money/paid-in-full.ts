@@ -4,6 +4,7 @@
 // The same month and currency the goals view counts (goal-plans.ts invoicesOf). Reads only; no model writes a number.
 import type { Context, State } from '../../contracts.ts';
 import type { InvoiceRecord, PaidInFullView, SumReceiptSubject, VentureDeps, VentureRecord } from '../contracts.ts';
+import { listRecords } from '../records.ts';
 import { invoicesOf } from './goal-plans.ts';
 import { calendarMonth } from './dates.ts';
 import { statementPlan } from './statement.ts';
@@ -31,6 +32,10 @@ export function invoicePaidInFull(invoice: InvoiceRecord): boolean {
 export async function paidInFull(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, month: string): Promise<PaidInFullView | null> {
   const invoices = invoicesOf(state, venture, month, 'issued');
   if (!invoices.length || !invoices.every(invoicePaidInFull)) return null;
+  // The receipt adds one currency, but the line says "all": an open invoice in another currency means it is not.
+  const abroad = listRecords(state, 'venture-invoice', venture.id).filter(item => item.currency !== venture.country.currency && item.number !== null
+    && item.status !== 'draft' && item.status !== 'void' && item.issueDate?.slice(0, 7) === month);
+  if (!abroad.every(invoicePaidInFull)) return null;
   const plan = paidInFullPlan(state, venture, { type: 'paid-in-full', month });
   // The receipt must prove it: its lines add up to nothing left.
   if (planTotal(plan) !== 0n) return null;
