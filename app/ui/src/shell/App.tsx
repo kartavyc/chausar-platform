@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngineProvider, useEngine, useEngineStatus } from '../engine/context';
-import { TextProvider, useT, type Language } from '../text';
+import { useT, type Language } from '../text';
+import { LanguageRoot } from './LanguageRoot';
 import { SheetTitleContext } from '../parts/Sheet';
 import { ShellToolsContext } from '../parts/PageTitle';
 import { AskBox } from './AskBox';
@@ -26,9 +27,9 @@ import s from './App.module.css';
 export function App({ client, language }: { client: EngineClient; language: Language }) {
   return (
     <EngineProvider client={client}>
-      <TextProvider language={language}>
+      <LanguageRoot language={language}>
         <Shell />
-      </TextProvider>
+      </LanguageRoot>
     </EngineProvider>
   );
 }

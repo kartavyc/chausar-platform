@@ -2053,6 +2053,9 @@ export interface EngineMethods {
   'venture.build.link': { params: { repo: string; token?: string }; result: BuildFollowLite };
   'venture.build.sync': { params: Record<string, never>; result: BuildStatusLite };
   'venture.build.status': { params: Record<string, never>; result: BuildStatusView };
+  /** C5 task 36: the owner's language on this computer, before any vault is open. */
+  'app.preferences.get': { params: Record<string, never>; result: { language: 'en' | 'hi' } };
+  'app.preferences.set': { params: { language: 'en' | 'hi' }; result: { language: 'en' | 'hi' } };
   'workspace.custody.get': { params: Record<string, never>; result: CustodyViewLite };
   'workspace.custody.recoveryCode': { params: { passphrase?: string }; result: { custody: CustodyViewLite; recoveryCode: string } };
   'workspace.custody.passphraseOn': { params: { passphrase: string }; result: { custody: CustodyViewLite; recoveryCode: string | null } };
@@ -2237,6 +2240,7 @@ export interface EngineMethods {
   // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
   'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };
   'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
+  'venture.diagnostics.today': { params: Record<string, never>; result: DiagnosticsTodayView };
   'venture.build.briefFile': { params: { builder: FileBuilderId }; result: BriefFilePlanLite };
   'venture.accountant.pack.done': { params: { month: string }; result: { done: boolean } };
   'venture.accountant.schedule.set': { params: { on: boolean }; result: { on: boolean; at: string | null; next: string | null } };
@@ -2536,6 +2540,7 @@ export class EngineError extends Error {
 }
 
 /** What the status line shows. `ok` shows nothing. */
+export type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
 /** C5 task 27: the files and crash files going in, how many crash files are here, how many didn't fit, and the exact text. */
 export type DiagnosticsPreview = { id: string; files: { name: string; bytes: number }[]; dumps: { name: string; bytes: number }[]; dumpsThere: number; leftOut: number; text: string; bytes: number };
 
@@ -2546,6 +2551,8 @@ export type EngineStatus =
   | { state: 'unpaired' }
   | { state: 'session-ended' }
   | { state: 'error'; message: string };
+
+import type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
 
 export type Transport = 'desktop' | 'web' | 'hosted' | 'fake';
 

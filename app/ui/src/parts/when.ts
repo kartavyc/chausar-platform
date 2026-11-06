@@ -11,7 +11,7 @@ import { useClock, useOwnerZone } from '../shell/clock';
 import { dayKeyIn, formatDay, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, type When } from '../../../../platform/runtime/owner-format';
 
 /** The one language-to-locale map. Every language writes the English forms until the Hindi pack returns (C5). */
-export const LOCALE: Record<Language, string> = { en: 'en-IN' };
+export const LOCALE: Record<Language, string> = { en: 'en-IN', hi: 'en-IN' };
 
 /** A day: "3 Nov 2026", or "3 Nov" with `short` (a chart's axis, a list by date within weeks). Blank stays blank. */
 export function useDay(size: 'full' | 'short' = 'full'): (value: When | null | undefined) => string {

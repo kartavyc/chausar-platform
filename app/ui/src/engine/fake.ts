@@ -146,6 +146,7 @@ interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; wor
 /** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
 const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
+  'app.preferences.get', 'app.preferences.set',
   'venture.country.suggest',
   'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
   // Ink v2 wave 4 (4J8): the Start gallery's ways to earn, a pre-vault method on the engine too.
@@ -216,6 +217,8 @@ export class FakeEngine {
   private current = 'lumen';
   private scheduledSession = 0;
   private receiptSeq = 421;
+  /** C5 task 36: the owner's language, kept like platform/runtime/app-preferences.ts keeps it. */
+  private appLanguage: 'en' | 'hi' = 'en';
   private seq = 40;
   private listeners = new Set<(event: VentureRunEvent) => void>();
   private readonly latencyMs: number;
@@ -1175,6 +1178,13 @@ export class FakeEngine {
 
   private onboarding(method: string, p: Record<string, unknown>): unknown {
     switch (method) {
+      // C5 task 36: the same shapes and refusal as platform/runtime/app-preferences.ts.
+      case 'app.preferences.get': return { language: this.appLanguage };
+      case 'app.preferences.set': {
+        if (p.language !== 'en' && p.language !== 'hi') throw new EngineError('INVALID_PREFERENCE', 'Choose English or Hindi.');
+        this.appLanguage = p.language;
+        return { language: this.appLanguage };
+      }
       case 'workspace.status': {
         const business = this.open ? this.businesses.find((b) => b.id === this.current) : undefined;
         return {

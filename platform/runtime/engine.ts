@@ -1,3 +1,4 @@
+import { readPreferences, writePreferences } from './app-preferences.ts';
 import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
@@ -1106,6 +1107,9 @@ export class Engine {
       case 'workspace.backups.list': return this.backupList();
       case 'workspace.transfer.import': return this.transferImport(payload);
       case 'workspace.import': return this.importCopy(payload);
+      // C5 task 36: the owner's language, one file beside the businesses, read before any vault is open.
+      case 'app.preferences.get': return readPreferences(this.options.directory, payload);
+      case 'app.preferences.set': return writePreferences(this.options.directory, payload);
     }
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
@@ -1920,6 +1924,7 @@ export class Engine {
       case 'venture.chief.settle.set':
       case 'venture.layout.get':
       case 'venture.layout.change':
+      case 'venture.diagnostics.today':
       case 'venture.build.briefFile':
       case 'venture.accountant.pack.done':
       case 'venture.accountant.schedule.set':

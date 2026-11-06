@@ -8,6 +8,7 @@ import { TileSection, messageOf } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { SizeSetting } from './SizeSetting';
 import { ProfessionSetting } from './ProfessionSetting';
+import { LanguageSetting } from './LanguageSetting';
 import b from './Business.module.css';
 import s from './OwnerView.module.css';
 
@@ -112,6 +113,7 @@ export function OwnerView() {
       <ProfessionSetting onChanged={() => setRound((was) => was + 1)} />
       {/* W6 (3 November 2026): the business's size, only when a rule of its profession counts it. */}
       <SizeSetting key={round} />
+      <LanguageSetting />
     </div>
   );
 }

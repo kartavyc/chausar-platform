@@ -9,7 +9,7 @@
 
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 
-export type Language = 'en';
+export type Language = 'en' | 'hi';
 export type Message = string | { zero?: string; one: string; other: string };
 export type Catalogue = Readonly<Record<string, Message>>;
 export type TextValues = Readonly<Record<string, string | number>>;
@@ -20,7 +20,7 @@ function merge(files: Record<string, unknown>): Catalogue {
   return Object.freeze(out);
 }
 
-export const CATALOGUES: Readonly<Record<Language, Catalogue>> = Object.freeze({
+export const CATALOGUES: Readonly<Record<'en', Catalogue>> = Object.freeze({
   en: merge(import.meta.glob('./en/*.json', { eager: true, import: 'default' })),
 });
 
@@ -61,6 +61,16 @@ export function pickLanguage(_preferred: readonly string[] = []): Language {
   return 'en';
 }
 
+/** C5 task 36: anything a language needs before it shows. English is here already. */
+export async function prepareLanguage(_language: Language): Promise<void> {}
+
+/** The owner's pick (shell/LanguageRoot): what shows, whether this app can choose at all, and how to change it. */
+export interface LanguageChoice { language: Language; available: boolean; choose: (next: Language) => Promise<void> }
+export const LanguageChoiceContext = createContext<LanguageChoice>({ language: 'en', available: false, choose: async () => {} });
+export function useLanguageChoice(): LanguageChoice {
+  return useContext(LanguageChoiceContext);
+}
+
 const LanguageContext = createContext<Language>('en');
 
 export function TextProvider({ children }: { language: Language; children: ReactNode }) {
@@ -76,5 +86,5 @@ export type T = (key: string, values?: TextValues) => string;
 /** t(key, values) gives the complete sentence in the current language. */
 export function useT(): T {
   const language = useLanguage();
-  return useCallback((key: string, values?: TextValues) => format(CATALOGUES[language], language, key, values), [language]);
+  return useCallback((key: string, values?: TextValues) => format(CATALOGUES.en, language, key, values), [language]);
 }

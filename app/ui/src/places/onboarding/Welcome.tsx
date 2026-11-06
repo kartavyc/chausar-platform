@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useT } from '../../text';
+import { useLanguageChoice, useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -90,6 +90,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         <Button variant="quiet" onClick={onNew}>{t(empty ? 'onboarding.welcome.newFirst' : 'onboarding.welcome.new')}</Button>
         {!hosted && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
       </div>
+      <LanguageLink />
       {!hosted && (
         <details className={s.more}>
           <summary>{t('onboarding.welcome.more')}</summary>
@@ -102,6 +103,18 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         </details>
       )}
     </Shell>
+  );
+}
+
+/** C5 task 36: a small link to the other language, in that language's own words. Never picked from the computer. */
+function LanguageLink() {
+  const { language, available, choose } = useLanguageChoice();
+  if (!available) return null;
+  const next = language === 'hi' ? 'en' : 'hi';
+  return (
+    <div className={s.actions}>
+      <Button variant="quiet" size="sm" lang={next} onClick={() => void choose(next).catch(() => {})}>{next === 'hi' ? 'हिन्दी' : 'English'}</Button>
+    </div>
   );
 }
 
