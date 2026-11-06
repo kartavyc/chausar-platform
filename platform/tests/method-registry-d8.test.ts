@@ -24,8 +24,16 @@ test('registry agrees with engine dispatch, including the main-only custody oper
 });
 test('renderer registry grants exactly the UI declared methods', async () => {
   const source = await readFile(new URL('../../app/ui/src/engine/types.ts', import.meta.url), 'utf8');
-  const body = source.slice(source.indexOf('export interface EngineMethods'));
-  const names = [...body.matchAll(/^\s*'([^']+)':\s*\{/gm)].map(row => row[1]!);
+  const tree = ts.createSourceFile('types.ts', source, ts.ScriptTarget.Latest, true);
+  const methods = tree.statements.find((row): row is ts.TypeAliasDeclaration => ts.isTypeAliasDeclaration(row) && row.name.text === 'EngineMethods');
+  assert.ok(methods && ts.isIntersectionTypeNode(methods.type));
+  const [venture, core] = methods.type.types;
+  assert.ok(venture && ts.isMappedTypeNode(venture));
+  assert.equal(venture.typeParameter.constraint?.getText(tree), 'keyof VenturePayloads');
+  assert.ok(venture.type && ts.isTypeLiteralNode(venture.type));
+  assert.deepEqual(venture.type.members.map(row => row.getText(tree).replace(/\s/g, '')), ['params:VenturePayloads[M];', 'result:VentureResults[M]']);
+  assert.ok(core && ts.isTypeLiteralNode(core));
+  const names = [...VENTURE_METHODS, ...core.members.map(row => { assert.ok(ts.isPropertySignature(row) && ts.isStringLiteral(row.name)); return row.name.text; })];
   assert.deepEqual([...RENDERER_METHODS].sort(), names.sort());
   assert.equal(DRAFT_DESK_METHODS.length, 15);
 });

@@ -11,14 +11,14 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { useT } from '../text';
 import { useResource, type Resource } from '../engine/context';
 import { NotificationBell } from '../parts/NotificationBell';
-import type { ResultOf, VentureRunEvent } from '../engine/types';
+import type { ResultOf, UiRunEvent } from '../engine/types';
 import { closeSheet, openSheet, useRoute } from './navigation';
 
 /** The centre's sheet: one for the whole app. */
 export const CENTRE_SHEET = { kind: 'notifications', id: 'all' } as const;
 
 /** Events after which the centre may hold something new: the centre's own, Today's, and a run that waits. */
-export const NOTIFY_EVENTS = (event: VentureRunEvent) => event.type === 'notify.new' || event.type === 'queue.changed' || event.type === 'run.waiting';
+export const NOTIFY_EVENTS = (event: UiRunEvent) => event.type === 'notify.new' || event.type === 'queue.changed' || event.type === 'run.waiting';
 
 type NotifyList = Resource<ResultOf<'venture.notify.list'>> & { seenIds?: ReadonlySet<string> };
 const NotifyContext = createContext<NotifyList | null>(null);

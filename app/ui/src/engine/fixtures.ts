@@ -495,7 +495,7 @@ export const DELIVERIES: Record<string, DeliveryLite[]> = {
       id: 'd-mehta-sep', at: '2026-10-05T10:00:00.000Z', orderId: 'o-mehta-sep', status: 'edited', practice: false, deliverable: { title: 'Books for September' }, verdict: { choice: 'edited', at: '2026-10-05T15:00:00.000Z' },
       checks: [
         { check: 'house-style', passed: true, detail: 'No long dashes and no words on the avoid list.' },
-        { check: 'rules-judge', passed: true, detail: 'Every rule passed its own floor. Each yes cited something code found in the run.' },
+        { check: 'rules-judge', passed: true, detail: 'Every rule passed its own floor. Each yes cited something code found in the job.' },
       ],
       servedBy: 'model', practiceNow: false, canAccept: false, acceptBlocked: null,
       // 4J19 review: which engine wrote it, as DeliveryRunView carries it (Ledgerline's main tier is its own Sonnet key).

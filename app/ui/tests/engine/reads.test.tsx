@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
-import contractSource from '../../src/engine/types.ts?raw';
+import { RENDERER_METHOD_NAMES } from '../../src/engine/methods.gen';
 import { RAIL_PLACES, OTHER_PLACES } from '../../src/shell/routes';
 import { EngineProvider, useEngine, useResource } from '../../src/engine/context';
 import { READS, kindOf } from '../../src/engine/reads';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { App } from '../../src/shell/App';
-import { EngineError, type EngineClient, type QueueList, type VentureRunEvent } from '../../src/engine/types';
+import { EngineError, type EngineClient, type QueueList, type UiRunEvent } from '../../src/engine/types';
 
 /**
  * One-shot B3 task 2: one read store per client. Two places reading the same method and params share one request and
@@ -18,7 +18,7 @@ type Call = { method: string; params: unknown; resolve: (value: unknown) => void
 
 function standIn() {
   const calls: Call[] = [];
-  const listeners = new Set<(event: VentureRunEvent) => void>();
+  const listeners = new Set<(event: UiRunEvent) => void>();
   const client: EngineClient = {
     transport: 'fake',
     request: ((method: string, params?: unknown) => new Promise((resolve, reject) => { calls.push({ method, params, resolve, reject }); })) as EngineClient['request'],
@@ -29,14 +29,14 @@ function standIn() {
   const of = (method: string) => calls.filter((call) => call.method === method);
   const answer = async (call: Call, value: unknown) => { await act(async () => { call.resolve(value); }); };
   const fail = async (call: Call, error: unknown) => { await act(async () => { call.reject(error); }); };
-  const emit = (event: VentureRunEvent) => act(() => { for (const listener of [...listeners]) listener(event); });
+  const emit = (event: UiRunEvent) => act(() => { for (const listener of [...listeners]) listener(event); });
   return { client, calls, of, answer, fail, emit, listeners };
 }
 
 const queue = (needsYou: number): QueueList => ({ rows: [], summary: '', needsYou, businesses: 1 });
-const changed: VentureRunEvent = { type: 'queue.changed', businessId: 'lumen', at: '2026-11-06T10:00:00.000Z' };
+const changed: UiRunEvent = { type: 'queue.changed', businessId: 'lumen', at: '2026-11-06T10:00:00.000Z' };
 
-function Count({ name, refreshOn }: { name: string; refreshOn?: (event: VentureRunEvent) => boolean }) {
+function Count({ name, refreshOn }: { name: string; refreshOn?: (event: UiRunEvent) => boolean }) {
   const list = useResource('venture.queue.list', { scope: 'all' }, refreshOn ? { refreshOn } : {});
   return (
     <p data-testid={name}>
@@ -161,7 +161,7 @@ describe('the read store (B3)', () => {
  * times out (the engine may have done it), reads again every entry whose readers accept a queue change, once; any
  * other refusal changes nothing.
  */
-function Reader({ name, method, refreshOn }: { name: string; method: 'venture.invoice.list' | 'venture.order.list'; refreshOn: (event: VentureRunEvent) => boolean }) {
+function Reader({ name, method, refreshOn }: { name: string; method: 'venture.invoice.list' | 'venture.order.list'; refreshOn: (event: UiRunEvent) => boolean }) {
   const list = useResource(method, {}, { refreshOn });
   return <p data-testid={name}>{list.data ? 'read' : 'none'}</p>;
 }
@@ -230,7 +230,7 @@ describe('a write refreshes what it changes (B3)', () => {
 
   it('the store\'s own signal never reaches the engine\'s event listeners', async () => {
     const { engine, send, last } = await mounted();
-    const heard: VentureRunEvent[] = [];
+    const heard: UiRunEvent[] = [];
     engine.listeners.add((event) => heard.push(event));
     const sent = send('venture.client.add', { name: 'Test Client One' });
     await engine.answer(last(), { id: 'c-1' });
@@ -285,9 +285,27 @@ describe('at rest, nothing loops (B3)', () => {
 
 
 it('cleanup: every read-looking UI contract method is classified as a read', async () => {
-  const types = contractSource;
-  const contract = types.slice(types.indexOf('export interface EngineMethods'), types.indexOf('export type MethodName'));
-  const methods = [...contract.matchAll(/^  '([^']+)':/gm)].map(match => match[1]!).filter(method => /\.(get|list|status|inspect|options)$/.test(method));
+  const methods = RENDERER_METHOD_NAMES.filter(method => /\.(get|list|status|inspect|options)$/.test(method));
   expect(methods.length).toBeGreaterThan(80);
   expect(methods.filter(method => !(READS as readonly string[]).includes(method))).toEqual([]);
+});
+
+it('a deferred settings change refreshes the kept empty settings read exactly once', async () => {
+  const engine = standIn();
+  let client: EngineClient | undefined;
+  function Settings() {
+    const read = useResource('venture.notify.settings', {});
+    return <p data-testid="settings">{read.data ? 'read' : 'waiting'}</p>;
+  }
+  render(<EngineProvider client={engine.client}><Settings /><Writer grab={value => { client = value; }} /></EngineProvider>);
+  await engine.answer(engine.calls[0]!, { push: false });
+  const changed = client!.request('venture.notify.settings', { push: true });
+  expect(engine.calls).toHaveLength(2);
+  await engine.answer(engine.calls[1]!, { push: true });
+  await act(async () => { await changed; });
+  expect(engine.calls).toHaveLength(3);
+  expect(engine.calls[2]!.params).toEqual({});
+  await engine.answer(engine.calls[2]!, { push: true });
+  expect(engine.calls).toHaveLength(3);
+  expect(screen.getByTestId('settings').textContent).toBe('read');
 });
