@@ -7,6 +7,7 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import type { DrillRunView, ImprovementRunLite } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
+import { Progress } from '../../parts/Progress';
 
 /** The newest drill run in one line: passed or failed, how many were stopped, and the playbook version it ran on. */
 function summaryOf(run: DrillRunView, t: T): string {
@@ -66,6 +67,7 @@ export function Drills() {
       )}
       <div className={s.buttons}>
         <Button disabled={busy} aria-busy={busy || undefined} onClick={() => void run()}>{busy ? t('business.practice.drills.running') : t('business.practice.drills.run')}</Button>
+        <Progress kind="drills" active={busy} />
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </TileSection>

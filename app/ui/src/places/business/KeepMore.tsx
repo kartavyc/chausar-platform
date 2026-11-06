@@ -9,6 +9,9 @@ import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { LeftContext, StartedContext } from '../onboarding/started';
 import s from './Business.module.css';
+import { Reveal } from '../../parts/RevealBlock';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { Progress } from '../../parts/Progress';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -59,15 +62,14 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
               <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>
-            {asking === backup.file && (
-              <>
-                <p className={s.line}>{t('business.restoreAsk')}</p>
-                <div className={s.buttons}>
-                  <Button variant="primary" disabled={busy} onClick={() => void restore(backup)}>{t('business.restoreGo')}</Button>
-                  <Button variant="quiet" disabled={busy} onClick={() => setAsking(null)}>{t('business.restoreKeep')}</Button>
-                </div>
-              </>
-            )}
+            <Reveal open={asking === backup.file}>
+              <p className={s.line}>{t('business.restoreAsk')}</p>
+              <div className={s.buttons}>
+                <Button variant="primary" disabled={busy} onClick={() => void restore(backup)}>{t('business.restoreGo')}</Button>
+                <Button variant="quiet" disabled={busy} onClick={() => setAsking(null)}>{t('business.restoreKeep')}</Button>
+              </div>
+            </Reveal>
+            {asking === backup.file && <Progress kind="restore" active={busy} />}
             {problem?.file === backup.file && <p className={s.problem} role="alert">{problem.text}</p>}
           </li>
         ))}
@@ -276,7 +278,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
     <details className={s.fold}>
       <summary>{t('business.delete')}</summary>
       {name === null ? (
-        status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <p className={s.note}>{t('business.loading')}</p>
+        status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <LoadingPlace shape="settings" />
       ) : (
         <form className={s.form} onSubmit={(event) => void go(event)}>
           <p className={s.line}>{t('business.deleteWhat', { name })}</p>

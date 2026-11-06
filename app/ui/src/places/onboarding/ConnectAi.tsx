@@ -11,6 +11,7 @@ import { openExternal } from '../connections/external';
 import s from './FirstRun.module.css';
 import { ProviderTrouble } from '../../parts/ProviderTrouble';
 import { ConsentWords } from '../../parts/ConsentWords';
+import { Progress } from '../../parts/Progress';
 
 /** How often the screen looks again while a tool's own sign-in waits for the owner. */
 export const LOGIN_POLL_MS = 1500;
@@ -28,6 +29,8 @@ const connectedTo = (status: ModelStatusLite | undefined) => Boolean(status && O
  * Using a signed-in tool is the connection's consent: the button sits right above the engine's own words of what the
  * connection sends, and sends that consent's digest (venture.ai.connect).
  */
+const TOOL_STEPS = ['claude-code', 'codex'] as const;
+
 export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void; onSkip: () => void }) {
   const t = useT();
   const client = useEngine();
@@ -167,7 +170,8 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
       <h1 id={headingId} className={s.title}>{t('first-run.ai.title')}</h1>
       <p className={s.sub}>{t('first-run.ai.sub')}</p>
       <Bento className={s.grid} as="section" labelledBy={headingId}>
-        {view ? view.tools.map(toolTile) : <p className={s.status} role="status">{t('first-run.ai.checking')}</p>}
+        {/* One-shot C3 task 11: each tool's step as it is looked at, never a bare wait. */}
+        {view ? view.tools.map(toolTile) : <Progress kind="ai-tools" active stepIds={TOOL_STEPS} labelOf={(cli) => t(cli === 'codex' ? 'first-run.ai.checkingCodex' : 'first-run.ai.checkingClaude')} />}
         <Tile as="section" span={4} label={t('first-run.ai.key.name')} className={s.option} card>
           <div className={s.optionHead}><Icon name="lock" size={20} /><h2 className={s.optionName}>{t('first-run.ai.key.name')}</h2></div>
           <p className={s.optionLine}>{t('first-run.ai.key.line')}</p>

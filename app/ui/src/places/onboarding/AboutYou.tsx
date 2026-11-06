@@ -13,6 +13,7 @@ import { aboutFile, type AboutFile } from './linkedin';
 import { renameIn } from './rename';
 import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
+import { Progress } from '../../parts/Progress';
 
 type Mode = 'a' | 'b' | 'plan';
 type Bubble = { who: 'me' | 'them'; text: string };
@@ -315,7 +316,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
             {thread.map((bubble, index) => (
               <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' ? '' : undefined}>{bubble.text}</p>
             ))}
-            {busy && <p className={`${s.bubble} ${s.them}`} role="status">{t('first-run.about.reading')}</p>}
+            {/* One-shot C3 task 11: Chausar's turn in the chat says which step it is on. */}
+            {busy && <div className={`${s.bubble} ${s.them}`}><Progress kind="about" active /></div>}
             {countryAsk && (
               <div className={`${s.bubble} ${s.them}`}>
                 <p>{t('onboarding.countrySuggestion', { country: countryAsk.name, currency: countryAsk.currency })}</p>

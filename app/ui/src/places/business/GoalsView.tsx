@@ -12,6 +12,7 @@ import { TileSection, messageOf, usePlan } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import b from './Business.module.css';
 import s from './GoalsView.module.css';
+import { Progress } from '../../parts/Progress';
 
 /**
  * Business > Goals (W4 4I2): the owner's monthly goal, money invoiced in the month before tax (founder, 23 Oct). The
@@ -175,6 +176,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             </>
           )}
           {suggestion.state === 'none' && <p className={b.quiet}>{t('today.goal.noSuggestion')}</p>}
+          <Progress kind="goal-suggest" active={suggestion.state === 'asking'} />
           {suggestion.state === 'failed' && <p className={b.problem} role="alert">{t('today.goal.suggestFailed', { message: suggestion.message })}</p>}
           {suggestion.state !== 'sent' && (
             <div>

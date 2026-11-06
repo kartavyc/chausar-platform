@@ -10,6 +10,8 @@ import { BUILDER_NAMES, handOff } from './handoff';
 import { TileSection, messageOf } from './shared';
 import { SiteEdits } from './SiteEdits';
 import s from './Business.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { Progress } from '../../parts/Progress';
 
 const SYNTHETIC = /synthetic recording/i;
 
@@ -41,7 +43,7 @@ export function BuildView() {
   }
 
   if (build.error) return <p className={s.problem} role="alert">{t('business.failed', { message: build.error.message })}</p>;
-  if (!build.data) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!build.data) return <LoadingPlace shape="settings" />;
   const { brief } = build.data;
 
   const briefTile = (
@@ -50,6 +52,7 @@ export function BuildView() {
         <>
           <p className={s.line}>{t('business.noBrief')}</p>
           <div className={s.buttons}><Button variant="primary" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeBrief')}</Button></div>
+          <Progress kind="brief" active={busy} />
         </>
       ) : (
         <>

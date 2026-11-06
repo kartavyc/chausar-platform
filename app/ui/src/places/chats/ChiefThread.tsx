@@ -271,6 +271,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
       {consent && <Consent stale={consent.stale} text={consent.text} words={consent.words} problem={consent.problem} busy={consent.busy} onAgree={() => void agree()} onNotNow={notNow} />}
       <div className={s.compose}>
         <Composer
+          waitLabel={t('progress.writing')}
           key={box.n}
           initial={box.words}
           label={t('chats.composer.label')}

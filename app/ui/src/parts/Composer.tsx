@@ -4,6 +4,7 @@ import { Button } from './Button';
 import { cx } from './cx';
 import { Icon } from './Icon';
 import s from './Composer.module.css';
+import { WaitLine } from './Progress';
 
 export interface ComposerProps {
   /** The box's name, said by screen readers and shown as the placeholder ("Message Editor", "Ask Chausar"). */
@@ -14,6 +15,8 @@ export interface ComposerProps {
   onSend: (text: string) => Promise<void>;
   /** Short things to ask; a tap puts the words in the box and never sends them. */
   suggestions?: readonly string[] | undefined;
+  /** One-shot C3 task 11: while a send is on its way, one still line with its elapsed time ("Writing, 8 s"), never dots. */
+  waitLabel?: string | undefined;
   /** One quiet line under the box, such as what the agent does without asking. */
   hint?: string | undefined;
   /** Words already in the box when it opens (W4 4C2: an ask from the header or Start), unsent until Send. */
@@ -30,7 +33,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * is read-only and the suggestions wait, and a failure leaves the words in place with the reason under them. A send
  * starts once however fast Enter is pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, hint, initial, className }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, hint, initial, className, waitLabel }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +83,7 @@ export function Composer({ label, placeholder, onSend, suggestions, hint, initia
       aria-busy={sending || undefined}
       onSubmit={(event) => { event.preventDefault(); void send(); }}
     >
+      {waitLabel && <WaitLine label={waitLabel} running={sending} />}
       {suggestions && suggestions.length > 0 && (
         <div className={s.suggestions} role="group" aria-label={t('composer.suggestions')}>
           {suggestions.map((suggestion) => (

@@ -1,0 +1,77 @@
+/* Progress (one-shot C3 task 11): rows of still marks and plain words. Nothing here animates: a done mark swaps once
+   through parts/Swap, and the elapsed time changes as text once a second. */
+
+.progress {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.steps {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.step[data-state='current'] {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.step[data-state='done'] {
+  color: var(--fg2);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--sp-5);
+  height: var(--sp-5);
+}
+
+.pending {
+  display: block;
+  width: var(--sp-3);
+  height: var(--sp-3);
+  border: var(--hair) dashed var(--dash);
+  border-radius: 50%;
+}
+
+.words {
+  min-width: 0;
+}
+
+.elapsed {
+  margin-left: auto;
+  color: var(--mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.failed {
+  margin-left: auto;
+  color: var(--fail);
+}
+
+.leave {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+  font-variant-numeric: tabular-nums;
+}

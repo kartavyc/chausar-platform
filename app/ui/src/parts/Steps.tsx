@@ -1,5 +1,6 @@
 import { useT } from '../text';
 import { Icon } from './Icon';
+import { StillArc } from './StepMark';
 import type { IconName } from './icons';
 import type { RunStep, RunSummary, RunToolLine } from '../engine/types';
 import s from './Steps.module.css';
@@ -20,16 +21,6 @@ export interface StepsProps {
   waitingWord?: string | undefined;
   /** 4Z2: false leaves a failed step's error out, where the caller says the failure in plain words and keeps it a step away. */
   errors?: boolean;
-}
-
-/** The current step: a quarter arc on a ring, drawn once and never turning (nothing loops). */
-function StillArc() {
-  return (
-    <svg className={s.arc} data-arc="" viewBox="0 0 20 20" width="20" height="20" focusable="false" aria-hidden="true">
-      <circle className={s.arcTrack} cx="10" cy="10" r="7.5" fill="none" />
-      <path className={s.arcPart} d="M10 2.5a7.5 7.5 0 0 1 7.5 7.5" fill="none" />
-    </svg>
-  );
 }
 
 /** W4 4F3 (U7): each tool call's state as a shape beside its words: a check, a warning, a cross (never colour alone). */

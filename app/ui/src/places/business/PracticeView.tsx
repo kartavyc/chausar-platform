@@ -11,6 +11,8 @@ import { GuidanceReport } from './GuidanceReport';
 // W6 6C4: the two launch stages and the button that moves the business up.
 import { LaunchStages } from './LaunchStages';
 import s from './Business.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { Progress } from '../../parts/Progress';
 
 /**
  * Business > Practice and improve (#/business/practice), Ink v2 wave 2 (catalogue Q2's screen, and the judge setting
@@ -104,13 +106,15 @@ function Rehearsal() {
     <>
       <TileSection title={t('business.practice.clients')}>
         {scenarios.error && <p className={s.problem} role="alert">{t('business.failed', { message: scenarios.error.message })}</p>}
-        {!scenarios.data && !scenarios.error && <p className={s.note}>{t('business.loading')}</p>}
+        {!scenarios.data && !scenarios.error && <LoadingPlace shape="settings" />}
         {scenarios.data && templates.length === 0 && <p className={s.line}>{t('business.practice.none')}</p>}
         {templates.length > 0 && <ScenarioList scenarios={templates} />}
         <div className={s.buttons}>
           <Button disabled={busy || templates.length === 0} onClick={() => void rehearse()}>{busy ? t('business.practice.rehearsing') : t('business.practice.rehearse')}</Button>
         </div>
         <p className={s.note}>{t('business.practice.ownAi')}</p>
+        {/* One-shot C3 task 11: one row per practice client, ticking as each finishes. */}
+        <Progress kind="rehearse" active={busy} stepIds={templates.map((scenario) => scenario.id)} labelOf={title} landsAt={t('progress.landsPractice')} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         {result && (
           <div className={s.foldBody} data-rehearsal={result.id}>
@@ -207,7 +211,7 @@ function Improvement() {
   return (
     <TileSection title={t('business.practice.improve')}>
       {status.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: status.error.message })}</p>}
-      {!data && !status.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!data && !status.error && <LoadingPlace shape="settings" />}
       {data && (
         <>
           <p className={s.line}>{data.readiness.reason}</p>
@@ -224,6 +228,7 @@ function Improvement() {
             </Button>
           </div>
           <p className={s.note}>{t('business.practice.ownAi')}</p>
+          <Progress kind="improve" active={phase === 'running'} landsAt={t('progress.landsPracticeWork')} />
           {/* W4 4J22a: each change the newest run tried, as an experiment with its control. */}
           <Experiments run={data.latest} />
           {candidate && (
@@ -295,7 +300,7 @@ function JudgeSetting() {
   return (
     <TileSection title={t('business.practice.judge')}>
       {setting.error && !view && <p className={s.problem} role="alert">{t('business.failed', { message: setting.error.message })}</p>}
-      {!view && !setting.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!view && !setting.error && <LoadingPlace shape="settings" />}
       {view && (
         <>
           <p className={s.strong}>{view.auto ? t('business.practice.judgeOn') : t('business.practice.judgeOff')}</p>
