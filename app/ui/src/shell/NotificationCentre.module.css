@@ -6,11 +6,6 @@
   gap: var(--sp-4);
 }
 
-.tools {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .digest {
   display: grid;
   gap: var(--sp-1);

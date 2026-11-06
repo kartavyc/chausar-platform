@@ -21,6 +21,16 @@ async function open(hash: string, before?: (engine: FakeEngine) => Promise<unkno
 }
 
 describe('the receipt sheet is the proof', () => {
+  it('leads with the figure before the receipt name', async () => {
+    const sheet = await open('#/money?sheet=receipt:R-0402');
+    await waitFor(() => expect(sheet.textContent).toContain('₹86,200'));
+    const title = sheet.querySelector('h2')!;
+    expect(title.textContent).toContain('₹86,200');
+    expect(title.textContent).not.toContain('R-0402');
+    expect(sheet.querySelector('[data-code]')?.textContent).toBe('R-0402');
+    expect(title.compareDocumentPosition(sheet.querySelector('[data-code]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   // C4 T27 (83.x1): under the figure, what was counted and over which dates.
   it('shows the basis line under the figure of a money sum; a receipt with no basis shows none', async () => {
     const sheet = await open('#/money?sheet=receipt:R-0402');

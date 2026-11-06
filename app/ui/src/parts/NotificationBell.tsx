@@ -6,6 +6,7 @@ import s from './NotificationBell.module.css';
 export interface NotificationBellProps {
   /** How many notifications are new, counted by the engine (W4 4G). */
   unread: number;
+  showDot?: boolean | undefined;
   onOpen?: (() => void) | undefined;
   /** Whether the notification centre it opens is showing. */
   expanded?: boolean | undefined;
@@ -18,7 +19,7 @@ export interface NotificationBellProps {
  * The bell (D's `.ib` and the phone's `.tib`). It shows a dot when something is new and never a number on the icon;
  * the count is said in its name only ("Notifications, 2 new"), as the founder decided for every alert.
  */
-export function NotificationBell({ unread, onOpen, expanded, look = 'outlined', className }: NotificationBellProps) {
+export function NotificationBell({ unread, showDot, onOpen, expanded, look = 'outlined', className }: NotificationBellProps) {
   const t = useT();
   const fresh = unread > 0;
   return (
@@ -31,7 +32,7 @@ export function NotificationBell({ unread, onOpen, expanded, look = 'outlined', 
       onClick={onOpen}
     >
       <Icon name="bell" size={look === 'bare' ? 20 : 18} />
-      {fresh && <span className={s.dot} data-dot="" />}
+      {(showDot ?? fresh) && <span className={s.dot} data-dot="" />}
     </button>
   );
 }
