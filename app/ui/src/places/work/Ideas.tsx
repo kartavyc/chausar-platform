@@ -18,7 +18,6 @@ import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
-import { SectionHead } from '../../parts/Tile';
 import { dayOf } from '../business/shared';
 import s from './Ideas.module.css';
 
@@ -36,7 +35,6 @@ function wordsOf(error: unknown, t: T): string {
 export function Ideas() {
   const t = useT();
   const engine = useEngine();
-  const headingId = useId();
   const view = useResource('venture.ideas.list', {}, { refreshOn: IDEA_EVENTS });
   const team = useResource('venture.team.list', {});
   const [adding, setAdding] = useState(false);
@@ -77,12 +75,12 @@ export function Ideas() {
   const open = all.length - dropped.length;
 
   return (
-    <section aria-labelledby={headingId} className={s.ideas}>
-      <SectionHead
-        id={headingId} title={t('kit-rules.heading')}
-        end={adding || open === 0 ? undefined : <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={16} />{t('kit-rules.add')}</Button>}
-      />
-      <p className={s.line}>{t('kit-rules.line')}</p>
+    // C1 task 5: the page's title says Ideas, so this section says it once, to screen readers.
+    <section aria-label={t('kit-rules.heading')} className={s.ideas}>
+      <div className={s.head}>
+        <p className={s.line}>{t('kit-rules.line')}</p>
+        {!adding && open > 0 && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={16} />{t('kit-rules.add')}</Button>}
+      </div>
       {adding && (
         <AddForm
           busy={busy} onCancel={() => setAdding(false)}

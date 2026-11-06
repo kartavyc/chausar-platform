@@ -7,6 +7,14 @@
   min-width: 0;
 }
 
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+}
+
 .line {
   margin: 0;
   font-size: var(--text-read);

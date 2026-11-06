@@ -67,7 +67,7 @@ describe('Work > Ideas is its own page (C1 task 5)', () => {
     await act(async () => { window.location.hash = '#/work/ideas'; });
     await settle();
     expect(await screen.findByRole('heading', { level: 1, name: 'Ideas' })).toBeTruthy();
-    expect(await screen.findByRole('heading', { level: 2, name: 'Ideas' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Ideas' })).toBeTruthy();
     expect(column('Inbox')).toBeTruthy();
     expect(document.querySelector('main [data-back]')!.textContent).toBe('Work');
     expect(document.querySelector('main [data-back]')!.getAttribute('href')).toBe('#/work');
@@ -84,7 +84,7 @@ describe('Work > Ideas is its own page (C1 task 5)', () => {
 describe('Work > Ideas (5A3, P13)', () => {
   it('shows the pipeline one column per stage, each idea with where it came from and one next step', async () => {
     start();
-    expect(await screen.findByRole('heading', { level: 2, name: 'Ideas' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Ideas' })).toBeTruthy();
     for (const stage of ['Inbox', 'Triage', 'Drafted', 'Made', 'Published']) expect(column(stage)).toBeTruthy();
     const inbox = card('A behind-the-scenes short of a recording day');
     expect(within(column('Inbox')).getByRole('article')).toBe(inbox);
@@ -109,7 +109,7 @@ describe('Work > Ideas (5A3, P13)', () => {
 
   it('moves an idea forward with its one primary, and further or to Dropped one step away', async () => {
     const { spy } = start();
-    await screen.findByRole('heading', { level: 2, name: 'Ideas' });
+    await screen.findByRole('region', { name: 'Ideas' });
     const inbox = card('A behind-the-scenes short of a recording day');
     await press(within(inbox).getByRole('button', { name: 'Move to Triage' }));
     expect(calls(spy, 'venture.ideas.move')[0]).toEqual({ id: 'idea_sample_3', stage: 'triage' });
@@ -124,7 +124,7 @@ describe('Work > Ideas (5A3, P13)', () => {
 
   it('a drop asks why in one sentence; two sentences are refused in the screen\'s words, one drops it to the fold', async () => {
     const { spy } = start();
-    await screen.findByRole('heading', { level: 2, name: 'Ideas' });
+    await screen.findByRole('region', { name: 'Ideas' });
     const idea = card('Three mistakes new channels make with thumbnails');
     idea.querySelector('details')!.open = true;
     const form = within(idea).getByRole('form', { name: 'Drop' });
@@ -141,7 +141,7 @@ describe('Work > Ideas (5A3, P13)', () => {
 
   it('adds an idea to Inbox from the form', async () => {
     const { spy } = start();
-    await screen.findByRole('heading', { level: 2, name: 'Ideas' });
+    await screen.findByRole('region', { name: 'Ideas' });
     await press(screen.getByRole('button', { name: 'Add an idea' }));
     const form = screen.getByRole('form', { name: 'Add an idea' });
     fireEvent.change(within(form).getByLabelText('The idea'), { target: { value: 'A short on our editing desk' } });
