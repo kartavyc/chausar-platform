@@ -87,3 +87,9 @@ test('only two saved cache rates enable the fixed Anthropic system block, includ
   assert.deepEqual(body.system, [{ type: 'text', text: task.instructions, cache_control: { type: 'ephemeral' } }]);
   assert.equal(body.messages[0].content, JSON.stringify(task.input));
 });
+
+test('cache reservations cover premium writes and any higher saved cache read price', () => {
+  const premium = table({ cacheReadMicrosPerMillion: '300000', cacheWriteMicrosPerMillion: '3750000' });
+  assert.equal(estimateMaxCostMicros(2000, 100, premium), '5250');
+  assert.equal(estimateMaxCostMicros(2000, 100, table({ cacheReadMicrosPerMillion: '6000000', cacheWriteMicrosPerMillion: '3750000' })), '7500');
+});

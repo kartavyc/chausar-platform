@@ -1236,11 +1236,11 @@ test('D3 fix: the month spent counts a held call at its reservation and says it 
 });
 
 // D2 task 19: the exact cached body is previewed, recorded and sent only with saved cache prices.
-async function cacheRates(deps: VentureDeps, enabled: boolean) {
+async function cacheRates(deps: VentureDeps, enabled: boolean, writeRate = '3750000') {
   await spendPolicySet(deps, owner, { rates: [{
     item: 'model:anthropic-sonnet-5-5', model: preset('anthropic-sonnet-5-5').model,
     unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000',
-    ...(enabled ? { cacheReadMicrosPerMillion: '300000', cacheWriteMicrosPerMillion: '3750000' } : {}),
+    ...(enabled ? { cacheReadMicrosPerMillion: '300000', cacheWriteMicrosPerMillion: writeRate } : {}),
     source: 'Synthetic owner rate', checkedOn: '2026-10-15',
   }] });
 }
@@ -1279,4 +1279,12 @@ test('D2 cache marker: a preview becomes stale when its system caching policy ch
     await assert.rejects(deps.models.runPreview(owner, preview.callId, preview.digest, validateWords), code('APPROVAL_STALE'));
     assert.equal(rec.http.length, 0);
   }
+});
+
+test('D2 cache marker: premium write rates cannot pass the connection cap at plain input prices', async () => {
+  const { deps, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5', { monthlyCapUsd: '0.05' });
+  await cacheRates(deps, true, '3000000000');
+  await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'delivery' })), code('BUDGET_REACHED'));
+  assert.equal(rec.http.length, 0);
 });
