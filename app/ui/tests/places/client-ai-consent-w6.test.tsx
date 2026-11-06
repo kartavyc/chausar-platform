@@ -50,6 +50,30 @@ describe('per-client AI permission',()=>{
   render(<App client={client} language="en"/>);const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});fireEvent.click(await within(sheet).findByText('AI permission'));
   await within(sheet).findByText('Permission is unavailable.');expect(within(sheet).queryByRole('button',{name:'Allow AI access'})).toBeNull();
  });
+ // C4 task 19 (161.x1): after Allow, back to the work.
+ it('Allow on a client with an order waiting offers to start it, and only the owner\'s press starts it',async()=>{
+  const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
+  const clients=await engine.request('venture.client.list') as {id:string;name:string}[];const iyer=clients.find(item=>item.name==='Iyer & Co')!;
+  const orders=await engine.request('venture.order.list') as {id:string;clientId:string;request:string}[];const waiting=orders.find(order=>order.request==='Monthly books from October')!;
+  client.request=((method,params)=>method==='venture.delivery.run'?Promise.resolve({id:'run_new'}):base(method as never,params as never)) as EngineClient['request'];
+  const spy=vi.spyOn(client,'request');window.location.hash=`#/clients?sheet=client%3A${iyer.id}`;render(<App client={client} language="en"/>);
+  const sheet=await screen.findByRole('complementary',{name:'Iyer & Co'});fireEvent.click(await within(sheet).findByText('AI permission'));
+  expect(within(sheet).queryByRole('button',{name:/order$/})).toBeNull();
+  await act(async()=>fireEvent.click(await within(sheet).findByRole('button',{name:'Allow AI access'})));
+  const start=await within(sheet).findByRole('button',{name:"Start Iyer & Co's order"});
+  expect(spy.mock.calls.some(([method])=>method==='venture.delivery.run')).toBe(false);
+  await act(async()=>{fireEvent.click(start);window.dispatchEvent(new HashChangeEvent('hashchange'));});
+  const run=spy.mock.calls.filter(([method])=>method==='venture.delivery.run');
+  expect(run.map(([,params])=>params)).toEqual([{orderId:waiting.id}]);
+  await waitFor(()=>expect(window.location.hash).toContain(`order=${waiting.id}`));
+ });
+ it('Allow on a client with no order waiting offers nothing more',async()=>{
+  window.location.hash='#/clients?sheet=client%3Ac-boat';const client=createFakeClient(new FakeEngine());render(<App client={client} language="en"/>);
+  const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});fireEvent.click(await within(sheet).findByText('AI permission'));
+  await act(async()=>fireEvent.click(await within(sheet).findByRole('button',{name:'Allow AI access'})));
+  await within(sheet).findByRole('button',{name:'Withdraw permission'});
+  expect(within(sheet).queryByRole('button',{name:/^Start .+ order$/})).toBeNull();
+ });
  it('Work links a missing-permission refusal to the exact client without granting it',async()=>{
   const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
   client.request=((method,params)=>method==='venture.delivery.run'?Promise.reject(new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.')):base(method as never,params as never)) as EngineClient['request'];

@@ -8,6 +8,7 @@
  * Chausar keeps (`pickNetworkFile`); mail headers come only that way, with the addresses the owner sends from. On the
  * web the page reads the file and sends it to the engine on this computer; the hosted app imports nothing and says so.
  * Every refusal (too large, a line that can't be read, the same file again) shows the engine's own words.
+ * C4 task 19 (229, 81.x1): each opening starts afresh, and each kind of file says how to get it.
  */
 
 import { useId, useState } from 'react';
@@ -23,6 +24,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { clientsChanged } from './signals';
 import { KIND_ICONS } from './NetworkSources';
 import { messageOf } from './network';
+import { Fold } from './CrmParts';
 import s from './Network.module.css';
 
 const KINDS: readonly NetworkImportKind[] = ['linkedin-connections', 'contacts-csv', 'vcard', 'calendar-ics', 'linkedin-messages', 'mail-headers'];
@@ -39,7 +41,12 @@ type Step =
   | { kind: 'undoing'; done: Extract<NetworkImportResult, { mode: 'import' }>; line: string }
   | { kind: 'undone'; line: string };
 
-export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
+/** Keyed by what it was opened for, so "Import a newer file" of another kind starts afresh too. */
+export function ImportSheet(props: SheetComponentProps) {
+  return <ImportSteps key={props.id} {...props} />;
+}
+
+function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
   const kindsId = useId();
@@ -144,6 +151,7 @@ export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                 </label>
               )}
               {step.kind === 'busy' && <p className={s.quiet} role="status">{t('clients.import.checking')}</p>}
+              <Fold key={kind} summary={t('clients.import.how')}><p className={s.quiet}>{t(`clients.import.how.${kind}`)}</p></Fold>
             </div>
           )}
 

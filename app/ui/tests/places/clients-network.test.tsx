@@ -416,6 +416,51 @@ describe('Network: the import sheet', () => {
     expect(screen.getByText(/Undid Connections\.csv/)).toBeTruthy();
   });
 
+  // C4 task 19 (229, 81.x1): the sheet starts fresh each time and says how to get each file.
+  it('reopening the sheet shows the first step, not the last result; moving to another kind clears a refusal', async () => {
+    await start('#/clients/network?sheet=network-import:new');
+    await screen.findByRole('heading', { name: 'Import a file' });
+    fireEvent.click(screen.getByRole('radio', { name: /LinkedIn connections/ }));
+    pick(FILE);
+    await settle();
+    await click(screen.getByRole('button', { name: 'Import' }));
+    await settle();
+    expect(screen.getByText(/Imported 1 person from Connections\.csv/)).toBeTruthy();
+    window.location.hash = '#/clients/network';
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await settle();
+    expect(screen.queryByRole('heading', { name: 'Import a file' })).toBeNull();
+    window.location.hash = '#/clients/network?sheet=network-import:new';
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await screen.findByRole('heading', { name: 'Import a file' });
+    expect(screen.queryByText(/Imported 1 person/)).toBeNull();
+    expect(screen.getByText('Which file?')).toBeTruthy();
+    expect(screen.getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked)).toEqual([]);
+    // From "Import a newer file" of one kind to another: the same sheet, a new start.
+    window.location.hash = '#/clients/network?sheet=network-import:vcard';
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await settle();
+    expect((screen.getByRole('radio', { name: /Phone contacts/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('each kind of file has its own How to get this file fold', async () => {
+    await start('#/clients/network?sheet=network-import:new');
+    await screen.findByRole('heading', { name: 'Import a file' });
+    expect(screen.queryByText('How to get this file')).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: /LinkedIn connections/ }));
+    const fold = screen.getByText('How to get this file', { selector: 'summary' }).closest('details') as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(fold.textContent).toContain('Get a copy of your data');
+    fireEvent.click(screen.getByRole('radio', { name: /Phone contacts/ }));
+    const phone = screen.getByText('How to get this file', { selector: 'summary' }).closest('details') as HTMLDetailsElement;
+    expect(phone.textContent).toContain('.vcf');
+    expect(phone.textContent).not.toContain('Get a copy of your data');
+    for (const kind of [/LinkedIn messages/, /Contacts file/, /Calendar/, /Email export/]) {
+      fireEvent.click(screen.getByRole('radio', { name: kind }));
+      expect(screen.getByText('How to get this file', { selector: 'summary' })).toBeTruthy();
+    }
+  });
+
   it('a refusal shows the engine\'s words: the size, or the line it could not read', async () => {
     await start('#/clients/network?sheet=network-import:linkedin-connections', {
       override: refuse('venture.network.import', 'NETWORK_FILE_TOO_LARGE', 'This file is 6.2 MB; Chausar reads at most 4 MB at once. Export a smaller part and import each one.'),

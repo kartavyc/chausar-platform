@@ -139,7 +139,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           </section>
 
           <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
-          <AiConsent key={client.id} clientId={client.id} />
+          <AiConsent key={client.id} clientId={client.id} clientName={client.name} />
           <ClientCrm key={`crm-${client.id}`} clientId={client.id} />
 
           <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
