@@ -409,12 +409,12 @@ const aging: AgingData = {
 };
 
 describe('AgingBar', () => {
-  it('draws the buckets in age order, not due first, and skips an empty one', () => {
+  it('draws buckets in age order and keeps an empty bucket at zero width', () => {
     render(<AgingBar data={aging} />);
     const bar = screen.getByRole('img', { name: aging.label });
     const segments = [...bar.querySelectorAll('rect[data-bucket]')];
-    expect(segments.map((s) => s.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90']);
-    expect(segments.map((s) => s.getAttribute('width'))).toEqual(['656', '197', '98', '49']);
+    expect(segments.map((s) => s.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90', 'over-90']);
+    expect(segments.map((s) => s.getAttribute('width'))).toEqual(['656', '197', '98', '49', '0']);
   });
 
   it('fills not due in chart ink and each later age in its own chart token, bar and legend alike', () => {
@@ -441,7 +441,7 @@ describe('AgingBar', () => {
   it('legend "held" (a tile at rest) lists only the ages that hold money, each in words with its count and amount', () => {
     const { container } = render(<AgingBar data={aging} legend="held" />);
     const rows = [...container.querySelectorAll('li[data-bucket]')];
-    expect(rows.map((row) => row.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90']);
+    expect(rows.map((row) => row.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90', 'over-90']);
     expect(rows[1]!.textContent).toBe('1 to 30 days late1 invoice₹12,000');
     // The empty age still has its row in the chart's table.
     expect([...container.querySelectorAll('tbody tr')]).toHaveLength(5);
@@ -482,7 +482,7 @@ describe('SplitBar', () => {
     render(<SplitBar data={split} />);
     const bar = screen.getByRole('img', { name: split.label });
     const segments = [...bar.querySelectorAll('rect[data-dept]')];
-    expect(segments.map((s) => [s.getAttribute('data-dept'), s.getAttribute('width')])).toEqual([['sales', '250'], ['money', '300'], ['ops', '50'], ['prod', '400']]);
+    expect(segments.map((s) => [s.getAttribute('data-dept'), s.getAttribute('width')])).toEqual([['sales', '250'], ['money', '300'], ['ops', '50'], ['mkt', '0'], ['prod', '400']]);
     expect(rulesFor(".seg[data-dept='prod']")).toContain('var(--prod)');
   });
 

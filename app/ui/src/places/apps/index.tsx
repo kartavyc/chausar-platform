@@ -12,6 +12,7 @@ import { Bento, Tile, TileHead } from '../../parts/Tile';
 import { Chip } from '../../parts/Chip';
 import { Composer } from '../../parts/Composer';
 import { Fold } from '../../parts/Fold';
+import { LoadingPlace, useArrived } from '../../parts/Skeleton';
 import { PageTitle } from '../../parts/PageTitle';
 import { AppView } from './AppView';
 import s from './Apps.module.css';
@@ -28,6 +29,8 @@ function AppsHome() {
   const client = useEngine();
   const list = useResource('venture.apps.list', {}, { refreshOn: never });
   const data = list.data;
+  const loading = !data && !list.error;
+  const arrived = useArrived(loading);
 
   // One-shot C3 task 11: the Composer says "Writing your app" with its elapsed time while the make is on its way, and
   // the idea chips wait; nothing at rest.
@@ -47,7 +50,8 @@ function AppsHome() {
           <TileHead id="apps-make" title={t('apps.make.title')} />
           <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} focusSendOnSuggestion describeFailure={noAi} suggestions={data?.ideas ?? []} suggestionsLabel={t('apps.make.ideas')} waitLabel={t('apps.make.busy')} />
       </section>
-      <Bento>
+      <LoadingPlace shape="cards" loading={loading} />
+      <Bento arrived={arrived}>
         {list.error && <p className={s.problem} role="alert">{t('apps.failed', { message: list.error.message })}</p>}
         {data?.apps.map((app) => (
           <Tile key={app.id} as="article" span={4} labelledBy={`app-${app.id}`} pad="compact" className={s.card}>
