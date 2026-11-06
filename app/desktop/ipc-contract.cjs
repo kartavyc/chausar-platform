@@ -10,6 +10,8 @@ const VENTURE_EVENT_TYPES = Object.freeze([
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
   // Ink v2 wave 5 (5-0): an order's chain, a playbook desk's records and an idea changed; ids only.
   'chain.changed', 'desk.changed', 'idea.changed', 'privacy.forgotten',
+  // One-shot C3 task 9: which step long work is on. No seq; its own fields; businessId '' before a business is open.
+  'work.step',
 ]);
 // Ink v2 wave 4 channel (package 4-0 named it): the desktop reads one of the owner's network files on this computer in a
 // worker and hands the window only what Chausar keeps (4D1, network-files.cjs). The count of things that need the owner
@@ -35,6 +37,8 @@ const METHODS = Object.freeze([
   'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset',
   // One-shot C3: the app's own preferences on this computer (APP_PREFERENCE_METHODS, platform/runtime/app-preferences.ts).
   'app.preferences.get', 'app.preferences.set',
+  // One-shot C3: which step long work is on, for a page opened mid-job (ENGINE_METHODS, answered by the engine).
+  'venture.work.list',
   'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
   'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
   'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
@@ -332,6 +336,12 @@ function publicError(error) {
 function validateVentureEvent(input) {
   if (!isRecord(input) || !VENTURE_EVENT_TYPES.includes(input.type)) return null;
   const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
+  if (input.type === 'work.step') {
+    if ((input.businessId !== '' && !id(input.businessId)) || !id(input.workId) || !id(input.kind) || !id(input.step) || !['current', 'done', 'failed'].includes(input.state)) return null;
+    if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
+    if (input.passed !== undefined && typeof input.passed !== 'boolean') return null;
+    return Object.freeze({ type: input.type, businessId: input.businessId, workId: input.workId, kind: input.kind, step: input.step, state: input.state, at: input.at, ...(input.passed !== undefined ? { passed: input.passed } : {}) });
+  }
   const whole = value => Number.isSafeInteger(value) && value >= 0;
   if (!id(input.businessId) || (input.type !== 'privacy.forgotten' && input.runId !== undefined && !id(input.runId))) return null;
   if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;

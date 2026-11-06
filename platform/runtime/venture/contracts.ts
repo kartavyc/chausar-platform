@@ -3127,6 +3127,11 @@ export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | '
   | 'chain.changed' | 'desk.changed' | 'idea.changed' | 'privacy.forgotten';
 /** seq: the event's place in the business's log, so a client that reconnects replays the gap (4G1); count: on notify.new only. */
 export interface VentureRunEvent { type: VentureRunEventType; businessId: string; runId?: string; at: string; seq?: number; count?: number }
+/**
+ * One-shot C3 task 9: what goes to the screens: a run event, or a `work.step` frame (work-progress.ts), which has no seq
+ * and is never in the event log. businessId is '' before any business is open.
+ */
+export type VentureFrame = VentureRunEvent | import('../work-progress.ts').WorkStepEvent;
 // phase 2 views (SpendRow is in section 8c)
 /**
  * Ink v2 wave 4 (4J1, O17): allowedBy, on an entry for a step that ran without asking: the saved rule, the agent and step
@@ -5864,6 +5869,8 @@ export const VENTURE_METHODS = [
   'venture.needs.list',
   // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
   'venture.ai.setup.trust',
+  // One-shot C3: which step long work is on, for a page opened mid-job (work-progress.ts), answered by the engine.
+  'venture.work.list',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -5887,7 +5894,7 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
  * A2: answered by the engine itself (engine.ts), with or without a vault, never by a package: the owner's yes to the
  * Codex found on this computer. The engine checks the app channel and the owner's role itself.
  */
-export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust'] as const);
+export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust', 'venture.work.list'] as const);
 
 /**
  * Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). Wave 5 adds playbooks
@@ -6019,6 +6026,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
   'venture.needs.list': 'core',
   'venture.ai.setup.trust': 'models',
+  'venture.work.list': 'views',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6636,6 +6644,7 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.work.list': Record<string, never>;
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -7030,6 +7039,7 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.work.list': { work: import('../work-progress.ts').WorkJobView[] };
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];
@@ -7345,6 +7355,8 @@ export interface PhoneAccessPort {
   stop(): Promise<void>;
 }
 export type VentureDeps = {
+  /** One-shot C3 task 9: says which step long work is on (work-progress.ts). Absent in tests that pass none. */
+  work?: VentureWork;
   /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
@@ -7471,7 +7483,11 @@ export type ModelPortOptions = {
 };
 
 /** Options the engine passes to the venture host. host-env.ts fills the plain fields; tests inject transports. */
+/** A handler's way to WorkProgress, bound to its business. */
+export type VentureWork = { begin(kind: import('./views/work-steps.ts').WorkKind, stepIds: readonly string[]): import('../work-progress.ts').Work };
 export type VentureHostOptions = {
+  /** One-shot C3 task 9: the engine's WorkProgress, never supplied by an engine request. */
+  work?: VentureWork;
   /** Trusted host composition for a tool driver, never supplied by an engine request. */
   agentRoute?: VentureDeps['agentRoute'];
   credentials?: import('./models/credential-port.ts').HostCredentialPort;

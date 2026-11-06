@@ -108,6 +108,8 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.needs.list': ['read', 'rui'],
   // A2: the owner's yes to the Codex found on this computer; it writes only Chausar's own trust folder.
   'venture.ai.setup.trust': ['approve', 'ui'],
+  // One-shot C3: which step long work is on; a read, and it never touches the vault.
+  'venture.work.list': ['read', 'rui'],
 });
 
 /** Wave 4's methods: the flags; the level is W4_METHOD_LEVELS. Every read is 'rui'. */

@@ -253,6 +253,22 @@ function suggestTask(month: string, currency: string, offers: PricedOffer[]): Mo
  * or one Chausar's checks refused. Nothing is stored as a goal.
  */
 export async function suggestGoal(deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoalSuggestion | null> {
+  // One-shot C3 task 9: one model call, so one step.
+  const work = deps.work?.begin('goal-suggest', ['suggest']);
+  work?.step('suggest', 'current');
+  try {
+    const suggestion = await suggestGoalNow(deps, ctx, payload);
+    work?.step('suggest', 'done');
+    return suggestion;
+  } catch (error) {
+    work?.failCurrent();
+    throw error;
+  } finally {
+    work?.end();
+  }
+}
+
+async function suggestGoalNow(deps: VentureDeps, ctx: Context, payload: unknown): Promise<GoalSuggestion | null> {
   const body = exactPayload(payload, ['month'], ['month']);
   const month = monthText(body.month);
   authorize(deps.store, ctx, 'prepare');
