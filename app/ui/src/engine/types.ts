@@ -1555,7 +1555,9 @@ export interface CashView {
 export interface CashIssueView { invoiceId: string; client: string; due: string; week: string; amount: KindedFigure }
 export interface MarginsView { month: string; rows: { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null }[]; line: Display; basis: TotalBasis; /** C4 (T23): the spend is left out only for want of a rupee rate. */ needsRate?: boolean }
 /** receipts (4J10): the business's signed receipts with the public halves of its keys, for the CA to check offline; saved as its own file. */
-export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
+/** Desktop only (C4 T24): what the save answered. folder is the folder's own name; id is for showSavedExport. Never a path. */
+export interface MoneyExportSaved { saved: true; name: string; receipts?: string; readme?: string; count?: number; folder?: string; id?: string; line: string }
+export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; /** C4 (T24): the name in owner words, and the business and the month for the read-me. */ ownerFileName?: string; business?: Display; period?: Display }
 export interface SignedReceiptsFile { format: string; business: string; algorithm: string; publicKey: string | null; keys: { id: string; publicKey: string }[]; receipts: unknown[] }
 /** 4J20: the amount as typed (amount) or in minor units (amountMinor), and the rate as typed (taxRate, a percentage) or in basis points; one of each. */
 export type BillLineInput = { description: string; taxName: string }
@@ -2545,7 +2547,7 @@ export interface EngineClient {
    * when the owner cancelled; refusals (EXPORT_EXISTS, EXPORT_NOT_SAVED) as engine errors. Absent on the web, the
    * hosted app and the fake, where the page downloads the engine's CSV itself.
    */
-  saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  saveMoneyExport?(month: string): Promise<MoneyExportSaved | null>;
   /**
    * Desktop only (review of A1, row 1): shows one export Delete kept in the file manager, by its file name (the desktop
    * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.

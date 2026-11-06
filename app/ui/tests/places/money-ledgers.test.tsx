@@ -130,26 +130,27 @@ describe('Money: spend', () => {
     expect((await screen.findByText(/Calls without prices are refused, never free/)).textContent).toContain('Limits and rates');
   });
 
-  it('shows each figure and the month in rupees beside the dollars when the engine gives them, with the owner\'s rate', async () => {
-    const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
+  // C4 (T23): one currency per figure, the one the engine leads with; the other is in the receipt.
+  it('shows each figure and the month in the currency the engine leads with', async () => {
+    const lead = (figure: string, other: string) => ({ currency: 'INR', figure, beside: `${other} at ₹83.50 per $1`, other });
     start('#/money/spend', {
       'venture.spend.list': () => ({
-        rows: [{ id: 'sp1', connector: 'fal', label: 'Render', reserved: '$1.00', reservedRupees: `₹83.50 ${at}`, settled: '$0.25', settledRupees: `₹20.88 ${at}`, kind: 'billed' }],
-        total: '$0.25 this month', totalRupees: `₹20.88 ${at}`,
+        rows: [{ id: 'sp1', connector: 'fal', label: 'Render', reserved: '$1.00', reservedLead: lead('₹83.50', '$1.00'), settled: '$0.25', settledLead: lead('₹20.88', '$0.25'), kind: 'billed' }],
+        total: '$0.25 this month', totalLead: lead('₹20.88 this month', '$0.25'),
       }),
     });
     const row = (await screen.findByText('Render')).closest('li')!;
-    expect(row.textContent).toContain(`$1.00 · ₹83.50 ${at}`);
-    expect(row.textContent).toContain(`$0.25 · ₹20.88 ${at}`);
-    expect(main().textContent).toContain(`$0.25 this month · ₹20.88 ${at}`);
+    expect(row.textContent).toContain('₹83.50');
+    expect(row.textContent).toContain('₹20.88');
+    expect(row.textContent).not.toContain('$');
+    expect(main().textContent).toContain('₹20.88 this month');
   });
 
-  it('the AI spend tile at a glance shows rupees beside the dollars when the engine gives them', async () => {
-    const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
-    start('#/money', { 'venture.money.overview': () => ({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$0.25', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) });
+  it('the AI spend tile at a glance shows the currency the engine leads with, alone', async () => {
+    start('#/money', { 'venture.money.overview': () => ({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$0.25', receiptId: 'R-0412', lead: { currency: 'INR', figure: '₹20.88', beside: '$0.25 at ₹83.50 per $1', other: '$0.25' } }] }) });
     const spend = await tileOf('AI spend this month');
-    expect(await within(spend).findByText(`₹20.88 ${at}`)).toBeTruthy();
-    expect(within(spend).getByText('$0.25')).toBeTruthy();
+    expect(await within(spend).findByText('₹20.88')).toBeTruthy();
+    expect(spend.textContent).not.toContain('$0.25');
   });
 
   it('says so when there are no paid calls', async () => {

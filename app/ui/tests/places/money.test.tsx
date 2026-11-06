@@ -118,7 +118,7 @@ describe('Money overview', () => {
     await within(nav).findByRole('link', { name: 'Businesses' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
+      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['For your CA', '#/money/books'], ['Margins', '#/money/margins'],
       ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
     ]);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');

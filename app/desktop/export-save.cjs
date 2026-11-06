@@ -21,6 +21,14 @@ function isRecord(value) { return value !== null && typeof value === 'object' &&
 /** Where each copy this run saved went, by the id the window holds. Main memory only. */
 const saved = new Map();
 
+/** A saved file, kept here in main; the window holds only this id (the CA's export uses it too, C4 task 24). */
+function rememberSaved(path) {
+  const id = randomBytes(9).toString('hex');
+  saved.set(id, path);
+  while (saved.size > KEEP) saved.delete(saved.keys().next().value);
+  return id;
+}
+
 /** The save:as handler. Answers { name, encrypted, id }, or null when the owner cancelled. */
 async function saveBusinessExport(event, input, deps) {
   try {
@@ -39,10 +47,7 @@ async function saveBusinessExport(event, input, deps) {
     if (!choice || choice.canceled || typeof choice.filePath !== 'string' || !choice.filePath) return { ok: true, result: null };
     const path = choice.filePath.toLowerCase().endsWith(tail) ? choice.filePath : `${choice.filePath}${tail}`;
     const answer = await deps.engine.request('workspace.export', { confirmed: true, plaintext, path });
-    const id = randomBytes(9).toString('hex');
-    saved.set(id, path);
-    while (saved.size > KEEP) saved.delete(saved.keys().next().value);
-    return { ok: true, result: { name: String(answer?.name ?? ''), encrypted: answer?.encrypted !== false, id } };
+    return { ok: true, result: { name: String(answer?.name ?? ''), encrypted: answer?.encrypted !== false, id: rememberSaved(path) } };
   } catch (error) {
     return { ok: false, error: deps.publicError(error) };
   }
@@ -64,4 +69,4 @@ async function showSavedExport(event, input, deps) {
   }
 }
 
-module.exports = Object.freeze({ SAVE_CHANNEL, SHOW_CHANNEL, saveBusinessExport, showSavedExport });
+module.exports = Object.freeze({ SAVE_CHANNEL, SHOW_CHANNEL, saveBusinessExport, showSavedExport, rememberSaved });

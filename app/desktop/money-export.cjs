@@ -8,9 +8,13 @@
 // folder, is flushed to disk and renamed into place, so a crash never leaves half a file; on any failure the temporary
 // file and the reserved name are taken away. Errors reach the window in plain words, never with a path on this
 // computer. Chausar never sends the file anywhere. main.cjs passes Electron's dialog, the window and the engine in.
+// One-shot C4 task 24: the file names are in the owner's words ("Pune Frames, sales, Oct 2026.csv"), a short read-me goes
+// beside the files, the last folder is remembered in the desktop's own settings file, and the window gets the names, the
+// folder's own name and an id for Show in folder (export-save.cjs), never a path.
 const fsp = require('node:fs/promises');
 const { randomBytes } = require('node:crypto');
 const { basename, dirname, join } = require('node:path');
+const { rememberSaved } = require('./export-save.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 function isRecord(value) { return value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value)); }
@@ -100,6 +104,53 @@ async function commit(list, fs) {
   }
 }
 
+/** The last folder the owner saved in, while it is still there; otherwise Documents. Any trouble reading it is just Documents. */
+async function startFolder(deps, fs) {
+  if (!deps.settingsFile) return deps.documents;
+  try {
+    const folder = JSON.parse(await fs.readFile(deps.settingsFile, 'utf8'))?.lastFolder;
+    if (typeof folder === 'string' && folder && (await fs.stat(folder)).isDirectory()) return folder;
+  } catch { /* no setting yet, a folder that has gone, or a file that cannot be read */ }
+  return deps.documents;
+}
+
+/** Remembers the folder for next time. A save that worked is never failed by this. */
+async function rememberFolder(deps, fs, folder) {
+  if (!deps.settingsFile) return;
+  await fs.writeFile(deps.settingsFile, JSON.stringify({ lastFolder: folder }), { mode: 0o600 }).catch(() => {});
+}
+
+/** The name to offer: the engine's in owner words when it is a plain file name, else its slug. */
+function offeredName(file) {
+  const name = file.ownerFileName;
+  return typeof name === 'string' && name.length <= 120 && name.endsWith('.csv') && !/[\\/:*?"<>|\x00-\x1f]/.test(name) ? name : file.fileName;
+}
+
+/** The names of the files beside the CSV: alike when the CSV keeps the offered words, else named from what the owner typed. */
+function besideNames(name) {
+  const base = name.replace(/\.csv$/i, '');
+  return base.includes(', sales, ')
+    ? { receipts: `${base.replace(', sales, ', ', receipts, ')}.json`, readme: `${base.replace(', sales, ', ', read me, ')}.txt` }
+    : { receipts: `${base}-receipts.json`, readme: `${base}-read-me.txt` };
+}
+
+/** The read-me: the business, the period, what each file holds, and that Chausar sent nothing. */
+function readMe(file, name, receipts) {
+  const business = typeof file.business === 'string' && file.business ? file.business : 'Your business';
+  const period = typeof file.period === 'string' && file.period ? file.period : '';
+  return [
+    business,
+    `For your CA: ${period}`,
+    '',
+    name,
+    "The month's invoices, credit notes, payments and costs, then the totals with the receipt behind each one.",
+    ...(receipts ? ['', receipts, "The business's signed receipts, so your CA can check that the totals have not changed."] : []),
+    '',
+    'Chausar did not send this anywhere.',
+    '',
+  ].join('\r\n');
+}
+
 /** The request: one month like 2026-10. Never a path, and no replace flag: the system dialog asks about that. */
 function saveRequest(input) {
   if (!isRecord(input) || Object.keys(input).some(key => key !== 'month') || typeof input.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) {
@@ -109,8 +160,9 @@ function saveRequest(input) {
 }
 
 /**
- * The money:saveExport handler: { ok: true, result: { saved, name, line } }, { ok: true, result: null } when the owner
- * cancelled, or { ok: false, error } in plain words.
+ * The money:saveExport handler: { ok: true, result: { saved, name, receipts?, readme, count, folder, id, line } }, where
+ * folder is the folder's own name and id opens it through export-save.cjs; { ok: true, result: null } when the owner
+ * cancelled; or { ok: false, error } in plain words.
  */
 async function saveMoneyExport(event, input, deps) {
   try {
@@ -120,12 +172,12 @@ async function saveMoneyExport(event, input, deps) {
     if (!isRecord(file) || typeof file.csv !== 'string' || typeof file.fileName !== 'string' || !/^[a-z0-9-]{1,80}\.csv$/.test(file.fileName)) {
       throw failure('REQUEST_FAILED', 'The export could not be made.');
     }
+    const fs = deps.fs ?? fsp;
     const chosen = await deps.dialog.showSaveDialog(deps.window, {
-      title: 'Save for your CA', defaultPath: join(deps.documents, file.fileName), filters: [{ name: 'CSV', extensions: ['csv'] }],
+      title: 'Save for your CA', defaultPath: join(await startFolder(deps, fs), offeredName(file)), filters: [{ name: 'CSV', extensions: ['csv'] }],
       properties: ['showOverwriteConfirmation', 'createDirectory'],
     });
     if (!chosen || chosen.canceled || typeof chosen.filePath !== 'string' || chosen.filePath === '') return { ok: true, result: null };
-    const fs = deps.fs ?? fsp;
     const there = path => fs.stat(path).then(() => true, () => false);
     const name = basename(chosen.filePath);
     // 4J20: the business's signed receipts go beside the CSV, named from the picked file (main picks the path; the window
@@ -134,24 +186,32 @@ async function saveMoneyExport(event, input, deps) {
     // it. The receipts carry the CSV's own name, so one already there is an earlier export's and is replaced with the
     // CSV; left as it was, it would sit stale beside a new CSV. Both are staged first, then put in place together, so a
     // failure part way leaves neither.
-    const receiptsPath = isRecord(file.receipts) ? join(dirname(chosen.filePath), `${name.replace(/\.csv$/i, '')}-receipts.json`) : null;
+    const beside = besideNames(name);
+    const receiptsPath = isRecord(file.receipts) ? join(dirname(chosen.filePath), beside.receipts) : null;
+    const readmePath = join(dirname(chosen.filePath), beside.readme);
     const replaceCsv = await there(chosen.filePath);
     const replaceReceipts = receiptsPath ? await there(receiptsPath) : false;
+    // The read-me carries the CSV's own name too, so one already there is an earlier export's, replaced with the CSV.
+    const replaceReadme = await there(readmePath);
+    const receipts = receiptsPath ? basename(receiptsPath) : null;
     const staged = [await stage(chosen.filePath, file.csv, { replace: replaceCsv, fs })];
-    if (receiptsPath) {
-      try {
-        staged.push(await stage(receiptsPath, `${JSON.stringify(file.receipts, null, 2)}\n`, { replace: replaceReceipts, fs }));
-      } catch (error) {
-        await discard(staged, fs);
-        throw error;
-      }
+    try {
+      if (receiptsPath) staged.push(await stage(receiptsPath, `${JSON.stringify(file.receipts, null, 2)}\n`, { replace: replaceReceipts, fs }));
+      staged.push(await stage(readmePath, readMe(file, name, receipts), { replace: replaceReadme, fs }));
+    } catch (error) {
+      await discard(staged, fs);
+      throw error;
     }
     await commit(staged, fs);
-    if (receiptsPath) {
-      const receipts = basename(receiptsPath);
-      return { ok: true, result: { saved: true, name, receipts, line: `Saved ${name} and ${receipts} for your CA. Chausar did not send them anywhere.` } };
-    }
-    return { ok: true, result: { saved: true, name, line: `Saved ${name} for your CA. Chausar did not send it anywhere.` } };
+    await rememberFolder(deps, fs, dirname(chosen.filePath));
+    const folder = basename(dirname(chosen.filePath));
+    return {
+      ok: true,
+      result: {
+        saved: true, name, ...(receipts ? { receipts } : {}), readme: beside.readme, count: staged.length, folder, id: rememberSaved(chosen.filePath),
+        line: `Saved ${staged.length} files to ${folder}. Chausar did not send them anywhere.`,
+      },
+    };
   } catch (error) {
     return { ok: false, error: deps.publicError(error) };
   }

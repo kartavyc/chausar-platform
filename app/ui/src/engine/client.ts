@@ -28,7 +28,7 @@ export interface ChausarBridge {
    * picked name meanwhile; EXPORT_NOT_SAVED with plain words when the disk refused. Null when cancelled. On the web the
    * page downloads the engine's csv itself.
    */
-  saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; readme?: string; count?: number; folder?: string; id?: string; line: string } | null>;
   /** Desktop only (review of A1, row 1): shows a kept export in the file manager, by its file name. */
   showExport?(name: string): Promise<void>;
   /** Desktop only (C4 task 36): a copy of the business saved where the owner picks; its name and an id, or null. */

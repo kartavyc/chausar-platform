@@ -262,8 +262,8 @@ describe('Money w4: the accountant', () => {
     await click(within(menu).getByRole('link', { name: 'Invite your accountant' }));
     await act(async () => { window.location.hash = '#/money?sheet=accountant:books'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const panel = await sheet();
-    expect(within(panel).getByText("It shows that month's invoices and payments. Nothing else.")).toBeTruthy();
-    await click(within(panel).getByRole('button', { name: 'Make the link' }));
+    expect(within(panel).getByText("A read-only link to that month's invoices and payments. Lasts 7 days. You can take it back.")).toBeTruthy();
+    await click(within(panel).getByRole('button', { name: 'Make a link' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.share.create', { kind: 'books', month: '2026-10' }]));
     // On this computer the engine keeps the link but has no public address, and says so.
     expect(await within(panel).findByText(/open only on the hosted Chausar with a public address/)).toBeTruthy();

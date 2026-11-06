@@ -5206,7 +5206,7 @@ export interface CashView {
 export type MarginRowView = { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null };
 export interface MarginsView { month: string; rows: MarginRowView[]; line: Display; basis: TotalBasis; /** C4 (T23): the spend is left out only for want of a rupee rate. */ needsRate?: boolean }
 /** 4J4. The month's CSV for the owner's CA; cells that could run as a formula are prefixed. */
-export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
+export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile; /** C4 (T24): the name in owner words, and the business and the month for the read-me. */ ownerFileName?: string; business?: Display; period?: Display }
 /**
  * 4J10: the business's signed receipts with their signatures and the public halves of its keys, which the CA's export
  * carries and node scripts/verify-receipts.mjs checks offline. Never a private half.

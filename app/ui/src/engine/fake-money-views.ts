@@ -511,6 +511,7 @@ export class FakeMoneyViews {
     const slug = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
     // 4J10: the business's signed receipts ride with the file; the sample engine signs nothing, so the list is empty.
     const receipts = { format: 'chausar-signed-receipts/1', business: name, algorithm: 'ed25519', publicKey: null, keys: [], receipts: [] };
-    return { fileName: `${slug || 'chausar'}-${month}-for-ca.csv`, csv, rows: rows.length, line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`, receipts };
+    const long = monthWords(month);
+    return { fileName: `${slug || 'chausar'}-${month}-for-ca.csv`, ownerFileName: `${name}, sales, ${long.slice(0, 3)} ${month.slice(0, 4)}.csv`, business: name, period: long, csv, rows: rows.length, line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`, receipts };
   }
 }

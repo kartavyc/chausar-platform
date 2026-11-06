@@ -83,13 +83,13 @@ describe('Money v2: the sub-pages', () => {
     await within(nav).findByRole('link', { name: 'Businesses' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
+      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['For your CA', '#/money/books'], ['Margins', '#/money/margins'],
       ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
     ]);
     for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
     await go('#/money/books');
-    expect(within(nav).getByRole('link', { name: 'Books' }).getAttribute('aria-current')).toBe('page');
+    expect(within(nav).getByRole('link', { name: 'For your CA' }).getAttribute('aria-current')).toBe('page');
     expect(within(nav).getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBeNull();
   });
 });

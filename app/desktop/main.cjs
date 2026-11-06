@@ -324,7 +324,7 @@ if (singleInstance) app.whenReady().then(async () => {
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
-  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
   ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
   const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();

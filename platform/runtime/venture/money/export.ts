@@ -21,6 +21,7 @@ import { costsOut } from './flow.ts';
 import { receivedPlan, sumReceipt } from './sums.ts';
 import { costsElsewhere, creditsElsewhere, invoicesElsewhere, moneyCountry, paymentsElsewhere } from './figure-kinds.ts';
 import { signedReceiptsFile } from '../journal/signing.ts';
+import { formatMonth } from '../../owner-format.ts';
 
 /** The columns, in order. */
 type Column = 'Section' | 'Date' | 'Number' | 'Party' | 'Party tax ID' | 'Place of supply' | 'Description' | 'Before tax' | 'Tax' | 'Total' | 'Status' | 'Method' | 'TDS section' | 'TDS' | 'Receipt' | 'Currency';
@@ -52,6 +53,15 @@ function cellOf(column: Column, value: string): string {
 function fileNameOf(workingName: string, month: string): string {
   const slug = workingName.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
   return `${slug || 'chausar'}-${month}-for-ca.csv`;
+}
+
+/**
+ * C4 (T24): the file's name in the owner's words, "Pune Frames, sales, Oct 2026.csv": the working name, with anything a
+ * file name cannot hold taken out, and the month the file is for. The desktop offers it in its save dialog.
+ */
+function ownerFileNameOf(workingName: string, month: string): string {
+  const name = workingName.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).replace(/[. ]+$/, '');
+  return `${name || 'Chausar'}, sales, ${formatMonth(month, 'short')} ${month.slice(0, 4)}.csv`;
 }
 
 const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
@@ -155,6 +165,8 @@ export async function moneyExport(deps: VentureDeps, ctx: Context, payload: unkn
   const what = parts.length ? listed(parts) : 'nothing was invoiced, paid or spent';
   return {
     fileName: fileNameOf(venture.workingName, month), csv, rows: rows.length,
+    // C4 (T24): the name in owner words, and the business and the month for the read-me beside the file.
+    ownerFileName: ownerFileNameOf(venture.workingName, month), business: venture.workingName, period: monthWords(month),
     line: `${monthWords(month)} for your CA: ${what}. Chausar does not send it; save it and share it yourself.`,
     // 4J10 (H26): the business's signed receipts with the public halves of its keys, so the CA can check them offline
     // (node scripts/verify-receipts.mjs). Read after the totals above, whose receipts this call may just have made.
