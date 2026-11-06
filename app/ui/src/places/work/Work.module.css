@@ -968,3 +968,38 @@
   outline: var(--focus) solid var(--link);
   outline-offset: 2px;
 }
+
+/* C4 task 13: the draft sheet: the message as the client gets it, its checks, its actions. */
+.draftMessage {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-read);
+  line-height: 20px;
+  color: var(--fg);
+  margin-block: var(--sp-3);
+}
+.draftLine {
+  margin: var(--sp-2) 0;
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+.draftNote {
+  margin: var(--sp-2) 0;
+  font-size: var(--text-small);
+  color: var(--mute);
+}
+.draftChecks {
+  margin: var(--sp-2) 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+}
+.draftActs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}

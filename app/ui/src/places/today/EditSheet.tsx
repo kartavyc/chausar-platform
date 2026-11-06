@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { openSheet, useRoute } from '../../shell/navigation';
 import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -65,6 +66,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const client = useEngine();
   const session = useTodaySession();
+  const route = useRoute();
   const queue = useResource('venture.queue.list', { scope: 'all' });
   // The version the owner edits: the row the sheet opened, then the engine's latest after a stale save (it may come back
   // under a new version id), kept here so a refresh of the list never loses it.
@@ -93,6 +95,8 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   useEffect(() => { if (changes.data) setShown(changes.data); }, [changes.data]);
 
   const title = row?.title ?? t('today.edit.title');
+  // C4 task 13: opened from the draft on Work, the editor goes back to that draft.
+  const leave = () => { if (route.place === 'work' && runId) openSheet('draft', runId); else onClose(); };
   if (!row || !runId) {
     const missing = queue.data !== undefined;
     return (
@@ -109,7 +113,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       const decision = await client.request('venture.queue.edit', { rowId: row.id, digest: row.digest, text });
       if (decision.outcome === 'done') {
         session.keep(row, decision.line, decision.receiptId, true, undoFor(client, row.id));
-        onClose();
+        leave();
         return;
       }
       setSaid({ line: decision.outcome === 'stale' ? t('approval.staleClick') : decision.line, problem: decision.outcome !== 'stale' });
@@ -215,7 +219,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <DraftBoxes text={text} doc={doc} onText={setText} onDoc={(next) => { setDoc(next); setText(fromSections(next)); }} />
           <p className={s.hint}>{t('today.edit.hint')}</p>
           <div className={s.boxButtons}>
-            <Button onClick={onClose}>{t('approval.cancel')}</Button>
+            <Button onClick={leave}>{t('approval.cancel')}</Button>
             <Button
               variant="primary" type="submit" disabled={busy || !text.trim() || text === original}
               locked={newer !== null && !newer.seen} lockedReason={t('today.edit.readNewer')}

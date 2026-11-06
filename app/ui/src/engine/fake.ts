@@ -965,6 +965,11 @@ export class FakeEngine {
       // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
       return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.' };
     }
+    // C4 task 13: a draft's Approve or Reject moves its run, as the engine's review does (views/queue.ts). A sample row whose draft isn't listed moves nothing.
+    if (row.kind === 'draft' && row.viewRef?.kind === 'draft' && (action.id === 'approve' || action.id === 'deny')) {
+      const verdict = action.id === 'deny' ? 'rejected' : 'accepted';
+      try { this.reviseDelivery(row.viewRef.id, (run) => ({ ...run, status: verdict === 'accepted' && run.editedText ? 'edited' : verdict, awaitingYou: false, canAccept: false })); } catch { /* not listed */ }
+    }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
     if (action.id === 'send-to-ca' && row.viewRef?.kind === 'file') this.extras.sentToCa(row.viewRef.id);

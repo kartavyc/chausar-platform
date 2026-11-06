@@ -68,8 +68,9 @@ const ACTION_FAILED: Record<OrderAction, string> = { start: 'work.failed.start',
  * One order as D's inner card (`.oc`): what the client asked for (it opens the newest run when the engine lists it),
  * a status chip in the engine's own words (the invoice's once there is one, else the draft's), when it was ordered
  * and the receipt behind its price, its invoice with the total, receipt and due day, the one CogSend sentence, and at
- * most one action: Start, Run again, or Mark delivered (which asks once more). An order that waits on the owner says
- * "Open on Today", where it is decided. The steps from Agreed to Paid wait for the engine's order steps (W4 4J).
+ * most one action: Start, Run again, or Mark delivered (which asks once more). C4 task 13: an order whose draft is ready
+ * or approved says "Read draft", which opens it here (DraftSheet.tsx); one that waits on Today for anything else says
+ * "Open on Today". The steps from Agreed to Paid wait for the engine's order steps (W4 4J).
  */
 function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boolean; onChanged: () => void }) {
   const t = useT();
@@ -84,6 +85,8 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { order, state, action, invoice } = view;
   const run = view.run && !view.run.practice ? view.run : undefined;
+  // C4 task 13: a draft ready to read or approved opens where the owner is. Only an order with text to read: a practice row reads the same.
+  const readable = view.run && (typeof view.run.renderedText === 'string' || typeof view.run.editedText === 'string') && (state === 'draft-ready' || state === 'approved' || state === 'practice') ? view.run : undefined;
   // The invoice's total shows only with its receipt, as the engine's list sends both.
   const totalReceipt = invoice?.total && invoice.receiptId?.trim() ? invoice.receiptId : undefined;
 
@@ -149,9 +152,11 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       <OrderSteps order={order} />
       <div className={s.orderFoot}>
         <p className={cx(s.say, state === 'waiting' && s.wait)}>{orderSentence(view, t)}</p>
-        {(waitsOnYou(view) || (action && phase !== 'confirm')) && (
+        {(waitsOnYou(view) || readable || (action && phase !== 'confirm')) && (
           <div className={s.orderActs}>
-            {waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
+            {readable
+              ? <Button onClick={(event) => openSheet('draft', readable.id, event.currentTarget)}>{t('work.readDraft')}</Button>
+              : waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
             {action && phase !== 'confirm' && (
               <Button variant="primary" data-key="primary" disabled={phase === 'busy'} onClick={() => (action === 'deliver' ? setPhase('confirm') : void act(action))}>
                 {t(ACTION_LABEL[action])}

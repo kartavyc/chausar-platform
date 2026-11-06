@@ -346,7 +346,7 @@ describe('Work v2: orders by client', () => {
     expect(await screen.findByRole('complementary', { name: 'Boat Audio' })).toBeTruthy();
   });
 
-  it('each order is a card: the request, its status chip, the price receipt, its invoice, one sentence, and Open on Today when it waits on you', async () => {
+  it('each order is a card: the request, its status chip, the price receipt, its invoice, one sentence, and Read draft when its draft waits on you', async () => {
     await start();
     const orders = await screen.findByRole('region', { name: 'Orders' });
     const ep14 = await tileOf('Two mentions in episode 14', orders);
@@ -355,7 +355,8 @@ describe('Work v2: orders by client', () => {
     expect(within(ep14).getByText('Ready for you to read')).toBeTruthy();
     expect(within(ep14).getByText(/^Ordered 20 Oct/)).toBeTruthy();
     expect(within(ep14).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
-    expect(within(ep14).getByRole('link', { name: 'Open on Today' }).getAttribute('href')).toBe('#/today');
+    // C4 task 13: the draft opens here, not on Today.
+    expect(within(ep14).getByRole('button', { name: 'Read draft' })).toBeTruthy();
     const ep12 = await tileOf('Two mentions in episode 12', orders);
     await waitFor(() => expect(ep12.textContent).toContain('Invoiced as INV-0039. Waiting for payment.'));
     expect(within(ep12).getByText('Issued')).toBeTruthy();

@@ -36,6 +36,8 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
   const stop = useStopRun(run, detail, onChanged);
   const stopping = run.stop?.state === 'stopping';
   const gate = detail?.gate?.waiting ? gateRow(queue, run.runId) : undefined;
+  // C4 task 13: a run that waits with a draft to read opens that draft here, not on Today.
+  const draftWaits = queue?.some((row) => row.kind === 'draft' && row.viewRef?.kind === 'draft' && row.viewRef.id === run.runId);
   const open = (origin: HTMLElement) => openSheet('run', run.runId, origin);
   // The step the engine says is in hand: the current one, or the one that waits on the owner, counted in its list.
   const steps = detail?.steps ?? [];
@@ -82,7 +84,9 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
                 While the Stop dialog is open its own primary is the tile's one; a gate decides in its own box. */}
             {waiting && !stop.open && !detail?.gate?.waiting && (detail?.question
               ? <Button variant="primary" size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.answer')}</Button>
-              : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
+              : draftWaits
+                ? <Button size="sm" onClick={(event) => openSheet('draft', run.runId, event.currentTarget)}>{t('work.readDraft')}</Button>
+                : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
           </span>
         )}
       </div>
