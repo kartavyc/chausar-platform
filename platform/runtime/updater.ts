@@ -152,7 +152,8 @@ export async function followRelease(url:string,init:RequestInit,fetcher:typeof f
  * came from doesn't matter, since the signed length and hash decide.
  */
 export async function fetchDownload(request:DownloadRequest,fetcher:typeof fetch=fetch):Promise<DownloadResponse>{
-  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+
   const response=await followRelease(request.url,{method:'GET',headers:request.headers,signal:controller.signal},fetcher).catch(error=>{clearTimeout(timer);throw error;});
   const headers:Record<string,string>={};response.headers.forEach((value,key)=>{headers[key]=value;});
   const reader=response.body?.getReader();
@@ -296,12 +297,14 @@ export class ReleaseUpdater {
     const download=this.#download??(this.#http?fromBoundedHttp(this.#http,verified.size):fetchDownload);
     const headers:Record<string,string>={Accept:'application/octet-stream'};if(offset)headers.Range=`bytes=${offset}-`;
     const response=await download({url:verified.url,headers,idleTimeoutMs:IDLE_TIMEOUT_MS,redirect:'error'});
-    check(!response.url||response.url===verified.url,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
-    if(offset&&response.status===200){offset=0;hash=createHash('sha256');}
-    else if(offset){
-      const range=response.headers?.['content-range']??response.headers?.['Content-Range'];
-      check(response.status===206&&range===`bytes ${offset}-${verified.size-1}/${verified.size}`,'RELEASE_FETCH_REFUSED','The release server answered another part of the file.');
-    } else check(response.status===200,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+    try {
+      check(!response.url||response.url===verified.url,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+      if(offset&&response.status===200){offset=0;hash=createHash('sha256');}
+      else if(offset){
+        const range=response.headers?.['content-range']??response.headers?.['Content-Range'];
+        check(response.status===206&&range===`bytes ${offset}-${verified.size-1}/${verified.size}`,'RELEASE_FETCH_REFUSED','The release server answered another part of the file.');
+      } else check(response.status===200,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+    } catch (error) { await unlink(partPath).catch(()=>{}); throw error; }
     const file=await open(partPath,offset?'a':'w',0o600);let written=offset,finished=false;
     try {
       try {
