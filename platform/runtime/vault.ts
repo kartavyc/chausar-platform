@@ -1,9 +1,10 @@
+import { JournalStore } from './store/journal.ts';
 import { isCaptureSample } from './venture/replay/sample.ts';
 import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { sha256Hex } from './hash.ts';
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
+import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir, copyFile } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ChausarError, InternalError, asInternal, hash, initialState, type State, type StateStore } from './contracts.ts';
@@ -48,7 +49,7 @@ function artifactIdentity(id: string, purpose: PrivateArtifactPurpose) {
 /** Trusted host admission, held through the actual authority commit. No RPC port. */
 export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
   work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
-type Common = { directory: string; storage: Storage; kdfMemo?: KdfMemo; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
+type Common = { directory: string; storage: Storage; kdfMemo?: KdfMemo; experimentalJournal?: boolean; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
 export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
 export type VaultBootstrapBudgets = { maxStateBytes: number; maxJsonDepth: number; maxJsonNodes: number; maxRecords: number };
 /** Trusted constructor capability only: State must come from validated WorkspaceActivationHost publication. */
@@ -372,6 +373,7 @@ export class Vault implements StateStore {
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
   #kdfMemo?: KdfMemo;
+  #journal?: JournalStore;
   /** D12: the data version this business was opened at, when the ladder brought it up in memory; null otherwise. */
   #migratedFrom: number | null = null;
   #migrating = false;
@@ -407,7 +409,7 @@ export class Vault implements StateStore {
       await adapter.commit(envelope, null);
       committed = true;
       if (options.keychain) await options.keychain.store(id, Uint8Array.from(key));
-      return { vault: new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard, options.kdfMemo), recoveryCode };
+      const vault = new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard, options.kdfMemo); await vault.#startJournal(options); return { vault, recoveryCode };
     } catch (error) {
       key?.fill(0);
       try { if (committed) await adapter.delete(); }
@@ -453,7 +455,7 @@ export class Vault implements StateStore {
       else await publish(() => {});
       if (!committed || publicationCalls !== 1) fail('BOOTSTRAP_READBACK', 'Root did not publish and read back the exact fresh authority.');
       if (keychain) await keychain.store(id, Uint8Array.from(key));
-      return { vault: new Vault(directory, adapter, lock, key, envelope, state, keychain, writerGuard, options.kdfMemo), recoveryCode };
+      const vault = new Vault(directory, adapter, lock, key, envelope, state, keychain, writerGuard, options.kdfMemo); await vault.#startJournal(options); return { vault, recoveryCode };
     } catch (error) {
       try {
         if (committed) {
@@ -507,7 +509,7 @@ export class Vault implements StateStore {
       const opened = openSnapshot(envelope, key, (options as OpenVaultOptions).migrationSteps ?? STEPS);
       const vault = new Vault(directory, adapter, lock, key, envelope, opened.state, options.keychain, options.writerGuard, options.kdfMemo);
       vault.#migratedFrom = opened.migratedFrom;
-      return vault;
+      await vault.#startJournal(options); return vault;
     } catch (error) {
       key?.fill(0); await lock.release(); await adapter.close?.();
       if (error instanceof ChausarError && (error.code === 'DATA_NEWER' || error.code === 'DATA_MIGRATION_FAILED')) throw error;
@@ -588,15 +590,29 @@ export class Vault implements StateStore {
       if (options.keychain) await options.keychain.store(envelope.id, Uint8Array.from(key!));
       const vault = new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard, options.kdfMemo);
       vault.#migratedFrom = migratedFrom;
-      return vault;
+      await vault.#startJournal(options); return vault;
     } catch (error) { key!.fill(0); await lock.release(); await adapter.close?.(); throw error; }
+  }
+  /** Scratch candidate only, never selected by an engine host. Full conversion qualification follows the measured gate. */
+  async #startJournal(options: Common): Promise<void> {
+    if (!options.experimentalJournal) return;
+    if (this.storageKind !== 'experimental-file' || this.#migratedFrom !== null) fail('STORAGE_REQUIRED', 'The journal probe needs a current disposable file vault.');
+    const path = join(this.directory, 'authority.encrypted.json');
+    if (!await lstat(join(this.directory, 'journal.log')).catch(() => null)) {
+      await copyFile(path, path + '.pre-journal', constants.COPYFILE_EXCL).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error; });
+    }
+    this.#journal = await JournalStore.open({ directory: this.directory, id: this.#envelope.id, key: this.#key, base: this.#state, baseHash: sha256Hex(await readFile(path)), checkpoint: async state => {
+      const envelope = encodeSnapshot(state, { ...this.#envelope, revision: state.revision }, this.#key);
+      await this.#adapter.commit(envelope, this.#envelope.revision); this.#envelope = envelope; return sha256Hex(JSON.stringify(envelope));
+    } });
+    this.#state = this.#journal.read(); validateState(this.#state);
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
   read(): State { this.#ready(); return structuredClone(this.#updateRead.getStore() ?? this.#state); }
   /** C5 task 19: how many bytes of the store's ceiling (STORE_LIMIT_BYTES) the open business takes now. */
   storeBytes(): number {
     this.#ready();
-    let bytes = sealedBytes.get(this.#envelope);
+    let bytes = this.#journal ? Buffer.byteLength(JSON.stringify(this.#state)) : sealedBytes.get(this.#envelope);
     if (bytes === undefined) { bytes = Buffer.byteLength(JSON.stringify(this.#state)); sealedBytes.set(this.#envelope, bytes); }
     return bytes;
   }
@@ -876,12 +892,12 @@ export class Vault implements StateStore {
       if (directory && (await readdir(directory)).length) fail('ARTIFACT_BACKUP_REQUIRED', 'Snapshot-only backup cannot omit managed private artifacts. Complete archive backup remains required.');
     }
   }
-  #enqueue<T>(work: () => Promise<T>): Promise<T> {
+  #enqueue<T>(work: () => Promise<T>, checkpoint = true): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
     // Every non-update operation is an ordering barrier for the next batch.
     this.#pendingUpdates = undefined;
-    const pending = this.#chain.then(work); this.#chain = pending.catch(() => {}); return pending;
+    const pending = this.#chain.then(async () => { if (checkpoint) await this.#journal?.flush(); return work(); }); this.#chain = pending.catch(() => {}); return pending;
   }
   /** Trusted developer replay only: a fresh marked sample vault, never an existing business or RPC route. */
   restoreCaptureState(state: State): Promise<void> {
@@ -926,14 +942,15 @@ export class Vault implements StateStore {
         if (completed.length) {
           // The callback may retain its draft. Detach the exact state we seal before yielding to IO.
           const committed = structuredClone(draft);
-          const envelope = encodeSnapshot(committed, { ...this.#envelope, revision: committed.revision }, this.#key);
-          assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
-          this.#state = committed; this.#envelope = envelope;
+          assertCurrent();
+          if (this.#journal) { validateState(committed); await this.#journal.commit(committed); }
+          else { const envelope = encodeSnapshot(committed, { ...this.#envelope, revision: committed.revision }, this.#key); await this.#adapter.commit(envelope, this.#state.revision); this.#envelope = envelope; }
+          this.#state = committed;
         }
         return { result: undefined, committedState: structuredClone(this.#state) };
       }));
       for (const item of completed) item.entry.resolve(item.value);
-    }).catch(error => { for (const item of batch) item.reject(error); });
+    }, false).catch(error => { for (const item of batch) item.reject(error); });
     this.#pendingUpdates = batch;
     return result;
   }
@@ -1104,7 +1121,7 @@ export class Vault implements StateStore {
     return this.#shutdown;
   }
   async #finish() {
-    this.#key.fill(0); this.#state = undefined as unknown as State; this.#closed = true;
-    try { await this.#adapter.close?.(); } finally { await this.#lock.release(); }
+    try { if (this.#journal) { await this.#journal.close(); await unlink(join(this.directory, 'authority.encrypted.json.pre-journal')).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; }); } }
+    finally { this.#key.fill(0); this.#state = undefined as unknown as State; this.#closed = true; try { await this.#adapter.close?.(); } finally { await this.#lock.release(); } }
   }
 }

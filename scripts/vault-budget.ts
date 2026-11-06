@@ -8,11 +8,11 @@ import type { PersonRecord } from '../platform/runtime/venture/contracts.ts';
 
 type Sample = { openMs: number; commitMs: number; closeMs: number };
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!;
-export async function measureVaultCurve(sizes = [1_000, 10_000, 50_000], runs = 5) {
+export async function measureVaultCurve(sizes = [1_000, 10_000, 50_000], runs = 5, experimentalJournal = false) {
   const rows: { records: number; samples: Sample[]; median: Sample }[] = [];
   for (const records of sizes) {
     const directory = await mkdtemp(join(tmpdir(), 'chausar-vault-budget-'));
-    const options = { directory, storage: 'experimental-file' as const, passphrase: 'synthetic store curve passphrase' };
+    const options = { directory, storage: 'experimental-file' as const, passphrase: 'synthetic store curve passphrase', experimentalJournal };
     let vault: Vault | undefined;
     try {
       ({ vault } = await Vault.create({ ...options, name: 'Store curve', demo: true }));
@@ -35,5 +35,5 @@ export async function measureVaultCurve(sizes = [1_000, 10_000, 50_000], runs = 
       rows.push({ records, samples, median: { openMs: median(samples.map(row => row.openMs)), commitMs: median(samples.map(row => row.commitMs)), closeMs: median(samples.map(row => row.closeMs)) } });
     } finally { await vault?.close(); await rm(directory, { recursive: true, force: true }); }
   }
-  return { format: 'chausar.vault-budget/1', at: new Date().toISOString(), node: process.version, platform: process.platform, architecture: process.arch, os: release(), cpu: cpus()[0]?.model ?? 'unknown', runs, rows };
+  return { format: 'chausar.vault-budget/1', experimentalJournal, at: new Date().toISOString(), node: process.version, platform: process.platform, architecture: process.arch, os: release(), cpu: cpus()[0]?.model ?? 'unknown', runs, rows };
 }
