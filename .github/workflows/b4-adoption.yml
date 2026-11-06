@@ -1,0 +1,31 @@
+name: B4 C3 adoption qualification
+on:
+  push:
+    branches: ['b2c/os-b4-c3-*']
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck:ui
+      - if: '!cancelled()'
+        run: npm run typecheck
+      - if: '!cancelled()'
+        run: node --test platform/tests/venture-ai-login-w6.test.ts
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/tool-progress-c3.test.tsx app/ui/tests/places/custody-progress-c3.test.tsx app/ui/tests/places/first-run-w6.test.tsx app/ui/tests/places/connect-ai-install-d5.test.tsx app/ui/tests/places/keep-custody.test.tsx app/ui/tests/places/keep-c5.test.tsx app/ui/tests/places/welcome-custody.test.tsx app/ui/tests/places/onboarding-welcome.test.tsx app/ui/tests/parts/progress-c3.test.tsx app/ui/tests/text-keys.test.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/adoption.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adoption
+          path: ${{ runner.temp }}/adoption.json

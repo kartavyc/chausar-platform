@@ -42,7 +42,7 @@ describe('task 18: the export format', () => {
     const pick = await screen.findByLabelText('File format') as HTMLSelectElement;
     await waitFor(() => expect([...pick.options].map((option) => option.textContent)).toEqual(['CSV', 'Tally', 'GST return (GSTR-1)']));
     fireEvent.change(pick, { target: { value: 'tally-xml' } });
-    await press(screen.getByRole('button', { name: /^Save the files/ }));
+    await press(screen.getByRole('button', { name: /^Export for your CA/ }));
     expect(calls.find(([method]) => method === 'venture.money.export')![1]).toMatchObject({ format: 'tally-xml' });
     expect(DOWNLOADS[0]).toMatch(/-tally\.xml$/);
   });
@@ -52,7 +52,7 @@ describe('task 18: the export format', () => {
     const pick = await screen.findByLabelText('File format') as HTMLSelectElement;
     await settle();
     expect([...pick.options].map((option) => option.textContent)).toEqual(['CSV', 'Tally']);
-    await press(screen.getByRole('button', { name: /^Save the files/ }));
+    await press(screen.getByRole('button', { name: /^Export for your CA/ }));
     expect(calls.find(([method]) => method === 'venture.money.export')![1]).toEqual({ month: expect.any(String) });
   });
 });
@@ -73,7 +73,8 @@ describe('task 19: the store-size line', () => {
 describe('task 20: backup labels', () => {
   it('shows what came before a backup, and nothing where the engine says nothing', async () => {
     start('#/business/keep', new FakeEngine(), {}, { 'workspace.backups.list': (result) => ({ ...result, backups: result.backups.map((backup: any, index: number) => (index === 0 ? { ...backup, after: 'you drafted the Bakery reply' } : backup)) }) });
-    const fold = (await screen.findByText(/^All backups|backups?$/i, { selector: 'summary' })).closest('details')!;
+    const backups = await screen.findByRole('region', { name: 'Backups' });
+    const fold = within(backups).getAllByText("What's in it", { selector: 'summary' })[0]!.closest('details')!;
     fireEvent.click(fold.querySelector('summary')!);
     expect(within(fold).getByText('after you drafted the Bakery reply')).toBeTruthy();
     expect(within(fold).getAllByText(/^after /)).toHaveLength(1);
@@ -93,7 +94,7 @@ describe('task 21: open an exported copy', () => {
     const pickCopy = vi.fn(async () => { const token = picks.shift()!; return { token, name: `${token}.vault` }; });
     start('#/today', engine, { pickCopy, importCopy });
     await screen.findByRole('heading', { level: 1, name: 'Welcome back' });
-    fireEvent.click(await screen.findByText('More options', { selector: 'summary' }));
+    fireEvent.click(await screen.findByText('Bring a business here', { selector: 'summary' }));
     await press(screen.getByRole('button', { name: 'Open an exported copy' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Open an exported copy' })).toBeTruthy();
 
@@ -114,7 +115,7 @@ describe('task 21: open an exported copy', () => {
       return { workspace: { name: 'Copy Shop' }, folder: 'main', unlock: 'passphrase' as const };
     });
     start('#/today', engine, { pickCopy: async () => ({ token: 'new', name: 'copy.vault' }), importCopy });
-    fireEvent.click(await screen.findByText('More options', { selector: 'summary' }));
+    fireEvent.click(await screen.findByText('Bring a business here', { selector: 'summary' }));
     await press(screen.getByRole('button', { name: 'Open an exported copy' }));
     await press(screen.getByRole('button', { name: 'Choose the copy' }));
     expect(screen.getByText('copy.vault')).toBeTruthy();
@@ -131,7 +132,7 @@ describe('task 21: open an exported copy', () => {
 
   it('shows no way in where the app can\'t pick a file', async () => {
     start('#/today', new FakeEngine({ closed: true }));
-    fireEvent.click(await screen.findByText('More options', { selector: 'summary' }));
+    fireEvent.click(await screen.findByText('Bring a business here', { selector: 'summary' }));
     expect(screen.queryByRole('button', { name: 'Open an exported copy' })).toBeNull();
   });
 
