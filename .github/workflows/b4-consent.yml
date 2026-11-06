@@ -1,0 +1,25 @@
+name: C4 consent start qualification
+on:
+  push:
+    branches: ['b2c/os-c4-consent-*']
+permissions:
+  contents: read
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test platform/tests/client-consent-start-c4.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings
+          path: ${{ runner.temp }}/settings.json
