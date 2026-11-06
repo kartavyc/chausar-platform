@@ -265,7 +265,7 @@ function PrintCode({ code, name, onDone }: { code: string; name: string; onDone:
     <div className={s.printView} data-print-view="">
       <p className={s.name}>{name}</p>
       <p className={s.line}>{t('custody.printTitle')}</p>
-      <p className={`${s.code} mono`}>{(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}</p>
+      <p data-code="" className={`${s.code} mono`}>{(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}</p>
     </div>,
     document.body,
   );
