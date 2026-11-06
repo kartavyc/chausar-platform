@@ -39,6 +39,13 @@ test('every service type\'s template draft has no engine label, and keeps the ex
   }
 });
 
+test('the engine renders a template in the form the UI\'s draft-text test holds it to', () => {
+  const outline = templateOutline('other', { receiptId: 'R-1', figureKey: 'total' }) as Deliverable;
+  const parts = outline.sections.map(section => `## ${section.heading}\n${section.parts.map(part => (part.kind === 'text' ? part.text : 'INR 3,540.00 in total')).join(' ')}`);
+  const expected = [`# ${outline.title}`, ...parts, ['Questions for you:', ...outline.questionsForClient.map(question => `- ${question}`)].join('\n')].join('\n\n');
+  assert.equal(renderDeliverable(outline, [RECEIPT as never], COUNTRY), expected);
+});
+
 test('the flagship playbooks\' template rehearsals pass with no engine label', async () => {
   for (const idea of [CA_IDEA, 'Run a YouTube channel that explains personal finance in plain words', 'A content calendar service for yoga studios in Goa', PLAIN_IDEA]) {
     const env = await business(idea);

@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { fromSections, ownerLineOf, toPlainMessage, toSections } from '../../src/parts/draft-text';
-import { REQUIRED_SECTIONS, TEMPLATE_OUTLINE_LINE, templateOutline, type TemplateServiceType } from '../../../../platform/runtime/venture/delivery/template-outline';
-import { renderDeliverable } from '../../../../platform/runtime/venture/delivery/deliverable';
+import { REQUIRED_SECTIONS, TEMPLATE_OUTLINE_LINE, figureWords, templateOutline, type TemplateServiceType } from '../../../../platform/runtime/venture/delivery/template-outline';
 import { FakeEngine } from '../../src/engine/fake';
 import type { DeliveryLite, OrderLite } from '../../src/engine/types';
 
-const TOTAL = { id: 'R-1', figures: [{ key: 'total', label: 'Total', display: 'INR 3,000.00', minor: '300000', currency: 'INR', unit: 'money' }] };
-
-/** A template draft as the engine stores it, with and without a price. */
+/**
+ * A template draft as the engine stores it, with and without a price. The engine's renderDeliverable stays out of the UI's
+ * typecheck, so this writes the same form, and platform/tests/venture-draft-words-c4.test.ts pins that the engine's equals it.
+ */
 function engineTemplate(type: TemplateServiceType, priced: boolean): string {
-  const deliverable = templateOutline(type, priced ? { receiptId: 'R-1', figureKey: 'total' } : null);
-  return `${TEMPLATE_OUTLINE_LINE}\n\n${renderDeliverable(deliverable as never, [TOTAL as never], { dateOrder: 'day-month-year' } as never)}`;
+  const outline = templateOutline(type, priced ? { receiptId: 'R-1', figureKey: 'total' } : null);
+  const blocks = [`# ${outline.title}`, ...outline.sections.map((section) => `## ${section.heading}\n${section.parts.map((part) => (part.kind === 'text' ? part.text : figureWords('Total', 'INR 3,000.00'))).join(' ')}`)];
+  blocks.push(['Questions for you:', ...outline.questionsForClient.map((question) => `- ${question}`)].join('\n'));
+  return `${TEMPLATE_OUTLINE_LINE}\n\n${blocks.join('\n\n')}`;
 }
 
 describe('toSections and fromSections', () => {
