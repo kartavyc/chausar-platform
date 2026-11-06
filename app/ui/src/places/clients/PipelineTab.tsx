@@ -21,6 +21,7 @@ import { Figure } from '../../parts/Figure';
 import { useT, type T } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
+import { Button } from '../../parts/Button';
 import { Board, BoardCard, type BoardColumn } from '../../parts/Board';
 import { EmptyState } from '../../parts/EmptyState';
 import { FilterChips, type FilterOption } from '../../parts/FilterChips';
@@ -45,7 +46,7 @@ type Show = 'all' | 'due' | 'drafts';
 const CLOSING: ReadonlySet<string> = new Set(['won', 'lost', 'not-now']);
 const FILTER: Readonly<Record<Exclude<Show, 'all'>, 'due' | 'draft'>> = { due: 'due', drafts: 'draft' };
 
-export function PipelineTab({ board, leads }: { board: Resource<PipelineView>; leads: LeadView[] }) {
+export function PipelineTab({ board, leads, hasNetwork = false }: { board: Resource<PipelineView>; leads: LeadView[]; hasNetwork?: boolean }) {
   const t = useT();
   const route = useRoute();
   const engine = useEngine();
@@ -82,10 +83,8 @@ export function PipelineTab({ board, leads }: { board: Resource<PipelineView>; l
       <EmptyState
         title={t('clients.pipeline.empty')}
         line={t('clients.pipeline.empty.line')}
-        actions={[
-          { label: t('clients.pipeline.toNetwork'), href: '#/clients/network' },
-          { label: t('clients.leads.add'), onSelect: () => openSheet('lead', 'new') },
-        ]}
+        action={<Button variant={route.query.sheet ? 'secondary' : 'primary'} onClick={event => openSheet('lead', 'new', event.currentTarget)}>{t('clients.leads.add')}</Button>}
+        actions={[hasNetwork ? { label: t('clients.pipeline.toNetwork'), href: '#/clients/network' } : { label: t('clients.pipeline.import'), onSelect: () => openSheet('network-import', 'new') }]}
       />
     );
   }

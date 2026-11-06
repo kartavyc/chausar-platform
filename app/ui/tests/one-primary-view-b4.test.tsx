@@ -14,7 +14,7 @@ import { PLACES, RECEIPTED, type PlaceAtRest } from './helpers/places';
  * holds the rule on what is there. Each place task adds its id to WALK; task 23 checks the list holds every place.
  */
 
-const WALK: readonly string[] = ['today', 'business', 'work/ideas', 'onboarding'];
+const WALK: readonly string[] = ['today', 'business', 'work/ideas', 'onboarding', 'clients', 'clients/pipeline', 'clients/network'];
 
 const NOW = '2026-10-23T13:35:00.000Z';
 const at = () => new Date(NOW);

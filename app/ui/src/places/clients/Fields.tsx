@@ -82,7 +82,7 @@ export function Fields({ client, items, hidden, problems, onDismiss, foldTax = f
   const view = (m: FieldModel) => (
     <FieldView key={m.field} model={m} label={RECORD_FIELDS.has(m.field) ? t(`clients.field.${m.field}`) : m.field} problems={problems} onDismiss={onDismiss} />
   );
-  const models = fieldModels(client, items, hidden);
+  const models = fieldModels(client, items, hidden).filter(model => model.stored || model.suggestion || model.ask);
   const folded = foldTax ? models.filter((m) => TAX_FIELDS.has(m.field)) : [];
   return (
     <div className={s.fields}>
@@ -109,7 +109,12 @@ function FieldView({ model, label, problems, onDismiss }: { model: FieldModel; l
   const group = useRef<HTMLDivElement>(null);
   const { stored, applied, suggestion, ask } = model;
   // The dismissed row leaves; focus stays on its field instead of falling to the page.
-  const dismiss = (id: string) => { group.current?.focus(); onDismiss(id); };
+  const dismiss = (id: string) => {
+    const remains = model.stored || (model.suggestion && model.suggestion.id !== id) || (model.ask && model.ask.id !== id);
+    const target = remains ? group.current : group.current?.closest('[role="complementary"]')?.querySelector<HTMLElement>('[data-client-edit] summary');
+    target?.focus();
+    onDismiss(id);
+  };
   return (
     <div ref={group} role="group" aria-labelledby={labelId} className={s.field} tabIndex={-1}>
       <span id={labelId} className={s.label}>{label}</span>

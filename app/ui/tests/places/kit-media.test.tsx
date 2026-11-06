@@ -82,7 +82,10 @@ describe('kit media: the client\'s brand kit', () => {
     const kit = document.querySelector('[data-brand-kit]') as HTMLElement;
     expect(within(kit).getByText('This client has no brand kit yet. Steps use your own voice and house style.')).toBeTruthy();
     expect(within(kit).getAllByText(/^(From your voice|House style)$/).length).toBeGreaterThan(0);
-    expect(within(kit).getByRole('button', { name: 'Add a brand kit' }).getAttribute('data-variant')).toBe('primary');
+    expect(kit.closest('details')?.querySelector('summary')?.textContent).toContain('Add details');
+    expect(within(kit).getByRole('button', { name: 'Add a brand kit' }).getAttribute('data-variant')).toBe('secondary');
+    const house = within(kit).getByText('House style', { selector: 'summary' }).closest('details');
+    expect(house?.open).toBe(false);
   });
 
   it('words a key refused in the kit, and keeps the form open', async () => {

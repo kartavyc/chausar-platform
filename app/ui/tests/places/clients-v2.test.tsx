@@ -150,9 +150,11 @@ describe('Clients: the Clients tab', () => {
     const initials = boat.querySelector('[aria-hidden="true"][data-dept]');
     expect(initials?.textContent).toBe('BA');
     expect(within(boat).getByRole('button', { name: 'Boat Audio' })).toBeTruthy();
-    expect(boat.textContent).toContain('Order open: Two mentions in episode 14');
+    expect(boat.textContent).toContain('Open');
+    expect(boat.textContent).not.toContain('Two mentions in episode 14');
+    expect(boat.querySelector('[data-client-next]')).toBeTruthy();
     const figure = boat.querySelector('[data-figure]') as HTMLElement;
-    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200');
+    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('Ã¢â€šÂ¹26,200');
     expect(within(figure).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const nimbus = rows.find((row) => row.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.querySelector('[data-figure]')).toBeNull();
@@ -168,7 +170,7 @@ describe('Clients: the Clients tab', () => {
     await within(sheet).findByRole('list', { name: 'Orders' });
     // What they owe, in the sheet line, is a Figure too.
     const figure = await waitFor(() => sheet.querySelector('[data-figure]') as HTMLElement);
-    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200');
+    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('Ã¢â€šÂ¹26,200');
     assertInkRules();
   });
 
@@ -182,7 +184,7 @@ describe('Clients: the Clients tab', () => {
     const invoices = await within(first).findByRole('list', { name: 'Invoices' });
     expect(within(invoices).getAllByRole('button', { name: /^Invoice / }).length).toBeGreaterThan(0);
     const owes = within(first).getByText('Owes').parentElement!;
-    expect(owes.textContent).toMatch(/^Owes ₹26,200/);
+    expect(owes.textContent).toMatch(/^Owes Ã¢â€šÂ¹26,200/);
     expect(within(owes).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const timeline = await waitFor(() => { const list = sheet.querySelector('[data-timeline]'); expect(list).toBeTruthy(); return list as HTMLElement; });
     await waitFor(() => expect(timeline.querySelector('[data-kind="order"]')?.textContent).toMatch(/^Order for .+ (added|delivered)/));
@@ -199,11 +201,11 @@ describe('Clients: the Clients tab', () => {
     expect(window.location.hash).toBe('#/clients?sheet=client%3Anew');
   });
 
-  it('the header line counts the clients, the count in bold', async () => {
+  it('the header leaves the client count to the tab', async () => {
     await start('#/clients');
     await screen.findByRole('list', { name: 'Clients' });
-    await waitFor(() => expect(headerLine()?.textContent).toBe('2 clients'));
-    expect(headerLine()!.querySelector('b')?.textContent).toBe('2');
+    expect(headerLine()?.textContent).toBe('');
+    expect(within(tabs()).getByRole('link', { name: /^Clients/ }).querySelector('[data-count]')?.textContent).toBe('2');
   });
 
   it('J and K move between the rows and Enter opens the focused one in the client sheet', async () => {
@@ -344,15 +346,16 @@ describe('Clients: the Pipeline tab', () => {
     assertInkRules();
   });
 
-  it('the header line counts the people in the pipeline, the count in bold, and says the owner sends every message', async () => {
+  it('the pipeline count stays in its tab without another subtitle', async () => {
     await start('#/clients/pipeline');
     await board();
     const line = await waitFor(() => {
       const found = headerLine();
-      expect(found?.textContent).toBe('9 people you may write to. You send every message yourself.');
+      expect(found?.textContent).toBe('');
       return found!;
     });
-    expect(line.querySelector('b')?.textContent).toBe('9');
+    expect(line.querySelector('b')).toBeNull();
+    expect(within(tabs()).getByRole('link', { name: /^Pipeline/ }).querySelector('[data-count]')?.textContent).toBe('9');
   });
 
   it('J and K move between the cards and Enter opens the focused one', async () => {
