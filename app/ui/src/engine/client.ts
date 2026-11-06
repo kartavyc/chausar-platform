@@ -14,6 +14,8 @@ import { EngineError, type BackgroundStateLite, type EngineClient, type EngineSt
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
+  /** C5 task 26, desktop only: says once that the page has painted (shell/first-paint.ts). */
+  firstPaint?(): Promise<unknown>;
   openExternal?(url: string): Promise<void>;
   /**
    * Desktop only (4D1): the owner picks one of their own network files and a desktop worker reads it on this computer;
@@ -30,6 +32,7 @@ export interface ChausarBridge {
    * page downloads the engine's csv itself.
    */
   saveMoneyExport?(month: string, format?: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  saveBriefFile?(builder: string): Promise<{ saved: true; name: string; companion: string } | null>;
   pickCopy?(): Promise<{ token: string; name: string } | null>;
   importCopy?(input: unknown): Promise<unknown>;
   setBackupFolder?(action: string): Promise<unknown>;
@@ -272,6 +275,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     // 4J20: Export for your CA saved by the desktop, with its refusals as engine errors.
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string, format?: string) => (format === undefined ? bridge.saveMoneyExport!(month) : bridge.saveMoneyExport!(month, format)).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // C5 tasks 21, 23: an exported copy and a backup folder, picked by main, with its refusals as engine errors.
+    ...(bridge?.saveBriefFile ? { saveBriefFile: (builder: string) => bridge.saveBriefFile!(builder).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.pickCopy ? { pickCopy: () => bridge.pickCopy!().catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.importCopy ? { importCopy: (input: CopyImportInput) => bridge.importCopy!(input).then((value) => value as CopyImportResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.setBackupFolder ? { setBackupFolder: (action: 'pick' | 'clear') => bridge.setBackupFolder!(action).then((value) => value as { copy: BackupCopyLite | null } | null, (error: unknown) => { throw asEngineError(error); }) } : {}),

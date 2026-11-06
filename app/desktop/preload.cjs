@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // C5 task 35: the brief as a file for Lovable or Replit; the window names only the builder. Null when cancelled.
+  saveBriefFile: async builder => {
+    const reply = await ipcRenderer.invoke('chausar:brief:saveFile', { builder: String(builder) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The brief could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
   // A client report (5A5): the desktop makes the files and saves them in a new folder where the owner picks. Null when cancelled.
   saveReport: async runId => {
     const reply = await ipcRenderer.invoke('chausar:report:save', { runId: String(runId) });
@@ -120,6 +126,8 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'Chausar could not change this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // C5 task 26: the page has painted; only the event goes to main.
+  firstPaint: () => ipcRenderer.invoke('chausar:first-paint'),
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

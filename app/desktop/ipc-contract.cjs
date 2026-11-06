@@ -28,6 +28,8 @@ const BACKGROUND_SET_CHANNEL = 'chausar:background:set';
 // A5 fix round 3: the day the owner put Today's start-at-login question aside; it changes nothing else.
 const BACKGROUND_LATER_GET_CHANNEL = 'chausar:background:later:get';
 const BACKGROUND_LATER_SET_CHANNEL = 'chausar:background:later:set';
+// C5 task 26: the window says once that it has painted; the start-up timeline's last step (main.cjs).
+const FIRST_PAINT_CHANNEL = 'chausar:first-paint';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -105,6 +107,7 @@ const METHODS = Object.freeze([
   'venture.chief.thread.state', 'venture.chief.settle.set',
   // W6 6H3: a place's layout.
   'venture.layout.get', 'venture.layout.change',
+  'venture.build.briefFile',
   'venture.accountant.pack.done',
   'venture.accountant.schedule.set',
   'venture.accountant.schedule.get',
@@ -349,4 +352,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

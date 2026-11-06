@@ -75,9 +75,9 @@ function flowsRelay(harness, child, message) {
 }
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
-  constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
+  constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128, onTiming = null }) {
     super();
-    this.options = { workerPath, environment, execPath, forkProcess, startupTimeoutMs, requestTimeoutMs, lifecycleTimeoutMs, shutdownTimeoutMs, maxPending };
+    this.options = { workerPath, environment, execPath, forkProcess, startupTimeoutMs, requestTimeoutMs, lifecycleTimeoutMs, shutdownTimeoutMs, maxPending, onTiming };
     this.worker = null; this.state = 'stopped'; this.waiting = new Map(); this.startup = null; this.shutdown = null;
   }
   status(state) { this.state = state; this.emit('status', Object.freeze({ state, healthy: state === 'ready' })); }
@@ -133,7 +133,13 @@ class EngineHarness extends EventEmitter {
   request(method, payload = {}) {
     let input;
     try { input = validateRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
-    return this.#send(input, this.options.requestTimeoutMs);
+    const sent = this.#send(input, this.options.requestTimeoutMs), timing = this.options.onTiming;
+    if (!timing) return sent;
+    // C5 task 26: the method, the milliseconds and the bytes each way go to rpc.jsonl; never what was asked or answered.
+    const started = Date.now(), requestBytes = Buffer.byteLength(JSON.stringify(input.payload));
+    const report = fields => { try { timing({ method: input.method, ms: Date.now() - started, requestBytes, ...fields }); } catch { /* a help, never a gate */ } };
+    return sent.then(result => { report({ answerBytes: Buffer.byteLength(JSON.stringify(result ?? null)), ok: true }); return result; },
+      error => { report({ answerBytes: 0, ok: false, code: error?.code }); throw error; });
   }
   // A2 second review: main's own route for the owner's Codex choice (codex-choice.cjs). No renderer method can make
   // these: renderer requests are { method, payload } only (validateRequest), and these carry a kind and no method.

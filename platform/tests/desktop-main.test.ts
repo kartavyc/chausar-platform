@@ -556,3 +556,36 @@ test('C5 task 25: crash dumps stay here, and an error nothing caught writes one 
   assert.deepEqual(d.errors, ['Chausar hit a problem and needs to close. Nothing was sent anywhere.']);
   assert.equal(d.app.quits, 1);
 });
+
+// ---------------------------------------------------------------------------
+// One-shot C5 task 26: the start-up timeline and the window's first paint.
+// ---------------------------------------------------------------------------
+
+test('C5 task 26: the start line has the phases in order, each once; first paint comes from the app window only', async () => {
+  const { STARTUP_PHASES } = require('./diagnostics.cjs');
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop([]);
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  window.emit('ready-to-show');
+  await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  assert.equal((await d.handlers.get(contract.FIRST_PAINT_CHANNEL)({ sender: {}, senderFrame: own.senderFrame })).error.code, 'UNTRUSTED_SENDER');
+  assert.equal(linesOf(d, 'startup.jsonl').some(line => line.phase === 'first-paint'), false);
+  assert.deepEqual(plain(await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own)), { ok: true });
+  await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own);
+  await flush();
+  const lines = linesOf(d, 'startup.jsonl');
+  assert.deepEqual(lines.map(line => line.phase), [...STARTUP_PHASES]);
+  for (const line of lines) assert.ok(Number.isFinite(line.ms) && line.ms >= 0);
+});
+
+test('C5 task 26: main gives the harness a timing writer for rpc.jsonl, and the real preload sends only the event', async () => {
+  const d = await desktop([]);
+  d.engines[0].options.onTiming({ method: 'workspace.status', ms: 3, requestBytes: 2, answerBytes: 9, ok: true, words: 'secret-marker here' });
+  await flush();
+  assert.deepEqual(linesOf(d, 'rpc.jsonl'), [{ method: 'workspace.status', ms: 3, requestBytes: 2, answerBytes: 9, ok: true }]);
+  let bridge: any; const calls: unknown[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (...parts: unknown[]) => { calls.push(parts); return { ok: true }; } } }) });
+  await bridge.firstPaint('anything');
+  assert.deepEqual(plain(calls), [['chausar:first-paint']]);
+});

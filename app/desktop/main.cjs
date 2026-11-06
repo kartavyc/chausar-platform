@@ -4,9 +4,11 @@ const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 // C5 task 25: this computer's own diagnostic files; before anything else, so an early problem is noted too.
-const { createDiagnostics, startMainGuard } = require('./diagnostics.cjs');
+const { createDiagnostics, startMainGuard, createTimeline } = require('./diagnostics.cjs');
 const diagnostics = createDiagnostics({ folder: join(app.getPath('userData'), 'diagnostics'), fs: require('node:fs/promises') });
 startMainGuard({ process, crashReporter, dialog, app, diagnostics });
+// C5 task 26: each start-up step goes to startup.jsonl, and each request's timing to rpc.jsonl (never its content).
+const timeline = createTimeline({ diagnostics });
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const singleInstance = app.requestSingleInstanceLock();
@@ -62,6 +64,7 @@ function lifecycleChanged() {
     if (!stopping) { dialog.showErrorBox('Chausar jobs stopped', 'The engine could not confirm the desktop state. Restart Chausar before running jobs.'); app.quit(); }
   });
 }
+function firstPainted() { timeline.mark('first-paint'); }
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   if (stopping) return;
@@ -85,7 +88,7 @@ async function startEngine() {
   const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
-  engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000 });
+  engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
   engine.on('status', status => { if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
@@ -102,7 +105,10 @@ async function startEngine() {
       .then(value => answer({ ok: true, value: value ?? null }), error => answer({ ok: false, code: error?.code }));
   });
   engine.on('forms', (request, answer, verify) => formsBrowser.handle(request, answer, verify));
-  await engine.start();
+  const starting = engine.start();
+  timeline.mark('engine-forked');
+  await starting;
+  timeline.mark('engine-ready');
   await reportJobLifecycle();
 }
 // The tray (Ink v2 wave 4, package 4G3; catalogue O13 and O23), there whenever Chausar runs, so the count it shows is
@@ -253,7 +259,7 @@ function createWindow(hash = '') {
   window.webContents.on('render-process-gone', (_event, details) => { if (details?.reason !== 'clean-exit' && engine?.state === 'ready') void engine.request('venture.feedback.crash', { source: 'desktop', name: 'WindowGone', message: `The window stopped: ${String(details?.reason ?? 'unknown').replace(/[^a-z-]/g, '')}` }).catch(() => {}); });
   // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
   window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => { window.show(); timeline.mark('window-shown'); });
   window.loadURL(TRUSTED_DOCUMENT + hash);
   window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
   // Notifications (Ink v2 wave 4, 4G1): the owner is watching only while this window is shown, not minimised and
@@ -270,6 +276,7 @@ function createWindow(hash = '') {
 }
 if (singleInstance) app.whenReady().then(async () => {
   if (stopping) return;
+  timeline.mark('app-ready');
   // One-shot A4 (hands-on S10, review L7): no File, Edit, View, Window bar on Windows and Linux, but a hidden menu keeps
   // the keys owners use: zoom (Ctrl+=, Ctrl+-, Ctrl+0) and editing. Its bar is never shown (each window hides it). A
   // Mac keeps its own menu, where copy and paste live.
@@ -302,9 +309,14 @@ if (singleInstance) app.whenReady().then(async () => {
       if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
-      const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
+      const result=await engine.request(request.method, request.payload);timeline.mark('first-request');captionMicrophone.observe(request,result);
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  // C5 task 26: the window has painted (app/ui/src/shell/first-paint.ts).
+  ipcMain.handle(require('./ipc-contract.cjs').FIRST_PAINT_CHANNEL, event => {
+    try { assertTrustedSender(event, window?.webContents); firstPainted(); return { ok: true }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
   });
   // One-shot A6 (answer 7): a wa.me handoff opens the WhatsApp desktop app first when this computer has one for
   // whatsapp:// links, else the web page; the app link is built from the checked wa.me link (invoice-share.cjs).
