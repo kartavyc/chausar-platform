@@ -13,7 +13,8 @@ import connections from './Connections.module.css';
 /** Gmail is the AI tool's existing connection. The owner approves this standing setting here; sends still ask. */
 export function GmailConnection({ providers }: { providers?: readonly AiProvider[] }) {
   const t = useT(), engine = useEngine();
-  const saveSettings = useSettingsSave(engine);
+  const business = useResource('venture.get', {});
+  const saveSettings = useSettingsSave(engine, business.data?.venture.id);
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false);
   const [changes, setChanges] = useState<Partial<Record<AiProvider, boolean>>>({});
   const [said, setSaid] = useState<{ error: boolean; text: string } | null>(null);
@@ -27,7 +28,7 @@ export function GmailConnection({ providers }: { providers?: readonly AiProvider
       await saveSettings(async stillOpen => {
       // Read the latest settings so another open settings surface is never overwritten by this one choice.
       const current = await engine.request('venture.agentSettings.get', {});
-      stillOpen();
+      await stillOpen();
       const settings = structuredClone(current.settings);
       for (const name of active) if (changes[name] !== undefined) settings[name].connectors = changes[name];
       await engine.request('venture.agentSettings.set', { settings });
