@@ -1,3 +1,4 @@
+import type { RendererMethod } from './methods.gen';
 /**
  * The engine contract the UI builds to. The first block is the shared contract from
  * chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md ("Shared contract"), verbatim; the engine side lives in
@@ -2834,3 +2835,8 @@ export interface HostedMeLite { trials: boolean; trial: HostedTrialView | null }
 
 /** What the desktop's network file pick hands back (app/desktop/network-files.cjs). */
 export interface PickedNetworkFile { kind: string; name: string; text: string; rows: number; people: number; dropped: [string, number][]; line: string }
+
+/** The renderer cannot acquire an undeclared engine method. */
+type SameMethods<A, B> = [A] extends [B] ? [B] extends [A] ? true : false : false;
+type AssertMethods<T extends true> = T;
+export type RendererContractMatches = AssertMethods<SameMethods<keyof EngineMethods, RendererMethod>>;
