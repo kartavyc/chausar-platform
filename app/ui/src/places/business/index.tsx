@@ -16,6 +16,7 @@
  *   #/business/owner   about you: the owner's first name and the services the business does not sell (W4 4J21)
  *   #/business/voice   the business's voice: six sections per language and channel, versions, learn from writing (W4 4J22b)
  *   #/business/knowledge  what the AI knows: sources, the test search, files the agents need (W4 4J22b)
+ *   #/business/app     this app on this computer: Animations follow the computer or are off (one-shot C3)
  * Any other address shows the plan. The pages follow the business menu's order. Switching business and starting a new
  * one live in the menu itself. The experimental storage note shows under the header on every page but Keep, which
  * says it in its own words (3A2).
@@ -50,6 +51,8 @@ import { YourRules } from './YourRules';
 import { SettledChats } from '../chats/SettledChats';
 // W6 6J2: reports, the opt-in Send report with its preview and Delete my reports.
 import { ReportsView } from './ReportsView';
+// One-shot C3: This app, the Animations switch.
+import { ThisAppView } from './ThisAppView';
 import s from './Business.module.css';
 
 const PAGES = [
@@ -81,6 +84,8 @@ const PAGES = [
   { sub: 'chats', title: 'business.chats', View: SettledChats },
   // W6 6J2 (D47): reports, off by default, from the business menu; listed only while it is the page.
   { sub: 'reports', title: 'feedback.page', View: ReportsView },
+  // One-shot C3: how the app itself behaves on this computer (Animations); C1's Settings puts it last in Business.
+  { sub: 'app', title: 'business.app', View: ThisAppView },
 ] as const;
 
 /** The flagship playbook whose businesses have a CA of record. */

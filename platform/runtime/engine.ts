@@ -37,6 +37,7 @@ import { PhoneSessionService } from './engine-phone-sessions.ts';
 import { EnginePhoneRuntime, type ReviewedPhoneConversationRequest } from './engine-phone-runtime.ts';
 import { createPhoneHttpHandler } from './phone/host.ts';
 import { requirePhone } from './phone/contracts.ts';
+import { preferenceChange, readAppPreferences, writeAppPreferences } from './app-preferences.ts';
 import type { Brief, ChatAnswer } from './phone/contracts.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
 import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
@@ -1076,6 +1077,14 @@ export class Engine {
     // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
     // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
     if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    // One-shot C3: the app's own preference on this computer (animations), answered before the vault check so it works
+    // with no business open; with one open, only its owner may change it, as with export.
+    if (method === 'app.preferences.get') { check(Object.keys(payload).length === 0, 'INVALID_PREFERENCE', 'Ask for the settings of this app with nothing else.'); return readAppPreferences(this.options.directory); }
+    if (method === 'app.preferences.set') {
+      const change = preferenceChange(payload);
+      if (this.vault) this.requireWorkspaceOwner(this.context);
+      return writeAppPreferences(this.options.directory, change);
+    }
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
     switch (method) {
       case 'workspace.custody.get': return this.custodyView();

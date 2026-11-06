@@ -5,6 +5,7 @@ import { shownLine } from '../../../../platform/runtime/venture/core/shown-line'
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
+import { FakePreferences, PREFERENCE_METHODS } from './fake-preferences';
 import {withSellerCards} from './fake-seller-cards';
 import {percentBps} from '../../../../platform/runtime/venture/money/rate-core';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
@@ -24,7 +25,7 @@ import { createStatusStore } from './client';
 import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
 import { FakeFirstRun, FIRST_RUN_METHODS, type AboutCallLite } from './fake-first-run';
-import type { ModelStatusLite } from './types';
+import type { ModelStatusLite, MotionPreferenceLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
@@ -133,6 +134,8 @@ export interface FakeOptions {
    * client has getBackground and setBackground. `?installed` in the dev page's address (a computer not asked yet).
    */
   background?: FakeBackgroundStart;
+  /** One-shot C3: the app's animations preference on this computer at start (fake-preferences.ts); 'system' if left out. */
+  motion?: MotionPreferenceLite;
 }
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
@@ -195,6 +198,8 @@ export class FakeEngine {
     countries: COUNTRIES,
     classify,
   });
+  /** One-shot C3: the app's own preferences, before any business (app.preferences.*). */
+  private preferences = new FakePreferences();
   private readonly packs = new FakePacks({ current: () => this.current, exists: () => this.ventures.has(this.current), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private readonly agentSettings = new FakeAgentSettings({ current: () => this.current, exists: () => this.ventures.has(this.current), agents: () => (this.agents[this.current] ?? []).filter(agent => agent.kind !== 'code').map(({ id, name }) => ({ id, name })), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private rows: QueueRow[];
@@ -292,6 +297,8 @@ export class FakeEngine {
     this.clients = clone(CLIENTS);
     this.evidence = clone(EVIDENCE);
     this.latencyMs = options.latencyMs ?? 0;
+    // `?motion-off` in the dev page's address: the owner turned animations off (the walk's --motion=off).
+    this.preferences = new FakePreferences(options.motion ?? (devAsks('motion-off') ? 'off' : 'system'));
     this.now = options.now ?? (() => new Date().toISOString());
     this.businesses = BUSINESSES.filter((b) => !options.only || options.only.includes(b.id)).map((b): HeldBusiness => ({
       ...clone(b), recovery: 'made',
@@ -523,6 +530,7 @@ export class FakeEngine {
   async request(method: string, params: unknown = {}): Promise<unknown> {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
+    if (PREFERENCE_METHODS.has(method)) return this.preferences.request(method, p);
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);

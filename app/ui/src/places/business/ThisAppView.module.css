@@ -1,0 +1,28 @@
+/* Settings, This app (one-shot C3): the Animations choice as native radios, then one plain line. */
+
+.group {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-body);
+}
+
+.line {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.problem {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

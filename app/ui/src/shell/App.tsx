@@ -16,6 +16,7 @@ import { UnknownSheet } from './sheets';
 import { PhoneTabs, TopBar } from './TopBar';
 import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
+import { useMotionPreference } from './motionPreference';
 import { OwnerZone } from './clock';
 import { BootScreen } from '../places/onboarding/BootScreen';
 // W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
@@ -39,6 +40,8 @@ export function App({ client, language }: { client: EngineClient; language: Lang
  */
 export function Shell() {
   const client = useEngine();
+  // One-shot C3: the owner's Animations choice, read once at the top and applied to <html data-motion>.
+  useMotionPreference();
   const status = useEngineStatus();
   const line = <StatusLine status={status} transport={client.transport} />;
   return <BootScreen status={line}>{(checking) => <PrivacyBoundary>{(privacy) => <Frame key={privacy} statusLine={line} checking={checking} />}</PrivacyBoundary>}</BootScreen>;

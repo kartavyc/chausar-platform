@@ -644,6 +644,11 @@ export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefL
  * code arrives once, in the reply that made it; the UI shows it once and keeps no copy.
  */
 export type UnlockMode = 'this-computer' | 'passphrase';
+/** One-shot C3: animations follow this computer's reduce-motion setting ('system') or are off for the whole app. */
+export type MotionPreferenceLite = 'system' | 'off';
+/** The app's preferences on this computer (platform/runtime/app-preferences.ts AppPreferences). C5 adds language. */
+export interface AppPreferencesLite { motion: MotionPreferenceLite }
+
 export interface CustodyViewLite {
   computer: { available: boolean; scheme: string | null; reason: string | null; checked: boolean; where: string; loss: string | null };
   business: {
@@ -2016,6 +2021,9 @@ export interface EngineMethods {
   'venture.build.sync': { params: Record<string, never>; result: BuildStatusLite };
   'venture.build.status': { params: Record<string, never>; result: BuildStatusView };
   'workspace.custody.get': { params: Record<string, never>; result: CustodyViewLite };
+  // One-shot C3: the app's own preferences on this computer (platform/runtime/app-preferences.ts), before any business.
+  'app.preferences.get': { params: Record<string, never>; result: AppPreferencesLite };
+  'app.preferences.set': { params: Partial<AppPreferencesLite>; result: AppPreferencesLite };
   'workspace.custody.recoveryCode': { params: { passphrase?: string }; result: { custody: CustodyViewLite; recoveryCode: string } };
   'workspace.custody.passphraseOn': { params: { passphrase: string }; result: { custody: CustodyViewLite; recoveryCode: string | null } };
   'workspace.custody.passphraseOff': { params: { passphrase: string }; result: { custody: CustodyViewLite } };

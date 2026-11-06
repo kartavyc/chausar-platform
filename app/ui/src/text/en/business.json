@@ -1,5 +1,10 @@
 {
   "business.keep": "Keep this business",
+  "business.app": "This app",
+  "business.app.motion": "Animations",
+  "business.app.motion.system": "Follow this computer",
+  "business.app.motion.off": "Off",
+  "business.app.motion.line": "Off stops every movement in Chausar on this computer. Your computer's own reduce-motion setting is always followed.",
   "business.pages": "Business pages",
   "business.chats": "Old chats",
   "business.notify.reach": "How alerts reach you",

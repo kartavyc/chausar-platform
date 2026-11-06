@@ -44,6 +44,8 @@ export const READS = [
   'venture.tax.working', 'venture.team.keeper', 'venture.team.list', 'venture.transcription.get',
   'venture.voice.get', 'venture.voiceConsent.list', 'venture.web.search', 'venture.work.get',
   'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
+  // One-shot C3: the app's own preference (animations), read at the top of the shell.
+  'app.preferences.get',
 ] as const satisfies readonly MethodName[];
 
 export type ReadMethod = (typeof READS)[number];
