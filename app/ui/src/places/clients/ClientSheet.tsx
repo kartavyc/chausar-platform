@@ -104,6 +104,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     <Sheet
       label={t('clients.sheet')}
       title={title}
+      loading={!clients.data && !clients.error}
       avatar={client ? <Avatar name={client.name} size={40} /> : undefined}
       onClose={onClose}
       returnFocus={returnFocus}

@@ -28,8 +28,19 @@
   background: var(--line);
 }
 
-.line[data-reached] {
+.line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--t-settle) var(--ease);
+}
+
+.line[data-reached]::after {
+  transform: scaleX(1);
 }
 
 .dot {

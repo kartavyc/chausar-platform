@@ -194,7 +194,7 @@ export function decidedWords(row: QueueRow, line: string, t: T): { title: string
  * locked until the thing is looked at, the note that says so, and whether it asks once more. The card and Today's next
  * best step (W4 4I2) both read it here, so the two never say different things.
  */
-export function primaryOf(row: QueueRow, viewed: boolean, t: T, paused = false): ApprovalPrimary {
+export function primaryOf(row: QueueRow, viewed: boolean, t: T, paused = false, openDraft = false): ApprovalPrimary {
   const primary = row.actions.find((a) => a.primary) ?? row.actions[0]!;
   // C4 task 5: while the business is paused, a primary that starts new work is locked, and says why.
   if (paused && STARTS_WORK.has(primary.id)) return { label: primary.label, locked: true, note: t('today.paused.locked'), asksAgain: Boolean(primary.secondAsk) };
@@ -202,7 +202,7 @@ export function primaryOf(row: QueueRow, viewed: boolean, t: T, paused = false):
   const viewAction = row.actions.find((a) => VIEW_ACTIONS.has(a.id))?.id;
   // The note names a one-word action, as D does ("Approve unlocks after you watch it"); a longer one ("Send to CA") is
   // on the button beside it, so the note just says when it unlocks and the card keeps to 12 words of its own (w3 3I).
-  const viewWord = viewAction === 'watch' ? 'Watch' : viewAction === 'read' ? 'Read' : 'Open';
+  const viewWord = openDraft ? 'Open' : viewAction === 'watch' ? 'Watch' : viewAction === 'read' ? 'Read' : 'Open';
   const note = locked
     ? (primary.label.trim().split(/\s+/).length > 1 ? t(`approval.unlocksAfter${viewWord}`) : t(`approval.unlock${viewWord}`, { action: primary.label }))
     : undefined;
@@ -302,7 +302,7 @@ export function ApprovalRow({
   const primary = current.actions.find((a) => a.primary) ?? current.actions[0]!;
   const others = current.actions.filter((a) => a !== primary);
   const paused = usePausedWork();
-  const { locked, note: lockNote } = primaryOf(current, isViewed, t, paused);
+  const { locked, note: lockNote } = primaryOf(current, isViewed, t, paused, layout !== 'row' && current.kind === 'draft');
   /** W4 4E4: the answer box asks for a day (a next step from call notes with no day written). */
   const asksDay = current.needs?.answer === 'day';
   const eyebrow = showBusiness ? (current.agent ? `${current.businessName} · ${current.agent}` : current.businessName) : (current.agent ?? '');
@@ -514,7 +514,7 @@ export function ApprovalRow({
   const secondAsk = (buttonSizing: ButtonSize | undefined) => pending && (
     <>
       {others.filter((action) => VIEW_ACTIONS.has(action.id)).map((action) => (
-        <Button key={action.id} size={buttonSizing} onClick={() => choose(action)}>{action.label}</Button>
+        <Button key={action.id} variant={layout !== 'row' && current.kind === 'draft' ? 'quiet' : 'secondary'} size={buttonSizing} onClick={() => choose(action)}>{layout !== 'row' && current.kind === 'draft' ? t('approval.openDraft') : action.label}</Button>
       ))}
       <Button ref={cancelRef} size={buttonSizing} onClick={cancel}>{t('approval.cancel')}</Button>
       <Button variant="primary" size={buttonSizing} data-confirm="" onClick={() => void decide(pending)}>{pending.label}</Button>
@@ -706,9 +706,9 @@ export function ApprovalRow({
       {phase !== 'confirm' && phase !== 'answer' && phase !== 'reasons' && !toolsOpen && (
         <div className={s.acts}>
           {others.map((action, index) => (
-            <Button key={action.id} size={size} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
+            <Button key={action.id} variant={current.kind === 'draft' && VIEW_ACTIONS.has(action.id) ? 'quiet' : 'secondary'} size={size} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
               {action.id === 'watch' && <Icon name="play" size={size === 'sm' ? 14 : 16} filled />}
-              {action.label}
+              {current.kind === 'draft' && VIEW_ACTIONS.has(action.id) ? t('approval.openDraft') : action.label}
             </Button>
           ))}
           <Button

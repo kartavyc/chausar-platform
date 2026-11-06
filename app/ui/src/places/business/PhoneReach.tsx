@@ -10,7 +10,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
  * Every state is the engine's answer, in its words.
  */
 
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -23,6 +23,7 @@ import s from './Business.module.css';
 import n from './Notifications.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { useWaitLabel } from '../../parts/Progress';
 
 /** One part of the group under its own heading. */
 function Part({ title, children }: { title: string; children: ReactNode }) {
@@ -42,7 +43,10 @@ export function PhoneReach() {
   // Nothing set up is the engine's answer: no bot and no phone access. Until the two answers come it stays closed.
   const nothingSetUp = telegram.data?.connected === false && phone.data?.on === false;
   const [pressed, setPressed] = useState<boolean | null>(null);
-  const open = pressed ?? nothingSetUp;
+  useEffect(() => {
+    if (telegram.data && phone.data) setPressed((current) => current ?? nothingSetUp);
+  }, [telegram.data, phone.data, nothingSetUp]);
+  const open = pressed ?? false;
   return (
     <Fold summary={t('business.notify.phoneGroup')} className={s.fold} open={open} onToggle={(event) => { if (event.currentTarget.open !== open) setPressed(event.currentTarget.open); }}>
       {open && (
@@ -137,15 +141,18 @@ function PhoneAccess() {
   const read = useResource('venture.phone.access', {});
   const [view, setView] = useState<PhoneAccessView | null>(null);
   const [busy, setBusy] = useState(false);
+  const [linkVia, setLinkVia] = useState<'wifi' | 'tailscale' | null>(null);
+  const busyLabel = useWaitLabel(t('business.notify.phoneMaking'), linkVia !== null);
   const [problem, setProblem] = useState<string | null>(null);
   const shown = view ?? read.data ?? null;
 
   async function send(params: ParamsOf<'venture.phone.access'>) {
     setBusy(true);
+    setLinkVia(params.action === 'link' ? params.via ?? 'wifi' : null);
     setProblem(null);
     try { setView(await client.request('venture.phone.access', params)); }
     catch (error) { setProblem(t('business.notify.phoneFailed', { message: messageOf(error) })); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setLinkVia(null); }
   }
 
   if (read.error && !shown) return <p className={s.problem} role="alert">{t('business.failed', { message: read.error.message })}</p>;
@@ -161,8 +168,8 @@ function PhoneAccess() {
         </>
       )}
       <div className={s.buttons}>
-        <Button variant="secondary" disabled={busy} onClick={() => void send({ action: 'link', via: 'wifi' })}>{t('business.notify.phoneLink')}</Button>
-        {tailscale && <Button variant="quiet" disabled={busy} onClick={() => void send({ action: 'link', via: 'tailscale' })}>{t('business.notify.phoneTailscale')}</Button>}
+        <Button variant="secondary" disabled={busy} aria-busy={linkVia === 'wifi' || undefined} onClick={() => void send({ action: 'link', via: 'wifi' })}><span>{linkVia === 'wifi' ? busyLabel : t('business.notify.phoneLink')}</span></Button>
+        {tailscale && <Button variant="quiet" disabled={busy} aria-busy={linkVia === 'tailscale' || undefined} onClick={() => void send({ action: 'link', via: 'tailscale' })}><span>{linkVia === 'tailscale' ? busyLabel : t('business.notify.phoneTailscale')}</span></Button>}
         {shown.on && <Button variant="quiet" disabled={busy} onClick={() => void send({ action: 'stop' })}>{t('business.notify.phoneStop')}</Button>}
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}

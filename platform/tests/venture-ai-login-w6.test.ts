@@ -238,3 +238,18 @@ test('A4: both tools are looked at together, and answer in the same order', asyn
   assert.deepEqual(tools.map(tool => tool.cli), ['codex', 'claude-code']);
   assert.equal(most, 2, 'the two test calls overlap');
 });
+
+test('C3: a scoped tool read checks only that tool and the all-tools read keeps its order', async () => {
+  const { desk, launches } = rig({ status: {
+    'login status': { code: 1, text: 'Not logged in\n' },
+    'auth status': { code: 0, text: '{"loggedIn":true}\n' },
+  } });
+  try {
+    const scoped: Awaited<ReturnType<LoginDesk['tools']>> = await Reflect.apply(desk.tools, desk, ['claude-code']);
+    assert.deepEqual(scoped.tools.map(tool => tool.cli), ['claude-code']);
+    assert.equal(scoped.tools[0]?.signedIn, 'yes');
+    assert.deepEqual(launches.map(launch => launch.cli), ['claude-code']);
+    const all = await desk.tools();
+    assert.deepEqual(all.tools.map(tool => tool.cli), ['codex', 'claude-code']);
+  } finally { desk.clear(); }
+});

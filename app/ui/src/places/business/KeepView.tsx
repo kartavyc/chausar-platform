@@ -5,6 +5,7 @@ import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { useWaitLabel } from '../../parts/Progress';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { EmptyState } from '../../parts/EmptyState';
 import { Icon } from '../../parts/Icon';
@@ -65,6 +66,8 @@ export function KeepView() {
     heading?.focus();
   }, [code]);
   const [busy, setBusy] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const backupLabel = useWaitLabel(t('business.backingUp'), backingUp);
   const [problem, setProblem] = useState<string | null>(null);
   // C4 task 36: "Backed up just now" after Back up now (203.x1); the line after a restore, once (209.x1).
   const [backedUp, setBackedUp] = useState(false);
@@ -107,6 +110,12 @@ export function KeepView() {
     setCode(result.recoveryCode);
   });
 
+  async function backUp() {
+    setBackingUp(true);
+    try { await run(async () => { setBackedUp(false); await client.request('workspace.backups.create', {}); setBackedUp(true); refresh(); }); }
+    finally { setBackingUp(false); }
+  }
+
   if (code) return <CodeOnce code={code} folder={business.folder} name={status.data?.workspace?.name ?? business.folder} onDone={() => { restoreRecoveryFocus.current = true; setCode(null); refresh(); }} />;
 
   const loss = !locked && computer.loss ? `${computer.loss} ${made ? t('business.lossTail') : t('business.lossNoCode')}` : null;
@@ -140,12 +149,12 @@ export function KeepView() {
           <p className={s.note}>{t('business.store.uses', { used: formatBytes(business.storeBytes), limit: formatBytes(business.storeLimit) })}</p>
           {business.storeBytes >= business.storeLimit * 0.7 && <p className={s.warn}>{t('business.store.full')}</p>}
           <div className={s.buttons}>
-            <Button disabled={busy} onClick={() => void run(async () => { setBackedUp(false); await client.request('workspace.backups.create', {}); setBackedUp(true); refresh(); })}>{t('business.backupNow')}</Button>
+            <Button disabled={busy} aria-busy={backingUp || undefined} onClick={() => void backUp()}><span>{backingUp ? backupLabel : t('business.backupNow')}</span></Button>
           </div>
           {/* Seam: B4's ResultLine takes these two lines when B4 lands. */}
           {backedUp && <p className={s.said} role="status">{t('business.backedUpNow')}</p>}
           {restored && <p className={s.said} role="status">{restored}</p>}
-          {!hosted && <AllBackups backups={backups.data?.backups ?? []} />}
+          {!hosted && backups.data && <AllBackups backups={backups.data.backups} />}
         </TileSection>
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}

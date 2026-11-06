@@ -34,7 +34,7 @@ describe('task 27: Export diagnostics', () => {
     mount({ previewDiagnostics, saveDiagnostics });
     fireEvent.click(await screen.findByRole('button', { name: 'Export diagnostics' }));
     await waitFor(() => expect(previewDiagnostics).toHaveBeenCalledWith(false));
-    const section = screen.getByRole('region', { name: 'Diagnostics' });
+    const section = screen.getByRole('heading', { name: 'Diagnostics' }).parentElement!;
     await within(section).findByText(/startup\.jsonl/);
     expect(within(section).getByText(/startup.jsonl, 2 KB/)).toBeTruthy();
     expect(section.querySelector('pre')?.textContent).toBe(PREVIEW.text);
@@ -51,7 +51,7 @@ describe('task 27: Export diagnostics', () => {
     const saveDiagnostics = vi.fn(async () => null);
     mount({ previewDiagnostics, saveDiagnostics });
     fireEvent.click(await screen.findByRole('button', { name: 'Export diagnostics' }));
-    const section = screen.getByRole('region', { name: 'Diagnostics' });
+    const section = screen.getByRole('heading', { name: 'Diagnostics' }).parentElement!;
     const tick = await within(section).findByRole('checkbox', { name: /Add crash files/ }) as HTMLInputElement;
     expect(tick.checked).toBe(false);
     expect(within(section).getByText('A crash file can hold parts of what was on screen.')).toBeTruthy();
@@ -71,7 +71,7 @@ describe('task 27: Export diagnostics', () => {
     const saveDiagnostics = vi.fn(async () => { throw Object.assign(new Error('Read the preview again, then save.'), { code: 'DIAGNOSTICS_PREVIEW_GONE' }); });
     mount({ previewDiagnostics, saveDiagnostics });
     fireEvent.click(await screen.findByRole('button', { name: 'Export diagnostics' }));
-    const section = screen.getByRole('region', { name: 'Diagnostics' });
+    const section = screen.getByRole('heading', { name: 'Diagnostics' }).parentElement!;
     await within(section).findByText(/startup\.jsonl/);
     expect(within(section).queryByRole('checkbox')).toBeNull();
     fireEvent.click(within(section).getByRole('button', { name: 'Save' }));
@@ -82,7 +82,7 @@ describe('task 27: Export diagnostics', () => {
 describe('task 28: diagnostics in plain words', () => {
   it('says the engine\'s line; with nothing today it says so, and the fake answers the same words', async () => {
     const { request } = mount();
-    const section = await screen.findByRole('region', { name: 'Diagnostics' });
+    const section = (await screen.findByRole('heading', { name: 'Diagnostics' })).parentElement!;
     expect(await within(section).findByText('Nothing ran today.')).toBeTruthy();
     expect(request).toHaveBeenCalledWith('venture.diagnostics.today', {});
     expect(within(section).queryByText('How this was counted')).toBeNull();

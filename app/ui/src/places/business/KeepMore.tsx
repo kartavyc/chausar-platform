@@ -17,7 +17,10 @@ import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
 import { LoadingPlace } from '../../parts/Skeleton';
-import { Progress } from '../../parts/Progress';
+import { Progress, useWaitLabel } from '../../parts/Progress';
+import { useArrivals } from '../../parts/useArrivals';
+import { useFlip } from '../../parts/flip';
+import motion from '../../parts/Leave.module.css';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -103,6 +106,8 @@ function RestoreChange({ backup }: { backup: BackupLite }) {
 
 /** Every backup of this business, newest first. Restore says what happens and waits for a second press. */
 export function AllBackups({ backups }: { backups: BackupLite[] }) {
+  const arrivals = useArrivals(backups.map(backup => backup.file));
+  const rows = useFlip<HTMLDivElement>(backups.map(backup => backup.file).join(' '));
   const t = useT();
   const zone = useOwnerZone();
   const client = useEngine();
@@ -129,7 +134,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
   const list = (items: BackupLite[]) => (
       <ul className={s.list}>
         {items.map((backup) => (
-          <li key={backup.file} className={s.backupRow}>
+          <li key={backup.file} className={`${s.backupRow} ${motion.arrive}`} data-backup={backup.file} data-flip-id={backup.file} data-arriving={arrivals.has(backup.file) ? '' : undefined}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
@@ -149,10 +154,10 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
         ))}
       </ul>
   );
-  return <>
+  return <div ref={rows} className={s.backupList}>
     {list(backups.slice(0, 3))}
     {backups.length > 3 && <Fold summary={t('business.olderBackups', { count: backups.length - 3 })} className={s.fold}>{list(backups.slice(3))}</Fold>}
-  </>;
+  </div>;
 }
 
 /**
@@ -167,6 +172,8 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
   const client = useEngine();
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState(false);
+  const [making, setMaking] = useState(false);
+  const makeLabel = useWaitLabel(t('business.moveMaking'), making);
   const [problem, setProblem] = useState<string | null>(null);
   const [made, setMade] = useState<MoveFile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -179,6 +186,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
     const typed = passphrase;
     setPassphrase('');
     setBusy(true);
+    setMaking(true);
     setProblem(null);
     try {
       setMade(await client.request('workspace.transfer.export', locked ? { passphrase: typed } : {}) as MoveFile);
@@ -187,6 +195,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
       setProblem(failed(t, error));
     } finally {
       setBusy(false);
+      setMaking(false);
     }
   }
 
@@ -261,7 +270,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
             </>
           )}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
+          <div className={s.buttons}><Button type="submit" disabled={busy} aria-busy={making || undefined}><span>{making ? makeLabel : t('business.moveMake')}</span></Button></div>
         </form>
       ))}
     </Fold>
@@ -313,6 +322,7 @@ export function ExportCopy() {
   const [readable, setReadable] = useState(false);
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyLabel = useWaitLabel(t('business.exporting'), busy);
   const [problem, setProblem] = useState<string | null>(null);
   // C4 task 36 (206.x1): the file's name only, never a path; id: the desktop's Show in folder for a copy it saved.
   const [saved, setSaved] = useState<{ name: string; encrypted: boolean; id?: string } | null>(null);
@@ -366,7 +376,7 @@ export function ExportCopy() {
           </>
         ) : <p className={s.note}>{t('business.exportEncryptedLine')}</p>}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button type="submit" disabled={busy} disabledReason={readable && !sure ? t('business.exportTick') : undefined}>{t('business.export')}</Button></div>
+        <div className={s.buttons}><Button type="submit" disabled={busy} aria-busy={busy || undefined} disabledReason={readable && !sure ? t('business.exportTick') : undefined}><span>{busy ? busyLabel : t('business.export')}</span></Button></div>
         {saved && (
           <div role="status">
             <p className={s.said}>
@@ -404,6 +414,7 @@ export function DeleteBusiness({ onDeleted, counts }: { onDeleted: (result: Dele
   const status = useResource('workspace.status', {});
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyLabel = useWaitLabel(t('business.deleting'), busy);
   const [problem, setProblem] = useState<string | null>(null);
   const name = status.data?.workspace?.name ?? null;
   // "Export a copy first": opens the export fold above, where the owner picks where it goes.
@@ -446,7 +457,7 @@ export function DeleteBusiness({ onDeleted, counts }: { onDeleted: (result: Dele
           <p className={s.warn}>{t('business.deleteCant')}</p>
           <Field label={t('business.deleteType', { name })} value={typed} autoComplete="off" spellCheck={false} onChange={(event) => setTyped(event.currentTarget.value)} />
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}>{t('business.delete')}</Button></div>
+          <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} aria-busy={busy || undefined} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}><span>{busy ? busyLabel : t('business.delete')}</span></Button></div>
         </form>
       )}
     </Fold>

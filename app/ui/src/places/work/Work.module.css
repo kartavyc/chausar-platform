@@ -980,6 +980,11 @@
 }
 
 /* C4 task 13: the draft sheet: the message as the client gets it, its checks, its actions. */
+.finishedRow {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+}
+
 .draftMessage {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
