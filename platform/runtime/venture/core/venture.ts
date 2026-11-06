@@ -10,7 +10,7 @@ import { prepareAdoptedCredentials } from '../models/credential-adoption.ts';
 import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
 import { starterPacks, type DictionaryDraft } from '../../ontology.ts';
 import { bpsPercent, currentVenture, digest, exactPayload, listRecords, plainText, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
-import { INTERVIEW_IDS } from '../contracts.ts';
+import { INTERVIEW_IDS } from '../contract-values.ts';
 import type { CountryProfile, InterviewRecord, ModelCallRecord, ModelConnectionRecord, VentureDeps, VentureRecord, VentureView } from '../contracts.ts';
 import type { ComposedPlan, CompositionRecord, DraftAi, DraftCompose } from '../onboarding-contracts.ts';
 import { assembleComposedBlueprint, structureOf } from './blueprint.ts';

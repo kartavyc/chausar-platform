@@ -3,7 +3,7 @@ import { defaultConsentFor } from '../clients/ai-default.ts';
 import { check, type Context } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
 import { activateTerm, exactPayload, listRecords, plainText, readVenture, singleLine, ventureAction, type VentureTx } from '../records.ts';
-import { INDIA_STATES } from '../contracts.ts';
+import { INDIA_STATES } from '../contract-values.ts';
 import { newestFirst } from './shared.ts';
 import { recordOwnerFields } from '../evidence/ledger.ts';
 import type { ClientListRow, ClientRecord, VentureDeps } from '../contracts.ts';

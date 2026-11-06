@@ -1,7 +1,7 @@
 // Chausar website re-check integration. lintapple (MIT), original tests through the scheduler tick.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { setup, owner } from './venture-views-env.ts';
 import { SEO_VISIBILITY_DESK } from '../runtime/venture/playbooks/seo-visibility/desk.ts';
 import { sweepWholeJournal } from '../runtime/venture/build/journal-sweep.ts';

@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { PURPOSE_TIER, REQUIRED_SECTIONS, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { PURPOSE_TIER, REQUIRED_SECTIONS, STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, BrowserPort, BrowserPostJob, BrowserPostResult, ConnectorPostRecord, CountryProfile, DeliveryRunView, InvoiceView, JournalEntry,
   JournalRecord, ModelOutcome, ModelPort, ModelPreset, ModelPreview, ModelPurpose, ModelStatusView, ModelTask, OrderRecord, PriceFigure,

@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { APP_ONLY_METHODS, TIE_BANDS, W4_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, TIE_BANDS, W4_METHOD_LEVELS } from '../runtime/venture/contract-values.ts';
 import type {
   EvidenceRecord, KeeperRunRecord, NetworkRecompute, NetworkSourcesView, PersonView, SumReceiptRecord, TieBand, TieReceipt,
 } from '../runtime/venture/contracts.ts';

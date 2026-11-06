@@ -10,7 +10,7 @@ import type { Context } from '../runtime/contracts.ts';
 import type {
   BrowserPort, BrowserProbe, ConnectorPostRecord, DeliveryRunRecord, DraftPostView, PostingProposal, QueueList, ShareLinkView, VentureDeps,
 } from '../runtime/venture/contracts.ts';
-import { APP_ONLY_METHODS, VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';
 import { POSTING_CONSENT_LINE, connectorQueueRows } from '../runtime/venture/build/posting.ts';

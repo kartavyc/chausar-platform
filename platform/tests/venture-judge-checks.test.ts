@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError } from '../runtime/contracts.ts';
-import { CHECK_IDS } from '../runtime/venture/contracts.ts';
+import { CHECK_IDS } from '../runtime/venture/contract-values.ts';
 import type { CaseScore, Deliverable, HarnessState, ModelTask, PriceReceiptRecord, SignalRecord } from '../runtime/venture/contracts.ts';
 import { judgeDraftRules, ownerSourcesOf, preferDraft, runChecks, type CheckInput } from '../runtime/venture/delivery/checks.ts';
 import { DEFAULT_LIMITS, newHarnessState } from '../runtime/venture/delivery/harness/loop.ts';

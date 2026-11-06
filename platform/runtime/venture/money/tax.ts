@@ -3,7 +3,7 @@
 // only after the owner confirms an LUT. Other countries charge one tax at the owner's rate.
 import { check } from '../../contracts.ts';
 import { bpsPercent } from '../records.ts';
-import { INDIA_STATES } from '../contracts.ts';
+import { INDIA_STATES } from '../contract-values.ts';
 import type { BackOffice, BpsString, ClientRecord, CountryCode, CountryProfile, TaxTreatment } from '../contracts.ts';
 
 import {taxDecision,type TaxDecision} from './tax-decision.ts';

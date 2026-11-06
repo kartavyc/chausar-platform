@@ -5,9 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import {
-  CHECK_IDS, JUDGE_QUESTIONS, METHOD_OWNERS, PURPOSE_TIER, REQUIRED_SECTIONS, SERVICE_TYPES, STEP_PLAN, VENTURE_ERRORS, VENTURE_METHODS,
-} from '../runtime/venture/contracts.ts';
+import { CHECK_IDS, JUDGE_QUESTIONS, METHOD_OWNERS, PURPOSE_TIER, REQUIRED_SECTIONS, SERVICE_TYPES, STEP_PLAN, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, CheckId, CheckResult, ClientRecord, CountryProfile, Deliverable, DeliveryRunRecord, LaunchStatus, ModelOutcome, ModelPort,
   ModelPreset, ModelPreview, ModelPurpose, ModelStatusView, ModelTask, OrderRecord, PlaybookRecord, PlaybookStep, PriceFigure,

@@ -12,7 +12,7 @@
 // new offer starts with none, so Today's "Set your prices" names it. The model call itself is recorded, as every call
 // is, for "What was sent" and the spend cap; a call that carries a file is client data, recorded as 'owner-file-drop'.
 import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
-import { PURPOSE_TIER } from '../contracts.ts';
+import { PURPOSE_TIER } from '../contract-values.ts';
 import type {
   BlueprintPatch, BlueprintRecord, Json, ModelOutcome, ModelTask, PlanChangeView, PlanSuggestionView, PricingModel, VentureDeps, VentureRecord,
 } from '../contracts.ts';

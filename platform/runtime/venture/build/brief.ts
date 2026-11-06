@@ -3,7 +3,7 @@
 // built-in template. Every price is copied from the newest current price receipt; the brief never carries
 // client names, client requests, emails or phone numbers, because nothing about clients is ever read here.
 import { authorize, check, hash, type Context, type State } from '../../contracts.ts';
-import { SERVICE_TYPE_LABELS } from '../contracts.ts';
+import { SERVICE_TYPE_LABELS } from '../contract-values.ts';
 import type {
   BlueprintRecord, BriefModelOutput, BriefRecord, CountryProfile, DateOrder, Json, ModelTask, Offer, PriceReceiptRecord, ServiceType,
   VentureDeps, VentureRecord,

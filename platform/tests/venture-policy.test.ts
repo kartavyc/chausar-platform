@@ -2,7 +2,7 @@
 // Pure functions only; venture-policy-harness.test.ts covers the wiring into the agent loop.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LAUNCH_STAGES } from '../runtime/venture/contracts.ts';
+import { LAUNCH_STAGES } from '../runtime/venture/contract-values.ts';
 import type { Posture } from '../runtime/venture/contracts.ts';
 import { POSTURES, postureOfStage, postureRank, runPosture, stepGate, tighten } from '../runtime/venture/policy/posture.ts';
 import { FLOOR_KINDS, FLOOR_WORDS, floorOf, type PolicyAction } from '../runtime/venture/policy/floor.ts';

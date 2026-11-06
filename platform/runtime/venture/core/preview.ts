@@ -1,7 +1,7 @@
 // Chausar venture launcher, core (P1): venture.preview, the instant plan shown before any vault exists.
 // Template words only. No model, no store, no clock: nothing is saved and nothing leaves the computer.
 import { exactPayload, plainText } from '../records.ts';
-import { OFFER_IDS, SECOND_OFFER_MODEL, STEP_PLAN } from '../contracts.ts';
+import { OFFER_IDS, SECOND_OFFER_MODEL, STEP_PLAN } from '../contract-values.ts';
 import type { PlanPreview } from '../contracts.ts';
 import { check } from '../../contracts.ts';
 import { flagshipApprovalLines, flagshipOfferWords, flagshipStepLines, offerPricing, previewBackOffice } from './blueprint.ts';

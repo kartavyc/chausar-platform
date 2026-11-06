@@ -10,7 +10,8 @@ import { createReadStream } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NETWORK_IMPORT_KINDS, type NetworkImportKind } from '../contracts.ts';
+import { NETWORK_IMPORT_KINDS } from '../contract-values.ts';
+import type { NetworkImportKind } from '../contracts.ts';
 import { createExtractor } from './extract.ts';
 
 /** The most a source file of each kind may be: a mail export is large and is read only by its headers. */

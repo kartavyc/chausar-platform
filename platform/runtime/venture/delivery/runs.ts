@@ -40,7 +40,7 @@ ToolName,ToolCallRecord,
 VentureDeps,VentureRecord,
 WorkReceiptRecord,WorkTableRecord
 } from '../contracts.ts';
-import { DELIVERY_REASONS,REQUIRED_SECTIONS } from '../contracts.ts';
+import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contract-values.ts';
 import { blueprintCountry } from '../core/country-history.ts';
 import { recordDecision } from '../journal/decisions.ts';
 import { localDayAt } from '../local-day.ts';

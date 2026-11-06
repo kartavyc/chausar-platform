@@ -7,7 +7,7 @@
 // at a new company adds an evidence row and keeps the earlier role. Undo of an import takes back what it added here;
 // Forget takes a person out of every search, saved or not, and erases the stored text of the calls that carried them.
 import { check, type Context, type State } from '../../contracts.ts';
-import { SEARCH_FIELDS } from '../contracts.ts';
+import { SEARCH_FIELDS } from '../contract-values.ts';
 import type {
   EvidenceRecord, IsoDate, NetworkImportKind, NetworkImportRecord, NetworkSearchRecord, NetworkSearchResult, NetworkSearchView, PersonFact, PersonRecord,
   PipelineStage, SavedSearchView, SearchField, SearchFilters, SearchResultView, SourceRef, TieBand, TieRecord, TraitCheck, VentureDeps, VentureRecord,
