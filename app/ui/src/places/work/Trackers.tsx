@@ -88,8 +88,40 @@ function TrackerView({ id, onChanged }: { id: string; onChanged: () => void }) {
         ? <TrackerBoard detail={data} column={boardColumn} onMove={move} onUndo={undo} />
         : <TrackerList detail={data} onUndo={undo} onRemove={remove} />}
       <AddRow tracker={data.tracker} onAdded={changed} />
+      <KeptBy tracker={data.tracker} onChanged={changed} />
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </section>
+  );
+}
+
+/** Which agents keep this tracker: they may add rows when asked. Saving asks again: it is standing configuration. */
+function KeptBy({ tracker, onChanged }: { tracker: TrackerLite; onChanged: () => void }) {
+  const t = useT();
+  const client = useEngine();
+  const [open, setOpen] = useState(false);
+  const team = useResource('venture.team.list', {}, { skip: !open });
+  const [chosen, setChosen] = useState<string[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const picked = chosen ?? tracker.keptBy;
+  const agents = (team.data?.agents ?? []).filter((agent) => agent.kind !== 'code' && agent.chat !== false);
+  const toggle = (id: string) => setChosen(picked.includes(id) ? picked.filter((one) => one !== id) : [...picked, id]);
+  async function save() {
+    setProblem(null);
+    try {
+      await client.request('venture.trackers.set', { tracker: { id: tracker.id, name: tracker.name, columns: tracker.columns, boardBy: tracker.boardBy, keptBy: picked } });
+      setChosen(null); onChanged();
+    } catch (error) { setProblem(messageOf(error)); }
+  }
+  return (
+    <details className={s.fold} data-fold="kept-by" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{t('work.trackers.keptBy')}</summary>
+      <div className={s.form}>
+        <p className={s.line}>{t('work.trackers.keptByLine')}</p>
+        {agents.map((agent) => <label key={agent.id} className={s.select}><input type="checkbox" checked={picked.includes(agent.id)} onChange={() => toggle(agent.id)} /> <span>{agent.name}</span></label>)}
+        <div><Button size="sm" disabled={chosen === null} onClick={() => void save()}>{t('work.trackers.saveKeptBy')}</Button></div>
+        {problem && <p className={s.problem} role="alert">{problem}</p>}
+      </div>
+    </details>
   );
 }
 
