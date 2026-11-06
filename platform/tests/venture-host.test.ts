@@ -94,11 +94,13 @@ test('PACKAGE_LOADERS has one loader per package and missingHandlers lists what 
   assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'playbooks', 'views']);
   const all = missingHandlers({});
   const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest');
-  assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - draftOnly.length - ENGINE_METHODS.length);
-  for (const method of [...PRE_VAULT_METHODS, ...draftOnly]) assert.equal(all.includes(method), false, method);
+  const preVaultOnly = PRE_VAULT_METHODS.filter(method => method !== 'venture.compliance.get');
+  assert.ok(all.includes('venture.compliance.get'), 'The open business reads its recorded compliance through core.');
+  assert.equal(all.length, VENTURE_METHODS.length - preVaultOnly.length - draftOnly.length - ENGINE_METHODS.length);
+  for (const method of [...preVaultOnly, ...draftOnly]) assert.equal(all.includes(method), false, method);
   const fn = async () => null;
   const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify', 'playbooks'] as VenturePackageId[]).map(id => [id,
-    Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !PRE_VAULT_METHODS.includes(m) && !draftOnly.includes(m)).map(m => [m, fn]))]));
+    Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !preVaultOnly.includes(m) && !draftOnly.includes(m)).map(m => [m, fn]))]));
   assert.deepEqual(missingHandlers(full), []);
   // A handler registered in the wrong package's table does not count, and neither does a value that is not a function.
   const misplaced = { ...full, core: { ...full.core, 'venture.get': 'not a function' }, money: { ...full.money, 'venture.events': fn } } as any;
