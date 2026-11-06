@@ -4,12 +4,13 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installRefusal } from '../../scripts/release-smoke.mjs';
+import { installRefusal, FIRST_PAINT } from '../../scripts/release-smoke.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/release-smoke.mjs', import.meta.url));
 
@@ -128,4 +129,11 @@ test('--allow-install is read as a flag and the refusal comes before anything ru
   assert.equal(run.status, 1);
   assert.match(run.stdout, process.platform === 'win32' ? /CI=true or --allow-install|already has Chausar installed|could not read/ : /Windows only/);
   assert.equal(spawnSync(process.execPath, [SCRIPT, '--app', installer, '--allow-install', 'extra'], { encoding: 'utf8', windowsHide: true }).status, 2);
+});
+
+
+test('the smoke waits for the desktop first-paint constant', () => {
+  const diagnostics = createRequire(import.meta.url)('../../app/desktop/diagnostics.cjs');
+  assert.equal(diagnostics.FIRST_PAINT, FIRST_PAINT);
+  assert.ok(diagnostics.STARTUP_PHASES.includes(diagnostics.FIRST_PAINT));
 });
