@@ -202,6 +202,8 @@ export interface DeliveredFile { id: string; name: Display; digest: string; at: 
 export interface RunScopeView { tools: Display[]; actions: Display[]; cap: Display; posture: Posture; line: Display; /** 4F3: the cap's receipt. */ capReceiptId: string; /** 4F3: the cap in rupees at the owner's rate, and the rate. */ capRupees?: Display; capRate?: Display }
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
+  /** C7: an agent the owner hired: the day, its duties and what it reads. */
+  hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
   last?: { line: Display; receiptId?: string; estimate?: boolean };
   steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
@@ -1294,7 +1296,9 @@ export interface RetireCheckView {
 }
 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
-export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string };
+export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string }
+  /** C7: a section of Chausar's guide, quoted as written, with the link to it. */
+  | { kind: 'guide'; anchor: string; title: string; text: string; link: string };
 export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string } | { kind: 'connect-ai' };
 export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
 export type AgentNoteScope = 'agent' | `client:${string}`;
@@ -1306,6 +1310,8 @@ export interface AgentProposalView {
   id: string; at: string; agent: string; kind: 'instruction' | 'note' | 'import'; status: 'drafted' | 'accepted' | 'rejected' | 'stale';
   quote: string; title: Display; appliesTo: Display | null; diff: DiffLine[]; fromVersion: number | null; toVersion: number | null;
   note: { text: string; scope: AgentNoteScope } | null; digest: string; line: Display | null;
+  /** C7: an offer the agent made after an edited sign-off, with who offered it and after which approval. */
+  offered?: Display;
 }
 export interface AgentRunItem { runId: string; at: string; purpose: Display; state: RunState; done: number; total: number; steps: RunStep[]; recalled: { id: string; text: string; forgotten?: boolean }[] }
 export type AgentThreadItem = { type: 'message'; message: AgentMessageView } | { type: 'run'; run: AgentRunItem } | { type: 'proposal'; proposal: AgentProposalView };
@@ -1541,6 +1547,33 @@ export interface CliStatusView {
   /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
   provider?: ProviderTroubleLite;
 }
+/** C7: event triggers (venture.events.*): the relay's host, the recent events and each event's blanks. */
+export interface RelayEventLite { id: string; source: 'razorpay' | 'cal-com'; kind: 'payment' | 'booking' | 'booking-cancelled'; receivedAt: string; state: 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed'; line: Display }
+export interface EventsViewLite { relay: string | null; calKey: boolean; line: Display; label: Display; missed: number; events: RelayEventLite[]; blanks: Readonly<Record<string, readonly string[]>> }
+/** C7: hiring one more agent, one phase at a time (venture.agents.hire.*). */
+export interface HireReadLite { read: string; why: string }
+export interface HireVoiceLite { tone: string | null; replyLength: 'short' | 'medium' | 'long' | null; greeting: string | null; handOffLine: string | null; blockedTopics: string[]; signOff: string | null }
+export interface HireViewLite {
+  id: string; status: 'drafting' | 'hired' | 'cancelled'; phase: 'role' | 'reads' | 'voice' | 'review'; sentence: string;
+  role: { name: string; job: string; duties: string[] } | null; reads: HireReadLite[]; voice: HireVoiceLite | null; department: string;
+  choices: readonly string[]; departments: readonly string[]; card: { does: string[]; reads: HireReadLite[]; never: string[]; asks: Display } | null; digest: string;
+}
+/** C7: owner-made trackers (venture.trackers.*). A receipt cell shows the receipt's figure; an estimate cell always carries its label. */
+export interface TrackerColumnLite { id: string; name: string; kind: 'text' | 'date' | 'choice' | 'count' | 'check' | 'person' | 'receipt' | 'estimate'; options?: string[] }
+export interface TrackerCellLite { column: string; value: string | number | boolean | null; display: Display; receiptId?: string; label?: 'model estimate' }
+export interface TrackerLite { id: string; name: string; columns: TrackerColumnLite[]; boardBy: string | null; keptBy: string[]; rows: number }
+export interface TrackerRowLite { id: string; at: string; cells: TrackerCellLite[]; addedBy: string; addedByName: string | null; canUndo: boolean }
+export interface TrackerStarterLite { id: 'content-calendar' | 'gst-due-dates'; name: string; columns: TrackerColumnLite[]; boardBy: string | null }
+export interface TrackersLite { trackers: TrackerLite[]; starters: TrackerStarterLite[] }
+export interface TrackerDetailLite { tracker: TrackerLite; rows: TrackerRowLite[] }
+/** C7: the backup AI for routines (venture.routines.backup.get and .set): each choice with the consent text it is sent under. */
+export interface BackupChoiceLite { presetId: string; label: Display; text: Display; digest: string }
+export interface BackupViewLite { on: boolean; order: string[]; choices: BackupChoiceLite[]; main: Display | null }
+/** C7: the plan meter (venture.models.plan): only what each tool reported, with its source and time. */
+export type PlanStateLite = 'ok' | 'near' | 'used-up' | 'unknown';
+export interface PlanWindowLite { kind: 'five-hour' | 'week'; usedPercent: number | null; resetsAt: string | null; state: PlanStateLite; line: Display }
+export interface PlanToolLite { cli: 'claude-code' | 'codex'; label: Display; state: PlanStateLite; windows: PlanWindowLite[]; readAt: string | null; source: Display; canCheck: boolean }
+export interface PlanViewLite { tools: PlanToolLite[] }
 /** A2: the AI provider's status page, in the engine's words, with where and when it was read. */
 export interface ProviderTroubleLite { line: string; source: string; readAt: string }
 /** A2: a Codex setup as the engine shows it: in use, found and waiting for the owner's yes, not usable, or none. */
@@ -1805,11 +1838,13 @@ export type RoutineSchedule =
   | { kind: 'interval'; everyMinutes: number; from: string }
   | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
   /** C4 task 32: one day of the month (1 to 28) at a time in a named zone. */
-  | { kind: 'monthly'; day: number; time: string; timeZone: string };
+  | { kind: 'monthly'; day: number; time: string; timeZone: string }
+  /** C7: a trigger: it starts on a confirmed event and only drafts. */
+  | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
-export interface RoutineView { recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+export interface RoutineView { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
 /** C4 task 32: a ready routine from the plan (agents/routines.ts routineSuggestions). */
 export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
@@ -2241,6 +2276,9 @@ export interface EngineMethods {
   'workspace.open': { params: { folder?: string; passphrase?: string; businessId?: string }; result: unknown };
   // Onboarding, in the engine's order.
   'workspace.status': { params: Record<string, never>; result: WorkspaceStatusLite };
+  // C7: What's new, once per version on this computer.
+  'whatsNew.get': { params: Record<string, never>; result: { version: string; seen: boolean } };
+  'whatsNew.seen': { params: { version: string }; result: { version: string; seen: boolean } };
   'workspace.lock': { params: Record<string, never>; result: { locked: true } };
   'workspace.create': { params: WorkspaceCreateParams; result: WorkspaceCreated };
   'venture.countries': { params: Record<string, never>; result: CountryLite[] };
@@ -2541,6 +2579,25 @@ export interface EngineMethods {
   'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
   // One-shot C4 (T20): a share the owner made, or their "Mark as sent", recorded on the invoice.
   'venture.invoice.shared': { params: { invoiceId: string; how: 'whatsapp' | 'email' | 'file' | 'marked' }; result: InvoiceViewLite };
+  'venture.models.plan': { params: { fresh?: boolean }; result: PlanViewLite };
+  'venture.routines.backup.get': { params: Record<string, never>; result: BackupViewLite };
+  'venture.routines.backup.set': { params: { on: boolean; order: string[]; digests?: string[] }; result: BackupViewLite };
+  'venture.trackers.list': { params: Record<string, never>; result: TrackersLite };
+  'venture.trackers.get': { params: { id: string }; result: TrackerDetailLite };
+  'venture.trackers.set': { params: { tracker: { id?: string; name: string; columns: TrackerColumnLite[]; boardBy?: string | null; keptBy?: string[] } }; result: { tracker: TrackerLite } };
+  'venture.trackers.remove': { params: { id: string }; result: { removed: true } };
+  'venture.trackers.rows.add': { params: { trackerId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
+  'venture.trackers.rows.edit': { params: { rowId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
+  'venture.trackers.rows.remove': { params: { rowId: string }; result: { removed: true } };
+  'venture.trackers.rows.undo': { params: { rowId: string }; result: { undone: true } };
+  'venture.agents.hire.start': { params: { sentence: string }; result: HireViewLite };
+  'venture.agents.hire.answer': { params: { hireId: string; phase: string; edits?: Record<string, unknown> }; result: HireViewLite };
+  'venture.agents.hire.confirm': { params: { hireId: string; digest: string }; result: HireViewLite };
+  'venture.agents.hire.cancel': { params: { hireId: string }; result: { cancelled: true } };
+  'venture.events.get': { params: Record<string, never>; result: EventsViewLite };
+  'venture.events.relay.set': { params: { address: string | null }; result: EventsViewLite };
+  'venture.events.calKey.set': { params: { key: string | null }; result: EventsViewLite };
+  'venture.agents.hire.duties': { params: { agent: string; duties: string[] }; result: HireViewLite };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
@@ -2556,7 +2613,7 @@ export interface EngineMethods {
   'venture.routines.list': { params: Record<string, never>; result: { routines: RoutineView[] } };
   /** C4 task 32: at most two ready routines the plan already names; nothing stored. */
   'venture.routines.suggestions': { params: Record<string, never>; result: { suggestions: RoutineSuggestion[] } };
-  'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView }[] } };
+  'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView; ranOn?: Display }[] } };
   'venture.routines.set': { params: { routine: RoutineInput }; result: { routine: RoutineView } };
   'venture.routines.remove': { params: { id: string }; result: { removed: true; line: Display } };
   'venture.options.rerank': { params: { questionId: string; weights: Record<string, number> }; result: { options: RankedOptionView[] } };

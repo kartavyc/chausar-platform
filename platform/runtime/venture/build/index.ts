@@ -1,5 +1,6 @@
 // Chausar venture launcher, package P4: build brief, its lint, builder handoff links, the GitHub reader and the
 // connector catalogue. The host loads this file on first use of a method it owns.
+import { EVENT_HANDLERS } from './event-triggers.ts';
 import { ChausarError } from '../../contracts.ts';
 import type { VentureHandler, VentureHandlerTable } from '../contracts.ts';
 import { writeBrief } from './brief.ts';
@@ -35,6 +36,8 @@ const connectors: VentureHandler<'venture.connectors.list'> = listConnectors;
 const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = Object.freeze({
+  // C7: event triggers
+  ...EVENT_HANDLERS,
   'venture.build.brief': brief,
   'venture.build.handoff': handoff,
   'venture.build.briefFile': prepareBriefFile satisfies VentureHandler<'venture.build.briefFile'>,

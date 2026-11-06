@@ -266,6 +266,7 @@ import { startMcpOAuth } from '../agent-runtime/mcp-oauth.ts';
 import { curatedMcpRequest } from '../agent-runtime/mcp-registry.ts';
 import { addPack, listPacks, removePack } from '../packs/packs.ts';
 import { ProviderStatusReader, providerTrouble } from './provider-status.ts';
+import { planView } from './plan-view.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.agentSettings.get': getAgentSettings,
@@ -285,4 +286,6 @@ export const handlers: VentureHandlerTable = {
   // Ink v2 wave 4 (4H1): the CLI status checked against the installed tools, and per-role models.
   'venture.models.cli.status': cliStatus,
   'venture.models.roles': rolesHandler,
+  // C7: the plan meter, from what the tools reported.
+  'venture.models.plan': planView,
 };

@@ -1,7 +1,7 @@
 import { useId, useMemo } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import { setQuery, useRoute } from '../../shell/navigation';
+import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
 import { Tabs, departmentChoices } from '../../parts/Tabs';
@@ -9,6 +9,7 @@ import { Icon } from '../../parts/Icon';
 import { Bento, Tile, TileHead, type TileSpan, PlaceTiles } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { AgentSheet } from './AgentSheet';
+import { HireSheet } from './HireSheet';
 import { RetiredShelf } from './AgentRetire';
 import { CountsLine, DepartmentPanel } from './DepartmentPanel';
 import { chosenDept, departmentsOf, versionOf, type DepartmentData, type Member } from './departments';
@@ -27,8 +28,8 @@ import { LoadingPlace } from '../../parts/Skeleton';
  * read (Today's `focus` and `read`), where it is accepted.
  */
 export const TEAM_ACCEPT_PLAN_HREF = '#/today?focus=plan&read=1';
-/** B4 task 14's "Add an agent here" keeps one address, so C7 task 16 can point it at the hire sheet. */
-export const TEAM_ADD_AGENT_HREF = '#/onboarding';
+/** B4 task 14's "Add an agent here" keeps one address: C7 task 16's hire sheet. */
+export const TEAM_ADD_AGENT_HREF = '#/team?sheet=hire:new';
 
 /**
  * Team (D-Team): who is working, who waits on you and the AI spend this month, then the agents as cards. Once the
@@ -89,8 +90,8 @@ function PlaceBody() {
             <div className={s.toolbar}>
               {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}
               <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
-              {/* An agent joins with a way to earn: its playbook brings the team that works it (spec 5.1). */}
-              <a className={s.addAgent} href={TEAM_ADD_AGENT_HREF}><Icon name="plus" size={16} />{t('team.addAgent')}</a>
+              {/* C7 (REPORT row 56): hiring one more agent from a sentence, in its own sheet. */}
+              <button type="button" className={s.addAgent} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('team.addAgent')}</button>
             </div>
           )}
           <LoadingPlace shape="tiles" loading={!team.data && !team.error} />
@@ -180,7 +181,7 @@ function spansOf(departments: readonly DepartmentData[]): TileSpan[] {
   return spans;
 }
 
-export const sheets = { agent: AgentSheet };
+export const sheets = { agent: AgentSheet, hire: HireSheet };
 
 /** The phone's chips, each with how many agents it holds (D-Phone-Team): all of them, or a department's. */
 function withCounts<O extends { id: string }>(options: O[], members: readonly Member[], departments: readonly DepartmentData[]): (O & { count: number })[] {

@@ -43,7 +43,7 @@ let restoredLine: string | null = null;
 export function takeRestoredLine(): string | null { const line = restoredLine; restoredLine = null; return line; }
 
 type T = ReturnType<typeof useT>;
-const KIND_KEYS = new Set(['clients', 'orders', 'drafts', 'invoices', 'payments', 'bills', 'decisions', 'notes', 'routines', 'apps', 'other']);
+const KIND_KEYS = new Set(['clients', 'orders', 'drafts', 'invoices', 'payments', 'bills', 'decisions', 'notes', 'routines', 'apps', 'tracker-rows', 'hired-agents', 'other']);
 /** "3 clients": the kind's own plural words, or the engine's words for a kind this catalogue does not know yet. */
 function kindWords(t: T, kind: string, words: string, count: number, country: string): string {
   const digits = formatCount(count, country);

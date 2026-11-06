@@ -26,6 +26,8 @@ import { PairScreen } from './PairScreen';
 import { BootScreen } from '../places/onboarding/BootScreen';
 // W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
 import { AiGo } from '../parts/layout/AiGo';
+import { HelpButton } from './HelpButton';
+import { WhatsNewOnce } from './WhatsNew';
 import type { EngineClient } from '../engine/types';
 import s from './App.module.css';
 
@@ -88,7 +90,7 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
   // C2: beside the rail every page header carries the command bar and the bell. On Chats the header holds no bar (the
   // composer is the ask box there; B4 task 19's rule, held here until B4 lands): Ctrl K opens the dialog instead.
   const onChats = route.place === 'chats';
-  const shellTools = useMemo(() => (narrow ? null : <>{!onChats && <CommandBox />}<Bell /></>), [narrow, onChats]);
+  const shellTools = useMemo(() => (narrow ? null : <>{!onChats && <CommandBox />}<HelpButton /><Bell /></>), [narrow, onChats]);
 
   return (
     // One notification list for the bell and the centre (W4 4G4), so they never disagree.
@@ -97,6 +99,8 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
     <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={shown ? '' : undefined} data-boot={checking ? '' : undefined}>
       <button type="button" className={s.skip} inert={behind} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
       <div className={s.status}>{statusLine}</div>
+      {/* C7: What's new opens once after an update, never on a fresh install. */}
+      <WhatsNewOnce />
       {narrow
         ? <div className={s.top} inert={covered}><TopBar /></div>
         : <div className={s.rail} inert={behind}><Rail route={route} /></div>}

@@ -28,6 +28,7 @@ import { goalView } from '../money/goals.ts';
 import { latestBlueprint } from '../money/shared.ts';
 import { clientNameFor, short } from '../views/shared.ts';
 import { listedWays } from './fit.ts';
+import { guideSections } from '../core/guide.ts';
 
 /** A figure a tool returned: the receipt behind it, the receipt's key for it, what it is, and the receipt's own display. */
 export type ToolFigure = { receiptId: string; key: string; label: string; display: string };
@@ -46,6 +47,7 @@ export const TOOL_CATALOGUE: readonly { name: string; what: string }[] = Object.
   { name: 'journal', what: 'The latest twenty outside actions in the journal and how each stands.' },
   { name: 'businesses', what: 'The other businesses on this computer, whether each is locked, and for each that is not, its totals and counts as saved when it was last open.' },
   { name: 'ways', what: 'The ways to earn Chausar can run: each with its hours a week (a model estimate), its team, what the owner does, and whether the owner runs it already.' },
+  { name: 'guide', what: "Chausar's own guide: each part's id and title. For a how-to question, answer with a guide part whose key is one id; Chausar shows that part's own words." },
 ]);
 export const TOOL_NOT_ALLOWED_LINE = 'There is no read tool by that name. Chausar has read tools only, and none of them writes.';
 /** Where this host keeps no summaries of closed businesses (4J6), the chief reads the open business only. */
@@ -318,7 +320,10 @@ const ways: Tool = async deps => {
   };
 };
 
-const TOOLS: Readonly<Record<string, Tool>> = Object.freeze({ queue, runs, team, money, clients, plan, journal, businesses, ways });
+/** C7: the guide's parts, ids and titles only; the words are filled in by code when an answer names one. */
+const guide: Tool = async () => ({ data: { sections: guideSections().map(section => ({ id: section.anchor, title: section.title })) }, figures: [] });
+
+const TOOLS: Readonly<Record<string, Tool>> = Object.freeze({ queue, runs, team, money, clients, plan, journal, businesses, ways, guide });
 
 /** Runs one read tool by name: its facts and figures, TOOL_NOT_ALLOWED for a name it does not know, or the refusal it met. */
 export async function runTool(deps: VentureDeps, ctx: Context, name: string, scope?: ChiefClientContext): Promise<ToolResult> {

@@ -14,7 +14,13 @@ export type AiProviderSettings = {
   /** W6 6F5 (D34): use the Gmail connection the owner made in ChatGPT (Codex) or Claude. Left out means off. */
   connectors?: boolean;
 };
-export type AiSettings = { codex: AiProviderSettings; claude: AiProviderSettings; autoReview: boolean; agentAutoReview: Record<string, boolean>; mcpServers: ExternalMcpServer[] };
+export type AiSettings = {
+  codex: AiProviderSettings; claude: AiProviderSettings; autoReview: boolean; agentAutoReview: Record<string, boolean>; mcpServers: ExternalMcpServer[];
+  /** C7: routines wait once the plan meter reads this percent or more (50 to 95); left out or null, only a used-up plan holds them. */
+  planPause?: number | null;
+  /** C7: whether agents may offer a way of working after an edited sign-off; left out means on. */
+  offerWays?: boolean;
+};
 export type AiSettingsView = {
   settings: AiSettings;
   boundaries: { jobFolderOnly: true; windowsSandbox: 'unelevated'; shell: 'unavailable'; mcp: 'chausar-proxy'; externalMcp: 'approval-required' };
@@ -55,7 +61,9 @@ function provider(raw: unknown, name: AiProvider): AiProviderSettings {
   return { quick: task(row.quick), main: task(row.main), network: row.network as AiNetwork, webSearch: row.webSearch as AiNetwork, shell: false, ...(Object.hasOwn(row, 'fallbackModel') ? { fallbackModel: row.fallbackModel as string } : {}), ...(Object.hasOwn(row, 'connectors') ? { connectors: row.connectors as boolean } : {}) };
 }
 export function validateAiSettings(raw: unknown): AiSettings {
-  const row = exact(raw, ['codex', 'claude', 'autoReview', 'agentAutoReview', 'mcpServers']);
+  const row = exact(raw, ['codex', 'claude', 'autoReview', 'agentAutoReview', 'mcpServers'], ['planPause', 'offerWays']);
+  check(!Object.hasOwn(row, 'offerWays') || typeof row.offerWays === 'boolean', BAD, 'Choose whether agents may offer ways of working.');
+  check(!Object.hasOwn(row, 'planPause') || row.planPause === null || Number.isInteger(row.planPause) && (row.planPause as number) >= 50 && (row.planPause as number) <= 95, BAD, 'Choose a pause point from 50 to 95 percent, or none.');
   check(typeof row.autoReview === 'boolean', BAD, 'Choose whether the reviewer may approve routine steps.');
   check(row.agentAutoReview !== null && typeof row.agentAutoReview === 'object' && !Array.isArray(row.agentAutoReview) && Object.getPrototypeOf(row.agentAutoReview) === Object.prototype, BAD, 'Choose routine-step approval for each agent.');
   const agentAutoReview: Record<string, boolean> = {};
@@ -63,7 +71,9 @@ export function validateAiSettings(raw: unknown): AiSettings {
     check(/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id) && !['constructor', 'prototype', '__proto__'].includes(id) && typeof value === 'boolean', BAD, 'Choose routine-step approval for a current agent.');
     agentAutoReview[id] = value;
   }
-  return { codex: provider(row.codex, 'codex'), claude: provider(row.claude, 'claude'), autoReview: row.autoReview, agentAutoReview, mcpServers: validateExternalServers(row.mcpServers) };
+  return { codex: provider(row.codex, 'codex'), claude: provider(row.claude, 'claude'), autoReview: row.autoReview, agentAutoReview, mcpServers: validateExternalServers(row.mcpServers),
+    ...(Object.hasOwn(row, 'planPause') ? { planPause: row.planPause as number | null } : {}),
+    ...(Object.hasOwn(row, 'offerWays') ? { offerWays: row.offerWays as boolean } : {}) };
 }
 export function agentSettingsOf(state: State, ventureId: string): AiSettings {
   const venture = state.conversations.find(row => row?.kind === 'venture-record' && row.id === ventureId);

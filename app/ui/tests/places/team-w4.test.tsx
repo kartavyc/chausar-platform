@@ -139,10 +139,10 @@ describe('Team w4: the department toggle and panels from the engine', () => {
     expect(within(chips).getByRole('button', { name: /^Money/ }).querySelector('[data-count]')).toBeNull();
   });
 
-  it('"Add an agent" leads to the ways to earn, where a way brings its team', async () => {
+  it('C7: "Hire one more agent" is a button that opens the hire sheet (team-hire-c7), not onboarding', async () => {
     start();
-    const add = await within(main()).findByRole('link', { name: 'Add an agent' });
-    expect(add.getAttribute('href')).toBe('#/onboarding');
+    expect(await within(main()).findByRole('button', { name: 'Hire one more agent' })).toBeTruthy();
+    expect(within(main()).queryByRole('link', { name: 'Hire one more agent' })).toBeNull();
   });
 
   it('without departments from the engine (an engine before 4A1), the agents sit in one tile and there is no toggle', async () => {

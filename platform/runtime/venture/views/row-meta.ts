@@ -126,7 +126,7 @@ function expiryOf(row: QueueRow, source: Source): IsoTime | undefined {
   if (source.quote) return new Date(Date.parse(source.quote.at) + QUOTE_TTL_MS).toISOString();
   if (source.post?.expiresAt) return source.post.expiresAt;
   // 4J13: a routine's run waits 24 hours for the owner from when it parked, then counts as no.
-  if (source.routineRun) return new Date(Date.parse(source.routineRun.at) + ROUTINE_ANSWER_MS).toISOString();
+  if (source.routineRun) return new Date(Date.parse(source.routineRun.parkedAt ?? source.routineRun.at) + ROUTINE_ANSWER_MS).toISOString();
   return undefined;
 }
 

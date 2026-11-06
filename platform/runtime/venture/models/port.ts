@@ -43,6 +43,7 @@ import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledC
 import { CLI_COMMANDS, cliGateOpen } from './cli-look.ts';
 import { KEPT_LOOK_MAX_AGE_MS, keepable, programStamp, readKeptLooks, type CliLookPort, type KeptCliFinding, type KeptLooks } from './cli-look-file.ts';
 import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
+import { readCodexPlan } from './plan-read.ts';
 import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { assertSchemaSafe } from './schema.ts';
 import { redactPayload, redactSecrets } from '../core/secrets.ts';
@@ -487,7 +488,11 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
 
   const resolveTier = (state: State, ventureId: string | null, tier: ModelTier): Route => {
     if (!ventureId) return { kind: 'template' };
-    const connection = newest(listConnections(state, ventureId).filter(item => item.status === 'connected' && item.tiers.includes(tier)));
+    // C7: a routine run on its backup AI goes by that AI's own connection, whatever tiers it serves.
+    const backup = currentRoutineScope()?.presetId;
+    const connection = backup
+      ? newest(listConnections(state, ventureId).filter(item => item.status === 'connected' && item.presetId === backup))
+      : newest(listConnections(state, ventureId).filter(item => item.status === 'connected' && item.tiers.includes(tier)));
     if (!connection || connection.presetId === 'built-in-templates') return { kind: 'template' };
     const spec = presetSpec(connection.presetId);
     return { kind: 'model', connection, spec, problem: problemOf(spec) };
@@ -768,6 +773,14 @@ export function createModelPort(options: ModelPortHostOptions): ModelPort {
       const models = codexModelsFrom(response);
       if (models.source === 'codex') codexModelsKept = { program, models };
       return structuredClone(models);
+    },
+
+    /** C7: Check now for the plan meter: the account's rate-limit read from the Codex setup in use; null on the hosted app or without one. */
+    async codexPlan() {
+      if (hosted || transport.replay === true) return null;
+      let program: string;
+      try { program = await this.codexVerifiedProgram!(); } catch { return null; }
+      return readCodexPlan(program);
     },
 
     /** A2: the native program of the Codex setup in use, so agent jobs run the program the owner chose; null without one. */

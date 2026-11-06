@@ -615,6 +615,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
   // AI-native CA firm: the owner's edit of regulated papers is new papers, so it goes in front of the CA of record too.
   if (reviewed.status === 'edited') {
     await import('../playbooks/ca-firm/delivery-signoff.ts').then(module => module.requestSignoffForRun(deps, ctx, reviewed)).catch(() => null);
+    // C7: the writing agent may offer a way of working learnt from the edit; it runs on its own and never holds this up.
+    await import('../agents/way-of-working.ts').then(module => module.launchWayOfWorking(deps, ctx, reviewed.id)).catch(() => null);
   }
   return reviewed;
 }

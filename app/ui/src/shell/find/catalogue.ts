@@ -48,6 +48,8 @@ export interface CatalogueOptions {
 const ACTIONS: readonly { id: string; href: string | null; when?: (options: CatalogueOptions) => boolean }[] = [
   { id: 'new-order', href: '#/work?sheet=new-order:new' },
   { id: 'add-client', href: '#/clients?sheet=client:new' },
+  { id: 'hire-agent', href: '#/team?sheet=hire:new' },
+  { id: 'new-tracker', href: '#/work?state=trackers' },
   { id: 'import-contacts', href: '#/clients/network?sheet=network-import:new' },
   { id: 'add-bill', href: '#/money/bills' },
   { id: 'export-ca', href: '#/money/books?sheet=accountant:books', when: (options) => options.businessOpen },

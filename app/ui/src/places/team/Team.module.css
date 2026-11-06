@@ -992,6 +992,19 @@
   color: var(--fg2);
 }
 
+/* C7: the hire sheet: one step at a time, plain fields, the card of what the agent does. */
+.hireForm {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.hireLine {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
 .introDone {
   font: inherit;
   font-size: var(--text-read);
@@ -1001,4 +1014,45 @@
   padding: 0;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.hireProblem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.hireReads {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-read);
+}
+
+.hireSelect {
+  display: grid;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.hireHead {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.hireList {
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.hireFold {
+  font-size: var(--text-read);
 }

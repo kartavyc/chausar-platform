@@ -2,6 +2,7 @@
 // playbook's roles (playbooks/steps.ts) for a flagship business, else the one delivery agent of the eight fixed steps
 // (views/team.ts reads the same facts). An agent owns the steps its role does; Keeper and the code roles are code, not
 // AI, so they have no chat. Reads only.
+import { hiredRecord, type HireRecord } from './hire-store.ts';
 import { check, type State } from '../../contracts.ts';
 import type { PlaybookRecord, PlaybookStep, VentureRecord } from '../contracts.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
@@ -31,6 +32,8 @@ export type ChatAgent = {
   /** The playbook in use, or null before the first one is stored (the steps then come from the accepted plan). */
   playbook: PlaybookRecord | null;
   flagship: FlagshipDelivery | null;
+  /** C7: an agent the owner hired: chat, routines and trackers only; it owns no step and reads only what its hire says. */
+  hired?: HireRecord;
 };
 
 /** The team's steps: the playbook in use's, else the accepted plan's, with the flagship playbook they follow. */
@@ -55,6 +58,9 @@ export function roleOfStep(flagship: FlagshipDelivery | null, stepId: string): s
 export function chatAgent(state: State, venture: VentureRecord, agentId: string): ChatAgent {
   check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', 'Keeper is code, not AI. It has no chat; its jobs are on Team.');
   const team = teamSteps(state, venture);
+  // C7: an agent the owner hired answers by its hire: no steps, its own name and job.
+  const hired = hiredRecord(state, venture.id, agentId);
+  if (hired?.role) return { id: hired.id, name: hired.role.name, job: hired.role.job, steps: [], stepIds: [], team: team?.steps ?? [], playbook: team?.playbook ?? null, flagship: team?.flagship ?? null, hired };
   check(team, 'AGENT_NOT_FOUND', 'That agent was not found.');
   const { steps, playbook, flagship } = team;
   if (!flagship) {

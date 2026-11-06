@@ -1,5 +1,5 @@
 // Existing Intl schedule arithmetic, shared exactly with browser rehearsal.
-export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string}|{kind:'monthly';day:number;time:string;timeZone:string};
+export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string}|{kind:'event';source:'razorpay'|'cal-com';event:'payment'|'booking'|'booking-cancelled'}|{kind:'monthly';day:number;time:string;timeZone:string};
 type IsoTime=string;
 const MINUTE_MS=60_000,DAY_MS=24*60*MINUTE_MS;
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -51,7 +51,8 @@ export type Occurrences = { count: number; latest: IsoTime | null; previous: Iso
 /** The schedule's occurrences in (afterMs, upToMs]. A calendar schedule looks back at most ten years. */
 export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, upToMs: number): Occurrences {
   const none: Occurrences = { count: 0, latest: null, previous: null };
-  if (upToMs <= afterMs) return none;
+  // C7: a trigger has no times: an event starts it (build/event-triggers.ts).
+  if (upToMs <= afterMs || schedule.kind === 'event') return none;
   if (schedule.kind === 'once') {
     const at = Date.parse(schedule.at);
     return at > afterMs && at <= upToMs ? { count: 1, latest: schedule.at, previous: null } : none;
@@ -88,6 +89,7 @@ export function occurrencesBetween(schedule: RoutineSchedule, afterMs: number, u
 
 /** The schedule's next occurrence after an instant, or null when there is none (a once that has passed). */
 export function nextOccurrence(schedule: RoutineSchedule, afterMs: number): IsoTime | null {
+  if (schedule.kind === 'event') return null;
   if (schedule.kind === 'once') return Date.parse(schedule.at) > afterMs ? schedule.at : null;
   if (schedule.kind === 'interval') {
     const from = Date.parse(schedule.from), step = schedule.everyMinutes * MINUTE_MS;

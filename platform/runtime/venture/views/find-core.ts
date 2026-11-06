@@ -7,7 +7,7 @@ import { ChausarError } from '../../portable.ts';
 // are written out here, not imported from contracts.ts, so the app's stricter type check does not take in the engine.
 
 type IsoTime = string;
-type ChatPart = { kind: 'text' | 'estimate'; text: string } | { kind: 'figure'; receiptId: string; display: string };
+type ChatPart = { kind: 'text' | 'estimate' | 'guide'; text: string } | { kind: 'figure'; receiptId: string; display: string };
 type ChiefLineAmount = { text: string; start: number; length: number; receiptId: string };
 
 export const FIND_KINDS = Object.freeze(['client', 'invoice', 'order', 'run', 'chat'] as const);

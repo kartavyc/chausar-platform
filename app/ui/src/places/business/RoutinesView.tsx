@@ -13,6 +13,7 @@ import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
 import { ModelReceipt } from '../../parts/ModelReceipt';
 import { ResultLine } from '../../parts/ResultLine';
+import { EventTriggers } from './EventTriggers';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 import { Fold } from '../../parts/Fold';
@@ -142,6 +143,9 @@ export function RoutinesView() {
         </div>
       )}
       <AddRoutine agents={agents} zone={firstZone} prefill={prefill} onAdded={() => changed()} />
+      <EventTriggers agents={agents} onSaved={() => changed()} />
+      <PlanPause />
+      <BackupAi />
     </div>
   );
 }
@@ -217,6 +221,8 @@ function History({ id }: { id: string }) {
             <li key={run.id}>{run.state === 'completed'
               ? t('business.routines.delivered', { word: stateText(t, 'routine', run.state), day: dayOf(run.dueAt, zone) })
               : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, zone) })}
+              {/* C7: a run that went to the backup AI says which and why, in the engine's words. */}
+              {run.ranOn && <span className={s.note} data-ran-on=""> {run.ranOn}</span>}
               {/* W6 6G5 (D44): the model receipt of a run that asked an AI. */}
               <ModelReceipt receipt={run.receipt} /></li>
           ))}
@@ -323,5 +329,140 @@ function RoutineForm({ agents, zone, initial, prefill, onSaved, onCancel }: { ag
       </div>
       {problem.node}
     </form>
+  );
+}
+
+/** C7: the pause points an owner may choose; none means only a used-up plan holds a routine. */
+const PAUSE_POINTS = [50, 60, 70, 80, 90, 95] as const;
+
+/**
+ * C7: "If your AI plan runs low", folded at rest. Routines wait once the plan meter reads the chosen percent or more of
+ * the owner's Codex or Claude Code plan (as the tool reported it); with none, only a used-up plan holds them. Saved
+ * through the AI settings after a second ask, since it is standing configuration.
+ */
+function PlanPause() {
+  const t = useT();
+  const client = useEngine();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const current = useResource('venture.agentSettings.get', {}, { skip: !open });
+  const saved = current.data?.settings.planPause ?? null;
+  const [choice, setChoice] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const value = choice ?? (saved === null ? 'none' : String(saved));
+  async function save() {
+    if (!current.data) return;
+    setBusy(true); setProblem(null);
+    try {
+      const planPause = value === 'none' ? null : Number(value);
+      await client.request('venture.agentSettings.set', { settings: { ...current.data.settings, planPause } });
+      setSaid(planPause === null ? t('business.routines.plan.savedNone') : t('business.routines.plan.saved', { percent: planPause }));
+      setChoice(null); current.reload();
+    } catch (error) {
+      setProblem(t('business.routines.saveFailed', { message: messageOf(error) }));
+    } finally { setBusy(false); setAsking(false); }
+  }
+  return (
+    <details className={s.fold} data-fold="plan-pause" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{t('business.routines.plan.title')}</summary>
+      <p className={s.note}>{t('business.routines.plan.line')}</p>
+      <label className={r.select} htmlFor={id}>
+        <span className={r.legend}>{t('business.routines.plan.at')}</span>
+        <select id={id} value={value} disabled={!current.data} onChange={(event) => { setChoice(event.currentTarget.value); setSaid(null); }}>
+          <option value="none">{t('business.routines.plan.none')}</option>
+          {PAUSE_POINTS.map((point) => <option key={point} value={String(point)}>{t('business.routines.plan.percent', { percent: point })}</option>)}
+        </select>
+      </label>
+      {asking
+        ? <Ask ask={t('business.routines.plan.ask')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
+        : <div className={s.buttons}><Button disabled={!current.data || choice === null} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}
+      {said && <p className={s.note} role="status">{said}</p>}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+    </details>
+  );
+}
+
+/**
+ * C7: "If your AI can't run", folded at rest. Off by default. The owner picks up to two other AIs connected to this
+ * business, in order (Move up, Move down); each one's consent text shows before the switch saves, and saving sends what
+ * the owner read. A routine falls back only when its main AI refused before anything reached it.
+ */
+function BackupAi() {
+  const t = useT();
+  const client = useEngine();
+  const [open, setOpen] = useState(false);
+  const view = useResource('venture.routines.backup.get', {}, { skip: !open });
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [on, setOn] = useState<boolean | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const data = view.data;
+  const chosen = order ?? data?.order ?? [];
+  const isOn = on ?? data?.on ?? false;
+  const changed = data !== undefined && (isOn !== data.on || chosen.join() !== data.order.join());
+  const choice = (id: string) => data?.choices.find((item) => item.presetId === id);
+  const toggle = (id: string) => setOrder(chosen.includes(id) ? chosen.filter((one) => one !== id) : [...chosen, id].slice(0, 2));
+  const move = (index: number, by: number) => {
+    const next = [...chosen];
+    const [one] = next.splice(index, 1);
+    next.splice(index + by, 0, one!);
+    setOrder(next);
+  };
+  async function save() {
+    setBusy(true); setProblem(null);
+    try {
+      const digests = isOn ? chosen.map((id) => choice(id)!.digest) : undefined;
+      await client.request('venture.routines.backup.set', { on: isOn, order: chosen, ...(digests ? { digests } : {}) });
+      setSaid(isOn ? t('business.routines.backup.savedOn') : t('business.routines.backup.savedOff'));
+      setOrder(null); setOn(null); view.reload();
+    } catch (error) {
+      setProblem(t('business.routines.saveFailed', { message: messageOf(error) }));
+    } finally { setBusy(false); setAsking(false); }
+  }
+  return (
+    <details className={s.fold} data-fold="backup-ai" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{t('business.routines.backup.title')}</summary>
+      <p className={s.note}>{t('business.routines.backup.line')}</p>
+      {data && data.choices.length === 0 && <p className={s.line}>{t('business.routines.backup.none')}</p>}
+      {data && data.choices.length > 0 && (
+        <>
+          <label className={r.day}>
+            <input type="checkbox" checked={isOn} onChange={() => { setOn(!isOn); setSaid(null); }} />
+            <span>{t('business.routines.backup.switch')}</span>
+          </label>
+          <ul className={s.log} aria-label={t('business.routines.backup.order')}>
+            {data.choices.map((item) => {
+              const index = chosen.indexOf(item.presetId);
+              return (
+                <li key={item.presetId} data-backup={item.presetId}>
+                  <label className={r.day}>
+                    <input type="checkbox" checked={index >= 0} onChange={() => toggle(item.presetId)} />
+                    <span>{index >= 0 ? t('business.routines.backup.nth', { n: index + 1, name: item.label }) : item.label}</span>
+                  </label>
+                  {index >= 0 && chosen.length > 1 && (
+                    <span className={s.buttons}>
+                      <Button size="sm" variant="quiet" disabled={index === 0} onClick={() => move(index, -1)}>{t('business.routines.backup.up')}</Button>
+                      <Button size="sm" variant="quiet" disabled={index === chosen.length - 1} onClick={() => move(index, 1)}>{t('business.routines.backup.down')}</Button>
+                    </span>
+                  )}
+                  {/* What this AI is sent, in the engine's words, read before the switch saves. */}
+                  {isOn && index >= 0 && <p className={s.note} data-content="" data-backup-consent="">{item.text}</p>}
+                </li>
+              );
+            })}
+          </ul>
+          {asking
+            ? <Ask ask={isOn ? t('business.routines.backup.askOn') : t('business.routines.backup.askOff')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
+            : <div className={s.buttons}><Button disabled={!changed || (isOn && chosen.length === 0)} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}
+        </>
+      )}
+      {said && <p className={s.note} role="status">{said}</p>}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+    </details>
   );
 }

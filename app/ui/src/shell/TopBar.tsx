@@ -7,6 +7,7 @@ import type { IconName } from '../parts/icons';
 import { Icon } from '../parts/Icon';
 import { Bell } from './Bell';
 import { openFindDialog } from './find/CommandDialog';
+import { HelpButton } from './HelpButton';
 import { BusinessMenu } from './BusinessMenu';
 import { openSheet } from './navigation';
 import { formatHash, type PlaceId, type Route } from './routes';
@@ -32,6 +33,7 @@ export function TopBar() {
         <button type="button" className={s.find} aria-label={t('find.label')} onClick={(event) => openFindDialog(event.currentTarget)}>
           <Icon name="search" size={20} />
         </button>
+        <HelpButton look="bare" />
         <Bell look="bare" />
       </div>
     </header>

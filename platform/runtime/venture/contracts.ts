@@ -303,6 +303,12 @@ export const VENTURE_RECORD_KINDS = [
   'venture-feedback-setting', 'venture-feedback-item',
   // One-shot C4 (T20): one share of an invoice the owner made (the desktop share, Save file) or "Mark as sent".
   'venture-invoice-share',
+  // C7: owner-made trackers and their rows (trackers/trackers.ts).
+  'venture-tracker', 'venture-tracker-row',
+  // C7: one more agent the owner hired, and the interview on the way (agents/hire-store.ts).
+  'venture-agent-hire',
+  // C7: one event a relay brought in, ids and its confirmed facts only (build/event-triggers.ts).
+  'venture-relay-event',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -318,6 +324,10 @@ export type RecordBase<K extends VentureRecordKind> = {
 
 export type VentureRecord = RecordBase<'venture-record'> & {
   aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
+  /** C7: the backup AI for routines (agents/routine-backup.ts): off by default; at is when the owner last set it. */
+  routineBackup?: { on: boolean; order: ModelPresetId[]; at: IsoTime };
+  /** C7: the event relay's host and when it was last read (build/event-triggers.ts). The address itself is in protected storage. */
+  eventRelay?: { host: string | null; calKey: boolean; since: IsoTime; lastRead?: IsoTime };
   /** Host-owned revocation generations; owner settings never accept these counters. */
   aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
   idea: string;
@@ -854,6 +864,8 @@ export interface ModelPort {
   toolSaid?(callId: string): string | null;
   /** A2: the models Codex offers this account (codex debug models), and the ones Chausar uses; the fixed ids when unread. */
   codexModels?(): Promise<import('./models/codex-models.ts').CodexModels>;
+  /** C7: Codex's own answer to the account's rate-limit read (a short app-server start, no thread, no turn); null when it could not be read. */
+  codexPlan?(): Promise<unknown>;
 }
 
 /**
@@ -3199,6 +3211,8 @@ export interface RunScopeView { tools: Display[]; actions: Display[]; cap: Displ
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
+  /** C7: an agent the owner hired: the day, its duties and what it reads. It owns no steps and always asks. */
+  hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
   last?: { line: Display; receiptId?: string; estimate?: boolean };
   steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
   // Ink v2 wave 4 (4A1 unless named): the agent's department; 'code' for the code role and for Keeper; its state from
@@ -3735,7 +3749,9 @@ export type AgentMessageFrom = 'owner' | 'agent' | 'chausar';
 export type ChatPart =
   | { kind: 'text'; text: string }
   | { kind: 'figure'; receiptId: string; key: string; display: Display }
-  | { kind: 'estimate'; text: string };
+  | { kind: 'estimate'; text: string }
+  /** C7: a section of Chausar's own guide, its words filled in by code from guide-data.json, with the link to it. */
+  | { kind: 'guide'; anchor: string; title: string; text: string; link: string };
 /** What an agent's reply suggests the screen opens: a New order sheet prefilled with the owner's request. Nothing is created (4B1). */
 /** C5 task 5: connect-ai is the next step under a reply written without an AI; set by code, never read from model text. */
 export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string } | { kind: 'connect-ai' };
@@ -3788,6 +3804,8 @@ export type AgentProposalRecord = RecordBase<'venture-agent-proposal'> & {
   decidedBy: string | null;
   /** 4J17 (A18), kind 'import': the owner patches an agent file adds, the persona it sets, and what was left out with why. */
   imported?: { patches: PlaybookPatch[]; persona: PersonaFields | null; skipped: string[] };
+  /** C7: an instruction the agent offered after the owner signed off a draft they edited (agents/way-of-working.ts). */
+  offered?: { runId: string; digest: string };
 };
 /**
  * One chat consent per business covers agent chat, Chats and network search, which send client or contact data to the
@@ -3799,6 +3817,8 @@ export type ChatConsentRecord = RecordBase<'venture-chat-consent'> & {
   connectionId: string | null;
   model: string | null;
   by: string;
+  /** C7: a backup AI's consent for routines, given when the owner turned the backup on; the main chat consent ignores it. */
+  backup?: true;
 };
 
 /** A note an agent keeps (4B2), from the owner's own words only. scope 'client:<id>' when the words name a client. */
@@ -4566,10 +4586,14 @@ export type RoutineSchedule =
   | { kind: 'interval'; everyMinutes: number; from: IsoTime }
   | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
   /** C4 task 32: one day of the month (1 to 28) at a time in a named zone ("On the 1st of each month, 9:00 am"). */
-  | { kind: 'monthly'; day: number; time: string; timeZone: string };
+  | { kind: 'monthly'; day: number; time: string; timeZone: string }
+  /** C7: a trigger: it starts on a confirmed event and only drafts (build/event-triggers.ts). */
+  | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
 /** A routine (4J13): a standalone prompt on a schedule, for an agent or the chief. It never approves anything. */
 export type RoutineRecord = RecordBase<'venture-routine'> & {
   recordReport?: 'va-morning'|'va-weekly';
+  /** C7: a trigger's facts: the blanks its prompt uses, shown when it is saved and sent with each event. */
+  facts?: string[];
   name: string;
   agent: string | null;
   setBy: 'owner' | 'agent' | 'chief';
@@ -4588,6 +4612,18 @@ export type RoutineRunRecord = RecordBase<'venture-routine-run'> & {
   missed: number;
   runId: string | null;
   threadId: string | null;
+  /** C7: a run parked as queued until the AI plan resets (resetsAt null: no reset known, looked at again every 30 minutes). */
+  waitsFor?: { cli: DelegateCli; resetsAt: IsoTime | null };
+  /** C7: when the run started waiting for the plan. */
+  waitingSince?: IsoTime;
+  /** C7: when the run last parked on Today, if after it was made; its 24 hours count from here. */
+  parkedAt?: IsoTime;
+  /** C7: the backup AI a run went to and why ("Ran on Claude Code because your Codex plan was used up."). */
+  ranOn?: { presetId: ModelPresetId; label: string; why: string } | null;
+  /** C7: the client whose data the run carries (an event trigger's run), if any. */
+  clientId?: string | null;
+  /** C7: a trigger's prompt with its blanks filled by code; sent instead of the routine's own words. */
+  filled?: string;
 };
 
 /** One run of the guardrail drills against the playbook hash (4J15). */
@@ -4790,6 +4826,8 @@ export type AgentProposalView = {
   quote: string; title: Display; appliesTo: Display | null; diff: DiffLine[];
   fromVersion: number | null; toVersion: number | null; note: { text: string; scope: AgentNoteScope } | null;
   digest: string; line: Display | null;
+  /** C7: an offer the agent made after an edited sign-off: "Offered by {agent} after you approved {run}". */
+  offered?: Display;
 };
 /**
  * 4B1. One run the agent owned a step in, folded in its thread; recalled: the notes its turns carried (4B2), a note the
@@ -5464,7 +5502,7 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
 
 /** 4J13. when: the schedule in words with its time zone. prompt (4J22a): sent back to turn it off, on or change it; only
  * for a role that may change routines (owner, cofounder). */
-export type RoutineView = { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
+export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
 /**
  * One-shot C4 task 32: a ready routine the plan already names, for the owner to add through the form (nothing stored).
@@ -5473,7 +5511,8 @@ export interface RoutinesView { routines: RoutineView[] }
 export type RoutineSuggestion = { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string };
 export interface RoutineSuggestionsView { suggestions: RoutineSuggestion[] }
 /** receipt (W6 6G5): the model receipt of a run that asked an AI; absent before it ran. */
-export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView };
+/** ranOn (C7): the backup AI the run went to and why, in owner words. */
+export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView; ranOn?: Display };
 export interface RoutineRunsView { runs: RoutineRunView[] }
 export type RoutineInput = { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; recordReport?: 'va-morning'|'va-weekly' };
 
@@ -5791,7 +5830,10 @@ export type AnyVentureRecord =
   | AgentRetirementRecord
   | MiniAppRecord
   | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord
-  | InvoiceShareRecord;
+  | InvoiceShareRecord
+  | import('./trackers/trackers.ts').TrackerRecord | import('./trackers/trackers.ts').TrackerRowRecord
+  | import('./agents/hire-store.ts').HireRecord
+  | import('./build/event-triggers.ts').RelayEventRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -6048,6 +6090,25 @@ export const VENTURE_METHODS = [
   'venture.invoice.shared',
   // One-shot C4 (T32): the ready routines the plan already names, for the owner to add (agents/routines.ts).
   'venture.routines.suggestions',
+  'venture.models.plan',
+  'venture.routines.backup.get',
+  'venture.routines.backup.set',
+  'venture.trackers.list',
+  'venture.trackers.get',
+  'venture.trackers.set',
+  'venture.trackers.remove',
+  'venture.trackers.rows.add',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.undo',
+  'venture.agents.hire.start',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.cancel',
+  'venture.events.get',
+  'venture.events.relay.set',
+  'venture.events.calKey.set',
+  'venture.agents.hire.duties',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -6219,6 +6280,25 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.work.list': 'views',
   'venture.invoice.shared': 'money',
   'venture.routines.suggestions': 'agents',
+  'venture.models.plan': 'models',
+  'venture.routines.backup.get': 'agents',
+  'venture.routines.backup.set': 'agents',
+  'venture.trackers.list': 'agents',
+  'venture.trackers.get': 'agents',
+  'venture.trackers.set': 'agents',
+  'venture.trackers.remove': 'agents',
+  'venture.trackers.rows.add': 'agents',
+  'venture.trackers.rows.edit': 'agents',
+  'venture.trackers.rows.remove': 'agents',
+  'venture.trackers.rows.undo': 'agents',
+  'venture.agents.hire.start': 'agents',
+  'venture.agents.hire.answer': 'agents',
+  'venture.agents.hire.confirm': 'agents',
+  'venture.agents.hire.cancel': 'agents',
+  'venture.events.get': 'build',
+  'venture.events.relay.set': 'build',
+  'venture.events.calKey.set': 'build',
+  'venture.agents.hire.duties': 'agents',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6305,6 +6385,20 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.desk.act',
   // One-shot C4 (T20): the owner's own share or mark, from the invoice sheet.
   'venture.invoice.shared',
+  'venture.routines.backup.set',
+  'venture.trackers.set',
+  'venture.trackers.remove',
+  'venture.trackers.rows.add',
+  'venture.trackers.rows.edit',
+  'venture.trackers.rows.remove',
+  'venture.trackers.rows.undo',
+  'venture.agents.hire.start',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.cancel',
+  'venture.events.relay.set',
+  'venture.events.calKey.set',
+  'venture.agents.hire.duties',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6864,6 +6958,25 @@ export type VenturePayloads = {
   'venture.work.list': Record<string, never>;
   'venture.invoice.shared': { invoiceId: string; how: InvoiceShareHow };
   'venture.routines.suggestions': Empty;
+  'venture.agents.hire.duties': { agent: string; duties: string[] };
+  'venture.events.calKey.set': { key: string | null };
+  'venture.events.relay.set': { address: string | null };
+  'venture.events.get': Record<string, never>;
+  'venture.agents.hire.cancel': { hireId: string };
+  'venture.agents.hire.confirm': { hireId: string; digest: string };
+  'venture.agents.hire.answer': { hireId: string; phase: string; edits?: Record<string, unknown> };
+  'venture.agents.hire.start': { sentence: string };
+  'venture.trackers.rows.undo': { rowId: string };
+  'venture.trackers.rows.remove': { rowId: string };
+  'venture.trackers.rows.edit': { rowId: string; cells: Record<string, unknown> };
+  'venture.trackers.rows.add': { trackerId: string; cells: Record<string, unknown> };
+  'venture.trackers.remove': { id: string };
+  'venture.trackers.set': { tracker: { id?: string; name: string; columns: unknown[]; boardBy?: string | null; keptBy?: string[] } };
+  'venture.trackers.get': { id: string };
+  'venture.trackers.list': Record<string, never>;
+  'venture.routines.backup.set': { on: boolean; order: ModelPresetId[]; digests?: string[] };
+  'venture.routines.backup.get': Record<string, never>;
+  'venture.models.plan': { fresh?: boolean };
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -7276,6 +7389,25 @@ export type VentureResults = {
   'venture.work.list': { work: import('../work-progress.ts').WorkJobView[] };
   'venture.invoice.shared': InvoiceView;
   'venture.routines.suggestions': RoutineSuggestionsView;
+  'venture.agents.hire.duties': import('./agents/hire.ts').HireView;
+  'venture.events.calKey.set': import('./build/event-triggers.ts').EventsView;
+  'venture.events.relay.set': import('./build/event-triggers.ts').EventsView;
+  'venture.events.get': import('./build/event-triggers.ts').EventsView;
+  'venture.agents.hire.cancel': { cancelled: true };
+  'venture.agents.hire.confirm': import('./agents/hire.ts').HireView;
+  'venture.agents.hire.answer': import('./agents/hire.ts').HireView;
+  'venture.agents.hire.start': import('./agents/hire.ts').HireView;
+  'venture.trackers.rows.undo': { undone: true };
+  'venture.trackers.rows.remove': { removed: true };
+  'venture.trackers.rows.edit': { row: import('./trackers/trackers.ts').TrackerRowView };
+  'venture.trackers.rows.add': { row: import('./trackers/trackers.ts').TrackerRowView };
+  'venture.trackers.remove': { removed: true };
+  'venture.trackers.set': { tracker: import('./trackers/trackers.ts').TrackerView };
+  'venture.trackers.get': import('./trackers/trackers.ts').TrackerDetail;
+  'venture.trackers.list': import('./trackers/trackers.ts').TrackersView;
+  'venture.routines.backup.set': import('./agents/routine-backup.ts').BackupView;
+  'venture.routines.backup.get': import('./agents/routine-backup.ts').BackupView;
+  'venture.models.plan': import('./models/plan-view.ts').PlanView;
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];
@@ -7298,6 +7430,12 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
+  // C7: a tracker's refusals (trackers/cells.ts, trackers/trackers.ts).
+  'TRACKER_MONEY', 'TRACKER_NOT_FOUND', 'TRACKER_LIMIT', 'TRACKER_WORDS_HELD',
+  // C7: event triggers (build/event-relay.ts, build/event-confirm.ts).
+  'EVENT_RELAY_REFUSED', 'EVENT_NOT_CONFIRMED', 'EVENT_ANSWER_TOO_BIG', 'NETWORK_NOT_GIVEN',
+  // C7: hiring one more agent (agents/hire-check.ts, agents/hire.ts).
+  'HIRE_HARD_STOP', 'HIRE_FLOOR', 'HIRE_NOT_FOUND', 'HIRE_LIMIT', 'HIRE_POSTURE_FIXED',
   'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
   'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
   // One-shot A4: Chausar's own PDF reader (core/pdf-text-core.ts) refuses a locked, unreadable or too complex file.
@@ -7596,6 +7734,8 @@ export type VentureDeps = {
   /** One-shot C3 task 9: says which step long work is on (work-progress.ts). Absent in tests that pass none. */
   work?: VentureWork;
   /** Private OS-protected model keys, scoped to the unlocked workspace. Never exposed to the renderer. */
+  /** C7: stand-ins for the event relay and the source checks in tests; the host passes none, so the real guard is used. */
+  eventPorts?: import('./build/event-triggers.ts').EventPorts;
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
   phoneAccess?: PhoneAccessPort;

@@ -89,3 +89,15 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* C7: the plan meter under each tool: its windows, then where the figures came from. */
+.plan {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.plan p {
+  margin: 0;
+}

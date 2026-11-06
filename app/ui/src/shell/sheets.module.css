@@ -111,3 +111,47 @@
 .moreChevron {
   color: var(--mute);
 }
+
+/* C7: Help from the guide, and What's new. Plain text on the sheet; the quote keeps the guide's line breaks. */
+.helpForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.helpList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.helpTitle {
+  margin: var(--sp-4) 0 var(--sp-2);
+  font-size: var(--text-row);
+  color: var(--fg);
+}
+
+.helpQuote {
+  margin: 0 0 var(--sp-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.helpLine {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.newsList {
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg);
+}

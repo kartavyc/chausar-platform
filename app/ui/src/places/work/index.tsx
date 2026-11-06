@@ -38,13 +38,14 @@ import { DraftSheet } from './DraftSheet';
 import s from './Work.module.css';
 import { Ideas } from './Ideas';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { Trackers } from './Trackers';
 
 /** The filters the address can hold. `orders` (every order, paid and cancelled too) has no chip; the order focus's
  *  "All orders" link leads there. `?state=ideas` (5A3) is the Ideas page (Place below), where Today's grade card leads. */
-export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders'] as const;
+export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders', 'trackers'] as const;
 export type WorkFilter = 'all' | (typeof FILTERS)[number];
-/** The chips, in D's order: All, Needs you, Running, Failed, Done. Ideas (5A3) is its own page (C1 task 5), not a filter. */
-const CHIPS = ['all', 'waiting', 'active', 'failed', 'done'] as const;
+/** The chips, in D's order: All, Needs you, Running, Failed, Done, then C7's Trackers. Ideas (5A3) is its own page (C1 task 5), not a filter. */
+const CHIPS = ['all', 'waiting', 'active', 'failed', 'done', 'trackers'] as const;
 
 export function readFilter(value: string | undefined): WorkFilter {
   return (FILTERS as readonly string[]).includes(value ?? '') ? (value as WorkFilter) : 'all';
@@ -185,6 +186,8 @@ function WorkPage() {
     content = runs.data && (failed.length > 0 ? failedTiles(failed) : <EmptyState title={t('work.none.failed')} />);
   } else if (filter === 'done') {
     content = runs.data && (done.length > 0 ? finished(done, false) : <EmptyState title={t('work.none.done')} />);
+  } else if (filter === 'trackers') {
+    content = <Trackers />; // C7: trackers the owner makes
   } else if (filter === 'orders') {
     content = ordersReady && (views.length > 0 && ordersHere ? <Orders views={views}>{orderList}</Orders> : <EmptyState title={t('work.none.orders')} />);
     // W5 5A1: the business's own desk, where its orders are.

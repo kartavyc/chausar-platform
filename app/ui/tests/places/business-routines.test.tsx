@@ -218,3 +218,56 @@ describe('Business > Routines (4J22a)', () => {
 
 
 });
+
+describe('C7: routines wait for the AI plan', () => {
+  it('the pause point saves through the AI settings, after a second ask; off at rest', async () => {
+    const { calls } = start();
+    const fold = (await screen.findByText('If your AI plan runs low')).closest('details') as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    fireEvent.click(within(fold).getByText('If your AI plan runs low'));
+    const select = await within(fold).findByLabelText('Pause routines at');
+    expect((select as HTMLSelectElement).value).toBe('none');
+    fireEvent.change(select, { target: { value: '90' } });
+    await press(fold, 'Save');
+    await press(fold, 'Save');
+    await waitFor(() => expect(calls.some((call) => call.method === 'venture.agentSettings.set' && (call.params as any).settings.planPause === 90)).toBe(true));
+    expect(await within(fold).findByText('Routines wait once your plan is 90% used.')).toBeTruthy();
+  });
+
+  it('a run waiting for the plan says so in its history, in the engine words', async () => {
+    const line = 'Waits for your Codex plan to reset at 4:30 pm. Nothing was sent.';
+    start({ 'venture.routines.runs': () => ({ runs: [{ id: 'run-1', routineId: 'r', dueAt: '2026-10-23T09:00:00.000Z', state: 'queued', line, missed: 0 }] }) });
+    const item = await screen.findByRole('article', { name: 'Weekly review' });
+    fireEvent.click(within(item).getByText('History'));
+    expect(await within(item).findByText(line, { exact: false })).toBeTruthy();
+  });
+});
+
+describe('C7: the backup AI on the Routines page', () => {
+  const VIEW = { on: false, order: [] as string[], main: 'Codex on this computer', choices: [{ presetId: 'claude-code-cli', label: 'Claude Code on this computer', text: 'Chats send your message to Claude Code on this computer.', digest: 'd1' }] };
+  it('off at rest; turning it on shows each consent text and sends the digests after a second ask', async () => {
+    let saved: unknown = null;
+    const { calls } = start({ 'venture.routines.backup.get': () => VIEW, 'venture.routines.backup.set': (params) => { saved = params; return { ...VIEW, on: true, order: ['claude-code-cli'] }; } });
+    const summary = await screen.findByText("If your AI can't run");
+    const fold = summary.closest('details') as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    fireEvent.click(summary);
+    const toggle = await within(fold).findByLabelText('Use a backup AI for routines');
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(toggle);
+    fireEvent.click(within(fold).getByLabelText('Claude Code on this computer'));
+    expect(within(fold).getByText(VIEW.choices[0]!.text)).toBeTruthy();
+    await press(fold, 'Save');
+    await press(fold, 'Save');
+    await waitFor(() => expect(saved).toEqual({ on: true, order: ['claude-code-cli'], digests: ['d1'] }));
+    expect(calls.some((call) => call.method === 'venture.routines.backup.set')).toBe(true);
+  });
+
+  it('a run that used the backup says so in its history', async () => {
+    const ranOn = 'Ran on Claude Code because your Codex plan was used up.';
+    start({ 'venture.routines.runs': () => ({ runs: [{ id: 'run-1', dueAt: '2026-10-23T09:00:00.000Z', state: 'completed', line: 'Delivered.', ranOn }] }) });
+    const item = await screen.findByRole('article', { name: 'Weekly review' });
+    fireEvent.click(within(item).getByText('History'));
+    expect(await within(item).findByText(ranOn)).toBeTruthy();
+  });
+});

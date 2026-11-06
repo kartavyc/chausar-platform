@@ -50,6 +50,8 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-agent-note': 'note', 'venture-agent-note-change': 'notechange',
   'venture-chief-thread': 'chiefthread', 'venture-chief-message': 'chiefmsg', 'venture-proposal': 'proposal',
   'venture-chat-settle': 'chatsettle',
+  // C7
+  'venture-tracker': 'tracker', 'venture-tracker-row': 'trackerrow', 'venture-agent-hire': 'hire', 'venture-relay-event': 'relayevent',
   // Wave 6 (6H3)
   'venture-layout': 'layout', 'venture-layout-go': 'layoutgo', 'venture-team-intro': 'teamintro', 'venture-client-ai-default': 'aidefault', 'venture-accountant': 'accountant', 'venture-ca-pack-order': 'capackorder', 'venture-ca-pack': 'capack',
   'venture-person': 'person', 'venture-network-import': 'netimport', 'venture-forgotten': 'forgotten',

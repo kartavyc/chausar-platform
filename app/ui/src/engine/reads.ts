@@ -48,6 +48,12 @@ export const READS = [
   'app.preferences.get',
   // One-shot C3 task 10: the live jobs, read by useWork when a page opens and on the poll's pace.
   'venture.work.list',
+  'venture.models.plan',
+  'venture.routines.backup.get',
+  'whatsNew.get',
+  'venture.trackers.list',
+  'venture.trackers.get',
+  'venture.events.get',
 ] as const satisfies readonly MethodName[];
 
 export type ReadMethod = (typeof READS)[number];

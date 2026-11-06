@@ -243,6 +243,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
           stale={view.status === 'stale'}
           staleLine={view.line ?? undefined}
           decided={view.status === 'accepted' ? 'accepted' : view.status === 'rejected' ? 'rejected' : undefined}
+          offered={view.offered}
           onAccept={() => decide(view, 'accept')}
           onReject={() => decide(view, 'reject')}
           onUndo={() => undo(view.id)}
@@ -383,6 +384,8 @@ function ProposalCard({ proposal, agentName, onDecide }: { proposal: AgentPropos
   return (
     <article className={c.prop} aria-labelledby={titleId} data-card="" data-proposal={proposal.kind} data-status={proposal.status}>
       <h3 id={titleId} className={c.propTitle}>{title}</h3>
+      {/* C7: an offered way of working says who offered it and after which approval. */}
+      {proposal.offered && <p className={c.applies} data-offered="">{proposal.offered}</p>}
       {proposal.line && <p className={c.quote} data-content="">{proposal.line}</p>}
       {proposal.note && proposal.note.text && <p className={c.noteText} data-content="">{proposal.note.text}</p>}
       {proposal.diff.length > 0 && (
@@ -399,8 +402,8 @@ function ProposalCard({ proposal, agentName, onDecide }: { proposal: AgentPropos
       {proposal.status === 'drafted' && (
         <div className={c.actions}>
           {/* The engine's reply says nothing is saved until the owner accepts: the note's buttons use those words. */}
-          <Button size="sm" onClick={() => void decide('reject')} disabled={busy}>{t('diff.reject')}</Button>
-          <Button size="sm" variant="primary" onClick={() => void decide('accept')} disabled={busy}>{t('diff.accept')}</Button>
+          <Button size="sm" onClick={() => void decide('reject')} disabled={busy}>{t(proposal.offered ? 'team.chat.way.no' : 'diff.reject')}</Button>
+          <Button size="sm" variant="primary" onClick={() => void decide('accept')} disabled={busy}>{t(proposal.offered ? 'team.chat.way.keep' : 'diff.accept')}</Button>
         </div>
       )}
       {outcomeLine && <p ref={outcome} className={c.outcome} role="status" tabIndex={-1}>{outcomeLine}</p>}

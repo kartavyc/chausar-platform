@@ -181,7 +181,7 @@ test('chief: read tools only, at most three turns, the last one must answer', as
   assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: 'I could not answer that with figures I can prove. Ask me another way.' }]);
   const catalogue = (tasks[0].input as any).readTools.map((item: any) => item.name);
   assert.deepEqual((tasks[2].input as any).readTools, [], 'the last turn runs no tools');
-  assert.deepEqual(catalogue, ['queue', 'runs', 'team', 'money', 'clients', 'plan', 'journal', 'businesses', 'ways']);
+  assert.deepEqual(catalogue, ['queue', 'runs', 'team', 'money', 'clients', 'plan', 'journal', 'businesses', 'ways', 'guide']);
   const plan = (tasks[2].input as any).results.find((item: any) => item.tool === 'plan');
   assert.ok(plan.data.offers.length > 0);
 });

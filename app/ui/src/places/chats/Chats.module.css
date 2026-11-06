@@ -743,3 +743,17 @@
   align-items: center;
   gap: var(--sp-2);
 }
+
+/* C7: a part of Chausar's guide in a Chats answer: its title, its words as written, and the link to read it there. */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+}
+
+.guideText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}

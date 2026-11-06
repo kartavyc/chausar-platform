@@ -5,7 +5,9 @@
 // utilization }). Claude Code's experimental usage read is not used (the founder's answer, 5 Nov). Every reading keeps
 // its source and read time; a percent outside 0 to 100, a reset that does not read, or a reset that has passed makes
 // that window unknown. Nothing here guesses a figure, and an odd shape is unknown, never an error.
-import type { DelegateCli, IsoTime } from '../contracts.ts';
+// No import of the engine's contracts: driver-types.ts names PlanReading, and the app's types read that file.
+export type DelegateCli = 'claude-code' | 'codex';
+type IsoTime = string;
 
 export type PlanWindowKind = 'five-hour' | 'week';
 export type PlanState = 'ok' | 'near' | 'used-up' | 'unknown';
@@ -62,7 +64,7 @@ export function fromCodexLimits(raw: unknown, readAt: IsoTime): PlanReading {
 export function fromClaudeLimit(info: unknown, readAt: IsoTime): PlanReading {
   const windows: PlanWindow[] = [];
   if (plain(info) && typeof info.rateLimitType === 'string' && CLAUDE_WINDOW[info.rateLimitType] && ['allowed', 'allowed_warning', 'rejected'].includes(info.status as string)) {
-    const kind = CLAUDE_WINDOW[info.rateLimitType], resetsAt = resetTime(info.resetsAt);
+    const kind = CLAUDE_WINDOW[info.rateLimitType]!, resetsAt = resetTime(info.resetsAt);
     const used = info.utilization === undefined || info.utilization === null ? null : percent(info.utilization);
     const unreadable = resetsAt === null || (info.utilization !== undefined && info.utilization !== null && used === null);
     if (unreadable) windows.push(unknownWindow(kind));

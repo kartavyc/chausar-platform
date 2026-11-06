@@ -1,11 +1,12 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
-import { useResource } from '../../engine/context';
+import { useEngine, useResource } from '../../engine/context';
 import type { RunSummary } from '../../engine/types';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
+import { Field } from '../../parts/Field';
 import { Chip, DeptChip, StateChip } from '../../parts/Chip';
 import { cx } from '../../parts/cx';
 import { ProgressRing, measuredSteps } from '../../parts/ProgressRing';
@@ -152,6 +153,16 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       returnFocus={returnFocus}
     >
       <HealthLine health={agent.health} agentId={agent.id} onCleared={team.reload} />
+      {/* C7: an agent the owner hired: the day, its duties and what it reads. It always asks you first. */}
+      {agent.hired && (
+        <div className={s.hireForm} data-hired-agent="">
+          <p className={s.hireLine}>{agent.hired.line}</p>
+          <ul className={s.hireList}>{agent.hired.duties.map((duty) => <li key={duty} data-content="">{duty}</li>)}</ul>
+          <HiredDuties agent={agent.id} duties={agent.hired.duties} onChanged={team.reload} />
+          {agent.hired.reads.length > 0 && <p className={s.hireLine}>{t('team.hire.readsLine', { reads: agent.hired.reads.map((item) => t(`team.hire.read.${item.read}`)).join(', ') })}</p>}
+          <p className={s.hireLine}>{t('team.hire.alwaysAsks')}</p>
+        </div>
+      )}
       {/* C1 task 2: the one Tabs part, in its tabs mode; the panel below stays this sheet's own. */}
       <Tabs mode="tabs" label={agent.name} value={tab} idOf={(which) => tabId(which as AgentTab)} items={tabs.map((which) => ({ id: which, ...label(which) }))} onChange={(which) => choose(which as AgentTab)} />
 
@@ -211,5 +222,28 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
         {run.writtenBy && <p className={s.quiet} data-written-by="">{run.writtenBy}</p>}
       </div>
     </li>
+  );
+}
+
+/** C7: a hired agent's duties, one fold away. The engine checks them again; the refusal shows beside the field. */
+function HiredDuties({ agent, duties, onChanged }: { agent: string; duties: string[]; onChanged: () => void }) {
+  const t = useT();
+  const client = useEngine();
+  const [text, setText] = useState(duties.join('\n'));
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  async function save() {
+    setBusy(true); setProblem(null);
+    try { await client.request('venture.agents.hire.duties', { agent, duties: text.split('\n').map((line) => line.trim()).filter(Boolean) }); onChanged(); }
+    catch (error) { setProblem(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  }
+  return (
+    <details className={s.hireFold}>
+      <summary>{t('team.hire.change')}</summary>
+      <Field multiline rows={4} label={t('team.hire.duties')} hint={t('team.hire.dutiesHint')} value={text} onChange={(event) => setText(event.currentTarget.value)} />
+      {problem && <p className={s.hireProblem} role="alert">{problem}</p>}
+      <Button size="sm" disabled={busy} onClick={() => void save()}>{t('team.hire.saveDuties')}</Button>
+    </details>
   );
 }

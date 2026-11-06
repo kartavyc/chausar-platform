@@ -6,7 +6,7 @@ import type { State } from '../../contracts.ts';
 
 /**
  * The kinds an owner knows, in the order they are said. Any other record kind is counted under "other records", so a
- * new kind never breaks a diff (C7 adds tracker rows and hired agents here).
+ * new kind never breaks a diff.
  */
 export const BACKUP_KIND_WORDS = Object.freeze([
   { kind: 'clients', words: 'clients', kinds: ['venture-client'] },
@@ -19,6 +19,8 @@ export const BACKUP_KIND_WORDS = Object.freeze([
   { kind: 'notes', words: 'notes', kinds: ['venture-agent-note'] },
   { kind: 'routines', words: 'routines', kinds: ['venture-routine'] },
   { kind: 'apps', words: 'apps', kinds: ['venture-mini-app'] },
+  { kind: 'tracker-rows', words: 'tracker rows', kinds: ['venture-tracker-row'] },
+  { kind: 'hired-agents', words: 'hired agents', kinds: ['venture-agent-hire'] },
 ] as const);
 export const OTHER_WORDS = 'other records';
 
