@@ -5,7 +5,7 @@
 // Ink v2 wave 4 added subjects whose plans live in their owners' files (package 4-0 named them, each package fills its
 // own); currentPlan calls them, so no package edits this file. A plan may give its own words for the explanation.
 import { type Context, type State } from '../../contracts.ts';
-import { formatMonth, formatUsd, formatMoney } from '../../owner-format.ts';
+import { formatDayRange, formatUsd, formatMoney } from '../../owner-format.ts';
 import { digest, formatVentureDate, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import type {
   Display, InvoiceRecord, IsoDate, PriceFigure, PriceStep, RecordBase, SumReceiptRecord, SumReceiptSubject, VentureDeps, VentureRecord,
@@ -203,18 +203,8 @@ export function sumReceiptIn(tx: VentureTx, plan: SumPlan): SumReceiptRecord {
   return tx.list('venture-sum-receipt').find(record => record.digest === sealed) ?? tx.put<SumReceiptRecord>(receiptOf(tx.base('venture-sum-receipt'), plan, sealed));
 }
 
-/**
- * C4 (T27): two calendar days as the owner reads them: "1 to 30 Nov 2026", "1 Oct to 30 Nov 2026", "1 Dec 2025 to 31 Jan
- * 2026", or "5 Nov 2026" for one day. Calendar days never shift with a zone.
- */
-export function rangeWords(from: IsoDate, to: IsoDate): Display {
-  const parts = (day: IsoDate) => ({ year: day.slice(0, 4), month: formatMonth(day.slice(0, 7), 'short'), day: day.slice(8, 10).replace(/^0/, '') });
-  const a = parts(from), b = parts(to);
-  if (from === to) return `${a.day} ${a.month} ${a.year}`;
-  if (a.year !== b.year) return `${a.day} ${a.month} ${a.year} to ${b.day} ${b.month} ${b.year}`;
-  if (a.month !== b.month) return `${a.day} ${a.month} to ${b.day} ${b.month} ${b.year}`;
-  return `${a.day} to ${b.day} ${b.month} ${b.year}`;
-}
+/** C4 (T27): two calendar days as the owner reads them, with the year. */
+export const rangeWords = (from: IsoDate, to: IsoDate): Display => formatDayRange(from, to);
 
 /**
  * C4 (T27): how a money sum was counted, from the same dates the sum used; null for a sum this does not speak for. A goal's

@@ -1,0 +1,8 @@
+Sample bank statement with made-up rows. Not a real account.
+Account,Your current account
+
+Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance
+01/10/26,OPENING DEPOSIT,0000000101,01/10/26,,50000.00,50000.00
+05/10/26,OFFICE RENT,0000000102,05/10/26,12000.00,,38000.00
+12/10/26,PAYMENT FROM A CLIENT,0000000103,12/10/26,,23600.00,61600.00
+20/10/26,INTERNET BILL,0000000104,20/10/26,1499.00,,60101.00

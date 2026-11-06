@@ -7,7 +7,7 @@
 // Ideas from noskillish/bankmcp (MIT, Copyright (c) 2026 Nils Smed): the twin counter and the four-a-day polling limit,
 // and (Ink v2 wave 2, 2D) pairing transfers between the owner's own accounts (findOwnTransfers) and whole-word search for
 // an invoice number. These are rewrites in TypeScript on BigInt minor units, not copies.
-import { formatMoney } from '../../owner-format.ts';
+import { formatDayRange, formatMoney } from '../../owner-format.ts';
 import { createHash } from 'node:crypto';
 import { check, type Context } from '../../contracts.ts';
 import { decimalMinor } from '../../currency.ts';
@@ -172,12 +172,12 @@ type Column = 'date' | 'valueDate' | 'description' | 'reference' | 'debit' | 'cr
 const HEADER_WORDS: Readonly<Record<Column, readonly string[]>> = Object.freeze({
   date: ['date', 'txn date', 'tran date', 'transaction date', 'posting date', 'booking date'],
   valueDate: ['value dt', 'value date'],
-  description: ['narration', 'description', 'particulars', 'details', 'transaction details', 'remarks', 'memo'],
-  reference: ['chq ref no', 'chq no', 'cheque no', 'ref no', 'ref no cheque no', 'reference', 'reference no', 'utr'],
-  debit: ['withdrawal amt', 'withdrawal', 'withdrawals', 'debit', 'debit amount', 'dr'],
-  credit: ['deposit amt', 'deposit', 'deposits', 'credit', 'credit amount', 'cr'],
+  description: ['narration', 'description', 'particulars', 'details', 'transaction details', 'remarks', 'memo', 'transaction remarks'],
+  reference: ['chq ref no', 'chq no', 'cheque no', 'ref no', 'ref no cheque no', 'reference', 'reference no', 'utr', 'cheque number', 'chqno'],
+  debit: ['withdrawal amt', 'withdrawal', 'withdrawals', 'debit', 'debit amount', 'dr', 'withdrawal amount inr'],
+  credit: ['deposit amt', 'deposit', 'deposits', 'credit', 'credit amount', 'cr', 'deposit amount inr'],
   amount: ['amount', 'transaction amount'],
-  balance: ['closing balance', 'balance', 'running balance'],
+  balance: ['closing balance', 'balance', 'running balance', 'balance inr', 'bal'],
   counterparty: ['counterparty', 'payee', 'beneficiary'],
 });
 const headerWord = (cell: string) => cell.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -295,8 +295,12 @@ export function importStatement(ledger: BankLedger, csv: string, options: Statem
   const duplicates = incoming.length - added.length;
   const transactions = [...ledger.transactions, ...added].map((t, i) => ({ t, i }))
     .sort((a, b) => (a.t.date < b.t.date ? -1 : a.t.date > b.t.date ? 1 : a.i - b.i)).map(item => item.t);
-  const parts = [`Added ${plural(added.length, 'transaction', 'transactions')}.`];
-  if (duplicates > 0) parts.push(`${plural(duplicates, 'was', 'were')} already here and ${duplicates === 1 ? 'was' : 'were'} not counted again.`);
+  // C4 (T28): the dates of the rows added and where to see them; the same file again says nothing was added.
+  const days = added.map(t => t.date).sort();
+  const parts = added.length === 0 && duplicates > 0 ? ['Already imported, nothing added.']
+    : days.length ? [`Added ${plural(added.length, 'transaction', 'transactions')} from ${formatDayRange(days[0], days[days.length - 1], { year: false })}. See them under Connections, in your bank account.`]
+      : [`Added ${plural(added.length, 'transaction', 'transactions')}.`];
+  if (duplicates > 0 && added.length > 0) parts.push(`${plural(duplicates, 'was', 'were')} already here and ${duplicates === 1 ? 'was' : 'were'} not counted again.`);
   if (parsed.rejected.length > 0) parts.push(`${plural(parsed.rejected.length, 'row', 'rows')} could not be read.`);
   return { ledger: { ...ledger, transactions }, added, duplicates, rejected: parsed.rejected, line: parts.join(' ') };
 }

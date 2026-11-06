@@ -9,6 +9,7 @@
  */
 
 import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
+import { formatDayRange } from '../../../../platform/runtime/owner-format';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
@@ -659,6 +660,7 @@ export class FakeExtrasDesk {
     const seen = (this.bankLines[`${biz}:${account}`] ??= new Set());
     let added = 0;
     let duplicates = 0;
+    const days: string[] = [];
     const rejected: { line: number; reason: string }[] = [];
     lines.forEach((raw, index) => {
       const line = raw.trim();
@@ -669,11 +671,17 @@ export class FakeExtrasDesk {
       if (seen.has(line)) { duplicates += 1; return; }
       seen.add(line);
       added += 1;
+      const trimmed = date.trim();
+      days.push(/^\d{4}/.test(trimmed) ? trimmed : `${trimmed.slice(6, 10)}-${trimmed.slice(3, 5)}-${trimmed.slice(0, 2)}`);
     });
+    // C4 (T28), as build/bank.ts importStatement.
+    days.sort();
     const words = [
-      `Added ${added} ${added === 1 ? 'transaction' : 'transactions'} to ${account}.`,
-      duplicates ? `${duplicates} ${duplicates === 1 ? 'was' : 'were'} already here, so ${duplicates === 1 ? 'it was' : 'they were'} skipped.` : '',
-      rejected.length ? `${rejected.length} ${rejected.length === 1 ? 'line was' : 'lines were'} not read.` : '',
+      added === 0 && duplicates > 0 ? 'Already imported, nothing added.'
+        : days.length ? `Added ${added} ${added === 1 ? 'transaction' : 'transactions'} from ${formatDayRange(days[0]!, days[days.length - 1]!, { year: false })}. See them under Connections, in your bank account.`
+          : `Added ${added} transactions.`,
+      duplicates && added > 0 ? `${duplicates} ${duplicates === 1 ? 'was' : 'were'} already here and ${duplicates === 1 ? 'was' : 'were'} not counted again.` : '',
+      rejected.length ? `${rejected.length} ${rejected.length === 1 ? 'row' : 'rows'} could not be read.` : '',
     ].filter(Boolean).join(' ');
     return { account, accountId: `bank-${biz}-${account.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, added, duplicates, rejected, line: words, transactions: seen.size };
   }

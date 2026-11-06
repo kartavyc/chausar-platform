@@ -415,6 +415,8 @@ export class FakeMoneyViews {
       points: weeks.map((week, k) => ({ week, label: k === 0 ? 'Today' : `Week to ${dayMonthYear(week)}`, actual: k === 0 ? openingFigure : null, forecast: forecasts[k]!, actualPermille: k === 0 ? at(minors[0]!) : null, forecastPermille: at(minors[k]!) })),
       lowest: { onTime, ifLateNeverPay: ifLate }, usualCosts: null, assumptions, nextWeeks, ifIssued,
       ticks: levelTicks(lo, hi, value => this.money(value)), basis: forecastBasis, line,
+      // C4 (T28), as money/cash.ts: nothing due in or out, and the sample takes no usual costs.
+      ...(flows.length === 0 ? { flat: `Nothing due in or out in the next ${WEEKS} weeks, so it stays flat.` } : {}),
     };
   }
 

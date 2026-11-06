@@ -37,6 +37,8 @@ export function CashAhead({ cash, view, span }: { cash: CashData | undefined; vi
           {late && <Stat label={t('money.cash.ifLate')} figure={late} sub={day(late.week)} mark="dashed" />}
         </dl>
       )}
+      {/* C4 T28: why a line with nothing due in or out stays flat, in the engine's words. */}
+      {view?.flat && <p className={s.quietLine} data-flat="">{view.flat}</p>}
       {/* The line, and what the forecast assumes one step away (simple first, 4J20). */}
       {cash && <div className={s.tileChart}><CashLine data={{ ...cash, assumptions: [] }} tips={false} /></div>}
       {cash && cash.assumptions.length > 0 && (

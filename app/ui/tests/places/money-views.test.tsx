@@ -283,6 +283,20 @@ describe('Money w4: the overview at narrow widths', () => {
   });
 });
 
+describe('C4 T28: why a forecast is flat', () => {
+  it('shows the engine words only when it sends them', async () => {
+    const flat = 'Nothing due in or out in the next 13 weeks, so it stays flat.';
+    start('#/money', { override: { 'venture.money.cash': async (params, request) => ({ ...(await request('venture.money.cash', params) as object), flat }) } });
+    const cash = await tile('Cash, next 13 weeks');
+    expect(await within(cash).findByText(flat)).toBeTruthy();
+    cleanup();
+    start('#/money');
+    const plain = await tile('Cash, next 13 weeks');
+    await waitFor(() => expect(plain.querySelector('[data-chart]')).toBeTruthy());
+    expect(plain.querySelector('[data-flat]')).toBeNull();
+  });
+});
+
 describe('C4 T23: AI spend in one currency, and Set rate', () => {
   it('with a rate the card shows rupees alone with the receipt; the dollars are in the receipt, not beside the figure', async () => {
     start('#/money');

@@ -127,11 +127,11 @@ describe('Connections', () => {
     fireEvent.change(within(sheet).getByLabelText('Account'), { target: { value: 'HDFC current' } });
     fireEvent.change(within(sheet).getByLabelText('Statement file (CSV)'), { target: { files: [new File([csv], 'october.csv', { type: 'text/csv' })] } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
-    await waitFor(() => expect(within(sheet).getByText('Added 2 transactions to HDFC current. 1 line was not read.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Added 2 transactions from 1 to 2 Oct. See them under Connections, in your bank account. 1 row could not be read.')).toBeTruthy());
     expect(spy.mock.calls.find(([method]) => method === 'venture.bank.import')![1]).toEqual({ csv, account: 'HDFC current' });
     expect(within(sheet).getByText('Line 4: The amount is not a number.')).toBeTruthy();
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
-    await waitFor(() => expect(within(sheet).getByText('Added 0 transactions to HDFC current. 2 were already here, so they were skipped. 1 line was not read.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Already imported, nothing added. 1 row could not be read.')).toBeTruthy());
   });
 
   it('on the web, Visit site is a normal link that opens apart from Chausar', async () => {

@@ -215,6 +215,21 @@ export function formatMonth(month: string, size: 'long' | 'name' | 'short' = 'lo
   return size === 'long' ? `${LONG_MONTHS[index]} ${found[1]}` : size === 'name' ? LONG_MONTHS[index]! : MONTHS[index]!;
 }
 
+/**
+ * Two calendar days as a range, in the owner form: "1 to 31 Oct 2026", "20 Oct to 2 Nov 2026", "20 Dec 2025 to 2 Jan 2026",
+ * "3 Oct 2026" for one day; without the year when `year` is false and both days are in one year ("1 to 31 Oct"). Calendar
+ * days never shift with a zone.
+ */
+export function formatDayRange(from: string, to: string, options: { year?: boolean } = {}): string {
+  const parts = (day: string) => ({ year: day.slice(0, 4), month: formatMonth(day.slice(0, 7), 'short'), day: day.slice(8, 10).replace(/^0/, '') });
+  const a = parts(from), b = parts(to);
+  if (a.year !== b.year) return `${a.day} ${a.month} ${a.year} to ${b.day} ${b.month} ${b.year}`;
+  const tail = options.year === false ? '' : ` ${b.year}`;
+  if (from === to) return `${a.day} ${a.month}${tail}`;
+  if (a.month !== b.month) return `${a.day} ${a.month} to ${b.day} ${b.month}${tail}`;
+  return `${a.day} to ${b.day} ${b.month}${tail}`;
+}
+
 /** The calendar day in the zone at an instant, as 'YYYY-MM-DD' (a key and a date field's value, never shown as is). */
 export function dayKeyIn(value: When, zone: string): string {
   const local = localIn(value, zone);

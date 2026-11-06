@@ -94,6 +94,8 @@
   "connections.bank.label": "Bank statement",
   "connections.bank.title": "Import a statement",
   "connections.bank.line": "A CSV file from your bank. Chausar reads it and never moves money.",
+  "connections.bank.banks": "Reads CSV statements from {banks}, and others with date and amount columns.",
+  "connections.bank.sample": "See a sample file",
   "connections.bank.account": "Account",
   "connections.bank.accountHint": "Your own name for it, like HDFC current.",
   "connections.bank.file": "Statement file (CSV)",
