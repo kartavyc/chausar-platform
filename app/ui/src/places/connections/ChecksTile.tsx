@@ -1,3 +1,4 @@
+import { checkAiConnections } from './CliStatus';
 import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
@@ -53,7 +54,7 @@ export function ChecksTile() {
   async function check() {
     setBusy(true);
     setProblem(null);
-    try { setView(await client.request('venture.connectors.check', {})); }
+    try { await checkAiConnections(client); setView(await client.request('venture.connectors.check', {})); }
     catch (error) { setProblem(messageOf(error)); }
     finally { setBusy(false); }
   }
@@ -73,7 +74,7 @@ export function ChecksTile() {
           {view.rows.length === 0 ? <p className={s.note} role="status">{t('connections.checks.none')}</p> : (
             <>
               <p className={c.health} data-health="">
-                {t('connections.checks.ready', { count: String(health.ready) })} · {t('connections.checks.warnings', { count: String(health.warnings) })} · {t('connections.checks.blocking', { count: String(health.blocking) })}
+                {health.warnings === 0 && health.blocking === 0 ? t('connections.checks.good') : <>{t('connections.checks.ready', { count: String(health.ready) })} · {t('connections.checks.warnings', { count: String(health.warnings) })} · {t('connections.checks.blocking', { count: String(health.blocking) })}</>}
               </p>
               <p id={listId} className="sr-only">{t('connections.checks.found')}</p>
               <ul className={c.rows} aria-labelledby={listId}>

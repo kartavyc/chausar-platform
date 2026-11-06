@@ -71,7 +71,7 @@ describe('AI settings: the models Codex lists (C1 task 13)', () => {
   it('the fake answers with the engine shape: models last, null by default, a set list in order', async () => {
     const engine = new FakeEngine({ latencyMs: 0 });
     const plain = await engine.request('venture.agentSettings.get', {}) as AiSettingsView;
-    expect(Object.keys(plain)).toEqual(['settings', 'boundaries', 'agents', 'models']);
+    expect(Object.keys(plain)).toEqual(['settings', 'boundaries', 'agents', 'modelChoices', 'models']);
     expect(plain.models).toEqual({ codex: null });
     engine.codexModels(['gpt-6.1-terra', 'gpt-6-luna']);
     expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).models).toEqual({ codex: ['gpt-6.1-terra', 'gpt-6-luna'] });
@@ -103,5 +103,36 @@ describe('AI settings: the models Codex lists (C1 task 13)', () => {
     expect(((await settings.findByLabelText('Codex main model')) as HTMLElement).tagName).toBe('INPUT');
     expect(settings.getByText("Codex didn't list its models here. Type the exact model id.")).toBeTruthy();
     expect((settings.getByLabelText('Claude Code main model') as HTMLElement).tagName).toBe('INPUT');
+  });
+});
+
+
+describe('simple AI settings for the AI in use (B4)', () => {
+  it('shows only the chosen AI, simple jobs and one effort/online control, with exact IDs under Advanced', async () => {
+    const engine = new FakeEngine({ latencyMs: 0 });
+    render(<EngineProvider client={createFakeClient(engine)}><AgentSettings providers={['codex']} /></EngineProvider>);
+    const fold = (await screen.findByText('AI settings', { selector: 'summary' })).closest('details')!;
+    await act(async () => { fold.open = true; fold.dispatchEvent(new Event('toggle')); });
+    const settings = within(fold);
+    const main = await settings.findByRole('combobox', { name: 'Main jobs' }) as HTMLSelectElement;
+    expect([...main.options].map(option => option.textContent)).toEqual(['Faster', 'Smarter']);
+    expect(settings.queryByRole('group', { name: 'Claude Code' })).toBeNull();
+    expect(settings.getAllByRole('combobox', { name: 'How hard it thinks' })).toHaveLength(1);
+    expect(settings.getAllByRole('combobox', { name: 'Can look things up online' })).toHaveLength(1);
+    expect(settings.queryByRole('textbox', { name: 'Codex main model' })).toBeNull();
+    fireEvent.change(main, { target: { value: 'faster' } });
+    fireEvent.click(settings.getByRole('button', { name: 'Save AI settings' }));
+    await settings.findByText('AI settings saved.');
+    expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.codex.main.model).toBe('gpt-6-luna');
+    const advanced = settings.getByText('Advanced', { selector: 'summary' }).closest('details')!;
+    await act(async () => { advanced.open = true; advanced.dispatchEvent(new Event('toggle')); });
+    expect((await within(advanced).findByLabelText('Codex main model') as HTMLInputElement).value).toBe('gpt-6-luna');
+  });
+  it('the fake returns the same engine-owned choices independently of saved model ids', async () => {
+    const engine = new FakeEngine({ latencyMs: 0 });
+    const first = await engine.request('venture.agentSettings.get', {}) as AiSettingsView;
+    expect(first.modelChoices).toEqual({ codex: { faster: 'gpt-6-luna', smarter: 'gpt-6.1-terra' }, claude: { faster: 'claude-haiku-5-5', smarter: 'claude-sonnet-5-5' } });
+    first.settings.codex.main.model = 'owner-model';
+    expect((await engine.request('venture.agentSettings.set', { settings: first.settings }) as AiSettingsView).modelChoices).toEqual(first.modelChoices);
   });
 });

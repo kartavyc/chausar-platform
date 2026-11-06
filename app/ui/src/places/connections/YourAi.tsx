@@ -3,205 +3,103 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Inner } from '../../parts/Card';
-import { Chip, type ChipTone } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
-import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
 import { Tile } from '../../parts/Tile';
-import type { ModelAvailability, ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
-import { useCliChecks } from './CliStatus';
+import type { ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier } from '../../engine/types';
+import { useCliChecks, useCliStatus, CliTool } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
 import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-/** The built-in templates' preset id: no AI, nothing sent (Your AI and the agent panel's Its AI). */
 export const TEMPLATES = 'built-in-templates';
-const HAIKU = 'anthropic-haiku-5-5';
-const SONNET = 'anthropic-sonnet-5-5';
 const CONNECTABLE = new Set(['ready', 'unverified']);
-/** How the owner pays for each choice: their own key with the AI company, their own AI app on this computer, or no AI. */
-const RUNS_ON: readonly ModelPresetLite['runsOn'][] = ['provider-api', 'this-computer', 'chausar-engine'];
-/** The availability chip's tone: words always say it; colour only repeats it. */
-const AVAILABILITY_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'line', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
-
 interface Choice { id: string; title: string; presets: { preset: ModelPresetLite; tiers?: ModelTier[] }[]; keyName: string }
 
-/**
- * Your AI, the first tile on Connections: which AI does each job, what this month cost (as the engine writes it), the
- * connections with Disconnect, and the AI that can be added. The owner pays for AI directly, with their own key or
- * their own AI app on this computer (founder, 23 Oct); "Every choice" groups the choices that way, each with whether
- * it can connect and the engine's one fix line. Inside a business this is venture.models.*; before any business exists
- * it is the draft desk, venture.ai.*. A key is typed into a password field, sent once with Connect, cleared at once,
- * and never shown again: the engine only ever says whether one is loaded. On the desktop the privacy rule sits beside
- * it as a tile of its own (transcription sits beside What Chausar can do, index.tsx). What the engine found of the
- * owner's Claude Code and Codex is the tile under this one (CliStatus.tsx, W4 4H2); each of its Check again reads the
- * choices here again, since their availability comes from the same look. A choice the engine says is unavailable and
- * runs on this computer is not listed: on the hosted app that is every command-line tool, so it lists keys only.
- */
+/** One row per AI. Native trust, exact key consent and engine status retain their own boundaries. */
 export function YourAi({ focus }: { focus: boolean }) {
-  const t = useT();
-  const client = useEngine();
-  const headingId = useId();
-  const heading = useRef<HTMLHeadingElement>(null);
-  const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
+  const t = useT(), client = useEngine(), headingId = useId(), heading = useRef<HTMLHeadingElement>(null);
+  const changed = { refreshOn: (event: { type: string }) => event.type === 'queue.changed' };
+  const venture = useResource('venture.get', {}, changed);
   const known = venture.data !== undefined || venture.error !== undefined;
   const draft = known && !venture.data;
-  // A business switch arrives as queue.changed: read again for the business now open.
-  const changed = { refreshOn: (event: { type: string }) => event.type === 'queue.changed' };
   const status = useResource(draft ? 'venture.ai.status' : 'venture.models.status', {}, { skip: !known, ...changed });
   const vaultPresets = useResource('venture.models.presets', {}, { skip: !known || draft, ...changed });
   const draftOptions = useResource('venture.ai.options', {}, { skip: !draft, ...changed });
   const presets = (draft ? draftOptions.data?.presets : vaultPresets.data) ?? [];
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
-  const checks = useCliChecks();
+  const checks = useCliChecks(), cli = useCliStatus();
   const reloadPresets = draft ? draftOptions.reload : vaultPresets.reload;
-
   useEffect(() => { if (focus) heading.current?.focus(); }, [focus]);
-  // A fresh look at the command-line tools changes their availability here too.
-  useEffect(() => { if (checks > 0 && known) reloadPresets(); }, [checks]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const label = (presetId: string) => presets.find((p) => p.id === presetId)?.label ?? presetId;
-  const tierName = (tier: ModelTierLite) => (tier.presetId === TEMPLATES ? connectionWords(t, tier.reason) : `${label(tier.presetId)}${tier.usable ? '' : `. ${connectionWords(t, tier.reason)}`}`);
-
-  async function disconnect(connectionId: string) {
-    setSaid(null);
-    try {
-      await client.request(draft ? 'venture.ai.disconnect' : 'venture.models.disconnect', { connectionId });
-      status.reload();
-    } catch (error) {
-      setSaid({ text: t('connections.ai.disconnectFailed', { message: error instanceof Error ? error.message : String(error) }), problem: true });
-    }
-  }
-
-  const haiku = presets.find((p) => p.id === HAIKU);
-  const sonnet = presets.find((p) => p.id === SONNET);
-  const recommended: Choice | null = haiku && sonnet
-    ? { id: 'recommended', title: t('connections.ai.recommended'), presets: [{ preset: haiku, tiers: ['fast'] }, { preset: sonnet, tiers: ['main'] }], keyName: 'Anthropic' }
-    : null;
-  // An AI app that cannot run here at all (the engine says unavailable: the hosted app) is not a choice to list.
-  const listed = presets.filter((preset) => !(preset.availability === 'unavailable' && preset.runsOn === 'this-computer'));
-  const singles: Choice[] = listed.map((preset) => ({ id: preset.id, title: preset.label, presets: [{ preset }], keyName: preset.label }));
-
-  function choiceRow(choice: Choice) {
-    const lead = choice.presets[0]!.preset;
-    const canConnect = choice.presets.every(({ preset }) => CONNECTABLE.has(preset.availability));
-    const note = lead.verificationNote && !lead.availabilityReason.includes(lead.verificationNote) ? lead.verificationNote : null;
-    const line = choice.id === 'recommended'
-      ? `${t('connections.ai.recommendedLine')} ${connectionWords(t, lead.availabilityReason)}`
-      : <><span className={s.fixLine} data-fix-line="">{connectionWords(t, lead.availabilityReason)}</span>{note && <span className={s.quiet}> {connectionWords(t, note)}</span>}</>;
-    return (
-      <Row
-        key={choice.id}
-        id={`ai-add-${choice.id}`}
-        title={choice.title}
-        line={line}
-        aside={choice.id === 'recommended' ? undefined : (
-          <span data-availability={lead.availability}><Chip tone={AVAILABILITY_TONE[lead.availability] ?? 'neutral'}>{t(`connections.ai.availability.${lead.availability}`)}</Chip></span>
-        )}
-        actions={canConnect && open !== choice.id ? (
-          <Button size="sm" onClick={() => { setOpen(choice.id); setSaid(null); }}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button>
-        ) : undefined}
-      >
-        {open === choice.id && (
-          <ConnectForm
-            choice={choice}
-            draft={draft}
-            onCancel={() => setOpen(null)}
-            onDone={(text) => { setOpen(null); setSaid({ text, problem: false }); status.reload(); }}
-          />
-        )}
-      </Row>
-    );
-  }
-
-  const data: ModelStatusLite | undefined = status.data;
-  const connected = data?.connections.filter((c) => c.status === 'connected') ?? [];
-  const bothTemplates = data && data.tiers.fast.presetId === TEMPLATES && data.tiers.main.presetId === TEMPLATES;
-  // One-shot A4 (hands-on rows 82, 95): with no AI connected, an AI app on this computer that can connect (a signed-in
-  // Claude Code, a chosen Codex) is the choice at rest; the key pair moves to the top of the fold.
-  const appHere = bothTemplates ? listed.find((preset) => preset.runsOn === 'this-computer' && CONNECTABLE.has(preset.availability)) : undefined;
-  const atRest: Choice | null = appHere ? singles.find((choice) => choice.id === appHere.id)! : recommended;
-  const inFold = (choice: Choice) => choice.id !== atRest?.id;
-  // The privacy rule is this computer's, so only the desktop app inside a business shows it.
+  useEffect(() => { if (checks > 0 && known) reloadPresets(); }, [checks]);
+  const data = status.data;
+  const connected = data?.connections.filter(row => row.status === 'connected') ?? [];
+  const providers = (['codex', 'claude'] as const).filter(name => connected.some(row => row.presetId === (name === 'codex' ? 'codex-cli' : 'claude-code-cli')));
   const side = Boolean(data) && !draft && client.transport !== 'hosted';
-
-  return (
-    <div className={s.top} data-side={side ? undefined : 'none'}>
-      <Tile as="section" labelledBy={headingId}>
-        <div className={s.head}>
-          <h2 id={headingId} ref={heading} tabIndex={-1} className={s.title}>{t('connections.ai.title')}</h2>
-        </div>
-        {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
-        {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}
-        {!data && !status.error && <LoadingPlace shape="cards" />}
-        {data && (
-          <>
-            <div className={s.jobs} data-one={bothTemplates ? '' : undefined}>
-              {bothTemplates ? (
-                <Inner card={false} className={s.job}><span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span><span>{connectionWords(t, data.tiers.main.reason)}</span></Inner>
-              ) : (
-                (['fast', 'main'] as const).map((tier) => (
-                  <Inner key={tier} card={false} className={s.job}>
-                    <span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span>
-                    <span>{t('connections.ai.tier', { job: t(`connections.ai.job.${tier}`), name: tierName(data.tiers[tier]) })}</span>
-                  </Inner>
-                ))
-              )}
-            </div>
-            {/* The month's spend as the engine writes it, with no receipt until W4 4J1: its words, marked so. */}
-            <p className={s.spend}><span data-engine-line="">{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</span></p>
-            <p className={s.note}>{t('connections.ai.spendNote')}</p>
-            {data.sendPolicy === 'nothing' && <p className={s.note}>{t('connections.ai.sendNothing')}</p>}
-            {data.replay.active && <p className={s.note}>{t('connections.ai.replay')}</p>}
-            {connected.length > 0 && (
-              <ul className={s.rows} aria-label={t('connections.ai.connected')}>
-                {connected.map((connection) => (
-                  <Row
-                    key={connection.id}
-                    id={`ai-${connection.id}`}
-                    mark={<span className={s.mini} aria-hidden="true"><Icon name="bot" size={16} /></span>}
-                    title={label(connection.presetId)}
-                    line={[connection.tiers.map((tier) => t(`connections.ai.job.${tier}`)).join(', '), connection.model, connection.usable ? connection.verificationNote : connection.reason].filter(Boolean).join(' · ')}
-                    actions={<Button size="sm" onClick={() => void disconnect(connection.id)}>{t('connections.ai.disconnect')}</Button>}
-                  />
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-        {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
-        {data && !draft && <AgentSettings key={venture.data?.venture.id} />}
-        {presets.length > 0 && (
-          <>
-            <h3 className={s.subheading}>{t('connections.ai.add')}</h3>
-            {/* The recommended pair at rest; every single choice, grouped by how it is paid for, one fold away. */}
-            {atRest && <ul className={s.rows}>{choiceRow(atRest)}</ul>}
-            <Fold summary={t('connections.ai.every')} className={s.fold}>
-              {recommended && atRest !== recommended && <ul className={s.rows}>{choiceRow(recommended)}</ul>}
-              {RUNS_ON.map((runsOn) => {
-                const here = singles.filter((choice) => choice.presets[0]!.preset.runsOn === runsOn && inFold(choice));
-                return here.length === 0 ? null : (
-                  <div key={runsOn} className={s.choiceGroup} data-runs-on={runsOn}>
-                    {/* Under "Add an AI" (a level 3 heading), each group is a level 4 heading. */}
-                    <h4 className={s.groupLabel}>{t(`connections.ai.group.${runsOn}`)}</h4>
-                    <ul className={s.rows}>{here.map(choiceRow)}</ul>
-                  </div>
-                );
-              })}
-            </Fold>
-          </>
-        )}
-      </Tile>
-      {side && data && (
-        <div className={s.side}>
-          <SendRule now={data.sendPolicy} onSaved={() => status.reload()} />
-        </div>
-      )}
-    </div>
-  );
+  const choice = (id: string, title: string, keyName: string): Choice | null => {
+    const preset = presets.find(row => row.id === id);
+    return preset ? { id, title, keyName, presets: [{ preset }] } : null;
+  };
+  const haiku = presets.find(row => row.id === 'anthropic-haiku-5-5'), sonnet = presets.find(row => row.id === 'anthropic-sonnet-5-5');
+  const anthropic: Choice | null = haiku && sonnet ? { id: 'anthropic', title: t('connections.ai.anthropic'), keyName: 'Anthropic', presets: [{ preset: haiku, tiers: ['fast'] }, { preset: sonnet, tiers: ['main'] }] } : null;
+  const main = [choice('claude-code-cli', 'Claude Code', 'Claude Code'), choice('codex-cli', 'Codex', 'Codex'), anthropic, choice('openai-gpt-6-luna', t('connections.ai.openai'), 'OpenAI')].filter((row): row is Choice => row !== null && !(row.presets[0]!.preset.runsOn === 'this-computer' && row.presets[0]!.preset.availability === 'unavailable'));
+  const mainIds = new Set(main.flatMap(row => row.presets.map(item => item.preset.id)));
+  const others = presets.filter(row => !mainIds.has(row.id) && !(row.runsOn === 'this-computer' && row.availability === 'unavailable')).map(row => ({ id: row.id, title: row.label, presets: [{ preset: row }], keyName: row.label }));
+  async function disconnect(ids: string[]) {
+    if (busy) return; setBusy(true); setSaid(null);
+    try { for (const connectionId of ids) await client.request(draft ? 'venture.ai.disconnect' : 'venture.models.disconnect', { connectionId }); }
+    catch (error) { setSaid({ text: t('connections.ai.disconnectFailed', { message: error instanceof Error ? error.message : String(error) }), problem: true }); }
+    finally { status.reload(); setBusy(false); }
+  }
+  async function check() {
+    if (busy) return; setBusy(true); setSaid(null);
+    try { await cli.check(); } catch (error) { setSaid({ text: error instanceof Error ? error.message : String(error), problem: true }); }
+    finally { setBusy(false); }
+  }
+  function row(item: Choice) {
+    const lead = item.presets[0]!.preset, saved = connected.filter(connection => item.presets.some(p => p.preset.id === connection.presetId));
+    const canConnect = item.presets.every(({ preset }) => CONNECTABLE.has(preset.availability));
+    const action = saved.length ? <Button size="sm" locked={busy} onClick={() => void disconnect(saved.map(connection => connection.id))}>{t('connections.ai.disconnect')}</Button>
+      : canConnect && open !== item.id ? <Button size="sm" onClick={() => { setOpen(item.id); setSaid(null); }}>{lead.id === TEMPLATES ? t('connections.ai.useTemplates') : t('connections.ai.connect')}</Button> : undefined;
+    const form = open === item.id && <ConnectForm choice={item} draft={draft} onCancel={() => setOpen(null)} onDone={text => { setOpen(null); setSaid({ text, problem: false }); status.reload(); }} />;
+    const native = cli.status.data?.clis.find(view => view.cli === (lead.id === 'codex-cli' ? 'codex' : lead.id === 'claude-code-cli' ? 'claude-code' : ''));
+    if (native) return <CliTool key={item.id} view={native} onChosen={() => void check()} actions={action} plan={cli.plan.data?.tools.find(view => view.cli === native.cli)} ran={cli.status.data?.clis[0]?.cli === native.cli ? cli.status.data.line : undefined}>{form}</CliTool>;
+    const line = saved.length ? t('connections.ai.connected') : canConnect ? t('connections.ai.notConnected') : connectionWords(t, lead.availabilityReason);
+    return <Row key={item.id} id={`ai-add-${item.id}`} title={<span data-ai-name="">{item.title}</span>} line={line} actions={action}>
+      <Fold summary={t('connections.cli.details')} className={s.fold}>
+        {saved.map(connection => <p key={connection.id} className={s.note}><span data-code="">{connection.model}</span>{!connection.usable && <>. {connectionWords(t, connection.reason)}</>}</p>)}
+        {!saved.length && <p className={s.note}>{lead.needsKey ? lead.keyHint : connectionWords(t, lead.availabilityReason)}</p>}
+      </Fold>
+      {form}
+    </Row>;
+  }
+  return <div className={s.top} data-side={side ? undefined : 'none'}>
+    <Tile as="section" labelledBy={headingId}>
+      <div className={s.head}><h2 id={headingId} ref={heading} tabIndex={-1} className={s.title}>{t('connections.ai.title')}</h2>
+        {draft && <Button size="sm" locked={busy} onClick={() => void check()}>{t('connections.checks.run')}</Button>}
+      </div>
+      {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
+      {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}
+      {!data && !status.error && <LoadingPlace shape="cards" />}
+      {cli.status.error && cli.status.error.code !== 'TIER_UNAVAILABLE' && <p className={s.problem} role="alert">{cli.status.error.message}</p>}
+      {data && <>
+        <p className={s.spend}><span data-engine-line="">{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</span></p>
+        <p className={s.note}>{t('connections.ai.spendNote')}</p>
+        {data.sendPolicy === 'nothing' && <p className={s.note}>{t('connections.ai.sendNothing')}</p>}
+        {data.replay.active && <p className={s.note}>{t('connections.ai.replay')}</p>}
+        {!connected.length && <p className={s.note}>{connectionWords(t, data.tiers.main.reason)}</p>}
+      </>}
+      <ul className={s.rows} aria-label={t('connections.ai.choices')}>{main.map(row)}</ul>
+      {presets.some(preset => preset.needsKey && preset.verification === 'not-live-verified') && <p className={s.note}>{t('connections.ai.keyNotChecked')}</p>}
+      {others.length > 0 && <Fold summary={t('connections.ai.other')} className={s.fold}><ul className={s.rows}>{others.map(row)}</ul></Fold>}
+      {said && <p className={said.problem ? s.problem : s.said} role={said.problem ? 'alert' : 'status'}>{said.text}</p>}
+      {data && !draft && <AgentSettings key={venture.data?.venture.id} providers={providers} />}
+    </Tile>
+    {side && data && <div className={s.side}><SendRule now={data.sendPolicy} onSaved={() => status.reload()} /></div>}
+  </div>;
 }
 
 const SEND_RULES = ['nothing', 'shape', 'samples'] as const;

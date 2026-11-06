@@ -1,15 +1,13 @@
-import { useEffect, useId, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useT, type T } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import { Inner } from '../../parts/Card';
 import { Chip, type ChipTone } from '../../parts/Chip';
 import { momentOf } from '../../parts/custody';
-import { Icon } from '../../parts/Icon';
-import { Tile, TileHead } from '../../parts/Tile';
+import { Row } from '../../parts/Row';
 import { useMoment } from '../../parts/when';
-import { EngineError, type CliStatusView, type ModelAvailability, type PlanToolLite } from '../../engine/types';
+import { EngineError, type EngineClient, type CliStatusView, type ModelAvailability, type PlanToolLite } from '../../engine/types';
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
 import { connectionWords } from './ConnectionWords';
@@ -25,7 +23,7 @@ const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done
  */
 let checks = 0;
 const listeners = new Set<() => void>();
-function checked() {
+export function cliChecked() {
   checks += 1;
   for (const listener of listeners) listener();
 }
@@ -51,82 +49,38 @@ const KEPT_LOOK_REREAD_MS = 3000;
  * real task on it worked. Check again asks for a fresh look. Under the cards, once, the engine's line of what
  * the look ran. The hosted app uses keys only, and says so in the engine's words.
  */
-export function CliStatus() {
-  const t = useT();
+export function useCliStatus() {
   const client = useEngine();
-  const headingId = useId();
   const status = useResource('venture.models.cli.status', {}, { refreshOn });
-  // C7: the plan meter, only what each tool reported (venture.models.plan); the hosted app has none and shows none.
   const plan = useResource('venture.models.plan', {}, { refreshOn });
-  const [planFresh, setPlanFresh] = useState<typeof plan.data>(undefined);
-  useEffect(() => { setPlanFresh(undefined); }, [plan.data]);
-  const planData = planFresh ?? plan.data;
-  const [fresh, setFresh] = useState<typeof status.data>(undefined);
-  const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
-  // A new read (a business switch) replaces what an earlier Check again found.
-  useEffect(() => { setFresh(undefined); }, [status.data]);
-
-  const data = fresh ?? status.data;
-  const keysOnly = status.error?.code === 'TIER_UNAVAILABLE';
-  // D4 task 6: a look kept between starts stands in only while the real one runs, so the row reads again until it lands.
+  const checks = useCliChecks();
+  useEffect(() => { if (checks > 0) { status.reload(); plan.reload(); } }, [checks]);
   const holdsKept = status.data?.clis.some(view => view.kept === true) === true;
-  const reloadStatus = status.reload;
   useEffect(() => {
     if (!holdsKept) return;
-    const timer = setTimeout(() => { void reloadStatus(); }, KEPT_LOOK_REREAD_MS);
+    const timer = setTimeout(() => { status.reload(); }, KEPT_LOOK_REREAD_MS);
     return () => clearTimeout(timer);
-  }, [holdsKept, status.data, reloadStatus]);
+  }, [holdsKept, status.data, status.reload]);
+  return { status, plan, check: () => checkAiConnections(client) };
+}
 
-  async function checkAgain() {
-    if (busy) return;
-    setBusy(true);
-    setSaid(null);
-    try {
-      setFresh(await client.request('venture.models.cli.status', { fresh: true }));
-      setSaid({ text: t('connections.cli.checked'), problem: false });
-      checked();
-    } catch (error) {
-      setSaid({ text: t('connections.cli.failed', { message: error instanceof EngineError || error instanceof Error ? error.message : String(error) }), problem: true });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Tile as="section" labelledBy={headingId} className={c.tile}>
-      <TileHead
-        id={headingId}
-        title={t('connections.cli.title')}
-        end={data ? <Button size="sm" disabled={busy} aria-busy={busy || undefined} onClick={() => void checkAgain()}>{t('connections.cli.check')}</Button> : undefined}
-      />
-      {keysOnly && <p className={s.note}>{status.error!.message}</p>}
-      {status.error && !keysOnly && !data && <p className={s.problem} role="alert">{t('connections.cli.failed', { message: status.error.message })}</p>}
-      {!data && !status.error && <p className={s.note}>{t('connections.cli.loading')}</p>}
-      {data && (
-        <>
-          <ul className={c.tools}>
-            {data.clis.map((view) => <Tool key={view.cli} view={view} onChosen={() => void checkAgain()}
-              plan={planData?.tools.find((reading) => reading.cli === view.cli)} onPlan={setPlanFresh} />)}
-          </ul>
-          {/* What this look ran, once for the tile, in the engine's words (it names only the tools it started). */}
-          <p className={`${s.note} ${c.how}`} data-cli-ran="">{connectionWords(t, data.line)}</p>
-        </>
-      )}
-      {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
-    </Tile>
-  );
+/** The page's one explicit check also refreshes native status and any supported plan reading. */
+export async function checkAiConnections(client: EngineClient) {
+  if (client.transport === 'hosted') return;
+  await client.request('venture.models.cli.status', { fresh: true });
+  const plan = await client.request('venture.models.plan', {});
+  if (plan.tools.some(tool => tool.canCheck)) await client.request('venture.models.plan', { fresh: true });
+  cliChecked();
 }
 
 /**
  * One tool: its name and its state at rest, and while it is not ready its one fix (or, with no fix, the engine's line)
  * as the next step. One fold away: the engine's line when the fix stood in for it, and the facts behind them.
  */
-function Tool({ view, onChosen, plan, onPlan }: { view: CliStatusView; onChosen: () => void; plan?: PlanToolLite; onPlan: (next: { tools: PlanToolLite[] }) => void }) {
+export function CliTool({ view, onChosen, plan, actions, children, ran }: { view: CliStatusView; onChosen: () => void; plan?: PlanToolLite | undefined; actions?: ReactNode; children?: ReactNode; ran?: string | undefined }) {
   const t = useT();
   const moment = useMoment('short');
   const client = useEngine();
-  const nameId = useId();
   const [choosing, setChoosing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   // A2 second review: Cancel in main's own dialog is not a problem; it is said calmly.
@@ -146,38 +100,24 @@ function Tool({ view, onChosen, plan, onPlan }: { view: CliStatusView; onChosen:
   }
   const failed = view.state === 'unverified' && view.lastTask?.outcome === 'failed';
   return (
-    <Inner as="li" labelledBy={nameId} className={c.tool}>
-      <div className={c.toolHead}>
-        <span className={s.jobIcon} aria-hidden="true"><Icon name="bot" size={16} /></span>
-        <h3 id={nameId} className={c.name}>{view.label}</h3>
-        <span className={c.chip} data-cli-state={view.state}>
-          {/* A last task that failed is said as that, never as "Not yet tried". */}
-          {failed
-            ? <Chip tone="wait">{t('connections.cli.state.lastFailed')}</Chip>
-            : <Chip tone={STATE_TONE[view.state] ?? 'neutral'}>{t(`connections.cli.state.${view.state}`)}</Chip>}
-        </span>
-      </div>
+    <Row id={`ai-${view.cli}`} title={<span data-ai-name="">{view.label}</span>}
+      aside={<span data-cli-state={view.state}><Chip tone={failed ? 'wait' : STATE_TONE[view.state] ?? 'neutral'}>{t(failed ? 'connections.cli.state.lastFailed' : `connections.cli.state.${view.state}`)}</Chip></span>}
+      actions={setup?.state === 'review' ? <Button size="sm" disabled={choosing} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button> : actions}>
       {atRest !== null && (view.fix || setup
         ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
         : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
       {view.kept === true && view.checkedAt && <p className={s.line} data-cli-kept="">{t('connections.cli.lastChecked', { time: moment(view.checkedAt) })}</p>}
       {view.provider && <ProviderTrouble trouble={view.provider} className={s.line} />}
-      {plan && <PlanMeter plan={plan} onPlan={onPlan} />}
-      {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {note && <p className={s.said} role="status">{note}</p>}
       <Fold summary={t('connections.cli.details')} className={`${s.fold} ${c.more}`}>
         {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}
-        <dl className={c.facts}>
-          {factsOf(view, t).map(([label, value]) => (
-            <div key={label} className={c.fact}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <p className={s.note}>{factsOf(view, t).map(([label, value]) => <span key={label}>{label}: {value}. </span>)}</p>
+        {ran && <p className={s.note} data-cli-ran="">{connectionWords(t, ran)}</p>}
+        {plan && <PlanMeter plan={plan} />}
       </Fold>
-    </Inner>
+      {children}
+    </Row>
   );
 }
 
@@ -185,26 +125,11 @@ function Tool({ view, onChosen, plan, onPlan }: { view: CliStatusView; onChosen:
  * C7: the plan meter for one tool, in the engine's words: each window's use and reset, then where the figures came from
  * and when. A figure never shows without its source; nothing reported says so plainly. Check now asks Codex once.
  */
-function PlanMeter({ plan, onPlan }: { plan: PlanToolLite; onPlan: (next: { tools: PlanToolLite[] }) => void }) {
-  const t = useT();
-  const client = useEngine();
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  async function checkNow() {
-    if (busy) return;
-    setBusy(true); setProblem(null);
-    try { onPlan(await client.request('venture.models.plan', { fresh: true })); }
-    catch (error) { setProblem(t('connections.cli.plan.failed', { message: error instanceof Error ? error.message : String(error) })); }
-    finally { setBusy(false); }
-  }
-  return (
-    <div className={c.plan} data-plan={plan.state}>
-      {plan.windows.map((window) => <p key={window.kind} className={s.line} data-plan-window={window.kind}>{window.line}</p>)}
-      <p className={s.note} data-plan-source="">{plan.source}</p>
-      {plan.canCheck && <Button size="sm" disabled={busy} aria-busy={busy || undefined} onClick={() => void checkNow()}>{t('connections.cli.plan.check')}</Button>}
-      {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </div>
-  );
+function PlanMeter({ plan }: { plan: PlanToolLite }) {
+  return <div className={c.plan} data-plan={plan.state}>
+    {plan.windows.map(window => <p key={window.kind} className={s.line} data-plan-window={window.kind}>{window.line}</p>)}
+    <p className={s.note} data-plan-source="">{plan.source}</p>
+  </div>;
 }
 
 /** What was found, in the UI's words for the engine's codes. A tool that was not found has nothing more to say. */
