@@ -1,0 +1,15 @@
+{
+  "compliance.title": "नौकरी और नियम",
+  "compliance.loading": "लोड हो रहा है",
+  "compliance.failed": "यह लोड या सेव नहीं हो पाया: {message}",
+  "compliance.answer.allowed": "हाँ, यह साइड वर्क की अनुमति देता है",
+  "compliance.answer.not-allowed": "नहीं, यह अनुमति नहीं देता",
+  "compliance.answer.not-sure": "मुझे पक्का नहीं पता",
+  "compliance.rules": "आपके पेशे के नियम",
+  "compliance.unchecked": "अभी आधिकारिक पेज से मिलाया नहीं गया",
+  "compliance.source": "आधिकारिक पाठ, {day} को जाँचा",
+  "compliance.off": "आपके नियामक ने बंद किया है",
+  "compliance.stops": "कभी अनुमति नहीं",
+  "compliance.continue": "आगे बढ़ें",
+  "compliance.answerFirst": "पहले सवाल का जवाब दें।"
+}

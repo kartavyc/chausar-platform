@@ -1,0 +1,32 @@
+{
+  "web-people.fixture": "अभी असली पर आज़माया नहीं",
+  "web-people.search.title": "वेब खोज और पढ़ना",
+  "web-people.search.saved": "आपकी {name} चाबी, आख़िर में {hint}।",
+  "web-people.search.remove": "चाबी हटाएँ",
+  "web-people.search.add": "खोज की चाबी जोड़ें",
+  "web-people.search.provider": "खोज की सेवा",
+  "web-people.search.key": "API चाबी",
+  "web-people.search.keyHint": "इस कंप्यूटर के सुरक्षित भंडार में रखी जाती है, आपकी बिज़नेस फ़ाइल में कभी नहीं।",
+  "web-people.search.agree": "मंज़ूर करके सेव करें",
+  "web-people.search.cancel": "रद्द करें",
+  "web-people.read.url": "एक पेज पढ़ें",
+  "web-people.read.urlHint": "एक सार्वजनिक पेज। Chausar पहले robots.txt पूछता है और LinkedIn कभी नहीं खोलता।",
+  "web-people.read.go": "पढ़ें",
+  "web-people.read.more": "यहाँ सिर्फ़ शुरुआत दिखती है।",
+  "web-people.people.title": "लोगों की खोज",
+  "web-people.people.saved": "चाबी, आख़िर में {hint}।",
+  "web-people.people.key": "{name} API चाबी",
+  "web-people.people.save": "चाबी सेव करें",
+  "web-people.people.remove": "चाबी हटाएँ",
+  "web-people.people.meanwhile": "तब तक: {text}",
+  "web-people.lookup.service": "किससे देखें",
+  "web-people.lookup.query": "नाम या कंपनी",
+  "web-people.lookup.queryHint": "शब्द या CIN लिखें, LinkedIn लिंक कभी नहीं।",
+  "web-people.lookup.show": "ठीक-ठीक खोज दिखाएँ",
+  "web-people.lookup.approve": "मंज़ूर करके देखें",
+  "web-people.lookup.again": "फिर देखें",
+  "web-people.lookup.mutuals": {
+    "one": "{count} साझा मित्र",
+    "other": "{count} साझा मित्र"
+  }
+}

@@ -344,3 +344,8 @@
 .compact > .acts > button {
   min-width: fit-content;
 }
+
+/* Hindi words run longer: the chip may take two lines rather than push the name off the card. */
+.kind:lang(hi) {
+  white-space: normal;
+}

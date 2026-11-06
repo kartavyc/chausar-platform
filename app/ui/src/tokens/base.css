@@ -65,6 +65,14 @@ time {
   font-variant-numeric: tabular-nums;
 }
 
+/* A Hindi count mixes digits and words ("5 में से 3"); in DM Mono it reads loosely spaced, so it takes the body face,
+   digits still in columns. */
+:lang(hi) [data-count] {
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
+
 /* Words a screen reader says that the eye does not need. */
 .sr-only {
   position: absolute;
