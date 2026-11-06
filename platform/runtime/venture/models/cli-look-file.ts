@@ -32,6 +32,7 @@ export function cliLookFile(path: string): CliLookPort {
   return {
     async read() {
       try {
+        if ((await stat(path)).size > MAX_BYTES) return null;
         const text = await readFile(path, 'utf8');
         if (text.length > MAX_BYTES) return null;
         const raw = JSON.parse(text) as unknown;
@@ -44,7 +45,7 @@ export function cliLookFile(path: string): CliLookPort {
       if (newerVersion(await readLocalJson(path), 1)) { await noteNewerOnce(dirname(path), CLI_LOOKS_FILE, 'cli-looks'); return; }
       await mkdir(dirname(path), { recursive: true });
       const temporary = `${path}.${randomBytes(6).toString('hex')}.tmp`;
-      await writeFile(temporary, JSON.stringify({ version: 1, looks }), { encoding: 'utf8', mode: 0o600 });
+      await writeFile(temporary, JSON.stringify({ version: 1, looks: Object.fromEntries(Object.entries(looks).map(([cli, look]) => [cli, { ...look, finding: { ...look.finding, signedIn: 'unknown' } }])) }), { encoding: 'utf8', mode: 0o600 });
       await rename(temporary, path);
     },
   };
@@ -60,7 +61,7 @@ export async function programStamp(path: string): Promise<{ size: number; mtimeM
 
 /** Only a real look at a tool that answered is kept: never a located-only, replayed or unstarted one. */
 export function keepable(finding: CliFinding): boolean {
-  return finding.found && finding.answered && !finding.replay && typeof finding.path === 'string';
+  return finding.found && finding.answered && !finding.replay && finding.via !== 'npm-shim' && typeof finding.path === 'string';
 }
 
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);

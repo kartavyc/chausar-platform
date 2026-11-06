@@ -20,7 +20,7 @@ import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import * as modelsPackage from '../runtime/venture/models/index.ts';
 import { PRESETS, createModelPort, handlers } from '../runtime/venture/models/index.ts';
 import { cliRouteFlags } from '../runtime/venture/models/cli.ts';
-import { CLI_LOOKS_FILE, KEPT_LOOK_MAX_AGE_MS, cliLookFile, cliLookPath, readKeptLooks, type CliLookPort, type KeptLooks } from '../runtime/venture/models/cli-look-file.ts';
+import { CLI_LOOKS_FILE, KEPT_LOOK_MAX_AGE_MS, cliLookFile, cliLookPath, readKeptLooks, keepable, type CliLookPort, type KeptLooks } from '../runtime/venture/models/cli-look-file.ts';
 import { VentureHost, type VenturePackageModule } from '../runtime/venture/host.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -367,4 +367,18 @@ test('the status view carries kept and checkedAt only from a kept finding', asyn
   const kept = cliStatusView({ ...finding, kept: true }, { claudeTerms: undefined, lastTask: null });
   assert.equal(kept.kept, true); assert.equal(kept.checkedAt, '2026-11-06T08:00:00.000Z');
   assert.equal(kept.signedIn, 'unknown');
+});
+
+
+test('cleanup: an npm shim is never kept because the shim stamp cannot detect a changed target', () => {
+  assert.equal(keepable({ found: true, answered: true, replay: false, path: 'synthetic.cmd', via: 'npm-shim' } as CliFinding), false);
+});
+
+test('cleanup: the cache never writes a sign-in verdict', async () => {
+  const host = computer(), file = cliLookFile(host.file);
+  const finding = { cli: 'codex', found: true, answered: true, replay: false, path: host.codex, signedIn: 'yes' } as CliFinding;
+  await file.write({ codex: { command: host.codex, size: 10, mtimeMs: 0, finding } });
+  const saved = JSON.parse(readFileSync(host.file, 'utf8'));
+  assert.equal(saved.looks.codex.finding.signedIn, 'unknown');
+  assert.equal(finding.signedIn, 'yes', 'the live answer remains unchanged');
 });
