@@ -342,8 +342,9 @@ describe('Team v2: with departments from the engine', () => {
   it('shows the toggle and one tinted panel per department the engine lists, an empty one with its way forward', async () => {
     start('#/team', { intercept: withDepartments });
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
-    expect(within(toggle).getByRole('button', { name: 'All departments' }).getAttribute('aria-pressed')).toBe('true');
+    // C1 task 2: the row carries its counts at every width.
+    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
+    expect(within(toggle).getByRole('button', { name: /^All departments/ }).getAttribute('aria-pressed')).toBe('true');
     const panels = within(main()).getAllByRole('article').filter((a) => a.hasAttribute('data-dept'));
     expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod', 'money', 'ops']);
     const marketing = within(main()).getByRole('article', { name: 'Marketing' });
@@ -360,13 +361,13 @@ describe('Team v2: with departments from the engine', () => {
   it('the toggle shows one department at a time, held in the address', async () => {
     start('#/team', { intercept: withDepartments });
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    await click(within(toggle).getByRole('button', { name: 'Production' }));
+    await click(within(toggle).getByRole('button', { name: /^Production/ }));
     expect(window.location.hash).toBe('#/team?dept=prod');
-    expect(within(toggle).getByRole('button', { name: 'Production' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(toggle).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
     const hero = await within(main()).findByRole('region', { name: 'Production' });
     expect(hero.getAttribute('data-dept')).toBe('prod');
     expect(within(main()).queryByRole('article', { name: 'Marketing' })).toBeNull();
-    await click(within(toggle).getByRole('button', { name: 'All departments' }));
+    await click(within(toggle).getByRole('button', { name: /^All departments/ }));
     expect(window.location.hash).toBe('#/team');
   });
 

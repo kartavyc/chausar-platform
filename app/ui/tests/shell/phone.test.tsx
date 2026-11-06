@@ -80,7 +80,7 @@ describe('the phone frame', () => {
     expect(screen.queryByRole('button', { name: /account/i })).toBeNull();
     // One navigation named Places: the bottom tabs, after the page.
     expect(screen.getAllByRole('navigation', { name: 'Places' })).toHaveLength(1);
-    expect(within(tabs()).queryByRole('link', { name: 'Money' })).toBeNull();
+    expect(within(tabs()).queryByRole('link', { name: 'Team' })).toBeNull();
     expect(appRoot(container).hasAttribute('data-phone')).toBe(true);
     const main = screen.getByRole('main');
     expect(main.compareDocumentPosition(tabs()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -142,7 +142,7 @@ describe('the phone frame', () => {
     start('#/connections?sheet=more:places');
     const sheet = await screen.findByRole('complementary', { name: 'More' });
     expect(within(sheet).getByRole('link', { name: 'Connections' }).getAttribute('aria-current')).toBe('page');
-    expect(within(sheet).getByRole('link', { name: 'Money' }).hasAttribute('aria-current')).toBe(false);
+    expect(within(sheet).getByRole('link', { name: 'Clients' }).hasAttribute('aria-current')).toBe(false);
     await act(async () => { fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' }); });
     await hashChanged();
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'More' })).toBeNull());

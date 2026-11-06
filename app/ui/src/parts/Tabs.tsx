@@ -104,7 +104,7 @@ export function Tabs(props: TabsProps) {
     if (!measuring || !row.current) return;
     const widths = items.map((item) => row.current?.querySelector<HTMLElement>(`[data-tab-item="${CSS.escape(item.id)}"]`)?.offsetWidth ?? 0);
     const holder = row.current.querySelector<HTMLElement>('[data-tabs-more]');
-    const gap = Number.parseFloat(getComputedStyle(row.current).columnGap) || 0;
+    const gap = Number(getComputedStyle(row.current).columnGap.replace('px', '')) || 0;
     setSizes({ key, widths, more: holder?.offsetWidth ?? 0, gap });
     setRoom(row.current.clientWidth);
   });

@@ -496,7 +496,7 @@ describe('Tabs (moved from Segmented, C1 task 2)', () => {
       expect(dot.className).toBe(reference.className);
     }
     for (const file of ['Tabs.module.css', 'FilterChips.module.css']) expect(cssOf(file)).not.toMatch(/data-dept/);
-    for (const dept of DEPT_IDS) expect(rule('Chip.module.css', `.deptDot[data-dept='${dept}']`)).toMatch(new RegExp(`background:\s*var\(--${dept}\)`));
+    for (const dept of DEPT_IDS) expect(rule('Chip.module.css', `.deptDot[data-dept='${dept}']`)).toMatch(new RegExp(`background:\\s*var\\(--${dept}\\)`));
   });
 
   it('departmentChoices is "All departments" then the five departments in order, each with its dot', () => {
