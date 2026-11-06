@@ -1,8 +1,12 @@
+import type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
+export type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
+import type { AcrossLineKey, AcrossRunsView, AgentHealthStatus, AgentNoteChange, AgentNoteLoad, AgentNoteScope, AgentNotesView, AgentSendResult, AgentSuggestion, AgentThreadItem, AgingBucketId, AutoReadinessView, BankApplyResult, BankLedgerView, BankRowClass, BooksPeriodKey, BoundaryView, BuildStatusWord, CaLatestPapers, CaPendingRate, CapabilityItemView, CapabilityPageView, ChatPart, ChiefSendResult, ChiefSettleResult, ChiefSnoozePreset, ChiefThreadState, ChiefThreadStateResult, ChiefThreadView, ConnectorLadder, ConnectorModeName, CurrencyLead, DecisionOpens, DeliveredView, Display, DraftChangesView, EvidenceItem, FigureKind, FigureSource, InboundTriage, InterviewAnswer, JournalChainView, JournalEntry, KeeperJobId, KeeperView, KnowledgeSourceInput, LawfulBasis, LimitReachedView, LineLabel, ModelAvailability, ModelReceiptView, ModelTier, MoneyOverviewLine, NetworkImportResult, NetworkSearchView, OrderStageId, OrderStageReason, OrderWaitsOnYou, OutreachChannel, OutreachHandoff, OutreachLane, OutreachLanguage, OutreachSentChannel, PaymentMethod, PipelineSettingsView, PostingStepId, Posture, PreviewReceiptKind, PricingModel, ProposalStatus, QueueAction, QueueActionId, QueueAmount, QueueChange, QueueDecision, QueueKind, QueueList, QueueSendsTo, RateCardLine, RecipeView, RetireCheckView, RoutineRunState, RunControlResult, RunScopeView, RunState, RunStep, SearchWebState, ShadowSummaryView, SiteEditState, SocialCalendarFile, SpendLead, SpendMeterRowView, SpendMetersView, SpendRateUnit, SpendRow, StandingOrdersView, StandingUndoView, TaxWorkingLine, TaxWorkingSection, TelegramView, TranscriptionSetupView, TriageField, TriagePreview, VentureRunEventType, WayCategory, WriteCapKind, WriteCapView } from './contract.gen';
+export type { AcrossLineKey, AcrossRunsView, AgentHealthStatus, AgentNoteChange, AgentNoteLoad, AgentNoteScope, AgentNotesView, AgentSendResult, AgentSuggestion, AgentThreadItem, AgingBucketId, AutoReadinessView, BankApplyResult, BankLedgerView, BankRowClass, BooksPeriodKey, BoundaryView, BuildStatusWord, CaLatestPapers, CaPendingRate, CapabilityItemView, CapabilityPageView, ChatPart, ChiefSendResult, ChiefSettleResult, ChiefSnoozePreset, ChiefThreadState, ChiefThreadStateResult, ChiefThreadView, ConnectorLadder, ConnectorModeName, CurrencyLead, DecisionOpens, DeliveredView, Display, DraftChangesView, EvidenceItem, FigureKind, FigureSource, InboundTriage, InterviewAnswer, JournalChainView, JournalEntry, KeeperJobId, KeeperView, KnowledgeSourceInput, LawfulBasis, LimitReachedView, LineLabel, ModelAvailability, ModelReceiptView, ModelTier, MoneyOverviewLine, NetworkImportResult, NetworkSearchView, OrderStageId, OrderStageReason, OrderWaitsOnYou, OutreachChannel, OutreachHandoff, OutreachLane, OutreachLanguage, OutreachSentChannel, PaymentMethod, PipelineSettingsView, PostingStepId, Posture, PreviewReceiptKind, PricingModel, ProposalStatus, QueueAction, QueueActionId, QueueAmount, QueueChange, QueueDecision, QueueKind, QueueList, QueueSendsTo, RateCardLine, RecipeView, RetireCheckView, RoutineRunState, RunControlResult, RunScopeView, RunState, RunStep, SearchWebState, ShadowSummaryView, SiteEditState, SocialCalendarFile, SpendLead, SpendMeterRowView, SpendMetersView, SpendRateUnit, SpendRow, StandingOrdersView, StandingUndoView, TaxWorkingLine, TaxWorkingSection, TelegramView, TranscriptionSetupView, TriageField, TriagePreview, VentureRunEventType, WayCategory, WriteCapKind, WriteCapView } from './contract.gen';
 import type { RendererMethod } from './methods.gen';
 /**
  * The engine contract the UI builds to. The first block is the shared contract from
  * chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md ("Shared contract"), verbatim; the engine side lives in
- * platform/runtime/venture/contracts.ts. The UI does not import runtime files: those pull in Node code.
+ * platform/runtime/venture/contracts.ts. The UI imports engine types from the generated contract and pure helpers.
  * The second block mirrors the few existing engine shapes the shell and the fake engine need, trimmed to the
  * fields the UI reads.
  */
@@ -11,50 +15,12 @@ import type { RendererMethod } from './methods.gen';
 // Shared contract (verbatim)
 // ---------------------------------------------------------------------------------------------------------------
 
-export type Display = string; // engine-formatted text; the UI never computes it
-export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
-  | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file'; // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
-export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
-export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean; ownerEntered?: true }
-export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector' | 'bank'
-  // W4 4C2: a step Chausar proposed in Chats, raised to Today by the owner (chief/rows.ts).
-  | 'proposal'
-  // W4 4E4: a follow-up due by date (network/followup-rows.ts), a reply that waits on the owner (network/inbound-rows.ts),
-  // and a notice (the "Add notes" after a call there; 4G2's needs-you probes, views/probes.ts).
-  | 'followup' | 'reply' | 'notice';
-export interface QueueRow {
-  id: string; businessId: string; businessName: string; agent?: string; kind: QueueKind;
-  title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
-  actions: QueueAction[]; // one or two; exactly one primary
-  viewRef?: { kind: 'draft' | 'file' | 'run' | 'plan'; id: string };
-  /** Only on rows that propose an outside action (W1 H21): false when part of what it will send is not shown. */
-  descriptionComplete?: boolean;
-  // Ink v2 wave 4 (4J1 meta, 4J3 previews): each absent until the engine has something real to say.
-  meta?: QueueRowMeta;
-  sendsTo?: QueueSendsTo;
-  attempt?: { n: number; lastError: Display | null };
-  counts?: QueueCount[];
-  price?: { display: Display; receiptId: string; line: Display; free?: Display };
-  changeCount?: { line: Display; details: Display[]; coverage: Display };
-  preview?: QueuePreview;
-  /** 4J1: each amount the line, change, price or change details state, exactly as written there, with its proof. */
-  amounts?: QueueAmount[];
-  /** 4E1: a follow-up row's parts, for the screen's own words. */
-  followup?: { cardId: string; name: string; company: string | null; due: string; daysLate: number; channel: 'email' | 'linkedin' | 'whatsapp' | null; draftId: string | null };
-  /** 4E3: a reply row's parts (and a meeting-notes notice's): why it waits, who, the card, the topics, and for a handoff the address and subject. */
-  reply?: {
-    inboundId: string | null; reason: 'confirm' | 'talking' | 'owner-reply' | 'bot-question' | 'meeting-notes' | 'opt-out' | 'bounce-domain';
-    name: string; company: string | null; opportunityId: string | null; eventId: string | null; topics: ('price' | 'contract' | 'meeting' | 'buying')[];
-    from: string | null; subject: string | null; draft: string | null;
-  };
-  /** 4E3: what Approve needs as its answer: the day, for a next step drafted from notes that wrote none. */
-  needs?: { answer: 'day'; line: Display };
-  /**
-   * 4G2: a needs-you probe's notice: which probe, how much it matters, the screen Open goes to (an address such as
-   * #/connections), and each amount its line states, exactly as written there, with its receipt, in order.
-   */
-  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill' | 'ca-pack' | 'readable-copy'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[]; file?: string };
-}
+ // engine-formatted text; the UI never computes it
+ // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
+
+
+
+
 /**
  * The row kinds Ink v2 wave 4 adds on the engine (4C1 proposal, 4E1 followup, 4E3 reply, 4G2 notice). W3's states.ts
  * keys a Record on QueueKind, so the U package that first shows a kind folds it into QueueKind together with its words
@@ -62,17 +28,16 @@ export interface QueueRow {
  */
 export type QueueKindW4 = 'proposal' | 'followup' | 'reply' | 'notice';
 /** 4J1: where an approved row's action goes. */
-export type QueueSendsTo = 'client' | 'public' | 'bank' | 'portal';
+
 /** 4J1: client, business and time; expiresAt only from a real expiry; waitingLong after a day; staleDraft after 14 days. */
-export interface QueueRowMeta { client: string | null; business: string; at: string; expiresAt?: string; waitingLong?: Display; staleDraft?: Display; quoteFixes?: Display[] }
-export interface QueueCount { label: Display; count: number; limit: number }
+
+
 /**
  * 4J1: one amount a row states, each occurrence its own: text is field.slice(start, start + length) in its field (the
  * line, change.before, change.after, the price, or changeCount.details[index]), in UTF-16 code units. Its proof is a
  * receipt (venture.receipt.get) or the model-estimate label, never both. Wrap exactly that span in a Figure.
  */
-export type QueueAmount = { text: Display; where: 'line' | 'change.before' | 'change.after' | 'price' | 'details'; index?: number; start: number; length: number }
-  & ({ receiptId: string; estimate?: never } | { estimate: true; receiptId?: never });
+
 /**
  * 4J3: what a card shows before it is opened, from the owner's own records only (engine views/previews.ts). A field
  * without its source is left out; a preview never carries a made-up image, and drawing one never counts as viewed.
@@ -80,40 +45,22 @@ export type QueueAmount = { text: Display; where: 'line' | 'change.before' | 'ch
  * when estimate is set. video.poster.src is a small JPEG data address from the cut; paper 'invoice' has no tax lines
  * for a business not registered for tax; a choice's estimate is only ever a model estimate.
  */
-export type QueuePreview =
-  | { kind: 'video'; title: PreviewWords; format: 'long' | 'short'; duration?: PreviewLength; chapters?: number; checks: { passed: number; run: number; notRun: number }; poster?: { uploadId: string; src: string } }
-  | { kind: 'paper'; paper: 'invoice'; title: Display; from: Display; to: Display; lines: (PreviewFigure & { quantity: string; unit: Display })[]; subtotal: PreviewFigure; discount?: PreviewFigure; taxLines: PreviewFigure[]; total: PreviewFigure; due?: { days: number; date: string | null; display: Display } }
-  | { kind: 'paper'; paper: 'working'; title: Display; client: Display | null; working: PreviewFigure[]; more: number; signer: { name: Display; state: 'to-send' | 'with-ca' } | null }
-  | { kind: 'post'; connectorId: string; platform: Display; account: Display | null; mode: 'api' | 'owner-browser-session'; text: string; textEstimate?: true; counts: QueueCount[]; short?: { title: PreviewWords; length?: PreviewLength } }
-  | { kind: 'choice'; question: PreviewWords; options: { label: Display; text: PreviewWords; estimate?: { label: Display; value: Display }; gains?: Display; costs?: Display; recommended?: boolean }[]; card?: QuestionCard };
+
 /**
  * 4J3: an engine-formatted amount and the receipt it comes from. receiptKind names the method that opens it: price and
  * sum through venture.receipt.get, ca through venture.ca.receipt, work through venture.work.get. A post's textEstimate:
  * a model wrote it and it holds a number or an amount with no receipt; its text stays exact.
  */
-export interface PreviewFigure { label: Display; value: Display; receiptId: string; receiptKind: PreviewReceiptKind }
-export type PreviewReceiptKind = 'price' | 'sum' | 'ca' | 'work';
+
+
 /** 4J3: words a preview shows; estimate: a model wrote a number in them that no receipt backs. */
-export interface PreviewWords { text: Display; estimate?: true }
+
 /** 4J3: a length worked out by code: whole seconds, "11 min 42 s", "11:42", and what it was measured from. */
-export interface PreviewLength { seconds: number; display: Display; clock: Display; from: 'edit-list' | 'transcript' }
-export interface QueueList { rows: QueueRow[]; summary: Display; needsYou: number; businesses: number }
-export interface QueueDecision {
-  outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string;
-  /** B4 task 7: a done decision venture.queue.undo can take back (one price accepted on one press). */
-  undoable?: true;
-}
-export type RunState = 'active' | 'waiting' | 'done' | 'failed';
-export interface RunStep {
-  id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;
-  /** C5 task 4: this step's working time, and the wait for the owner just before it. */
-  working?: Display; waiting?: Display;
-  tools?: RunToolLine[]; evidence?: { kind: string; id: string; label: string }[]; error?: string; audited?: boolean;
-  /** 4J14 (Q6): on the read step, how much of the client's files code handed over (venture.runs.get only). */
-  coverage?: CoverageView;
-  /** 4J14 (Q6): on the check step, the checks that could not run: id (playbook:check) and the engine line. */
-  notRun?: { id: string; line: Display }[];
-}
+
+
+
+
+
 /** 4J14 (Q6): coverage, fraction first. done and total counted by code; null where nothing observed them, never 0. */
 export interface CoverageView {
   done: number | null; total: number | null; unit: 'rows' | 'lines' | 'pages' | 'items' | 'bank-lines'; verb: 'read' | 'matched' | 'used';
@@ -199,11 +146,11 @@ export interface RunDetail extends RunSummary {
  * that changed while it went on, labelled by changedLine ("Changed during this run, not proven to be the agent's.").
  * source is a code the screen words for itself.
  */
-export interface DeliveredView { line: Display; files: DeliveredFile[]; changed: DeliveredFile[]; changedLine: Display | null }
+
 export interface DeliveredFile { id: string; name: Display; digest: string; at: string; source: 'table' | 'delegate' | 'order-file' | 'transcript' | 'poster'; line: Display }
 /** 4F1. A run's scope: tools and outside actions in purpose words, the spend cap and the posture. */
-export interface RunScopeView { tools: Display[]; actions: Display[]; cap: Display; posture: Posture; line: Display; /** 4F3: the cap's receipt. */ capReceiptId: string; /** 4F3: the cap in rupees at the owner's rate, and the rate. */ capRupees?: Display; capRate?: Display }
-export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
+
+
 export interface AgentView {
   /** C7: an agent the owner hired: the day, its duties and what it reads. */
   hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
@@ -220,9 +167,7 @@ export interface AgentView {
   postureSetBy?: 'business' | 'agent';
   chat?: boolean;
 }
-export type VentureRunEventType = 'run.started' | 'run.step' | 'run.waiting' | 'run.done' | 'run.failed' | 'queue.changed'
-  | 'agent.message' | 'chief.message' | 'proposal.created' | 'notify.new' | 'pipeline.changed' | 'run.stopped' | 'run.call' | 'keeper.ran'
-  | 'chain.changed' | 'desk.changed' | 'idea.changed' | 'privacy.forgotten';
+
 /** seq: the event's place in the business's log, for replay after a reconnect (4G1); count: on notify.new only. */
 export interface VentureRunEvent {
   type: VentureRunEventType | 'work.step'; businessId: string; runId?: string; at: string; seq?: number; count?: number;
@@ -241,31 +186,24 @@ export interface WorkJobLite { workId: string; kind: WorkKindLite; startedAt: st
  * `by`: who answered a model call, in words ('Claude Sonnet 5.5', or 'not reported'); absent for other spend and
  * before the call answered.
  */
-export interface SpendRow {
-  id: string; agent?: string; connector?: string; label: string; reserved: Display; settled?: Display; kind: 'estimate' | 'billed' | 'refused'; receiptId?: string; reason?: Display;
-  reservedRupees?: Display; settledRupees?: Display; by?: Display;
-  /** 4Z3: the reserved and settled figures as the owner's currency leads them. */
-  reservedLead?: SpendLead; settledLead?: SpendLead;
-  /** 4F2 (M6, M7): how the cost is known, the price it was worked at with its date, and who pays. Chausar charges nothing. */
-  basis?: Display; priced?: Display; payer?: Display;
-}
+
 /**
  * 4Z3 (founder, 27 Oct): which currency leads spend, as the owner chose it. 'auto': rupees lead for a business in India
  * once a rupee rate is set; 'inr': rupees first whenever a rate is set; 'usd': dollars first. Without a rate, dollars lead.
  */
-export type CurrencyLead = 'auto' | 'inr' | 'usd';
+
 /**
  * 4Z3: a spend figure as the owner's currency leads it, from the engine (money/spend.ts spendLead): `figure` the lead
  * amount with the engine's words after it, never more than two decimals of dollars; `beside` the other currency at the
  * owner's rate, shown small beneath it; `other` that amount alone, for a page that says the rate once. The UI computes
  * nothing: it shows `figure` where the spend figure goes and `beside` beneath it.
  */
-export interface SpendLead { currency: 'INR' | 'USD'; figure: Display; beside?: Display; other?: Display }
+
 /**
  * venture.spend.policy.get/set. The Usd fields are figures in US dollars as the owner types them ('20.00', '0.000075');
  * the form shows those and sends what the owner typed, and the engine converts. The UI shows the Display fields.
  */
-export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
+
 export interface SpendRateLine {
   model?: string;
   item: string; unit: SpendRateUnit; inputMicrosPerMillion: string | null; outputMicrosPerMillion: string | null; microsPerCall: string | null;
@@ -309,41 +247,26 @@ export interface SpendMeterView {
   projection?: { line: Display; label: Display; runIds: string[]; left: Display; leftRupees?: Display };
 }
 /** 4F2 (M3): what the owner can do once the monthly limit is reached. Never credits. */
-export interface LimitReachedView { scope: 'business' | 'key'; presetId?: string; line: Display; options: { id: 'raise' | 'connect' | 'wait'; label: Display }[] }
+
 /** 4F2 (M5): one agent's own monthly limit; past it only that agent is paused. */
 /**
  * W6 6G5 (D44), as platform/runtime/venture/contracts.ts: one agent's or routine's spend this month with its sum
  * receipt; plan, runs on the owner's plan (never priced, never rupees); media, Sunra quotes beside it, not capped; the
  * owner's cap, usedPermille and paused; line, where it stands in the engine's words.
  */
-export interface SpendMeterRowView {
-  scope: 'agent' | 'routine'; id: string; name: Display;
-  used: Display; usedLead: SpendLead; receiptId: string;
-  plan: Display | null; media?: Display;
-  cap: Display | null; capUsd: string | null; capRupees?: Display; usedPermille: number | null; paused: boolean; line: Display;
-}
-export interface SpendMetersView { month: string; agents: SpendMeterRowView[]; routines: SpendMeterRowView[] }
+
+
 /** W6 6G5 (D44): what one run used: tool, model, tier, tokens, cost ('On your plan' with no figure on a plan). */
-export interface ModelReceiptView {
-  tool: Display; model: Display; tier: Display; usage: Display; cost: Display;
-  state: 'plan' | 'priced' | 'estimate' | 'unknown' | 'none';
-  receiptId?: string; costLead?: SpendLead; agent?: Display; line: Display;
-}
+
 export interface AgentCapView { agent: string; name: Display; capMicros: string; capUsd: string; cap: Display; used: Display; paused: boolean; capRupees?: Display; usedRupees?: Display }
 /** 4F2 (H32): one daily write cap: today's cap, what agents made today, in words. */
-export interface WriteCapView { kind: WriteCapKind; configuredCap: number; cap: number; used: number; raised: boolean; line: Display }
+
 /** 4F2 (M6): one price on the rate card: the owner's checked rate, or Chausar's list price with its checked date. */
-export interface RateCardLine { item: string; label: Display; state: 'confirmed' | 'list'; price: Display; checked: Display; source: string; unconfirmed?: boolean }
+
 /** allowedBy (4J1): a step a saved rule let run without asking; Stop always allowing is venture.team.gate { agentId, stepId, gate: 'hold' }. */
-export interface JournalEntry {
-  id: string; action: string; target: string; state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; at: string; line: Display; receiptId?: string;
-  allowedBy?: { rule: 'auto' | 'session'; agentId: string; stepId: string; ruleId: string | null };
-  /** 4J10 (H27): how far it went after applied, and how each target ended. */
-  endState?: 'accepted' | 'processed' | 'shown' | 'result' | 'verified';
-  targets?: { id: string; outcome: 'applied' | 'rejected' | 'partial' | 'unknown' | 'throttled'; line: Display }[];
-}
+
 /** `dismissed`: the owner said no to this suggestion (venture.evidence.dismiss); it stays in the ledger, off the screen. */
-export interface EvidenceItem { id: string; subject: string; field: string; value: Display; type: string; strength: 'verified' | 'strong' | 'weak'; claim: 'observed' | 'inferred' | 'needs-your-data'; source: string; applied: boolean; dismissed?: boolean }
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ink final pass: the views and actions the engine added for the last screens (engine-final, 21 Oct). Every figure is
@@ -353,27 +276,20 @@ export interface EvidenceItem { id: string; subject: string; field: string; valu
 /** `venture.money.overview`: Money at a glance, three lines the engine adds up (owed, received, spent). */
 /** `rupees`: the AI spend line in rupees at the owner's own rate, with that rate; absent without one. */
 /** kind, source, uses, basis (4J4): how the line's figure was made. */
-export interface MoneyOverviewLine {
-  id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display;
-  /** 4Z3: the AI spend line as the owner's currency leads it (the 'spent' line). */
-  lead?: SpendLead;
-  /** C4 (T23): a business billing in rupees with no rupee rate set. */
-  needsRate?: boolean;
-  kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
-}
+
 export interface MoneyOverview { lines: MoneyOverviewLine[]; /** One-shot C6: this month's invoices all paid. */ paidInFull?: { line: Display; receiptId: string } | null }
 
 /** `venture.tax.working`: the tax working for a period, worked by the calculator, each figure with its receipt. */
-export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
-export interface TaxWorkingSection { id: string; title: Display; lines: TaxWorkingLine[]; note?: Display }
+
+
 export interface TaxWorking { period: Display; sections: TaxWorkingSection[]; needsCaConfirmation: boolean }
 
 /** `venture.ca.get` (the CA firm playbook): the CA of record, rate tables waiting for the CA, and sign-off requests. */
 export interface CaOfRecord { name: string; membershipNo: string }
-export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
+
 export interface CaSignoffRequest { signoffId?: string | null; id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
 /** The newest regulated draft with the calculator's receipts (Ink v2 2A2); Your CA works each receipt again. */
-export interface CaLatestPapers { deliveryId: string; title: Display; receiptIds: string[] }
+
 export interface CaView { citations?: CaCitationsView; ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
 
 /** Leads (platform/runtime/venture/contracts.ts LeadView): agents draft, the owner sends from his own mailbox. */
@@ -402,7 +318,7 @@ export interface BankConsentView {
 }
 
 /** A staged website edit (contracts.ts SiteEditRecord), trimmed. Apply and revert send planDigest as the reviewed hash. */
-export type SiteEditState = 'staged' | 'applying' | 'applied' | 'rolled-back' | 'rejected' | 'needs-inspection';
+
 export interface SiteEditLite {
   id: string; at: string; target: { kind: 'local-folder' | 'github'; identity: string }; path: string; summary: string;
   before: string; after: string; beforeDigest: string; afterDigest: string; planDigest: string; state: SiteEditState;
@@ -491,13 +407,8 @@ export interface WorkReceiptLite {
  * 4J1: the receipt behind a figure a Today row states (`fig:<kind>:...` ids), worked out again from its record on each
  * read. A ReceiptLite too, so the receipt sheet shows it as it is. Each figure's amount is in its own unit.
  */
-export interface RowFigure { key: string; label: string; amount: string; unit: 'micros' | 'minor' | 'rate'; currency: string; display: Display }
-export interface RowFigureReceipt {
-  id: string; kind: 'row-figure'; ventureId: string; at: string; operation: 'venture.row-figure';
-  // 4F3: 'scope-cap', a run's spend cap as its scope froze it when it started.
-  subject: { type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap' | 'go-no-go'; recordId: string };
-  figures: RowFigure[]; allowedNumbers: string[]; explanation: Display; digest: string; stale: boolean;
-}
+
+
 
 /** `venture.books.summary` (BooksSummary), trimmed. */
 export interface BooksFigureLite { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; display: Display; stale: boolean; zero?: true }
@@ -514,7 +425,7 @@ export interface BooksSummaryLite {
   month?: string;
   previous?: { month: string; label: Display; period: { from: string; to: string }; figures: BooksFigureLite[] } | null;
 }
-export type BooksPeriodKey = 'all' | 'this-month' | 'last-month' | 'this-year';
+
 
 /**
  * `venture.connectors.list` (ConnectorCard). Posting is spec section 7.9 (P2-connectors): `postingOptions` holds every
@@ -522,7 +433,7 @@ export type BooksPeriodKey = 'all' | 'this-month' | 'last-month' | 'this-year';
  * a planned one is planned; `posting` is the first available one, else the owner-browser-session one. Both are absent or
  * empty for a connector that does not post. The UI shows them as the engine says, word for word.
  */
-export type ConnectorModeName = 'handoff' | 'read' | 'write';
+
 export type PostingMode = 'api' | 'owner-browser-session' | 'handoff';
 export type Qualification = 'built-in' | 'fixture-tested' | 'unqualified';
 export interface PostingOptionLite {
@@ -536,7 +447,7 @@ export interface PostingOptionLite {
   ladder?: ConnectorLadder;
 }
 /** 4J7 (K6): the connector truth ladder (build/connector-truth.ts). */
-export type ConnectorLadder = 'documented' | 'discovered' | 'read-verified' | 'write-verified' | 'unavailable';
+
 /** 4J7 (K11): a connector's setup guide, in the engine's words (build/guides.ts). */
 export interface ConnectorGuideLite {
   steps: string[]; skipped: string; charges: { line: string; checkedOn: string | null }; checks: string; sends: string; agentLimits: string; missing: string | null;
@@ -557,8 +468,8 @@ export interface ConnectorCardLite {
  * `venture.models.*` and the draft desk's `venture.ai.*` (ModelPreset, ModelStatusView, AiOptionsView), trimmed. A key is
  * sent once in `connect` and never comes back: the status says only whether one is loaded.
  */
-export type ModelTier = 'fast' | 'main';
-export type ModelAvailability = 'ready' | 'unverified' | 'needs-setup' | 'unavailable';
+
+
 export interface ModelPresetLite {
   id: string; label: string; kind: string; model: string | null; modelEditable: boolean; tiers: ModelTier[];
   needsKey: boolean; keyHint: string | null; runsOn: 'provider-api' | 'this-computer' | 'chausar-engine';
@@ -582,9 +493,9 @@ export interface ModelConnectParams { presetId: string; consentDigest: string; a
 export interface AiOptionsLite { presets: ModelPresetLite[]; status: ModelStatusLite; unchecked: boolean }
 
 /** `venture.blueprint.get` and `.update` (BlueprintView), trimmed. Prices arrive only as receipts. */
-export type LineLabel = 'told-by-you' | 'assumption' | 'computed';
+
 export interface LabelledLite<T> { value: T; label: LineLabel; by: 'owner' | 'model' | 'template' | 'engine'; estimate?: true }
-export type PricingModel = 'monthly' | 'project' | 'hourly';
+
 export interface OfferLite {
   id: string; name: LabelledLite<string>; description: LabelledLite<string>;
   /** The flagship playbook offer this is, for example 'licensed-clips'; absent on other plans. It decides the rights asked at intake. */
@@ -665,7 +576,7 @@ export interface HandoffLite { id: string; at: string; builder: BuilderId; mode:
 /** C5 task 35: only Lovable and Replit take the brief as a file. */
 export type FileBuilderId = 'lovable' | 'replit';
 export interface BriefFilePlanLite { handoffId: string; builder: BuilderId; files: { name: string; text: string }[] }
-export type BuildStatusWord = 'waiting-for-repo' | 'repo-connected' | 'builder-making-changes' | 'quiet' | 'sync-conflict' | 'repo-not-readable';
+
 export interface BuildStatusLite {
   word: BuildStatusWord; asOf: string;
   repo: { fullName: string; private: boolean | null; defaultBranch: string | null; htmlUrl: string | null };
@@ -812,16 +723,13 @@ export interface OrderLite {
  * waitsOn names the CA or the client when it waits on them; due is the day a payment is due. reason is a code for the
  * detail, for the screen's own words; an engine-failed draft is 'failed', never 'stopped'.
  */
-export type OrderStageId = 'agreed' | 'price' | 'episode' | 'publish' | 'files-in' | 'books' | 'gst' | 'calendar' | 'drafts' | 'client-ok' | 'posts' | 'report' | 'draft' | 'sent' | 'invoice' | 'paid';
-export type OrderStageReason =
-  | 'new-price' | 'ready' | 'question' | 'approval' | 'brief' | 'failed' | 'stopped' | 'rejected' | 'working' | 'practice'
-  | 'send-unknown' | 'post-unknown' | 'issue-unknown' | 'ca-signed' | 'ca-returned' | 'with-ca' | 'send-to-ca' | 'no-ca'
-  | 'client-approved' | 'client-changes' | 'with-client' | 'link-ended' | 'posts-waiting' | 'posting' | 'planned' | 'to-issue' | 'issued' | 'due' | 'part-paid';
+
+
 export interface OrderStageView {
   id: OrderStageId; label: Display; state: 'done' | 'waits' | 'not-yet' | 'always-asks' | 'unknown'; detail: Display; line: Display;
   waitsOn?: 'you' | 'ca' | 'client'; due?: string; reason?: OrderStageReason;
 }
-export interface OrderWaitsOnYou { count: number; items: { stage: OrderStageId; what: Display }[]; line: Display }
+
 /** `venture.files.list` (UploadView), trimmed: a file a client sent, kept in the vault. */
 export interface UploadLite {
   /** transcript: an SRT or VTT file of what was said, with timings. image: an order's poster, a still from its cut (4J3). */
@@ -906,7 +814,7 @@ export interface InvoiceLite {
  * 'cheque' (4J5): pending until the owner clears it (venture.payment.clear) or a bank row pays it. PAYMENT_METHODS is
  * the payment sheet's list; cheque joins it with its text key when the Money screens fold it in (4J20).
  */
-export type PaymentMethod = 'bank-transfer' | 'upi' | 'card' | 'cash' | 'payment-link' | 'other' | 'cheque';
+
 export const PAYMENT_METHODS: readonly PaymentMethod[] = ['bank-transfer', 'upi', 'card', 'cash', 'payment-link', 'other'];
 /** state (4J5): absent on payments recorded before, which read as cleared; chequeOn: the day a cleared cheque came. */
 export interface PaymentLite {
@@ -1023,7 +931,7 @@ export interface WorkspaceCreateParams { name: string; pack: 'services'; folder?
 /** `recoveryCode` is not null only with a passphrase or on hosted, and the engine sends it this once. */
 export interface WorkspaceCreated { workspace: { name: string }; folder?: string; unlock?: 'this-computer' | 'passphrase'; recoveryCode: string | null; recoveryKit?: string | null; experimental?: boolean }
 /** assumed: only { yes: false, assumed: true } on q_tax, when the owner left tax unanswered (the engine keeps it as an assumption). */
-export type InterviewAnswer = { choiceId?: string; text?: string; amount?: string; yes?: boolean; rate?: string; skipped?: true; assumed?: true };
+
 export interface InterviewQuestionLite {
   id: string; kind: 'choice' | 'text' | 'money' | 'yesno' | 'rate'; text: string; choices: { id: string; label: string }[];
   required: boolean; prefill: string | null; answer: InterviewAnswer | null;
@@ -1037,13 +945,7 @@ export interface InterviewViewLite { interview: { questions: InterviewQuestionLi
  */
 /** C4 task 16: an amount in a draft's words, as the engine matched it. */
 export type DraftAmount = { display: Display; receiptId?: string; receiptKind?: 'work'; estimate?: true };
-export interface QueueItemView {
-  kind: 'draft' | 'file' | 'plan'; id: string; businessName: string; agent?: string;
-  /** C4 task 16: on a draft, each amount its text holds, with its receipt or as a model estimate. */
-  amounts?: DraftAmount[];
-  title: string; line?: Display;
-  sections: { heading?: string; lines: Display[] }[];
-}
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ink v2 wave 2: the views of the newly wired engine pieces (contracts.ts section 9d), trimmed to what screens read.
@@ -1062,7 +964,7 @@ export interface JudgeAutoView { auto: boolean; consentAt: string | null; line: 
  * `venture.transcription.get` and `.set`: the owner's whisper.cpp (full paths to whisper-cli and its model file, null
  * when not set up), its status checked on disk by the engine, whether ffmpeg is here too, and the engine's plain line.
  */
-export interface TranscriptionSetupView { status: 'set-up' | 'not-set-up' | 'files-missing'; command: string | null; model: string | null; ffmpeg: boolean; line: Display }
+
 /**
  * `venture.simulation.scenarios` (Scenario), trimmed: a made-up practice client. Its words hold no client data.
  * source 'signal': a case made from a draft the owner rejected or edited, or one that failed a check.
@@ -1129,7 +1031,7 @@ export interface PostingProposal {
   postId: string; connectorId: string; draftId: string; part: number | null;
   state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; line: Display; warnings: Display[];
 }
-export type PostingStepId = 'textbox' | 'submit' | 'confirm';
+
 export interface PostingCandidateLite {
   key: string; kind: 'test-id' | 'role' | 'aria-label' | 'xpath'; value: string; name?: string; lang?: string;
   checkedOn: string | null; addedBy: 'chausar' | 'owner';
@@ -1162,10 +1064,7 @@ export interface PostingLimitsView {
  * (channel name, words, why), the posts whose cell got an apostrophe (defused), the posts written as threads, and the
  * gaps between the draft's posts and the plan's slots, in the engine's words.
  */
-export interface SocialCalendarFile {
-  csv: string; fileName: string; rows: number; blocked: { draftId: string; name: string; text: string; line: Display }[];
-  defused: string[]; threads: string[]; gaps: Display[];
-}
+
 /** `BankAlertRule` in platform/runtime/venture/build/bank.ts. Amounts are minor units as the engine keeps them, as text. */
 export type BankAlertRuleLite =
   | { kind: 'balance-below'; minor: string }
@@ -1180,7 +1079,7 @@ export type BankAlertRuleInputLite =
   | { kind: 'balance-below' | 'large-debit'; minor?: string; amount?: string }
   | { kind: 'credit-matching'; text: string }
   | { kind: 'credit-missing-by'; text: string; minor?: string; amount?: string; by: string };
-export type BankRowClass = 'own-transfer' | 'suggested-payment' | 'money-in' | 'money-out' | 'applied' | 'skipped';
+
 /** dateDisplay: the engine's date for the owner's country. flag: the engine's words when the row needs a second look, else null. */
 export interface BankLedgerRow {
   id: string; accountId: string; account: string; date: string; dateDisplay: Display; amount: Display; direction: 'in' | 'out';
@@ -1188,10 +1087,8 @@ export interface BankLedgerRow {
   suggestion: { invoiceId: string; number: string; line: Display } | null; decided: 'payment' | 'cost' | 'skip' | null;
 }
 /** consent: the account's bank access in the engine's words, null when never given; provider: why nothing reads the bank yet. */
-export interface BankLedgerView {
-  accounts: { id: string; label: string; currency: string; consent: BankConsentView['status'] | null }[]; rows: BankLedgerRow[]; line: Display; provider: Display;
-}
-export interface BankApplyResult { row: BankLedgerRow; line: Display; receiptId?: string }
+
+
 /** `venture.bank.alerts.*`: each rule in the engine's words, and where alerts go in words only ("Alerts go to the address you set"), never the address. */
 export interface BankAlertsView { accounts: { account: string; accountId: string; rules: BankAlertRuleLite[]; ruleLines: Display[]; destination: Display }[] }
 /** `venture.ca.receipt`, trimmed: the stored CA receipt worked again from its inputs. */
@@ -1239,8 +1136,8 @@ export interface PlatformRuleView {
   line: Display;
 }
 /** 5A3 (P6): a recipe and one row of the measurement-boundaries table, as the engine words them. */
-export interface RecipeView { id: string; name: Display; whenToUse: Display; steps: { do: Display; why: Display }[]; howToRead: Display; mistakes: Display[] }
-export interface BoundaryView { evidence: Display; canSay: Display; cannotSay: Display }
+
+
 export interface RulesListView {
   playbook: { id: string; label: string; riskLevel: string; lastReviewed: string } | null; rules: PlatformRuleView[]; summary: Display;
   /** 5A3: a kit playbook's recipes and measurement boundaries; empty for the flagships. */
@@ -1261,7 +1158,7 @@ export interface MoneyFigure { display: Display; receiptId: string }
 export interface SeriesPoint { key: string; label: Display; value: Display | null; valuePermille: number | null; receiptId: string | null; rupees?: Display; lead?: SpendLead }
 
 /** 4A1 departments, Keeper and health. */
-export type AgentHealthStatus = 'healthy' | 'failing' | 'quarantined' | 'degraded';
+
 export interface AgentHealth { status: AgentHealthStatus; reason: Display | null; digest: string }
 /** sharePermille (4A2): the part's share of the month's whole spend, floored by the engine; 0 when nothing was spent. */
 /** rate (4A2): the owner's rupee rate in words, the same words `rupees` and `held` end with, sent with them. */
@@ -1271,10 +1168,9 @@ export interface DepartmentView {
   /** doneThisWeek.permille (4A2): this week's count scaled to the busiest department's, floored; 0 when none did a job. */
   doneThisWeek: { count: number; receiptId: string; permille?: number }; spendThisMonth: DepartmentSpend; series: { jobs: SeriesPoint[]; spend: SeriesPoint[] };
 }
-export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed'
-  | 'monitors'; // 5A6: page monitors
+ // 5A6: page monitors
 export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: string; outcome: 'ok' | 'warn' | 'failed'; line: Display } | null; note: Display | null }
-export interface KeeperView { jobs: KeeperJobView[] }
+
 export interface TeamListView {
   /** C5 task 1: the agents this member has not met yet, each with its one code-written line. */
   introduce?: { agentId: string; line: string }[];
@@ -1290,24 +1186,15 @@ export interface TeamListView {
 export interface RetiredAgentView { id: string; name: string; role: Display; department?: DepartmentId; at: string; to: { id: string; name: string } | null; line: Display }
 export interface RetireInFlight { id: string; kind: 'run' | 'question' | 'proposal' | 'today'; line: Display }
 /** W6 6G2. The check before retiring: what it holds, what is in flight, routines that switch off, who can take over. */
-export interface RetireCheckView {
-  agent: { id: string; name: string; role: Display };
-  holds: { steps: Display[]; instructions: number; notes: number; messages: number };
-  inFlight: RetireInFlight[];
-  routines: { id: string; name: string; when: Display }[];
-  to: { id: string; name: string }[];
-  kept: Display; blocked: Display | null; digest: string;
-}
+
 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
-export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string }
-  /** C7: a section of Chausar's guide, quoted as written, with the link to it. */
-  | { kind: 'guide'; anchor: string; title: string; text: string; link: string };
-export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string } | { kind: 'connect-ai' };
+
+
 export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
-export type AgentNoteScope = 'agent' | `client:${string}`;
-export type AgentNoteLoad = 'always' | 'topic';
-export interface DiffLine { op: 'same' | 'add' | 'remove'; text: string }
+
+
+
 /** proposalId (4B3): on the reply to a request on the floor, the proposal it raised to Today (row subject proposal:<id>). */
 export interface AgentMessageView { id: string; at: string; from: 'owner' | 'agent' | 'chausar'; parts: ChatPart[]; suggestion?: AgentSuggestion; answered?: { runId: string }; proposalId?: string }
 export interface AgentProposalView {
@@ -1318,20 +1205,20 @@ export interface AgentProposalView {
   offered?: Display;
 }
 export interface AgentRunItem { runId: string; at: string; purpose: Display; state: RunState; done: number; total: number; steps: RunStep[]; recalled: { id: string; text: string; forgotten?: boolean }[] }
-export type AgentThreadItem = { type: 'message'; message: AgentMessageView } | { type: 'run'; run: AgentRunItem } | { type: 'proposal'; proposal: AgentProposalView };
+
 export interface AgentThreadView {
   agent: { id: string; name: string; role: string }; items: AgentThreadItem[];
   waiting: { runId: string; rowId: string; question: Display } | null; more: boolean; consent: ChatConsentView;
   /** W6 6G2: set while the agent is retired; the thread is read only. */
   retired?: { at: string; line: Display };
 }
-export interface AgentSendResult { added: AgentThreadItem[]; line: Display | null }
+
 export interface StandingOrderView { stepId: string; step: Display; text: string; since: number; quote: string; at: string }
 export interface AgentNoteView { id: string; scope: AgentNoteScope; load: AgentNoteLoad; text: string; source: Display; captured: string; hash: string }
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget. */
 export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
-export interface AgentNotesView { notes: AgentNoteView[]; changes: NoteChangeView[]; usedChars: number; limitChars: number; forgetLine?: Display }
-export interface AgentNoteChange { note: AgentNoteView | null; change: NoteChangeView }
+
+
 /** 4B3: the check ids a step's work must pass (contracts.ts CHECK_IDS), worded by the UI. */
 export type PlaybookCheckId = 'no-numeric-prose' | 'figures-resolve' | 'required-sections' | 'no-outside-writes' | 'house-style' | 'prompt-leak'
   | 'length-bounds' | 'turn-limit' | 'questions-raised' | 'no-done-claims' | 'claims-grounded' | 'receipts' | 'rules-judge';
@@ -1342,12 +1229,12 @@ export type PlaybookCheckId = 'no-numeric-prose' | 'figures-resolve' | 'required
  */
 export interface StandingPlaybookView { id: string; version: number; hash: string; origin: 'plan' | 'improvement' | 'owner'; at: string }
 export interface StandingStepView { stepId: string; title: Display; guidance: string[]; checks: PlaybookCheckId[] }
-export type StandingUndoView = { kind: 'back'; version: number } | { kind: 'rebuild' };
-export interface StandingOrdersView { orders: StandingOrderView[]; playbook: StandingPlaybookView | null; rebuildDue: boolean; steps: StandingStepView[]; undo: StandingUndoView | null }
+
+
 
 /** 4C1 Chats and proposals. */
 export type ProposalKind = 'brief-agent' | 'start-run' | 'start-work' | 'draft-invoice' | 'draft-reminder' | 'quote' | 'outreach-draft' | 'next-step';
-export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | 'refused';
+
 /** what (4C2 review): the step's own line; line says where it stands. */
 export interface ProposalView { id: string; at: string; kind: ProposalKind; status: ProposalStatus; title: Display; line: Display; what: Display; agent: string | null; rowId: string | null; digest: string; secondAsk: boolean }
 /** 4C2 review: each receipted figure lastLine states, exactly as written there, at its offset in UTF-16 code units. */
@@ -1361,13 +1248,13 @@ export interface ChiefThreadSummary {
   state: ChiefThreadState; snoozedUntil: string | null; settled: { at: string; by: 'owner' | 'auto' } | null; waiting: boolean;
 }
 /** W6 6G1. */
-export type ChiefThreadState = 'pinned' | 'active' | 'snoozed' | 'settled';
-export type ChiefSnoozePreset = 'later' | 'tomorrow' | 'next-week';
+
+
 export interface ChiefSnoozeOption { id: ChiefSnoozePreset; until: string }
 export interface ChiefThreadStateInput { threadId: string; state: ChiefThreadState; preset?: ChiefSnoozePreset; until?: string }
 /** W6 6G1: undo is the request that puts the chat back exactly; line is the engine's words. */
-export interface ChiefThreadStateResult { thread: ChiefThreadSummary; undo: ChiefThreadStateInput; line: Display }
-export interface ChiefSettleResult { days: number; undo: number; line: Display }
+
+
 /**
  * W6 6H3 (D40): a place's layout as data (platform/runtime/venture/views/layout-core.ts and layout.ts). Blocks come in
  * the order the page draws them; `keep` blocks (approvals, questions, stops, money totals) always show, keep their slot
@@ -1412,8 +1299,8 @@ export interface ChiefMessageView {
   suggestion?: { kind: 'connect-ai' };
 }
 /** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
-export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean; snooze: ChiefSnoozeOption[] }
-export interface ChiefSendResult { thread: ChiefThreadSummary; added: ChiefMessageView[]; ask: Display | null }
+
+
 export interface ChiefFit { wayId: string; line: Display; estimate: true }
 
 /** 4D1 to 4D3 the owner's network. */
@@ -1440,9 +1327,7 @@ export interface NetworkSourcesView {
   mailbox: MailboxView | null; calendar: CalendarFeedView | null;
 }
 export interface NetworkImportView { id: string; kind: NetworkImportKind; fileName: string; at: string; rows: number; people: number; merged: number; dropped: { what: string; count: number }[]; undone: boolean; line: Display }
-export type NetworkImportResult =
-  | { mode: 'check'; kept: number; dropped: { what: string; count: number }[]; people: number; merged: number; samples: { name: string; line: Display }[]; line: Display }
-  | { mode: 'import'; import: NetworkImportView; line: Display };
+
 export interface SearchResultView {
   person: PersonSummary | null; url: string | null; fitBp: number; why: Display;
   checks: { trait: Display; check: 'yes' | 'partly' | 'not-supported'; quote: string | null; source: Display | null }[];
@@ -1451,19 +1336,19 @@ export interface SearchResultView {
   receiptId: string | null; linkedin: string | null;
 }
 /** 4D3: what a search's web part did, to branch on without matching words. */
-export type SearchWebState = 'off' | 'not-set-up' | 'skipped' | 'failed' | 'none' | 'found';
-export interface NetworkSearchView { id: string; text: string; traits: { id: string; label: Display }[]; results: SearchResultView[]; summary: Display; more: boolean; webLine: Display | null; web: SearchWebState }
+
+
 
 /** 4E1 to 4E3 the pipeline, outreach and inbound mail. */
 export type PipelineStage = 'found' | 'asked' | 'talking' | 'proposal' | 'won' | 'lost' | 'not-now';
 export type LostReason = 'no-budget' | 'no-reply' | 'chose-someone-else' | 'not-a-fit' | 'timing' | 'other' | 'opted-out';
 export type OutreachKind = 'intro-request' | 'double-opt-in' | 'connection-note' | 'follow-up' | 'reply' | 'cold-email' | 'reminder';
-export type OutreachChannel = 'email' | 'linkedin' | 'whatsapp';
-export type OutreachSentChannel = 'own-mailbox' | 'linkedin' | 'whatsapp' | 'phone';
+
+
 /** 4E2: the languages Chausar drafts in, the lawful basis of a cold email, and the send governor's lanes. */
-export type OutreachLanguage = 'en' | 'hi';
-export type LawfulBasis = 'they-wrote-first' | 'existing-contact' | 'public-business-contact';
-export type OutreachLane = 'linkedin-note' | 'linkedin-message' | 'whatsapp' | 'email';
+
+
+
 export interface PipelineCaps { newPerDay: number; perWeek: number; channels?: Partial<Record<OutreachLane, number>>; channelWeeks?: Partial<Record<OutreachLane, number | null>>; warmupPercent?: number[] }
 export interface ScoreRule { field: string; operator: 'is' | 'contains' | 'at-least' | 'at-most'; value: string; points: number }
 export interface PipelineCardView {
@@ -1493,7 +1378,7 @@ export interface PipelineView {
 /** 4E4: one quote a Proposal move can rest on: its offer's name, quantity and amount before tax (or its total). */
 export interface PipelineQuoteView { receiptId: string; offer: Display; quantity: string; value: Display; at: string }
 export interface FollowupView { cardId: string; name: string; company: string | null; line: Display; due: string; late: boolean; channel: OutreachChannel | null; draftId: string | null }
-export interface PipelineSettingsView { weekdays: number[]; sendTime: string; caps: PipelineCaps; scoreRules: ScoreRule[]; line: Display }
+
 export interface OutreachView {
   id: string; opportunityId: string | null; kind: OutreachKind; channel: OutreachChannel; to: Display | null; subject: string | null; text: string; blurb: string | null;
   footer: { unsubscribe: string; postalAddress: string } | null; lints: { rule: string; line: Display }[]; counter: { used: number; limit: number } | null;
@@ -1506,12 +1391,8 @@ export interface OutreachView {
   blurbSentences?: number | null;
 }
 /** 4E2: one handoff to the owner's own app, with its line. Chausar never sends. copy: too long for one link, so the owner copies the text. */
-export type OutreachHandoff =
-  | { action: 'mailto'; url: string; line: Display }
-  | { action: 'linkedin'; profileUrl: string; text: string; line: Display }
-  | { action: 'whatsapp'; url: string; line: Display }
-  | { action: 'copy'; to: string | null; subject: string | null; text: string; line: Display };
-export type InboundTriage = 'opt-out' | 'auto-reply' | 'thanks' | 'bounce' | 'owner-reply' | 'bot-question' | 'talking' | 'unmatched';
+
+
 /** 4E4: needsPassword, connected but the app password left the engine's shelf with a restart: type it again. */
 export interface MailboxView { connected: boolean; host: string | null; user: string | null; lastSync: string | null; line: Display; needsPassword: boolean }
 export interface InboundView { id: string; from: string; date: string; subject: string; triage: InboundTriage; matched: { opportunityId: string; name: string } | null; line: Display }
@@ -1519,16 +1400,16 @@ export interface InboundView { id: string; from: string; date: string; subject: 
 export interface CalendarFeedView { set: boolean; host: string | null; lastRead: string | null; line: Display; nextRead: string | null }
 
 /** 4F1 and 4F2 run controls, pause all, Away, write caps. */
-export interface RunControlResult { run: RunDetail; line: Display; lost?: Display }
+
 /** since: once the time away began, Today's rows made between the two days, for the "Since you left" filter (4F1). */
 export interface AwayView { away: { from: string; to: string } | null; promises: { due: string; line: Display }[]; keepsRunning: Display[]; approvalsWaiting: number; autoReply: string | null; line: Display; since?: { from: string; to: string; rowIds: string[] } }
-export type WriteCapKind = 'drafts' | 'books-lines' | 'messages';
+
 
 /** 4G1 and 4G3 notifications and push. */
 /** ended (one-shot C4 task 7): the item no longer waits on the owner. */
 export interface NotificationView { id: string; rowId: string; kind: QueueKind | QueueKindW4; title: Display; at: string; read: boolean; ended?: true }
 /** W6 6F6 (notify/telegram.ts). said: what a test alert did, only on a test. */
-export interface TelegramView { connected: boolean; details: boolean; line: Display; said?: Display }
+
 /** W6 6F7 (notify/phone.ts): the phone listener's state; a one-time pairing link and its QR code when one was asked for. */
 export interface PhoneAccessView {
   on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number;
@@ -1590,7 +1471,7 @@ export interface CodexSetupLite {
 export interface RoleModelView { agent: string; name: string; tiers: { tier: ModelTier; presetId: string; model: string | null; price: Display; usable: boolean }[] }
 
 /** 4I1 goals and the next best step. */
-export interface NextBestStep { rowId: string; title: Display; agent: string | null; line: Display; figure: MoneyFigure | null; goalAfter: Display | null; goalAfterPercent: number | null }
+
 /** A sum on the goal card: receiptId null when nothing was added up (a zero, no receipt). */
 export interface GoalFigure { display: Display; receiptId: string | null }
 /** elapsedDays counts today as gone; lastDay: say "Last day", not "0 days left". */
@@ -1619,25 +1500,16 @@ export interface DecisionView {
   /** C4 (T26): what the decision was about, for the screen to open; null when that thing is gone or cannot be opened. */
   opens?: DecisionOpens;
 }
-export type DecisionOpens = { kind: 'invoice' | 'run' | 'order' | 'plan' | 'price' | 'client'; id: string } | null;
-export type TriageField = 'due' | 'client' | 'kind' | 'money' | 'business';
+
+
 export interface TriageRule { keys: { field: TriageField; order: 'asc' | 'desc' }[]; words: string }
-export interface TriagePreview { rule: TriageRule | null; choices: TriageRule[]; rows: QueueRow[]; digest: string; by: 'model' | 'choices' }
+
 export interface DraftChangeView { id: string; paragraph: number; before: string; after: string; by: 'owner' | 'agent'; status: 'open' | 'taken' | 'dropped' }
 /** 4J2: line says how the revision was merged; replacement is offered when the owner's own version sits beside the agent's. */
-export interface DraftChangesView {
-  changes: DraftChangeView[]; line?: Display;
-  replacement?: { id: 'replacement'; status: 'open' | 'confirmed' | 'kept'; review: Display; confirm: Display; confirmLine: Display; keep: Display };
-}
+
 export interface SettingsDraftView { form: string; values: unknown; at: string }
 /** 4J2 review: a set as the engine works it out; queue.set takes its digest, and secondAsk: true when it asks twice. */
-export interface QueueSetPreview {
-  digest: string;
-  items: { rowId: string; title: Display; kind: QueueRow['kind']; cost: Display }[];
-  total: { display: Display; receiptId: string };
-  secondAsk: boolean;
-  refusals: { rowId: string; reason: string; line: Display }[];
-}
+
 
 /** 4J4 to 4J6 money views, bills and businesses side by side. */
 /**
@@ -1645,11 +1517,11 @@ export interface QueueSetPreview {
  * input taken as given, shown beside each result that uses it) or estimate (a model's). projected: a forecast, never
  * what happened. basis: what a total counted and what it left out.
  */
-export type FigureKind = 'reported' | 'calculated' | 'assumption' | 'estimate';
-export type FigureSource = { from: 'file'; recordId: string; row: string; line: Display } | { from: 'receipt'; receiptId: string } | { from: 'input'; line: Display } | { from: 'model' };
+
+
 export interface TotalBasis { filters: Display[]; truncated: boolean; notCounted: { count: number; line: Display } | null }
-export interface KindedFigure extends MoneyFigure { kind: FigureKind; source: FigureSource; uses?: Display[]; projected?: true; estimate?: true; basis?: TotalBasis }
-export type AgingBucketId = 'not-due' | '1-30' | '31-60' | '61-90' | 'over-90';
+
+
 export interface AgingView {
   asOf: string; buckets: { id: AgingBucketId; label: Display; count: number; countLine: Display; amount: KindedFigure; permille: number }[]; total: KindedFigure;
   invoices: { invoiceId: string; number: string; client: string; dueDate: string; bucket: AgingBucketId; late: { days: number; line: Display } | null; balance: KindedFigure }[];
@@ -1691,7 +1563,7 @@ export interface BillView { id: string; vendor: string; billDate: string; dueDat
 export interface CreditNoteView { id: string; invoiceId: string; amount: Display; reason: string; state: 'waiting' | 'issued' | 'cancelled'; number: string | null; rowId: string | null; line: Display; receiptId?: string | null }
 export interface RecurringInvoiceView { id: string; clientId: string; offerId: string; frequency: 'monthly' | 'quarterly'; startOn: string; end: string | null; nextOn: string | null; line: Display }
 /** 4J6: what a row's line says (`AcrossLineKey` in the engine's contracts), so a screen can word it in Hindi. */
-export type AcrossLineKey = 'open' | 'no-country' | 'as-of' | 'as-of-setting-up' | 'locked' | 'key-missing' | 'unreadable' | 'none';
+
 /** 4J6: one business a total or count left out, and why (month: the month its summary was saved in, for other-month). */
 export interface AcrossLeftOut { businessId: string; name: string; why: 'locked' | 'key-missing' | 'unreadable' | 'none' | 'setting-up' | 'other-month'; month: string | null }
 export interface BusinessSnapshotView { businessId: string; name: string; open: boolean; locked: boolean; asOf: string | null; line: Display; lineKey: AcrossLineKey }
@@ -1706,10 +1578,7 @@ export interface AcrossMoneyView {
   total: MoneyFigure | null; line: Display;
   lineKey: 'counted' | 'currencies' | 'nothing'; month: string; counted: number; currencies: string[]; notCounted: AcrossLeftOut[];
 }
-export interface AcrossRunsView {
-  businesses: (BusinessSnapshotView & { working: number | null; waiting: number | null; stopped: number | null; needsYou: number | null })[]; line: Display;
-  totals: { working: number; waiting: number; stopped: number; needsYou: number; businesses: number }; notCounted: AcrossLeftOut[];
-}
+
 
 /** 4J7 to 4J10 connection checks, file requests, ways to earn, the owner, signatures and the journal chain. */
 export interface ConnectorCheckRow { connectorId: string; name: string; outcome: 'answered' | 'failed' | 'skipped'; line: Display; account: string | null; expiresOn: string | null; fix: Display | null }
@@ -1720,7 +1589,7 @@ export interface FileRequestView { id: string; orderId: string; url: string | nu
  * model estimate (clientsPay.source is their basis); team is the playbook's agents only; starter fills the one-sentence
  * box and never sends; yours is the open business when it is of this kind.
  */
-export type WayCategory = 'content' | 'marketing' | 'money-and-tax' | 'shops-and-firms';
+
 /** needs: besides the owner's time (hours), the owner's own AI and the connections that work today, in plain words. */
 export interface WayNeeds { ai: Display; connections: Display }
 export interface WayView {
@@ -1760,10 +1629,7 @@ export interface WaysView {
 /** `ComposeAttachmentNote` (onboarding-contracts.ts): a dropped file's name, whether it was used, and why not, never its text. */
 export interface AttachmentNote { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null }
 /** `PlanChangeView` (4J8): one change a plan suggestion makes; estimate is always false (its words hold no number). */
-export interface PlanChangeView {
-  field: 'oneLiner' | 'customer' | 'offer-name' | 'offer-description' | 'offer-added'; offerId: string | null;
-  before: Display; after: Display; line: Display; estimate: boolean;
-}
+
 /**
  * `PlanSuggestionView` (4J8, "Add this to {business}"): patch is exactly what venture.blueprint.update takes, or null when
  * nothing changes; the owner applies it there with basedOn, then accepts. Words and at most one new offer, never a price.
@@ -1828,7 +1694,7 @@ export interface NeedsListLite { family: { id: string; label: string } | null; n
 /** reason (4J22a): only 'changed' and 'unsigned-since' are mismatches; the others are not confirmed. */
 export interface ReceiptVerifyView { id: string; valid: boolean; label: 'reproduction_ready' | 'incomplete' | 'signature_only'; reason: 'signed' | 'changed' | 'unsigned-since' | 'unsigned-old' | 'no-key' | 'key-gone'; line: Display }
 /** digest: what the owner saw, sent back to accept exactly that break (venture.journal.acceptBreak). */
-export interface JournalChainView { state: 'ok' | 'corrupt'; entries: number; firstBadSeq: number | null; line: Display; digest: string }
+
 
 /** 4J12 to 4J18 contracts, routines, options, drills, guidance, voice and persona, knowledge and ideas. */
 export interface OrderContract {
@@ -1849,17 +1715,17 @@ export type RoutineSchedule =
   | { kind: 'monthly'; day: number; time: string; timeZone: string }
   /** C7: a trigger: it starts on a confirmed event and only drafts. */
   | { kind: 'event'; source: 'razorpay' | 'cal-com'; event: 'payment' | 'booking' | 'booking-cancelled' };
-export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
+
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
 export interface RoutineView { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
 /** C4 task 32: a ready routine from the plan (agents/routines.ts routineSuggestions). */
 export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
-export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
+
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
-export interface AutoReadinessView { agent: string; items: { id: string; label: Display; met: boolean; line: Display }[]; locked: true; line: Display }
-export interface ShadowSummaryView { agent: string; wouldHaveGone: number | null; held: number | null; changed: number | null; offers: Display[]; line: Display }
+
+
 export interface GuidanceLineView { stepId: string; text: string; check: string | null; state: 'measured' | 'dark' | 'unmeasured' }
 /** 4J16: a part of the drafts the owner keeps correcting. It changes nothing; starter prefills the agent's chat and is never sent. */
 export interface FixTheRuleView { field: string; stepId: string | null; agent: string | null; corrected: number; reviews: number; line: string; starter: string }
@@ -1869,9 +1735,9 @@ export interface VoiceInput { language: 'en' | 'hi'; channel?: string | null; on
  * 4J17 (A14): a question card: one question with answers to pick from, or a round of two to eight, each with the
  * agent's best guess; answers list the pick first with what each gains and costs; free text is always open, with escape.
  */
-export interface QuestionOption { label: string; text: string; gains: string; costs: string; recommended: boolean }
-export interface QuestionItem { number: number; text: string; guess: string; options: QuestionOption[] }
-export interface QuestionCard { round: number; lead: string; items: QuestionItem[]; freeText: true; escape: string; example: string }
+
+
+
 /** 4J17: version in use and undo (the voice to set to go back one version); draft: what learn worked out, unsaved. */
 export interface VoiceView {
   voices: { language: 'en' | 'hi'; channel: string | null; on: boolean; sections: VoiceSections; validated: boolean; version?: number; undo?: VoiceInput | null }[];
@@ -1880,12 +1746,12 @@ export interface VoiceView {
 }
 export interface PersonaFields { tone: string | null; replyLength: 'short' | 'medium' | 'long' | null; greeting: string | null; handOffLine: string | null; blockedTopics: string[]; signOff: string | null }
 export interface PersonaView { agent: string; persona: PersonaFields; skills: { name: Display; line: Display; starter: string }[]; line: Display; version?: number; undo?: PersonaFields | null }
-export type KnowledgeSourceInput = { kind: 'text'; title: string; text: string } | { kind: 'link'; url: string } | { kind: 'file'; uploadId: string } | { kind: 'past-work'; runId: string };
+
 export interface KnowledgeSourceView { id: string; kind: 'text' | 'link' | 'file' | 'past-work'; title: string; at: string; line: Display }
 export interface IdeaView { id: string; title: Display; reason: Display; evidence: { id: string; line: Display }[]; prompt: string }
 /** 4J18: one line of the capability page, with what it is about (key) and its honest state, so the screen can word it in Hindi. */
-export type CapabilityItemView = { list: 'see' | 'do' | 'off'; key: string; state: 'works' | 'reads' | 'records' | 'hands-off' | 'planned' | 'off'; line: Display };
-export interface CapabilityPageView { agent: string; canSee: Display[]; canDo: Display[]; off: Display[]; items: CapabilityItemView[]; line: Display }
+
+
 
 /**
  * Ink v2 wave 5 (package 5-0): the wave 5 methods' shapes as the engine names them (platform/runtime/venture/contracts.ts
