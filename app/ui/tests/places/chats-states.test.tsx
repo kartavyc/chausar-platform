@@ -118,11 +118,40 @@ describe('Settled chats (Business, from the business menu)', () => {
     assertInkRules(document.body);
   });
 
-  it('the business menu links to Settled chats', async () => {
-    await start('#/today');
-    const button = await within(screen.getByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ });
-    await act(async () => { fireEvent.click(button); });
-    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
-    expect(within(menu).getByRole('link', { name: 'Old chats' }).getAttribute('href')).toBe('#/business/chats');
+  it('Settings lists Old chats, under Work (C1: the business menu leads to Settings)', async () => {
+    await start('#/business/goals');
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
+    expect(within(nav).getByRole('link', { name: 'Old chats' }).getAttribute('href')).toBe('#/business/chats');
+  });
+});
+
+describe('Old chats from the Chats list (C1 task 12)', () => {
+  async function startWith(settled: 'none' | 'empty') {
+    window.location.hash = '#/chats';
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    }) as unknown as MediaQueryList);
+    const fake = createFakeClient(new FakeEngine({ now: () => NOW }));
+    const request = fake.request.bind(fake);
+    vi.spyOn(fake, 'request').mockImplementation((async (method: string, params?: unknown) => {
+      const answer = await request(method as never, params as never) as Record<string, unknown>;
+      if (method !== 'venture.chief.threads') return answer;
+      return settled === 'none' ? { ...answer, settled: [] } : { ...answer, groups: [], settled: [] };
+    }) as typeof fake.request);
+    render(<App client={fake} language="en" />);
+    await settle();
+  }
+
+  it('with chats and none settled, the list head links to Old chats in Settings', async () => {
+    await startWith('none');
+    const link = await within(chatList()).findByRole('link', { name: 'Old chats' });
+    expect(link.getAttribute('href')).toBe('#/business/chats');
+  });
+
+  it('with no chat ever, there is no link', async () => {
+    await startWith('empty');
+    await waitFor(() => expect(within(chatList()).getByText(/./, { selector: 'p' })).toBeTruthy());
+    expect(within(chatList()).queryByRole('link', { name: /old chat/i })).toBeNull();
   });
 });
