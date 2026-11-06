@@ -169,3 +169,10 @@ test('task 6: the dead-code review starts from every shipped surface and the tes
 test('task 7: reviewed unused UI and playbook files stay removed', () => {
   for (const path of ['app/ui/src/parts/JobList.tsx', 'app/ui/src/parts/JobList.module.css', 'app/ui/src/places/stub.tsx', 'platform/runtime/venture/playbooks/it-triage/tile.ts', 'platform/runtime/venture/playbooks/monitored-data/tile.ts', 'platform/runtime/venture/playbooks/online-seller/prepare-run.ts']) assert.equal(existsSync(`${root}/${path}`), false, path);
 });
+
+test('task 9: the directly imported DOM test helper is pinned explicitly', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const lock = JSON.parse(read('package-lock.json'));
+  assert.match(pkg.devDependencies['@testing-library/dom'] ?? '', /^\d+\.\d+\.\d+$/);
+  assert.equal(pkg.devDependencies['@testing-library/dom'], lock.packages['node_modules/@testing-library/dom'].version);
+});
