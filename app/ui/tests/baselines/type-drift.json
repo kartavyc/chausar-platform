@@ -20,12 +20,9 @@
   "NotifyDigestView",
   "NotifySettingsView",
   "OwnerView",
-  "PersonaFields",
-  "PersonaView",
   "PhoneAccessView",
   "PlanSuggestionView",
   "PlatformRuleView",
-  "PlaybookPick",
   "PostingLimitsView",
   "PostingProposal",
   "PostingStepsView",
@@ -33,13 +30,6 @@
   "RulesListView",
   "ScoreRule",
   "SearchResultView",
-  "ServiceType",
   "SettingsDraftView",
-  "VentureRunEvent",
-  "VoiceInput",
-  "VoiceSections",
-  "VoiceView",
-  "WayNeeds",
-  "WayView",
-  "WaysView"
+  "VentureRunEvent"
 ]

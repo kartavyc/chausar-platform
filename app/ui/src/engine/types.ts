@@ -1,3 +1,5 @@
+import type { PersonaFields, PersonaView, PlaybookPick, ServiceType, VoiceInput, VoiceSections, VoiceView, WayNeeds, WayView, WaysView } from './contract.gen';
+export type { PersonaFields, PersonaView, PlaybookPick, ServiceType, VoiceInput, VoiceSections, VoiceView, WayNeeds, WayView, WaysView } from './contract.gen';
 import type { BuilderId, MiniAppCallResult, MiniAppCard, MiniAppMessage, MiniAppView } from './contract.gen';
 export type { BuilderId, MiniAppCallResult, MiniAppCard, MiniAppMessage, MiniAppView } from './contract.gen';
 import type { AgentCapView, AgentHealth, AgentMessageView, AgentNoteView, AgentProposalView, AgentRunItem, AgentThreadView, AgentView, ChiefCounted, ChiefFit, ChiefLineAmount, ChiefMessageView, ChiefSnoozeOption, ChiefThreadStateInput, ChiefThreadSummary, ChiefThreadsView, DepartmentId, DepartmentView, ProposalKind, ProposalView, RetireInFlight, RetiredAgentView, RoleModelView, RoutineInput, RoutineSchedule, RoutineSuggestion, RoutineView, StandingOrderView, StandingPlaybookView, StandingStepView, TeamListView } from './contract.gen';
@@ -241,7 +243,7 @@ export interface ShareCommentLite { item: string; text: string; at: string; reco
 // platform/runtime/venture/contracts.ts.
 // ---------------------------------------------------------------------------------------------------------------
 
-export type ServiceType = 'agency' | 'studio' | 'consulting' | 'bookkeeping' | 'research' | 'content' | 'support' | 'teaching' | 'local-services' | 'licensed' | 'other';
+
 export const SERVICE_TYPES: readonly ServiceType[] = ['agency', 'studio', 'consulting', 'bookkeeping', 'research', 'content', 'support', 'teaching', 'local-services', 'licensed', 'other'];
 
 export interface BusinessOnComputer {
@@ -266,7 +268,7 @@ export interface VentureViewLite {
 /** `ChecklistItem` in platform/runtime/venture/contracts.ts, trimmed; link is an address such as #/business/prices. */
 export interface ChecklistItemLite { id: string; label: string; done: boolean; link: string }
 /** `PlaybookPick` in platform/runtime/venture/contracts.ts: worked out from the idea by the engine, never stored. */
-export interface PlaybookPick { id: string; label: string }
+
 
 /** `venture.events` record, trimmed. */
 export interface VentureEventRecordLite { id: string; seq: number; name: string; at: string; data: unknown }
@@ -1350,20 +1352,8 @@ export interface ConnectorChecksView { at: string; rows: ConnectorCheckRow[]; he
  */
 
 /** needs: besides the owner's time (hours), the owner's own AI and the connections that work today, in plain words. */
-export interface WayNeeds { ai: Display; connections: Display }
-export interface WayView {
-  id: string; playbook: string; label: Display; category: WayCategory; department: DepartmentId; line: Display;
-  hours: Display; minHours: number; maxHours: number; hoursEstimate: true; youDo: Display;
-  team: { role: string; initials: string; department: DepartmentId }[]; teamLine: Display;
-  /** W6 6C3: estimate is false where a sourced range for the way's own service replaced the model estimate; guide: the profession's sources or "No reliable data". */
-  clientsPay?: { text: Display; per: Display; estimate: boolean; source: Display; guide?: PriceGuideView; rangeId?: string };
-  /** W6 F4: a desk for the owner's own use: what it saves them (a model estimate), in place of clientsPay. */
-  saves?: { text: Display; line: Display; estimate: true; source: Display };
-  needs: WayNeeds; starter: Display;
-  yours: { businessId: string; name: string }[];
-  /** W6 6E6 (D2): the profession families this way serves, in the families' order. */
-  families: string[];
-}
+
+
 /**
  * W6 6C3 (D17), `PriceGuideView` in platform/runtime/venture/contracts.ts (core/price-ranges.ts): a profession's price
  * ranges from credible sources with the date checked, or status no-reliable-data with line "No reliable data". Every
@@ -1378,13 +1368,7 @@ export interface PriceGuideView {
   profession: string; label: Display; family: string; status: 'sourced' | 'no-reliable-data';
   ranges: PriceRangeView[]; line: Display | null; reason: Display | null; checkedOn: string; checked: Display;
 }
-export interface WaysView {
-  ways: WayView[];
-  categories: { id: WayCategory; label: Display; count: number }[];
-  upTo: { maxHours: number; label: Display; count: number };
-  /** W6 6E6 (D2): the families that have a way, each with its count of ways. */
-  families: { id: string; label: Display; count: number }[];
-}
+
 /** `ComposeAttachmentNote` (onboarding-contracts.ts): a dropped file's name, whether it was used, and why not, never its text. */
 export interface AttachmentNote { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null }
 /** `PlanChangeView` (4J8): one change a plan suggestion makes; estimate is always false (its words hold no number). */
@@ -1474,8 +1458,8 @@ export interface NeedsListLite { family: { id: string; label: string } | null; n
 export interface GuidanceLineView { stepId: string; text: string; check: string | null; state: 'measured' | 'dark' | 'unmeasured' }
 /** 4J16: a part of the drafts the owner keeps correcting. It changes nothing; starter prefills the agent's chat and is never sent. */
 export interface FixTheRuleView { field: string; stepId: string | null; agent: string | null; corrected: number; reviews: number; line: string; starter: string }
-export interface VoiceSections { audience: string[]; howITalk: string[]; neverUse: string[]; wordsIUse: string[]; willNotClaim: string[]; format: string[] }
-export interface VoiceInput { language: 'en' | 'hi'; channel?: string | null; on: boolean; sections: VoiceSections }
+
+
 /**
  * 4J17 (A14): a question card: one question with answers to pick from, or a round of two to eight, each with the
  * agent's best guess; answers list the pick first with what each gains and costs; free text is always open, with escape.
@@ -1484,13 +1468,9 @@ export interface VoiceInput { language: 'en' | 'hi'; channel?: string | null; on
 
 
 /** 4J17: version in use and undo (the voice to set to go back one version); draft: what learn worked out, unsaved. */
-export interface VoiceView {
-  voices: { language: 'en' | 'hi'; channel: string | null; on: boolean; sections: VoiceSections; validated: boolean; version?: number; undo?: VoiceInput | null }[];
-  line: Display;
-  draft?: { language: 'en' | 'hi'; channel: string | null; sections: VoiceSections; validated: boolean; learnedFrom: number; lines: string[]; line: Display } | null;
-}
-export interface PersonaFields { tone: string | null; replyLength: 'short' | 'medium' | 'long' | null; greeting: string | null; handOffLine: string | null; blockedTopics: string[]; signOff: string | null }
-export interface PersonaView { agent: string; persona: PersonaFields; skills: { name: Display; line: Display; starter: string }[]; line: Display; version?: number; undo?: PersonaFields | null }
+
+
+
 
 export interface KnowledgeSourceView { id: string; kind: 'text' | 'link' | 'file' | 'past-work'; title: string; at: string; line: Display }
 export interface IdeaView { id: string; title: Display; reason: Display; evidence: { id: string; line: Display }[]; prompt: string }
