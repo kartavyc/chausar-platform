@@ -223,7 +223,7 @@ export class ReleaseUpdater {
    * that this engine may install. A changed byte, another key, another channel or a bad release refuses the feed; a
    * feed with nothing newer here, or a rollout this install is outside, offers nothing.
    */
-  verifyFeed(feed:ReleaseFeed|string,signature:string,options:{channel:ReleaseChannel;installId:string;now?:Date}):FeedChoice {
+  verifyFeed(feed:ReleaseFeed|string,signature:string,options:{channel:ReleaseChannel;installId:string;now?:Date;skip?:readonly string[]}):FeedChoice {
     check(RELEASE_CHANNELS.includes(options?.channel)&&typeof options.installId==='string'&&options.installId.length>0&&options.installId.length<=100,'INVALID_FEED','Name this install\'s channel and id before reading a feed.');
     check(typeof feed!=='string'||Buffer.byteLength(feed)<=MAX_FEED_BYTES,'INVALID_FEED','The update feed exceeds its byte limit.');
     let value:any;try{value=typeof feed==='string'?JSON.parse(feed):structuredClone(feed);}catch{check(false,'INVALID_FEED','The update feed is not valid JSON data.');}
@@ -237,7 +237,8 @@ export class ReleaseUpdater {
     const releases:FeedRelease[]=value.releases.map((release:any)=>({manifest:this.#authenticate(release.manifest,release.signature,false),signature:release.signature}));
     const seen=new Map<string,string>();
     for(const {manifest} of releases){const key=`${manifest.platform}/${manifest.architecture}/${manifest.version}`,body=canonicalReleaseManifest(manifest);check(!seen.has(key)||seen.get(key)===body,'INVALID_FEED','The feed lists one version twice with different contents.');seen.set(key,body);}
-    const here=releases.filter(({manifest})=>manifest.platform===process.platform&&manifest.architecture===process.arch&&compareVersions(this.#version,manifest.minEngineVersion)>=0);
+    // D12 task 9: a version that failed to start and was swapped away from is never offered again; a newer one is.
+    const here=releases.filter(({manifest})=>manifest.platform===process.platform&&manifest.architecture===process.arch&&compareVersions(this.#version,manifest.minEngineVersion)>=0&&!options.skip?.includes(manifest.version));
     if(!here.length)return Object.freeze({offer:null,reason:'no-release'});
     const newest=here.reduce((best,release)=>compareVersions(release.manifest.version,best.manifest.version)>0?release:best);
     if(compareVersions(newest.manifest.version,this.#version)<=0)return Object.freeze({offer:null,reason:'up-to-date'});

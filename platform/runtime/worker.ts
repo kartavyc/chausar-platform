@@ -2,7 +2,7 @@
 import './process-report.ts';
 import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
-import { resolve } from 'node:path';
+import { delimiter, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { CodexTrust } from './codex-trust.ts';
@@ -20,6 +20,7 @@ import { ownerError } from './owner-error.ts';
 import { workerDataDirectory } from './data-home.ts';
 export { workerDataDirectory };
 import { updatesOptionsFrom } from './update-service.ts';
+import { defaultClaudeInstallPorts } from './venture/models/claude-code-install.ts';
 
 /** C5 task 31: the daily update check, when main named its folder. */
 function withUpdates(environment: NodeJS.ProcessEnv) { const updates = updatesOptionsFrom(environment); return updates ? { updates } : {}; }
@@ -36,7 +37,11 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
   // One-shot A4 (row 107): the build desktop main names (inside app.asar in the packaged app), else the one beside us.
   const inkFolder = inkFolderFor(environment);
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: inkFolder, files: await listInkFiles(inkFolder) }) });
-  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: workerDataDirectory(environment), demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, ...withUpdates(environment), durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true,
+  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: workerDataDirectory(environment), demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, ...withUpdates(environment),
+    // D5: Install Claude Code, only on the desktop, after the owner's yes in main's dialog. Anthropic's installer adds its folder
+    // to the owner's path for new programs; this running worker needs it too, to find what was just installed.
+    ...(typeof process.send === 'function' ? { claudeInstall: { host: 'desktop', ports: defaultClaudeInstallPorts(), onFound: (found: string) => { process.env.PATH = `${dirname(found)}${delimiter}${process.env.PATH ?? ''}`; } } } : {}),
+    durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true,
     // Ink v2 wave 5 (5A5): a report's PDF is printed by the desktop main process, asked over this worker's own channel.
     ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process), credentials: processCredentialPort(process),
       // Wave 6 (6F3): pages that need JavaScript are read in the desktop's hidden window (web-render.cjs).
@@ -67,6 +72,12 @@ export function runEngineWorker(engine: Engine) {
       return;
     }
     // C5 task 32: at quit, only from main: whether a run is busy, and the safety copy before the vault closes.
+    // D5: the owner's yes in main's own dialog (claude-install.cjs); the message carries nothing, and the engine makes the yes.
+    if (message?.kind === 'host-claude-install' && typeof message.id === 'string') {
+      try { reply({ id: message.id, result: await engine.installClaudeCodeFor() }); }
+      catch (error) { reply({ id: message.id, error: ownerError(error) }); }
+      return;
+    }
     if (message?.kind === 'host-update-prepare' && typeof message.id === 'string') {
       try { reply({ id: message.id, result: await engine.prepareUpdateInstall(message.payload) }); }
       catch (error) { reply({ id: message.id, error: ownerError(error) }); }
@@ -84,4 +95,8 @@ export function runEngineWorker(engine: Engine) {
   reply({ ready: true });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runEngineWorker(await createWorkerEngine());
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // D4 task 4: every import has loaded; the engine has not opened its data yet. The desktop shows this as the start's progress.
+  if (process.connected) process.send?.({ phase: 'loaded' }, () => {});
+  runEngineWorker(await createWorkerEngine());
+}

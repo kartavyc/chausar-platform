@@ -92,7 +92,7 @@ test('a rejected promise that is not an error object still closes plainly', asyn
 });
 
 test('the start-up phases are one list, and each is written once with its time since the start', async t => {
-  assert.deepEqual([...STARTUP_PHASES], ['app-ready', 'engine-forked', 'engine-ready', 'window-shown', 'first-request', 'first-paint']);
+  assert.deepEqual([...STARTUP_PHASES], ['app-ready', 'window-shown', 'engine-forked', 'loaded', 'engine-ready', 'first-paint', 'first-request']);
   assert.equal(Object.isFrozen(STARTUP_PHASES), true);
   const root = await folder(t);
   let clock = 1000;

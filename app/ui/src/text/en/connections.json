@@ -189,6 +189,7 @@
   "connections.cli.title": "Your AI apps",
   "connections.cli.check": "Check again",
   "connections.cli.checked": "Checked again just now.",
+  "connections.cli.lastChecked": "Last checked {time}",
   "connections.cli.failed": "Couldn't check: {message}",
   "connections.cli.loading": "Loading",
   "connections.settings.offerWays": "After you edit a draft, an agent may offer to keep that as a way of working",

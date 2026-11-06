@@ -5,4 +5,6 @@ export type UpdatesView = {
   channel: 'beta' | 'stable'; daily: boolean; state: UpdateState;
   target: { version: string; bytes: number } | null; downloadedBytes: number | null;
   reason: string | null; lastCheckedAt: string | null;
+  /** D12 task 9: Chausar went back to an earlier version; said once, on the next read, then gone. */
+  rolledBack?: { from: string; to: string; at: string; reason: 'failed-start' | 'failed-migration' };
 };

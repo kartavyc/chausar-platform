@@ -10,6 +10,7 @@
 // Updates row. Anything using a release kept on disk checks it again right before use.
 const fsp = require('node:fs/promises');
 const { join } = require('node:path');
+const { createRollback } = require('./rollback.cjs');
 
 const OLD_COPY = /^chausar-update-[a-f0-9]{16}\.exe$/;
 const INSTALLER_ENDINGS = Object.freeze({ win32: 'setup.exe', linux: 'x64.AppImage', darwin: 'mac.zip' });
@@ -37,11 +38,13 @@ function updateEnvironment(metadata, { userData, packaged }) {
   };
 }
 
-function createUpdateWiring({ metadata, userData, packaged, version, platform, appImage, updates, engine, dialog, shell, note = () => {}, fs = fsp }) {
+function createUpdateWiring({ metadata, userData, packaged, version, platform, appImage, updates, engine, dialog, shell, note = () => {}, fs = fsp, app = null, rollbackFor = null }) {
   const keys = updateMetadata(metadata, { packaged });
   const folder = join(userData, 'updates'), stage = join(folder, 'stage');
   let ready = false, painted = false, cleared = false, work = Promise.resolve();
   const later = job => { work = work.then(job).catch(() => { /* a help, never a gate */ }); return work; };
+  // D12 task 9: going back to the kept release; only for a build with update keys, in the real app.
+  const rollback = keys && app ? (rollbackFor ?? createRollback)({ userData, version, platform, appImage, publicKey: keys.publicKey, windowsPublisher: keys.windowsPublisher, updates, app, note, signatureOf: updates.windowsSignature, spawnInstaller: updates.runInstaller, fs }) : null;
 
   /** The staged release as updates.cjs reads it, or null. One the running version has reached is the engine's to clear. */
   async function readStaged() {
@@ -82,8 +85,13 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
     return path;
   }
 
-  /** D12 replaces this with the automatic rollback (its attach point 3). */
-  function failedBoot(input) {
+  /** D12 task 9: the automatic rollback. C5's dialog stays for whatever it leaves to the owner. */
+  async function failedBoot(asked) {
+    const went = rollback ? await rollback.afterFailedStart(asked).catch(() => ({ state: 'failed' })) : null;
+    if (went && (went.state === 'relaunching' || went.state === 'installer-started')) return undefined;
+    // A kept release is checked again before it's offered: one that changed on disk is not one to promise.
+    const kept = asked.previous ? await readPrevious() : null;
+    const input = { ...asked, previous: kept && await updates.verifyStaged(kept, keys.publicKey, platform) ? asked.previous : null };
     return updates.onFailedBoot(input, {
       note: async line => { note(line); },
       show: words => {
@@ -132,6 +140,9 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
 
   return Object.freeze({
     enabled: !!keys, beforeStart, prepareQuit, installAfterStop, showInstaller,
+    /** D12 task 10: the kept release the unlock screen may offer, and going back to it after main's own dialog. */
+    goBackOffer: async () => (rollback ? rollback.goBackOffer() : null),
+    goBack: async parent => (rollback ? rollback.goBack(dialog, parent) : { state: 'no-previous' }),
     noteReady() { ready = true; return maybeClear(); },
     notePaint() { painted = true; return maybeClear(); },
     settled: () => work,

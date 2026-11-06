@@ -229,7 +229,7 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
     if (trouble) view.provider = trouble;
   }
   // D4: a look answered from the file kept between starts is not a new check; the background look that replaces it is.
-  const checked = clis.filter((_view, index) => (findings[index] as CliFinding & { kept?: true }).kept !== true);
+  const checked = clis.filter((_view, index) => findings[index]!.kept !== true);
   if (venture && checked.length) await keepChecks(deps, ctx, checked);
   return { clis, line: cliListLine(findings) };
 }

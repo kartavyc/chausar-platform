@@ -120,7 +120,30 @@ export class UpdateService {
     if (platform === 'linux' && this.#o.appImage) return 'ready';
     return 'manual';
   }
+  /** D12 task 9: what desktop main kept in <updates>/rollbacks.json. A file a newer Chausar wrote is left alone. */
+  async #rollbacks(): Promise<{ raw: any; skip: string[] } | null> {
+    try {
+      const raw = JSON.parse(await readFile(join(this.#o.directory, 'rollbacks.json'), 'utf8'));
+      if (raw?.format !== 'chausar.rollbacks.v1' || !Array.isArray(raw.swaps) || !Array.isArray(raw.skip)) return null;
+      return { raw, skip: raw.skip.filter((version: unknown) => typeof version === 'string') };
+    } catch { return null; }
+  }
+  /** The swap the owner has not heard about; told once, and the file says so. */
+  async #rolledBackLine(): Promise<UpdatesView['rolledBack'] | undefined> {
+    const kept = await this.#rollbacks();
+    const swap = kept?.raw.swaps.find((item: any) => item?.told === false && item.to === this.#o.version);
+    if (!kept || !swap) return undefined;
+    swap.told = true;
+    const temporary = join(this.#o.directory, `rollbacks.${randomBytes(6).toString('hex')}.tmp`);
+    await writeFile(temporary, JSON.stringify(kept.raw), { mode: 0o600 }).then(() => rename(temporary, join(this.#o.directory, 'rollbacks.json'))).catch(() => unlink(temporary).catch(() => {}));
+    return { from: String(swap.from), to: String(swap.to), at: String(swap.at), reason: swap.reason === 'failed-migration' ? 'failed-migration' : 'failed-start' };
+  }
   async view(): Promise<UpdatesView> {
+    const rolledBack = await this.#rolledBackLine();
+    const view = await this.#plainView();
+    return rolledBack ? { ...view, rolledBack } : view;
+  }
+  async #plainView(): Promise<UpdatesView> {
     const kept = await this.#load();
     const base = { configured: this.configured, version: this.#o.version, installMode: 'manual-native-installer-required' as const, channel: kept.channel ?? this.#o.channel, daily: kept.daily, lastCheckedAt: kept.lastCheckAt === null ? null : new Date(kept.lastCheckAt).toISOString() };
     if (!this.configured) return { ...base, state: 'not-set-up', target: null, downloadedBytes: null, reason: null };
@@ -165,7 +188,7 @@ export class UpdateService {
       const feed = await (this.#o.readFeed ?? readFeedFrom)(url);
       await mkdir(this.#o.directory, { recursive: true });
       const updater = new ReleaseUpdater({ publicKey: this.#o.publicKey!, version: this.#o.version, stageDirectory: this.#stage, download: this.#o.download ?? followingDownload });
-      const choice = updater.verifyFeed(feed.text, feed.signature, { channel, installId: await installIdIn(this.#o.directory), now: new Date(this.#clock()) });
+      const choice = updater.verifyFeed(feed.text, feed.signature, { channel, installId: await installIdIn(this.#o.directory), now: new Date(this.#clock()), skip: (await this.#rollbacks())?.skip ?? [] });
       if (!choice.offer) { await finish('up-to-date', null); return; }
       this.#target = choice.offer.manifest;
       this.#phase = 'downloading';

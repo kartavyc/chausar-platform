@@ -161,12 +161,17 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The installer could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // D12 task 10: after a business couldn't be brought up to date: the version main can go back to, and going back, which main asks about in its own dialog.
+  goBackOffer: async () => { const reply = await ipcRenderer.invoke('chausar:updates:goBackOffer'); return reply?.ok === true && typeof reply.result?.version === 'string' ? { version: reply.result.version } : null; },
+  goBack: async () => { const reply = await ipcRenderer.invoke('chausar:updates:goBack'); return { state: typeof reply?.result?.state === 'string' ? reply.result.state : 'failed' }; },
   // C5 task 26: the page has painted; only the event goes to main.
   firstPaint: () => ipcRenderer.invoke('chausar:first-paint'),
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped', 'reconnecting'];
-    const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed' }));
+    // D4 task 4: the phases of the start, the same as WINDOW_PHASES in diagnostics.cjs, which this sandbox can't import.
+    const phases = ['window-shown', 'engine-forked', 'loaded'];
+    const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed', ...(value?.state === 'starting' && phases.includes(value?.phase) ? { phase: value.phase } : {}) }));
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
   },

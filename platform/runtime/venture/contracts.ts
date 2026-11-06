@@ -884,6 +884,8 @@ export type CliFinding = {
   via?: 'npm-shim';
   /** 4H2: the look started the tool on this computer (its version check at least); never for a located-only or replayed tool. */
   ran?: boolean;
+  /** D4 task 6: answered from the file kept between starts: `at` is when it was really looked at, and the real look follows. */
+  kept?: true;
 };
 
 export type ModelHttpRequest = { url: string; method: 'POST'; headers: Record<string, string>; body: string; timeoutMs: number; purpose: ModelPurpose };
@@ -5162,6 +5164,8 @@ export type CliStatusView = {
   setup?: import('./core/first-run-types.ts').CodexSetupView;
   /** A2: after a failed last task, the provider's status page when it says the provider has problems. */
   provider?: import('./core/first-run-types.ts').ProviderTrouble;
+  /** D4 task 6: a look kept between starts, and when it was really taken; the fresh look replaces it within seconds. */
+  kept?: true; checkedAt?: IsoTime;
 };
 export interface CliStatusList { clis: CliStatusView[]; line: Display }
 /** 4H1. The tiers each agent's steps use and the preset that serves each; the team runs as one agent. */
@@ -6084,6 +6088,8 @@ export const VENTURE_METHODS = [
   'venture.needs.list',
   // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
   'venture.ai.setup.trust',
+  // D5: Install Claude Code, after the owner's yes in main's own dialog, and how far it has come; answered by the engine.
+  'venture.ai.claude.install', 'venture.ai.claude.progress',
   // One-shot C3: which step long work is on, for a page opened mid-job (work-progress.ts), answered by the engine.
   'venture.work.list',
   // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent" (money/invoice-share.ts).
@@ -6132,7 +6138,7 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
  * A2: answered by the engine itself (engine.ts), with or without a vault, never by a package: the owner's yes to the
  * Codex found on this computer. The engine checks the app channel and the owner's role itself.
  */
-export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust', 'venture.work.list'] as const);
+export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust', 'venture.ai.claude.install', 'venture.ai.claude.progress', 'venture.work.list'] as const);
 
 /**
  * Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). Wave 5 adds playbooks
@@ -6550,6 +6556,8 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.about.families': 'core',
   'venture.needs.list': 'core',
   'venture.ai.setup.trust': 'models',
+  'venture.ai.claude.install': 'models',
+  'venture.ai.claude.progress': 'models',
   'venture.work.list': 'views',
   'venture.invoice.shared': 'money',
   'venture.routines.suggestions': 'agents',
@@ -7228,6 +7236,8 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.ai.claude.install': Record<string, never>;
+  'venture.ai.claude.progress': Record<string, never>;
   'venture.work.list': Record<string, never>;
   'venture.invoice.shared': { invoiceId: string; how: InvoiceShareHow };
   'venture.routines.suggestions': Empty;
@@ -7659,6 +7669,8 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.ai.claude.install': import('./models/claude-code-install.ts').ClaudeInstallResult;
+  'venture.ai.claude.progress': import('./models/claude-code-install.ts').ClaudeInstallView;
   'venture.work.list': { work: import('../work-progress.ts').WorkJobView[] };
   'venture.invoice.shared': InvoiceView;
   'venture.routines.suggestions': RoutineSuggestionsView;
@@ -7938,7 +7950,7 @@ export const VENTURE_ERRORS = [
   'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING',
   'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
   // D5: Install Claude Code (models/claude-code-install.ts), wired to a method after the main lane.
-  'CLAUDE_INSTALL_NEEDS_YES', 'CLAUDE_INSTALL_DOWNLOAD_FAILED', 'CLAUDE_INSTALL_FAILED', 'CLAUDE_INSTALL_UNSUPPORTED',
+  'CLAUDE_INSTALL_NEEDS_YES', 'CLAUDE_INSTALL_DOWNLOAD_FAILED', 'CLAUDE_INSTALL_FAILED', 'CLAUDE_INSTALL_UNSUPPORTED', 'CLAUDE_INSTALL_NOT_CHOSEN',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 

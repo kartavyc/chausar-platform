@@ -1,7 +1,7 @@
 // D7 task 6, the additive half: every build bundles the engine (scripts/bundle-engine.mjs) between the Ink build and
 // electron-builder, carries app/engine/dist as its own file set (the 64 KB pattern lesson, desktop-package.mjs) and
 // unpacks it, and the receipt records the bundle. The engine source still ships beside it until desktop main runs the
-// bundle (task 5, main lane); dropping platform/runtime from the builder files waits for that.
+// bundle (task 5), and the engine source leaves the builder files.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -48,6 +48,34 @@ test('every builder file carries the engine bundle as its own file set, unpacked
       const failure = result.failures.find((item: any) => item.check === 'packaging configuration');
       assert.ok(failure, mode);
       assert.match(failure.reason, /engine bundle/);
+    }
+  }
+});
+
+// D7 task 6: main runs the bundle (task 5), so the engine source leaves all three builder files. The one file main still
+// reads from the archive is the credential contract.
+test('no build ships the engine source, its helpers or the fixtures; the credential contract stays in the archive', async t => {
+  const SOURCE = ['platform/runtime', 'platform/semantic-qualification', 'platform/helpers', 'fixtures'];
+  for (const [mode, config] of Object.entries(CONFIGS)) {
+    const text = (entry: any) => (typeof entry === 'string' ? entry : entry?.from ?? '').replace(/^!/, '');
+    for (const entry of [...config.files, ...config.asarUnpack]) {
+      if (text(entry) === ENGINE_BUNDLE.contract) continue;
+      assert.ok(!SOURCE.some(source => text(entry).startsWith(source)), mode + ': ' + text(entry));
+    }
+    assert.ok(config.files.includes(ENGINE_BUNDLE.contract), mode);
+    assert.ok(!config.asarUnpack.includes(ENGINE_BUNDLE.contract), mode + ': main reads it from the archive');
+    assert.ok(!config.files.includes('app/**/*'), mode + ': a glob over app/ would take the source maps too');
+  }
+  for (const mode of ['beta', 'preview', 'final'] as const) {
+    const config = CONFIGS[mode];
+    for (const variant of [
+      { ...config, files: [...config.files, 'platform/runtime/**/*'] },
+      { ...config, files: [...config.files, { from: 'platform/runtime', to: 'platform/runtime', filter: ['**/*'] }] },
+      { ...config, files: config.files.filter((entry: unknown) => entry !== ENGINE_BUNDLE.contract) },
+      { ...config, asarUnpack: [...config.asarUnpack, 'platform/helpers/**/*'] },
+    ]) {
+      const result = await desktopPackagePrerequisites({ root: await fixture(t, mode, variant), plan: createDesktopPackagePlan({ mode }), environment: {} });
+      assert.ok(result.failures.some((item: any) => item.check === 'packaging configuration' && /engine source|credential contract/.test(item.reason)), mode + ' ' + JSON.stringify(variant.files.at(-1)));
     }
   }
 });

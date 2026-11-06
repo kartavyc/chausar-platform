@@ -26,7 +26,7 @@ export function StatusLine({ status, transport }: { status: EngineStatus; transp
     status.state === 'offline' ? t('status.offline')
       : status.state === 'session-ended' ? t('status.sessionEnded')
         : status.state === 'unpaired' ? t('status.unpaired')
-          : status.state === 'starting' ? t('status.starting')
+          : status.state === 'starting' ? t(status.phase === 'loaded' ? 'status.starting.loaded' : status.phase === 'engine-forked' ? 'status.starting.engine' : 'status.starting')
           : status.state === 'reconnecting' ? t('status.reconnecting')
             : t('status.error', { message: status.message });
   const urgent = status.state !== 'starting' && status.state !== 'reconnecting';

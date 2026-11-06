@@ -95,6 +95,14 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
     }
   } catch { /* no bundle: named above */ }
   if (maps.length) problems.push(`a source map ships: ${maps.slice(0, 3).join(', ')}`);
+  // D7 task 6: the engine source never ships, in the archive or unpacked; main reads one file of it from the archive.
+  const sourceShipped = archive.filter(path => /^(platform|fixtures)\//.test(path) && path !== 'platform/runtime/venture/models/credential-contract.cjs');
+  try {
+    for (const entry of await readdir(join(unpacked, 'platform'), { withFileTypes: true, recursive: true })) {
+      if (entry.isFile()) sourceShipped.push(join(entry.parentPath ?? entry.path, entry.name).slice(unpacked.length + 1).replace(/\\/g, '/'));
+    }
+  } catch { /* none unpacked, as it should be */ }
+  if (sourceShipped.length) problems.push(`engine source ships: ${sourceShipped.slice(0, 3).join(', ')}`);
 
   let codexVersion = null;
   try { codexVersion = JSON.parse(await readFile(join(resources, 'codex', 'BUNDLE.json'), 'utf8')).version ?? null; } catch { codexVersion = null; }

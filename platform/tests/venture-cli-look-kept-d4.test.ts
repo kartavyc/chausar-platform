@@ -357,3 +357,14 @@ test('a replayed transport keeps nothing and answers nothing kept', { timeout: 2
   assert.equal(finding.replay, true);
   assert.deepEqual(writes.flatMap(looks => Object.keys(looks)), []);
 });
+
+// D4 task 6, the status view: a kept look says so and says when it was really taken, for the row's "Last checked" line.
+test('the status view carries kept and checkedAt only from a kept finding', async () => {
+  const { cliStatusView } = await import('../runtime/venture/models/cli-status.ts');
+  const finding = { cli: 'codex', at: '2026-11-06T08:00:00.000Z', found: true, path: 'C:/tools/codex.exe', answered: true, version: '0.166.0', flags: 'match', missingFlags: [], signedIn: 'unknown', statusCommand: null, profile: null, replay: false } as any;
+  const fresh = cliStatusView(finding, { claudeTerms: undefined, lastTask: null });
+  assert.equal(fresh.kept, undefined); assert.equal(fresh.checkedAt, undefined);
+  const kept = cliStatusView({ ...finding, kept: true }, { claudeTerms: undefined, lastTask: null });
+  assert.equal(kept.kept, true); assert.equal(kept.checkedAt, '2026-11-06T08:00:00.000Z');
+  assert.equal(kept.signedIn, 'unknown');
+});

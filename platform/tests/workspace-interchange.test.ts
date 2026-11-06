@@ -171,7 +171,7 @@ test('wire refuses unsupported schema/format, duplicate keys, truncation and for
   const { package: packed } = fixture(); const wire = encodeWorkspaceInterchange(packed);
   assert.throws(() => inspectWorkspaceInterchange(wire.slice(0, -1)), code('INTERCHANGE_JSON'));
   assert.throws(() => inspectWorkspaceInterchange('{"digest":"duplicate",' + wire.slice(1)), code('INTERCHANGE_CANONICAL'));
-  const schema = deterministicShopState(); schema.schemaVersion = 2;
+  const schema = deterministicShopState(); schema.schemaVersion = 99;
   assert.throws(() => captureWorkspaceInterchange(schema, artifactsFor(schema)), code('INTERCHANGE_SCHEMA'));
   const unsupported = structuredClone(packed); (unsupported as any).format = 'chausar.workspace-interchange.v99';
   assert.throws(() => inspectWorkspaceInterchange(reseal(unsupported)), code('INTERCHANGE_FORMAT'));

@@ -23,7 +23,7 @@ export { serverDataDirectory };
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
-  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.ai.setup.trust', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.ai.setup.trust', 'venture.ai.claude.install', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
   // One-shot C3: the app's preference on this computer is the computer owner's to change.
   'app.preferences.set',
   // C5 task 31: only the owner on this computer changes how it updates.

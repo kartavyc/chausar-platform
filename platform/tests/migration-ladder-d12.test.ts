@@ -97,8 +97,31 @@ test('a step file is pure: it imports nothing but types (no file, network or clo
   const folder = new URL('../runtime/migrations/steps/', import.meta.url);
   for (const name of (await readdir(folder)).filter(file => file.endsWith('.ts'))) {
     const text = await readFile(new URL(name, folder), 'utf8');
-    const imports = [...text.matchAll(/^import\s+(?!type\b)[^;]*;/gm)].map(match => match[0]);
+    // index.ts lists the steps, so it imports them; nothing else.
+    const imports = [...text.matchAll(/^import\s+(?!type\b)[^;]*;/gm)].map(match => match[0]).filter(line => !(name === 'index.ts' && /from '\.\/\d{4}-to-\d{4}\.ts'/.test(line)));
     assert.deepEqual(imports, [], name);
     assert.doesNotMatch(text, /\bDate\.now\(|new Date\(|Math\.random\(|process\.|fetch\(/, name);
   }
+});
+
+// D12 task 3 and task 5: a fixture for every version up to the current one, and what step 1 to 2 does to the first.
+test('there is a fixture for every version from 1 to CURRENT_SCHEMA', async () => {
+  const { readFile } = await import('node:fs/promises');
+  for (let version = 1; version <= CURRENT_SCHEMA; version++) {
+    const state = JSON.parse(await readFile(new URL(`./fixtures/vault-ladder/state-v${version}.json`, import.meta.url), 'utf8'));
+    assert.equal(state.schemaVersion, version);
+  }
+});
+
+test('step 1 to 2 on the beta fixture: nothing old changes, every record stays, and an older Chausar now refuses this data', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { STEPS } = await import('../runtime/migrations/ladder.ts');
+  const v1 = JSON.parse(await readFile(new URL('./fixtures/vault-ladder/state-v1.json', import.meta.url), 'utf8'));
+  const step = STEPS.find(item => item.from === 1)!;
+  assert.equal(step.to, 2);
+  const once = step.run(structuredClone(v1), '2026-11-06T00:00:00.000Z'), twice = step.run(structuredClone(once), '2026-11-06T00:00:00.000Z');
+  assert.deepEqual(twice, once, 'twice equals once');
+  assert.deepEqual({ ...once, schemaVersion: 1 }, v1, 'additive: old data is already valid, so only the number moves');
+  assert.equal(once.schemaVersion, 2);
+  assert.ok(v1.conversations.some((row: any) => row?.kind === 'venture-record'), 'the fixture holds a business');
 });

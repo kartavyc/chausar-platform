@@ -9,11 +9,12 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[] } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[]; packaged?: boolean; startGate?: Promise<void>; startGateFails?: string; dialog?: Record<string, unknown> } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
+  const startFails: boolean[] = options.startFails ?? [], order: unknown[] = options.order ?? [], optionsOrder = order;
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
-  const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
+  const app = new EventEmitter() as any; app.isPackaged = options.packaged !== false; app.quits = 0;
   // A5: the computer's login items as Electron reads them back (Windows launch items, this program's only).
   const run = new Map<string, any>();
   app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: settings.args, enabled: true }); else run.delete(settings.name); };
@@ -30,7 +31,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   app.setPaths = [] as [string, string][]; app.setPath = (name: string, value: string) => { app.setPaths.push([name, value]); };
   class Window extends EventEmitter {
     webContents: any; options: any;
-    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.sent = []; this.webContents.send = (channel: string, value: unknown) => { this.webContents.sent.push([channel, value]); }; windows.push(this); }
+    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.sent = []; this.webContents.send = (channel: string, value: unknown) => { this.webContents.sent.push([channel, value]); }; windows.push(this); optionsOrder.push('window'); }
     urls: string[] = [];
     loadURL(url: string) { this.webContents.mainFrame.url = url; this.urls.push(url); }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
@@ -40,12 +41,19 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     visible = true; focused = false; minimized = false;
     isVisible() { return this.visible; } isFocused() { return this.focused; }
   }
-  const startFails: boolean[] = options.startFails ?? [], order: unknown[] = options.order ?? [];
   class Harness extends EventEmitter {
-    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
+    state = options.startGate ? 'stopped' : 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
     asked: string[] = [];
-    async start() { if (startFails.shift() === true) throw new Error('The worker did not start.'); }
+    async start() {
+      if (startFails.shift() === true) throw new Error('The worker did not start.');
+      order.push('engine start');
+      if (!options.startGate) return;
+      this.state = 'starting'; this.emit('status', { state: 'starting', healthy: false });
+      await options.startGate;
+      if (options.startGateFails) { this.state = 'failed'; this.emit('status', { state: 'failed', healthy: false }); throw new Error(options.startGateFails); }
+      this.state = 'ready'; this.emit('status', { state: 'ready', healthy: true });
+    }
     async request(method: string) { this.asked.push(method); return { method, experimental: true }; }
     // C5 task 29: the worker dies: the real harness says failed, then exit.
     die() { this.state = 'failed'; this.emit('status', { state: 'failed', healthy: false }); this.emit('exit', { code: 1, signal: null }); }
@@ -70,7 +78,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message), ...options.dialog }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -116,6 +124,15 @@ test('unsigned packaged preview refuses explicit production mode before starting
   const d = await desktop(['--production']); assert.match(d.errors[0], /synthetic data only/); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
 });
 
+// D7 task 5: the packaged app runs the bundle; a development run stays on the source.
+test('packaged, the worker is the bundle under app.asar.unpacked; not packaged, the source', async () => {
+  const unix = (path: string) => path.split('\\').join('/');
+  const packaged = await desktop(['--production'], Promise.resolve(), true);
+  assert.equal(unix(packaged.engines[0].options.workerPath).endsWith('/owned/resources/app.asar.unpacked/app/engine/dist/runtime/worker.js'), true, packaged.engines[0].options.workerPath);
+  const source = await desktop(['--production'], Promise.resolve(), true, { packaged: false });
+  assert.equal(unix(source.engines[0].options.workerPath).endsWith('/owned/app/platform/runtime/worker.ts'), true, source.engines[0].options.workerPath);
+});
+
 test('the real desktop starts its file worker without starting a bundled database', async () => {
   const d = await desktop(['--production'], Promise.resolve(), true);
   assert.equal(d.errors.length, 0);
@@ -153,12 +170,195 @@ test('quit awaits in-flight startup and never opens a window or starts a late wo
   assert.equal(d.app.quits, 1); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.errors.length, 0);
 });
 
+// One-shot D4 task 2: the window first. The engine starts after it, and never holds it back.
+const opened = () => { let open!: () => void; const gate = new Promise<void>(accept => { open = accept; }); return { gate, open }; };
+test('D4: the window exists while the harness is still starting, and the engine starts after it', async () => {
+  const { gate, open } = opened(), order: unknown[] = [];
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate, order });
+  assert.equal(d.windows.length, 1, 'the window opens before the engine is ready');
+  assert.equal(d.engines[0].state, 'starting');
+  assert.deepEqual(order.slice(0, 2), ['window', 'engine start']);
+  assert.equal(d.trays.length, 1, 'the tray is there');
+  open(); await flush();
+  assert.equal(d.engines[0].state, 'ready');
+  assert.equal(d.windows.length, 1, 'still one window once the engine is ready');
+  assert.equal(d.errors.length, 0);
+});
+
+test('D4: a login start of the beta opens no window while the engine starts, and the tray is there', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--hidden'], Promise.resolve(), true, { channel: 'beta', startGate: gate });
+  assert.equal(d.windows.length, 0); assert.equal(d.trays.length, 1);
+  open(); await flush();
+  assert.equal(d.windows.length, 0);
+});
+
+test('D4: quit during the start closes down, starts no late worker and never opens a second window', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  assert.equal(d.windows.length, 1);
+  d.app.emit('before-quit', { preventDefault() {} }); await flush();
+  assert.equal(d.app.quits, 0, 'quit waits for the start');
+  open(); await flush();
+  assert.equal(d.app.quits, 1); assert.equal(d.windows.length, 1); assert.equal(d.engines.length, 1);
+});
+
+test('D4: second-instance and activate while starting show the window there, or open one, without waiting for ready', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  d.app.emit('second-instance'); assert.equal(d.windows.length, 1, 'shows the one there');
+  d.windows[0].isDestroyed = () => true; d.windows[0].emit('closed');
+  d.app.emit('activate'); assert.equal(d.windows.length, 2, 'opens one when there is none');
+  d.windows[1].isDestroyed = () => true; d.windows[1].emit('closed');
+  d.app.emit('second-instance'); assert.equal(d.windows.length, 3);
+  open(); await flush();
+  assert.equal(d.windows.length, 3);
+});
+
+test('D4: a start that fails with the window open shows the error box and quits', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate, startGateFails: 'The worker did not start.' });
+  assert.equal(d.windows.length, 1);
+  open(); await flush();
+  assert.deepEqual(d.errors, ['The worker did not start.']); assert.equal(d.app.quits, 1);
+});
+
+test('D4: the boot marker clears only when the engine is ready and the window has painted, whichever comes first', async () => {
+  const { gate, open } = opened(), cleared: unknown[] = [];
+  const updates = { startBoot: async () => ({}), clearBoot: async () => { cleared.push('cleared'); }, onFailedBoot: async () => {}, verifyStaged: async () => false, installOnQuit: async () => ({}) };
+  const contract = require('./ipc-contract.cjs');
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate, channel: 'beta', metadata: { chausarUpdatePublicKey: 'key' }, updates });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own); await flush();
+  assert.deepEqual(cleared, [], 'a paint before ready clears nothing');
+  open(); await flush(); await flush();
+  assert.deepEqual(cleared, ['cleared']);
+});
+
+// One-shot D4 task 3: a request made while the engine starts waits for it, within a bound, and is sent once.
+test('D4: a request sent while the engine starts gets the engine answer after it is ready, sent once', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  await flush();
+  assert.deepEqual(d.engines[0].asked, [], 'nothing is sent until it is ready');
+  open();
+  const reply = await pending;
+  assert.equal(reply.ok, true); assert.equal(reply.result.method, 'workspace.status');
+  assert.deepEqual(d.engines[0].asked, ['workspace.status']);
+});
+
+test('D4: a start that fails answers the waiting request with its plain reason', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate, startGateFails: 'The engine did not start before its deadline.' });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  open();
+  const reply = await pending;
+  assert.deepEqual([reply.ok, reply.error.code, reply.error.message], [false, 'ENGINE_START_FAILED', 'The engine did not start before its deadline.']);
+  assert.deepEqual(d.engines[0].asked, []);
+});
+
+test('D4: a start that never finishes answers ENGINE_STARTING after 60 seconds, and sends nothing', async t => {
+  const { gate } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  await new Promise<void>(accept => setImmediate(accept));
+  t.mock.timers.tick(59_000);
+  let settled = false; void pending.then(() => { settled = true; });
+  await new Promise<void>(accept => setImmediate(accept));
+  assert.equal(settled, false, 'still waiting at 59 seconds');
+  t.mock.timers.tick(1_001);
+  const reply = await pending;
+  assert.deepEqual([reply.ok, reply.error.code, reply.error.message], [false, 'ENGINE_STARTING', 'Chausar is still starting. Try again in a moment.']);
+  assert.deepEqual(d.engines[0].asked, []);
+});
+
+test('D4: a request made during a restart waits for the fresh worker and goes there once', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  d.engines[0].die();
+  const pending = d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
+  t.mock.timers.tick(1_000);
+  for (let count = 0; count < 8; count += 1) await new Promise<void>(accept => setImmediate(accept));
+  assert.equal(d.engines.length, 2, 'the restart made a fresh worker');
+  d.engines[1].emit('status', { state: 'ready', healthy: true });
+  const reply = await pending;
+  assert.equal(reply.ok, true);
+  assert.deepEqual([d.engines[0].asked, d.engines[1].asked], [[], ['workspace.status']]);
+});
+
+// One-shot D4 task 4: the phases of the start reach the window, and a window opened late hears where things stand.
+const statusPhases = (window: any) => window.webContents.sent.filter(([channel]: [string]) => channel === 'chausar:engine-status').map(([, status]: [string, any]) => status.state === 'starting' ? status.phase ?? 'starting' : status.state);
+test('D4: the window hears the phases in order, then ready; a window opened late hears the current one at load', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  const window = d.windows[0], engine = d.engines[0];
+  engine.emit('status', { state: 'starting', healthy: false, phase: 'loaded' });
+  window.emit('ready-to-show');
+  assert.deepEqual(statusPhases(window), ['starting', 'engine-forked', 'loaded'], 'the line never goes back');
+  window.webContents.sent.length = 0;
+  window.webContents.emit('did-finish-load');
+  assert.deepEqual(statusPhases(window), ['loaded']);
+  open(); await flush();
+  assert.equal(statusPhases(window).at(-1), 'ready');
+  const lines = linesOf(d, 'startup.jsonl').map(line => line.phase);
+  assert.ok(lines.includes('loaded'), 'the timeline has the worker\'s own phase');
+});
+
+test('D4: a status with an unknown phase reaches the window without it', async () => {
+  const { gate } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  d.engines[0].emit('status', { state: 'starting', healthy: false, phase: 'made-up' });
+  for (const [, status] of d.windows[0].webContents.sent.filter(([channel]: [string]) => channel === 'chausar:engine-status')) assert.notEqual(status.phase, 'made-up');
+  const { validateEngineStatus } = require('./ipc-contract.cjs');
+  assert.deepEqual(plain(validateEngineStatus({ state: 'starting', healthy: false, phase: 'loaded', extra: 1 })), { state: 'starting', healthy: false, phase: 'loaded' });
+  assert.deepEqual(plain(validateEngineStatus({ state: 'starting', healthy: false, phase: 'app-ready' })), { state: 'starting', healthy: false });
+  assert.deepEqual(plain(validateEngineStatus({ state: 'ready', healthy: true, phase: 'loaded' })), { state: 'ready', healthy: true });
+  assert.deepEqual(plain(validateEngineStatus({ state: 'odd', healthy: true })), { state: 'failed', healthy: false });
+});
+
+test('D4: the preload passes on a known phase of the start, and drops anything else', async () => {
+  let bridge: any; let listener: any;
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { on: (_channel: string, handler: any) => { listener = handler; }, removeListener() {}, invoke: async () => ({}) } }), Object, TypeError, Error });
+  const heard: any[] = [];
+  bridge.onEngineStatus((status: any) => heard.push(plain(status)));
+  listener({}, { state: 'starting', healthy: false, phase: 'loaded' });
+  listener({}, { state: 'starting', healthy: false, phase: 'made-up' });
+  listener({}, { state: 'ready', healthy: true, phase: 'loaded' });
+  assert.deepEqual(heard, [{ healthy: false, state: 'starting', phase: 'loaded' }, { healthy: false, state: 'starting' }, { healthy: true, state: 'ready' }]);
+  const { WINDOW_PHASES } = require('./diagnostics.cjs');
+  const preload = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
+  for (const name of WINDOW_PHASES) assert.ok(preload.includes(`'${name}'`), name);
+});
+
+// One-shot D5: Install Claude Code asks in main's own dialog; the window's payload is never forwarded, and Cancel sends nothing.
+test('D5: Install Claude Code goes to the engine only after yes in main\'s dialog, and carries nothing', async () => {
+  const answers = [1, 0], asked: any[] = [], installs: unknown[][] = [];
+  const dialogOptions = { showMessageBox: async (...parts: any[]) => { asked.push(parts.at(-1)); return { response: answers.shift() }; } };
+  const d = await desktop(['--production'], Promise.resolve(), true, { dialog: dialogOptions });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  d.engines[0].installClaude = (...parts: unknown[]) => { installs.push(parts); return Promise.resolve({ outcome: 'installed', path: 'x', words: 'done' }); };
+  const handler = d.handlers.get('chausar:request');
+  const payload = { yes: true, at: new Date().toISOString() };
+  const cancelled = await handler(own, { method: 'venture.ai.claude.install', payload });
+  assert.deepEqual([cancelled.ok, cancelled.error.code, cancelled.error.message], [false, 'CLAUDE_INSTALL_NOT_CHOSEN', 'Nothing was downloaded.']);
+  assert.deepEqual(installs, [], 'Cancel sends nothing');
+  const yes = await handler(own, { method: 'venture.ai.claude.install', payload });
+  assert.equal(yes.ok, true); assert.deepEqual(installs, [[]], 'the yes reaches the engine once, with nothing from the window');
+  assert.deepEqual(d.engines[0].asked, [], 'never as a plain request');
+  assert.equal(asked[0].defaultId, 1); assert.equal(asked[0].cancelId, 1); assert.match(asked[0].detail, /Anthropic's official installer/);
+  assert.deepEqual(asked[0].buttons, ['Download and install', 'Cancel']);
+});
+
 test('desktop reports actual window, background and sleep transitions before shutdown', async () => {
   const d = await desktop(['--background']); const engine = d.engines[0];
-  assert.deepEqual(engine.lifecycle, [
-    { awake: true, windowOpen: false, backgroundEnabled: true },
-    { awake: true, windowOpen: true, backgroundEnabled: true },
-  ]);
+  // D4: the window opens first, so the engine's first report already has it open.
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: true });
   d.powerMonitor.emit('suspend'); await flush();
   assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: true, backgroundEnabled: true });
   d.windows[0].emit('closed'); await flush();
@@ -185,6 +385,8 @@ test('foreground closure reports no background permission and failed acknowledge
 test('desktop tells the engine the owner is watching only while the window is shown, not minimised and focused (4G1)', async () => {
   const d = await desktop([]);
   const window = d.windows[0], engine = d.engines[0];
+  // D4: the window opened first, so the engine heard where it stood once as it came up.
+  assert.deepEqual(engine.watching, [false]); engine.watching.length = 0;
   // isMinimized is read from the field the window keeps, the way Electron answers it.
   window.isMinimized = () => window.minimized;
   window.focused = true; window.emit('focus');
@@ -592,6 +794,7 @@ test('C5 task 26: the start line has the phases in order, each once; first paint
   const d = await desktop([]);
   const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
   window.emit('ready-to-show');
+  d.engines[0].emit('status', { state: 'starting', healthy: false, phase: 'loaded' });
   await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
   await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
   assert.equal((await d.handlers.get(contract.FIRST_PAINT_CHANNEL)({ sender: {}, senderFrame: own.senderFrame })).error.code, 'UNTRUSTED_SENDER');
@@ -600,7 +803,8 @@ test('C5 task 26: the start line has the phases in order, each once; first paint
   await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own);
   await flush();
   const lines = linesOf(d, 'startup.jsonl');
-  assert.deepEqual(lines.map(line => line.phase), [...STARTUP_PHASES]);
+  // D4: the window opens first, so its place against the fork varies; each phase is there once.
+  assert.deepEqual(lines.map(line => line.phase).sort(), [...STARTUP_PHASES].sort());
   for (const line of lines) assert.ok(Number.isFinite(line.ms) && line.ms >= 0);
 });
 
@@ -761,15 +965,15 @@ test('C5 task 32: before-quit asks the engine first, stops it, then installs; a 
   await flush();
   d.app.emit('before-quit', { preventDefault() {} });
   for (let count = 0; count < 6; count += 1) await flush();
-  assert.deepEqual(order.slice(1), ['prepared', { backup: true }, 'engine stopped', 'install', '/owned/app/updates/stage/release.artifact']);
+  assert.deepEqual(order.filter(step => step !== 'window' && step !== 'engine start').slice(1), ['prepared', { backup: true }, 'engine stopped', 'install', '/owned/app/updates/stage/release.artifact']);
   assert.equal(d.app.quits, 1);
 
   const plainOrder: unknown[] = [];
   const none = await desktop([], Promise.resolve(), true, { updates: standInUpdates(plainOrder), pending: PENDING });
   none.app.emit('before-quit', { preventDefault() {} });
   for (let count = 0; count < 6; count += 1) await flush();
-  assert.deepEqual(plainOrder, []);
-  assert.deepEqual(none.order, ['engine stopped']);
+  assert.deepEqual(plainOrder.filter(step => step !== 'window' && step !== 'engine start'), []);
+  assert.deepEqual(none.order.filter(step => step !== 'window' && step !== 'engine start'), ['engine stopped']);
   assert.equal(none.app.quits, 1);
   const window = none.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
   const refused = await none.handlers.get(require('./ipc-contract.cjs').UPDATE_SHOW_CHANNEL)(own, { kind: 'staged' });

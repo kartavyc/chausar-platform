@@ -459,3 +459,21 @@ describe('C7: the plan meter under each AI app', () => {
     resetFakePlan();
   });
 });
+
+// D4 task 6: a kept look shows when it was really taken; once the look behind it lands, the row reads as usual.
+describe('a tool look kept between starts', () => {
+  it('shows Last checked, reads again by itself, and the line goes when the fresh look lands', async () => {
+    const engine = new FakeEngine();
+    let reads = 0;
+    const { calls } = start({ engine, intercept: { 'venture.models.cli.status': async (_params, original) => {
+      const answer = await original() as { clis: CliStatusView[]; line: string };
+      reads += 1;
+      if (reads > 1) return answer;
+      return { ...answer, clis: answer.clis.map(view => ({ ...view, kept: true as const, checkedAt: '2026-11-06T08:00:00.000Z' })) };
+    } } });
+    await waitFor(() => expect(document.querySelectorAll('[data-cli-kept]').length).toBeGreaterThan(0));
+    expect(document.querySelector('[data-cli-kept]')!.textContent).toMatch(/^Last checked /);
+    await waitFor(() => expect(document.querySelectorAll('[data-cli-kept]').length).toBe(0), { timeout: 8000 });
+    expect(calls.filter(call => call.method === 'venture.models.cli.status').length).toBeGreaterThan(1);
+  }, 12000);
+});

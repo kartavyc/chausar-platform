@@ -8,6 +8,7 @@ import { ChausarError, check, internalCheck } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory, wrappersDigestOf } from './vault.ts';
 import type { DeviceKeyRecord } from './device-custody.ts';
 import { newerFormat, noteNewerOnce, readLocalJson } from './local-files.ts';
+import { CURRENT_SCHEMA } from './migrations/ladder.ts';
 import {
   AUTO_BACKUP, BACKUP_LIST_MAX, BUSINESS_LIST_MAX, CUSTODY_WORDS, TRANSFER,
   type BackupKind, type BackupView, type BusinessList, type BusinessOnComputer, type ComputerCustodyView,
@@ -64,6 +65,11 @@ export function nextFolder(base: string, taken: Iterable<string>): string {
 }
 
 // ---------------------------------------------------------------- cards and key records
+
+export const DATA_VERSIONS_FORMAT = 'chausar.data-versions.v1';
+/** One business's live file. migratedBy, from and backup: this app version moved it, from that number, keeping that backup. */
+export type DataVersionEntry = { version: number; workspaceId?: string; migratedBy?: string; from?: number; backup?: string };
+export type DataVersions = { format: string; files: Record<string, number>; live: Record<string, DataVersionEntry>; frozen?: boolean };
 
 export class CustodyFiles {
   readonly directory: string;
@@ -224,13 +230,16 @@ export class CustodyFiles {
     } catch { return null; }
   }
   async backupViews(workspaceId: string | null, cards: VaultCard[]): Promise<{ backups: BackupView[]; more: boolean }> {
-    const files = await this.backupFiles(workspaceId), views: BackupView[] = [];
+    const files = await this.backupFiles(workspaceId), views: BackupView[] = [], versions = await this.readDataVersions();
     const byVault = new Map(cards.filter(card => card.vaultId && card.state === 'ready').map(card => [card.vaultId as string, card]));
     for (const file of files.slice(0, BACKUP_LIST_MAX)) {
       const header = await this.backupHeader(file.name); if (!header) continue;
       const card = byVault.get(header.vaultId);
+      // D12: a version only from the index, never a guess; the file itself can't say without the key.
+      const dataVersion = versions.files[file.name], needsNewer = Number.isSafeInteger(dataVersion) && (dataVersion as number) > CURRENT_SCHEMA;
       views.push({ file: file.name, kind: file.kind, at: new Date(file.at).toISOString(), revision: header.revision, bytes: file.bytes,
-        name: card?.name ?? null, opensNow: !!card?.wrappersDigest && card.wrappersDigest === header.wrappersDigest });
+        name: card?.name ?? null, opensNow: !needsNewer && !!card?.wrappersDigest && card.wrappersDigest === header.wrappersDigest,
+        ...(Number.isSafeInteger(dataVersion) ? { dataVersion } : {}), ...(needsNewer ? { needsNewer: true as const } : {}) });
     }
     return { backups: views, more: files.length > BACKUP_LIST_MAX };
   }
@@ -245,7 +254,41 @@ export class CustodyFiles {
     }
     return found.sort();
   }
-  async removeBackup(name: string) { await this.#remove(this.backups, name); }
+  async removeBackup(name: string) {
+    await this.#remove(this.backups, name);
+    const versions = await this.readDataVersions();
+    if (Object.hasOwn(versions.files, name)) { delete versions.files[name]; await this.#writeDataVersions(versions); }
+  }
+
+  // -------------------------------------------------------------- D12: which data version each file holds
+
+  get #dataVersionsPath() { return join(this.directory, 'custody', 'data-versions.json'); }
+  /** custody/data-versions.json: numbers and file names only, never a business word. One a newer Chausar wrote is left alone. */
+  async readDataVersions(): Promise<DataVersions> {
+    const raw = await readLocalJson(this.#dataVersionsPath) as Partial<DataVersions> | null;
+    if (newerFormat(raw, DATA_VERSIONS_FORMAT)) { await noteNewerOnce(join(this.directory, 'custody'), 'data-versions.json', 'data-versions'); return { format: DATA_VERSIONS_FORMAT, files: {}, live: {}, frozen: true } as DataVersions; }
+    const plain = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value);
+    return { format: DATA_VERSIONS_FORMAT, files: plain(raw?.files) ? raw!.files! : {}, live: plain(raw?.live) ? raw!.live! : {} };
+  }
+  async #writeDataVersions(value: DataVersions) {
+    if (value.frozen) return;
+    await this.#write(join(this.directory, 'custody'), 'data-versions.json', { format: DATA_VERSIONS_FORMAT, files: value.files, live: value.live });
+  }
+  /** Notes what a backup file holds, and what a business's live file holds. Never throws: an index is a help. */
+  async noteDataVersion(change: { file?: { name: string; version: number }; live?: { folder: string; entry: DataVersionEntry } }): Promise<void> {
+    try {
+      const versions = await this.readDataVersions();
+      if (change.file) versions.files[change.file.name] = change.file.version;
+      if (change.live) versions.live[change.live.folder] = change.live.entry;
+      await this.#writeDataVersions(versions);
+    } catch { /* the next write notes it */ }
+  }
+  /** The newest data this computer holds, closed businesses too; null when none is noted. */
+  async newestDataVersion(): Promise<number | null> {
+    const { files, live } = await this.readDataVersions();
+    const all = [...Object.values(files), ...Object.values(live).map(entry => entry?.version)].filter(Number.isSafeInteger) as number[];
+    return all.length ? Math.max(...all) : null;
+  }
 
   // -------------------------------------------------------------- C5 task 23: a copy on a drive or folder
 
@@ -326,8 +369,8 @@ export function newCard(fields: Partial<VaultCard> & Pick<VaultCard, 'folder' | 
 export type ParsedBackup = { name: string; workspaceId: string; at: number; kind: BackupKind; legacy: boolean };
 export type BackupFile = ParsedBackup & { bytes: number };
 /** The tail after `chausar-<workspaceId>-` that a managed backup or export may have. */
-export const MANAGED_COPY_TAIL = /^(?:\d+(?:-(?:auto|manual|safety))?\.(backup|json|vault)|ca-\d{4}-\d{2}(?:\.csv|-receipts\.json))$/;
-const BACKUP_NAME = /^chausar-([A-Za-z0-9_-]{1,200})-(\d{1,16})(?:-(auto|manual|safety))?\.backup$/;
+export const MANAGED_COPY_TAIL = /^(?:\d+(?:-(?:auto|manual|safety|migration|rollback-kept))?\.(backup|json|vault)|ca-\d{4}-\d{2}(?:\.csv|-receipts\.json))$/;
+const BACKUP_NAME = /^chausar-([A-Za-z0-9_-]{1,200})-(\d{1,16})(?:-(auto|manual|safety|migration|rollback-kept))?\.backup$/;
 export function parseBackupName(name: string): ParsedBackup | null {
   if (typeof name !== 'string') return null;
   const match = BACKUP_NAME.exec(name); if (!match) return null;
