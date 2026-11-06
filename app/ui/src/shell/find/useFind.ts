@@ -69,7 +69,8 @@ export function readsAsQuestion(text: string): boolean {
   return trimmed.endsWith('?') || trimmed.split(/\s+/).filter(Boolean).length >= 4;
 }
 
-function useResting(text: string, ms: number): string {
+/** The words once they have rested this long. */
+export function useResting(text: string, ms: number): string {
   const [rested, setRested] = useState(text);
   useEffect(() => {
     if (text === rested) return;

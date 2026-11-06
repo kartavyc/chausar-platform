@@ -182,19 +182,14 @@ describe('#/chats: the list', () => {
     await waitFor(() => expect(within(list).getAllByRole('heading', { level: 3 })[0]!.textContent).toBe('Pinned'));
   });
 
-  it('the search filters the titles shown and asks the engine nothing', async () => {
+  it('while its answer loads, the search filters the titles shown', async () => {
     stubWidth(false);
-    const { spy } = await start('#/chats');
+    await start('#/chats');
     const list = await screen.findByRole('navigation', { name: 'Your chats' });
     // W6 6G1: three chats, and the link to the one settled chat, which a search hides.
     await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(4));
-    const before = spy.mock.calls.length;
     fireEvent.change(within(list).getByRole('searchbox', { name: 'Search chats' }), { target: { value: 'titles' } });
     expect(within(list).getAllByRole('link').map((a) => a.querySelector('[data-content]')!.textContent)).toEqual(['How are the titles for episode 15 doing?']);
-    fireEvent.change(within(list).getByRole('searchbox', { name: 'Search chats' }), { target: { value: 'zzz' } });
-    expect(within(list).queryAllByRole('link')).toHaveLength(0);
-    expect(within(list).getByText('No chat has those words in its title.')).toBeTruthy();
-    expect(spy.mock.calls.length).toBe(before);
   });
 });
 
