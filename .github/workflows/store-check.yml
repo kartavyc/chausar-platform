@@ -1,0 +1,51 @@
+name: Store snapshot checks
+on:
+  push:
+    branches: ['b2c/os-store-check-*']
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/store-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Focused replay and native tests
+        run: |
+          mkdir -p /tmp/store-receipts
+          set -o pipefail
+          timeout 480s node --test --test-concurrency=1 platform/tests/vault-coalescing-d11.test.ts platform/tests/vault-commit-budget-d11.test.ts platform/tests/vault.test.ts platform/tests/vault-fresh-bootstrap.test.ts platform/tests/vault-encrypted-custody.test.ts platform/tests/vault-private-artifacts.test.ts platform/tests/workspace-custody.test.ts platform/tests/workspace-backup-v2.test.ts platform/tests/replay-runs-d11.test.ts 2>&1 | tee /tmp/store-receipts/tests.log
+      - name: Engine types
+        if: always()
+        run: |
+          mkdir -p /tmp/store-receipts
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/store-receipts/types.log
+      - name: Source checks
+        if: always()
+        run: |
+          set -o pipefail
+          node scripts/check.mjs 2>&1 | tee /tmp/store-receipts/checks.log
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-snapshot-receipts
+          path: /tmp/store-receipts
+
+
+
+
+
+
+

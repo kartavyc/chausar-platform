@@ -327,6 +327,7 @@
   "platform/tests/ui-shots-readiness.test.ts": 0.1,
   "platform/tests/update-service-c5.test.ts": 1.5,
   "platform/tests/updater.test.ts": 2.5,
+  "platform/tests/vault-coalescing-d11.test.ts": 3,
   "platform/tests/vault-commit-budget-d11.test.ts": 30,
   "platform/tests/vault-encrypted-custody.test.ts": 0.6,
   "platform/tests/vault-fresh-bootstrap.test.ts": 3.6,
