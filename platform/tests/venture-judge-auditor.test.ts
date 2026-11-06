@@ -109,7 +109,7 @@ test('auditor: it checks the real output, so a tampered receipt or table, or a p
 
   const read = await call(env, 'files.read', { target: 'f1', part: 'columns' });
   assert.equal(auditStep(env, read).audited, true);
-  assert.match(auditStep(env, { ...read, proofs: [{ ...read.proofs[0], tableId: 'upload_missing' }] }).reason, /not a file or table of this run/);
+  assert.match(auditStep(env, { ...read, proofs: [{ ...read.proofs[0], tableId: 'upload_missing' }] }).reason, /not a file or table of this job/);
 });
 
 test('auditor: a heavy-work brief counts as progress only once the owner\'s tool finished; a declined brief never does', () => {
