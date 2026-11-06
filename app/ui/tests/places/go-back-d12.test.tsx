@@ -22,7 +22,8 @@ function start(extra: Partial<EngineClient>, code = 'DATA_MIGRATION_FAILED') {
 
 async function failOpen() {
   fireEvent.click(await screen.findByRole('button', { name: /Sample/ }));
-  const field = await screen.findByLabelText(/passphrase/i);
+  await waitFor(() => expect(document.querySelector('input[type="password"]')).toBeTruthy());
+  const field = document.querySelector('input[type="password"]') as HTMLInputElement;
   fireEvent.change(field, { target: { value: 'a long private test passphrase' } });
   fireEvent.submit(field.closest('form')!);
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBeTruthy());
