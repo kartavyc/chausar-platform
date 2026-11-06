@@ -18,7 +18,8 @@ export class DraftStore implements StateStore {
   #transaction = new AsyncLocalStorage<boolean>();
   readonly ventureId: string;
 
-  constructor(country: CountryProfile) {
+  constructor(country: CountryProfile, sampleState?: State) {
+    if (sampleState) { this.#state = structuredClone(sampleState); this.ventureId = this.#state.conversations.find(row => row.kind === 'venture-record')!.id; return; }
     const state = initialState('Draft', false);
     // Question shapes may be sent: the owner consents per connection, and the consent text says so.
     state.policy.send = 'shape';
