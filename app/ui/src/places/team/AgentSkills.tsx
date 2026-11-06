@@ -28,7 +28,7 @@ export function AgentSkills({ agent, onTry }: { agent: AgentView; onTry: (starte
           {skills.map((skill) => (
             <li key={skill.name} className={s.skill}>
               <h4 className={s.skillName}>{skill.name}</h4>
-              <p className={s.line}>{skill.line}</p>
+              {skill.line.trim() !== skill.name.trim() && <p className={s.line}>{skill.line}</p>}
               <p className={s.starter}>{skill.starter}</p>
               <div className={s.buttons}>
                 <Button size="sm" onClick={() => onTry(skill.starter)}>{t('team.skills.try')}</Button>

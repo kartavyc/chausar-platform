@@ -7,9 +7,8 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import { Chip, DeptChip, StateChip } from '../../parts/Chip';
-import { cx } from '../../parts/cx';
-import { ProgressRing, measuredSteps } from '../../parts/ProgressRing';
+import { Chip, StateChip } from '../../parts/Chip';
+import { ProgressRing } from '../../parts/ProgressRing';
 import { Sheet } from '../../parts/Sheet';
 import { Tabs } from '../../parts/Tabs';
 import { AgentChat } from './AgentChat';
@@ -23,7 +22,7 @@ import { DEPT_OF, isKeeper, stateOf } from './departments';
 import { HealthLine } from './HealthLine';
 import { Instructions } from './Instructions';
 import { KeeperJobs } from './KeeperCard';
-import { RING, Result, agentRow, currentRun, elapsedOf, refreshOn, stateWords, toneOf } from './shared';
+import { RING, Result, agentRow, elapsedOf, refreshOn, toneOf } from './shared';
 import s from './Team.module.css';
 import { Fold } from '../../parts/Fold';
 import c from './AgentChat.module.css';
@@ -46,7 +45,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const route = useRoute();
   const base = useId();
-  const runsId = useId();
   const team = useResource('venture.team.list', {}, { refreshOn });
   const runs = useResource('venture.runs.list', { state: 'all' }, { refreshOn });
   // The tab pressed here shows at once; the address follows, and an address that names another tab wins.
@@ -66,7 +64,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   // The version in use, the agent's steps with their guidance and checks, its standing orders and what Undo would do:
   // read-level, so opening the panel never writes (a role whose steps are code has none of these).
   const standing = useResource('venture.agents.orders.list', { agent: id }, { refreshOn: chatRefresh, skip: !agent || !canChat(agent) });
-  const version = standing.data?.playbook?.version;
   if (shelved) {
     const shelfDept = shelved.department ? DEPT_OF[shelved.department] : undefined;
     return (
@@ -84,8 +81,6 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   }
 
   const state = stateOf(agent, runs.data?.runs);
-  const run = currentRun(runs.data?.runs, agent.name);
-  const steps = run?.progress ? measuredSteps(run.progress) : null;
   const dept = agent.department ? DEPT_OF[agent.department] : undefined;
   const mine = (runs.data?.runs ?? []).filter((one) => one.agent === agent.name);
   const tabs: readonly AgentTab[] = canChat(agent) ? AGENT_TABS : CODE_TABS;
@@ -104,7 +99,7 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     return (
       <Sheet
         label={t('team.sheet')}
-        eyebrow={dept ? <DeptChip dept={dept} /> : undefined}
+        eyebrow={dept ? t(`dept.${dept}`) : undefined}
         title={agent.name}
         line={agent.role}
         avatar={<Avatar name={agent.name} dept={dept} state={RING[state]} size={40} />}
@@ -121,32 +116,21 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     );
   }
 
-  /** Each tab's words, and after them the instructions version or the count of jobs (read once, so not in the tab's name). */
+  /** Each tab's words, and after Jobs its count (read once, so not in the tab's name). B4 task 14: no version on a tab. */
   const label = (which: AgentTab): { label: string; after?: ReactNode } => {
-    if (which === 'instructions') {
-      return { label: t('team.instructions.tab'), after: version !== undefined ? <span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span> : undefined };
-    }
+    if (which === 'instructions') return { label: t('team.instructions.tab') };
     if (which === 'runs') {
       return { label: t('team.runs'), after: runs.data ? <span className={c.tabBadge} data-num="" aria-hidden="true">{String(mine.length)}</span> : undefined };
     }
-    return { label: t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`) };
+    return { label: t(which === 'chat' ? 'team.chat.tab' : 'team.notes.tab') };
   };
 
   return (
     <Sheet
       label={t('team.sheet')}
-      eyebrow={dept ? <DeptChip dept={dept} /> : undefined}
+      eyebrow={dept ? t(`dept.${dept}`) : undefined}
       title={agent.name}
-      line={(
-        <>
-          {agent.role}
-          {' · '}
-          <span className={s.panelState} data-tone={state}>
-            {stateWords(t, state)}
-            {steps && <>{', '}<span>{t('bar.count', { done: steps.done, total: steps.total })}</span></>}
-          </span>
-        </>
-      )}
+      line={agent.role}
       avatar={<Avatar name={agent.name} dept={dept} state={RING[state]} size={40} />}
       width="panel"
       name={agent.name}
@@ -178,25 +162,29 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
             onPlaybookChanged={standing.reload}
           />
         )}
-        {/* W6 6G2: Retire sits last in Instructions, quiet; it opens the check in place of the tab. */}
+        {/* B4 task 14: what Can do held, one fold away inside How it works. */}
+        {tab === 'instructions' && !retiring && (
+          <Fold summary={t('team.cando.fold')}>
+            <AgentCanDo key={agent.id} agent={agent} onTry={(words) => { setStarter((was) => ({ text: words, key: (was?.key ?? 0) + 1 })); choose('chat'); }} />
+          </Fold>
+        )}
+        {/* W6 6G2: Retire sits last in How it works, quiet; it opens the check in place of the tab. */}
         {tab === 'instructions' && canChat(agent) && (retiring
           ? <AgentRetire agent={agent} onCancel={() => setRetiring(false)} onRetired={(said) => { setRetiredSaid(said); setRetiring(false); team.reload(); }} />
           : <p><Button size="sm" variant="quiet" onClick={() => setRetiring(true)} data-retire="">{t('team.retire.open')}</Button></p>)}
         {tab === 'runs' && (
           <section className={s.section}>
-            <h3 id={runsId} className={s.small}>{t('team.runs')}</h3>
             {runs.error && <p className={s.failed}>{t('team.failed', { message: runs.error.message })}</p>}
             {/* C4 task 10 (58.x1): an empty Runs tab says when it starts, with the way to Work. */}
             {runs.data && mine.length === 0 && <p className={s.quiet}>{t('team.runsStart')} <a href="#/work">{t('team.runsStartLink')}</a></p>}
             {mine.length > 0 && (
-              <ul className={s.runs} aria-labelledby={runsId}>
+              <ul className={s.runs} aria-label={t('team.runs')}>
                 {mine.map((one) => <RunLine key={one.runId} run={one} agentId={agent.id} />)}
               </ul>
             )}
           </section>
         )}
         {tab === 'notes' && <AgentNotes key={agent.id} agent={agent} />}
-        {tab === 'cando' && <AgentCanDo key={agent.id} agent={agent} onTry={(words) => { setStarter((was) => ({ text: words, key: (was?.key ?? 0) + 1 })); choose('chat'); }} />}
       </div>
     </Sheet>
   );

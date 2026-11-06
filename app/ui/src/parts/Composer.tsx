@@ -15,7 +15,8 @@ export interface ComposerProps {
   /** Stores the message. The text is cleared only once this resolves; if it rejects the text stays. */
   onSend: (text: string) => Promise<void>;
   /** Short things to ask; a tap puts the words in the box and never sends them. C5 task 8: an idea may carry a preview line. */
-  suggestions?: readonly (string | { label: string; preview: string })[] | undefined;
+  /** A press fills the box and the chip goes. `fill`: the box gets these words, the chip says `label`. */
+  suggestions?: readonly (string | { label: string; preview?: string | undefined; fill?: string | undefined })[] | undefined;
   /** The suggestions' name for screen readers, when not plain suggestions. */
   suggestionsLabel?: string | undefined;
   /** One-shot C3 task 11: while a send is on its way, one still line with its elapsed time ("Writing, 8 s"), never dots. */
@@ -55,6 +56,8 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
   const inFlight = useRef(false);
   const [text, setText] = useState(initial ?? '');
   const [sending, setSending] = useState(false);
+  /** B4 tasks 14 and 19: a chip already used is gone. */
+  const [used, setUsed] = useState<readonly string[]>([]);
   const [error, setError] = useState<{ message: string; known: ComposerFailure | null } | null>(null);
   const empty = text.trim() === '';
 
@@ -101,16 +104,19 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
         <div className={s.suggestions} role="group" aria-label={suggestionsLabel ?? t('composer.suggestions')}>
           {suggestions.map((suggestion) => {
             const words = typeof suggestion === 'string' ? suggestion : suggestion.label;
+            const preview = typeof suggestion === 'string' ? undefined : suggestion.preview;
+            const fill = typeof suggestion === 'string' ? words : suggestion.fill ?? words;
+            if (used.includes(words)) return null;
             return (
               <button
                 key={words}
                 type="button"
-                className={typeof suggestion === 'string' ? s.suggestion : s.idea}
+                className={preview === undefined ? s.suggestion : s.idea}
                 disabled={sending}
-                onClick={() => { write(words); box.current?.focus(); }}
+                onClick={() => { write(fill); setUsed((was) => [...was, words]); box.current?.focus(); }}
               >
                 {words}
-                {typeof suggestion !== 'string' && <span className={s.ideaPreview}>{suggestion.preview}</span>}
+                {preview !== undefined && <span className={s.ideaPreview}>{preview}</span>}
               </button>
             );
           })}

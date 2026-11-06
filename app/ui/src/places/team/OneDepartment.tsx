@@ -14,7 +14,7 @@ import { ProvedFigure } from '../money/parts';
 import { ProgressBar } from '../../parts/ProgressBar';
 import { Bento, Panel, Tile, TileHead } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
-import { DeptIcon, HeldLine, waysFor } from './DepartmentPanel';
+import { DeptIcon, HeldLine } from './DepartmentPanel';
 import { withoutRate, type DepartmentData } from './departments';
 import { GateList } from './GateList';
 import { Result, elapsedOf, toneOf } from './shared';
@@ -44,7 +44,7 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
   const chartId = useId();
   const name = t(`dept.${data.dept}`);
   if (data.members.length === 0) {
-    return <EmptyState title={t('team.dept.none', { dept: name })} actions={[{ label: t('team.dept.noneLink'), href: waysFor(data.dept) }]} />;
+    return <EmptyState title={t('team.dept.noneList', { names: name })} actions={[{ label: t('team.dept.addHere'), href: '#/team?sheet=hire:new' }]} />;
   }
   const agents = data.members.map(({agent})=>agent);
   const steps = agents.flatMap((agent) => agent.steps).length;
