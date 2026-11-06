@@ -679,6 +679,8 @@ export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
 import type { FlowsActPayload, FlowsActView, FlowsListView } from '../../../../platform/runtime/venture/flows/flow-types';
+import type { FindRequest, FindView } from '../../../../platform/runtime/venture/views/find-core';
+export type { FindGroup, FindHit, FindItem, FindKind, FindRequest, FindSnippet, FindView } from '../../../../platform/runtime/venture/views/find-core';
 export type { FlowsActPayload, FlowsActView, FlowsListView, FlowVersionView, FlowRunView } from '../../../../platform/runtime/venture/flows/flow-types';
 export type { SearchProviderId, WebSearchView, WebReadView, PeopleLookupView, PeopleSearchView };
 // W6 6G3 (D44) the CRM, and 6G4 dated memory: the engine's own view types (crm/crm-data.ts, memory/facts-data.ts).
@@ -2195,6 +2197,8 @@ export interface EngineMethods {
   // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
   'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };
   'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
+  // C2: the command bar's find across the open business's clients, invoices, orders, runs and chats (read).
+  'venture.find': { params: FindRequest; result: FindView };
   // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI.
   'venture.flows.list': { params: Record<string, never>; result: FlowsListView };
   'venture.flows.act': { params: FlowsActPayload; result: FlowsActView };

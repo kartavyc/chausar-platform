@@ -101,7 +101,7 @@ test('the reads Today, Money and Practice use publish nothing through the host',
     await host.request(owner, 'venture.queue.list', { scope: 'all' });
     for (const [method, payload] of [
       ['venture.blueprint.get', {}], ['venture.runs.list', {}], ['venture.team.list', {}], ['venture.journal.list', {}],
-      ['venture.invoice.list', {}], ['venture.improve.status', {}],
+      ['venture.invoice.list', {}], ['venture.improve.status', {}], ['venture.find', { text: 'cafe' }],
     ] as const) await host.request(owner, method, payload);
     const viewed = queue.rows.find(row => row.viewRef);
     if (viewed?.viewRef) await host.request(owner, 'venture.queue.view', { kind: viewed.viewRef.kind, id: viewed.viewRef.id, opened: true });

@@ -60,7 +60,11 @@ function folded(text: string): { flat: string; at: number[] } {
   const at: number[] = [];
   let index = 0;
   for (const char of text) {
-    const mapped = /\s/.test(char) ? ' ' : char.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+    const code = char.charCodeAt(0);
+    // Plain ASCII (most of what a business writes) skips normalizing: a chat of fifty messages is folded on every find.
+    const mapped = code < 128
+      ? (code === 32 || (code >= 9 && code <= 13) ? ' ' : code >= 65 && code <= 90 ? String.fromCharCode(code + 32) : char)
+      : /\s/.test(char) ? ' ' : char.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
     for (const out of mapped) {
       if (out === ' ' && (!flat || flat.endsWith(' '))) continue;
       flat += out; at.push(index);
@@ -184,4 +188,84 @@ export function snippetOf(parts: readonly ChatPart[], query: string | string[]):
   while (end > start && text[end - 1] === ' ') end--;
   const line = text.slice(start, end);
   return { line, amounts: amounts.filter(amount => amount.start >= start && amount.start + amount.length <= end).map(amount => ({ ...amount, start: amount.start - start })) };
+}
+
+/**
+ * C2 task 2: the rows each kind's list shows the owner, as the engine and the fake hand them over: an order's whole
+ * request (the item carries its first 80 characters), a chat's messages as stored. A kind left out is not looked in.
+ */
+export type FindSources = {
+  client?: readonly { id: string; name: string; at: IsoTime }[];
+  invoice?: readonly { id: string; number: string | null; clientName: string | null; status: string; total: string; receiptId: string | null; at: IsoTime }[];
+  order?: readonly { id: string; request: string; clientName: string | null; status: string; at: IsoTime }[];
+  run?: readonly { id: string; purpose: string; agentName: string | null; state: string; at: IsoTime }[];
+  chat?: readonly { id: string; title: string; state: string; lastAt: IsoTime; messages: readonly { from: string; parts: readonly ChatPart[] }[] }[];
+};
+
+const REQUEST_SHOWN = 80;
+/** An order's request as its find row shows it: the first 80 characters, cut at a space, with "..." when cut. */
+export function requestShown(request: string): string {
+  const single = request.replace(/\s+/g, ' ').trim();
+  if (single.length <= REQUEST_SHOWN) return single;
+  const cut = single.slice(0, REQUEST_SHOWN - 3);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > REQUEST_SHOWN / 2 ? cut.slice(0, space) : cut).trimEnd()}...`;
+}
+const textOf = (parts: readonly ChatPart[]) => parts.map(part => part.kind === 'figure' ? part.display : part.text).join(' ');
+
+/** Every matching row of the asked kinds, ranked; groups in score order, ties in FIND_KINDS order, empty ones left out. */
+export function findIn(request: ParsedFindRequest, sources: FindSources): FindView {
+  const words = wordsOf(request.text);
+  if (!words.length) return { groups: [] };
+  const groups: FindGroup[] = [];
+  for (const kind of FIND_KINDS) {
+    if (!request.kinds.includes(kind) || !sources[kind]) continue;
+    const found: FindItem[] = [];
+    const add = (fields: FindField[], make: (scored: { score: number; hit: FindHit | null }) => FindItem) => {
+      const scored = match(words, fields);
+      if (scored) found.push(make(scored));
+    };
+    if (kind === 'client') {
+      for (const row of sources.client!) add([{ name: 'name', text: row.name }], scored => ({ kind, id: row.id, name: row.name, at: row.at, ...scored }));
+    } else if (kind === 'invoice') {
+      for (const row of sources.invoice!) {
+        add([{ name: 'number', text: row.number ?? '', number: true }, { name: 'clientName', text: row.clientName ?? '' }], scored => ({
+          kind, id: row.id, number: row.number ?? '', clientName: row.clientName, status: row.status, total: row.total, receiptId: row.receiptId, at: row.at, ...scored,
+        }));
+      }
+    } else if (kind === 'order') {
+      for (const row of sources.order!) {
+        const request = requestShown(row.request);
+        add([{ name: 'request', text: request }, { name: 'clientName', text: row.clientName ?? '' }, { name: 'requestWhole', text: row.request }], scored => ({
+          kind, id: row.id, request, clientName: row.clientName, status: row.status, at: row.at, ...scored,
+        }));
+      }
+    } else if (kind === 'run') {
+      for (const row of sources.run!) {
+        add([{ name: 'purpose', text: row.purpose }, { name: 'agentName', text: row.agentName ?? '' }], scored => ({
+          kind, id: row.id, purpose: row.purpose, agentName: row.agentName, state: row.state, at: row.at, ...scored,
+        }));
+      }
+    } else {
+      for (const row of sources.chat!) {
+        const fields: FindField[] = [{ name: 'title', text: row.title }, ...row.messages.map((message, index) => ({ name: `message${index}`, text: textOf(message.parts) }))];
+        add(fields, scored => {
+          let snippet: (FindSnippet & { from: 'owner' | 'chief' }) | null = null;
+          // When the title does not hold the first word: the newest message that holds a word.
+          if (!scored.hit) {
+            for (let index = row.messages.length - 1; index >= 0 && !snippet; index -= 1) {
+              const cut = snippetOf(row.messages[index]!.parts, words);
+              if (cut) snippet = { ...cut, from: row.messages[index]!.from === 'owner' ? 'owner' : 'chief' };
+            }
+          }
+          return { kind: 'chat', id: row.id, title: row.title, state: row.state, lastAt: row.lastAt, at: row.lastAt, snippet, ...scored };
+        });
+      }
+    }
+    if (!found.length) continue;
+    const { items, more } = rank(found, request.limit);
+    groups.push({ kind, best: items[0]!.score, items, more });
+  }
+  const order = (kind: FindKind) => FIND_KINDS.indexOf(kind);
+  return { groups: groups.sort((a, b) => b.best - a.best || order(a.kind) - order(b.kind)) };
 }

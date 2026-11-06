@@ -27,6 +27,8 @@ import { queueEditHandler, queueSendBackHandler, queueSetHandler, queueSetPrevie
 import { triagePreviewHandler, triageSetHandler } from './triage.ts';
 // Wave 6 (6H3, D40): a place's layout as data.
 import { layoutChangeHandler, layoutGetHandler } from './layout.ts';
+// C2: the command bar's find across clients, invoices, orders, runs and chats.
+import { findHandler } from './find.ts';
 // Wave 6 (6H1, D39): mini apps and their MCP Apps bridge.
 import { APP_HANDLERS } from '../apps/apps.ts';
 
@@ -38,6 +40,8 @@ export const handlers: VentureHandlerTable = {
   // Wave 6 (6H3, D40): Today's and Money's layout, read and changed by the owner (the AI changes it through MCP tools).
   'venture.layout.get': layoutGetHandler,
   'venture.layout.change': layoutChangeHandler,
+  // C2: the command bar finds things through the lists the owner already reads; it writes nothing.
+  'venture.find': findHandler,
   'venture.queue.decide': queueDecideHandler,
   'venture.runs.list': runsListHandler,
   'venture.runs.get': runsGetHandler,
