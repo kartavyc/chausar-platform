@@ -11,6 +11,7 @@ import type { DeptId } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
 import { Composer } from '../../parts/Composer';
+import { useUnsent } from '../../parts/useUnsent';
 import { DiffCard } from '../../parts/DiffCard';
 import { Figure } from '../../parts/Figure';
 import { ModelEstimate } from '../../parts/ModelEstimate';
@@ -22,6 +23,11 @@ import c from './AgentChat.module.css';
 
 const CONSENT_CODES = new Set(['CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE']);
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/** The owner said no to the consent: nothing failed, so the words go back to the box. */
+class ConsentDeclined extends Error {}
+/** C4 task 30: these stay in the box; a key or an id number never sits in the thread, and a no to the consent is not a failure. */
+const staysInBox = (error: unknown) => error instanceof ConsentDeclined || (error instanceof EngineError && error.code === 'CHAT_KEY_REFUSED');
 
 export interface AgentChatProps {
   agent: AgentView;
@@ -96,6 +102,8 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
     thread.reload();
   }
 
+  const unsent = useUnsent(send, { scope: agent.id, now: clock, staysInBox });
+
   async function agree() {
     if (!asking) return;
     try {
@@ -114,7 +122,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   }
 
   function decline() {
-    asking?.reject(new Error(t('team.chat.consent.declined')));
+    asking?.reject(new ConsentDeclined(t('team.chat.consent.declined')));
     setAsking(null);
   }
 
@@ -162,7 +170,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   // Earlier pages sit in the part of the log that is not read out; the page the thread read now is announced as it grows.
   const recentIds = new Set((data?.items ?? []).map(itemId));
   const olderEntries = entriesOf(items.filter((item) => !recentIds.has(itemId(item))));
-  const entries = entriesOf(items.filter((item) => recentIds.has(itemId(item))));
+  const entries = [...entriesOf(items.filter((item) => recentIds.has(itemId(item)))), ...unsent.entries];
 
   /** A proposal as decided here, until the thread is read again. */
   function proposal(view: AgentProposalView): AgentProposalView {
@@ -292,7 +300,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
             key={initialKey ?? 0}
             initial={initial || undefined}
             label={t('team.chat.label', { name: agent.name })}
-            onSend={send}
+            onSend={unsent.sendKeeping}
             suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
             hint={t('team.chat.hint', { name: agent.name })}
           />

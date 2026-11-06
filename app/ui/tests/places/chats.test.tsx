@@ -472,15 +472,40 @@ describe('#/chats: asking', () => {
     expect(composer().value).toBe('');
   });
 
-  it('another refusal keeps the words and says why in the engine\'s words', async () => {
+  // C4 task 30: a failed send stays in the thread as a bubble, the box is clear, and the reason sits under the bubble.
+  it('another refusal stays as a bubble marked Not sent, and Try again sends the same words', async () => {
     stubWidth(false);
-    await start('#/chats', { override: answer('venture.chief.thread.send', () => { throw new EngineError('MODEL_UNAVAILABLE', 'Your AI did not answer. Try again in a minute.'); }) });
+    let refuse = true;
+    const { spy } = await start('#/chats', { override: answer('venture.chief.thread.send', (params, base) => {
+      if (refuse) throw new EngineError('MODEL_UNAVAILABLE', 'Your AI did not answer. Try again in a minute.');
+      return base('venture.chief.thread.send', params);
+    }) });
     await screen.findByRole('navigation', { name: 'Your chats' });
     fireEvent.change(composer(), { target: { value: 'How is the month going?' } });
     await click(screen.getByRole('button', { name: 'Send' }));
     await settle();
-    expect(screen.getByRole('alert').textContent).toContain('Your AI did not answer. Try again in a minute.');
-    expect(composer().value).toBe('How is the month going?');
+    expect(composer().value).toBe('');
+    const bubble = within(thread()).getByText('How is the month going?').closest('[data-from="owner"]') as HTMLElement;
+    expect(bubble.hasAttribute('data-unsent')).toBe(true);
+    expect(within(bubble).getByText('Not sent')).toBeTruthy();
+    expect(within(bubble).getByRole('alert').textContent).toContain('Your AI did not answer. Try again in a minute.');
+
+    // Still refused: the bubble stays, and the box stays clear.
+    await click(within(bubble).getByRole('button', { name: 'Try again' }));
+    await settle();
+    expect(within(thread()).getByText('Not sent')).toBeTruthy();
+    expect(composer().value).toBe('');
+
+    refuse = false;
+    await click(within(thread()).getByRole('button', { name: 'Try again' }));
+    await settle();
+    await hashChanged();
+    await settle();
+    const sends = calls(spy, 'venture.chief.thread.send');
+    expect(sends.map(([, params]) => params.text)).toEqual(['How is the month going?', 'How is the month going?', 'How is the month going?']);
+    expect(within(thread()).queryByText('Not sent')).toBeNull();
+    expect(within(thread()).queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(within(thread()).getByText('How is the month going?').closest('[data-from="owner"]')!.hasAttribute('data-unsent')).toBe(false);
   });
 
   it('a locked business is never read: the chief says so', async () => {
