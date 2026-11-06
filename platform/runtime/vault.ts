@@ -56,6 +56,10 @@ export type RestoreVaultOptions = Common & { backupFile: string } & ({ passphras
 
 // B1 fix round 2: the vault's refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
 function fail(code: string, message: string): never { throw new InternalError(code, message); }
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const inner of Object.values(value)) deepFreeze(inner); }
+  return value;
+}
 function passphrase(value: string) {
   if (typeof value !== 'string' || value.length < 12 || value.length > 1024) fail('WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
 }
@@ -878,6 +882,29 @@ export class Vault implements StateStore {
       this.#state = structuredClone(draft); this.#envelope = envelope;
       return { result: { revision: draft.revision }, committedState: structuredClone(this.#state) };
     })));
+  }
+  /**
+   * One-shot C6: the state a managed backup of this vault holds, decoded in memory with this vault's key and returned
+   * frozen. It never writes and keeps nothing: the plaintext buffer is zeroed by decodeSnapshot, and the caller holds the
+   * only copy. A file over the vault's own size cap is refused before it is read.
+   */
+  readBackupState(path: string): Promise<State> {
+    return this.#enqueue(async () => {
+      let state: State;
+      try {
+        if (isAbsolute(path) && (await lstat(path)).size > MAX_BYTES) fail('VAULT_TOO_LARGE', 'This backup is larger than a business can be.');
+        const backup = JSON.parse(await readBounded(path));
+        if (backup?.backupFormat !== 'chausar.backup.v1') throw new Error('format');
+        const envelope: VaultEnvelope = backup.envelope; validateEnvelope(envelope);
+        if (envelope.id !== this.#envelope.id) fail('BACKUP_OTHER_BUSINESS', 'This backup belongs to another business.');
+        state = decodeSnapshot(envelope, this.#key);
+      } catch (error) {
+        if (error instanceof ChausarError) throw error;
+        return fail('UNLOCK_FAILED', 'Unable to unlock backup. Check your credential or use a valid backup.');
+      }
+      if (state.workspace.id !== this.#state.workspace.id) fail('BACKUP_OTHER_BUSINESS', 'This backup belongs to another business.');
+      return deepFreeze(state);
+    });
   }
   async delete(): Promise<void> {
     if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'A vault cannot be deleted from inside a transaction.');

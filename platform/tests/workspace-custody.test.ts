@@ -672,3 +672,72 @@ test('one-shot A1 row 8: moving a business in after deleting the original works,
   await ask('workspace.open', { folder: moved.folder });
   assert.equal((await ask('workspace.status')).workspace.name, 'Moving Back Shop');
 });
+
+// One-shot C6 task 1: what a backup holds and what restoring it would take back, read in memory, nothing written.
+test('C6: inspect a backup says what it holds and what changed since, writes nothing, and refuses another business or a closed one', async t => {
+  const directory = await folder(t);
+  const { engine, ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Inspect Shop', pack: 'services', folder: null });
+  await ask('venture.create', { idea: 'Bookkeeping for small cafes, done by templates with me checking every report.', countryCode: 'IN', workingName: 'Inspect Shop' });
+  const aroma = await ask('venture.client.add', { name: 'Cafe Aroma Private', email: 'owner@aroma.example', countryCode: 'IN', stateCode: '27' });
+  await ask('venture.client.add', { name: 'Tea Room', countryCode: 'IN', stateCode: '27' });
+  const copy = await ask('workspace.backups.create');
+  // An order and an invoice are added and one client changes after the backup (written straight to the records: the
+  // order and invoice paths need an accepted plan, which this test does not need).
+  const vault = (engine as any).store() as Vault;
+  await vault.update(state => {
+    const at = new Date().toISOString(), ventureId = aroma.ventureId;
+    state.conversations.push({ id: 'order_c6', kind: 'venture-order', ventureId, memberId: 'owner', epoch: 1, at, clientId: aroma.id, request: 'October books' });
+    state.conversations.push({ id: 'invoice_c6', kind: 'venture-invoice', ventureId, memberId: 'owner', epoch: 1, at, orderId: 'order_c6' });
+    const client = state.conversations.find((record: any) => record.id === aroma.id); client.note = 'Pays on the 5th';
+  });
+  const revision = vault.read().revision;
+  const listed = await files(directory);
+  const temp = await files(tmpdir()).catch(() => [] as string[]);
+
+  const seen = await ask('workspace.backups.inspect', { file: copy.file });
+  assert.equal(seen.file, copy.file);
+  assert.equal(seen.at, copy.at);
+  assert.deepEqual(seen.counts, [{ kind: 'clients', words: 'clients', count: 2 }, { kind: 'other', words: 'other records', count: 1 }],
+    'the backup\'s own counts (the plan interview is an other record; the clients\' evidence is not counted)');
+  assert.deepEqual(seen.since, [
+    { kind: 'clients', words: 'clients', added: 0, changed: 1, removed: 0 },
+    { kind: 'orders', words: 'orders', added: 1, changed: 0, removed: 0 },
+    { kind: 'invoices', words: 'invoices', added: 1, changed: 0, removed: 0 },
+  ]);
+  // Nothing was written: the revision, the business folder and the temp folder are as they were.
+  assert.equal(vault.read().revision, revision);
+  assert.deepEqual(await files(directory), listed);
+  const after = await files(tmpdir()).catch(() => [] as string[]);
+  for (const path of after.filter(path => !temp.includes(path))) {
+    const text = await readFile(path, 'utf8').catch(() => '');
+    assert.ok(!text.includes('Cafe Aroma Private'), `a new temp file holds the client's name: ${path}`);
+  }
+  await assert.rejects(ask('workspace.backups.inspect', { file: '../escape.backup' }), code('BACKUP_NOT_FOUND'));
+  await assert.rejects(ask('workspace.backups.inspect', {}), code('BACKUP_NOT_FOUND'));
+
+  // Another business's backup is refused; a closed business refuses.
+  await ask('workspace.lock');
+  await assert.rejects(ask('workspace.backups.inspect', { file: copy.file }), code('VAULT_LOCKED'));
+  await ask('workspace.create', { name: 'Other Shop', pack: 'services', folder: null });
+  await assert.rejects(ask('workspace.backups.inspect', { file: copy.file }), (error: any) => error.code === 'BACKUP_OTHER_BUSINESS' && error.message === CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
+  const owner = engine.bootstrapContext();
+  await assert.rejects(engine.requestAs({ ...owner, channel: 'phone' as any }, 'workspace.backups.inspect', { file: copy.file }), code('APP_APPROVAL_REQUIRED'));
+});
+
+test('C6: the vault reads a backup of itself in memory, frozen, and refuses another vault or a file over its size cap', async t => {
+  const directory = await folder(t);
+  const { engine, ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Read Shop', pack: 'services', folder: null });
+  const copy = await ask('workspace.backups.create');
+  const vault = (engine as any).store() as Vault, path = join(directory, 'backups', copy.file);
+  const state = await vault.readBackupState(path);
+  assert.equal(state.workspace.name, 'Read Shop');
+  assert.ok(Object.isFrozen(state) && Object.isFrozen(state.conversations), 'the state comes back frozen');
+  const big = join(directory, 'backups', 'big.backup');
+  await writeFile(big, Buffer.alloc(64 * 1024 * 1024 + 1, 32));
+  await assert.rejects(vault.readBackupState(big), code('VAULT_TOO_LARGE'));
+  await ask('workspace.lock');
+  await ask('workspace.create', { name: 'Other Read Shop', pack: 'services', folder: null });
+  await assert.rejects(((engine as any).store() as Vault).readBackupState(path), code('BACKUP_OTHER_BUSINESS'));
+});

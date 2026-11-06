@@ -652,6 +652,12 @@ export interface CustodyViewLite {
   } | null;
 }
 export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean }
+/** One-shot C6: what a backup of the open business holds and what changed since (restoring takes these back). */
+export interface BackupInspectLite {
+  file: string; at: string;
+  counts: { kind: string; words: string; count: number }[];
+  since: { kind: string; words: string; added: number; changed: number; removed: number }[];
+}
 /** The vault's own record of a business, as workspace.open, .recover, .restore and the moves return it (trimmed). */
 export interface WorkspaceLite { id?: string; name: string }
 /**
@@ -2034,6 +2040,8 @@ export interface EngineMethods {
   'workspace.recover': { params: { folder: string; recoveryCode: string; passphrase?: string }; result: { workspace: WorkspaceLite } };
   /**
    * With no business open: a backup by its name in the backups folder (never a path), opened as a new business beside
+  /** One-shot C6: reads the backup in memory (never restores or writes); the open business's own backups only. */
+  'workspace.backups.inspect': { params: { file: string }; result: BackupInspectLite };
    * the original (folder null lets the engine choose). PASSPHRASE_REQUIRED asks for the passphrase; DEVICE_KEY_FAILED
    * asks for the recovery code.
    */

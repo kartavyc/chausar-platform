@@ -14,12 +14,14 @@ export const CUSTODY_METHODS = Object.freeze([
   'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export',
   // Ink v2 wave 4 (4J6): the owner starts a new never-contact list once the old one can no longer be checked.
   'workspace.custody.neverContactReset',
+  // One-shot C6: what a backup of the open business holds and what restoring it would take back (read only).
+  'workspace.backups.inspect',
 ] as const);
 export type CustodyMethod = typeof CUSTODY_METHODS[number];
 /** Answered before the vault check; they also answer with a vault open. */
 export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import']);
 /** The owner, in the app (desktop channel, untainted), with a vault open. */
-export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset']);
+export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.backups.inspect']);
 /** These change which vault is open or replace its state: engine transitions. */
 export const CUSTODY_TRANSITION_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.transfer.import', 'workspace.backups.restore']);
 /** After one of these succeeds, an automatic backup is due at the next tick. */
@@ -68,6 +70,16 @@ export type BackupView = {
   opensNow: boolean;       // its wrappers equal the business's current ones
 };
 
+/**
+ * One-shot C6: what a backup of the open business holds (`counts`, the backup's own) and what changed since it was made
+ * (`since`: restoring takes these back). Kinds and words come from venture/views/backup-diff.ts BACKUP_KIND_WORDS.
+ */
+export type BackupInspectView = {
+  file: string; at: IsoTime;
+  counts: { kind: string; words: string; count: number }[];
+  since: { kind: string; words: string; added: number; changed: number; removed: number }[];
+};
+
 export type WorkspaceCreatePayload = { name: string; pack?: string; demo?: boolean; passphrase?: string; folder?: string | null };
 export type WorkspaceCreateResult = { workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string };
   folder: string; unlock: UnlockMode; recoveryCode: string | null; recoveryKit: string | null; experimental: boolean };
@@ -89,6 +101,7 @@ export type CustodyPayloads = {
   'workspace.transfer.export': { passphrase?: string };
   /** confirmation: the open business's name, typed by the owner. */
   'workspace.custody.neverContactReset': { confirmation: string };
+  'workspace.backups.inspect': { file: string };
 };
 export type CustodyResults = {
   'workspace.custody.get': CustodyView;
@@ -102,6 +115,7 @@ export type CustodyResults = {
   'workspace.backups.restore': { workspace: WorkspaceCreateResult['workspace']; restoredFrom: BackupView; safety: BackupView };
   'workspace.transfer.export': { fileName: string; text: string; transferCode: string; bytes: number };
   'workspace.custody.neverContactReset': { line: string };
+  'workspace.backups.inspect': BackupInspectView;
 };
 
 export const CUSTODY_ERRORS = Object.freeze([
