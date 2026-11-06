@@ -177,6 +177,8 @@
   "connections.cli.checked": "Checked again just now.",
   "connections.cli.failed": "Couldn't check: {message}",
   "connections.cli.loading": "Loading",
+  "connections.cli.plan.check": "Check now",
+  "connections.cli.plan.failed": "Couldn't read your plan: {message}",
   "connections.cli.state.ready": "Ready",
   "connections.cli.state.unverified": "Not yet tried",
   "connections.cli.state.needs-setup": "Needs setup",

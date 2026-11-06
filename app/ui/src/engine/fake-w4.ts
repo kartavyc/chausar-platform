@@ -203,6 +203,7 @@ export class FakeW4Desk {
     if (method === 'venture.delivery.copy') return fakeDeliveryCopy(this.host, p);
     if (FAKE_4J19_METHODS.includes(method)) return this.approvals.request(method, p);
     if (FAKE_4J6_METHODS.includes(method)) return this.across.request(method, p);
+    if (method === 'venture.models.plan') return fakePlan(this.host, p);
     if (FAKE_4A2_METHODS.includes(method)) return this.team.request(method, p);
     if (FAKE_4I2_METHODS.includes(method)) return this.goals.request(method, p);
     if (FAKE_4F3_METHODS.includes(method)) return this.runControls.request(method, p);

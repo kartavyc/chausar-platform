@@ -31,7 +31,7 @@ const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YE
  * method this list leaves out, so the host can never again forget to forward one (it forwarded only seven, and every
  * Codex agent job on the desktop was refused for want of codexVerifiedProgram).
  */
-export const MODEL_PORT_METHODS = Object.freeze(['status', 'presets', 'checkCli', 'inspectCli', 'generate', 'preview', 'runPreview', 'codexSetup', 'codexProgram', 'codexVerifiedProgram', 'toolSaid', 'codexModels'] as const satisfies readonly (keyof ModelPort)[]);
+export const MODEL_PORT_METHODS = Object.freeze(['status', 'presets', 'checkCli', 'inspectCli', 'generate', 'preview', 'runPreview', 'codexSetup', 'codexProgram', 'codexVerifiedProgram', 'toolSaid', 'codexModels', 'codexPlan'] as const satisfies readonly (keyof ModelPort)[]);
 type Unforwarded = Exclude<keyof ModelPort, (typeof MODEL_PORT_METHODS)[number]>;
 const EVERY_METHOD_FORWARDED: [Unforwarded] extends [never] ? true : never = true;
 void EVERY_METHOD_FORWARDED;
@@ -66,6 +66,7 @@ export function forwardModels(port: () => ModelPort): ModelPort {
     },
     toolSaid(callId: string) { const real = port(); return real.toolSaid ? real.toolSaid(callId) : null; },
     async codexModels() { const real = port(); return real.codexModels ? real.codexModels() : pickCodexModels(null); },
+    async codexPlan() { const real = port(); return real.codexPlan ? real.codexPlan() : null; },
   });
 }
 

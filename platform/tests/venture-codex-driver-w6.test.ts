@@ -169,3 +169,15 @@ test('A2: a failed turn says why, from Codex\'s own error info, in owner words w
   assert.equal(odd.failure, undefined); assert.equal(odd.error, 'Codex could not complete this turn. It was not rerouted.');
   await session.close();
 });
+test('C7: the account rate-limit update reaches the plan meter mid-turn, even though it names no thread', async () => {
+  const f = fixture(), readings: any[] = [], i = input(); i.onPlan = reading => readings.push(reading);
+  const session = await f.driver.open(i), { run } = await starting(f, session);
+  const reset = Math.floor(Date.parse('2026-11-06T16:30:00Z') / 1000);
+  f.receive({ method: 'account/rateLimits/updated', params: { rateLimits: { primary: { usedPercent: 62, windowDurationMins: 300, resetsAt: reset }, secondary: null } } });
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } });
+  await run;
+  assert.equal(readings.length, 1);
+  assert.equal(readings[0].cli, 'codex'); assert.equal(readings[0].windows[0].kind, 'five-hour'); assert.equal(readings[0].windows[0].usedPercent, 62);
+  assert.equal(readings[0].windows[0].resetsAt, '2026-11-06T16:30:00.000Z');
+  await session.close();
+});

@@ -438,3 +438,24 @@ describe('Team: which AI serves each role', () => {
 
 
 vi.setConfig({ testTimeout: 15_000 });
+
+describe('C7: the plan meter under each AI app', () => {
+  it('unknown shows the plain line; Check now (Codex only) reads it once and shows the windows with their source and time', async () => {
+    const { resetFakePlan } = await import('../../src/engine/fake-cli');
+    resetFakePlan();
+    const { calls } = start();
+    const section = await region('Your AI apps');
+    const codex = await waitFor(() => tool(section, 'Codex'));
+    await within(codex).findByText("Codex hasn't reported its plan use yet.");
+    expect(within(tool(section, 'Claude Code')).getByText("Claude Code hasn't reported its plan use yet.")).toBeTruthy();
+    // No figure shows without its source.
+    expect(codex.textContent).not.toMatch(/\d+% used/);
+    expect(within(tool(section, 'Claude Code')).queryByRole('button', { name: 'Check now' })).toBeNull();
+    await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Check now' })); });
+    await within(codex).findByText('5-hour window: 62% used, resets 4:30 pm');
+    expect(within(codex).getByText('This week: 18% used, resets Mon')).toBeTruthy();
+    expect(within(codex).getByText('As Codex reported at 9:55 am.')).toBeTruthy();
+    expect(calls.filter((c) => c.method === 'venture.models.plan').map((c) => c.params)).toContainEqual({ fresh: true });
+    resetFakePlan();
+  });
+});

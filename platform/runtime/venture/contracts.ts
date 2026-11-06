@@ -835,6 +835,8 @@ export interface ModelPort {
 
 /**
  * 4H1. What one look at the owner's command-line AI found, from evidence only. path: where the search path has it.
+  /** C7: Codex's own answer to the account's rate-limit read (a short app-server start, no thread, no turn); null when it could not be read. */
+  codexPlan?(): Promise<unknown>;
  * answered: its --version answered in the real tool's own form ('x.y.z (Claude Code)', 'codex-cli x.y.z'; never while
  * the Claude Code terms are pending, when nothing of it is run). version: the version that line names. flags: whether
  * its help lists every flag the route sends (unknown when the help did not answer; a mismatch too once a real call was

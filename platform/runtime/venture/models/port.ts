@@ -41,6 +41,7 @@ import {
 } from './presets.ts';
 import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
 import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
+import { readCodexPlan } from './plan-read.ts';
 import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { assertSchemaSafe } from './schema.ts';
 import { redactPayload, redactSecrets } from '../core/secrets.ts';
@@ -690,6 +691,14 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     codexProgram() {
       const codex = codexNow();
       const evidence = codex?.capabilities.evidence;
+    /** C7: Check now for the plan meter: the account's rate-limit read from the Codex setup in use; null on the hosted app or without one. */
+    async codexPlan() {
+      if (hosted || transport.replay === true) return null;
+      let program: string;
+      try { program = await this.codexVerifiedProgram!(); } catch { return null; }
+      return readCodexPlan(program);
+    },
+
       return evidence?.kind === 'installed-help' ? evidence.executable : null;
     },
 

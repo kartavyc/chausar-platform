@@ -13,6 +13,8 @@ import { registerAgentJob } from './lifecycle.ts';
 import { startAgentBilling, type AgentBilling } from './billing.ts';
 import { AGENT_MCP_TOOL_NAMES, type AgentDriverCredentials, type AgentDriverEvent, type AgentDriverSession, type AgentDriverSettings, type AgentTurnResult, type AgentUsage } from './driver-types.ts';
 import type { AgentRoute } from './route-types.ts';
+import { planBookOf, planCliOf } from '../models/plan-book.ts';
+import type { PlanReading } from '../models/plan-meter.ts';
 
 const running = new WeakMap<StateStore, Map<string, Promise<void>>>();
 export function launchAgentWork(store: StateStore, runId: string, work: () => Promise<void>): void {
@@ -58,6 +60,8 @@ function addUsage(first: AgentUsage | undefined, second: AgentUsage | undefined)
 /** A single live tool-owned session. Chausar never loops over its model turns: one nudge at most (A2), never a loop. */
 export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: string, options: NativeJobOptions, route: AgentRoute) {
   const abort = new AbortController();
+  // C7: only the tools' own plans have a plan meter; an API key has no plan.
+  const planCli = planCliOf(route.presetId);
   const job = await createNativeJob(deps, ctx, runId, { ...options, signal: abort.signal, networkAllowed: route.settings.network });
   let root: string | undefined, broker: JobBroker | undefined, session: AgentDriverSession | undefined;
   let billing: AgentBilling | undefined, progressError: unknown;
@@ -143,6 +147,7 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
     broker = await startJobBroker({ service: job.service, capability: job.capability });
     session = await route.driver.open({ jobId: job.capability.scope.jobId, jobRoot: root, settings: route.settings,
       mcp: broker.connection, guard: () => job.capability.assert(), onEvent, signal: abort.signal, credentials: route.credentials,
+      ...(planCli ? { onPlan: (reading: PlanReading) => { if (reading.cli === planCli) planBookOf(deps.store).note(reading); } } : {}),
       requestApproval: async request => {
         approvalsWaiting += 1;
         try {
@@ -186,6 +191,8 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
       const usage = addUsage(first.usage, second.usage);
       result = { ...second, ...(usage ? { usage } : {}) };
     }
+    // C7: a used-up plan the tool named marks that tool used up on the plan meter, its reset unknown.
+    if (planCli && result.status === 'failed') planBookOf(deps.store).failed(planCli, result.failure, deps.clock().toISOString());
     if (quiet) result = { ...result, status: 'interrupted', quiet: true, ...(overtime ? { overtime: true as const } : {}) };
     await events;
     if (progressError) throw progressError;

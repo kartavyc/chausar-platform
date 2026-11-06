@@ -8,6 +8,7 @@ import { AGENT_MCP_TOOL_NAMES, type AgentDriver, type AgentDriverInput, type Age
 import { CONNECTOR_WORDS, claudeGmailServer, claudeGmailTool } from './connector-policy.ts';
 import { checkFetchPolicy } from '../build/fetch-policy.ts';
 import { aiFailureWords, classifyAiText, classifyClaudeResult } from '../models/ai-failure.ts';
+import { fromClaudeLimit } from '../models/plan-meter.ts';
 import { profileHost } from '../network/protected.ts';
 
 type ClaudeQuery = AsyncIterable<SDKMessage> & { interrupt(): Promise<unknown>; close(): void; setMcpPermissionModeOverride?: (serverName: string, mode: 'default' | 'auto' | null) => Promise<unknown> };
@@ -261,6 +262,8 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
             emit({ type: 'mode-changed', mode: raw.permissionMode });
             if (input.settings.autoReview && raw.permissionMode !== 'auto') { stop('failed', 'Claude routine review is unavailable for this model. Check AI settings.'); break; }
           }
+          // C7: Claude Code's own report of the plan's window goes to the plan meter, never into the turn.
+          if (raw.type === 'rate_limit_event') { try { input.onPlan?.(fromClaudeLimit(raw.rate_limit_info, new Date().toISOString())); } catch { /* a meter that fails never stops a job */ } continue; }
           if (!active) continue;
           if (typeof raw.user_message_uuid === 'string' && raw.user_message_uuid !== active.id) continue;
           if (raw.type === 'stream_event') {

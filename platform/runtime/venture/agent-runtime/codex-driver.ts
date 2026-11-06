@@ -9,6 +9,7 @@ import { CodexError, CodexRpc, object, type CodexChild } from './codex-rpc.ts';
 import { canonical } from '../../portable.ts';
 import { CODEX_APPS_SERVER, CONNECTOR_WORDS, GMAIL_CONNECTOR_ID, codexGmailTool, codexGmailToolsConfig } from './connector-policy.ts';
 import { aiFailureWords, classifyAiText, classifyCodexInfo, type AiFailureKind } from '../models/ai-failure.ts';
+import { fromCodexLimits } from '../models/plan-meter.ts';
 
 type Launch = { command: string; args: string[]; cwd: string; env: Record<string, string> };
 type Qualification = { rpc: CodexRpc; jobRoot: string; profile: string };
@@ -145,6 +146,8 @@ export class CodexDriver implements AgentDriver {
     };
     const stop = (error: string) => { closed = true; finish('failed', error); void rpc.close().catch(() => {}); };
     const notification = (method: string, value: unknown) => {
+      // C7: the account's plan use names no thread; it goes to the plan meter and nowhere else.
+      if (method === 'account/rateLimits/updated') { try { input.onPlan?.(fromCodexLimits(value, new Date().toISOString())); } catch { /* a meter that fails never stops a job */ } return; }
       if (closed || !active || !object(value) || value.threadId !== threadId) return;
       if (!active.id) {
         if (active.queued.length >= 128) { stop('Codex returned too many events before identifying this turn.'); return; }
