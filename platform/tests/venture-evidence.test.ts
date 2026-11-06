@@ -1,3 +1,4 @@
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
 // P2-evidence tests: the evidence ledger (fixed weights, strength bands, only verified overwrites, claims checked
 // against the run's real tool results), venture.evidence.list and venture.evidence.apply, the hooks where owners and
 // agents write client and business fields, and the number guard's new rule: a model number is a labelled estimate.
@@ -218,11 +219,11 @@ test('the two evidence methods are registered everywhere a venture method must b
   assert.ok((VENTURE_RECORD_KINDS as readonly string[]).includes('venture-evidence'));
   const ipc = await readFile(new URL('../../app/desktop/ipc-contract.cjs', import.meta.url), 'utf8');
   const types = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');
-  const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+
   for (const method of ['venture.evidence.list', 'venture.evidence.apply']) {
     assert.ok(ipc.includes(`'${method}'`), `ipc allowlist: ${method}`);
     assert.ok(types.includes(`"${method}"`), `ipc types: ${method}`);
-    assert.ok(engine.includes(`case '${method}':`), `engine routing: ${method}`);
+    assert.equal(typeof ENGINE_HANDLERS[method], 'function', `engine routing: ${method}`);
   }
 });
 

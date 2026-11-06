@@ -1,3 +1,4 @@
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
 // P2-journal: the action journal and bound approval tokens. Every outside effect is one entry: described, then approved
 // in the app with a token bound to the action digest, the member, the session and the business, then applied, rejected
 // or outcome_unknown. A timeout or crash mid-send is outcome_unknown and is never run again; the owner resolves it.
@@ -416,10 +417,10 @@ test('venture.journal.list is a views read method registered everywhere a ventur
   }
   const ipc = await readFile(new URL('../../app/desktop/ipc-contract.cjs', import.meta.url), 'utf8');
   const types = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');
-  const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+
   assert.ok(ipc.includes("'venture.journal.list'"), 'ipc allowlist');
   assert.ok(types.includes('"venture.journal.list"'), 'ipc types');
-  assert.ok(engine.includes("case 'venture.journal.list':"), 'engine routing');
+  assert.equal(typeof ENGINE_HANDLERS['venture.journal.list'], 'function', 'engine routing');
 });
 
 test('static: the journal files throw only declared codes, keep the house style, credit their sources, and never store a token', async () => {
