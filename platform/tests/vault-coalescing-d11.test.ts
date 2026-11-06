@@ -5,9 +5,9 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
-import { Vault, ExperimentalFileSnapshotAdapter, type VaultEnvelope } from '../runtime/vault.ts';
+import { Vault, ExperimentalFileSnapshotAdapter, type VaultEnvelope, type VaultWriterGuard } from '../runtime/vault.ts';
 const passphrase = 'synthetic coalescing passphrase';
-async function setup(t: any) {
+async function setup(t: any, writerGuard?: VaultWriterGuard) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-vault-coalescing-'));
   let writes = 0, rejectWrites = false, release = () => {};
   let blocked: Promise<void> | undefined;
@@ -18,7 +18,7 @@ async function setup(t: any) {
     }
   }
   const adapter = new Counted(directory);
-  const { vault } = await Vault.create({ directory, storage: adapter, passphrase, name: 'Coalescing' });
+  const { vault } = await Vault.create({ directory, storage: adapter, passphrase, name: 'Coalescing', writerGuard });
   t.after(async () => { release(); await vault.close(); await rm(directory, { recursive: true, force: true }); });
   return { directory, vault, writes: () => writes, fail: () => { rejectWrites = true; }, block: () => { blocked = new Promise<void>(resolve => { release = resolve; }); }, release: () => release() };
 }
@@ -64,4 +64,20 @@ test('an update sees earlier queued changes while outside reads remain at durabl
   const first = env.vault.update(state => { state.workspace.name = 'Earlier update'; });
   const second = env.vault.update(state => { assert.equal(env.vault.read().workspace.name, 'Earlier update'); state.activity.push({ message: 'Later update' }); });
   await setImmediate(); assert.equal(env.vault.read().workspace.name, 'Coalescing'); env.release(); await Promise.all([first, second]);
+});
+
+test('writer admission checks the previous revision and publishes the final batch revision after durability', async t => {
+  let published = 0; const revisions: [number, number][] = [];
+  const guard: VaultWriterGuard = async (input, work) => {
+    assert.equal(input.state.revision, published);
+    const result = await work(() => assert.equal(input.state.revision, published));
+    revisions.push([input.state.revision, result.committedState.revision]); published = result.committedState.revision; return result.result;
+  };
+  const env = await setup(t, guard); env.block();
+  const first = Array.from({ length: 20 }, () => env.vault.update(state => { state.activity.push({ message: 'First batch' }); }));
+  await setImmediate();
+  const second = Array.from({ length: 10 }, () => env.vault.update(state => { state.activity.push({ message: 'Second batch' }); }));
+  assert.equal(published, 0); env.release(); await Promise.all([...first, ...second]);
+  assert.deepEqual(revisions, [[0, 20], [20, 30]]); assert.equal(published, 30);
+  assert.equal(JSON.parse(await readFile(join(env.directory, 'authority.encrypted.json'), 'utf8')).revision, 30);
 });
