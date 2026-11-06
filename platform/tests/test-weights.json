@@ -330,8 +330,11 @@
   "platform/tests/ui-shots-readiness.test.ts": 0.1,
   "platform/tests/update-service-c5.test.ts": 1.5,
   "platform/tests/updater.test.ts": 2.5,
+  "platform/tests/vault-coalescing-d11.test.ts": 3,
+  "platform/tests/vault-commit-budget-d11.test.ts": 30,
   "platform/tests/vault-encrypted-custody.test.ts": 0.6,
   "platform/tests/vault-fresh-bootstrap.test.ts": 3.6,
+  "platform/tests/vault-key-memo-d11.test.ts": 2,
   "platform/tests/vault-ladder-engine-d12.test.ts": 3,
   "platform/tests/vault-ladder-open-d12.test.ts": 3.1,
   "platform/tests/vault-private-artifacts.test.ts": 0.7,
@@ -1189,5 +1192,7 @@
   "platform/tests/workspace-move-name-a4.test.ts": 0.1,
   "platform/tests/workspace-snapshots.test.ts": 6.2,
   "replay-operation-d11.test.ts": 1,
-  "replay-timers-d11.test.ts": 1
+  "replay-timers-d11.test.ts": 1,
+  "platform/tests/engine-legacy-lazy-d10.test.ts": 2,
+  "platform/tests/trusted-host-fixture-d8.test.ts": 1
 }

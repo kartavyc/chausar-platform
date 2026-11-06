@@ -14,7 +14,7 @@ import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import { PageTitle } from '../../parts/PageTitle';
 import { Tabs } from '../../parts/Tabs';
-import type { VentureRunEvent } from '../../engine/types';
+import type { UiRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { ClientSheet } from './ClientSheet';
 import { CompanySheet } from './CompanySheet';
@@ -33,7 +33,7 @@ import { PipelineTab } from './PipelineTab';
 import { SendingLimits } from './SendingLimits';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
-const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
+const refreshOn = (event: UiRunEvent) => event.type === 'queue.changed';
 
 type Tab = 'clients' | 'pipeline' | 'network';
 

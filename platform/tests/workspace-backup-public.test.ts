@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, realpath, readFile, readdir, rm, mkdir, writeFile} from 'node:fs/promises';
@@ -167,9 +168,19 @@ function verifiedReceipt(receipt: any, summary: any, pin: any, targetId: string,
   assert.equal(receipt.inert, true); assert.equal(receipt.activation, 'root-only');
 }
 
-test('the desktop preload and strict IPC publish one encrypted archive and read a closed copy through real HTTP', async t => {
-  const f = await fixture(t), bridge = await preloadBridge({dispatch: (method, payload) => f.rpc(method, payload)});
-  const request = bridge.request;
+test('renderer IPC refuses archives while trusted host IPC preserves the complete archive roundtrip through real HTTP', async t => {
+  const f = await fixture(t), rendererDispatch: string[] = [];
+  const bridge = await preloadBridge({dispatch: (method, payload) => { rendererDispatch.push(method); return f.rpc(method, payload); }});
+  const archiveMethods = ['create', 'read', 'restoreInert', 'readRestored', 'inspectRestored', 'diagnostics'].map(name => 'workspace.backup.v2.' + name);
+  for (const method of archiveMethods) await assert.rejects(bridge.request(method, {}), (error: any) => error.code === 'INVALID_REQUEST');
+  assert.deepEqual(bridge.calls, [], 'The renderer contract admits no archive request.');
+  assert.deepEqual(rendererDispatch, [], 'A refused preload request cannot reach the real HTTP engine.');
+  const { validateHostRequest } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
+  const hostCalls: { method: string; payload: Record<string, unknown> }[] = [];
+  const request = async (method: string, payload: Record<string, unknown>) => {
+    const admitted = validateHostRequest(structuredClone({ method, payload })); hostCalls.push(admitted);
+    return structuredClone(await f.rpc(admitted.method, admitted.payload));
+  };
   // The desktop's sequence: create once, read the archive back, read it again just before the copy, copy once, read the copy.
   const made = await request('workspace.backup.v2.create', {destinationId: create.destinationId, confirmed: true});
   verifiedSummary(made, create.destinationId);
@@ -183,14 +194,16 @@ test('the desktop preload and strict IPC publish one encrypted archive and read 
   const restored = await request('workspace.backup.v2.readRestored', {backupId: create.destinationId, targetId, creationId: receipt.creationId, reviewedDigest});
   verifiedArchive(restored, create.destinationId); verifiedReceipt(restored.receipt, reviewed.summary, reviewed.sourcePin, targetId, receipt.creationId);
   assert.deepEqual(restored.summary, reviewed.summary); assert.deepEqual(restored.sourcePin, reviewed.sourcePin); assert.deepEqual(restored.receipt, receipt);
-  const copied = await f.rpc('workspace.backup.v2.inspectRestored', {backupId: create.destinationId, targetId, reviewedDigest});
+  const copied = await request('workspace.backup.v2.inspectRestored', {backupId: create.destinationId, targetId, reviewedDigest});
   const container = JSON.parse(await readFile(join(f.directory, targetId, 'backup.inert.json'), 'utf8'));
   assert.equal(container.content, (await f.retained(create.destinationId)).content);
   assert.deepEqual(copied.sourcePin, reviewed.sourcePin);
   assert.equal(receipt.creationId, copied.receipt.creationId);
-  assert.equal(bridge.calls.filter(call => call.method === 'workspace.backup.v2.create').length, 1);
-  assert.equal(bridge.calls.filter(call => call.method === 'workspace.backup.v2.restoreInert').length, 1);
-  assert.deepEqual(bridge.calls.find(call => call.method === 'workspace.backup.v2.restoreInert').payload,
+  assert.equal(hostCalls.filter(call => call.method === 'workspace.backup.v2.create').length, 1);
+  assert.equal(hostCalls.filter(call => call.method === 'workspace.backup.v2.restoreInert').length, 1);
+  const restoreCall = hostCalls.find(call => call.method === 'workspace.backup.v2.restoreInert');
+  assert.ok(restoreCall);
+  assert.deepEqual(restoreCall.payload,
     {backupId: create.destinationId, targetId, reviewedDigest: reviewed.summary.archiveDigest, confirmed: true});
   await f.reopen();
   // After a restart the desktop holds only the two IDs: it reads the archive for its digest, inspects the copy, then
@@ -203,8 +216,8 @@ test('the desktop preload and strict IPC publish one encrypted archive and read 
   assert.equal(inspected.receipt.creationId, copied.receipt.creationId);
   const exact = await request('workspace.backup.v2.readRestored', {backupId: create.destinationId, targetId, creationId: inspected.receipt.creationId, reviewedDigest: archive.summary.archiveDigest});
   verifiedArchive(exact, create.destinationId); verifiedReceipt(exact.receipt, exact.summary, exact.sourcePin, targetId, copied.receipt.creationId);
-  assert.equal(bridge.calls.filter(call => call.method === 'workspace.backup.v2.restoreInert').length, 1);
-  assert.equal(bridge.calls.some(call => /activate/.test(call.method)), false);
-  assert.equal(bridge.rejected.length, 0, 'Actual strict structured-clone IPC routes every request to the real HTTP Engine.');
+  assert.equal(hostCalls.filter(call => call.method === 'workspace.backup.v2.restoreInert').length, 1);
+  assert.equal(hostCalls.some(call => /activate/.test(call.method)), false);
+  assert.equal(bridge.rejected.length, archiveMethods.length, 'Only renderer attempts were refused; every trusted host request completed through real HTTP.');
   assert.deepEqual(await readdir(join(f.directory, targetId)), ['backup.inert.json']);
 });

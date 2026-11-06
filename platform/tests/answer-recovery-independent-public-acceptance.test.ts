@@ -110,7 +110,7 @@ test('aging recovery requires a new onDate and honestly chosen all-event-date sc
   assert.deepEqual(f.originals(await f.snapshot()), f.originals(baseline));
 });
 
-test('a September aging scope declared through the desktop preload excludes October invoices as its inclusive event period promises', async t => {
+test('a September aging scope declared through the trusted desktop host excludes October invoices as its inclusive event period promises', async t => {
   const f = await fixture(t), originalBytes = JSON.stringify(f.originals(await f.snapshot()));
   // The owner's sequence: list unpinned saved answers, review the aging one, declare a new time scope, then execute.
   const unpinned = (await f.request('trials.savedQuestions')).filter((answer: any) => answer.request && !Object.hasOwn(answer.request, 'asOf'));
@@ -127,7 +127,7 @@ test('a September aging scope declared through the desktop preload excludes Octo
   const result = await f.request('answers.recovery.get', { newRequestId: execution.payload.newRequestId });
   assert.equal(result.status, 'completed'); assert.deepEqual(result.receipt.period, SEPTEMBER);
   assert.equal(JSON.stringify(f.originals(await f.snapshot())), originalBytes);
-  t.diagnostic(JSON.stringify({ qualification: 'actual-preload-IPC-HTTP-Engine', declaredPeriod: result.receipt.period,
+  t.diagnostic(JSON.stringify({ qualification: 'actual-trusted host-IPC-HTTP-Engine', declaredPeriod: result.receipt.period,
     onDate: result.receipt.assumptions.onDate, actualTotalMinor: result.receipt.totalMinor,
     includedEntities: result.receipt.rows.map((row: any) => row.entityId), expectedSeptemberTotalMinor: '30000' }));
   assert.equal(result.receipt.totalMinor, '30000', 'The declared scope is an inclusive September event period; October invoice A3 must not be counted.');

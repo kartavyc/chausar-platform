@@ -2,7 +2,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import type { LockedRuleLite, RuleLocksLite, VentureRunEvent } from '../../engine/types';
+import type { LockedRuleLite, RuleLocksLite, UiRunEvent } from '../../engine/types';
 import { onDesktop, safeUrl } from '../connections/external';
 import { TileSection } from './shared';
 import s from './Business.module.css';
@@ -16,7 +16,7 @@ import { LoadingPlace } from '../../parts/Skeleton';
  * engine records the date. Unticking withdraws. Then the hard stops, one line each, with no tick: nothing unlocks them.
  * Every line is the engine's. The CA firm's sign-off by the CA of record stays on Your CA.
  */
-const onChange = (event: VentureRunEvent) => event.type === 'queue.changed';
+const onChange = (event: UiRunEvent) => event.type === 'queue.changed';
 
 export function YourRules() {
   const t = useT();

@@ -17,13 +17,13 @@ import { Chip } from '../../parts/Chip';
 import { Figure } from '../../parts/Figure';
 import { Tabs } from '../../parts/Tabs';
 import { Sheet } from '../../parts/Sheet';
-import { EngineError, type OutreachHandoff, type SalesProposalView, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type OutreachHandoff, type SalesProposalView, type UiRunEvent } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { copyText, handoffText, performHandoff } from './handoff';
 import s from './Proposal.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
+const refreshOn = (event: UiRunEvent) => event.type === 'queue.changed';
 
 /** The engine codes this sheet words itself (kit-sales.error.*); any other refusal shows the engine's own words. */
 const WORDED: ReadonlySet<string> = new Set(['OFFER_UNPRICED', 'PILOT_UNPRICED', 'PILOT_NOT_OFFERED', 'PILOT_WINDOW', 'BLUEPRINT_NOT_ACCEPTED', 'APP_APPROVAL_REQUIRED', 'INVALID_AMOUNT', 'INVALID_SHARE']);

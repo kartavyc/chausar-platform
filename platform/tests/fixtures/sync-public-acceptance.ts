@@ -12,7 +12,7 @@ import { FileSyncTransport } from '../../runtime/sync-file-transport.ts';
 import type { FileSyncFaultPoint, FileSyncTransportOptions } from '../../runtime/sync-file-transport.ts';
 import { FileSyncWriterAdmission } from '../../runtime/sync-writer-admission.ts';
 import type { SyncTransport } from '../../runtime/sync.ts';
-import { preloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge } from './trusted-host-bridge.ts';
 
 export const PASSWORD = 'Synthetic independent sync acceptance passphrase';
 export const SOURCE = 'independent-sync-import', PRIVATE_MARKER = 'SYNTHETIC PRIVATE CUSTOMER DESCRIPTION';
@@ -39,8 +39,8 @@ export async function fixture(t: TestContext) {
     assert.ok(child && child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child));
     assert.ok(child.startsWith('chausar-independent-sync-')); await rm(directory, { recursive: true, force: true });
   });
-  const bridge = await preloadBridge({ dispatch: (method, payload) => engine.request(method, payload) });
-  const request = (method: string, payload: Record<string, unknown> = {}) => bridge.exposed.request(method, payload);
+  const bridge = await trustedHostBridge({ dispatch: (method, payload) => engine.request(method, payload) });
+  const request = (method: string, payload: Record<string, unknown> = {}) => bridge.request(method, payload);
   const created = await request('workspace.create', { name: 'Independent synthetic sync business', folder: 'main', passphrase: PASSWORD, demo: false, pack: 'ecommerce' });
   const initialBackup = await request('workspace.backup'), envelope = JSON.parse(await readFile(initialBackup.path, 'utf8'));
   await engine.close();
@@ -87,8 +87,8 @@ export async function fixture(t: TestContext) {
     const receiverRoot = join(directory, 'receiver'), receiverWriterDirectory = join(directory, 'receiver-writer-control');
     await mkdir(receiverWriterDirectory); const receiverKeys = generateKeyPairSync('ed25519');
     let target = new Engine({ directory: receiverRoot, demo: true, storage: 'experimental-file' });
-    engines.push(target); const h = await preloadBridge({ dispatch: (method, payload) => target.request(method, payload) });
-    const request = (method: string, payload: Record<string, unknown> = {}) => h.exposed.request(method, payload);
+    engines.push(target); const h = await trustedHostBridge({ dispatch: (method, payload) => target.request(method, payload) });
+    const request = (method: string, payload: Record<string, unknown> = {}) => h.request(method, payload);
     const receiverCreated = await request('workspace.create', { name: 'Separate receiver authority', folder: 'main', passphrase: PASSWORD, demo: false });
     const receiverBackup = await request('workspace.backup'), receiverEnvelope = JSON.parse(await readFile(receiverBackup.path, 'utf8'));
     await target.close();
@@ -99,7 +99,7 @@ export async function fixture(t: TestContext) {
           vaultId: receiverEnvelope.envelope.id, deviceId: 'independent-receiver', clock }) } };
     target = new Engine(receiverOptions); engines.push(target); await request('workspace.open', { folder: 'main', passphrase: PASSWORD });
     await reviewWriter(request, 'independent-receiver');
-    const identity = await bridge.exposed.request('sync.identity'), members = await request('members.list');
+    const identity = await bridge.request('sync.identity'), members = await request('members.list');
     const owner = members.find((item: any) => item.role === 'owner');
     await request('sync.trust', { signerId: identity.signerId, publicKey: identity.publicKey, memberId: owner.id, epoch: owner.epoch });
     async function openStageReadOnly(folder: string) {

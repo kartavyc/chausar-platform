@@ -26,7 +26,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type UiRunEvent } from '../../engine/types';
 import { goTo, navigate } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatMonth, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
@@ -49,7 +49,7 @@ import { PickTime } from './PickTime';
 import s from './Chats.module.css';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
-const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
+const THREAD_EVENTS = (event: UiRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
 const SUGGESTIONS = ['chats.suggest.invoiced', 'chats.suggest.waiting', 'chats.suggest.spend'] as const;
 /** 6G1: a snooze choice's wake time in the owner's zone: 6:42 pm today, else the weekday and the time ("Mon 9:00 am"). */
 function wakeOf(at: string, now: Date, zone: string): string {

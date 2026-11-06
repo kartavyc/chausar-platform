@@ -560,7 +560,7 @@ export const MODEL_PRESETS: ModelPresetLite[] = [
 ];
 
 /** What serves a job when no AI is connected. */
-export const TEMPLATES_TIER = { presetId: 'built-in-templates', model: null, usable: true, reason: 'No AI connected; using built-in templates', verificationNote: null };
+export const TEMPLATES_TIER: ModelStatusLite['tiers']['fast'] = { presetId: 'built-in-templates', model: null, usable: true, reason: 'No AI connected; using built-in templates', verificationNote: null };
 const NOTHING_CONNECTED: ModelStatusLite = {
   connections: [], tiers: { fast: { ...TEMPLATES_TIER }, main: { ...TEMPLATES_TIER } },
   spentThisMonthDisplay: '$0.00', estimate: false, sendPolicy: 'shape', replay: { active: false, label: null },

@@ -17,14 +17,14 @@ import { ApprovalRow, type DecideExtra } from '../../parts/ApprovalRow';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
-import type { QueueAction, QueueDecision, QueueRow, VentureRunEvent } from '../../engine/types';
+import type { QueueAction, QueueDecision, QueueRow, UiRunEvent } from '../../engine/types';
 import { decide as decideRow, reread as rereadRow, seenKey, useTodaySession } from '../today/session';
 import { viewSheetId } from '../today/ViewSheet';
 import { useCardPreview } from '../today/CardPreview';
 import s from './Approve.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
+const QUEUE_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 
 /** What this page decides: everything Today lists but locked businesses and setup steps, oldest first. */
 export function approvalsOf(rows: readonly QueueRow[]): QueueRow[] {

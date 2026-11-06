@@ -6,7 +6,7 @@ import { openSheet, useRoute } from '../../shell/navigation';
 import { useEngine, useResource } from '../../engine/context';
 import { keepPracticeDraft, practiceDraftId } from '../work/practice-drafts';
 import { Button } from '../../parts/Button';
-import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
+import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, UiRunEvent } from '../../engine/types';
 import { TileSection, dayOf } from './shared';
 // W4 4J22a: drills (4J15), experiments (4J16) and the guidance report (4J16).
 import { Drills, Experiments } from './Drills';
@@ -54,7 +54,7 @@ export function PracticeView() {
   );
 }
 
-const onQueue = (event: VentureRunEvent) => event.type === 'queue.changed';
+const onQueue = (event: UiRunEvent) => event.type === 'queue.changed';
 
 /** A second ask under a button: the question, Not now (focused first) and the action again. */
 function Confirm({ ask, label, onConfirm, onCancel }: { ask: string; label: string; onConfirm: () => void; onCancel: () => void }) {

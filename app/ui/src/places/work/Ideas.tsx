@@ -13,7 +13,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useLanguage, useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { EngineError, type IdeaGrade, type IdeaStage, type PipelineIdeaView, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type IdeaGrade, type IdeaStage, type PipelineIdeaView, type UiRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
@@ -30,7 +30,7 @@ const FORWARD: readonly IdeaStage[] = ['inbox', 'triage', 'drafted', 'made', 'pu
 const GRADES: readonly IdeaGrade[] = ['worked', 'so-so', 'did-not'];
 /** The engine codes this screen words itself (kit/ideas.ts), in both languages. */
 const WORDED = new Set(['IDEA_STAGE_BACKWARD', 'IDEA_DROP_REASON', 'IDEA_NOT_FOUND', 'IDEA_NOT_PUBLISHED', 'IDEA_GRADE_EARLY', 'ALREADY_DECIDED', 'APP_APPROVAL_REQUIRED']);
-const IDEA_EVENTS = (event: VentureRunEvent) => event.type === 'idea.changed' || event.type === 'queue.changed';
+const IDEA_EVENTS = (event: UiRunEvent) => event.type === 'idea.changed' || event.type === 'queue.changed';
 
 function wordsOf(error: unknown, t: T): string {
   if (error instanceof EngineError && WORDED.has(error.code)) return t(`kit-rules.error.${error.code}`);

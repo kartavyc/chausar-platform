@@ -16,7 +16,7 @@ import type {FakeForgottenPerson} from './fake-playbooks';
 
 import {
   EngineError, type DraftPostLite, type OwnerPostingLimits, type PostingLimitsView, type PostingProposal, type QueueRow, type ShareAnswer, type ShareLink,
-  type PostingStepsView, type VentureRunEvent, type QueueItemView, type QueueDecision, type ConnectorCardLite,
+  type PostingStepsView, type UiRunEvent, type QueueItemView, type QueueDecision, type ConnectorCardLite,
 } from './types';
 
 import type { ScheduledPostSnapshot, ScheduledPostBinding } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core';
@@ -27,7 +27,7 @@ export interface PostingHost {
   uploadFingerprint?(id:string):string|null;
   current(): string;
   now(): string;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** Whether this answers as the hosted web server, where posting through the owner's own browser is not offered. */
   hosted(): boolean;
   /** Today's rows, to add the row a post waits on, and the fake's digest for a new row. */
