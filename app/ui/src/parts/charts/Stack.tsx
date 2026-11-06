@@ -17,15 +17,16 @@ export interface StackSegment {
  * any tile width.
  */
 export function Stack({ segments, label, thin }: { segments: StackSegment[]; label: string; thin?: boolean | undefined }) {
-  const shown = segments.filter((segment) => segment.permille > 0);
+  // Zero-width boxes draw nothing and keep their node so a later value can transition in place.
+  const shown = segments;
   const nested = shown.reduceRight<ReactNode>(
     (inner, segment, i) => (
       <g key={segment.id}>
         <rect className={s.seg} x="0" y="0" width={segment.permille} height="14" {...segment.attrs}>
           <title>{segment.title}</title>
         </rect>
-        {i > 0 && <line className={s.gap} x1="0" x2="0" y1="0" y2="14" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
-        <g transform={`translate(${segment.permille} 0)`}>{inner}</g>
+        {segment.permille > 0 && shown.slice(0, i).some(before => before.permille > 0) && <line className={s.gap} x1="0" x2="0" y1="0" y2="14" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
+        <g className={s.offset} transform={`translate(${segment.permille} 0)`}>{inner}</g>
       </g>
     ),
     null,

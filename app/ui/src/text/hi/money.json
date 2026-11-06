@@ -98,7 +98,7 @@
   "money.payment.on": "मिलने की तारीख़",
   "money.payment.method": "कैसे मिला",
   "money.payment.record": "भुगतान दर्ज करें",
-  "money.payment.ask": "{date} को मिले {amount} दर्ज करें? इसे वापस नहीं लिया जा सकता।",
+  "money.payment.ask": "{date} को {method} से मिले {amount} दर्ज करें? इसे वापस नहीं लिया जा सकता।",
   "money.payment.confirm": "दर्ज करें",
   "money.payment.done": "भुगतान दर्ज हुआ।",
   "money.payment.back": "बिल पर वापस",

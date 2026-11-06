@@ -698,3 +698,20 @@
   justify-content: flex-end;
   gap: var(--sp-1);
 }
+
+.seg {
+  transition: width var(--t-settle) var(--ease);
+}
+
+.offset {
+  transition: transform var(--t-settle) var(--ease);
+}
+
+.forecastOld {
+  animation: global(ink-page-out) var(--t-sheet) var(--ease) 1 both;
+  pointer-events: none;
+}
+
+.forecastNow[data-forecast-new] {
+  animation: global(ink-fade-in) var(--t-sheet) var(--ease) 1 both;
+}
