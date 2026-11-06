@@ -135,7 +135,7 @@ const HAND: Readonly<Record<string, Hand>> = Object.freeze({
     'In your Zoho account, open Security, then App Passwords, and make an app-specific password for Chausar.',
     'Use the desktop app: under Connections, type the server (imap.zoho.com, or imap.zoho.in for an account in India), port 993, your address and that password.',
     `${AGAIN}`,
-  ], 'Make an app-specific password: with two-factor sign-in on, your Zoho password itself does not work over IMAP.'),
+  ], 'Make an app-specific password. With two-factor sign-in on, your Zoho password itself does not work over IMAP.'),
   'google-workspace': inbox('Gmail', [
     'Turn on 2-Step Verification for your Google account.',
     'Under Security, then App passwords, make an app password for Chausar. A Workspace admin can block app passwords; then this does not work for that account.',
@@ -300,3 +300,4 @@ export function guideProblems(catalogue: readonly CatalogueEntry[] = CONNECTOR_C
 
 /** For a validation test only: whether a connector has a hand-written guide. */
 export const hasHandGuide = (id: string) => Object.hasOwn(HAND, id);
+

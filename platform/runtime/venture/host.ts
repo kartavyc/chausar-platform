@@ -110,9 +110,9 @@ function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMeth
   return !!table && typeof table === 'object' && Object.hasOwn(table, method) && typeof (table as Record<string, unknown>)[method] === 'function';
 }
 
-/** Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. */
+/** Country suggestions and compliance also have handlers for the open business. */
 export function outsideTables(method: string): boolean {
-  if (method === 'venture.country.suggest') return false;
+  if (method === 'venture.country.suggest' || method === 'venture.compliance.get') return false;
   // A2: the engine answers the owner's Codex choice itself, with or without a vault (engine.ts).
   if ((ENGINE_METHODS as readonly string[]).includes(method)) return true;
   return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
@@ -652,3 +652,5 @@ export class VentureHost {
     return (real as () => GitHubTransport)();
   }
 }
+
+
