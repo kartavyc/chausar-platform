@@ -115,7 +115,7 @@ async function download(url: string, ports: ClaudeInstallPorts, progress: (step:
         progress({ step: 'downloading', receivedBytes, totalBytes });
       }
     } catch (error) { throw error instanceof ChausarError ? error : failed(); }
-    if (receivedBytes === 0) throw failed();
+    if (receivedBytes === 0 || totalBytes !== null && receivedBytes !== totalBytes) throw failed();
     return Buffer.concat(chunks);
   } finally { clearTimeout(timer); }
 }
@@ -173,22 +173,34 @@ export async function installClaudeCode(
 export type ClaudeInstallSystem = {
   spawn?: (command: string, args: readonly string[], options: { cwd: string; env: Record<string, string>; shell: false; windowsHide: true; stdio: 'ignore' })
     => { once(event: 'error' | 'exit', listener: (value?: any) => void): unknown; kill(): unknown };
-  fetch?: (url: string, init: { signal: AbortSignal; redirect: 'follow' }) => Promise<{ ok: boolean; status: number; url: string; headers: { get(name: string): string | null }; body: unknown }>;
+  fetch?: (url: string, init: { signal: AbortSignal; redirect: 'manual' }) => Promise<{ ok: boolean; status: number; url: string; headers: { get(name: string): string | null }; body: unknown }>;
 };
 
 /** The real ports: Node's fetch, a hidden process with no shell, the search path and the installer's own folder. */
-export function defaultClaudeInstallPorts(system: ClaudeInstallSystem = {}): ClaudeInstallPorts {
-  const run = system.spawn ?? spawn;
-  const get = system.fetch ?? fetch;
+export function defaultClaudeInstallPorts(system?: ClaudeInstallSystem): ClaudeInstallPorts {
+  const missing = () => { throw new Error('test port not set'); };
+  const run = system === undefined ? spawn : system.spawn ?? missing;
+  const get = system === undefined ? fetch : system.fetch ?? missing;
   return {
     async fetch(url, { signal }) {
-      const response = await get(url, { signal, redirect: 'follow' });
-      return { ok: response.ok, status: response.status, url: response.url, headers: response.headers, body: response.body as unknown as AsyncIterable<Uint8Array> | null };
+      for (let hop = 0; hop <= 5; hop++) {
+        const address = new URL(url);
+        if (address.protocol !== 'https:' || !ALLOWED_HOST.test(address.hostname) || address.username || address.password) throw new Error('Installer address refused');
+        const response = await get(url, { signal, redirect: 'manual' });
+        if (![301, 302, 303, 307, 308].includes(response.status)) {
+          return { ok: response.ok, status: response.status, url: response.url, headers: response.headers, body: response.body as unknown as AsyncIterable<Uint8Array> | null };
+        }
+        await (response.body as { cancel?: () => Promise<void> } | null)?.cancel?.();
+        const location = response.headers.get('location');
+        if (!location || hop === 5) throw new Error('Installer redirect refused');
+        url = new URL(location, url).href;
+      }
+      throw new Error('Installer redirect refused');
     },
     run(command, args, options) {
       return new Promise(resolve => {
         const child = run(command, args, { cwd: options.cwd, env: options.env, shell: false, windowsHide: true, stdio: 'ignore' });
-        const timer = setTimeout(() => { try { child.kill(); } catch { /* already gone */ } }, options.timeoutMs);
+        const timer = setTimeout(() => { try { child.kill(); } catch { /* already gone */ } resolve({ exitCode: -1 }); }, options.timeoutMs);
         child.once('error', () => { clearTimeout(timer); resolve({ exitCode: -1 }); });
         child.once('exit', code => { clearTimeout(timer); resolve({ exitCode: code ?? -1 }); });
       });
