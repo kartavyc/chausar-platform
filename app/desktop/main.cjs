@@ -17,7 +17,7 @@ const smokeUserData = process.argv.find(arg => arg.startsWith('--smoke-user-data
 if (smokeUserData && require('node:path')[process.platform === 'win32' ? 'win32' : 'posix'].isAbsolute(smokeUserData)) app.setPath('userData', smokeUserData);
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
-let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve(); let startPrepared = false;
 let hostAwake = false;
 const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;},verifyTalk:async sessionId=>{const view=await engine.request('venture.talk.get',{});return view?.desktop===true&&view.consent?.given===true&&view.session?.id===sessionId;}});
 const formsBrowser = require('./owner-browser-host.cjs').createFormsHost({BrowserWindow,WebContentsView,session,window:()=>window,onClosed:()=>stopFormsBrowser()});
@@ -80,14 +80,26 @@ const workerRestart = require('./worker-restart.cjs').createWorkerRestart({
   onGiveUp: () => { dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
 });
 function firstPainted() { timeline.mark('first-paint'); void updateWiring?.notePaint(); }
-async function startEngine() {
+/** D4 task 2: what the start decides before anything shows: the build, the demo, a refusal, the beta's background state. */
+async function prepareStart() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-  if (stopping) return;
+  if (stopping) return null;
   const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
   if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
   releaseBeta = app.isPackaged && metadata.chausarReleaseChannel === 'beta' && metadata.chausarPreview !== true;
   if (releaseBeta) await startBackground();
-  if (stopping) return;
+  return stopping ? null : { metadata, demo };
+}
+/** D4 task 2: the tray and the window first; the engine starts behind them. A failed engine start still ends in the error box. */
+async function startUp() {
+  const prepared = await prepareStart();
+  if (!prepared) return;
+  startPrepared = true;
+  createTray();
+  if (!(releaseBeta && hiddenStart)) createWindow();
+  await startEngine(prepared);
+}
+async function startEngine({ metadata, demo }) {
   const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0',
     // A2: where the owner's choice of their own Codex is kept (platform/runtime/codex-trust.ts).
     CHAUSAR_CODEX_TRUST_DIR: join(app.getPath('userData'), 'codex-trust'),
@@ -107,6 +119,8 @@ async function startEngine() {
   engineEnvironment = environment;
   updateWiring = require('./update-wiring.cjs').createUpdateWiring({ metadata, userData: app.getPath('userData'), packaged: app.isPackaged, version: metadata.version, platform: process.platform, appImage: process.env.APPIMAGE ?? null, updates: require('./updates.cjs'), engine: () => engine, dialog, shell, note: line => { void diagnostics.line('main.jsonl', line); }, fs: require('node:fs/promises') });
   await updateWiring.beforeStart();
+  // D4: the window opens first, so its first paint can come before there is a boot marker to clear.
+  if (timeline.reached('first-paint')) void updateWiring.notePaint();
   if (stopping) return;
   await launchEngine();
 }
@@ -114,7 +128,7 @@ async function startEngine() {
 async function launchEngine() {
   await engine?.stop().catch(() => {});
   if (stopping) return;
-  const harness = createHarness(), restarted = engineStarted;
+  const harness = createHarness();
   engine = harness;
   const starting = harness.start();
   timeline.mark('engine-forked');
@@ -123,7 +137,8 @@ async function launchEngine() {
   timeline.mark('engine-ready');
   void updateWiring?.noteReady();
   await reportJobLifecycle();
-  if (restarted) harness.reportWatching?.(windowWatching());
+  // D4: the window may have opened and taken focus before the engine could hear it; a restart needs telling too.
+  harness.reportWatching?.(windowWatching());
 }
 /** C5 task 29: what the window hears: one word through a whole restart, and each state once. */
 function sendEngineStatus(status) {
@@ -448,11 +463,13 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result: { day: await background.askLater(day) } };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); else void updateWiring?.notePaint(); }
+  try { startupTask = startUp(); await startupTask; if (stopping) return; if (releaseBeta && hiddenStart && !window) void updateWiring?.notePaint(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
-app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
-app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
+// D4 task 2: a window needs no engine; it waits with the owner. Before the start has decided, the window it opens is the one.
+const askForWindow = () => { if (stopping) return; if (startPrepared) createWindow(); else hiddenStart = false; };
+app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else askForWindow(); });
+app.on('activate', () => { if (!window) askForWindow(); });
 app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
