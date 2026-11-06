@@ -6,6 +6,7 @@ import { Count } from './Figure';
 import { Icon } from './Icon';
 import type { DeptId, IconName } from './icons';
 import { stateWord, type StateKind, type StateTone, type StateValue } from './states';
+import { SwapWords } from './Swap';
 import s from './Chip.module.css';
 
 /** A chip's tone: a state tone from states.ts, or `line` (a plain bordered label, D's `.chip.line`). */
@@ -30,7 +31,8 @@ export function Chip({ tone = 'neutral', children, className }: ChipProps) {
     <span className={cx(s.chip, className)} data-tone={tone}>
       {DOTTED.has(tone) && <span className={s.dot} data-dot="" aria-hidden="true" />}
       {tone === 'done' && <Icon name="check" size={12} />}
-      {children}
+      {/* One-shot C3 task 8: a state word that changes (Idle to Working, Draft to Issued) fades in place. */}
+      {typeof children === 'string' ? <SwapWords>{children}</SwapWords> : children}
     </span>
   );
 }

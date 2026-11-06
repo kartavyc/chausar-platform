@@ -2,6 +2,7 @@ import { useId, type ButtonHTMLAttributes, type Ref } from 'react';
 import { useT } from '../text';
 import { cx } from './cx';
 import { Icon } from './Icon';
+import { SwapWords } from './Swap';
 import s from './Button.module.css';
 
 /**
@@ -64,7 +65,8 @@ export function Button({
       >
         {locked && <Icon name="lock" size={height === 'sm' ? 14 : 16} />}
         {variant === 'chat' && <Icon name="message-square" size={14} />}
-        {children ?? (variant === 'chat' ? t('button.chat') : null)}
+        {/* One-shot C3 task 8: a label that changes (Save to Saved) fades in place; at rest the text stands alone. */}
+        {typeof children === 'string' ? <SwapWords>{children}</SwapWords> : children ?? (variant === 'chat' ? t('button.chat') : null)}
       </button>
       {locked && <span id={lockedId} hidden>{lockedNoteId ? t('button.lockedWord') : t('button.lockedWhy', { reason })}</span>}
     </>
