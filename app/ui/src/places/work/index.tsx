@@ -38,11 +38,11 @@ import s from './Work.module.css';
 import { Ideas } from './Ideas';
 
 /** The filters the address can hold. `orders` (every order, paid and cancelled too) has no chip; the order focus's
- *  "All orders" link leads there. `ideas` (Ink v2 wave 5, 5A3) is the idea pipeline, where Today's grade card leads. */
-export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders', 'ideas'] as const;
+ *  "All orders" link leads there. `?state=ideas` (5A3) is the Ideas page (Place below), where Today's grade card leads. */
+export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders'] as const;
 export type WorkFilter = 'all' | (typeof FILTERS)[number];
-/** The chips, in D's order: All, Needs you, Running, Failed, Done; then Ideas (5A3). */
-const CHIPS = ['all', 'waiting', 'active', 'failed', 'done', 'ideas'] as const;
+/** The chips, in D's order: All, Needs you, Running, Failed, Done. Ideas (5A3) is its own page (C1 task 5), not a filter. */
+const CHIPS = ['all', 'waiting', 'active', 'failed', 'done'] as const;
 
 export function readFilter(value: string | undefined): WorkFilter {
   return (FILTERS as readonly string[]).includes(value ?? '') ? (value as WorkFilter) : 'all';
@@ -90,7 +90,27 @@ function Orders({ views, meta, children }: { views: OrderView[]; meta?: string |
   );
 }
 
+/**
+ * Work, or its Ideas page: `#/work/ideas`, and `?state=ideas`, which the engine's notices link to (C1 task 5).
+ */
 export function Place() {
+  const route = useRoute();
+  return route.sub === 'ideas' || route.query.state === 'ideas' ? <IdeasPage /> : <WorkPage />;
+}
+
+/** The idea pipeline on its own page, under the title Ideas, with a quiet way back to Work. */
+function IdeasPage() {
+  const t = useT();
+  return (
+    <>
+      <a className={s.back} href="#/work" data-back="">{t('kit-rules.back')}</a>
+      <PageTitle title={t('kit-rules.chip')} />
+      <Ideas />
+    </>
+  );
+}
+
+function WorkPage() {
   const t = useT();
   const route = useRoute();
   const filter = readFilter(route.query.state);
@@ -163,8 +183,6 @@ export function Place() {
     content = runs.data && (failed.length > 0 ? failedTiles(failed) : <EmptyState title={t('work.none.failed')} />);
   } else if (filter === 'done') {
     content = runs.data && (done.length > 0 ? finished(done, false) : <EmptyState title={t('work.none.done')} />);
-  } else if (filter === 'ideas') {
-    content = <Ideas />; // 5A3: the idea pipeline
   } else if (filter === 'orders') {
     content = ordersReady && (views.length > 0 && ordersHere ? <Orders views={views}>{orderList}</Orders> : <EmptyState title={t('work.none.orders')} />);
     // W5 5A1: the business's own desk, where its orders are.
@@ -201,7 +219,7 @@ export function Place() {
     ? headerLine(t, going.length, failedOpen.length, counted.length, new Set(counted.map((v) => v.order.clientId)).size, stoppedRuns.length)
     : undefined;
 
-  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(id === 'ideas' ? 'kit-rules.chip' : `work.filter.${id}`) }));
+  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(`work.filter.${id}`) }));
   const businessChips: FilterOption[] = offerBusinesses
     ? businessIds.map((id) => ({ id, label: names.get(id)!, business: true }))
     : [];
@@ -225,10 +243,14 @@ export function Place() {
             />
           )}
         </div>
-        <Button onClick={(event) => openSheet('new-order', 'new', event.currentTarget)}>
-          <Icon name="plus" size={16} />
-          {t('work.new')}
-        </Button>
+        <span className={s.toolbarEnd}>
+          {/* C1 task 5: the idea pipeline is a page of its own, one quiet link away. */}
+          <a className={s.ideasLink} href="#/work/ideas">{t('kit-rules.chip')}</a>
+          <Button onClick={(event) => openSheet('new-order', 'new', event.currentTarget)}>
+            <Icon name="plus" size={16} />
+            {t('work.new')}
+          </Button>
+        </span>
       </div>
       {failures.map((e) => <p key={`${e.code}:${e.message}`} className={s.problem} role="status">{t('work.loadFailed', { message: e.message })}</p>)}
       <div className={s.sections}>{content}</div>

@@ -551,6 +551,38 @@
   color: var(--link);
 }
 
+/* C1 task 5: Ideas' way back to Work sits above its title. */
+.back[data-back] {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  text-decoration: none;
+}
+
+.toolbarEnd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.ideasLink {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.ideasLink {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.ideasLink:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
 .back:hover {
   color: var(--link-hover);
 }
