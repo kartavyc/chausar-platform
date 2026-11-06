@@ -12,8 +12,8 @@
     "money/books": 60,
     "money/spend": 150,
     "money/journal": 100,
-    "connections": 1810,
-    "connections/ai": 1810,
+    "connections": 1830,
+    "connections/ai": 1830,
     "business/plan": 240,
     "business/prices": 130,
     "business/build": 120,
@@ -30,7 +30,7 @@
     "business/notifications": 200,
     "business/reports": 180,
     "business/practice": 250,
-    "business/routines": 70
+    "business/routines": 80
   },
   "first": {
     "today": 760,

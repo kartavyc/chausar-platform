@@ -306,6 +306,7 @@
   "team.shelf.backNamed": "Bring back {name}",
   "team.shelf.failed": "Could not bring it back: {message}",
   "team.shelf.chip": "Retired",
+  "team.chat.way.title": "Keep this as a way of working?",
   "team.chat.way.keep": "Keep",
   "team.chat.way.no": "Not this"
 }

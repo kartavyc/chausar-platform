@@ -20,9 +20,11 @@ export const guideLink = (anchor: string): string => `${GUIDE_URL}#${anchor}`;
 export function findGuide(question: string): GuideSection[] {
   const asked = [...new Set(wordsOf(question).map(stem))];
   if (!asked.length) return [];
+  const titles = GUIDE_SECTIONS.map((section) => new Set(wordsOf(section.title).map(stem)));
+  const rare = (word: string) => 1 / Math.max(1, titles.filter((title) => title.has(word)).length);
   const scored = GUIDE_SECTIONS.map((section, index) => {
-    const title = new Set(wordsOf(section.title).map(stem)), text = new Set(wordsOf(section.text).map(stem));
-    const inTitle = asked.filter((word) => title.has(word)).length, inText = asked.filter((word) => text.has(word)).length;
+    const title = titles[index]!, text = new Set(wordsOf(section.text).map(stem));
+    const inTitle = asked.filter((word) => title.has(word)).reduce((sum, word) => sum + rare(word), 0), inText = asked.filter((word) => text.has(word)).length;
     return { section, index, score: inTitle * 10 + inText };
   }).filter((item) => item.score > 0);
   scored.sort((a, b) => b.score - a.score || a.index - b.index);

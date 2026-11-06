@@ -42,7 +42,7 @@ describe('Team: Hire one more agent', () => {
     expect(document.querySelectorAll('[data-hire-step] [data-variant="primary"]')).toHaveLength(1);
     assertInkRules();
     await act(async () => { fireEvent.click(within(review).getByRole('button', { name: 'Hire' })); });
-    expect(await screen.findByRole('status')).toBeTruthy();
+    expect(await screen.findByText('Mira is on your team now.')).toBeTruthy();
     await waitFor(() => expect(screen.getAllByText('Mira').length).toBeGreaterThan(0));
   });
 

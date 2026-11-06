@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -166,7 +166,6 @@ function TrackerList({ detail, onUndo, onRemove }: { detail: TrackerDetailLite; 
 function AddRow({ tracker, onAdded }: { tracker: TrackerLite; onAdded: () => void }) {
   const t = useT();
   const client = useEngine();
-  const id = useId();
   const [values, setValues] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const fields = tracker.columns.filter((column) => column.kind !== 'receipt' && column.kind !== 'person');
@@ -183,8 +182,7 @@ function AddRow({ tracker, onAdded }: { tracker: TrackerLite; onAdded: () => voi
   return (
     <details className={s.fold}>
       <summary>{t('work.trackers.add')}</summary>
-      <form className={s.form} onSubmit={(event) => void submit(event)} aria-labelledby={id}>
-        <span id={id} hidden>{t('work.trackers.add')}</span>
+      <form className={s.form} onSubmit={(event) => void submit(event)} aria-label={t('work.trackers.add')}>
         {fields.map((column) => {
           if (column.kind === 'choice') return (
             <label key={column.id} className={s.select}><span>{column.name}</span>

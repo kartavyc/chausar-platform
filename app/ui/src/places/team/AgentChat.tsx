@@ -231,6 +231,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
           stale={view.status === 'stale'}
           staleLine={view.line ?? undefined}
           decided={view.status === 'accepted' ? 'accepted' : view.status === 'rejected' ? 'rejected' : undefined}
+          offered={view.offered}
           onAccept={() => decide(view, 'accept')}
           onReject={() => decide(view, 'reject')}
           onUndo={() => undo(view.id)}
