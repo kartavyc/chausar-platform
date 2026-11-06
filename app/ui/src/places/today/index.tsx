@@ -9,6 +9,7 @@ import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, ty
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
+import { QUEUE_EVENTS } from '../../shell/needsYou';
 import { StorageNotice } from '../../shell/StorageNotice';
 import noteStyles from '../../shell/StorageNotice.module.css';
 import { StartAtLogin } from '../onboarding/StartAtLogin';
@@ -58,8 +59,6 @@ import ls from '../../parts/layout/Layout.module.css';
 // W6 6H1 (D39): the mini apps the owner pinned to Today (nothing when none is pinned).
 import { PinnedApps } from '../apps';
 
-/** A run waiting on the owner adds a row; a failed run adds "Run again". */
-const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 /** The team list changes with a posture or gate change, which the engine says with a queue change; the agents' states
  *  come from the runs, read on their own. */
 const TEAM_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';

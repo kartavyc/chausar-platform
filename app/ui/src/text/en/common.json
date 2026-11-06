@@ -296,6 +296,7 @@
   "diff.undo": "Undo",
   "diff.undone": "Undone. {name} is back on version {from}.",
   "diff.failed": "Couldn't send your decision. {message}",
+  "approval.pending": "Your decision is already on its way.",
   "approval.elsewhere": "Resolved elsewhere",
   "consent.whatSent": "What's sent",
   "consent.chatLine": "Chats go to your AI to answer. Keys, passphrases and bank or card numbers never do.",

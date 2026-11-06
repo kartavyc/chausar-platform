@@ -1,3 +1,5 @@
+import { decide, sessionFor } from '../../src/places/today/session';
+import type { T } from '../../src/text';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
@@ -686,4 +688,23 @@ describe('Today: since you left, and needs-you notices', () => {
     expect(calls(spy, 'workspace.lock')).toEqual([]);
     expect(calls(spy, 'venture.queue.decide')).toEqual([]);
   });
+});
+
+
+it('cleanup: two surfaces cannot send decisions for the same row while the first is pending', async () => {
+  const fake = createFakeClient(new FakeEngine());
+  let release!: (answer: any) => void;
+  let sent = 0;
+  const client = { ...fake, request: (() => { sent++; return new Promise(resolve => { release = resolve; }); }) as typeof fake.request };
+  const row = { id: 'same-row', digest: 'same-version', kind: 'notice' } as any;
+  const t = ((key: string) => key) as T;
+  const first = decide(client, row, 'approve', {}, t);
+  const second = decide(client, row, 'deny', {}, t);
+  expect(sent).toBe(1);
+  expect(await second).toEqual({ outcome: 'refused', reason: 'DECISION_PENDING', line: 'approval.pending' });
+  expect(sessionFor(client).isBusy(row.id)).toBe(true);
+  release({ outcome: 'done', line: 'Approved once' });
+  expect(await first).toEqual({ outcome: 'done', line: 'Approved once' });
+  expect(sessionFor(client).isBusy(row.id)).toBe(false);
+  expect(sessionFor(client).line(row.id)?.line).toBe('Approved once');
 });
