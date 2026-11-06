@@ -30,7 +30,7 @@ test('contents: read for the workflow, contents: write on the release job alone'
 test('lint runs first, the tag must equal v plus package.json\'s version, and installs come from the lock', () => {
   assert.deepEqual(runs(job('lint')).filter(line => line.startsWith('node scripts/') || line.startsWith('npm ')), [
     'npm ci --ignore-scripts --no-audit --no-fund', 'node scripts/check-clean-tree.mjs --tracked', 'node scripts/check.mjs',
-    'node scripts/check-boundaries.mjs --report', 'node scripts/env-docs.mjs --check', 'npm run typecheck', 'npm run typecheck:ui', 'node scripts/third-party-notices.mjs --check',
+    'node scripts/check-boundaries.mjs', 'node scripts/env-docs.mjs --check', 'npm run typecheck', 'npm run typecheck:ui', 'node scripts/third-party-notices.mjs --check',
   ]);
   assert.match(job('build'), /^ {4}needs: lint$/m);
   assert.match(workflow, /\$GITHUB_REF_NAME" != "v\$version"/);

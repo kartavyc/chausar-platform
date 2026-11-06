@@ -36,8 +36,8 @@ jobs:
         run: node scripts/check-clean-tree.mjs --tracked
       - name: Check source and JSON syntax
         run: node scripts/check.mjs
-      - name: Report imports that cross the platform boundaries
-        run: node scripts/check-boundaries.mjs --report
+      - name: Refuse imports that cross the platform boundaries
+        run: node scripts/check-boundaries.mjs
       - name: Check the CHAUSAR_ variable list and the files made from it
         run: node scripts/env-docs.mjs --check
       - name: Typecheck runtime and tests
