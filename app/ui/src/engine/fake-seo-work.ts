@@ -2,14 +2,15 @@
 import {EngineError,type OrderLite} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind} from './fake-playbooks';
-import {seoExact,seoOperation,requireFreshWork,type SeoWorkItem,type SeoWorkBody} from '../../../../platform/runtime/venture/playbooks/seo-visibility/work-core';
-import {refreshPlan} from '../../../../platform/runtime/venture/playbooks/seo-visibility/refresh';
-import {checkMeta} from '../../../../platform/runtime/venture/playbooks/seo-visibility/meta-core';
-import {measureImpact} from '../../../../platform/runtime/venture/playbooks/seo-visibility/impact';
-import {lintArticle,stripCompetitors} from '../../../../platform/runtime/venture/playbooks/seo-visibility/lint';
-import {validateClaims,seoNeed,seoText} from '../../../../platform/runtime/venture/playbooks/seo-visibility/content-core';
-import {readSeoManifest,readRefreshSource} from '../../../../platform/runtime/venture/playbooks/seo-visibility/manifest-core';
-import {localTemplates} from '../../../../platform/runtime/venture/playbooks/seo-visibility/templates';
+import { seoExact, seoOperation, requireFreshWork } from '../../../../platform/shared/venture/playbooks/seo-visibility/work-core.ts';
+import type { SeoWorkItem, SeoWorkBody } from '../../../../platform/runtime/venture/playbooks/seo-visibility/work-core.ts';
+import { refreshPlan } from '../../../../platform/shared/venture/playbooks/seo-visibility/refresh.ts';
+import { checkMeta } from '../../../../platform/shared/venture/playbooks/seo-visibility/meta-core.ts';
+import { measureImpact } from '../../../../platform/shared/venture/playbooks/seo-visibility/impact.ts';
+import { lintArticle, stripCompetitors } from '../../../../platform/shared/venture/playbooks/seo-visibility/lint.ts';
+import { validateClaims, seoNeed, seoText } from '../../../../platform/shared/venture/playbooks/seo-visibility/content-core.ts';
+import { readSeoManifest, readRefreshSource } from '../../../../platform/shared/venture/playbooks/seo-visibility/manifest-core.ts';
+import { localTemplates } from '../../../../platform/shared/venture/playbooks/seo-visibility/templates.ts';
 const textOf=(base64:string)=>new TextDecoder().decode(Uint8Array.from(atob(base64),c=>c.charCodeAt(0)));
 async function compute(operation:string,text:string){
  seoNeed(text.length<=1000000,'SEO_INPUT_INVALID','Use an evidence file below one megabyte.');if(operation==='refresh')return refreshPlan(readRefreshSource(text));

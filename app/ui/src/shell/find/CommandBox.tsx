@@ -19,7 +19,7 @@ import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import { Figure } from '../../parts/Figure';
 import { LineWithAmounts } from '../../parts/LineWithAmounts';
-import { formatCount } from '../../../../../platform/runtime/owner-format';
+import { formatCount } from '../../../../../platform/shared/owner-format.ts';
 import type { FindHit, FindItem } from '../../engine/types';
 import { askChausar } from '../ask';
 import { navigate, rememberOpener } from '../navigation';

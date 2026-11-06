@@ -164,7 +164,7 @@ export async function filesPosterHandler(deps: VentureDeps, ctx: Context, payloa
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   const cutFile = order.intake?.cutFile ?? null;
   check(cutFile, 'INVALID_VENTURE_REQUEST', 'This order names no finished cut on this computer, so there is no still to take.');
-  const problem = localPathProblem(cutFile);
+  const problem = localPathProblem(cutFile, process.platform);
   check(!problem, 'INVALID_VENTURE_REQUEST', `The cut: ${problem}`);
   const bytes = await takeStill(deps, cutFile);
   const encoded = bytes.toString('base64');

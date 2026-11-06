@@ -1,6 +1,6 @@
 // Local client-source rehearsal. A browser transport is never fabricated by the web preview.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {chooseFormRow} from '../../../../platform/runtime/venture/playbooks/data-entry-desk/source-core';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { chooseFormRow } from '../../../../platform/shared/venture/playbooks/data-entry-desk/source-core.ts';
 import type {EntryRecordBody} from '../../../../platform/runtime/venture/playbooks/data-entry-desk/records';
 import {EngineError,type OrderLite,type BlueprintViewLite,type ClientLite} from './types';
 import type {FakePlaybookDesk} from './fake-playbooks';

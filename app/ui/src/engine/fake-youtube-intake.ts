@@ -1,7 +1,7 @@
 // Browser mirror of the existing local video intake, combined with exact screencast service fields.
 import {EngineError,type OfferIntakeLite,type OrderLite,type VoiceConsentsView} from './types';
 import {fakeKitIntake} from './fake-kit-intake';
-import {localPathProblem} from '../../../../platform/runtime/local-paths';
+import { localPathProblem } from '../../../../platform/shared/local-paths.ts';
 export function fakeYoutubeMediaIntake(raw:unknown,ask:OfferIntakeLite,meta:{by:string;at:string;today:string;currency?:string;hosted?:boolean},consents:()=>VoiceConsentsView):NonNullable<OrderLite['intake']>{
  const fail=(line:string):never=>{throw new EngineError('INVALID_VENTURE_REQUEST',line);};
  if(raw!==undefined&&(!raw||typeof raw!=='object'||Array.isArray(raw)))fail('Send the intake as named fields.');

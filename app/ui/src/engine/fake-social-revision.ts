@@ -1,5 +1,5 @@
-import {actualSocialPosts,actualSocialPostLocations} from '../../../../platform/runtime/venture/playbooks/social/post-label';
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { actualSocialPosts, actualSocialPostLocations } from '../../../../platform/shared/venture/playbooks/social/post-label.ts';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 // Fake per-post revisions mirror the engine quote, count and exact-word approval boundaries.
 import { EngineError, type DeliveryLite, type OrderLite, type ReceiptLite } from './types';
 import type { W4DeskHost } from './fake-w4';

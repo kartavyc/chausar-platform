@@ -2,10 +2,11 @@
 import {EngineError,type OrderLite} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
-import {check,digest} from '../../../../platform/runtime/portable';
-import {zohoConnectionInput,zohoAccountInput,type BooksConnection} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/connection-core';
-import {postingSource} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/posting-source';
-import {prepareBooksBatch} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/posting-core';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { zohoConnectionInput, zohoAccountInput } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/connection-core.ts';
+import type { BooksConnection } from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/connection-core.ts';
+import { postingSource } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/posting-source.ts';
+import { prepareBooksBatch } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/posting-core.ts';
 import type {BooksPostingBody} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/records';
 type Row=BooksPostingBody&{id:string;ventureId:string};
 function exact(value:unknown,keys:readonly string[],required=keys):Record<string,unknown>{check(value!==null&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value)),'INVALID_VENTURE_REQUEST','Send one request object.');const b=value as Record<string,unknown>;check(Object.keys(b).every(k=>keys.includes(k))&&required.every(k=>Object.hasOwn(b,k)),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');return b;}

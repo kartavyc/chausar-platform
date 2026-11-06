@@ -8,7 +8,7 @@
 
 import { useResource } from '../../engine/context';
 import type { LayoutBlockView, LayoutPlace, LayoutView, UiRunEvent } from '../../engine/types';
-import { LAYOUT_LIBRARY } from '../../../../../platform/runtime/venture/views/layout-core';
+import { LAYOUT_LIBRARY } from '../../../../../platform/shared/venture/views/layout-core.ts';
 
 export const LAYOUT_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed';
 

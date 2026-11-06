@@ -22,7 +22,7 @@ import {
 } from './types';
 import { MODEL_PRESETS } from './fixtures-business';
 import type { W4DeskHost } from './fake-w4';
-import { RETIRED_LINE } from '../../../../platform/runtime/venture/agents/retired-words';
+import { RETIRED_LINE } from '../../../../platform/shared/venture/agents/retired-words.ts';
 
 const AGENT_METHODS = new Set<string>([
   'venture.agents.thread.list', 'venture.agents.thread.send', 'venture.agents.proposal.decide', 'venture.agents.version.undo',

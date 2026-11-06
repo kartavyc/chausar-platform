@@ -1,13 +1,13 @@
 // Recruiting role operations use the same pure proposals as the engine.
 import type {RecruitStore,RecruitRole,RecruitCandidate,RecruitTouch,RecruitInterview} from './fake-recruiting-desk';
-import {recruitRetentionView,recruitRetentionProposal} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/retention-core';
-import {need} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/criteria';
-import {rulesReady} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/role-state';
-import {recruitExact as exact} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/request-core';
-import {recruitBatch,approveRecruitBatch,recruitReportView} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/round-core';
-import {boardUrl,boardJobs} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/boards';
+import { recruitRetentionView, recruitRetentionProposal } from '../../../../platform/shared/venture/playbooks/recruiting-desk/retention-core.ts';
+import { need } from '../../../../platform/shared/venture/playbooks/recruiting-desk/criteria.ts';
+import { rulesReady } from '../../../../platform/shared/venture/playbooks/recruiting-desk/role-state.ts';
+import { recruitExact as exact } from '../../../../platform/shared/venture/playbooks/recruiting-desk/request-core.ts';
+import { recruitBatch, approveRecruitBatch, recruitReportView } from '../../../../platform/shared/venture/playbooks/recruiting-desk/round-core.ts';
+import { boardUrl, boardJobs } from '../../../../platform/shared/venture/playbooks/recruiting-desk/boards.ts';
 import {fakeRecruitCommunications} from './fake-recruiting-communications';
-import {ownerBoardGates} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/board-gates';
+import { ownerBoardGates } from '../../../../platform/shared/venture/playbooks/recruiting-desk/board-gates.ts';
 export function fakeRecruitRole(s:RecruitStore,role:RecruitRole,action:string,raw:unknown,approval:unknown):unknown{
  const {host,rows}=s;
  if(action==='report'){exact(raw,[]);s.privacy();return recruitReportView(role,rows<RecruitCandidate>('candidate').filter(c=>c.roleId===role.id),rows<RecruitTouch>('touch').filter(t=>t.roleId===role.id),host.now(),host.digest,(host.ask('venture.get',{}) as {venture?:{country?:{code:string}|null}}|null)?.venture?.country??null);}

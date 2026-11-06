@@ -9,7 +9,7 @@
  * call this at their edge (client.ts, fake.ts).
  */
 
-import { DEVELOPER_WORDS, TABLE_CODES, bannedIn } from '../../../../platform/runtime/owner-flag';
+import { DEVELOPER_WORDS, TABLE_CODES, bannedIn } from '../../../../platform/shared/owner-flag.ts';
 import { CATALOGUES } from '../text';
 import { EngineError } from './types';
 

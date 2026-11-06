@@ -7,7 +7,7 @@
 import type { AgentView, BooksSummaryLite, BusinessOnComputer, ClientLite, ConnectorCardLite, DeliveryLite, EvidenceItem, JournalEntry, OrderLite, QueueRow, ReceiptLite, RunDetail, ServiceType, SpendRow, UploadLite } from './types';
 
 import type { CountryLite } from './types';
-import { SERVICE_KEYWORDS as ENGINE_SERVICE_KEYWORDS } from '../../../../platform/runtime/venture/core/service-keywords';
+import { SERVICE_KEYWORDS as ENGINE_SERVICE_KEYWORDS } from '../../../../platform/shared/venture/core/service-keywords.ts';
 
 export interface FakeBusiness { id: string; name: string; serviceType: ServiceType; opens: BusinessOnComputer['opens'] }
 
@@ -172,7 +172,7 @@ export const SETUP_ROWS: RowSeed[] = [
 ];
 
 /** What the queue rows' viewRefs open (`venture.queue.view`): the draft to watch, the plan to read, the post to approve. */
-export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
+export const QUEUE_VIEWS: import('./types.ts').QueueItemView[] = [
   {
     kind: 'draft', id: 'draft-ep14', businessName: 'Lumen Studio', agent: 'Editor', title: 'Episode 14', line: '11 min 42 s, cut from the 52 min recording',
     sections: [

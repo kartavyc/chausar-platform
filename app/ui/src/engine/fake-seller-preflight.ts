@@ -1,8 +1,9 @@
 // Chausar seller rehearsal prerequisites. Same source parsing and computation as the engine, no paid calls.
 import {EngineError,type BlueprintViewLite,type OrderLite} from './types';
-import {analyseSellerOperation,type SellerOperationMode} from '../../../../platform/runtime/venture/playbooks/online-seller/operations-analysis';
-import {sellerSourceOptions} from '../../../../platform/runtime/venture/playbooks/online-seller/operations-input';
-import {sellerCsv} from '../../../../platform/runtime/venture/playbooks/online-seller/source';
+import { analyseSellerOperation } from '../../../../platform/shared/venture/playbooks/online-seller/operations-analysis.ts';
+import type { SellerOperationMode } from '../../../../platform/runtime/venture/playbooks/online-seller/operations-analysis.ts';
+import { sellerSourceOptions } from '../../../../platform/shared/venture/playbooks/online-seller/operations-input.ts';
+import { sellerCsv } from '../../../../platform/shared/venture/playbooks/online-seller/source.ts';
 /** Invalid source evidence refuses before a simulated draft can start. */
 export function fakeSellerPreflight(plan:BlueprintViewLite|null|undefined,order:OrderLite,files:readonly {id:string;contentBase64:string;format:string}[],now:string) {
  if(plan?.playbook?.id!=='online-seller')return null;const offer=plan.blueprint.offers.find(row=>row.id===order.offerId)?.playbookOffer;

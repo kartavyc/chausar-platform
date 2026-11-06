@@ -6,7 +6,7 @@ import { useT } from '../../../text';
 import { Tile, TileHead } from '../../../parts/Tile';
 import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
-import type { SeoMonitorItem } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/monitor-core';
+import type { SeoMonitorItem } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/monitor-core.ts';
 import s from './SeoVisibilityDesk.module.css';
 import { Fold } from '../../../parts/Fold';
 const base = { playbook: 'seo-visibility' as const, kind: 'monitor' };

@@ -2,8 +2,9 @@
 import {EngineError} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind} from './fake-playbooks';
-import {seoExact,type SeoWorkItem} from '../../../../platform/runtime/venture/playbooks/seo-visibility/work-core';
-import {seoNeed} from '../../../../platform/runtime/venture/playbooks/seo-visibility/content-core';
+import { seoExact } from '../../../../platform/shared/venture/playbooks/seo-visibility/work-core.ts';
+import type { SeoWorkItem } from '../../../../platform/runtime/venture/playbooks/seo-visibility/work-core.ts';
+import { seoNeed } from '../../../../platform/shared/venture/playbooks/seo-visibility/content-core.ts';
 import type {SeoStrategy,SeoPanelBody,SeoPublication} from '../../../../platform/runtime/venture/playbooks/seo-visibility/records';
 export function fakeSeoStrategyKind(host:W4DeskHost):FakeDeskKind{
  const businesses=new Map<string,Map<string,SeoStrategy>>();let seq=0;const rows=()=>{if(!businesses.has(host.current()))businesses.set(host.current(),new Map());return businesses.get(host.current())!;};

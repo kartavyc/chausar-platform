@@ -20,7 +20,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { useDay, useLocalToday } from '../../parts/when';
-import { dayKeyPlus, formatClock } from '../../../../../platform/runtime/owner-format';
+import { dayKeyPlus, formatClock } from '../../../../../platform/shared/owner-format.ts';
 import { useBrowserPush, type PushPermission } from '../../shell/push';
 import { EngineError, type BackgroundStateLite, type NotifySettingsView, type ParamsOf } from '../../engine/types';
 import { TileSection } from './shared';

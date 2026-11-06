@@ -11,12 +11,10 @@ import type { ChiefMessageView, TalkHeard, TalkSaid, TalkStarted, TalkView, Tran
 import type { W4DeskHost } from './fake-w4';
 import { fakeSpeechAccount } from './fake-speech-account';
 import { reportNumberEstimate } from './fake-report-numbers';
-import { captionAudioBytes } from '../../../../platform/runtime/venture/playbooks/translation-studio/caption-audio';
-import { hash } from '../../../../platform/runtime/portable';
-import {
-  SARVAM_DEFAULT_CAP_MINOR, SARVAM_RATE_DIGEST, SARVAM_STT_PRICE, TALK_CONSENT_DIGEST, TALK_CONSENT_TEXT, TALK_SECONDS, TALK_SESSION_MS, TALK_WORDS,
-  monthOf, rupees, sarvamCostMinor, spokenFrom, wavMs, type TalkPart,
-} from '../../../../platform/runtime/venture/agents/talk-core';
+import { captionAudioBytes } from '../../../../platform/shared/venture/playbooks/translation-studio/caption-audio.ts';
+import { hash } from '../../../../platform/shared/portable.ts';
+import { SARVAM_DEFAULT_CAP_MINOR, SARVAM_RATE_DIGEST, SARVAM_STT_PRICE, TALK_CONSENT_DIGEST, TALK_CONSENT_TEXT, TALK_SECONDS, TALK_SESSION_MS, TALK_WORDS, monthOf, rupees, sarvamCostMinor, spokenFrom, wavMs } from '../../../../platform/shared/venture/agents/talk-core.ts';
+import type { TalkPart } from '../../../../platform/runtime/venture/agents/talk-core.ts';
 
 const METHODS = new Set(['venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say']);
 const READ_LINE = 'An AI voice is reading Chausar\'s answer. The audio is played once and not kept.';

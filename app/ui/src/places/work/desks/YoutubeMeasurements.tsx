@@ -6,7 +6,7 @@ import { Field } from '../../../parts/Field';
 import { Button } from '../../../parts/Button';
 import { Count } from '../../../parts/Figure';
 import { boardError, type BoardAct } from './YoutubeBoard';
-import type { YoutubeBoardBody } from '../../../../../../platform/runtime/venture/playbooks/youtube/board-core';
+import type { YoutubeBoardBody } from '../../../../../../platform/runtime/venture/playbooks/youtube/board-core.ts';
 import type { TextBox } from '../../../../../../platform/runtime/venture/playbooks/youtube/finishing-extra';
 import s from './YoutubeDesk.module.css';
 import { Fold } from '../../../parts/Fold';

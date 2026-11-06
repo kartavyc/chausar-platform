@@ -13,7 +13,7 @@
  * An agent file import is a proposal in the agent's chat through the agents' desk; nothing changes until it is accepted.
  */
 
-import { formatDay } from '../../../../platform/runtime/owner-format';
+import { formatDay } from '../../../../platform/shared/owner-format.ts';
 import {
   EngineError, type AgentProposalView, type AgentView, type BlueprintViewLite, type CapabilityItemView, type CapabilityPageView,
   type ClientLite, type DeliveryLite, type DiffLine, type IdeaView, type KnowledgeSourceInput, type KnowledgeSourceView, type ModelStatusLite,

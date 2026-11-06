@@ -1,11 +1,13 @@
 // Original Chausar social production preview. Shared arithmetic, no simulated local media access.
 import {EngineError,type OrderLite,type BlueprintViewLite,type VoiceConsentsView,type ReceiptLite} from './types';
 import type {W4DeskHost} from './fake-w4';import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
-import {SOCIAL_D2_KEYS,requireClipRights} from '../../../../platform/runtime/venture/playbooks/social/d2-core';
-import {emptySocialProduction,type SocialProduction,type SocialProductionView,type SocialAdPlan} from '../../../../platform/runtime/venture/playbooks/social/production-types';
-import {diagnosePost,diagnosisCsv} from '../../../../platform/runtime/venture/playbooks/social/diagnosis';import {accountHealth} from '../../../../platform/runtime/venture/playbooks/social/health';
-import {keywordDelivery,warmFollowups,replyBuckets,carouselSize} from '../../../../platform/runtime/venture/playbooks/social/local-ig';
-import {adStyle,approveStoryboard,videoQuote} from '../../../../platform/runtime/venture/playbooks/social/ad-style';import {adLedger,type AdEntry} from '../../../../platform/runtime/venture/playbooks/social/ad-ledger';import {formatMoney} from '../../../../platform/runtime/owner-format';
+import { SOCIAL_D2_KEYS, requireClipRights } from '../../../../platform/shared/venture/playbooks/social/d2-core.ts';
+import { emptySocialProduction } from '../../../../platform/shared/venture/playbooks/social/production-types.ts';
+import type { SocialProduction, SocialProductionView, SocialAdPlan } from '../../../../platform/runtime/venture/playbooks/social/production-types.ts';
+import { diagnosePost, diagnosisCsv } from '../../../../platform/shared/venture/playbooks/social/diagnosis.ts';import { accountHealth } from '../../../../platform/shared/venture/playbooks/social/health.ts';
+import { keywordDelivery, warmFollowups, replyBuckets, carouselSize } from '../../../../platform/shared/venture/playbooks/social/local-ig.ts';
+import { adStyle, approveStoryboard, videoQuote } from '../../../../platform/shared/venture/playbooks/social/ad-style.ts';import { adLedger } from '../../../../platform/shared/venture/playbooks/social/ad-ledger.ts';
+import type { AdEntry } from '../../../../platform/runtime/venture/playbooks/social/ad-ledger.ts';import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 const allowed:Record<string,string[]>={'reel-plan':['clips','words'],'reel-approve':[],'reel-render':[],'reel-hook':['hook'],'ad-preview':[],'ad-plan':['stills'],'ad-approve':[],'ad-quote':['durationMs','maxClipMs','unitMinor','providerQuote','synthetic','customerPretence'],'cross-plan':['file','posts'],'cross-approve':['platform','who','text'],'cross-handoff':[],'keyword':['promise','question'],'followups':['sentOn','replied','optedOut','already','sentDates','weekdays'],'diagnose':['fileId','figures'],'health':['facts'],'ledger-add':['source','status','format'],'ledger-summary':[],'reply-counts':[]};
 function need(ok:unknown,code:string,line:string):asserts ok{if(!ok)throw new EngineError(code,line);}
 function exact(value:unknown,keys:string[],required:string[]=[]){need(value&&typeof value==='object'&&!Array.isArray(value),'INVALID_VENTURE_REQUEST','Send one request object.');const b=value as Record<string,unknown>;need(Object.keys(b).every(k=>keys.includes(k))&&required.every(k=>Object.hasOwn(b,k)),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');return b;}

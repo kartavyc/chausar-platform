@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ExternalMcpServer } from '../../../../../platform/runtime/venture/agent-runtime/external-config';
+import type { ExternalMcpServer } from '../../../../../platform/runtime/venture/agent-runtime/external-config.ts';
 import { useEngine, useResource } from '../../engine/context';
 import { useT } from '../../text';
 import { Button } from '../../parts/Button';

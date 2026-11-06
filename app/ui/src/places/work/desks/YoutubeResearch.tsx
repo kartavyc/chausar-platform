@@ -1,8 +1,8 @@
 // Original source mapping and exact result approval. The browser displays engine figures, never recomputes them.
 import {useEffect,useRef,useState} from 'react';
 import {useEngine,useResource} from '../../../engine/context';import {useT} from '../../../text';import {Button} from '../../../parts/Button';import {Field} from '../../../parts/Field';import {Tile,TileHead} from '../../../parts/Tile';import {Figure} from '../../../parts/Figure';import {openSheet} from '../../../shell/navigation';
-import type {YoutubeResearchBody,ResearchMode} from '../../../../../../platform/runtime/venture/playbooks/youtube/research-state';
-import {researchFigureContext} from '../../../../../../platform/runtime/venture/playbooks/youtube/research-report';
+import type { YoutubeResearchBody, ResearchMode } from '../../../../../../platform/runtime/venture/playbooks/youtube/research-state.ts';
+import { researchFigureContext } from '../../../../../../platform/shared/venture/playbooks/youtube/research-report.ts';
 import {youtubeResearchError} from './YoutubePublic';import {YoutubeResearchResult} from './YoutubeResearchResult';import s from './YoutubeResearch.module.css';
 import { Select } from '../../../parts/Select';
 export type YoutubeResearchView=YoutubeResearchBody&{id:string;digest:string;approved:boolean};

@@ -1,17 +1,20 @@
-import {researchApproval,type YoutubeResearchBody} from '../../../../platform/runtime/venture/playbooks/youtube/research-state';
+import { researchApproval } from '../../../../platform/shared/venture/playbooks/youtube/research-state.ts';
+import type { YoutubeResearchBody } from '../../../../platform/runtime/venture/playbooks/youtube/research-state.ts';
 /** Chausar 5B2 browser fake over the same pure board rules. Local tools are absent, never simulated as measurements. */
-import {recordClipPage} from '../../../../platform/runtime/venture/playbooks/youtube/clips';
-import {spokenCounters,textLegibility,audioInput} from '../../../../platform/runtime/venture/playbooks/youtube/helpers';
+import { recordClipPage } from '../../../../platform/shared/venture/playbooks/youtube/clips.ts';
+import { spokenCounters, textLegibility, audioInput } from '../../../../platform/shared/venture/playbooks/youtube/helpers.ts';
 import {EngineError,type OrderLite,type AssetsView} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind} from './fake-playbooks';
 import type {EditItem} from './fake-youtube';
-import {prepareBoard,currentBoard,decideOutput,changePublishing,requestOutputChange,boardFiles} from '../../../../platform/runtime/venture/playbooks/youtube/board-core';
-import {checkClips,type ClipPick} from '../../../../platform/runtime/venture/playbooks/youtube/clip-rules';
-import {timedBeats} from '../../../../platform/runtime/venture/playbooks/youtube/beats';
-import {planBroll,approveBroll} from '../../../../platform/runtime/venture/playbooks/youtube/broll';
-import {compareInterchange,type FrameRate} from '../../../../platform/runtime/venture/playbooks/youtube/interchange';
-import type {PUBLISH_LIMITS} from '../../../../platform/runtime/venture/playbooks/youtube/publishing';
+import { prepareBoard, currentBoard, decideOutput, changePublishing, requestOutputChange, boardFiles } from '../../../../platform/shared/venture/playbooks/youtube/board-core.ts';
+import { checkClips } from '../../../../platform/shared/venture/playbooks/youtube/clip-rules.ts';
+import type { ClipPick } from '../../../../platform/runtime/venture/playbooks/youtube/clip-rules.ts';
+import { timedBeats } from '../../../../platform/shared/venture/playbooks/youtube/beats.ts';
+import { planBroll, approveBroll } from '../../../../platform/shared/venture/playbooks/youtube/broll.ts';
+import { compareInterchange } from '../../../../platform/shared/venture/playbooks/youtube/interchange.ts';
+import type { FrameRate } from '../../../../platform/runtime/venture/playbooks/youtube/interchange.ts';
+import type { PUBLISH_LIMITS } from '../../../../platform/runtime/venture/playbooks/youtube/publishing.ts';
 import {requireFakeWordSource} from './fake-youtube-source';
 import {editDigest,toSrt,toVtt} from './fake-youtube-core';
 type Exact=(value:unknown,fields:string[],required?:string[])=>Record<string,unknown>;
@@ -49,7 +52,7 @@ export function fakeYoutubeBoard(host:W4DeskHost,records:()=>Map<string,EditItem
         else if(p.action==='returned-xml'){const b=exact(p.payload,['xml'],['xml']);return reply({comparison:compareInterchange(board.timeline,b.xml as string),applied:false});}
         else if(p.action==='finishing'||p.action==='grid'){const fields=p.action==='finishing'?['file','platform','boxes','commentaryMs']:['assetId','file'];exact(p.payload,fields,p.action==='finishing'?['file','platform','boxes']:fields);if(p.action==='grid'){check(board.broll&&board.broll.approvedDigest===board.broll.digest,'BROLL_APPROVAL_REQUIRED','Approve the exact beat plan before making a frame grid.');const b=p.payload as {assetId:string;file:string};check(board.broll!.assetBindings.some(asset=>asset.id===b.assetId&&asset.fileDigest),'BROLL_LICENCE_REQUIRED','Choose a file matching an asset in this approved plan.');}throw new EngineError(host.hosted()?'TIER_UNAVAILABLE':'MEDIA_TOOL_UNAVAILABLE',host.hosted()?'Local media checks need the desktop app. Upload the prepared files or use your own editor meanwhile.':'Install ffmpeg yourself. Chausar never installs or bundles it.');}
         else if(p.action==='grid-review'){exact(p.payload,['assetId','gridDigest','answers'],['assetId','gridDigest','answers']);check(board.broll&&board.broll.approvedDigest===board.broll.digest,'BROLL_APPROVAL_REQUIRED','Prepare and approve the b-roll plan first.');throw new EngineError('BROLL_REVIEW_REQUIRED','Open this exact frame grid before answering its questions.');}
-        else if(p.action==='export'){exact(p.payload,[]);if(board.broll){const rebuilt=planBroll(edit.document.words,board.broll.beats,assets(edit),board.removedBroll??[]);check(rebuilt.digest===board.broll.digest,'DERIVED_STALE','A b-roll asset or its licence changed. Prepare and approve the plan again.');check(board.broll.approvedDigest===board.broll.digest,'BROLL_APPROVAL_REQUIRED','Approve the exact beat plan before making a frame grid.');}const files=boardFiles(board);const plan=host.ask('venture.blueprint.get',{}) as import('./types').BlueprintViewLite|null;
+        else if(p.action==='export'){exact(p.payload,[]);if(board.broll){const rebuilt=planBroll(edit.document.words,board.broll.beats,assets(edit),board.removedBroll??[]);check(rebuilt.digest===board.broll.digest,'DERIVED_STALE','A b-roll asset or its licence changed. Prepare and approve the plan again.');check(board.broll.approvedDigest===board.broll.digest,'BROLL_APPROVAL_REQUIRED','Approve the exact beat plan before making a frame grid.');}const files=boardFiles(board);const plan=host.ask('venture.blueprint.get',{}) as import('./types.ts').BlueprintViewLite|null;
         if(plan?.blueprint?.offers.some(offer=>offer.id===order.offerId&&offer.playbookOffer==='screencast-tutorial')){if(order.intake?.fields?.scripted===true){const source=currentResearch(order.id);check(source.mode==='script'&&source.approval===researchApproval(source),'OUTPUT_APPROVAL_REQUIRED','Approve the exact speech script in the source desk.');}check(board.clips?.passed&&board.clips.rows.length===3&&board.clips.rows.every(row=>row.durationMs>=20000&&row.durationMs<=55000&&!row.problems.length),'CLIP_RULES_FAILED','Choose exactly three measured independent Shorts on the current board.');throw new EngineError('FINISHING_FAILED','Measure the current finished output and resolve its required finishing checks. Missing measurements are not a pass.');}
         return reply({orderId:edit.orderId,editId:edit.id,digest:host.digest(edit),files,manifest:{files:files.map(file=>({path:file.path,bytes:new TextEncoder().encode(file.text).length,sha256:host.digest(file.text)}))},capability:'handoff',line:'Editor instructions and approved text only. Open the folder and finish or post in your chosen app.'});}
         else throw new EngineError('EDIT_ACTION_UNKNOWN','Choose an output board action this desk supports.');

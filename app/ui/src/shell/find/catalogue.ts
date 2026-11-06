@@ -9,7 +9,8 @@
  * nav.ts lists it always, and with one business it has nothing to show.
  */
 
-import { match, type FindHit } from '../../../../../platform/runtime/venture/views/find-core';
+import { match } from '../../../../../platform/shared/venture/views/find-core.ts';
+import type { FindHit } from '../../../../../platform/runtime/venture/views/find-core.ts';
 import { navEntries } from '../nav';
 import { CA_FIRM } from '../settings';
 

@@ -8,7 +8,7 @@ import {Field} from '../../../parts/Field';
 import {Button} from '../../../parts/Button';
 import {SellerSelect,type SellerJson} from './SellerOperations';
 import type {SellerShopifyBody} from '../../../../../../platform/runtime/venture/playbooks/online-seller/shopify-records';
-import type {SellerStorefrontBody,StorefrontOwnerPending} from '../../../../../../platform/runtime/venture/playbooks/online-seller/storefront-records';
+import type { SellerStorefrontBody, StorefrontOwnerPending } from '../../../../../../platform/runtime/venture/playbooks/online-seller/storefront-records.ts';
 import s from './OnlineSellerDesk.module.css';
 import {SellerCheck} from './SellerCheck';
 import {SellerShopify} from './SellerShopify';

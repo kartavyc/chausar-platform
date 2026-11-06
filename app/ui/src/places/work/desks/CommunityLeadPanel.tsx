@@ -6,7 +6,7 @@ import { Tile } from '../../../parts/Tile';
 import { Field } from '../../../parts/Field';
 import { Button } from '../../../parts/Button';
 import { ExternalLink } from '../../connections/external';
-import type { CommunityInput, CommunityPost } from '../../../../../../platform/runtime/venture/playbooks/lead-generation/community-core';
+import type { CommunityInput, CommunityPost } from '../../../../../../platform/runtime/venture/playbooks/lead-generation/community-core.ts';
 import s from './LeadGenerationDesk.module.css';
 import { Fold } from '../../../parts/Fold';
 import { Select } from '../../../parts/Select';

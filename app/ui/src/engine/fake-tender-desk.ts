@@ -1,16 +1,18 @@
 import {bindFakeClientAi} from './fake-client-ai-consent';
 // Original tender rehearsal: shared source and transition cores. No model or portal is contacted.
-import {check,digest} from '../../../../platform/runtime/portable';
+import { check, digest } from '../../../../platform/shared/portable.ts';
 import {EngineError,type ModelStatusLite,type OrderLite,type BlueprintViewLite} from './types';
 import type {FakePlaybookDesk,FakeDeskKind} from './fake-playbooks';
 import type {W4DeskHost} from './fake-w4';
-import {exactTender as exact} from '../../../../platform/runtime/venture/playbooks/tender-desk/sources-core';
-import {prepareTenderRows,changeTenderAnswer,changeTenderType,changeTenderControls,tenderTypeDigest,approveTenderType,tenderApproved} from '../../../../platform/runtime/venture/playbooks/tender-desk/state';
-import {extractTenderQuestions,tenderQuestionFromCell,type TenderKind} from '../../../../platform/runtime/venture/playbooks/tender-desk/questions';
-import {groundTenderAnswer,groundTenderCommercial,aggregateTenderGaps} from '../../../../platform/runtime/venture/playbooks/tender-desk/ground';
-import {tenderTask} from '../../../../platform/runtime/venture/playbooks/tender-desk/ai-core';
+import { exactTender as exact } from '../../../../platform/shared/venture/playbooks/tender-desk/sources-core.ts';
+import { prepareTenderRows, changeTenderAnswer, changeTenderType, changeTenderControls, tenderTypeDigest, approveTenderType, tenderApproved } from '../../../../platform/shared/venture/playbooks/tender-desk/state.ts';
+import { extractTenderQuestions, tenderQuestionFromCell } from '../../../../platform/shared/venture/playbooks/tender-desk/questions.ts';
+import type { TenderKind } from '../../../../platform/runtime/venture/playbooks/tender-desk/questions.ts';
+import { groundTenderAnswer, groundTenderCommercial, aggregateTenderGaps } from '../../../../platform/shared/venture/playbooks/tender-desk/ground.ts';
+import { tenderTask } from '../../../../platform/shared/venture/playbooks/tender-desk/ai-core.ts';
 import type {TenderQuestionBody} from '../../../../platform/runtime/venture/playbooks/tender-desk/records';
-import {tenderMoneyReceipts,type TenderMoneyReceipt} from '../../../../platform/runtime/venture/playbooks/tender-desk/money';
+import { tenderMoneyReceipts } from '../../../../platform/shared/venture/playbooks/tender-desk/money.ts';
+import type { TenderMoneyReceipt } from '../../../../platform/runtime/venture/playbooks/tender-desk/money.ts';
 import {fakeTenderSources,fakeTenderExport} from './fake-tender-files';
 export type TenderRow=TenderQuestionBody&{id:string;kind:'venture-tender-question';ventureId:string;memberId:string;epoch:number;at:string};
 const identifier=(value:unknown)=>{check(typeof value==='string'&&/^[A-Za-z0-9_.:-]{1,200}$/.test(value),'INVALID_VENTURE_REQUEST','Order must be a known identifier.');return value as string;};

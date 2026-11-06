@@ -1,12 +1,13 @@
 import {fakeCareerSource} from './fake-career-source';
 // Original career browser rehearsal. Facts and files use native pure rules; provider reads and calls refuse honestly.
-import {ChausarError,check,hash,digest} from '../../../../platform/runtime/portable';import type {W4DeskHost} from './fake-w4';import type {FakePlaybookDesk,FakeDeskKind} from './fake-playbooks';
-import {fetchPolicySite} from '../../../../platform/runtime/venture/build/fetch-policy-core';
-import {checkUrlValue} from '../../../../platform/runtime/venture/core/net-address';
+import { ChausarError, check, hash, digest } from '../../../../platform/shared/portable.ts';import type {W4DeskHost} from './fake-w4';import type {FakePlaybookDesk,FakeDeskKind} from './fake-playbooks';
+import { fetchPolicySite } from '../../../../platform/shared/venture/build/fetch-policy-core.ts';
+import { checkUrlValue } from '../../../../platform/shared/venture/core/net-address.ts';
 import type {OrderLite,BlueprintViewLite} from './types';
 import {careerFakeState,exact,guarded,type FactRow,type ListingRow} from './fake-job-search-desk-core';
-import {proposeCareerFact,approveCareerFact} from '../../../../platform/runtime/venture/playbooks/job-search-desk/state';
-import {validateFact,type CareerFact} from '../../../../platform/runtime/venture/playbooks/job-search-desk/facts';
+import { proposeCareerFact, approveCareerFact } from '../../../../platform/shared/venture/playbooks/job-search-desk/state.ts';
+import { validateFact } from '../../../../platform/shared/venture/playbooks/job-search-desk/facts.ts';
+import type { CareerFact } from '../../../../platform/runtime/venture/playbooks/job-search-desk/facts.ts';
 import {fakeCareerResearch} from './fake-job-search-desk-research';import {fakeCareerThreads} from './fake-job-search-desk-thread';
 export function fakeJobSearchDeskDesk(host:W4DeskHost):FakePlaybookDesk{
  const c=careerFakeState(host);

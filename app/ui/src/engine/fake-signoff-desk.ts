@@ -1,11 +1,13 @@
 // Browser rehearsal of the sign-off desk (wave 6, 6E5). The engine's own pure rules (signoff-desk/core.ts and
 // professions.ts, kit/signoff-core.ts) with the engine desk's request grammar, codes and words. signoffBlock is the
 // gate the fake's Accept asks, as the engine's kit/signoff-gate.ts does.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {exactTender as exact} from '../../../../platform/runtime/venture/playbooks/tender-desk/sources-core';
-import {papersDigestOf} from '../../../../platform/runtime/venture/playbooks/kit/signoff-core';
-import {deskBlock,deskStage,decisionOf,papersReady,noteInput,professionalInput,professionalOf,requestsOf,sentOf,signerMatches,type DeskRun,type SignoffRow} from '../../../../platform/runtime/venture/playbooks/signoff-desk/core';
-import {PROFESSION_SPECS,SIGNOFF_RULES,professionOfOffer,professionSpec,type ProfessionSpec} from '../../../../platform/runtime/venture/playbooks/signoff-desk/professions';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { exactTender as exact } from '../../../../platform/shared/venture/playbooks/tender-desk/sources-core.ts';
+import { papersDigestOf } from '../../../../platform/shared/venture/playbooks/kit/signoff-core.ts';
+import { deskBlock, deskStage, decisionOf, papersReady, noteInput, professionalInput, professionalOf, requestsOf, sentOf, signerMatches } from '../../../../platform/shared/venture/playbooks/signoff-desk/core.ts';
+import type { DeskRun, SignoffRow } from '../../../../platform/runtime/venture/playbooks/signoff-desk/core.ts';
+import { PROFESSION_SPECS, SIGNOFF_RULES, professionOfOffer, professionSpec } from '../../../../platform/shared/venture/playbooks/signoff-desk/professions.ts';
+import type { ProfessionSpec } from '../../../../platform/runtime/venture/playbooks/signoff-desk/professions.ts';
 import {roomGuard} from './fake-client-room';
 import type {FakePlaybookDesk} from './fake-playbooks';
 import type {W4DeskHost} from './fake-w4';

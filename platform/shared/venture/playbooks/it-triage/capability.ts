@@ -1,0 +1,2 @@
+// Honest distribution boundary verified against Slack API terms on 29 Oct 2026.
+export const SLACK_TRIAGE_CAPABILITY=Object.freeze({label:'planned' as const,direction:'write' as const,reason:'Slack commercial distribution permission and this owner workspace installation must be qualified before connecting.',manual:'Paste permitted messages from one help channel, review the source-bound summary, then copy and send it yourself.'});
