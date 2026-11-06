@@ -87,6 +87,35 @@ describe('kit media: the client\'s brand kit', () => {
     for (const house of kit.querySelectorAll('details')) expect(house.open).toBe(false);
   });
 
+  it('a failed brand-kit read stays visible and can be retried', async () => {
+    let failed = true;
+    const engine = new FakeEngine();
+    start('#/clients?sheet=client:c-boat', { intercept: { 'venture.brandKit.get': params => {
+      if (failed) throw new EngineError('REQUEST_FAILED', 'The kit could not be read.');
+      return engine.request('venture.brandKit.get', params as never);
+    } } });
+    await settle();
+    expect(screen.getByRole('alert').textContent).toContain('The kit could not be read.');
+    failed = false;
+    await press(screen.getByRole('button', { name: 'Try again' }));
+    expect(document.querySelector('[data-brand-kit]')).toBeTruthy();
+  });
+
+  it('a first brand kit can choose an image already belonging to this client', async () => {
+    const engine = new FakeEngine();
+    const blank = await engine.request('venture.brandKit.get', { clientId: 'c-nimbus' });
+    start('#/clients?sheet=client:c-boat', { intercept: {
+      'venture.brandKit.get': () => blank,
+      'venture.files.list': () => [{ id: 'logo-ready', at: '2026-10-01T00:00:00Z', name: 'client-logo.png', format: 'image', bytes: 20, clientData: true, scope: { kind: 'media', orderId: 'o-boat-12' } }],
+    } });
+    await settle();
+    await press(screen.getByRole('button', { name: 'Add a brand kit' }));
+    const select = screen.getByLabelText('Logo');
+    expect(within(select).getByRole('option', { name: 'client-logo.png' })).toBeTruthy();
+    fireEvent.change(select, { target: { value: 'logo-ready' } });
+    expect((select as HTMLSelectElement).value).toBe('logo-ready');
+  });
+
   it('words a key refused in the kit, and keeps the form open', async () => {
     start('#/clients?sheet=client:c-boat', { intercept: { 'venture.brandKit.set': () => { throw new EngineError('CHAT_KEY_REFUSED', 'That looks like a key.'); } } });
     await settle();
