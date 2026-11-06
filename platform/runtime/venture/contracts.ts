@@ -1204,6 +1204,8 @@ export type InvoiceView = {
   billed?: import('./money/billing-types.ts').OrderBilledView;
   /** Wave 6 (6D2, 6D3): how the client pays this invoice, built by code from its balance. */
   howToPay?: import('./money/billing-types.ts').HowToPayView;
+  /** One-shot C6: an issued invoice with nothing left to pay. */
+  paidInFull?: boolean;
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
@@ -3242,7 +3244,10 @@ export interface MoneyOverviewLine {
   lead?: SpendLead;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
-export interface MoneyOverview { lines: MoneyOverviewLine[] }
+/** One-shot C6: every invoice issued in a month has nothing left to pay, with the receipt that lists them and their payments. */
+export type PaidInFullView = { line: Display; receiptId: string };
+/** paidInFull (one-shot C6): this month on the owner's calendar; absent while the business has no country. */
+export interface MoneyOverview { lines: MoneyOverviewLine[]; paidInFull?: PaidInFullView | null }
 /** venture.tax.working: the tax working for a period, every figure from code with its receipt. */
 export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
 export interface TaxWorkingSection { id: string; title: Display; lines: TaxWorkingLine[]; note?: Display }
@@ -3292,6 +3297,8 @@ export type SumReceiptSubject =
   // How the month stands against its goal (4I1): day null, still to invoice or past the goal by; a day, today's pace on
   // that day, ahead or behind by (a new receipt each day). Both add up the goal in use, so a replaced goal reads stale.
   | { type: 'goal'; month: string; goalId: string; day: IsoDate | null }
+  // One-shot C6: what is left to pay on every invoice issued in the month (each total less its payments and credits).
+  | { type: 'paid-in-full'; month: string }
   // Open balances in five buckets by days late (4J4).
   // late (4J20): the late ones alone, more than zero days past their due date.
   | { type: 'aging'; asOf: IsoDate; late?: true }
@@ -5050,6 +5057,8 @@ export interface GoalView {
   line: Display;
   next: NextBestStep | null;
   briefing: { rowIds: string[]; more: number } | null;
+  /** One-shot C6: the month's invoices are all paid (at least one issued, none with a balance), else null. */
+  paidInFull: PaidInFullView | null;
 }
 /** 4I1. A goal the owner's AI suggested from the plan's offers and prices only: a model estimate. */
 /** 4I2: typed is the amount as the owner would type it in the goal field ("150000.00"), read back by goals.set. */

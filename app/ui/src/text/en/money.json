@@ -73,6 +73,7 @@
   "money.status.paid": "Paid",
   "money.status.void": "Cancelled",
   "money.invoice.label": "Invoice",
+  "money.invoice.paidInFull": "Paid in full",
   "money.invoice.draft": "Draft invoice",
   "money.invoice.priced": "How it's priced",
   "money.invoice.books": "In the books on receipt",

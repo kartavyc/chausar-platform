@@ -330,7 +330,7 @@ export interface MoneyOverviewLine {
   lead?: SpendLead;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
-export interface MoneyOverview { lines: MoneyOverviewLine[] }
+export interface MoneyOverview { lines: MoneyOverviewLine[]; /** One-shot C6: this month's invoices all paid. */ paidInFull?: { line: Display; receiptId: string } | null }
 
 /** `venture.tax.working`: the tax working for a period, worked by the calculator, each figure with its receipt. */
 export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
@@ -875,6 +875,8 @@ export interface InvoiceViewLite {
   billed?: { orderTotal: Display; billed: Display; left: Display; invoices: number };
   /** Wave 6 (6D2, 6D3): how the client pays, built by the engine from the balance. */
   howToPay?: HowToPayLite;
+  /** One-shot C6: an issued invoice with nothing left to pay. */
+  paidInFull?: boolean;
 }
 
 /** Wave 6 (6D2, 6D3): an invoice's ways to pay, as text and a QR code the engine drew; no amount the UI could add up. */
@@ -1477,6 +1479,8 @@ export interface GoalView {
   lastMonth: GoalFigure | null; line: Display; next: NextBestStep | null; briefing: { rowIds: string[]; more: number } | null;
 }
 /** typed: the amount as the owner would type it in the goal field ("150000.00"). */
+  /** One-shot C6: every invoice issued in the month is paid ("All November invoices paid"), with its receipt; else null. */
+  paidInFull?: { line: Display; receiptId: string } | null;
 export interface GoalSuggestion { amountMinor: string; display: Display; estimate: true; line: Display; typed: string }
 
 /** 4J1 and 4J2 decisions, edits, set approval, the triage rule, settings drafts. */

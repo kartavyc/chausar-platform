@@ -25,6 +25,7 @@ import {
   requireGoalCurrency, taxRegistered,
 } from './goal-plans.ts';
 import { nextBestStep } from './next-step.ts';
+import { paidInFull } from './paid-in-full.ts';
 import { creditsElsewhere, invoicesElsewhere, paymentsElsewhere } from './figure-kinds.ts';
 
 const REJECTED = 'MODEL_OUTPUT_REJECTED';
@@ -168,6 +169,8 @@ export async function goalView(deps: VentureDeps, ctx: Context, month: string | 
     invoicedPermille, readyPermille, pacePermille, pace, paceReceiptId,
     invoicedPercent, pacePercent: Math.floor(pacePermille / 10), past: pastBy !== null, pastBy, paceBy,
     elapsedDays: elapsed, monthDays: days, daysLeft: days - elapsed, lastDay: isCurrent && elapsed === days, lastMonth,
+    // One-shot C6: every invoice issued in the month is paid, with its receipt.
+    paidInFull: await paidInFull(deps, ctx, state, venture, chosen),
     line: [goalLine(chosen, goal, invoicedMinor, pace, pacePermille, taxRegistered(state, venture)),
       ...(movedGoal ? [`Your previous goal is in ${previousGoal!.currency}. Set a new goal in ${currency}.`] : []),
       ...(otherCurrencies ? [`Totals are in ${currency}; other currencies are excluded without conversion.`] : [])].join(' '), ...ahead,

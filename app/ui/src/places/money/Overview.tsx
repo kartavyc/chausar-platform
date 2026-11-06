@@ -27,6 +27,7 @@ import { DueNext } from './DueNext';
 import { NextWeeks } from './NextWeeks';
 import { OwedTile } from './OwedTile';
 import { splitFigure } from '../../parts/Figure';
+import { Receipt } from '../../parts/Receipt';
 import { Failed, MoneyTile, ProvedFigure, isPhrase, lineProof, spendShown } from './parts';
 import { useMoneyViews, type FlowData, type MoneyViews } from './views';
 import { byDue, onMoney, onRuns, useChosenMonth, useMonthWords } from './words';
@@ -182,6 +183,11 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
           {pace && <span className={s.goalFootItem}><ProvedFigure value={pace.display} proof={{ receiptId: pace.receiptId }} />{t(view?.pace === 'ahead' ? 'money.goal.ahead' : 'money.goal.behind')}</span>}
           {pastBy && <span className={s.goalFootItem}>{t('today.goal.foot.past')}<ProvedFigure value={pastBy.display} proof={{ receiptId: pastBy.receiptId }} /></span>}
         </p>
+      )}
+      {/* One-shot C6 (SCREENS 94): the engine's line when every invoice of the month is paid, with its receipt; shown
+          only when true. Seam: C3 task 13's arrival wraps it, still when animations are off. */}
+      {view?.paidInFull && (
+        <p className={s.tileSub} data-paid-in-full="">{view.paidInFull.line} <Receipt id={view.paidInFull.receiptId} /></p>
       )}
     </MoneyTile>
   );

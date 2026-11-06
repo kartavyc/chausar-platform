@@ -105,7 +105,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       label={t('money.invoice.label')}
       eyebrow={current.client.name}
       title={invoice.number ?? t('money.invoice.draft')}
-      line={statusOf(t, day, invoice)}
+      line={current.paidInFull ? t('money.invoice.paidInFull') : statusOf(t, day, invoice)}
       onClose={onClose}
       returnFocus={returnFocus}
       footer={footer}

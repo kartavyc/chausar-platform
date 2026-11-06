@@ -483,6 +483,8 @@ export class FakeMoney {
       ...this.late(invoice),
     };
   }
+      // One-shot C6: an issued invoice with nothing left to pay, as the engine's invoicePaidInFull.
+      paidInFull: invoice.number !== null && invoice.status === 'paid',
 
   private sellerName(): string { return BUSINESSES.find((b) => b.id === this.host.business())?.name ?? 'Your business'; }
 

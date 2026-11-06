@@ -524,3 +524,30 @@ describe('Money v2: Amount', () => {
     expect(screen.getByText('कोई कीमत नहीं').className).toBe('');
   });
 });
+
+// One-shot C6 task 4 (SCREENS 94): "Paid in full" for the month on screen, the engine's line with its receipt mark.
+describe('Money v2: paid in full', () => {
+  it('when every invoice of the month is paid, Invoiced this month says so with the receipt mark; otherwise nothing', async () => {
+    const paid: Override = async (params, request) => ({ ...(await request('venture.goals.get', params) as GoalView), paidInFull: { line: 'All October invoices paid', receiptId: 'R-PAID' } });
+    start('#/money', { override: { 'venture.money.overview': overview(), 'venture.goals.get': paid } });
+    const invoiced = await tile('Invoiced this month');
+    const line = await within(invoiced).findByText('All October invoices paid');
+    expect(within(line.parentElement!).getByRole('button', { name: receiptMark('R-PAID') })).toBeTruthy();
+    assertInkRules();
+  });
+
+  it('says nothing while an invoice of the month is open', async () => {
+    start('#/money', { override: { 'venture.money.overview': overview() } });
+    const invoiced = await tile('Invoiced this month');
+    await within(invoiced).findByText('₹1,12,400');
+    expect(within(invoiced).queryByText(/invoices paid$/)).toBeNull();
+  });
+});
+
+describe('Money v2: a paid invoice', () => {
+  it('says "Paid in full" at the top of its sheet once nothing is left to pay', async () => {
+    start('#/money/invoices?sheet=invoice:inv-0038');
+    const sheet = await screen.findByRole('complementary', { name: 'INV-0038' });
+    expect(await within(sheet).findByText('Paid in full')).toBeTruthy();
+  });
+});
