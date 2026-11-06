@@ -43,16 +43,17 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function replyDay(iso: string, order: VentureRecord['country']['dateOrder'], thisYear: string): string {
   const [year, month, day] = iso.split('-');
   if (order === 'year-month-day') return iso;
-  const name = MONTHS[Number(month) - 1];
+  const name = MONTHS[parseInt(month!, 10) - 1];
+  const date = day!.replace(/^0/, '');
   const same = year === thisYear;
-  if (order === 'month-day-year') return same ? `${name} ${Number(day)}` : `${name} ${Number(day)}, ${year}`;
-  return same ? `${Number(day)} ${name}` : `${Number(day)} ${name} ${year}`;
+  if (order === 'month-day-year') return same ? `${name} ${date}` : `${name} ${date}, ${year}`;
+  return same ? `${date} ${name}` : `${date} ${name} ${year}`;
 }
 
 /** "10 to 12 Nov" inside one month of this year (day first), else both days in full ("30 Oct to 2 Nov"). */
 function replyRange(from: string, to: string, order: VentureRecord['country']['dateOrder'], thisYear: string): string {
   const end = replyDay(to, order, thisYear);
-  if (order === 'day-month-year' && from.slice(0, 7) === to.slice(0, 7)) return `${Number(from.slice(8, 10))} to ${end}`;
+  if (order === 'day-month-year' && from.slice(0, 7) === to.slice(0, 7)) return `${from.slice(8, 10).replace(/^0/, '')} to ${end}`;
   return `${replyDay(from, order, thisYear)} to ${end}`;
 }
 

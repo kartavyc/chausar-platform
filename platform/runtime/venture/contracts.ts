@@ -6263,7 +6263,7 @@ export type VenturePayloads = {
   'venture.blueprint.draft': { useTemplate?: boolean; shown?: { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] } };
   'venture.blueprint.get': Empty;
   /** basedOn (4J8): refused APPROVAL_STALE unless the newest plan is still this one, as a suggestion read it. */
-  'venture.blueprint.update': { patch: BlueprintPatch; basedOn?: { blueprintId: string; digest: string } };
+  'venture.blueprint.update': { patch: BlueprintPatch; basedOn?: { blueprintId: string; digest: string }; ownerSave?: true };
   'venture.blueprint.accept': { digest: string };
   'venture.models.presets': Empty;
   'venture.models.connect': { presetId: ModelPresetId; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string };

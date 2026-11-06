@@ -2055,7 +2055,7 @@ export interface EngineMethods {
   'venture.ai.disconnect': { params: { connectionId: string }; result: ModelStatusLite };
   'venture.blueprint.get': { params: Record<string, never>; result: BlueprintViewLite | null };
   /** basedOn (4J8): a suggestion's plan; refused APPROVAL_STALE when the plan changed since. */
-  'venture.blueprint.update': { params: { patch: BlueprintPatchLite; basedOn?: { blueprintId: string; digest: string } }; result: BlueprintViewLite };
+  'venture.blueprint.update': { params: { patch: BlueprintPatchLite; basedOn?: { blueprintId: string; digest: string }; ownerSave?: true }; result: BlueprintViewLite };
   'venture.price.quote': { params: { offerId: string; quantity?: string }; result: ReceiptLite };
   'venture.build.brief': { params: { useTemplate?: boolean }; result: BriefLite };
   'venture.build.handoff': { params: { builder: BuilderId }; result: HandoffPlanLite };

@@ -17,6 +17,7 @@
 
 import { useId, useState } from 'react';
 import { useT } from '../../text';
+import { dayPlus } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
@@ -177,8 +178,6 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
   );
 }
 
-/** C4 (T22): a day plus whole days, on the calendar only (no money). */
-const plusDays = (day: string, days: number) => (/^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(Date.parse(`${day}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10) : day);
 const vendorKey = (vendor: string) => vendor.trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** Add a bill: one line, its dates and whether it repeats; tax only for a GST business. */
@@ -196,7 +195,7 @@ function AddBill({ gst, currency, terms, defaultDays, onAdded, onClose }: { gst:
   // C4 (T22): null until the owner picks a due date; until then it follows the vendor's last terms.
   const [dueTyped, setDueTyped] = useState<string | null>(null);
   const days = terms.find((item) => vendorKey(item.vendor) === vendorKey(vendor))?.days ?? defaultDays;
-  const dueDate = dueTyped ?? (days === null ? billDate : plusDays(billDate, days));
+  const dueDate = dueTyped ?? (days === null ? billDate : dayPlus(billDate, days));
   const [repeats, setRepeats] = useState<'none' | 'monthly' | 'quarterly'>('none');
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);

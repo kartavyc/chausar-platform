@@ -998,7 +998,7 @@ export async function blueprintGet(deps: VentureDeps, ctx: Context, payload: unk
  * offer the owner adds, with no price, or takes out again.
  */
 export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
-  const body = exactPayload(payload, ['patch', 'basedOn'], ['patch']);
+  const body = exactPayload(payload, ['patch', 'basedOn', 'ownerSave'], ['patch']);
   const patch = exactPayload(body.patch, PATCH_KEYS);
   const chosenCountry = has(patch, 'countryCode') ? countryProfile(patch.countryCode) : null;
   if (chosenCountry) requireAppChannel(ctx, 'venture.blueprint.update');

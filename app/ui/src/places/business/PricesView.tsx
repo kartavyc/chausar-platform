@@ -101,7 +101,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
     setProblem(null);
     setDecided(null);
     try {
-      const view = await client.request('venture.blueprint.update', { patch: { offers: [{ id: offer.id, unitPrice: typed.trim() }] } });
+      const view = await client.request('venture.blueprint.update', { patch: { offers: [{ id: offer.id, unitPrice: typed.trim() }] }, ownerSave: true });
       if (view.decided) setDecided(view.decided);
       setTyped('');
       await quoteAgain(client);

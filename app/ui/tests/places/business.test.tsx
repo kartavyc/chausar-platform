@@ -221,7 +221,7 @@ describe('Business: prices', () => {
     expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
-  it('C4 task 33: the owner's own price applies on Save, says so with Undo, and nothing waits on Today', async () => {
+  it("C4 task 33: the owner's own price applies on Save, says so with Undo, and nothing waits on Today", async () => {
     const { engine } = start('#/business/prices');
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });

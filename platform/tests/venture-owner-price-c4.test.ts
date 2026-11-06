@@ -12,7 +12,7 @@ import { call, code, owner, phone, seedBlueprint, seedOrder, setup, type Env } f
 import type { Context } from '../runtime/contracts.ts';
 
 const update = (env: Env, patch: Record<string, unknown>, ctx: Context = owner) =>
-  (core['venture.blueprint.update'] as (deps: unknown, ctx: Context, payload: unknown) => Promise<BlueprintView>)(env.deps, ctx, { patch });
+  (core['venture.blueprint.update'] as (deps: unknown, ctx: Context, payload: unknown) => Promise<BlueprintView>)(env.deps, ctx, { patch, ownerSave: true });
 const quote = (env: Env, payload: Record<string, unknown>) =>
   (money['venture.price.quote'] as (deps: unknown, ctx: Context, payload: unknown) => Promise<unknown>)(env.deps, owner, payload);
 const list = (env: Env) => call<QueueList>(env, 'venture.queue.list', {});
@@ -103,6 +103,14 @@ test('a price from outside the app, a change with words, or one joining a waitin
     assert.equal(row.title, 'New price for Monthly books');
     assert.deepEqual(row.actions.map(action => [action.id, action.secondAsk ?? false]), [['read', false], ['approve', true]]);
     assert.equal(listRecords(env.store.read(), 'venture-decision').length, 0);
+  }
+  // Only the Prices page's Save says it is the owner's press: the same change from any other caller waits.
+  {
+    const env = await setup();
+    await seedBlueprint(env, { status: 'accepted', price2: '1500000' });
+    const view = await (core['venture.blueprint.update'] as (deps: unknown, ctx: Context, payload: unknown) => Promise<BlueprintView>)(env.deps, owner, { patch: { offers: [{ id: 'offer_1', unitPrice: '2000' }] } });
+    assert.equal(view.blueprint.status, 'draft');
+    assert.equal(view.decided, undefined);
   }
   // A price with new words: the plan changed, so it asks.
   {

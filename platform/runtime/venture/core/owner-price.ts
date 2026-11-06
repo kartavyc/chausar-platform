@@ -35,11 +35,11 @@ const names = (offers: readonly Offer[]) =>
   (offers.length === 1 ? offers[0].name.value : `${offers.slice(0, -1).map(offer => offer.name.value).join(', ')} and ${offers.at(-1)!.name.value}`);
 
 /**
- * Whether a venture.blueprint.update request is the owner's own price, by its shape alone: from the app, by a member who
- * can approve, with only offer prices in it and no suggestion it was based on. The state decides the rest (ownerPriceApplies).
+ * Whether a venture.blueprint.update request is the owner's own price: the Prices page's Save says so (ownerSave), from the app, by a member who
+ * can approve, with only offer prices in it and no suggestion it was based on. Any other caller's price waits on Today. The state decides the rest (applyOwnerPrice).
  */
 export function ownerPriceShape(ctx: Context, body: Record<string, unknown>, patch: Record<string, unknown>): boolean {
-  if (!isAppChannel(ctx) || !['owner', 'cofounder'].includes(ctx.role) || Object.hasOwn(body, 'basedOn')) return false;
+  if (body.ownerSave !== true || !isAppChannel(ctx) || !['owner', 'cofounder'].includes(ctx.role) || Object.hasOwn(body, 'basedOn')) return false;
   if (Object.keys(patch).length !== 1 || !Array.isArray(patch.offers)) return false;
   return (patch.offers as unknown[]).every(change => !!change && typeof change === 'object'
     && Object.keys(change).every(key => key === 'id' || key === 'unitPrice') && Object.hasOwn(change, 'unitPrice'));

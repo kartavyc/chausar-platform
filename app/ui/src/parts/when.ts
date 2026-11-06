@@ -60,6 +60,12 @@ export function useOwnerHour(): number {
   return hourIn(useClock()(), useOwnerZone());
 }
 
+/** One-shot C4 (T22): a day key plus whole days, on the calendar only; anything else comes back as it is. */
+export function dayPlus(day: string, days: number): string {
+  if (!/^d{4}-d{2}-d{2}$/.test(day)) return day;
+  return new Date(Date.parse(`${day}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
 /**
  * One-shot C4 task 8: the instant of a day ('YYYY-MM-DD') and a wall-clock time ('HH:MM') in the zone, so a time the
  * owner picks means their own clock on any computer. Null when either is not a day or a time.

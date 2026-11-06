@@ -207,7 +207,7 @@ export class FakeBusinessDesk {
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p, null);
       // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
-      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
+      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn, p.ownerSave), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
       case 'venture.build.status': return clone(this.buildOf(biz));
       case 'venture.build.brief': return this.brief(biz);
@@ -368,7 +368,7 @@ export class FakeBusinessDesk {
     return view;
   }
 
-  private update(biz: string, raw: unknown, basedOn?: unknown): BlueprintViewLite {
+  private update(biz: string, raw: unknown, basedOn?: unknown, ownerSave?: true): BlueprintViewLite {
     const view = this.planOf(biz);
     const patch = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     if (Object.keys(patch).length === 0) throw invalid('Change at least one thing.');
@@ -475,7 +475,7 @@ export class FakeBusinessDesk {
       ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: {...clone(view.intake),...Object.fromEntries(next.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer&&view.playbook?.id==='youtube').map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))} } : {}),
     };
     // C4 task 33, as core/owner-price.ts: the owner's own price on an accepted plan applies at once, with an Undo.
-    const decided = this.ownerPrice(biz, patch, basedOn, view.blueprint, next);
+    const decided = ownerSave === true ? this.ownerPrice(biz, patch, basedOn, view.blueprint, next) : null;
     if (decided) {
       this.accept(biz, next.id);
       this.host.setRows(this.host.rows().filter((r) => !(r.businessId === biz && r.viewRef?.kind === 'plan')));

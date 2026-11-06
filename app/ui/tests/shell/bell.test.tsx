@@ -111,7 +111,7 @@ describe('the bell', () => {
     expect(within(centre()!).queryByRole('list', { name: 'Notifications' })).toBeNull();
   });
 
-  it('C4 task 7: items sit under Today and Earlier by the owner's day; a live one lands on its focused Today card, an ended one is plain text', async () => {
+  it("C4 task 7: items sit under Today and Earlier by the owner's day; a live one lands on its focused Today card, an ended one is plain text", async () => {
     const engine = new FakeEngine({ now: NOW });
     window.location.hash = '#/work';
     const client = createFakeClient(engine);
