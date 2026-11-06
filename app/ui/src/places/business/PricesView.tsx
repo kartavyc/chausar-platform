@@ -13,6 +13,7 @@ import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { currencySign } from '../../../../../platform/runtime/owner-format';
 
 /**
  * Prices in the D look: each offer a card with its price at rest as the calculator's total with its receipt
@@ -36,7 +37,6 @@ export function PricesView() {
   const { blueprint, offerReceipts, priceGuide } = plan.data;
   return (
     <div className={s.page}>
-      <PendingPlanRows onDecided={plan.reload} />
       <section aria-labelledby={headingId}>
         <div className={s.groupHead}>
           <h2 id={headingId} className={s.groupTitle}>{t('business.offers')}</h2>
@@ -44,10 +44,11 @@ export function PricesView() {
         </div>
         <GstSwitch office={blueprint.backOffice} onChanged={plan.reload} />
         <ul className={s.cards}>
-          {blueprint.offers.map((offer) => (
-            <OfferPrice key={offer.id} offer={offer} receipt={offerReceipts[offer.id] ?? null} currency={blueprint.backOffice.currency} onChanged={plan.reload} />
+          {blueprint.offers.map((offer, index) => (
+            <OfferPrice key={offer.id} offer={offer} receipt={offerReceipts[offer.id] ?? null} currency={blueprint.backOffice.currency} onChanged={plan.reload} leading={index === 0} offers={blueprint.offers} />
           ))}
         </ul>
+        <p className={s.note}>{t('business.priceNote')}</p>
         {/* W5 5A2: a share of an amount the client confirms later, one step away (founder decision of 23 Oct). */}
         <ShareFold offers={blueprint.offers} onChanged={plan.reload} />
         {/* W6 6C3 (D17): what clients pay for this profession, from published sources with the date checked, or "No
@@ -71,7 +72,7 @@ function PriceGuideSection({ guide }: { guide: PriceGuideView }) {
   );
 }
 
-function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite; receipt: ReceiptLite | null; currency: string; onChanged: () => void }) {
+function OfferPrice({ offer, receipt, currency, onChanged, leading, offers }: { offer: OfferLite; receipt: ReceiptLite | null; currency: string; onChanged: () => void; leading: boolean; offers: OfferLite[] }) {
   const t = useT();
   const client = useEngine();
   const titleId = useId();
@@ -163,12 +164,13 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
       )}
       <form className={s.priceForm} onSubmit={(event) => void save(event)}>
         <Field
-          label={t('business.priceField', { offer: offer.name.value, currency })}
-          hint={t('business.priceNote')} inputMode="decimal" autoComplete="off" value={typed}
+          label={t('business.priceField')}
+          adornment={currencySign(currency) ?? currency} inputMode="decimal" autoComplete="off" value={typed}
           onChange={(event) => setTyped(event.currentTarget.value)}
         />
-        <div className={s.formEnd}><Button variant="primary" type="submit" disabled={busy}>{t('business.savePrice')}</Button></div>
+        <div className={s.formEnd}><Button variant="secondary" type="submit" disabled={busy}>{t('business.savePrice')}</Button></div>
       </form>
+      <PendingPlanRows onDecided={onChanged} quietPrimary={!leading} accepts={row => row.kind === 'price' && (offers.find(item => item.name.value === row.change?.label)?.id ?? offers[0]?.id) === offer.id} />
       {/* Seam (C4 task 33): B4 task 7's result slot (ResultLine) takes this line and its Undo when B4 lands. */}
       {decided && (
         <p className={s.note} role="status" data-price-decided="">

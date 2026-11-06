@@ -147,7 +147,8 @@ describe('Business in the Ink v2 look', () => {
 
   it('a GST-registered business keeps its tax details one step away on Plan', async () => {
     start('#/business/plan', await ledgerline());
-    const office = await region('Back office');
+    const office = (await screen.findByText('Back office', { selector: 'summary' })).closest('details')!;
+    office.open = true;
     await waitFor(() => expect(office.textContent).toContain('Invoices in INR.'));
     expect(visibleText(office)).not.toMatch(/GST: registered/);
     const fold = within(office).getByText('Tax details').closest('details')!;
@@ -157,7 +158,7 @@ describe('Business in the Ink v2 look', () => {
     expect(visibleText(office)).toContain('For a tax invoice, add: Your SAC code.');
   });
 
-  it("Prices: the price at rest, its working one step away, and Save price the card's one filled button", async () => {
+  it("Prices: the price at rest, its working one step away, and Save price a secondary action", async () => {
     start('#/business/prices', await ledgerline());
     const books = await offer('Monthly books');
     await waitFor(() => expect(books.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹18,880'));
@@ -168,7 +169,8 @@ describe('Business in the Ink v2 look', () => {
     expect(visibleText(books)).toContain('CGST at 9%');
     // The working's figures are proved by the one receipt beside the total.
     expect(fold.closest('[data-figure-group]')?.querySelectorAll('[data-receipt]')).toHaveLength(1);
-    expect([...books.querySelectorAll('[data-variant="primary"]')].map((button) => button.textContent)).toEqual(['Save price']);
+    expect(books.querySelectorAll('[data-variant="primary"]')).toHaveLength(0);
+    expect(within(books).getByRole('button', { name: 'Save price' }).getAttribute('data-variant')).toBe('secondary');
     assertInkRules(document.body);
   });
 

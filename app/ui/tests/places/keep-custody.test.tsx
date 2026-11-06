@@ -302,7 +302,7 @@ describe('Keep this business: delete this business', () => {
     expect(screen.getByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
     expect(screen.getByText('Lumen Studio is deleted. 3 backups removed.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
-    expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledgerline']);
+    expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['LedgerlineOpen']);
     expect(sent(calls, 'workspace.open')).toEqual([]);
     expect(((await engine.request('workspace.status', {})) as WorkspaceStatusLite).open).toBe(false);
     const { backups } = (await engine.request('workspace.backups.list', {})) as { backups: BackupLite[] };
@@ -326,7 +326,7 @@ describe('Keep this business: delete this business', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Deleted' })).toBeTruthy();
     expect(screen.queryByRole('navigation', { name: 'Places' })).toBeNull();
-    expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledgerline']);
+    expect(within(screen.getByRole('list', { name: 'Businesses on this computer' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['LedgerlineOpen']);
     expect(screen.getByText('Copies made outside this app must be removed by their owner.')).toBeTruthy();
     const names = [sealed.path, readable.path].map((path) => path.split('/').pop()!);
     for (const name of names) expect(screen.getByText(name)).toBeTruthy();
