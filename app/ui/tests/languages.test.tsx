@@ -62,7 +62,7 @@ describe('the pack is lazy', () => {
     expect(source).toMatch(/import\('\.\.\/tokens\/fonts-hi\.css'\)/);
     expect(Object.keys(CATALOGUES)).toEqual(['en']);
     expect(read('../src/tokens/fonts.css')).not.toContain('Devanagari');
-    expect(read('../src/tokens/tokens.css').replace(/:root:lang\(hi\) \{[^}]*\}/, '')).not.toContain('Devanagari');
+    expect(read('../src/tokens/tokens.css')).not.toContain('@font-face');
     expect(read('../src/main.tsx')).not.toContain('fonts-hi');
   });
 
@@ -161,7 +161,7 @@ describe('the Hindi catalogue', () => {
 
   it('a Hindi count takes the body face', () => {
     expect(read('../src/tokens/base.css')).toMatch(/:lang\(hi\) \[data-count\]/);
-    expect(read('../src/tokens/tokens.css')).toMatch(/:root:lang\(hi\)/);
+    expect(read('../src/tokens/tokens.css')).toMatch(/--font: 'Instrument Sans', 'Noto Sans Devanagari'/);
   });
 });
 
