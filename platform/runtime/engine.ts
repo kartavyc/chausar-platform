@@ -976,7 +976,32 @@ export class Engine {
     this.#snapshots?.forgetKey(); // the summary key leaves memory with the engine (4J6)
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
+  /**
+   * D12 task 4: a business from an older Chausar. The file as it was goes to a migration backup first, then the one commit of
+   * the brought-up State, a diagnostics line and the data-version index. A failure leaves the file as it was.
+   */
+  private async migrationBackup(json: string, workspaceId: string, from: number): Promise<string> {
+    const files = this.custodyFiles(), folder = await safeDirectory(files.backups, true);
+    let at = this.custodyNow(), name = backupName(workspaceId, at, 'migration');
+    for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, 'migration'));
+    await atomicWriteText(join(folder, name), `{"backupFormat":"chausar.backup.v1","envelope":${json}}`, true);
+    await files.noteDataVersion({ file: { name, version: from } });
+    return name;
+  }
+  private async settleMigration(vault: Vault) {
+    const from = vault.migratedFrom; if (from === null) return;
+    let backup = '';
+    const { to } = await vault.commitMigration(async (json, workspaceId) => { backup = await this.migrationBackup(json, workspaceId, from); });
+    await this.noteMigrated(vault, from, to, backup);
+  }
+  private async noteMigrated(vault: Vault, from: number, to: number, backup: string) {
+    const files = this.custodyFiles(), state = vault.read();
+    await files.noteDiagnostic('migration', `${from}-to-${to}`, { code: 'DATA_BROUGHT_UP' }, new Date(this.custodyNow()).toISOString());
+    await files.noteDataVersion({ live: { folder: basename(vault.directory), entry: { version: to, workspaceId: state.workspace.id, migratedBy: String(this.options.version ?? ''), from, backup } } });
+  }
   private async attachSafely(vault: Vault) { try {
+    // D12: before anything else can write. A read-only device leaves it to the writer: every write there waits anyway.
+    if (this.options.sync === undefined) await this.settleMigration(vault);
     await this.attach(vault);
     // Read-only devices may inspect/review enrollment without mutating recovery
     // state. A reviewed writer later performs ordinary recovery on reopen.
@@ -1331,8 +1356,10 @@ export class Engine {
         if (!newPassphrase) { fresh = randomBytes(32); newPassphrase = fresh.toString('base64url'); }
       }
       try {
-        const vault = await Vault.recover({ directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+        let moved: { from: number; backup: string } | null = null;
+        const vault = await Vault.recover({ migrationBackup: async (json, workspaceId, from) => { moved = { from, backup: await this.migrationBackup(json, workspaceId, from) }; }, directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
         if (fresh) await this.storeComputerSecret(vault, fresh);
+        if (moved) await this.noteMigrated(vault, (moved as { from: number }).from, vault.read().schemaVersion, (moved as { backup: string }).backup);
         await this.attachSafely(vault);
       } finally { fresh?.fill(0); }
       await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: 'made', reseal: true });
@@ -2850,6 +2877,7 @@ export class Engine {
   private async afterOpen(folder: string, how: 'this-computer' | 'typed', options: { recovery?: RecoveryState; reseal?: boolean; created?: boolean } = {}) {
     this.#openFolder = folder; this.#openUnlock = how === 'this-computer' ? 'this-computer' : 'passphrase'; this.#closedByOwner = false;
     const custody = this.custodyHost(); if (!custody) return;
+    await this.noteLiveVersion(folder);
     await this.loadSchedule();
     const vault = this.store(), state = vault.read(), unlock = this.#openUnlock, prior = await custody.files.readCard(folder);
     const recovery: RecoveryState = options.recovery ?? (prior?.state === 'ready' ? prior.recovery : how === 'typed' ? 'made' : 'unknown');
@@ -2862,6 +2890,11 @@ export class Engine {
     if (how === 'typed') await this.forgetKeyIfUnused(vault.vaultId, folder);
     if (how === 'typed') await this.snapshotStore()?.remove(folder); // a passphrase business keeps no summary (4J6)
     if (reseal) await custody.files.writeCard({ ...card, pending: null });
+  }
+  /** D12: what the open business's live file holds, for a closed business's count at the next update. Keeps who moved it. */
+  private async noteLiveVersion(folder: string) {
+    const files = this.custodyFiles(), state = this.store().read(), prior = (await files.readDataVersions()).live[folder];
+    await files.noteDataVersion({ live: { folder, entry: { ...(prior?.version === state.schemaVersion ? prior : {}), version: state.schemaVersion, workspaceId: state.workspace.id } } });
   }
   private async loadSchedule() {
     this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
@@ -2894,6 +2927,7 @@ export class Engine {
     let at = this.custodyNow(), name = backupName(workspaceId, at, kind);
     for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, kind));
     await vault.backup(join(folder, name));
+    await files.noteDataVersion({ file: { name, version: vault.read().schemaVersion } });
     this.#schedule = { lastAt: at, lastRevision: revision, due: false, lastError: null };
     if (kind !== 'manual') {
       const { remove } = keepBackups(await files.backupFiles(workspaceId), this.custodyNow());
@@ -3394,7 +3428,9 @@ export class Engine {
    * open business while its vault is still open (D12 attach points 1 and 2). A failed copy is said; main then installs nothing.
    */
   async prepareUpdateInstall(payload: { backup?: unknown }): Promise<{ busy: boolean; openDataSchema: number | null; backup: 'made' | 'failed' | 'none-open' | 'skipped' }> {
-    const busy = this.updatesBusy(), open = this.vault ? this.vault.read().schemaVersion : null;
+    // D12 task 8: the newest data on this computer, a closed business's too, not only the open one's.
+    const busy = this.updatesBusy(), liveNow = this.vault ? this.vault.read().schemaVersion : null, noted = this.custodyHost() ? await this.custodyFiles().newestDataVersion() : null;
+    const open = liveNow === null && noted === null ? null : Math.max(liveNow ?? 0, noted ?? 0);
     if (busy || payload?.backup !== true) return { busy, openDataSchema: open, backup: 'skipped' };
     if (!this.vault) return { busy, openDataSchema: open, backup: 'none-open' };
     return { busy, openDataSchema: open, backup: await this.custodySerial(() => this.safetyBackup()) ? 'made' : 'failed' };

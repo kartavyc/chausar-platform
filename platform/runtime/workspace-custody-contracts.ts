@@ -6,7 +6,8 @@ export type DeviceScheme = 'windows-dpapi' | 'macos-keychain' | 'linux-secret-se
 export type DeviceUnavailableReason = 'not-configured' | 'platform' | 'blocked' | 'no-keyring' | 'locked' | 'failed';
 export type UnlockMode = 'this-computer' | 'passphrase';
 export type RecoveryState = 'made' | 'not-made' | 'unknown';
-export type BackupKind = 'auto' | 'manual' | 'safety';
+/** D12: 'migration' is the file as it was before the ladder moved it, 'rollback-kept' the newer data kept by a rollback. Neither rotates. */
+export type BackupKind = 'auto' | 'manual' | 'safety' | 'migration' | 'rollback-kept';
 
 export const CUSTODY_METHODS = Object.freeze([
   'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import',
@@ -103,6 +104,10 @@ export type BackupView = {
   kind: BackupKind; at: IsoTime; revision: number; bytes: number;
   name: string | null;     // from the card of the same vault id
   opensNow: boolean;       // its wrappers equal the business's current ones
+  /** D12: the data version this computer noted when the file was written (custody/data-versions.json); absent when not noted, never a guess. */
+  dataVersion?: number;
+  /** D12: saved by a newer Chausar than this one, so it can't open here. */
+  needsNewer?: true;
   /** C5 task 20: what came just before it, while the business is open. Worked out on reading, never written outside the vault. */
   after?: string;
 };

@@ -109,7 +109,7 @@ test('host-issued fresh authority persists at revision zero with exact business 
   const created = await f.bootstrap('fresh_target', f.state, { budgets: { ...budgets,
     maxStateBytes: Buffer.byteLength(JSON.stringify(f.state)), maxRecords: records } });
   const target = created.vault, targetVaultId = target.vaultId, snapshot = target.read(), file = join(target.directory, 'authority.encrypted.json');
-  assert.equal(snapshot.revision, 0); assert.equal(snapshot.schemaVersion, 1); assert.equal(snapshot.workspace.demo, true);
+  assert.equal(snapshot.revision, 0); assert.equal(snapshot.schemaVersion, CURRENT_SCHEMA); assert.equal(snapshot.workspace.demo, true);
   assert.equal(hash(snapshot), f.publication.record.stateDigest); assert.equal(JSON.stringify(snapshot), JSON.stringify(f.state));
   assert.deepEqual(snapshot.members, [f.publication.authority.owner]);
   assert.equal(authorize(target, f.publication.authority.context, 'admin').id, f.state.members[0].id);

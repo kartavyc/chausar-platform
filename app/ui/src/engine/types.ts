@@ -711,7 +711,7 @@ export interface DriveStatusLite { state: 'not-connected' | 'connecting' | 'conn
 export interface CopyImportInput { token: string; passphrase?: string; recoveryCode?: string; restore?: true }
 export interface CopyImportResult { workspace: WorkspaceLite; folder: string; unlock: UnlockMode; restored?: boolean }
 /** after (C5 task 20): what came just before it, while the business is open. */
-export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
+export interface BackupLite { /** D12: saved by a newer Chausar than this one. */ needsNewer?: true; file: string; kind: 'auto' | 'manual' | 'safety' | 'migration' | 'rollback-kept'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
 /** One-shot C6: what a backup of the open business holds and what changed since (restoring takes these back). */
 export interface BackupInspectLite {
   file: string; at: string;
