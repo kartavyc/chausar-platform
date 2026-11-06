@@ -75,10 +75,12 @@
   color: var(--mute);
 }
 
-/* The list hangs under the header box, over the page; in the dialog it follows the box. */
+/* The list hangs under the header box, over the page, wider than the box and lined up with its right edge, so a row's
+   number, client, status, amount and Enter chip fit; in the dialog it follows the box. */
 .list {
   position: absolute;
-  inset-inline: 0;
+  inset-inline-end: 0;
+  width: min(var(--panel), 90vw);
   top: calc(100% + var(--sp-1));
   z-index: 4;
   max-height: min(70vh, calc(var(--target) * 12));
@@ -126,6 +128,7 @@
 .option {
   display: flex;
   flex: 1;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
@@ -190,7 +193,7 @@
 .dialog {
   position: absolute;
   inset-inline: 0;
-  top: var(--sp-6);
+  top: var(--sp-10);
   z-index: 5;
   justify-self: center;
   width: min(var(--sheet-max), calc(100% - var(--sp-8)));
@@ -227,6 +230,7 @@
 
 .inDialog .list {
   position: static;
+  width: auto;
   max-height: none;
   margin-top: var(--sp-2);
   border: 0;
