@@ -108,3 +108,6 @@ export function StartPage({ gallery, onStarted, business, country }: {
     </div>
   );
 }
+
+export { FirstRun } from './FirstRun';
+export { Welcome } from './Welcome';
