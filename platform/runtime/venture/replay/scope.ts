@@ -2,7 +2,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { assertCaptureText, type RunRecorder } from './capture.ts';
 import type { RunReplay } from './replay-run.ts';
-import type { ModelTransport } from '../contracts.ts';
 
 export type RunScope = { recorder?: RunRecorder; replay?: RunReplay; failure?: unknown; owner?: object; checks?: (() => void)[]; pending?: Set<Promise<unknown>>; tools?: Map<number, (request: unknown, session: string) => Promise<unknown>>; guards?: Map<number, () => void>; timerCount?: number; driver?: 'codex' | 'claude' };
 const scope = new AsyncLocalStorage<RunScope>();
@@ -31,13 +30,6 @@ export async function runExchange<T>(purpose: string, request: unknown, work: ()
     run.recorder!.model(purpose, text, JSON.stringify(answer));
     return answer;
   } catch (error) { run.failure ??= error; throw error; }
-}
-export function runTransport(transport: ModelTransport): ModelTransport {
-  return {
-    get replay() { return transport.replay; },
-    http: request => runExchange(`http:${request.purpose}`, { url: request.url, method: request.method, body: request.body }, () => transport.http(request)),
-    process: request => runExchange(`process:${request.purpose}`, { command: request.command, args: request.args, stdin: request.stdin }, () => transport.process(request)),
-  };
 }
 
 export function trackRunWork(work: Promise<unknown>): void {

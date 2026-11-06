@@ -1,3 +1,4 @@
+import { contractDeclarations } from './contract-types.mjs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,7 @@ export async function contractArtifacts() {
   const tuple = /export const METHODS:\s*readonly\s*\[[\s\S]*?\];/;
   if (!tuple.test(declaration)) throw new Error('The desktop declaration needs its method tuple.');
   return new Map([
+    ['app/ui/src/engine/contract.gen.ts', contractDeclarations()],
     ['app/desktop/engine-methods.cjs', header + "'use strict';\nmodule.exports = Object.freeze(" + JSON.stringify(ALL_METHODS, null, 2) + ');\n'],
     ['app/desktop/ipc-methods.cjs', `${header}'use strict';\nmodule.exports = Object.freeze(${JSON.stringify(names, null, 2)});\n`],
     ['app/desktop/ipc-contract.d.cts', declaration.replace(tuple, `export const METHODS: readonly ${JSON.stringify(names)};`).replace(/\r\n/g, '\n')],
