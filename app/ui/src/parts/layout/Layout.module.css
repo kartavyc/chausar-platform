@@ -6,6 +6,20 @@
   display: contents;
 }
 
+.movingBlock {
+  min-width: 0;
+}
+
+.movingBlock[data-arriving] {
+  transition: opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease), grid-template-rows var(--t-sheet) var(--ease);
+}
+
+@starting-style {
+  .movingBlock[data-arriving] {
+    grid-template-rows: 0fr;
+  }
+}
+
 .notice {
   display: flex;
   flex-wrap: wrap;

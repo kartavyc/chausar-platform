@@ -32,6 +32,8 @@ export interface ComposerProps {
   hint?: string | undefined;
   /** Words already in the box when it opens (W4 4C2: an ask from the header or Start), unsent until Send. */
   initial?: string | undefined;
+  /** A handoff just filled the unsent box, marked once by its persistent owner. */
+  changed?: '' | undefined;
   /** A place's own way to say a known failure, with its fix. Left out, or null, the plain failure line shows. */
   describeFailure?: ((failure: unknown) => ComposerFailure | null) | undefined;
   className?: string | undefined;
@@ -54,7 +56,7 @@ export interface ComposerFailure {
  * red line, then the long reason in the normal colour, whole (B4 task 4). A send starts once however fast Enter is
  * pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, describeFailure, className, waitLabel, focusSendOnSuggestion = false, accessory, sendDisabled = false }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, changed, describeFailure, className, waitLabel, focusSendOnSuggestion = false, accessory, sendDisabled = false }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -131,7 +133,7 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
           })}
         </div>
       )}
-      <div className={s.box} data-sending={sending ? '' : undefined}>
+      <div className={s.box} data-changed={changed} data-sending={sending ? '' : undefined}>
         <label className="sr-only" htmlFor={id}>{label}</label>
         <textarea
           ref={box}
