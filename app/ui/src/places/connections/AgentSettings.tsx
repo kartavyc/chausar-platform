@@ -19,6 +19,9 @@ export function AgentSettings() {
   const [approveMcp, setApproveMcp] = useState(false);
   const mcpChanged = Boolean(draft && resource.data && JSON.stringify(draft.mcpServers) !== JSON.stringify(resource.data.settings.mcpServers));
   const [said, setSaid] = useState<{ error: boolean; text: string } | null>(null);
+  /** C1 task 13: the Codex jobs where the owner chose "Another model", so the exact-id field shows. */
+  const [typed, setTyped] = useState<Partial<Record<AiTask, boolean>>>({});
+  const listed = resource.data?.models?.codex ?? null;
   useEffect(() => { if (resource.data && !dirty.current) setDraft(structuredClone(resource.data.settings)); }, [resource.data]);
   function changed() { dirty.current = true; setSaid(null); }
   function provider(name: AiProvider, patch: Partial<AiProviderSettings>) { changed(); setDraft(value => value && ({ ...value, [name]: { ...value[name], ...patch } })); }
@@ -39,13 +42,18 @@ export function AgentSettings() {
         {(['codex', 'claude'] as const).map(name => <fieldset key={name} className={s.group} disabled={busy}>
           <legend className={connections.subheading}>{t(`connections.settings.${name}`)}</legend>
           <div className={s.fields}>{(['quick', 'main'] as const).map(kind => <div key={kind} className={s.task}>
-            <Field label={t('connections.settings.model', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })} value={draft[name][kind].model} onChange={event => task(name, kind, { model: event.currentTarget.value })} />
+            {name === 'codex' && listed
+              ? <CodexModel listed={listed} model={draft.codex[kind].model} typed={typed[kind] === true} label={t('connections.settings.model', { provider: t('connections.settings.codex'), task: t(`connections.settings.${kind}`) })}
+                  otherLabel={t('connections.settings.modelOther', { provider: t('connections.settings.codex'), task: t(`connections.settings.${kind}`) })}
+                  onType={on => setTyped(was => ({ ...was, [kind]: on }))} onModel={model => task('codex', kind, { model })} />
+              : <Field label={t('connections.settings.model', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })} value={draft[name][kind].model} onChange={event => task(name, kind, { model: event.currentTarget.value })} />}
             <label className={s.label}>{t('connections.settings.effort', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })}
               <select className={s.select} value={draft[name][kind].effort} onChange={event => task(name, kind, { effort: event.currentTarget.value as AiTaskSettings['effort'] })}>
                 {(['low', 'medium', 'high', 'max'] as const).map(effort => <option key={effort} value={effort}>{t(`connections.settings.effort.${effort}`)}</option>)}
               </select>
             </label>
           </div>)}</div>
+          {name === 'codex' && !listed && <p className={connections.note} data-no-model-list="">{t('connections.settings.modelNoList')}</p>}
           <div className={s.fields}>{(['network', 'webSearch'] as const).map(field => <label key={field} className={s.label}>
             {t('connections.settings.access', { provider: t(`connections.settings.${name}`), access: t(`connections.settings.${field}`) })}
             <select className={s.select} value={draft[name][field]} onChange={event => provider(name, { [field]: event.currentTarget.value as AiNetwork })}>
@@ -78,4 +86,31 @@ export function AgentSettings() {
       </>}
     </form></Inner>}
   </details>;
+}
+
+const ANOTHER = '__another-model__';
+
+/**
+ * C1 task 13: Codex's model for one job, chosen from Codex's own list (the saved id first). A saved id Codex does not
+ * list says so. "Another model" shows the exact-id field. The id is sent exactly as picked or typed.
+ */
+function CodexModel({ listed, model, typed, label, otherLabel, onType, onModel }: {
+  listed: readonly string[]; model: string; typed: boolean; label: string; otherLabel: string;
+  onType: (on: boolean) => void; onModel: (model: string) => void;
+}) {
+  const t = useT();
+  const options = [model, ...listed.filter(id => id !== model)].filter(Boolean);
+  return <>
+    <label className={s.label}>{label}
+      <select className={s.select} value={typed ? ANOTHER : model} onChange={event => {
+        const value = event.currentTarget.value;
+        if (value === ANOTHER) { onType(true); return; }
+        onType(false); onModel(value);
+      }}>
+        {options.map(id => <option key={id} value={id}>{listed.includes(id) ? id : t('connections.settings.modelUnlisted', { id })}</option>)}
+        <option value={ANOTHER}>{t('connections.settings.modelAnother')}</option>
+      </select>
+    </label>
+    {typed && <Field label={otherLabel} value={model} onChange={event => onModel(event.currentTarget.value)} />}
+  </>;
 }

@@ -7,13 +7,23 @@ import { validateExternalCredentialScope } from './external-config.ts';
 import { teamRoles } from '../models/roles.ts';
 import { AI_SETTING_BOUNDARIES, agentSettingsOf, validateAiSettings, type AiSettingsView } from './settings.ts';
 
-function view(state: State, venture: VentureRecord): AiSettingsView {
+function view(state: State, venture: VentureRecord): Omit<AiSettingsView, 'models'> {
   return { settings: agentSettingsOf(state, venture.id), boundaries: { ...AI_SETTING_BOUNDARIES }, agents: teamRoles(state, venture).map(({ agent, name }) => ({ id: agent, name })) };
+}
+/** C1 task 13: Codex's own model list, read through the models port (kept per program), or null when there is none. */
+async function codexListed(deps: VentureDeps): Promise<string[] | null> {
+  if (!deps.models.codexModels) return null;
+  try {
+    const models = await deps.models.codexModels();
+    return models.source === 'codex' && Array.isArray(models.listed) && models.listed.length > 0 ? [...models.listed] : null;
+  } catch {
+    return null;
+  }
 }
 export async function getAgentSettings(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AiSettingsView> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
-  return view(state, venture);
+  return { ...view(state, venture), models: { codex: await codexListed(deps) } };
 }
 export async function setAgentSettings(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AiSettingsView> {
   requireAppChannel(ctx, 'venture.agentSettings.set');
@@ -36,5 +46,5 @@ export async function setAgentSettings(deps: VentureDeps, ctx: Context, payload:
   });
   // A4 fix round: the agents' models are part of the AI setup a gallery business may reuse.
   await rememberAiSetup(deps);
-  return saved;
+  return { ...saved, models: { codex: await codexListed(deps) } };
 }

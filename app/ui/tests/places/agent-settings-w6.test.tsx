@@ -58,3 +58,50 @@ describe('AI settings', () => {
     expect(settings.getByText('External tools go through Chausar. Only checked read tools skip asking you.')).toBeTruthy();
   });
 });
+
+describe('AI settings: the models Codex lists (C1 task 13)', () => {
+  async function open(engine: FakeEngine) {
+    window.location.hash = '#/connections/ai';
+    render(<EngineProvider client={createFakeClient(engine)}><AgentSettings /></EngineProvider>);
+    const fold = (await screen.findByText('AI settings', { selector: 'summary' })).closest('details')!;
+    await act(async () => { fold.open = true; fold.dispatchEvent(new Event('toggle')); });
+    return within(fold);
+  }
+
+  it('the fake answers with the engine shape: models last, null by default, a set list in order', async () => {
+    const engine = new FakeEngine({ latencyMs: 0 });
+    const plain = await engine.request('venture.agentSettings.get', {}) as AiSettingsView;
+    expect(Object.keys(plain)).toEqual(['settings', 'boundaries', 'agents', 'models']);
+    expect(plain.models).toEqual({ codex: null });
+    engine.codexModels(['gpt-6.1-terra', 'gpt-6-luna']);
+    expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).models).toEqual({ codex: ['gpt-6.1-terra', 'gpt-6-luna'] });
+  });
+
+  it('with a list, the Codex model is a choice of its ids and Another model; the picked id is saved unchanged', async () => {
+    const engine = new FakeEngine({ latencyMs: 0 });
+    engine.codexModels(['gpt-6.1-terra', 'gpt-6-luna']);
+    const settings = await open(engine);
+    const main = await settings.findByRole('combobox', { name: 'Codex main model' }) as HTMLSelectElement;
+    expect([...main.options].map((o) => o.textContent)).toEqual(['gpt-6.1-terra', 'gpt-6-luna', 'Another model']);
+    expect(main.value).toBe('gpt-6.1-terra');
+    expect(settings.queryByText("Codex didn't list its models here. Type the exact model id.")).toBeNull();
+    fireEvent.change(main, { target: { value: 'gpt-6-luna' } });
+    fireEvent.click(settings.getByRole('button', { name: 'Save AI settings' }));
+    await settings.findByText('AI settings saved.');
+    expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.codex.main.model).toBe('gpt-6-luna');
+    fireEvent.change(settings.getByRole('combobox', { name: 'Codex main model' }), { target: { value: '__another-model__' } });
+    const field = settings.getByLabelText('Codex main model id') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: 'gpt-7-test' } });
+    fireEvent.click(settings.getByRole('button', { name: 'Save AI settings' }));
+    await waitFor(async () => expect((await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings.codex.main.model).toBe('gpt-7-test'));
+    const after = await settings.findByRole('combobox', { name: 'Codex main model' }) as HTMLSelectElement;
+    expect([...after.options][0]!.textContent).toBe("gpt-7-test, not in Codex's list");
+  });
+
+  it('without a list, the exact-id field and one line say so; Claude stays a field', async () => {
+    const settings = await open(new FakeEngine({ latencyMs: 0 }));
+    expect(((await settings.findByLabelText('Codex main model')) as HTMLElement).tagName).toBe('INPUT');
+    expect(settings.getByText("Codex didn't list its models here. Type the exact model id.")).toBeTruthy();
+    expect((settings.getByLabelText('Claude Code main model') as HTMLElement).tagName).toBe('INPUT');
+  });
+});
