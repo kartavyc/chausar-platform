@@ -1,4 +1,4 @@
-import { Fragment, useId, useState, type ReactNode } from 'react';
+import { Fragment, useId, useState, type ReactNode, useEffect } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { QueueKind, QueueRow } from '../../engine/types';
@@ -14,6 +14,8 @@ import { TriageBox } from './TriageBox';
 import { useOpenBusiness } from '../../shell/openBusiness';
 import { needsYouOf } from '../../shell/needsYou';
 import s from './NeedsYou.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { useEngine } from '../../engine/context';
 
 /** A row of the list: waiting on the owner, or decided here and shrunk to its receipt line. */
 export interface NeedsItem { row: QueueRow; done?: DecidedLine | undefined }
@@ -88,10 +90,23 @@ export interface NeedsYouProps {
  * moves (a filter, a decision above it) stays the same card: an answer being typed and a decision on its way survive.
  * The cards keep every rule of a row (the second ask, view before approve, the digest); this part only lays them out.
  */
+/** The sessions (one per engine client) whose first cards have already come in. */
+const STAGGERED = new WeakSet<object>();
+
 export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, onExpand, card, phone = false, tip }: NeedsYouProps) {
   const t = useT();
   const headingId = useId();
   const waiting = items.filter((item) => !item.done).map((item) => item.row);
+  // One-shot C3 task 13: the first time the cards land in a session they come in top to bottom, once. After that first
+  // render a card new to the list rises in on its own; a later visit to Today moves nothing.
+  const client = useEngine();
+  const [stagger] = useState(() => !STAGGERED.has(client));
+  const [arrivals, setArrivals] = useState(false);
+  useEffect(() => {
+    if (!loaded) return;
+    STAGGERED.add(client);
+    setArrivals(true);
+  }, [loaded, client]);
   // B3: the heading and All count as the engine does (a locked business's row is only "open it"), so they say the same
   // number as the greeting, the rail and the phone tabs.
   const count = needsYouOf(waiting);
@@ -116,6 +131,8 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
         countLabel={t('today.needs.count', { count })}
       />
       {failed && !loaded && <p className={s.failed}>{t('today.failed', { message: failed })}</p>}
+      {/* One-shot C3 task 12: nothing for the first 150 ms, then the cards' shapes; no "Loading" word and no jump. */}
+      <LoadingPlace shape="cards" loading={!loaded && !failed} />
       {waiting.length > 0 && (
         <FilterChips label={t('today.filter.label')} options={options(t, waiting, filter, sinceIds)} value={filter} onChange={onFilter} scroll={phone} className={s.chips} />
       )}
@@ -130,7 +147,7 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
       {tool === 'sort' && <TriageBox onClose={() => setTool(null)} />}
 
       {shown.length > 0 && (
-        <div className={s.cards}>
+        <div className={s.cards} data-stagger={stagger ? '' : undefined} data-arrivals={arrivals ? '' : undefined}>
           {/* W4 4J19: a needs-you probe's notice (4G2) is always a compact card. */}
           {shown.map((item, index) => <Fragment key={item.row.id}>{card(item, index < BIG_CARDS && !item.row.notice ? 'card' : 'compact')}</Fragment>)}
         </div>

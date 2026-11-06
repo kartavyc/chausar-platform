@@ -17,6 +17,7 @@ import { refusalWords } from '../../parts/custody';
 // W4 4J19: the order's stage steps and what waits on the owner.
 import { OrderSteps } from './OrderSteps';
 import s from './Work.module.css';
+import { useFlip } from '../../parts/flip';
 
 /** One plain sentence for where an order stands (CogSend wording). */
 export function orderSentence(view: OrderView, t: T): string {
@@ -107,7 +108,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
 
   return (
     <li
-      className={s.order} data-card="" data-row="" data-row-id={`order-${order.id}`} data-second-ask={action === 'deliver' ? '' : undefined}
+      className={s.order} data-card="" data-row="" data-flip-id={order.id} data-row-id={`order-${order.id}`} data-second-ask={action === 'deliver' ? '' : undefined}
       tabIndex={-1} aria-labelledby={titleId}
     >
       <div className={s.orderTop}>
@@ -183,6 +184,8 @@ interface ClientOrdersProps {
  *  what they owe with its receipt; then each of their orders as a card. */
 function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged }: ClientOrdersProps) {
   const t = useT();
+  // One-shot C3 task 13: an order that moves within its client's list slides to its new place.
+  const cards = useFlip<HTMLUListElement>(views.map((view) => view.order.id).join(' '));
   const day = useDay();
   const nameId = useId();
   const name = client?.name ?? (clientsRead ? t('work.order.client') : '');
@@ -208,7 +211,7 @@ function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged 
           </div>
         )}
       </header>
-      <ul className={cx(s.orderCards, wide && s.orderCardsTwo)}>
+      <ul ref={cards} className={cx(s.orderCards, wide && s.orderCardsTwo)}>
         {views.map((view) => <OrderCard key={view.order.id} view={view} canOpen={!!view.run && runIds.has(view.run.id)} onChanged={onChanged} />)}
       </ul>
     </Tile>

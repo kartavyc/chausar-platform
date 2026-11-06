@@ -344,3 +344,10 @@
 .compact > .acts > button {
   min-width: fit-content;
 }
+
+/* One-shot C3 task 13: a decided card leaves over the exit time, a fade and a small slip, into its decided line. */
+[data-row][data-leaving] {
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit);
+}

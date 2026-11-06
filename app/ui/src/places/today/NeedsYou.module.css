@@ -170,3 +170,23 @@
   background: var(--wash);
   color: var(--fg);
 }
+
+/* One-shot C3 task 13: the first cards of a session come in top to bottom, once, with a --t-stagger step for the first
+   five; after that a card new to the list rises in alone. Nothing here at a later visit. */
+.cards[data-stagger] > [data-row],
+.cards[data-arrivals] > [data-row] {
+  transition: opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease);
+}
+
+@starting-style {
+  .cards[data-stagger] > [data-row],
+  .cards[data-arrivals] > [data-row] {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.cards[data-stagger] > [data-row]:nth-child(2) { transition-delay: var(--t-stagger); }
+.cards[data-stagger] > [data-row]:nth-child(3) { transition-delay: calc(var(--t-stagger) * 2); }
+.cards[data-stagger] > [data-row]:nth-child(4) { transition-delay: calc(var(--t-stagger) * 3); }
+.cards[data-stagger] > [data-row]:nth-child(5) { transition-delay: calc(var(--t-stagger) * 4); }
