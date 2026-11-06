@@ -83,7 +83,10 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
   }
 
   /** D12 replaces this with the automatic rollback (its attach point 3). */
-  function failedBoot(input) {
+  async function failedBoot(asked) {
+    // A kept release is checked again before it's offered: one that changed on disk is not one to promise.
+    const kept = asked.previous ? await readPrevious() : null;
+    const input = { ...asked, previous: kept && await updates.verifyStaged(kept, keys.publicKey, platform) ? asked.previous : null };
     return updates.onFailedBoot(input, {
       note: async line => { note(line); },
       show: words => {

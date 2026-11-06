@@ -76,6 +76,53 @@ test('at the start: the boot marker is written, old private copies go, and ready
   assert.equal((await readdir(folder)).includes('boot.json'), false);
 });
 
+// The updater wiring (LANE2-C review 2 and fix round 3): an installer copy still in use stays; a kept release is never trusted
+// as it lies on disk.
+test('at the start: an old copy still in use stays until a later start, and the start goes on', async t => {
+  const { folder, stage } = await setup(t);
+  await writeFile(join(stage, 'chausar-update-00000000000000aa.exe'), 'running');
+  await writeFile(join(stage, 'chausar-update-00000000000000bb.exe'), 'finished');
+  const fsp = require('node:fs/promises');
+  const wiring = createUpdateWiring({
+    metadata: { chausarUpdatePublicKey: publicKey }, userData: join(folder, '..'), packaged: true, version: '0.1.0', platform: 'win32', appImage: null, updates: realUpdates, engine: () => null, dialog: {}, shell: {},
+    fs: { ...fsp, unlink: async (path: string) => { if (path.endsWith('aa.exe')) throw Object.assign(new Error('in use'), { code: 'EBUSY' }); return fsp.unlink(path); } },
+  });
+  await wiring.beforeStart();
+  const names = await readdir(stage);
+  assert.equal(names.includes('chausar-update-00000000000000aa.exe'), true, 'the one running stays');
+  assert.equal(names.includes('chausar-update-00000000000000bb.exe'), false);
+  assert.equal(JSON.parse(await readFile(join(folder, 'boot.json'), 'utf8')).attempts, 1, 'the start went on');
+});
+
+test('a kept release that no longer checks out is never offered or shown: a changed byte, or a changed signature', async t => {
+  const old = manifestFor('win32', Buffer.from('the release before'));
+  for (const spoil of ['installer', 'signature'] as const) {
+    const { wiring, boxes, shown, folder, lines } = await setup(t);
+    const previous = join(folder, 'previous');
+    await mkdir(previous, { recursive: true });
+    await writeFile(join(previous, 'manifest.json'), JSON.stringify(old));
+    await writeFile(join(previous, 'signature'), spoil === 'signature' ? `${'A'.repeat(86)}\n` : `${signatureOf(old)}\n`);
+    await writeFile(join(previous, 'installer'), spoil === 'installer' ? 'the release befor!' : 'the release before');
+    for (let count = 0; count < 3; count += 1) await wiring.beforeStart();
+    await wiring.settled();
+    assert.deepEqual(shown, [], spoil);
+    assert.equal(boxes[0].message, "This version didn't start.", spoil);
+    assert.deepEqual(boxes[0].buttons, ['OK'], spoil);
+    assert.equal(lines.some(line => line.op === 'failed-boot' && line.previous === null), true, spoil);
+    await assert.rejects(wiring.showInstaller('previous'), (error: any) => error.code === 'UPDATE_NOT_VERIFIED', spoil);
+  }
+});
+
+test('nothing else in the desktop app reads the kept releases', async () => {
+  const { readdir: list, readFile: read } = await import('node:fs/promises');
+  const folder = new URL('../../app/desktop/', import.meta.url);
+  for (const name of (await list(folder)).filter(file => file.endsWith('.cjs'))) {
+    if (['updates.cjs', 'update-wiring.cjs', 'rollback.cjs'].includes(name)) continue;
+    const text = await read(new URL(name, folder), 'utf8');
+    assert.ok(!text.includes("'previous'") && !text.includes("'installed'"), name);
+  }
+});
+
 test('a start that never reached paint counts; the third calls the hook once with the plain words', async t => {
   const { wiring, boxes, lines, shown, folder } = await setup(t);
   await wiring.beforeStart(); await wiring.beforeStart(); await wiring.beforeStart();
