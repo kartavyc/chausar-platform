@@ -34,6 +34,10 @@ export default defineConfig({
     modulePreload: { polyfill: false },
     sourcemap: false,
     target: 'es2022',
+    // Vite 8's installed Rolldown calls this codeSplitting (advancedChunks/manualChunks are deprecated).
+    rolldownOptions: { output: { codeSplitting: { groups: [
+      { name: 'react-vendor', test: /[\\/]node_modules[\\/](?:react|react-dom|scheduler)[\\/]/ },
+    ] } } },
   },
   server: { port: 5178 },
   // Prebundle the icon set up front, so a fresh dev server does not reload the page on its first visit.
