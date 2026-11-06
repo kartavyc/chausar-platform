@@ -7,6 +7,7 @@
     "platform/tests/investigation-job-http.test.ts",
     "platform/tests/phone-host-http.test.ts",
     "platform/tests/private-trial-public-flow.test.ts",
+    "platform/tests/vault-commit-budget-d11.test.ts",
     "platform/tests/venture-ca-tools.test.ts",
     "platform/tests/venture-network-search.test.ts",
     "platform/tests/venture-social-run.test.ts",
