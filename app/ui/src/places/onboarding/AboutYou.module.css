@@ -276,3 +276,10 @@
 [data-motion='none'] .slide {
   animation: none;
 }
+
+/* C5 task 6: says the words are the owner's AI's, above them. */
+.byAi {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--mute);
+}

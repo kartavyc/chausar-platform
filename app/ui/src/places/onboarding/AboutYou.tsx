@@ -13,7 +13,7 @@ import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
 
 type Mode = 'a' | 'b' | 'plan';
-type Bubble = { who: 'me' | 'them'; text: string };
+type Bubble = { who: 'me' | 'them'; text: string; byAi?: boolean };
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
 export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -87,14 +87,15 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   }, [client]);
 
   function answerWords(next: AboutReadLite): string {
-    const lines = [!next.family ? t('first-run.about.replyNoFamily') : t(next.source === 'keywords' ? 'first-run.about.replyKeywords' : 'first-run.about.reply', { family: next.family.label })];
+    // C5 task 6: the AI's own short reply when it gave one (core/about.ts kept it), else the fixed line.
+    const lines = [next.reply ?? (!next.family ? t('first-run.about.replyNoFamily') : t(next.source === 'keywords' ? 'first-run.about.replyKeywords' : 'first-run.about.reply', { family: next.family.label }))];
     if (next.file && !next.file.included && next.file.line) lines.push(next.file.line);
     return lines.join('\n');
   }
 
   function took(next: AboutReadLite) {
     setRead(next);
-    setThread((was) => [...was, { who: 'them', text: answerWords(next) }]);
+    setThread((was) => [...was, { who: 'them', text: answerWords(next), ...(next.reply ? { byAi: true } : {}) }]);
     if (next.country && next.country.code !== countryCode && !picked.current) setCountryAsk(next.country);
     void nameFor(next, countryCode);
   }
@@ -316,7 +317,10 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
               <Button variant="quiet" onClick={() => setMode('a')}>{t('first-run.about.back')}</Button>
             </div>
             {thread.map((bubble, index) => (
-              <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' ? '' : undefined}>{bubble.text}</p>
+              <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' || bubble.byAi ? '' : undefined} data-by={bubble.byAi ? 'ai' : undefined}>
+                {bubble.byAi && <span className={s.byAi}>{t('first-run.about.byAi')}</span>}
+                <span>{bubble.text}</span>
+              </p>
             ))}
             {busy && <p className={`${s.bubble} ${s.them}`} role="status">{t('first-run.about.reading')}</p>}
             {countryAsk && (

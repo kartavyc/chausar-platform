@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FAMILIES, FAMILY_IDS } from '../runtime/venture/core/families.ts';
 import { familyIdea, keywordFamily } from '../runtime/venture/core/family-plan.ts';
-import { aboutTask, linkedinProfileText } from '../runtime/venture/core/about.ts';
+import { aboutTask, keptReply, linkedinProfileText } from '../runtime/venture/core/about.ts';
 import { PROFESSIONS } from '../runtime/venture/core/professions.ts';
 import { businessNeeds } from '../runtime/venture/core/needs.ts';
 import { classifyIdea } from '../runtime/venture/core/service-types.ts';
@@ -302,4 +302,30 @@ test('A5: an alias in place of a listed profession id is no pick', () => {
   const answer = { familyId: 'local-services', professionId: 'home-chef', offers: [{ name: 'Tiffin plans', line: 'Lunch for office workers' }], countryCode: null, evidence: null };
   assert.equal(task.validate(answer).professionId, null);
   assert.equal(task.validate({ ...answer, professionId: 'home-chef-tiffin' }).professionId, 'home-chef-tiffin');
+});
+
+// C5 task 6: the AI's first reply after About you. Kept when it is at most two sentences of plain words; one holding a
+// digit (a figure would need a "model estimate" label) is dropped, as is a third sentence; no AI keeps no reply.
+test('the About you reply: a plain reply is kept, one with a figure or too long is dropped, the read still stands', () => {
+  const task = aboutTask({ text: CA, file: null });
+  const good = { familyId: 'money-tax', professionId: 'chartered-accountant', offers: [{ name: 'Monthly books', line: 'Bank matching and bills' }], countryCode: 'IN', evidence: 'near me in India' };
+  assert.deepEqual(task.validate({ ...good, reply: 'You keep books for small shops. I set up monthly books and GST returns for you.' }),
+    { ...good, reply: 'You keep books for small shops. I set up monthly books and GST returns for you.' });
+  assert.deepEqual(task.validate({ ...good, reply: 'I set up 3 offers at Rs 500.' }), good);
+  assert.deepEqual(task.validate({ ...good, reply: 'One. Two sentences here. And a third one.' }), good);
+  assert.deepEqual(task.validate({ ...good, reply: null }), good);
+  assert.deepEqual(keptReply('Read more at https://example.com today.'), null);
+  assert.ok(task.schema && JSON.stringify(task.schema).includes('"reply"'));
+});
+
+test('about.read through the AI carries its kept reply; without an AI there is none', async t => {
+  const answer = { familyId: 'money-tax', offers: [{ name: 'Monthly books', line: 'Bank matching, bills and a short report' }], countryCode: 'IN', evidence: 'near me in India', reply: 'You run a bookkeeping practice. I suggested monthly books to start.' };
+  const { engine } = await engineFor(t, { responses: [anthropicEntry('decide', answer, [CA, 'familyId', 'untrusted'])] });
+  await connectPair(engine);
+  const read = await engine.request('venture.about.read', { text: CA }) as any;
+  assert.equal(read.reply, 'You run a bookkeeping practice. I suggested monthly books to start.');
+  const plain = await engineFor(t, {});
+  const keywords = await plain.engine.request('venture.about.read', { text: CA }) as any;
+  assert.equal(keywords.source, 'keywords');
+  assert.equal(keywords.reply, undefined);
 });
