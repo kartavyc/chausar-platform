@@ -15,7 +15,7 @@ import type {
   BlueprintRecord, ConnectorPostRecord, DeliveryRunRecord, Display, EvidenceRecord, InvoiceRecord, IsoTime, ProposalRecord, QueueAmount,
   QueueCount, QueueRow, QueueRowMeta, QueueSendsTo, RoutineRunRecord, SpendQuoteRecord, VentureRecord,
 } from '../contracts.ts';
-import { ROUTINE_ANSWER_MS } from '../contracts.ts';
+import { ROUTINE_ANSWER_MS } from '../contract-values.ts';
 import { localDayAt } from '../local-day.ts';
 import { QUOTE_TTL_MS } from '../money/quote.ts';
 import { latestBlueprint } from '../money/shared.ts';

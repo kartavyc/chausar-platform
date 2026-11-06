@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import type {
   ModelPort, ModelTask, OpportunityRecord, OutreachRecord, OutreachView, PersonRecord, PipelineCardView, QueueDecision, QueueList, VentureDeps,
 } from '../runtime/venture/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as agentHandlers } from '../runtime/venture/agents/index.ts';

@@ -4,7 +4,8 @@
 // also holds Keeper, the engine's own jobs run as code (views/keeper.ts). Which role a harness turn worked for is
 // decided here by code from the tools it called, never guessed: a turn no single role can claim is the team's.
 import { ChausarError } from '../../contracts.ts';
-import { DEPARTMENT_IDS, type AgentTurnRecord, type DepartmentId, type PlaybookStep, type ServiceType } from '../contracts.ts';
+import { DEPARTMENT_IDS } from '../contract-values.ts';
+import type { AgentTurnRecord, DepartmentId, PlaybookStep, ServiceType } from '../contracts.ts';
 import { CA_FIRM_ID } from './ca-firm/registration.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';

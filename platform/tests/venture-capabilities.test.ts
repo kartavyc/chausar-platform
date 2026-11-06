@@ -8,7 +8,8 @@
 // never means everything. Read only; no model is asked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STEP_PLAN, TOOL_NAMES, type CapabilityPageView, type PlaybookStep } from '../runtime/venture/contracts.ts';
+import { STEP_PLAN, TOOL_NAMES } from '../runtime/venture/contract-values.ts';
+import type { CapabilityPageView, PlaybookStep } from '../runtime/venture/contracts.ts';
 import { EFFECT_KINDS } from '../runtime/venture/policy/effects.ts';
 import { hostRefusal } from '../runtime/venture/delivery/harness/tools.ts';
 import { playbookGrant } from '../runtime/venture/delivery/harness/loop.ts';

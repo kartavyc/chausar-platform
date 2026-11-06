@@ -94,7 +94,7 @@ test('desktop retains legacy source requests and refuses invented connector or j
 });
 
 test('desktop forwards the nine onboarding draft methods, right after venture.preview, in the contract order', async () => {
-  const { DRAFT_METHODS } = await import('../runtime/venture/contracts.ts');
+  const { DRAFT_METHODS } = await import("../runtime/venture/contract-values.ts");
   const at = METHODS.indexOf('venture.preview');
   assert.deepEqual(METHODS.slice(at + 1, at + 1 + DRAFT_METHODS.length), [...DRAFT_METHODS]);
   const declared = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');

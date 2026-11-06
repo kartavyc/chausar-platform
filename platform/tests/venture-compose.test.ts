@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { ChausarError, initialState } from '../runtime/contracts.ts';
-import { DRAFT_METHODS, PRE_VAULT_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS } from '../runtime/venture/contract-values.ts';
 import type { BlueprintView, ModelCallRecord, ModelPreset, ModelStatusView, VentureView } from '../runtime/venture/contracts.ts';
 import {
   AI_HALF_CONNECTED_WORDS, AI_OPTION_IDS, AI_OPTION_WORDS, AI_STATUS_CHIPS, AI_UNCHECKED_LINE, APPROVAL_BLOCK_IDS, COMPOSE_REFUSED_WORDS,

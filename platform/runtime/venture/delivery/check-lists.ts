@@ -1,7 +1,7 @@
 // Chausar venture launcher, delivery package (P5): the check lists a playbook's writing and checking steps run. Kept
 // apart from playbook.ts so the flagship playbooks (venture/playbooks/<id>/) can name them without loading the delivery
 // package, which loads the flagship steps in turn (playbooks/steps.ts).
-import { CHECK_IDS } from '../contracts.ts';
+import { CHECK_IDS } from '../contract-values.ts';
 import type { CheckId } from '../contracts.ts';
 
 /**

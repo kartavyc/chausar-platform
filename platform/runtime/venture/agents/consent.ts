@@ -6,7 +6,7 @@ import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // row 11). With templates only nothing is sent, so none is asked.
 // A chat call carries client data: it goes by deps.models.preview and runPreview under this consent, never generate.
 import { check, type Context, type State, internalCheck } from '../../contracts.ts';
-import { PURPOSE_TIER } from '../contracts.ts';
+import { PURPOSE_TIER } from '../contract-values.ts';
 import type { ChatConsentRecord, ChatConsentView, ModelPresetId, ModelStatusView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { digest, exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { PRESETS } from '../models/presets.ts';
