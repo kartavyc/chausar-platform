@@ -47,6 +47,7 @@ export function CardSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     <Sheet
       label={t('clients.pipeline.card.sheet')}
       title={title}
+      loading={!board.data && !board.error}
       name={card?.name}
       line={card?.company ?? undefined}
       avatar={card ? <Avatar name={card.name} size={40} /> : undefined}

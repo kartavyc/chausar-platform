@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react';
 import { useT } from '../text';
 import { Icon } from './Icon';
-import { LoadingPlace } from './Skeleton';
+import { LoadingPlace, useArrived } from './Skeleton';
 import s from './Sheet.module.css';
 
 /**
@@ -59,6 +59,7 @@ export function Sheet({ label, eyebrow, title, line, headerActions, onClose, ret
   restore.current = returnFocus;
   const reportTitle = useContext(SheetTitleContext);
   const motion = useContext(SheetMotionContext);
+  const arrived = useArrived(Boolean(loading));
 
   useEffect(() => {
     reportTitle?.(titleId);
@@ -95,7 +96,7 @@ export function Sheet({ label, eyebrow, title, line, headerActions, onClose, ret
           <Icon name="x" size={18} />
         </button>
       </header>
-      <div className={s.body}>{children}{loading && <LoadingPlace shape="sheet" />}</div>
+      <div className={s.body} data-arrived={arrived ? '' : undefined}>{loading ? <LoadingPlace shape="sheet" /> : children}</div>
       {footer && <div className={s.footer}>{footer}</div>}
     </aside>
   );

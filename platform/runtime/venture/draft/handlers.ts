@@ -229,7 +229,10 @@ export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload:
   'venture.compose.get': composeGet,
   'venture.compose.update': composeUpdate,
   // Wave 6 (6C1): each tool's own sign-in; (6C2) About you.
-  'venture.ai.tools': (desk, payload) => { exactPayload(payload, []); return desk.login().tools(); },
+  'venture.ai.tools': (desk, payload) => {
+    const body = exactPayload(payload, ['cli']);
+    return desk.login().tools(body.cli === undefined ? undefined : loginCli(body));
+  },
   'venture.ai.login.start': (desk, payload) => desk.login().start(loginCli(payload)),
   'venture.ai.login.cancel': (desk, payload) => desk.login().cancel(loginCli(payload)),
   'venture.about.read': (desk, payload) => aboutRead(desk.deps, DESK_CONTEXT, payload),

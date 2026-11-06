@@ -142,6 +142,26 @@
   transform: rotate(-1.2deg);
 }
 
+.frame[data-plain][data-preview='paper'],
+.frame[data-plain][data-preview='text'] {
+  background: var(--inner);
+}
+
+.frame[data-plain] .paper {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.frame[data-plain] .sectionLine {
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
 /* A view's text keeps the frame's height and fades out at the foot rather than cutting a line in half; Read opens
    all of it. The mask only takes the colour's opacity. */
 .paper[data-sheet] {

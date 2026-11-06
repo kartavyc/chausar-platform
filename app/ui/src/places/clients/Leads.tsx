@@ -98,6 +98,7 @@ function ExistingLeadSheet({ id, onClose, returnFocus }: SheetComponentProps) {
     <Sheet
       label={t('clients.leads.sheet')}
       title={title}
+      loading={!leads.data && !leads.error}
       line={lead?.company ?? undefined}
       avatar={lead ? <Avatar name={lead.name} size={40} /> : undefined}
       onClose={onClose}

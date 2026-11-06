@@ -30,12 +30,12 @@ describe('Today w4: the team at work by department', () => {
     expect(dept(/^Keeper/)).toBe('ops');
     expect(within(stories).getByRole('button', { name: /^Editor/ }).querySelector('[data-badge]')).toBeNull();
 
-    await waitFor(() => expect(within(team).getAllByRole('article')).toHaveLength(3));
-    const [editor, researcher, producer] = within(team).getAllByRole('article');
+    await waitFor(() => expect(within(team).getAllByRole('article')).toHaveLength(2));
+    const [editor, researcher] = within(team).getAllByRole('article');
     expect(editor!.querySelector('[data-tile-dept]')?.textContent).toBe('Production');
     expect(editor!.querySelector('[data-tile-dept]')?.getAttribute('data-dept')).toBe('prod');
     expect(researcher!.querySelector('[data-tile-dept]')?.textContent).toBe('Marketing');
-    expect(producer!.querySelector('[data-tile-dept]')?.textContent).toBe('Sales and clients');
+    expect(within(team).getAllByRole('article').some(tile => tile.textContent?.includes('Producer'))).toBe(false);
     expect(editor!.querySelector('[aria-hidden="true"][data-dept="prod"]')).not.toBeNull();
 
     const add = within(stories).getByRole('button', { name: 'Add agent' });

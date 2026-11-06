@@ -17,7 +17,7 @@ import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
 import { LoadingPlace } from '../../parts/Skeleton';
-import { Progress } from '../../parts/Progress';
+import { Progress, useWaitLabel } from '../../parts/Progress';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -167,6 +167,8 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
   const client = useEngine();
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState(false);
+  const [making, setMaking] = useState(false);
+  const makeLabel = useWaitLabel(t('business.moveMaking'), making);
   const [problem, setProblem] = useState<string | null>(null);
   const [made, setMade] = useState<MoveFile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -179,6 +181,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
     const typed = passphrase;
     setPassphrase('');
     setBusy(true);
+    setMaking(true);
     setProblem(null);
     try {
       setMade(await client.request('workspace.transfer.export', locked ? { passphrase: typed } : {}) as MoveFile);
@@ -187,6 +190,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
       setProblem(failed(t, error));
     } finally {
       setBusy(false);
+      setMaking(false);
     }
   }
 
@@ -261,7 +265,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, 
             </>
           )}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
+          <div className={s.buttons}><Button type="submit" disabled={busy} aria-busy={making || undefined}><span>{making ? makeLabel : t('business.moveMake')}</span></Button></div>
         </form>
       ))}
     </Fold>
@@ -313,6 +317,7 @@ export function ExportCopy() {
   const [readable, setReadable] = useState(false);
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyLabel = useWaitLabel(t('business.exporting'), busy);
   const [problem, setProblem] = useState<string | null>(null);
   // C4 task 36 (206.x1): the file's name only, never a path; id: the desktop's Show in folder for a copy it saved.
   const [saved, setSaved] = useState<{ name: string; encrypted: boolean; id?: string } | null>(null);
@@ -366,7 +371,7 @@ export function ExportCopy() {
           </>
         ) : <p className={s.note}>{t('business.exportEncryptedLine')}</p>}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button type="submit" disabled={busy} disabledReason={readable && !sure ? t('business.exportTick') : undefined}>{t('business.export')}</Button></div>
+        <div className={s.buttons}><Button type="submit" disabled={busy} aria-busy={busy || undefined} disabledReason={readable && !sure ? t('business.exportTick') : undefined}><span>{busy ? busyLabel : t('business.export')}</span></Button></div>
         {saved && (
           <div role="status">
             <p className={s.said}>
@@ -404,6 +409,7 @@ export function DeleteBusiness({ onDeleted, counts }: { onDeleted: (result: Dele
   const status = useResource('workspace.status', {});
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyLabel = useWaitLabel(t('business.deleting'), busy);
   const [problem, setProblem] = useState<string | null>(null);
   const name = status.data?.workspace?.name ?? null;
   // "Export a copy first": opens the export fold above, where the owner picks where it goes.
@@ -446,7 +452,7 @@ export function DeleteBusiness({ onDeleted, counts }: { onDeleted: (result: Dele
           <p className={s.warn}>{t('business.deleteCant')}</p>
           <Field label={t('business.deleteType', { name })} value={typed} autoComplete="off" spellCheck={false} onChange={(event) => setTyped(event.currentTarget.value)} />
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}>{t('business.delete')}</Button></div>
+          <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} aria-busy={busy || undefined} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}><span>{busy ? busyLabel : t('business.delete')}</span></Button></div>
         </form>
       )}
     </Fold>

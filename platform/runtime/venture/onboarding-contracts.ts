@@ -355,7 +355,7 @@ export type OnboardingPayloads = {
   'venture.compose.fill': { composeId: string };
   'venture.compose.get': Record<string, never>;
   'venture.compose.update': { composeId: string; patch: ComposePatch };
-  'venture.ai.tools': Record<string, never>;
+  'venture.ai.tools': { cli?: ToolView['cli'] | undefined };
   'venture.ai.login.start': { cli: 'codex' | 'claude-code' };
   'venture.ai.login.cancel': { cli: 'codex' | 'claude-code' };
   'venture.about.read': { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } };

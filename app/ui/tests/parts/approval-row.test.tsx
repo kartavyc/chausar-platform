@@ -99,7 +99,7 @@ describe('ApprovalRow', () => {
     render(<ClockProvider now={() => new Date('2026-10-21T09:00:00Z')}><ApprovalRow row={draft} onDecide={vi.fn()} layout="card" /></ClockProvider>);
     const approve = screen.getByRole('button', { name: 'Approve' });
     expect(document.querySelector('[data-note]')).toBeNull();
-    expect(approve.getAttribute('title')).toBe('Approve unlocks after you watch it');
+    expect(approve.getAttribute('title')).toBe('Approve unlocks after you open it');
   });
 
   describe('an answer the engine can take back (B4)', () => {
