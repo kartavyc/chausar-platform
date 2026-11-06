@@ -3,9 +3,10 @@ import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { finishSmoke, packagedInkSmoke } from './packaged-ink-smoke.mjs';
 import { EngineHarness } from '../app/desktop/engine-harness.cjs';
 
-// Headless worker validation: no Electron window, browser, HTTP listener or vault creation.
+// Headless worker validation. Packaged mode also checks real Ink assets through a synthetic loopback phone session.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PROGRAM = Object.freeze({ win32: 'Chausar.exe', linux: 'chausar' });
 
@@ -40,20 +41,22 @@ async function smoke({ packaged, worker, packageJson }) {
   const metadata = JSON.parse(await readFile(packageJson, 'utf8'));
   const directory = await mkdtemp(join(tmpdir(), 'chausar-desktop-smoke-'));
   const engine = new EngineHarness({ workerPath: worker, environment: { ...process.env, CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1', CHAUSAR_UPDATE_PUBLIC_KEY: '' } });
+  let failed;
   try {
     await engine.start();
     const status = await engine.request('workspace.status');
     if (status.open !== false || status.experimental !== true || status.version !== metadata.version) throw new Error('The synthetic worker status is invalid.');
     const stopped = await engine.stop();
     if (!stopped.graceful) throw new Error('The worker did not shut down gracefully.');
-    console.log(JSON.stringify({ ok: true, platform: process.platform, architecture: process.arch, node: process.versions.node, version: status.version, worker: 'synthetic-only', ...(packaged ? { packaged } : {}), gui: 'not-executed', gracefulShutdown: true }));
-  } finally {
-    await engine.stop();
-    await rm(directory, { recursive: true, force: true });
+    const ink = packaged ? await packagedInkSmoke({ packaged, worker, metadata }) : undefined;
+    console.log(JSON.stringify({ ...(ink ? { ink } : {}), ok: true, platform: process.platform, architecture: process.arch, node: process.versions.node, version: status.version, worker: 'synthetic-only', ...(packaged ? { packaged } : {}), gui: 'not-executed', gracefulShutdown: true }));
+  } catch (error) { failed = error; throw error; }
+  finally {
+    await finishSmoke([() => engine.stop(), () => rm(directory, { recursive: true, force: true })], failed);
   }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { await smoke(parseSmokeArguments(process.argv.slice(2))); }
-  catch (error) { console.error(error.message); process.exitCode = 1; }
+  catch (error) { console.error(error.stack ?? error.message); process.exitCode = 1; }
 }
