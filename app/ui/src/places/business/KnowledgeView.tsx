@@ -16,6 +16,7 @@ import { AddFact, FactRow } from '../clients/FactsSection';
 import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Fold } from '../../parts/Fold';
+import { useChanged } from '../../parts/useChanged';
 
 type Kind = KnowledgeSourceInput['kind'] | 'fact';
 const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work', 'fact'];
@@ -242,6 +243,7 @@ function TestQuestion() {
   const listId = useId();
   const [question, setQuestion] = useState('');
   const [tested, setTested] = useState<Tested>(null);
+  const changed = useChanged(tested);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -277,7 +279,7 @@ function TestQuestion() {
               <p id={listId} className="sr-only">{t('business.knowledge.hits')}</p>
               <ul className={s.hits} aria-labelledby={listId}>
                 {tested.hits.map((hit) => (
-                  <li key={hit.sourceId} className={s.hit}>
+                  <li key={hit.sourceId} className={s.hit} data-changed={changed}>
                     <span className={s.title} data-content="">{hit.title}</span>
                     <span className={s.sourceLine} data-content="">{hit.line}</span>
                   </li>
