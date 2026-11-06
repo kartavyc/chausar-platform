@@ -41,6 +41,8 @@
   "business.kind.licensed": "Licensed practice",
   "business.kind.other": "Service business",
   "status.offline": "Chausar isn't answering. Nothing here is live until it's back.",
+  "shell.pair.title": "Pair this browser",
+  "shell.pair.how": "Open Chausar on your computer and make a pairing link in Settings, Notifications, Phone access.",
   "status.sessionEnded": "This browser's session ended. Open the link from your Chausar app to connect again.",
   "status.unpaired": "This browser isn't paired yet. Open the link from your Chausar app.",
   "status.starting": "Chausar is starting.",
