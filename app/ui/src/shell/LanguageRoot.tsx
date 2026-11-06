@@ -1,7 +1,8 @@
 /**
  * The owner's language (C5 task 36): one preference on this computer (app.preferences.*), read once the engine answers
  * and set from the Language row or Welcome back's link. The computer's language never decides. While a language loads,
- * the words already on screen stay. Hosted has no such preference yet, so it stays in English with no row or link.
+ * the words already on screen stay. The phone and the paired browser read the same preference but only the computer's
+ * own app changes it (the server keeps the set to the local owner). Hosted has none yet: English, with no row or link.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -12,7 +13,8 @@ import { setDateLanguage } from '../parts/when';
 export function LanguageRoot({ language: first, children }: { language: Language; children: ReactNode }) {
   const client = useEngine();
   const ready = useEngineStatus().state === 'ok';
-  const available = client.transport !== 'hosted';
+  const reads = client.transport !== 'hosted';
+  const available = client.transport === 'desktop' || client.transport === 'fake';
   const [language, setLanguage] = useState<Language>(first);
   const asked = useRef(false);
 
@@ -24,11 +26,11 @@ export function LanguageRoot({ language: first, children }: { language: Language
   }, []);
 
   useEffect(() => {
-    if (!ready || !available || asked.current) return;
+    if (!ready || !reads || asked.current) return;
     asked.current = true;
     // An engine that can't answer leaves the words as they are.
     client.request('app.preferences.get', {}).then((preference) => apply(preference.language)).catch(() => {});
-  }, [ready, available, client, apply]);
+  }, [ready, reads, client, apply]);
 
   const choose = useCallback(async (next: Language) => {
     await client.request('app.preferences.set', { language: next });

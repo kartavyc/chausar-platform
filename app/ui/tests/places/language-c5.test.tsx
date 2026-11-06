@@ -64,6 +64,16 @@ describe('the language preference', () => {
     expect(screen.queryByRole('region', { name: 'Language' })).toBeNull();
   });
 
+  it('a phone or paired browser reads the preference, with no row: only the computer changes it', async () => {
+    const engine = new FakeEngine();
+    await engine.request('app.preferences.set', { language: 'hi' });
+    const { calls } = start('#/business/owner', engine, (client) => { (client as { transport: string }).transport = 'web'; });
+    await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
+    expect(calls.some((call) => call.method === 'app.preferences.get')).toBe(true);
+    await screen.findByRole('heading', { name: '\u0906\u092a\u0915\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902' });
+    expect(screen.queryByRole('region', { name: '\u092d\u093e\u0937\u093e' })).toBeNull();
+  });
+
   it('never picks from the computer', () => {
     expect(pickLanguage(['hi-IN', 'hi'])).toBe('en');
     vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['hi-IN']);

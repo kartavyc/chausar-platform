@@ -100,7 +100,7 @@ export class Browser {
   }
 
   /** The computer's languages as the page reads them (navigator.languages, Accept-Language), for pages loaded after
-   *  this: the app picks Hindi from them itself (main.tsx, pickLanguage), as it would on a computer set to Hindi. */
+   *  this. The app never picks a language from them (C5 task 36): the owner does, in Settings or on Welcome back. */
   async languages(list) {
     if (!this.userAgent) this.userAgent = (await this.send('Browser.getVersion')).userAgent;
     await this.send('Emulation.setUserAgentOverride', { userAgent: this.userAgent, acceptLanguage: list });

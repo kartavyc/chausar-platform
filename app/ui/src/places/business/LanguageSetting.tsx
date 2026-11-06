@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLanguageChoice, useT, type Language } from '../../text';
 import { TileSection, messageOf } from './shared';
 import b from './Business.module.css';
+import p from './ProfessionSetting.module.css';
 
 /**
  * Language (C5 task 36): the owner's own pick, for the whole app on this computer. It says plainly the Hindi is
@@ -30,7 +31,7 @@ export function LanguageSetting() {
     <TileSection title={t('common.language.title')}>
       <label className={b.line}>
         <span className="sr-only">{t('common.language.title')}</span>
-        <select value={language} disabled={busy} onChange={(event) => void pick(event.currentTarget.value as Language)}>
+        <select className={p.select} value={language} disabled={busy} onChange={(event) => void pick(event.currentTarget.value as Language)}>
           <option value="en" lang="en">English</option>
           <option value="hi" lang="hi">हिन्दी</option>
         </select>
