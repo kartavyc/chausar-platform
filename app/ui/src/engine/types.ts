@@ -709,6 +709,8 @@ export interface MiniAppCard { id: string; name: string; version: number; summar
 /** One app, opened (apps/apps.ts appView): its frame document, versions, permission screen (ask) and the tools that answer now. */
 export interface MiniAppView extends MiniAppCard {
   uri: string; document: string;
+  /** C4 task 29: the app reads the business, and every read it may make has nothing to show now. */
+  empty: boolean;
   versions: { version: number; at: string; summary: Display; current: boolean }[];
   permissions: { id: AppPermission; verb: 'Read' | 'Keep' | 'Use' | 'Propose'; line: Display }[];
   grant: { permissions: AppPermission[]; at: string } | null;
@@ -1002,7 +1004,7 @@ export interface ScenarioLite { id: string; serviceType: ServiceType; title: str
  * engine names it (a check id, a judge question or a sentence); the checks hold each check's own words.
  * costDisplay is the engine's text, marked when it is an estimate.
  */
-export interface EpisodeLite { scenarioId: string; index: number; passed: boolean; firstFailure: string | null; checks: CheckLite[]; playbookChecks?: PlaybookCheckLite[] }
+export interface EpisodeLite { scenarioId: string; index: number; passed: boolean; firstFailure: string | null; checks: CheckLite[]; playbookChecks?: PlaybookCheckLite[]; /** C4 task 17: the practice draft's text, as the engine's Episode keeps it. */ renderedText?: string | null }
 export interface SimulationRunLite {
   id: string; at: string; playbookId: string; scenarioIds: string[]; episodes: EpisodeLite[]; passed: boolean;
   summary: { scenarios: number; passed: number; failed: number }; costDisplay: Display; modelMode: 'model' | 'template' | 'mixed';
@@ -1550,7 +1552,9 @@ export interface FlowView {
   months: { month: string; label: Display; in: KindedFigure | null; out: KindedFigure | null; left: KindedFigure | null; inPermille: number | null; outPermille: number | null; receiptId: string | null; note: Display | null }[];
   line: Display; basis: TotalBasis;
 }
+/** C4 (T28): flat, why the line stays flat when nothing is due in or out in the window. */
 export interface CashView {
+  flat?: Display;
   bank: (KindedFigure & { on: string }) | null; opening: KindedFigure | null;
   points: { week: string; label: Display; actual: KindedFigure | null; forecast: KindedFigure | null; actualPermille: number | null; forecastPermille: number | null }[];
   /** 4Z2: each only when its lowest week falls below today's cash (opening); null when cash stays at or above it. */
@@ -2230,7 +2234,7 @@ export interface EngineMethods {
   'venture.apps.restore': { params: { app: string; version: number }; result: { app: MiniAppView; undo: { version: number }; line: Display } };
   'venture.apps.pin': { params: { app: string; pinned: boolean }; result: { app: MiniAppView; undo: { pinned: boolean }; line: Display } };
   'venture.apps.export': { params: { app: string }; result: { fileName: string; document: string; mediaType: 'text/html' } };
-  'venture.apps.call': { params: { app: string; tool: string; arguments: Record<string, unknown> }; result: MiniAppCallResult };
+  'venture.apps.call': { params: { app: string; tool: string; arguments: Record<string, unknown>; sample?: true }; result: MiniAppCallResult };
   'venture.apps.remove': { params: { app: string }; result: { removed: true; line: Display } };
   // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
   'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };

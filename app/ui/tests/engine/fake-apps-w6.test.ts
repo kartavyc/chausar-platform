@@ -23,6 +23,18 @@ describe('fake mini apps (6H1)', () => {
     expect(listed.never).toBe(APP_NEVER_LINE);
   });
 
+  // C4 task 29: as the engine (venture-mini-apps-w6.test.ts).
+  it('in sample mode a read answers the sample rows and a write is refused; the owner\'s notes do not change', async () => {
+    const client = fake();
+    const sample = (tool: string, args: Record<string, unknown> = {}) => client.request('venture.apps.call', { app: 'miniapp_sample', tool, arguments: args, sample: true });
+    const clients = (await sample('clients_list')).structuredContent as { clients: { id: string; name: string }[] };
+    expect(clients.clients.map((item) => item.id)).toEqual(['sample_client_1', 'sample_client_2', 'sample_client_3']);
+    await expect(sample('notes_set', { key: 'a', value: 'b' })).rejects.toMatchObject({ code: 'APP_PREVIEW_ONLY', message: 'Not in a preview' });
+    await expect(sample('propose', { kind: 'draft-reminder', invoiceId: 'sample_invoice_1' })).rejects.toMatchObject({ code: 'APP_PREVIEW_ONLY' });
+    expect((await client.request('venture.apps.call', { app: 'miniapp_sample', tool: 'notes_get', arguments: {} })).structuredContent).toEqual({ notes: {} });
+    expect((await client.request('venture.apps.get', { app: 'miniapp_sample' })).app.empty).toBe(false);
+  });
+
   it('make writes a new app that asks first; its document carries the policy and the bridge', async () => {
     const client = fake();
     await expect(client.request('venture.apps.make', { ask: ' ' })).rejects.toMatchObject({ code: 'INVALID_VENTURE_REQUEST' });

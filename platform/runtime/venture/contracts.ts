@@ -3086,6 +3086,8 @@ export interface RunSummary {
   waitingSince?: IsoTime;
   /** One-shot C4 task 12: the client a delivery run worked for (never the own shop), for a link to the client sheet. */
   client?: { id: string; name: string };
+  /** One-shot C4 task 17: on an improvement run, its kept version still waits to be adopted (Work's row links to Use this version). */
+  adoptReady?: true;
 }
 /**
  * screen: one line saying what the untrusted screen noted in the run's outside content, never the words (W1 H9).
@@ -4687,6 +4689,8 @@ export type MiniAppCard = { id: string; name: string; version: number; summary: 
  */
 export type MiniAppView = MiniAppCard & {
   uri: string; document: string;
+  /** C4 task 29: the app reads the business, and every read it may make has nothing to show now. */
+  empty: boolean;
   versions: { version: number; at: IsoTime; summary: Display; current: boolean }[];
   permissions: MiniAppPermissionView[];
   grant: { permissions: AppPermission[]; at: IsoTime } | null;
@@ -5209,6 +5213,8 @@ export interface CashView {
   lowest: { onTime: CashLowest | null; ifLateNeverPay: CashLowest | null };
   /** The weekly usual costs the forecast takes as given (an assumption), with the receipt of the first week that uses it. */
   usualCosts: KindedFigure | null;
+  /** C4 (T28): nothing is due in or out in the window and no usual costs are taken, so the line stays flat: why, in words. */
+  flat?: Display;
   assumptions: Display[];
   nextWeeks: CashItemView[];
   /** 4J20: each draft invoice issued today, the week its money is due in and its total, proved by its price receipt. */
@@ -6531,7 +6537,7 @@ export type VenturePayloads = {
   'venture.apps.list': Empty; 'venture.apps.get': { app: string }; 'venture.apps.make': { ask: string; app?: string };
   'venture.apps.grant': { app: string; digest: string }; 'venture.apps.revoke': { app: string }; 'venture.apps.restore': { app: string; version: number };
   'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
-  'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
+  'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json>; sample?: true }; 'venture.apps.remove': { app: string };
   'venture.layout.get': { place: LayoutPlace };
   'venture.layout.change': LayoutRequest;
   'venture.talk.get': Empty; 'venture.talk.consent': TalkConsentInput; 'venture.talk.setup': TalkSetupInput; 'venture.talk.start': Empty;

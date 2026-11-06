@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import type { ModelTask, SumReceiptRecord } from '../runtime/venture/contracts.ts';
 import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import { METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
-import { listRecords } from '../runtime/venture/records.ts';
+import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { APP_PROTOCOL_VERSION, MINI_FRAME_CSP, OFFLINE_LINE, appCodeFindings, permissionsOf } from '../runtime/venture/apps/frame.ts';
-import { code, phone } from './venture-judge-helpers.ts';
+import { code, owner, phone } from './venture-judge-helpers.ts';
 import { chatConsent, chiefBusiness, type ChiefEnv } from './venture-chief-helpers.ts';
 import { episodeOrder } from './venture-agent-helpers.ts';
 
@@ -49,6 +49,43 @@ async function madeApp(env: ChiefEnv, html = SHEET) {
 }
 
 const call = (env: ChiefEnv, app: string, tool: string, args: Record<string, unknown> = {}) => env.call('venture.apps.call', { app, tool, arguments: args });
+
+// One-shot C4 task 29 (founder decision 3): an app with no data can run on made-up rows, and nothing it does is recorded.
+test('C4: in sample mode a read answers the sample rows, a write or a proposal is refused, and nothing is recorded', async () => {
+  const env = await chiefBusiness();
+  const app = await madeApp(env);
+  await assert.rejects(env.call('venture.apps.call', { app: app.id, tool: 'clients_list', arguments: {}, sample: true }), code('APP_NOT_ALLOWED'), 'before Allow it does not run, sample or not');
+  const granted = await env.call('venture.apps.grant', { app: app.id, digest: app.ask.digest });
+  assert.equal(granted.app.empty, false, 'this business has a client');
+  const sample = (tool: string, args: Record<string, unknown> = {}) => env.call('venture.apps.call', { app: app.id, tool, arguments: args, sample: true });
+  await assert.rejects(env.call('venture.apps.call', { app: app.id, tool: 'clients_list', arguments: {}, sample: false }), code('INVALID_VENTURE_REQUEST'));
+  const before = JSON.stringify(env.store.read().conversations);
+  const clients = (await sample('clients_list')).structuredContent.clients;
+  assert.equal(clients.length, 3);
+  assert.ok(clients.every((item: any) => item.id.startsWith('sample_') && item.name.startsWith('Sample client')), 'made up, and it says so');
+  const invoices = (await sample('invoices_list')).structuredContent.invoices;
+  assert.equal(invoices.length, 3);
+  assert.deepEqual(invoices.map((item: any) => [item.number, item.balance.display, item.balance.receiptId]), [['SAMPLE-001', '₹12,000', null], ['SAMPLE-002', '₹4,500', null], ['SAMPLE-003', '₹0', null]]);
+  assert.deepEqual((await sample('notes_get')).structuredContent, { notes: {} });
+  await assert.rejects(sample('notes_set', { key: 'a', value: 'b' }), (error: any) => error.code === 'APP_PREVIEW_ONLY' && error.message === 'Not in a preview');
+  await assert.rejects(sample('propose', { kind: 'draft-reminder', invoiceId: 'sample_invoice_1' }), (error: any) => error.code === 'APP_PREVIEW_ONLY');
+  await assert.rejects(sample('orders_list'), code('APP_NOT_ALLOWED'), 'only what the owner allowed, here too');
+  assert.equal(JSON.stringify(env.store.read().conversations), before, 'nothing is recorded');
+  assert.equal(listRecords(env.store.read(), 'venture-sum-receipt').length, JSON.parse(before).filter((item: any) => item?.kind === 'venture-sum-receipt').length);
+  // And the owner's own rows never mix in.
+  assert.ok(!JSON.stringify(clients).includes('Asha Rao'));
+});
+
+test('C4: an app says when its own reads have nothing to show', async () => {
+  const env = await chiefBusiness();
+  const app = await madeApp(env);
+  const granted = (await env.call('venture.apps.grant', { app: app.id, digest: app.ask.digest })).app;
+  assert.equal(granted.empty, false);
+  await ventureAction(env.deps, owner, 'admin', 'seed.empty', tx => {
+    (tx.state as { conversations: unknown[] }).conversations = tx.state.conversations.filter(item => !['venture-client', 'venture-order', 'venture-invoice'].includes((item as { kind?: string })?.kind ?? ''));
+  });
+  assert.equal((await env.call('venture.apps.get', { app: app.id })).app.empty, true);
+});
 
 test('6H1: the methods are listed, owned by views, at their levels, and the changing ones need the app', () => {
   for (const method of METHODS) {

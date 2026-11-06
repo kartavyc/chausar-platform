@@ -176,6 +176,14 @@
   background: var(--surface);
 }
 
+.sampleBanner {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
 .locked {
   margin: 0;
   padding: var(--sp-6) var(--sp-3);
