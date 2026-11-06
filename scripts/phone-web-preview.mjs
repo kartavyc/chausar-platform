@@ -8,6 +8,7 @@ const root = new URL('../', import.meta.url);
 // Every browser module is deliberately named. No request is ever interpreted as
 // a filesystem path, and no workspace files, secrets, or engine API are exposed.
 const routes = new Map([
+  ['/platform/shared/digest.ts', ['platform/shared/digest.ts', 'application/javascript; charset=utf-8']],
   ['/', ['app/companion/web/index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['app/companion/web/index.html', 'text/html; charset=utf-8']],
   ['/app/companion/web/styles.css', ['app/companion/web/styles.css', 'text/css; charset=utf-8']],
