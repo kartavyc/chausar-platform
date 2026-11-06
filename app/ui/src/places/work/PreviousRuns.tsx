@@ -103,6 +103,7 @@ function RunRow({ run, detail, row, noRetry, onChanged, showAvatar }: RunRowProp
   }
   return (
     <Row
+      className={run.state === 'done' ? s.finishedRow : undefined}
       id={`run-${run.runId}`} dense mark={showAvatar ? <Avatar name={run.agent} state={RINGS[run.state]} size={32} /> : undefined}
       title={run.purpose} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
       onOpen={(origin) => { again.opened(); openSheet('run', run.runId, origin); }}
