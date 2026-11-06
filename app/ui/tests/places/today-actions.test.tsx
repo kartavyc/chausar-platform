@@ -708,3 +708,15 @@ it('cleanup: two surfaces cannot send decisions for the same row while the first
   expect(sessionFor(client).isBusy(row.id)).toBe(false);
   expect(sessionFor(client).line(row.id)?.line).toBe('Approved once');
 });
+
+
+it('cleanup: a later decision from another surface preserves the first kept answer', async () => {
+  const fake = createFakeClient(new FakeEngine());
+  let sent = 0;
+  const client = { ...fake, request: (async () => ++sent === 1 ? { outcome: 'done', line: 'Approved once' } : { outcome: 'refused', reason: 'ALREADY_DECIDED', line: 'Already decided' }) as typeof fake.request };
+  const row = { id: 'completed-row', digest: 'same-version', kind: 'notice' } as any;
+  const t = ((key: string) => key) as T;
+  await decide(client, row, 'approve', {}, t);
+  await decide(client, row, 'approve', {}, t);
+  expect(sessionFor(client).line(row.id)?.line).toBe('Approved once');
+});
