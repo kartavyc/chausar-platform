@@ -6,7 +6,6 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { EmptyState } from '../../parts/EmptyState';
-import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { Tile } from '../../parts/Tile';
 import { momentOf, saveTextFile } from '../../parts/custody';
