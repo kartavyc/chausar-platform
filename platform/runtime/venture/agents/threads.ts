@@ -22,6 +22,7 @@ import { detectStanding } from './standing.ts';
 import { appendAgentMessage,type AgentMessageInput } from './store.ts';
 import { RETIRED_LINE,retirementOf,SHELF_THREAD_LINE } from './retired.ts';
 import { agentTrackerTurn,keptTrackerNamed } from '../trackers/agent-rows.ts';
+import { HIRE_DUTIES_LINE } from './hired-facts.ts';
 
 const PAGE = 50;
 const MAX_WORDS = 2000;
@@ -147,6 +148,14 @@ export async function threadSendHandler(deps: VentureDeps, ctx: Context, payload
   check(!retirementOf(state, venture.id, agentId), 'AGENT_RETIRED', RETIRED_LINE);
   const route = requireChatConsent(deps, ctx, state, venture);
   const kind = options.routine ? null : detectStanding(words);
+  // C7: a hired agent owns no step, so a "from now on" to it changes nothing here: its duties change in its sheet.
+  if (kind === 'standing' && chatAgent(state, venture, agentId).hired) {
+    return ventureAction(deps, ctx, 'prepare', 'agents.thread.send', tx => {
+      const said = put(tx, { agent: agentId, from: 'owner', text: words, author: 'owner' });
+      const reply = put(tx, { agent: agentId, from: 'agent', text: HIRE_DUTIES_LINE, author: 'engine' });
+      return { added: [asItem(said), asItem(reply)], line: null };
+    });
+  }
 
   // A standing request that would change what always asks the owner, spend, prices, tools, checks or limits is never
   // drafted as guidance: the agent says why, and no model is asked.

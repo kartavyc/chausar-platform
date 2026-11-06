@@ -11,6 +11,7 @@ import { Icon } from '../../parts/Icon';
 import { Bento, Tile, TileHead, type TileSpan } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { AgentSheet } from './AgentSheet';
+import { HireSheet } from './HireSheet';
 import { RetiredShelf } from './AgentRetire';
 import { CountsLine, DepartmentPanel } from './DepartmentPanel';
 import { chosenDept, departmentsOf, versionOf, type DepartmentData, type Member } from './departments';
@@ -78,8 +79,8 @@ export function Place() {
               {narrow
                 ? <FilterChips label={t('dept.show')} options={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
                 : <Segmented mode="buttons" label={t('dept.show')} options={departmentChoices(t)} value={chosen} onChange={show} />}
-              {/* An agent joins with a way to earn: its playbook brings the team that works it (spec 5.1). */}
-              <a className={s.addAgent} href="#/onboarding"><Icon name="plus" size={16} />{t('team.addAgent')}</a>
+              {/* C7 (REPORT row 56): hiring one more agent from a sentence, in its own sheet. */}
+              <button type="button" className={s.addAgent} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('team.addAgent')}</button>
             </div>
           )}
           {team.data?.teamHealth && team.data.teamHealth.status !== 'healthy' && (
@@ -168,7 +169,7 @@ function spansOf(departments: readonly DepartmentData[]): TileSpan[] {
   return spans;
 }
 
-export const sheets = { agent: AgentSheet };
+export const sheets = { agent: AgentSheet, hire: HireSheet };
 
 /** The phone's chips, each with how many agents it holds (D-Phone-Team): all of them, or a department's. */
 function withCounts<O extends { id: string }>(options: O[], members: readonly Member[], departments: readonly DepartmentData[]): (O & { count: number })[] {

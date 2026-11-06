@@ -24,6 +24,7 @@ import type { ChatAgent } from './roles.ts';
 import { usableNoteText } from './recall.ts';
 import { assertAgentAnswerCurrent } from '../agent-runtime/native-job.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
+import { hiredFacts } from './hired-facts.ts';
 
 // ---------------------------------------------------------------------------
 // One chat call: preview, then the send the owner's message in the app approves, under the chat consent
@@ -340,6 +341,11 @@ export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: 
 export async function answerQuestion(deps: VentureDeps, ctx: Context, route: ChatRoute | null, input: { state: State; venture: VentureRecord; agent: ChatAgent; question: string; waiting: AgentWaiting | null }): Promise<Answer> {
   const { state, venture, agent, question, waiting } = input;
   const facts = factsOf(deps, state, venture, agent);
+  // C7: a hired agent answers only from what its hire says it reads.
+  if (agent.hired) {
+    const read = await hiredFacts(deps, ctx, agent);
+    Object.assign(facts, { reads: read.reads, figures: read.figures, duties: agent.hired.role?.duties ?? [] });
+  }
   const included = new Set([...facts.runs.map(run => run.runId), ...(waiting ? [waiting.runId] : [])]);
   const contextRuns = listRecords(state, 'venture-delivery-run', venture.id).filter(run => included.has(run.id)).map(run => {
     const order = listRecords(state, 'venture-order', venture.id).find(order => order.id === run.orderId)!;

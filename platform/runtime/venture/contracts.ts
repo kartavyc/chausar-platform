@@ -291,6 +291,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-feedback-setting', 'venture-feedback-item',
   // C7: owner-made trackers and their rows (trackers/trackers.ts).
   'venture-tracker', 'venture-tracker-row',
+  // C7: one more agent the owner hired, and the interview on the way (agents/hire-store.ts).
+  'venture-agent-hire',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -3116,6 +3118,8 @@ export interface RunScopeView { tools: Display[]; actions: Display[]; cap: Displ
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
+  /** C7: an agent the owner hired: the day, its duties and what it reads. It owns no steps and always asks. */
+  hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
   last?: { line: Display; receiptId?: string; estimate?: boolean };
   steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
   // Ink v2 wave 4 (4A1 unless named): the agent's department; 'code' for the code role and for Keeper; its state from
@@ -5656,7 +5660,8 @@ export type AnyVentureRecord =
   | AgentRetirementRecord
   | MiniAppRecord
   | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord
-  | import('./trackers/trackers.ts').TrackerRecord | import('./trackers/trackers.ts').TrackerRowRecord;
+  | import('./trackers/trackers.ts').TrackerRecord | import('./trackers/trackers.ts').TrackerRowRecord
+  | import('./agents/hire-store.ts').HireRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5901,6 +5906,10 @@ export const VENTURE_METHODS = [
   'venture.trackers.rows.edit',
   'venture.trackers.rows.remove',
   'venture.trackers.rows.undo',
+  'venture.agents.hire.start',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.cancel',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -6067,6 +6076,10 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.trackers.rows.edit': 'agents',
   'venture.trackers.rows.remove': 'agents',
   'venture.trackers.rows.undo': 'agents',
+  'venture.agents.hire.start': 'agents',
+  'venture.agents.hire.answer': 'agents',
+  'venture.agents.hire.confirm': 'agents',
+  'venture.agents.hire.cancel': 'agents',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6153,6 +6166,10 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.trackers.rows.edit',
   'venture.trackers.rows.remove',
   'venture.trackers.rows.undo',
+  'venture.agents.hire.start',
+  'venture.agents.hire.answer',
+  'venture.agents.hire.confirm',
+  'venture.agents.hire.cancel',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6691,6 +6708,10 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.agents.hire.cancel': { hireId: string };
+  'venture.agents.hire.confirm': { hireId: string; digest: string };
+  'venture.agents.hire.answer': { hireId: string; phase: string; edits?: Record<string, unknown> };
+  'venture.agents.hire.start': { sentence: string };
   'venture.trackers.rows.undo': { rowId: string };
   'venture.trackers.rows.remove': { rowId: string };
   'venture.trackers.rows.edit': { rowId: string; cells: Record<string, unknown> };
@@ -7096,6 +7117,10 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.agents.hire.cancel': { cancelled: true };
+  'venture.agents.hire.confirm': import('./agents/hire.ts').HireView;
+  'venture.agents.hire.answer': import('./agents/hire.ts').HireView;
+  'venture.agents.hire.start': import('./agents/hire.ts').HireView;
   'venture.trackers.rows.undo': { undone: true };
   'venture.trackers.rows.remove': { removed: true };
   'venture.trackers.rows.edit': { row: import('./trackers/trackers.ts').TrackerRowView };
@@ -7131,6 +7156,8 @@ export const VENTURE_ERRORS = [
   // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
   // C7: a tracker's refusals (trackers/cells.ts, trackers/trackers.ts).
   'TRACKER_MONEY', 'TRACKER_NOT_FOUND', 'TRACKER_LIMIT', 'TRACKER_WORDS_HELD',
+  // C7: hiring one more agent (agents/hire-check.ts, agents/hire.ts).
+  'HIRE_HARD_STOP', 'HIRE_FLOOR', 'HIRE_NOT_FOUND', 'HIRE_LIMIT', 'HIRE_POSTURE_FIXED',
   'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
   'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
   // One-shot A4: Chausar's own PDF reader (core/pdf-text-core.ts) refuses a locked, unreadable or too complex file.

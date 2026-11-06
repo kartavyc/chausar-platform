@@ -2128,6 +2128,10 @@ export class Engine {
       case 'venture.trackers.rows.edit':
       case 'venture.trackers.rows.remove':
       case 'venture.trackers.rows.undo':
+      case 'venture.agents.hire.start':
+      case 'venture.agents.hire.answer':
+      case 'venture.agents.hire.confirm':
+      case 'venture.agents.hire.cancel':
       case 'venture.desk.act':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);

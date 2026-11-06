@@ -4,6 +4,7 @@
 // Package 4-0 registered every method with a NOT_BUILT_YET stub; each package replaces only its own lines.
 import { backupGetHandler, backupSetHandler } from './routine-backup.ts';
 import { TRACKER_HANDLERS } from '../trackers/trackers.ts';
+import { HIRE_HANDLERS } from './hire.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
 import { threadListHandler, threadSendHandler } from './threads.ts';
 import { proposalDecideHandler } from './proposals.ts';
@@ -42,6 +43,8 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.routines.runs': routinesRunsHandler,
   'venture.routines.set': routinesSetHandler,
   'venture.routines.remove': routinesRemoveHandler,
+  // C7: hiring one more agent
+  ...HIRE_HANDLERS,
   // C7: owner-made trackers
   ...TRACKER_HANDLERS,
   // C7: the backup AI for routines

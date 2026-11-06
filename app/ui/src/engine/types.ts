@@ -189,6 +189,8 @@ export interface DeliveredFile { id: string; name: Display; digest: string; at: 
 export interface RunScopeView { tools: Display[]; actions: Display[]; cap: Display; posture: Posture; line: Display; /** 4F3: the cap's receipt. */ capReceiptId: string; /** 4F3: the cap in rupees at the owner's rate, and the rate. */ capRupees?: Display; capRate?: Display }
 export type Posture = 'rehearsal' | 'shadow' | 'approve-each' | 'auto-spot-check';
 export interface AgentView {
+  /** C7: an agent the owner hired: the day, its duties and what it reads. */
+  hired?: { line: Display; duties: string[]; reads: { read: string; why: string }[] };
   id: string; name: string; role: string; now: Display; posture: Posture; spend: Display;
   last?: { line: Display; receiptId?: string; estimate?: boolean };
   steps: { id: string; purpose: string; gate: 'auto' | 'hold'; floor: boolean }[];
@@ -1450,6 +1452,14 @@ export interface CliStatusView {
   /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
   provider?: ProviderTroubleLite;
 }
+/** C7: hiring one more agent, one phase at a time (venture.agents.hire.*). */
+export interface HireReadLite { read: string; why: string }
+export interface HireVoiceLite { tone: string | null; replyLength: 'short' | 'medium' | 'long' | null; greeting: string | null; handOffLine: string | null; blockedTopics: string[]; signOff: string | null }
+export interface HireViewLite {
+  id: string; status: 'drafting' | 'hired' | 'cancelled'; phase: 'role' | 'reads' | 'voice' | 'review'; sentence: string;
+  role: { name: string; job: string; duties: string[] } | null; reads: HireReadLite[]; voice: HireVoiceLite | null; department: string;
+  choices: readonly string[]; departments: readonly string[]; card: { does: string[]; reads: HireReadLite[]; never: string[]; asks: Display } | null; digest: string;
+}
 /** C7: owner-made trackers (venture.trackers.*). A receipt cell shows the receipt's figure; an estimate cell always carries its label. */
 export interface TrackerColumnLite { id: string; name: string; kind: 'text' | 'date' | 'choice' | 'count' | 'check' | 'person' | 'receipt' | 'estimate'; options?: string[] }
 export interface TrackerCellLite { column: string; value: string | number | boolean | null; display: Display; receiptId?: string; label?: 'model estimate' }
@@ -2420,6 +2430,10 @@ export interface EngineMethods {
   'venture.trackers.rows.edit': { params: { rowId: string; cells: Record<string, unknown> }; result: { row: TrackerRowLite } };
   'venture.trackers.rows.remove': { params: { rowId: string }; result: { removed: true } };
   'venture.trackers.rows.undo': { params: { rowId: string }; result: { undone: true } };
+  'venture.agents.hire.start': { params: { sentence: string }; result: HireViewLite };
+  'venture.agents.hire.answer': { params: { hireId: string; phase: string; edits?: Record<string, unknown> }; result: HireViewLite };
+  'venture.agents.hire.confirm': { params: { hireId: string; digest: string }; result: HireViewLite };
+  'venture.agents.hire.cancel': { params: { hireId: string }; result: { cancelled: true } };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
