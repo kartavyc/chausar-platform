@@ -3632,7 +3632,9 @@ export type AgentMessageFrom = 'owner' | 'agent' | 'chausar';
 export type ChatPart =
   | { kind: 'text'; text: string }
   | { kind: 'figure'; receiptId: string; key: string; display: Display }
-  | { kind: 'estimate'; text: string };
+  | { kind: 'estimate'; text: string }
+  /** C7: a section of Chausar's own guide, its words filled in by code from guide-data.json, with the link to it. */
+  | { kind: 'guide'; anchor: string; title: string; text: string; link: string };
 /** What an agent's reply suggests the screen opens: a New order sheet prefilled with the owner's request. Nothing is created (4B1). */
 export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string };
 /** One message in an agent's thread (4B1). answered: it was recorded as the answer to that run's open question (A2). */

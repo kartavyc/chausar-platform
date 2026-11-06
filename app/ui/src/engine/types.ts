@@ -1202,7 +1202,9 @@ export interface RetireCheckView {
 }
 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
-export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string };
+export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string }
+  /** C7: a section of Chausar's guide, quoted as written, with the link to it. */
+  | { kind: 'guide'; anchor: string; title: string; text: string; link: string };
 export interface AgentSuggestion { kind: 'order'; offerId: string | null; request: string }
 export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
 export type AgentNoteScope = 'agent' | `client:${string}`;

@@ -5,6 +5,7 @@ import { BottomTabs, type BottomTab } from '../parts/BottomTabs';
 import { Logo } from '../parts/Logo';
 import type { IconName } from '../parts/icons';
 import { Bell } from './Bell';
+import { HelpButton } from './HelpButton';
 import { BusinessMenu } from './BusinessMenu';
 import { openSheet } from './navigation';
 import { formatHash, type PlaceId, type Route } from './routes';
@@ -27,6 +28,7 @@ export function TopBar() {
         <BusinessMenu variant="bar" />
       </div>
       <div className={s.tools}>
+        <HelpButton look="bare" />
         <Bell look="bare" />
       </div>
     </header>

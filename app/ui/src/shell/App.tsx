@@ -66,7 +66,7 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
   const covered = narrow && Boolean(sheet && SheetKind);
   const [sheetTitle, setSheetTitle] = useState<string | undefined>();
   const dialog = covered ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': sheetTitle } : {};
-  const shellTools = useMemo(() => (narrow ? null : <><AskBox /><Bell /></>), [narrow]);
+  const shellTools = useMemo(() => (narrow ? null : <><AskBox /><HelpButton /><Bell /></>), [narrow]);
 
   return (
     // One notification list for the bell and the centre (W4 4G4), so they never disagree.

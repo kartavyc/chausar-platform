@@ -23,7 +23,7 @@
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useT } from '../../text';
+import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type VentureRunEvent } from '../../engine/types';
 import { navigate } from '../../shell/navigation';
@@ -317,7 +317,7 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
         <span className={s.whoName}>{t('chats.chief.name')}</span>
         {time && <time data-num="" dateTime={message.at}>{time}</time>}
       </p>
-      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts)}</p>}
+      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts, t)}</p>}
       {message.worked.length > 0 && (
         <table className={s.worked}>
           <caption className={s.workedTitle}>{t('chats.worked.title')}</caption>
@@ -369,12 +369,20 @@ function Counted({ counted }: { counted: ChiefCounted }) {
 }
 
 /** The parts in order, a space between them: words, receipted figures, and model-written numbers with their label. */
-function partsOf(parts: readonly ChatPart[]): ReactNode[] {
+function partsOf(parts: readonly ChatPart[], t: T): ReactNode[] {
   return parts.flatMap((part, index) => {
     const gap = index > 0 ? [' '] : [];
     if (part.kind === 'figure') return [...gap, <Figure key={index} value={part.display} receiptId={part.receiptId} />];
     if (part.kind === 'estimate') {
       return [...gap, <span key={index} className={s.estimate}><span data-estimate="">{part.text}</span> <ModelEstimate /></span>];
+    }
+    // C7: a part of Chausar's guide, quoted as written there, with the link to read it in the guide.
+    if (part.kind === 'guide') {
+      return [...gap, <span key={index} className={s.guide} data-guide={part.anchor}>
+        <strong>{part.title}</strong>
+        <span className={s.guideText} data-content="">{part.text}</span>
+        <a href={part.link} target="_blank" rel="noreferrer">{t('chats.guide.read')}</a>
+      </span>];
     }
     return [...gap, <span key={index}>{part.text}</span>];
   });
