@@ -24,6 +24,7 @@ const EXACT: Readonly<Record<string, readonly [calls: number, why: string]>> = {
   'records.ts': [1, 'formatMicros is defined here'],
   // Files, links and messages that leave the app.
   'money/document.ts': [1, 'the invoice PDF leaves the app, and its standard font has no rupee sign'],
+  'money/payment-receipt.ts': [3, 'the receipt and the thank-you words go to the client (C6)'],
   'money/invoice-pdf.ts': [2, 'the PDF caption and the words sent with it go to the client'],
   'money/how-to-pay.ts': [1, "the client's copy of the invoice says how to pay, and it leaves the app"],
   'money/reminders.ts': [1, 'the payment reminder goes to the client'],
