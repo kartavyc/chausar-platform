@@ -71,6 +71,7 @@ const TEXT_PAIRS: [string, string][] = [
   ['accent-text', 'surface'],
   ['accent-text', 'bg'],
   ['accent-text', 'inner'],
+  // C2: also the command bar's <mark> on matched words.
   ['accent-text', 'accent-soft'],
   ['mute', 'accent-soft'],
   // B4: the locked primary, an outline on the surface.

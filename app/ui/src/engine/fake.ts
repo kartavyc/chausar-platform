@@ -44,6 +44,7 @@ import { FakeRetireDesk } from './fake-retire';
 // W6 6H1: mini apps and their bridge (fake-apps.ts).
 import { FakeAppsDesk } from './fake-apps';
 import { FakeLayoutDesk } from './fake-layout';
+import { FakeFindDesk } from './fake-find';
 import { FakeChiefDesk } from './fake-chief';
 import { FakeNetworkDesk } from './fake-network';
 import { FakeNotifyDesk } from './fake-notify';
@@ -275,6 +276,12 @@ export class FakeEngine {
   /** W6 6H3: each place's layout as data; public so tests and the demo can act as the owner's AI (ai(), go()). */
   readonly layoutDesk: FakeLayoutDesk = new FakeLayoutDesk({ current: () => this.current, now: () => this.now(), changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }) });
   private readonly chief: FakeChiefDesk;
+  /** C2: the command bar's find over the fake's own lists and Chats (fake-find.ts). */
+  private readonly findDesk = new FakeFindDesk({
+    current: () => this.current,
+    read: (method, params) => this.request(method, params),
+    chats: () => this.chief.searchable(),
+  });
   /** W6 6H1: mini apps, their grants, versions, pins, notes and calculator receipts. */
   private readonly apps: FakeAppsDesk;
   private readonly network: FakeNetworkDesk;
@@ -600,6 +607,8 @@ export class FakeEngine {
     if (this.apps.handles(method)) return this.apps.request(method, p);
     // W6 6H3: a place's layout (fake-layout.ts).
     if (this.layoutDesk.handles(method)) return this.layoutDesk.request(method, p);
+    // C2: the command bar's find (fake-find.ts).
+    if (this.findDesk.handles(method)) return this.findDesk.request(method, params);
     if (method === 'venture.compliance.get' || method === 'venture.compliance.set') return this.compliance(method, p);
     this.refuseRegulator(method, p);
     this.guardInternalShare(method, p);

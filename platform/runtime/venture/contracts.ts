@@ -19,6 +19,7 @@ import type { SocialChannel } from './playbooks/social/channels.ts';
 import type { PriceGuideView } from './core/price-ranges.ts';
 import type { LayoutBy, LayoutChange, LayoutPlace, LayoutRequest, LayoutState } from './views/layout-core.ts';
 import type { LayoutChangeResult, LayoutView } from './views/layout.ts';
+import type { FindRequest, FindView } from './views/find-core.ts';
 import type { ReportReceipt } from './playbooks/social/report.ts';
 import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 // Ink v2 wave 5 (package 5-0): each wave 5 record's body and each method's own shapes live in the owning package's
@@ -5933,6 +5934,8 @@ export const VENTURE_METHODS = [
   'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
   // Wave 6 (6H3, D40): a place's layout, read and changed by the owner; the AI's own changes come through the MCP tools (views)
   'venture.layout.get', 'venture.layout.change',
+  // C2: the command bar's find across clients, invoices, orders, runs and chats (views)
+  'venture.find',
   // Wave 6 (6H2, D41): recorded flows, record once and run with no AI (build)
   'venture.flows.list', 'venture.flows.act',
   // Ink v2 wave 4 (W4_METHODS above)
@@ -6045,6 +6048,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.feedback.get': 'core', 'venture.feedback.consent': 'core', 'venture.feedback.send': 'core', 'venture.feedback.answer': 'core', 'venture.feedback.crash': 'core', 'venture.feedback.delete': 'core',
   // Wave 6 (6H3)
   'venture.layout.get': 'views', 'venture.layout.change': 'views',
+  'venture.find': 'views',
   // Wave 6 (6H2)
   'venture.flows.list': 'build', 'venture.flows.act': 'build',
   // Ink v2 wave 4
@@ -6556,6 +6560,7 @@ export type VenturePayloads = {
   'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json>; sample?: true }; 'venture.apps.remove': { app: string };
   'venture.layout.get': { place: LayoutPlace };
   'venture.layout.change': LayoutRequest;
+  'venture.find': FindRequest;
   'venture.talk.get': Empty; 'venture.talk.consent': TalkConsentInput; 'venture.talk.setup': TalkSetupInput; 'venture.talk.start': Empty;
   'venture.talk.hear': { sessionId: string; audioBase64: string }; 'venture.talk.say': { threadId: string; messageId: string; quoted?: string; approvedRateDigest?: string };
   'venture.feedback.get': Empty; 'venture.feedback.consent': FeedbackConsentInput; 'venture.feedback.send': { digest: string };
@@ -6980,6 +6985,7 @@ export type VentureResults = {
   'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
   'venture.layout.get': LayoutView;
   'venture.layout.change': LayoutChangeResult;
+  'venture.find': FindView;
   'venture.talk.get': TalkView; 'venture.talk.consent': TalkView; 'venture.talk.setup': TalkView; 'venture.talk.start': TalkStarted;
   'venture.talk.hear': TalkHeard; 'venture.talk.say': TalkSaid;
   'venture.feedback.get': FeedbackView; 'venture.feedback.consent': FeedbackView; 'venture.feedback.send': FeedbackView;

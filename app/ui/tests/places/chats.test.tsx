@@ -77,38 +77,56 @@ describe('the rail and the header (spec 4.3: Today, Chats, Team, Work, Clients, 
     expect(within(rail).getByRole('link', { name: 'Chats, new' })).toBeTruthy();
   });
 
-  it('the header box: typed words and Enter open #/chats with them in the composer, never sent', async () => {
+  it('F1: Enter on the Ask row sends through Chats: one send, the new chat opens with the answer', async () => {
     stubWidth(false);
     const { spy } = await start('#/team');
-    const box = await screen.findByRole('textbox', { name: 'Ask Chausar anything' });
-    fireEvent.change(box, { target: { value: 'What waits on me this week?' } });
-    await act(async () => { fireEvent.submit(box.closest('form')!); });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'What waits on me this week?' } }); });
+    await waitFor(() => expect(screen.getAllByRole('option')[0]!.textContent).toBe('Ask Chausar: What waits on me this week?'));
+    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+    await hashChanged();
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/chats\?thread=/));
     await hashChanged();
     await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(composer().value).toBe('What waits on me this week?'));
-    expect(document.activeElement).toBe(composer());
-    expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
-    // The header box is empty again.
-    expect((screen.getByRole('textbox', { name: 'Ask Chausar anything' }) as HTMLInputElement).value).toBe('');
+    expect(calls(spy, 'venture.chief.thread.send').map(([, p]) => p)).toEqual([{ text: 'What waits on me this week?' }]);
+    await waitFor(() => expect(within(thread()).getByText('What waits on me this week?')).toBeTruthy());
+    expect(composer().value).toBe('');
   });
 
-  it('Ctrl K opens #/chats from anywhere and puts the cursor in the composer; it sends nothing', async () => {
+  it('F1: asked from a chat that is open, the words go to a new chat, not that one', async () => {
+    stubWidth(false);
+    const { spy } = await start('#/chats?thread=chiefthread-billed');
+    await waitFor(() => expect(within(thread()).getByText('How much have we billed this month?')).toBeTruthy());
+    await act(async () => { fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true }); });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    await act(async () => { fireEvent.change(box, { target: { value: 'What waits on me this week?' } }); });
+    await waitFor(() => expect(screen.getAllByRole('option')[0]!.textContent).toBe('Ask Chausar: What waits on me this week?'));
+    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+    await hashChanged();
+    await settle();
+    await hashChanged();
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.send').map(([, p]) => p)).toEqual([{ text: 'What waits on me this week?' }]);
+    await waitFor(() => expect(window.location.hash).not.toBe('#/chats?thread=chiefthread-billed'));
+  });
+
+  it('Ctrl K from anywhere goes to the bar and sends nothing; the box names the keys', async () => {
     stubWidth(false);
     const { spy } = await start('#/money');
-    await screen.findByRole('textbox', { name: 'Ask Chausar anything' });
-    expect(screen.getByRole('textbox', { name: 'Ask Chausar anything' }).getAttribute('aria-keyshortcuts')).toBe('Control+K');
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' });
+    expect(box.getAttribute('aria-keyshortcuts')).toBe('Control+K');
     await act(async () => { fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true }); });
     await hashChanged();
     await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(document.activeElement).toBe(composer()));
+    expect(window.location.hash).toBe('#/money');
+    expect(document.activeElement).toBe(box);
     expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
   });
 });
 
-describe('Ctrl K and the Ask box', () => {
-  it('Ctrl K inside another field is left to that field; inside the Ask box it asks', async () => {
+describe('Ctrl K and the bar', () => {
+  it('Ctrl K inside another field is left to that field; inside the bar it selects the words', async () => {
     stubWidth(false);
     await start('#/onboarding');
     const box = await screen.findByRole('textbox', { name: /^(What do you want to start\?|Or describe it in one sentence)$/ });
@@ -116,28 +134,23 @@ describe('Ctrl K and the Ask box', () => {
     await act(async () => { fireEvent.keyDown(box, { key: 'k', ctrlKey: true }); });
     await hashChanged();
     expect(window.location.hash).toBe('#/onboarding');
-    const ask = screen.getByRole('textbox', { name: 'Ask Chausar anything' });
-    ask.focus();
-    fireEvent.change(ask, { target: { value: 'Which way fits me?' } });
-    await act(async () => { fireEvent.keyDown(ask, { key: 'k', ctrlKey: true }); });
-    await hashChanged();
-    await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(composer().value).toBe('Which way fits me?'));
+    expect(document.activeElement).toBe(box);
+    const bar = screen.getByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    bar.focus();
+    fireEvent.change(bar, { target: { value: 'Which way fits me?' } });
+    await act(async () => { fireEvent.keyDown(bar, { key: 'k', ctrlKey: true }); });
+    expect(document.activeElement).toBe(bar);
+    expect([bar.selectionStart, bar.selectionEnd]).toEqual([0, 18]);
   });
 
-  it('the keys show only while the box has focus or the pointer is over it', async () => {
+  it('the keys show at rest, as keys (F2)', async () => {
     stubWidth(false);
     await start('#/money');
-    const ask = await screen.findByRole('textbox', { name: 'Ask Chausar anything' });
-    const form = ask.closest('form')!;
-    expect(form.querySelector('kbd')).toBeNull();
-    await act(async () => { fireEvent.focus(ask); });
-    expect(form.querySelector('kbd')?.textContent).toBe('Ctrl K');
-    await act(async () => { fireEvent.blur(ask); });
-    expect(form.querySelector('kbd')).toBeNull();
-    await act(async () => { fireEvent.mouseEnter(form); });
-    expect(form.querySelector('kbd')).not.toBeNull();
+    const bar = await screen.findByRole('combobox', { name: 'Find or ask' });
+    const holder = bar.closest('[data-find-box]')!;
+    expect(holder.querySelector('kbd')?.textContent).toBe('Ctrl K');
+    await act(async () => { fireEvent.focus(bar); });
+    expect(holder.querySelector('kbd')?.textContent).toBe('Ctrl K');
   });
 });
 
@@ -169,19 +182,14 @@ describe('#/chats: the list', () => {
     await waitFor(() => expect(within(list).getAllByRole('heading', { level: 3 })[0]!.textContent).toBe('Pinned'));
   });
 
-  it('the search filters the titles shown and asks the engine nothing', async () => {
+  it('while its answer loads, the search filters the titles shown', async () => {
     stubWidth(false);
-    const { spy } = await start('#/chats');
+    await start('#/chats');
     const list = await screen.findByRole('navigation', { name: 'Your chats' });
     // W6 6G1: three chats, and the link to the one settled chat, which a search hides.
     await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(4));
-    const before = spy.mock.calls.length;
     fireEvent.change(within(list).getByRole('searchbox', { name: 'Search chats' }), { target: { value: 'titles' } });
     expect(within(list).getAllByRole('link').map((a) => a.querySelector('[data-content]')!.textContent)).toEqual(['How are the titles for episode 15 doing?']);
-    fireEvent.change(within(list).getByRole('searchbox', { name: 'Search chats' }), { target: { value: 'zzz' } });
-    expect(within(list).queryAllByRole('link')).toHaveLength(0);
-    expect(within(list).getByText('No chat has those words in its title.')).toBeTruthy();
-    expect(spy.mock.calls.length).toBe(before);
   });
 });
 
@@ -371,6 +379,27 @@ describe('#/chats: asking', () => {
     );
     return { seen, override };
   }
+
+  it('F1: the Ask row with no consent yet shows the consent with the words waiting; nothing is sent; after Agree, one send', async () => {
+    stubWidth(false);
+    const { override } = consentEngine('needed', 'Chats send your message to Claude Sonnet 5.5 with your key.');
+    const { spy } = await start('#/team', { override });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'How is the month going?' } }); });
+    await waitFor(() => expect(screen.getAllByRole('option').some((row) => row.textContent === 'Ask Chausar: How is the month going?')).toBe(true));
+    await act(async () => { fireEvent.click(screen.getAllByRole('option').find((row) => row.textContent === 'Ask Chausar: How is the month going?')!); });
+    await hashChanged();
+    await settle();
+    const consent = await screen.findByRole('region', { name: 'Before your first message' });
+    expect(within(consent).getByText('How is the month going?')).toBeTruthy();
+    const sends = calls(spy, 'venture.chief.thread.send').length;
+    expect(sends).toBe(1); // refused by the engine: nothing kept
+    await click(within(consent).getByRole('button', { name: 'Agree and send' }));
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(2);
+    expect(calls(spy, 'venture.chats.consent')).toHaveLength(1);
+  });
 
   it('before the first message: the consent the thread list carries, then Agree and send agrees with that digest and sends; no agent is needed', async () => {
     stubWidth(false);

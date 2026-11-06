@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
 import { EngineProvider, useEngine, useResource } from '../../src/engine/context';
+import { kindOf } from '../../src/engine/reads';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { App } from '../../src/shell/App';
 import { EngineError, type EngineClient, type QueueList, type VentureRunEvent } from '../../src/engine/types';
@@ -141,6 +142,15 @@ describe('the read store (B3)', () => {
       return null;
     }
     expect(typeof Wrong).toBe('function');
+  });
+
+  it('C2: the command bar find is a read', () => {
+    expect(kindOf('venture.find', { text: 'ab' })).toBe('read');
+    function Finder() {
+      useResource('venture.find', { text: 'ab' });
+      return null;
+    }
+    expect(typeof Finder).toBe('function');
   });
 });
 

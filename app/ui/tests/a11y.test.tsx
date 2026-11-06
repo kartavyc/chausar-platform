@@ -371,3 +371,30 @@ describe('axe on a phone', () => {
     }, timeoutOf(each));
   }
 });
+
+describe('axe on the command bar (C2)', () => {
+  it('the list open, with records, pages, actions and the Ask row', async () => {
+    const root = await settle({ name: 'the bar', hash: '#/money' });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' });
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
+    expect(await violations(root)).toEqual([]);
+  }, 30_000);
+});
+
+describe('axe on the command bar on a phone (C2)', () => {
+  it('the dialog open with a list', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === NARROW, media: query, onchange: null,
+      addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
+    }) as unknown as MediaQueryList);
+    const root = await settle({ name: 'the bar on a phone', hash: '#/today' });
+    const [button] = await screen.findAllByRole('button', { name: 'Find or ask' });
+    await act(async () => { fireEvent.click(button!); });
+    const box = screen.getByRole('combobox', { name: 'Find or ask' });
+    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
+    expect(await violations(root)).toEqual([]);
+  }, 30_000);
+});

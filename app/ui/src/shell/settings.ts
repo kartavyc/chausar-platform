@@ -8,6 +8,7 @@
  */
 
 import type { T } from '../text';
+import { match } from '../../../../platform/runtime/venture/views/find-core';
 
 export type SettingsGroupId = 'business' | 'work' | 'money' | 'safety';
 
@@ -91,12 +92,9 @@ export const AI_SETTINGS = { title: 'business.settings.ai', find: 'business.sett
  * Connections when it matches. An empty query matches nothing.
  */
 export function findSettings(query: string, t: T, groups: readonly SettingsGroup[] = SETTINGS): SettingsMatch[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
-  const hits = (title: string, find: string) => {
-    const hay = `${t(title)} ${t(find)}`.toLowerCase();
-    return words.every((word) => hay.includes(word));
-  };
+  if (!query.trim()) return [];
+  // C2: the same matching as the command bar.
+  const hits = (title: string, find: string) => match(query, [{ name: 'title', text: t(title) }, { name: 'words', text: t(find) }]) !== null;
   const found: SettingsMatch[] = groups.flatMap((group) => group.pages.filter((p) => hits(p.title, p.find)).map((p) => ({ group: group.id, sub: p.sub, title: p.title, href: p.href })));
   if (hits(AI_SETTINGS.title, AI_SETTINGS.find)) found.push({ group: null, sub: null, title: AI_SETTINGS.title, href: AI_SETTINGS.href });
   return found;

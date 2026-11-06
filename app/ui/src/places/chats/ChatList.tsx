@@ -1,6 +1,7 @@
 /**
- * "Your chats" (D-Chats `.cv-list`): New chat, a search box that filters the titles shown here (it asks the engine
- * nothing), then the engine's groups in its order (Pinned first, then Today, This week, Last week, Earlier), each
+ * "Your chats" (D-Chats `.cv-list`): New chat, a search box (from two characters it asks venture.find, which reads the
+ * titles and what was said, and shows the matching line in place of the last one; while the answer loads, the titles
+ * here are filtered in the browser), then the engine's groups in its order (Pinned first, then Today, This week, Last week, Earlier), each
  * worded here from its key. A chat's title is the owner's own first question, so it is quoted words; its last line is
  * the engine's, with each amount it states a Figure with its receipt (ChiefThreadSummary.amounts), so the line sits
  * outside the chat's link (a receipt is a button of its own) and the link covers the row. The time is the clock time
@@ -10,12 +11,14 @@
 
 import { useId, useState, type ReactNode, useDeferredValue } from 'react';
 import { useT } from '../../text';
-import type { Resource } from '../../engine/context';
-import type { ChiefLineAmount, ChiefThreadSummary, ChiefThreadsView } from '../../engine/types';
+import { useResource, type Resource } from '../../engine/context';
+import type { ChiefThreadSummary, ChiefThreadsView, FindItem, VentureRunEvent } from '../../engine/types';
+import { wordsOf } from '../../../../../platform/runtime/venture/views/find-core';
+import { FIND_WAIT_MS, useResting } from '../../shell/find/useFind';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatDay, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
-import { Figure } from '../../parts/Figure';
+import { LineWithAmounts } from '../../parts/LineWithAmounts';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
@@ -25,6 +28,10 @@ import { useLeavingList } from '../../parts/useLeaving';
 import { LeaveRow } from '../../parts/LeaveRow';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** As many chats as a find may answer. */
+const FOUND_CHATS = 20;
+const FIND_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed';
+type FoundChat = Extract<FindItem, { kind: 'chat' }>;
 
 /** When a chat last moved, in the owner's zone: 6:42 pm today, the weekday within six days, else the date (B2). */
 function whenOf(at: string, now: Date, zone: string): string {
@@ -54,9 +61,20 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
   const oldChats = settled > 0 ? t('chats.list.settled', { count: settled }) : t('chats.archive.list');
   // One-shot C3 task 16: the search box answers every key at once; the list follows when there is time.
   const needle = useDeferredValue(query).trim().toLocaleLowerCase();
+  const rested = useResting(query, FIND_WAIT_MS);
+  const asking = rested === query && wordsOf(rested).length > 0;
+  const find = useResource('venture.find', { text: rested, kinds: ['chat'], limit: FOUND_CHATS }, { skip: wordsOf(rested).length === 0, refreshOn: FIND_EVENTS });
+  // The engine's answer once it is for these words; until then, or if it fails, the titles filter here.
+  const found = asking && !find.loading && !find.error && find.data
+    ? new Map((find.data.groups[0]?.items ?? []).map((item) => [item.id, item as FoundChat]))
+    : null;
   const shown = groups
-    .map((group) => ({ ...group, threads: needle ? group.threads.filter((thread) => thread.title.toLocaleLowerCase().includes(needle)) : group.threads }))
+    .map((group) => ({
+      ...group,
+      threads: found ? group.threads.filter((thread) => found.has(thread.id)) : needle ? group.threads.filter((thread) => thread.title.toLocaleLowerCase().includes(needle)) : group.threads,
+    }))
     .filter((group) => group.threads.length > 0);
+  const oldFound = found ? [...found.values()].filter((chat) => chat.state === 'settled').length : 0;
   const now = clock();
 
   return (
@@ -84,9 +102,10 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
         {threads.error && !threads.data && <p className={s.problem} role="alert">{t('chats.failed', { message: threads.error.message })}</p>}
         <LoadingPlace shape="chat" loading={!threads.data && !threads.error} />
         {threads.data && groups.length === 0 && settled === 0 && <p className={s.quiet}>{t('chats.list.none')}</p>}
-        {needle !== '' && groups.length > 0 && shown.length === 0 && <p className={s.quiet}>{t('chats.list.noMatch')}</p>}
+        {needle !== '' && (groups.length > 0 || settled > 0) && shown.length === 0 && oldFound === 0 && <p className={s.quiet}>{t('chats.list.noMatch')}</p>}
+        {oldFound > 0 && <a className={s.quiet} href="#/business/chats">{t('chats.list.oldFound', { count: oldFound })}</a>}
         {shown.map((group) => (
-          <Group key={group.key} label={t(`chats.group.${group.key}`)} threads={group.threads} selected={selected} now={now} zone={zone} snoozed={group.key === 'snoozed'} />
+          <Group key={group.key} label={t(`chats.group.${group.key}`)} threads={group.threads} selected={selected} now={now} zone={zone} snoozed={group.key === 'snoozed'} found={found} />
         ))}
       </div>
     </nav>
@@ -96,7 +115,7 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
 const threadKey = (thread: ChiefThreadSummary) => thread.id;
 
 /** snoozed (6G1): the Snoozed group shows when each chat comes back instead of when it last moved. */
-function Group({ label, threads, selected, now, zone, snoozed }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; zone: string; snoozed: boolean }) {
+function Group({ label, threads, selected, now, zone, snoozed, found }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; zone: string; snoozed: boolean; found: ReadonlyMap<string, FoundChat> | null }) {
   const t = useT();
   const headingId = useId();
   // One-shot C3 task 13: a settled chat leaves, a new one arrives, and Pin slides the rows to their new places.
@@ -109,6 +128,10 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
         {drawn.map((row, place) => {
           const thread = row.item;
           const here = thread.id === selected;
+          // A chat found by what was said shows that line in place of its last one.
+          const snippet = found?.get(thread.id)?.snippet ?? null;
+          const line = snippet?.line ?? thread.lastLine;
+          const amounts = snippet?.amounts ?? thread.amounts;
           return (
             <LeaveRow key={row.key} row={row} left={left} place={place} flipId={row.key}>
             <div className={cx(s.chat, here && s.on)}>
@@ -118,7 +141,7 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
                   <span className={s.chatTitle} data-content="">{thread.title}</span>
                   {thread.unread > 0 && <span className="sr-only">{t('chats.list.unread')}</span>}
                 </a>
-                {thread.lastLine && <span className={s.chatLine} data-last-line="">{withAmounts(thread.lastLine, thread.amounts)}</span>}
+                {line && <span className={s.chatLine} data-last-line=""><LineWithAmounts line={line} amounts={amounts} /></span>}
               </span>
               <span className={s.chatSide}>
                 {snoozed && thread.snoozedUntil ? (
@@ -138,21 +161,4 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
       </ul>
     </section>
   );
-}
-
-/**
- * The engine's line with each amount it names as a Figure with its receipt, cut at the offsets the engine sends, and
- * only where the words there are the amount's own (an offset that does not match is skipped).
- */
-function withAmounts(line: string, amounts: readonly ChiefLineAmount[]) {
-  const out: ReactNode[] = [];
-  let at = 0;
-  for (const amount of [...amounts].sort((a, b) => a.start - b.start)) {
-    if (amount.start < at || line.slice(amount.start, amount.start + amount.length) !== amount.text) continue;
-    if (amount.start > at) out.push(line.slice(at, amount.start));
-    out.push(<Figure key={amount.start} value={amount.text} receiptId={amount.receiptId} />);
-    at = amount.start + amount.length;
-  }
-  if (at < line.length) out.push(line.slice(at));
-  return out;
 }

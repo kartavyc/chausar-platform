@@ -66,15 +66,17 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 export interface ChiefThreadProps {
   /** The chat to show; left out, a new chat. */
   threadId: string | undefined;
-  /** Words handed over from the header box, Ctrl K, Today or Start, each with its own count: they go in the box, unsent. */
-  ask: { words: string; n: number } | null;
+  /** Words handed over from Today or Start, each with its own count, go in the box, unsent; the bar's Ask row (send) sends them. */
+  ask: { words: string; n: number; send: boolean } | null;
+  /** The handed-over words that are sent are taken once, so coming back to this pane never sends them again. */
+  onAskTaken: () => void;
   /** The list reads again (a chat was read, or a new one was made). */
   onListChanged: () => void;
   /** A phone shows the way back to the list. */
   phone: boolean;
 }
 
-export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThreadProps) {
+export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }: ChiefThreadProps) {
   const t = useT();
   const zone = useOwnerZone();
   const clock = useClock();
@@ -95,9 +97,22 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
   const [snoozing, setSnoozing] = useState(false);
   const [lockedNote, setLockedNote] = useState(false);
 
-  // Words handed over arrive in the box, unsent, with the cursor in it.
+  // Words handed over arrive in the box, unsent, with the cursor in it. The bar's Ask row (F1) sends them once, in a new
+  // chat, by this pane's own send: a consent refusal shows the card with the words waiting, and any other failure
+  // leaves them in the box with its line.
+  const sentAsk = useRef<unknown>(null);
   useEffect(() => {
-    if (ask) setBox((was) => ({ words: ask.words, n: was.n + 1 }));
+    if (!ask) return;
+    if (!ask.send) { setBox((was) => ({ words: ask.words, n: was.n + 1 })); return; }
+    if (sentAsk.current === ask) return;
+    sentAsk.current = ask;
+    onAskTaken();
+    void send(ask.words, true).catch((error: unknown) => {
+      setBox((was) => ({ words: ask.words, n: was.n + 1 }));
+      setRefusal(messageOf(error));
+    });
+    // Only a new handover starts this; send reads the pane as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ask]);
   useEffect(() => {
     if (box.n > 0) area.current?.querySelector<HTMLTextAreaElement>('form textarea')?.focus();
@@ -131,17 +146,23 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     return agent ? { name: agent.name, dept: agent.department ? DEPT_OF[agent.department] : undefined } : undefined;
   };
 
-  async function send(words: string): Promise<void> {
+  async function send(words: string, newChat = false): Promise<void> {
     setRefusal(null);
+    const into = newChat ? undefined : threadId;
     try {
-      const result = await engine.request('venture.chief.thread.send', threadId ? { threadId, text: words } : { text: words });
-      setSent({ thread: result.thread, messages: [...(threadId ? messages : []), ...result.added] });
+      const result = await engine.request('venture.chief.thread.send', into ? { threadId: into, text: words } : { text: words });
+      setSent({ thread: result.thread, messages: [...(into ? messages : []), ...result.added] });
       if (result.thread.id !== threadId) navigate({ place: 'chats', query: { thread: result.thread.id } });
       onListChanged();
     } catch (error) {
       const code = codeOf(error);
       if (code === 'CHAT_CONSENT_REQUIRED' || code === 'CHAT_CONSENT_STALE') { await askConsent(words, code === 'CHAT_CONSENT_STALE', messageOf(error), null); return; }
-      if (code === 'CHAT_KEY_REFUSED') { setRefusal(messageOf(error)); return; }
+      if (code === 'CHAT_KEY_REFUSED') {
+        // Handed over from the bar, the words are nowhere else: they wait in the box, where the owner can change them.
+        if (newChat) setBox((was) => ({ words, n: was.n + 1 }));
+        setRefusal(messageOf(error));
+        return;
+      }
       throw new Error(messageOf(error));
     }
   }

@@ -33,11 +33,30 @@
   min-width: 0;
 }
 
-/* The bell keeps its place at the right edge whatever the business button's length. */
+/* The search button and the bell keep their place at the right edge whatever the business button's length. */
 .tools {
   display: flex;
   flex: none;
   margin-left: auto;
+}
+
+.find {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-button-lg);
+  background: none;
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.find:hover {
+  background: var(--wash);
+  color: var(--fg);
 }
 
 .tabs {

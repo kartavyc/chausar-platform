@@ -5,8 +5,8 @@
  * anything that spends, sends or changes prices becomes a card on Today, and only when the owner presses Start.
  *
  * `#/chats` is a new chat beside the list; `#/chats?thread=<id>` one chat. On a phone the list and the chat take the
- * screen in turn: `#/chats/new` (or words handed over from elsewhere) is a new chat there. Words handed over from the
- * header box, Ctrl K, Today's Chausar story or Start's questions arrive in the composer, unsent (shell/ask.ts).
+ * screen in turn: `#/chats/new` (or words handed over from elsewhere) is a new chat there. Words from Today's Chausar
+ * story or Start's questions arrive in the composer, unsent; the command bar's Ask row sends them (shell/ask.ts).
  */
 
 import { useState } from 'react';
@@ -29,9 +29,9 @@ export function Place() {
   const route = useRoute();
   const phone = useNarrow();
   const threads = useResource('venture.chief.threads', {}, { refreshOn: LIST_EVENTS });
-  const [ask, setAsk] = useState<{ words: string; n: number } | null>(null);
-  useAskWords((words) => {
-    setAsk((was) => ({ words, n: (was?.n ?? 0) + 1 }));
+  const [ask, setAsk] = useState<{ words: string; n: number; send: boolean } | null>(null);
+  useAskWords((words, send) => {
+    setAsk((was) => ({ words, n: (was?.n ?? 0) + 1, send }));
     if (phone) goTo('chats', 'new');
   });
 
@@ -45,7 +45,7 @@ export function Place() {
       <PageTitle title={t('chats.title')} line={t('chats.line')} />
       <div className={s.layout} data-phone={phone ? '' : undefined}>
         {showList && <ChatList threads={threads} selected={threadId} onNew={() => askChausar('')} />}
-        {showThread && <ChiefThread threadId={threadId} ask={ask} onListChanged={threads.reload} phone={phone} />}
+        {showThread && <ChiefThread threadId={threadId} ask={ask} onAskTaken={() => setAsk(null)} onListChanged={threads.reload} phone={phone} />}
       </div>
     </div>
   );
