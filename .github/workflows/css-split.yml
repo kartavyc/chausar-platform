@@ -1,0 +1,19 @@
+name: Component CSS qualification
+on:
+  push:
+    branches: ['b2c/os-css-check-*']
+permissions:
+  contents: read
+jobs:
+  css:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/source-rules.test.ts -t 'CSS modules stay component-sized'
