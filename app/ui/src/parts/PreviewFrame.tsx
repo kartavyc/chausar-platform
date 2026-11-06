@@ -103,6 +103,8 @@ interface PostPreview {
 
 export type PreviewFrameProps = (VideoPreview | PaperPreview | ChangePreview | TextPreview | ChoicePreview | PostPreview) & {
   className?: string | undefined;
+  /** Today's first lines fill one plain preview box. */
+  plain?: boolean | undefined;
 };
 
 /**
@@ -112,7 +114,7 @@ export type PreviewFrameProps = (VideoPreview | PaperPreview | ChangePreview | T
  */
 export function PreviewFrame(props: PreviewFrameProps) {
   return (
-    <div className={cx(s.frame, props.className)} data-preview={props.variant}>
+    <div className={cx(s.frame, props.className)} data-preview={props.variant} data-plain={props.plain ? '' : undefined}>
       {body(props)}
     </div>
   );

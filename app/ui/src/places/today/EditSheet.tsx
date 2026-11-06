@@ -215,8 +215,8 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
         </section>
       )}
       {text !== null && (
-        <form className={s.boxForm} onSubmit={(event) => { event.preventDefault(); void save(); }}>
-          <DraftBoxes text={text} doc={doc} onText={setText} onDoc={(next) => { setDoc(next); setText(fromSections(next)); }} />
+        <form className={s.draftEditor} data-draft-editor="" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+          <div data-draft-fields=""><DraftBoxes text={text} doc={doc} onText={setText} onDoc={(next) => { setDoc(next); setText(fromSections(next)); }} /></div>
           <p className={s.hint}>{t('today.edit.hint')}</p>
           <div className={s.boxButtons}>
             <Button onClick={leave}>{t('approval.cancel')}</Button>

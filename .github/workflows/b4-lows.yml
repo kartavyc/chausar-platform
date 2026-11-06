@@ -1,0 +1,32 @@
+name: B4 header review red
+on:
+  push:
+    branches: ['b2c/os-b4-lows-*']
+permissions:
+  contents: read
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test platform/tests/venture-price-undo-b4.test.ts platform/tests/venture-share-price.test.ts
+      - if: '!cancelled()'
+        run: npm run typecheck:ui
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/parts/approval-row.test.tsx app/ui/tests/places/today-swipe.test.tsx app/ui/tests/places/today-v2.test.tsx app/ui/tests/places/today.test.tsx app/ui/tests/places/today-quiet-b4.test.tsx --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/settings.json
+      - name: Today budget
+        if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/budgets.test.tsx --maxWorkers=1 -t 'today.*stays'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings
+          path: ${{ runner.temp }}/settings.json
