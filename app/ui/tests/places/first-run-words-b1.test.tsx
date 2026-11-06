@@ -25,7 +25,7 @@ describe('first run words (B1)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByText('Tell Chausar about your work, or pick a field.')).toBeTruthy();
     const steps = screen.getByRole('list', { name: 'Setup steps' });
-    expect(within(steps).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['No AI yet', '2About you', '3Your business']);
+    expect(within(steps).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['No AI yet', '2Your work', '3Your business']);
     expect(document.body.textContent).not.toContain('Using templates');
   });
 

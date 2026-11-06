@@ -12,7 +12,8 @@ import { renameIn } from './rename';
 import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
 
-type Mode = 'a' | 'b' | 'plan';
+export type AboutMode = 'a' | 'b' | 'plan';
+type Mode = AboutMode;
 type Bubble = { who: 'me' | 'them'; text: string };
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
 export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
@@ -35,7 +36,7 @@ export function prefersReducedMotion(): boolean {
  * Offers never carry an amount: prices are set by the owner after the plan is kept. The country starts from the
  * computer's time zone, never its language; an AI reading of another country asks before it changes anything.
  */
-export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (plan: KeptPlan) => void }) {
+export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; onKeep: (plan: KeptPlan) => void; onMode?: ((mode: AboutMode) => void) | undefined }) {
   const t = useT();
   const client = useEngine();
   const headingId = useId();
@@ -46,6 +47,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const families = useResource('venture.about.families', {});
   const box = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<Mode>('a');
+  // C1 task 11: the first run's stepper follows the mode (the plan card is step 3, "Your business").
+  useEffect(() => { onMode?.(mode); }, [mode, onMode]);
   const [motion] = useState(() => (prefersReducedMotion() ? 'none' : 'once'));
   const [text, setText] = useState('');
   const [file, setFile] = useState<AboutFile | null>(null);

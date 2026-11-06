@@ -48,7 +48,7 @@ describe('first run, step 1: Connect your AI', () => {
     expect(screen.getByRole('button', { name: 'Sign in with Codex' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add a key' })).toBeTruthy();
     const steps = screen.getByRole('list', { name: 'Setup steps' });
-    expect(within(steps).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['1Connect your AI', '2About you', '3Your business']);
+    expect(within(steps).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['1Connect your AI', '2Your work', '3Your business']);
   });
 
   it("starts Codex's own sign-in and shows its code and link, then uses the signed-in Codex", async () => {
@@ -64,6 +64,12 @@ describe('first run, step 1: Connect your AI', () => {
     expect(calls.some(([method, params]) => method === 'venture.ai.connect' && params.presetId === 'codex-cli' && typeof params.consentDigest === 'string')).toBe(true);
     expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByText('Connected: ChatGPT plan')).toBeTruthy();
+    // C1 task 11: step 1 reads "Your AI" with its check; what was connected is its title and its words for screen readers.
+    const first = within(screen.getByRole('list', { name: 'Setup steps' })).getAllByRole('listitem')[0]!;
+    expect(first.querySelector('[data-step-word]')?.textContent).toBe('Your AI');
+    expect(first.querySelector('svg')).toBeTruthy();
+    expect(first.getAttribute('title')).toBe('Connected: ChatGPT plan');
+    expect(first.textContent).toBe('Your AIConnected: ChatGPT plan');
   }, 15000);
 
   it('never starts a sign-in for a tool that already says it is signed in', async () => {
@@ -190,8 +196,12 @@ describe('first run, step 2: About you, A that becomes B', () => {
   it('a tile goes straight to the plan with no chat, and the field can be corrected there', async () => {
     const { calls } = start();
     await skipAi();
+    const steps = () => within(screen.getByRole('list', { name: 'Setup steps' })).getAllByRole('listitem');
+    expect(steps().map((step) => step.getAttribute('aria-current'))).toEqual([null, 'step', null]);
     await press(/^Teaching and coaching/);
     const preview = await screen.findByRole('region', { name: 'Your business, live' });
+    // C1 task 11 (row 10): the plan card titled "Your business" sits under step 3, "Your business".
+    expect(steps().map((step) => step.getAttribute('aria-current'))).toEqual([null, null, 'step']);
     expect(screen.queryByRole('region', { name: 'Talk to Chausar' })).toBeNull();
     expect(within(preview).getByText('Weekly classes')).toBeTruthy();
     expect(calls.find(([method]) => method === 'venture.about.pick')?.[1]).toEqual({ familyId: 'teaching' });

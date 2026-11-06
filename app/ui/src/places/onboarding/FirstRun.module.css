@@ -44,10 +44,12 @@
   font-size: var(--text-label);
 }
 
+/* C1 task 11: each label stays on one line, and step 1 keeps one short label, so the row holds its width. */
 .step {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
+  white-space: nowrap;
 }
 
 .step[aria-current='step'] {
