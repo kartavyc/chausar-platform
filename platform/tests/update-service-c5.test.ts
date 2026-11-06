@@ -288,8 +288,8 @@ test('prepareUpdateInstall: no business is none-open; an open one gets a safety 
   t.after(() => engine.shutdown());
   assert.deepEqual(await engine.prepareUpdateInstall({ backup: true }), { busy: false, openDataSchema: null, backup: 'none-open' });
   await engine.request('workspace.create', { name: 'SYNTHETIC update business', folder: 'fixture', passphrase: 'SYNTHETIC disposable update passphrase', demo: false, pack: 'ecommerce' });
-  assert.deepEqual(await engine.prepareUpdateInstall({}), { busy: false, openDataSchema: 1, backup: 'skipped' });
-  assert.deepEqual(await engine.prepareUpdateInstall({ backup: true }), { busy: false, openDataSchema: 1, backup: 'made' });
+  assert.deepEqual(await engine.prepareUpdateInstall({}), { busy: false, openDataSchema: 2, backup: 'skipped' });
+  assert.deepEqual(await engine.prepareUpdateInstall({ backup: true }), { busy: false, openDataSchema: 2, backup: 'made' });
   const backups = await engine.request('workspace.backups.list', {});
   assert.equal(backups.backups.filter((backup: { kind: string }) => backup.kind === 'safety').length, 1);
   await engine.request('workspace.lock', {});

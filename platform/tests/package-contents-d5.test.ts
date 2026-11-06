@@ -39,8 +39,9 @@ function asar(files: Record<string, string>): Buffer {
   return Buffer.concat([size, header, ...bodies]);
 }
 
-type Build = { locales?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null; bundle?: string[] };
+type Build = { locales?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null; bundle?: string[]; unpackedExtra?: string[] };
 const CLEAN: Required<Build> = {
+  unpackedExtra: [],
   locales: ['en-GB.pak', 'en-US.pak', 'hi.pak'],
   archive: { 'app/ui/dist/index.html': '<!doctype html>', 'app/ui/dist/assets/index.js': 'x', 'app/desktop/main.cjs': 'x', 'package.json': '{}' },
   anthropic: ['claude-agent-sdk'],

@@ -24,7 +24,7 @@ async function olderBusiness(t: any, schema = 1) {
   const engine = await engineOn(directory);
   const made = await engine.request('workspace.create', { name: 'Sample tutoring', passphrase: PASSPHRASE, pack: 'services', folder: FOLDER }) as any;
   const folder = (await readdir(directory, { withFileTypes: true })).filter(entry => entry.isDirectory() && !['backups', 'custody', 'exports', 'updates', 'transfers'].includes(entry.name))[0]!.name;
-  await engine.store().update((state: any) => { state.activity.push({ message: 'kept record' }); });
+  await (engine as any).store().update((state: any) => { state.activity.push({ message: 'kept record' }); });
   await engine.shutdown();
   await rewriteVaultState(join(directory, folder), PASSPHRASE, state => ({ ...state, schemaVersion: schema }));
   return { directory, folder, made };
@@ -38,9 +38,9 @@ test('an older business opens brought up to date, after a migration backup of th
   const engine = await engineOn(directory);
   t.after(() => engine.shutdown().catch(() => {}));
   await engine.request('workspace.open', { folder, passphrase: PASSPHRASE });
-  assert.equal(engine.store().read().schemaVersion, CURRENT_SCHEMA);
-  assert.equal(engine.store().migratedFrom, null, 'committed');
-  assert.ok(engine.store().read().activity.some((row: any) => row.message === 'kept record'), 'every record kept');
+  assert.equal((engine as any).store().read().schemaVersion, CURRENT_SCHEMA);
+  assert.equal((engine as any).store().migratedFrom, null, 'committed');
+  assert.ok((engine as any).store().read().activity.some((row: any) => row.message === 'kept record'), 'every record kept');
   const onDisk = openEnvelope(await readFile(liveFile(directory, folder), 'utf8'), PASSPHRASE).state;
   assert.equal(onDisk.schemaVersion, CURRENT_SCHEMA);
   const backups = (await readdir(join(directory, 'backups'))).filter(name => name.endsWith('-migration.backup'));
@@ -100,8 +100,8 @@ test('recovering an older business makes the migration backup first and writes i
   const engine = await engineOn(directory);
   t.after(() => engine.shutdown().catch(() => {}));
   await engine.request('workspace.recover', { folder, recoveryCode: made.recoveryCode, passphrase: 'another long private test passphrase' });
-  assert.equal(engine.store().read().schemaVersion, CURRENT_SCHEMA);
-  assert.equal(engine.store().migratedFrom, null);
+  assert.equal((engine as any).store().read().schemaVersion, CURRENT_SCHEMA);
+  assert.equal((engine as any).store().migratedFrom, null);
   assert.equal((await readdir(join(directory, 'backups'))).filter(name => name.endsWith('-migration.backup')).length, 1);
 });
 
@@ -127,7 +127,7 @@ test('the backup list says a newer backup needs a newer Chausar, and a file not 
   const engine = await engineOn(directory);
   t.after(() => engine.shutdown().catch(() => {}));
   await engine.request('workspace.open', { folder, passphrase: PASSPHRASE });
-  const workspaceId = engine.store().read().workspace.id;
+  const workspaceId = (engine as any).store().read().workspace.id;
   const made = await engine.request('workspace.backups.create', {}) as any;
   const path = join(directory, 'custody', 'data-versions.json');
   const versions = JSON.parse(await readFile(path, 'utf8'));

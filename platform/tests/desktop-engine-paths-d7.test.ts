@@ -29,7 +29,8 @@ test('not packaged: the same names are the source', () => {
 });
 
 test('the bundle lists every program desktop main starts or imports', async () => {
-  const { ENGINE_ENTRIES } = await import('../../scripts/bundle-engine.mjs');
+  const bundleScript = '../../scripts/bundle-engine.mjs';
+  const { ENGINE_ENTRIES } = await import(bundleScript);
   for (const name of ['worker', 'venture/network/extract-worker', 'venture/playbooks/youtube/project-folder']) assert.ok(ENGINE_ENTRIES.includes(name), name);
 });
 
