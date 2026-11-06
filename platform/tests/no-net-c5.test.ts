@@ -4,6 +4,7 @@
 // (venture-event-relay-c7 holds that).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import ts from 'typescript';
 import { readdir, readFile, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,11 +26,38 @@ test('under noNet a real fetch throws NETWORK_NOT_ALLOWED, and an updater with n
   await assert.rejects(forgetful.stage(manifest, sign(null, Buffer.from(canonicalReleaseManifest(manifest)), keys.privateKey).toString('base64url')), (error: any) => error.code === NETWORK_NOT_ALLOWED);
 });
 
+function needsGuard(text: string) {
+  const source = ts.createSourceFile('guard.ts', text, ts.ScriptTarget.Latest, true);
+  let updater = false, guarded = false;
+  const visit = (node: ts.Node) => {
+    if (ts.isIdentifier(node) && ['ReleaseUpdater', 'updatePublicKey'].includes(node.text)) updater = true;
+    if (ts.isCallExpression(node) && node.expression.getText(source) === 'test.beforeEach') {
+      const callback = node.arguments[0];
+      if (callback && ts.isArrowFunction(callback) && ts.isCallExpression(callback.body)
+        && callback.body.expression.getText(source) === 'noNet'
+        && callback.parameters.length === 1 && callback.body.arguments.length === 1
+        && callback.parameters[0]!.name.getText(source) === callback.body.arguments[0]!.getText(source)) guarded = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return updater && !guarded;
+}
+
 test('every engine test file that builds a ReleaseUpdater calls noNet for each test', async () => {
   const missing: string[] = [];
   for (const name of (await readdir(TESTS)).filter(file => file.endsWith('.test.ts')).sort()) {
     const text = await readFile(join(TESTS, name), 'utf8');
-    if (/new ReleaseUpdater\(/.test(text) && !/test\.beforeEach\(\s*t\s*=>\s*noNet\(t\)\s*\)/.test(text)) missing.push(name);
+    if (needsGuard(text)) missing.push(name);
   }
   assert.deepEqual(missing, []);
+});
+
+
+test('cleanup: updater network guards ignore comments and cover namespace constructors and engine options', () => {
+  assert.equal(needsGuard('new U.ReleaseUpdater ({})'), true);
+  assert.equal(needsGuard('new Engine({ updatePublicKey: key })'), true);
+  assert.equal(needsGuard('new ReleaseUpdater({}); // test.beforeEach(t => noNet(t))'), true);
+  assert.equal(needsGuard('new ReleaseUpdater({}); test.beforeEach(t => noNet(t));'), false);
+  assert.equal(needsGuard('// new ReleaseUpdater({})'), false);
 });

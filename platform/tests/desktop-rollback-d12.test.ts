@@ -1,3 +1,4 @@
+import { noNet } from './helpers/no-net.ts';
 // D12 tasks 9 and 10: a version that won't start goes back to the kept release, once. Everything is in a temp folder with
 // stand-ins for the installer, the relaunch and the dialog, so nothing runs and nothing shows on screen.
 import test, { type TestContext } from 'node:test';
@@ -273,3 +274,6 @@ test('a candidate changed during the data copies restores the original vault and
   assert.equal(await readFile(appImage, 'utf8'), 'the failed version');
   assert.equal(seen.relaunches, 0);
 });
+
+// Real update defaults must never leave this test process.
+test.beforeEach(t => noNet(t));
