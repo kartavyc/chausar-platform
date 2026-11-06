@@ -4,3 +4,5 @@ platform/tests/fixtures/venture/models/npm-shims/codex.cmd -text
 app/desktop/notices/** -text
 # Shell scripts run on Linux (D11: the release smoke on the VPS); bash refuses CRLF.
 *.sh text eol=lf
+# Real-engine RPC recordings compare their complete JSON bytes on Windows and Linux.
+app/ui/tests/recordings/*.json text eol=lf
