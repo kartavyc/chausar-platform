@@ -5,7 +5,6 @@ import { useEngine, useResource } from '../../engine/context';
 import type { DiagnosticsPreview } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { formatFileSize } from '../../parts/when';
-import { TileSection } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import r from './Reports.module.css';
@@ -48,7 +47,8 @@ export function DiagnosticsSection() {
   });
 
   return (
-    <TileSection title={t('diagnostics.title')}>
+    <div>
+      <h3 className={s.groupTitle}>{t('diagnostics.title')}</h3>
       {today && <p className={s.line} data-engine-line="">{today.line}</p>}
       {today && today.rows.length > 0 && (
         <Fold summary={t('diagnostics.counted')} className={r.counted}>
@@ -85,6 +85,6 @@ export function DiagnosticsSection() {
           <Button disabled={busy} onClick={() => void look(false)}>{t('diagnostics.export')}</Button>
         </div>
       )}
-    </TileSection>
+    </div>
   );
 }

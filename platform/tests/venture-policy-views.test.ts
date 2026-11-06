@@ -55,10 +55,10 @@ test('spot checks: a fixed rule, every fifth run plus every run that spent more 
   assert.deepEqual(SPOT_CHECK_RULE, { everyNth: 5, overMicros: '200000' });
   const picked = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(ordinal => sampleRun(ordinal, '1000').sampled);
   assert.deepEqual(picked, [false, false, false, false, true, false, false, false, false, true]);
-  assert.deepEqual(sampleRun(5, '1000'), { sampled: true, reason: 'every-nth', line: 'One run in five is checked, and this is one.' });
-  assert.deepEqual(sampleRun(2, '250000'), { sampled: true, reason: 'over-spend', line: 'This run spent $0.25, more than $0.20.' });
+  assert.deepEqual(sampleRun(5, '1000'), { sampled: true, reason: 'every-nth', line: 'One job in five is checked, and this is one.' });
+  assert.deepEqual(sampleRun(2, '250000'), { sampled: true, reason: 'over-spend', line: 'This job spent $0.25, more than $0.20.' });
   assert.equal(sampleRun(5, '250000').reason, 'over-spend', 'the spend line wins when both pick a run');
-  assert.deepEqual(sampleRun(2, '200000'), { sampled: false, reason: null, line: 'Not picked: not one run in five, and it spent no more than $0.20.' });
+  assert.deepEqual(sampleRun(2, '200000'), { sampled: false, reason: null, line: 'Not picked: not one job in five, and it spent no more than $0.20.' });
   assert.deepEqual(sampleRun(3, '0', { everyNth: 1, overMicros: '0' }).reason, 'every-nth');
   assert.throws(() => sampleRun(0, '1000'), code('INVALID_VENTURE_REQUEST'));
   assert.throws(() => sampleRun(1, '1.5'), code('INVALID_AMOUNT'));

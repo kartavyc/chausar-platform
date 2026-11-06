@@ -151,8 +151,8 @@ test('the real-order judge refuses a run whose trace scan found something, in th
   await consentForOrder(env.deps, owner, order.id);
   await assert.rejects(deliveryHandlers['venture.delivery.judge']!(env.deps, owner, { runId: run.id }), (error: any) => {
     assert.equal(error.code, 'JUDGE_NOT_READY');
-    assert.match(error.message, /^Before any quality check reads this run, code scanned it and found something that looks like a key or a password \(t1\.1\)\./);
-    assert.match(error.message, /No quality check reads this run\. Look at it in Work before you decide on the draft yourself\.$/);
+    assert.match(error.message, /^Before any quality check reads this job, code scanned it and found something that looks like a key or a password \(t1\.1\)\./);
+    assert.match(error.message, /No quality check reads this job\. Look at it in Work before you decide on the draft yourself\.$/);
     assert.doesNotMatch(error.message, /until/, 'it promises no clearing step that does not exist');
     return true;
   });

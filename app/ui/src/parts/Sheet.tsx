@@ -24,6 +24,7 @@ export interface SheetProps {
   eyebrow?: ReactNode;
   title: ReactNode;
   line?: ReactNode;
+  headerActions?: ReactNode;
   onClose: () => void;
   /** Puts focus back where the sheet was opened from. Left out, focus returns to whatever had it before. */
   returnFocus?: (() => void) | undefined;
@@ -50,7 +51,7 @@ export interface SheetProps {
  * Its head is D's panel head (D-TeamChat `.cp-h`): an optional avatar, the kind and eyebrow, the title and its line,
  * and the close button at the right.
  */
-export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, children, footer, avatar, width, name, receipt, loading }: SheetProps) {
+export function Sheet({ label, eyebrow, title, line, headerActions, onClose, returnFocus, children, footer, avatar, width, name, receipt, loading }: SheetProps) {
   const t = useT();
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -89,6 +90,7 @@ export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, child
           <h2 id={titleId} ref={titleRef} tabIndex={-1} className={loading ? 'sr-only' : s.title}>{title}</h2>
           {line && <div className={s.line}>{line}</div>}
         </div>
+        {headerActions}
         <button type="button" className={s.close} aria-label={name ? t('sheet.closeNamed', { name }) : t('sheet.close')} onClick={onClose}>
           <Icon name="x" size={18} />
         </button>

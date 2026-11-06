@@ -1150,7 +1150,7 @@ test('rehearsal: a trace the scan finds a secret in is judged by no judge, and t
   const run = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
   const [episode] = run.episodes;
   assert.equal(episode.passed, false);
-  assert.match(episode.firstFailure ?? '', /^Before any quality check reads this run, code scanned it and found something that looks like a key or a password/);
+  assert.match(episode.firstFailure ?? '', /^Before any quality check reads this job, code scanned it and found something that looks like a key or a password/);
   assert.ok(episode.judge.every(answer => answer.answer === 'not-judged'));
   assert.equal(env.models.generated.filter(task => task.schemaName === 'venture-judge-rules' || task.purpose === 'judge').length, before, 'no judge was asked');
   assert.ok(!JSON.stringify(run).includes(key));

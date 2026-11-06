@@ -1,15 +1,14 @@
 import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT } from '../../text';
-import { useOwnerZone } from '../../shell/clock';
+import { useDay, useDayKey, useTime } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import { formatHash } from '../../shell/routes';
-import { momentOf, refusalWords } from '../../parts/custody';
+import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Row } from '../../parts/Row';
 import type { AgentView, DecisionOpens, DecisionView } from '../../engine/types';
-import { TileSection } from './shared';
 import b from './Business.module.css';
 import s from './Decisions.module.css';
 
@@ -51,7 +50,9 @@ function hrefOf(opens: DecisionOpens | undefined): string | null {
  */
 export function DecisionsView() {
   const t = useT();
-  const zone = useOwnerZone();
+  const day = useDay();
+  const dayKey = useDayKey();
+  const time = useTime();
   const client = useEngine();
   const decisions = useResource('venture.decisions.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   const team = useResource('venture.team.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
@@ -59,6 +60,13 @@ export function DecisionsView() {
   const [busy, setBusy] = useState(false);
   const agents = team.data?.agents ?? [];
   const list = decisions.data?.decisions ?? [];
+  const groups = new Map<string, DecisionView[]>();
+  for (const decision of list) {
+    const key = dayKey(decision.at);
+    const group = groups.get(key) ?? [];
+    group.push(decision);
+    groups.set(key, group);
+  }
 
   async function stopAllowing(decision: DecisionView, agentId: string, stepId: string, purpose: string) {
     setBusy(true);
@@ -77,12 +85,14 @@ export function DecisionsView() {
 
   return (
     <div className={b.page}>
-      <TileSection title={t('business.decisions.title')} meta={t('business.decisions.line')}>
+      {list.length > 0 && <p className={b.note}>{t('business.decisions.line')}</p>}
         {decisions.error && <p className={b.problem} role="alert">{messageOf(decisions.error)}</p>}
         {decisions.data && list.length === 0 && <EmptyState title={t('business.decisions.none')} />}
-        {list.length > 0 && (
+        {[...groups].map(([key, items]) => (
+          <section key={key} aria-label={day(key)}>
+          <h2 className={b.groupTitle}>{day(key)}</h2>
           <ul className={b.list} data-decisions="">
-            {list.map((decision) => {
+            {items.map((decision) => {
               const stepId = stepOf(decision);
               const auto = stepId ? autoStep(agents, decision.agentId, stepId) : null;
               const href = hrefOf(decision.opens);
@@ -95,7 +105,7 @@ export function DecisionsView() {
                       {/* A4 review (L5): the reader's own decision is You's; another member's is named by their role. */}
                       {decision.mine ? t('business.decisions.who.mine') : t(`business.decisions.who.${decision.who}`)}
                       {' · '}
-                      <span>{momentOf(decision.at, zone)}</span>
+                      <time dateTime={decision.at}>{time(decision.at)}</time>
                     </span>
                   )}
                   // The engine's own words; an amount it named in what was decided has no receipt here (NOTES item 30).
@@ -110,8 +120,8 @@ export function DecisionsView() {
               );
             })}
           </ul>
-        )}
-      </TileSection>
+          </section>
+        ))}
     </div>
   );
 }

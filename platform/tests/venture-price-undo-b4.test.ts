@@ -40,7 +40,7 @@ test('a row that changes one price has no second ask; the owner presses once on 
   const env = await setup();
   const { second, row } = await priced(env);
   assert.equal(row.kind, 'price');
-  assert.deepEqual(row.change, { label: 'Monthly books', before: '₹2,499 per month', after: '₹2,999 per month' });
+  assert.deepEqual(row.change, { label: 'Monthly books', before: '₹2,499 per month', after: '₹2,999 per month', ownerEntered: true });
   assert.equal(accept(row).secondAsk, undefined);
   const decided = await decide(env, row);
   assert.equal(decided.outcome, 'done');

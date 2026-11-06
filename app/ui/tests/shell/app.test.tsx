@@ -62,7 +62,7 @@ describe('shell', () => {
 
   it('shows a receipt from the address, and says so for a sheet nobody provides', async () => {
     start('#/money?sheet=receipt:R-0415');
-    const sheet = await screen.findByRole('complementary', { name: 'R-0415' });
+    const sheet = await screen.findByRole('complementary', { name: '₹15,000' });
     await waitFor(() => expect(sheet.textContent).toContain('₹30,000'));
     await go('#/money?sheet=nobody:mehta');
     expect(await screen.findByRole('complementary', { name: "This can't be shown here." })).toBeTruthy();

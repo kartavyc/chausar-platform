@@ -49,7 +49,7 @@ export function PageTitle({ title, eyebrow, line, count, tools }: PageTitleProps
     <header className={s.header}>
       <div className={s.text}>
         {eyebrow && <p className={s.eyebrow}>{eyebrow}</p>}
-        <h1 className={s.title}>{title}</h1>
+        {title && <h1 className={s.title}>{title}</h1>}
         <p className={s.line} data-line-slot="" data-long={typeof line === 'string' && line.length > LONG_LINE ? '' : undefined}>{withCount(line, count)}</p>
       </div>
       {(tools || shellTools) && <div className={s.tools} role="group" aria-label={t('shell.pageTools')}>{tools}{shellTools}</div>}
