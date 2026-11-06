@@ -52,15 +52,15 @@
   "crm.lists.addMember": "Add to this list",
   "crm.lists.member": "Who",
   "crm.lists.notFound": "This list is not here any more.",
-  "crm.history": "Changes",
+  "crm.history": "History",
   "crm.history.was": "was",
-  "crm.edit.open": "Change details",
-  "crm.edit.field": "Detail",
+  "crm.edit.open": "Edit details",
+  "crm.edit.field": "What to change",
   "crm.edit.field.name": "Name",
   "crm.edit.field.email": "Email",
   "crm.edit.field.phone": "Phone or WhatsApp",
   "crm.edit.field.note": "Note",
-  "crm.edit.value": "New value",
+  "crm.edit.value": "Change it to",
   "crm.edit.save": "Save",
   "crm.facts": "What Chausar remembers",
   "crm.facts.none": "No facts yet.",
@@ -85,5 +85,7 @@
   "crm.facts.cancel": "Cancel",
   "crm.facts.earlier": "Earlier facts",
   "crm.facts.replacedOn": "replaced {day}",
-  "crm.facts.fromAi": "From AI"
+  "crm.facts.fromAi": "From AI",
+  "crm.addDetails": "Add details",
+  "crm.edit.field.fact": "A fact to remember"
 }

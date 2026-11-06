@@ -78,7 +78,7 @@ describe('Clients: three tabs (founder decision: Clients, Pipeline, Network)', (
     await start();
     await screen.findByRole('searchbox', { name: 'Who are you looking for?' });
     expect(within(tabs()).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBe('page');
-    await waitFor(() => expect(screen.getByText(/people from your own files, each counted once\. Only you can search them\./)).toBeTruthy());
+    expect(screen.getByRole('heading', { level: 1 }).nextElementSibling?.textContent).toBe('');
     expect(screen.getByRole('button', { name: 'Import a file' })).toBeTruthy();
     assertInkRules();
   });
@@ -100,7 +100,7 @@ describe('Network: the search box', () => {
   it('with no web search set up here, a line stands in place of the web choice', async () => {
     await start();
     await screen.findByRole('searchbox');
-    await waitFor(() => expect(screen.getByText('Web search is not set up here, so a search covers only your network.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Searches your network only.')).toBeTruthy());
     expect(screen.queryByRole('checkbox', { name: 'Also look outside my network' })).toBeNull();
   });
 

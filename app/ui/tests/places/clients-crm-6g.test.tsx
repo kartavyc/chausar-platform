@@ -41,8 +41,8 @@ describe('the client sheet: CRM (6G3)', () => {
   it('puts the client in a new company, and the company sheet lists the client back', async () => {
     const { spy } = start('#/clients?sheet=client:c-boat');
     const sheet = await boatSheet();
-    const company = section(sheet, 'Company');
-    expect(within(company).getByText('Not in a company yet.')).toBeTruthy();
+    expect(within(sheet).queryByRole('heading', { name: 'Company' })).toBeNull();
+    const company = await openFold(sheet, 'Add details');
     const pick = await openFold(company, 'Put in a company');
     fireEvent.change(within(pick).getByLabelText('Choose a company'), { target: { value: 'new' } });
     type(within(pick).getByRole('textbox', { name: 'New company name' }), 'Boat Group');
@@ -61,8 +61,8 @@ describe('the client sheet: CRM (6G3)', () => {
   it('logs a call on the timeline in the owner\'s words, and says WhatsApp is logged by hand', async () => {
     const { spy } = start('#/clients?sheet=client:c-boat');
     const sheet = await boatSheet();
-    const timeline = section(sheet, 'Timeline');
-    const log = await openFold(timeline, 'Log a call or message');
+    const details = await openFold(sheet, 'Add details');
+    const log = await openFold(details, 'Log a call or message');
     expect(within(log).getByText(/Chausar has no WhatsApp connection/)).toBeTruthy();
     fireEvent.change(within(log).getByLabelText('What happened'), { target: { value: 'whatsapp' } });
     type(within(log).getByRole('textbox', { name: 'In your words' }), 'Sent the rate card.');
@@ -77,12 +77,12 @@ describe('the client sheet: CRM (6G3)', () => {
   it('a change of details is in Changes with who changed it and what it was', async () => {
     start('#/clients?sheet=client:c-boat');
     const sheet = await boatSheet();
-    const edit = await openFold(sheet, 'Change details');
-    fireEvent.change(within(edit).getByLabelText('Detail'), { target: { value: 'email' } });
-    type(within(edit).getByRole('textbox', { name: 'New value' }), 'team@boataudio.in');
+    const edit = await openFold(sheet, 'Edit details');
+    fireEvent.change(within(edit).getByLabelText('What to change'), { target: { value: 'email' } });
+    type(within(edit).getByRole('textbox', { name: 'Change it to' }), 'team@boataudio.in');
     await click(within(edit).getByRole('button', { name: 'Save' }));
     await settle();
-    const history = await openFold(sheet, 'Changes');
+    const history = await openFold(sheet, 'History');
     const rows = [...history.querySelectorAll('[data-history] li')].map((row) => row.textContent);
     expect(rows[0]).toContain('You changed Email: team@boataudio.in (was partners@boataudio.in)');
     expect(rows.at(-1)).toContain('Added to Clients');
@@ -120,11 +120,11 @@ describe('dated facts (6G4)', () => {
   it('a client fact shows since when, its source and who may see it; replacing keeps the earlier fact; Forget asks once more', async () => {
     const { spy } = start('#/clients?sheet=client:c-boat');
     const sheet = await boatSheet();
-    const facts = section(sheet, 'What Chausar remembers');
-    expect(within(facts).getByText('No facts yet.')).toBeTruthy();
-    const add = await openFold(facts, 'Add a fact');
+    expect(within(sheet).queryByRole('heading', { name: 'What Chausar remembers' })).toBeNull();
+    const add = await openFold(sheet, 'Edit details');
+    fireEvent.change(within(add).getByLabelText('What to change'), { target: { value: 'fact' } });
     type(within(add).getByRole('textbox', { name: 'Topic' }), 'Best time');
-    type(within(add).getByRole('textbox', { name: 'The fact' }), 'Calls after 4 pm.');
+    type(within(add).getByRole('textbox', { name: 'Change it to' }), 'Calls after 4 pm.');
     type(within(add).getByLabelText('True since'), '2026-10-01');
     await click(within(add).getByRole('button', { name: 'Keep fact' }));
     await settle();
@@ -157,7 +157,7 @@ describe('dated facts (6G4)', () => {
     await click(within(current).getByRole('button', { name: 'Forget it' }));
     await settle();
     expect(calls(spy, 'venture.memory.forget')).toHaveLength(1);
-    expect(within(section(sheet, 'What Chausar remembers')).getByText('No facts yet.')).toBeTruthy();
+    expect(within(sheet).queryByRole('heading', { name: 'What Chausar remembers' })).toBeNull();
     assertInkRules();
   });
 
