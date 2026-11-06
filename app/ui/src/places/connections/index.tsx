@@ -35,6 +35,7 @@ import { Posting, signInOffered } from './Posting';
 import { TranscriptionSetup } from './TranscriptionSetup';
 import { YourAi } from './YourAi';
 import { YourNetwork } from './YourNetwork';
+import { PhoneRow } from './PhoneRow';
 import { Mailbox } from './Mailbox';
 import { CalendarFeed } from './CalendarFeed';
 // W5 5A6: pages you watch, mail files, apps on this computer, your n8n or Make, speech from text.
@@ -122,6 +123,8 @@ export function Place() {
         )}
         {cards.error && <p className={s.problem} role="alert">{t('connections.failed', { message: cards.error.message })}</p>}
         {groups.length > 0 && <div className={s.groups}>{groups.map((group) => <GroupSection key={group.category} group={group} />)}</div>}
+        {/* C5 task 3: pair a phone by its QR code, on the desktop app only (the phone page itself cannot pair). */}
+        {venture.data && local && <PhoneRow />}
         {venture.data && <YourNetwork />}
         {venture.data && <Mailbox />}
         {venture.data && <CalendarFeed />}
