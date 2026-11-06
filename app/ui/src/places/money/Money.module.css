@@ -1021,3 +1021,8 @@
 }
 
 .sendButtons { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--gap-grid); }
+
+.journalRow {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+}

@@ -132,6 +132,8 @@
 
 /* A statement row: what it was and the bank's amount, then how the engine reads it and the decisions it allows. */
 .row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
   padding: var(--sp-3) 0;
   border-top: var(--hair) solid var(--line-soft);
 }

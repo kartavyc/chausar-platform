@@ -61,18 +61,19 @@ type SurfaceProps = SurfaceNaming & {
   children?: ReactNode;
 };
 
-export type BentoProps = SurfaceProps;
+export type BentoProps = SurfaceProps & { arrived?: boolean | undefined };
 
 /** D's `.bento`: the 12-column grid tiles sit in, with the grid gap. */
-export function Bento({ as: Tag = 'div', labelledBy, label, className, children }: BentoProps) {
+export function Bento({ as: Tag = 'div', labelledBy, label, className, children, arrived }: BentoProps) {
   return (
-    <Tag className={cx(s.bento, className)} aria-labelledby={labelledBy} aria-label={label}>
+    <Tag data-arrived={arrived ? '' : undefined} className={cx(s.bento, className)} aria-labelledby={labelledBy} aria-label={label}>
       {children}
     </Tag>
   );
 }
 
 export type TileProps = SurfaceProps & {
+  'data-changed'?: '' | undefined;
   span?: TileSpan | undefined;
   /** `fail`: a stopped run's tile keeps a red line (D's red wash is dropped on purpose). `wait`: it is about
    *  something that waits on the owner (the tile itself does not change; its parts may colour words amber). */
@@ -88,7 +89,7 @@ export type TileProps = SurfaceProps & {
 
 /** D's `.tile`: the white surface with a line border, the tile radius and the one tile shadow. Rings inside sit on the
  *  surface. */
-export function Tile({ as: Tag = 'div', span, tone, pad, card, plain, labelledBy, label, className, children }: TileProps) {
+export function Tile({ as: Tag = 'div', span, tone, pad, card, plain, labelledBy, label, className, children, 'data-changed': changed }: TileProps) {
   const placePlain = useContext(PlainTiles);
   return (
     <Tag
@@ -98,6 +99,7 @@ export function Tile({ as: Tag = 'div', span, tone, pad, card, plain, labelledBy
       data-tone={tone}
       data-pad={pad && pad !== 'tile' ? pad : undefined}
       data-card={card ? '' : undefined}
+      data-changed={changed}
       aria-labelledby={labelledBy}
       aria-label={label}
     >

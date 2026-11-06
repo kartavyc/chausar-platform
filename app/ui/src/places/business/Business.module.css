@@ -628,6 +628,10 @@
   color: var(--fg);
 }
 
+.backupList {
+  display: contents;
+}
+
 .backupRow {
   padding: var(--sp-2) 0;
   border-top: var(--hair) solid var(--line-soft);

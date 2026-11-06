@@ -16,7 +16,7 @@ function stubWidth() {
 }
 
 describe('Connect your AI under a reply written without one', () => {
-  it('in an agent chat, the template answer has the button, and it opens Connections', async () => {
+  it('in an agent chat, the template answer has a link to Connections', async () => {
     window.location.hash = '#/team?sheet=agent:researcher&tab=chat';
     render(<App client={createFakeClient(new FakeEngine({ now: () => NOW }))} language="en" />);
     const panel = await screen.findByRole('complementary', { name: 'Researcher' });
@@ -25,7 +25,8 @@ describe('Connect your AI under a reply written without one', () => {
     await act(async () => { fireEvent.change(box, { target: { value: 'How is it going?' } }); });
     await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Send' })); });
     await settle();
-    const button = await within(panel).findByRole('button', { name: 'Connect your AI' });
+    const button = await within(panel).findByRole('link', { name: 'Connect your AI' });
+    expect(button.getAttribute('href')).toBe('#/connections');
     await act(async () => { fireEvent.click(button); });
     await settle();
     expect(window.location.hash.startsWith('#/connections')).toBe(true);

@@ -98,7 +98,7 @@
   "money.payment.on": "मिलने की तारीख़",
   "money.payment.method": "कैसे मिला",
   "money.payment.record": "भुगतान दर्ज करें",
-  "money.payment.ask": "{date} को मिले {amount} दर्ज करें? इसे वापस नहीं लिया जा सकता।",
+  "money.payment.ask": "{date} को {method} से मिले {amount} दर्ज करें? इसे वापस नहीं लिया जा सकता।",
   "money.payment.confirm": "दर्ज करें",
   "money.payment.done": "भुगतान दर्ज हुआ।",
   "money.payment.back": "बिल पर वापस",
@@ -434,8 +434,8 @@
   "money.payment.splitThis": "{number} के लिए",
   "money.payment.splitNone": "कोई और बिल खुला नहीं है।",
   "money.payment.splitAsk": {
-    "one": "{date} को मिले {amount} दर्ज करें, {count} बिल में बाँटकर? इसे वापस नहीं लिया जा सकता।",
-    "other": "{date} को मिले {amount} दर्ज करें, {count} बिलों में बाँटकर? इसे वापस नहीं लिया जा सकता।"
+    "one": "{date} को {method} से मिले {amount} दर्ज करें, {count} बिल में बाँटकर? इसे वापस नहीं लिया जा सकता।",
+    "other": "{date} को {method} से मिले {amount} दर्ज करें, {count} बिलों में बाँटकर? इसे वापस नहीं लिया जा सकता।"
   },
   "money.export.savedBoth": "{name} और {receipts} सेव हो गईं। Chausar ने इन्हें कहीं नहीं भेजा।",
   "money.export.receipts": "हस्ताक्षरित रसीदें डाउनलोड करें",

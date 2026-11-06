@@ -4,6 +4,9 @@ import { Avatar, type AvatarState, type DeptId } from './Avatar';
 import { cx } from './cx';
 import { Icon } from './Icon';
 import s from './StoriesRow.module.css';
+import { useArrivals } from './useArrivals';
+import { useFlip } from './flip';
+import motion from './Leave.module.css';
 
 /** One agent in the stories row: who it is, what its run is doing, and its step count when the run has one. */
 export interface Story {
@@ -69,13 +72,15 @@ function statusOf(t: T, story: Story): StatusWords {
  */
 export function StoriesRow({ stories, onOpen, lead, onAdd, scroll = false, label, className }: StoriesRowProps) {
   const t = useT();
+  const arriving = useArrivals(stories.map(story => story.id));
+  const row = useFlip<HTMLUListElement>(stories.map(story => story.id).join(' '));
   return (
-    <ul className={cx(s.stories, className)} aria-label={label ?? t('story.label')} data-scroll={scroll ? '' : undefined}>
+    <ul ref={row} className={cx(s.stories, className)} aria-label={label ?? t('story.label')} data-scroll={scroll ? '' : undefined}>
       {lead !== undefined && lead !== null && <li className={s.item}>{lead}</li>}
       {stories.map((story) => {
         const status = statusOf(t, story);
         return (
-          <li key={story.id} className={s.item}>
+          <li key={story.id} className={cx(s.item, motion.arrive)} data-flip-id={story.id} data-arriving={arriving.has(story.id) ? '' : undefined}>
             <button type="button" className={s.story} aria-label={status.name} onClick={() => onOpen(story.id)}>
               <Avatar name={story.name} dept={story.dept} state={story.state} size={60} />
               <span className={s.name}>{story.name}</span>

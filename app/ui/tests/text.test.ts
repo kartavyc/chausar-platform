@@ -78,7 +78,7 @@ describe('English copy in the house style (catalogue U14)', () => {
     for (const good of ['Approve unlocks after you watch it', 'Tick that you saved it, then Continue unlocks.', 'Your AI', 'Invoices in INR.']) expect(HYPE.test(good), good).toBe(false);
   });
   it('an engine-failed run reads "Failed", never "Stopped": that word is the owner\'s own Stop (W4 4F)', () => {
-    const FAILED = ['run.stopped', 'thread.runFailed', 'state.run.failed', 'state.step.failed', 'state.delivery.failed', 'story.status.failed', 'story.name.failed', 'ring.stepsFailed', 'ring.indeterminateFailed', 'steps.failed', 'team.dept.stopped', 'today.team.failed', 'today.working.stopped', 'clients.draft.failed', 'work.failedRun.chip', 'work.failedRun.noReason'];
+    const FAILED = ['run.stopped', 'thread.runFailed', 'state.run.failed', 'state.step.failed', 'state.delivery.failed', 'story.status.failed', 'story.name.failed', 'ring.stepsFailed', 'ring.indeterminateFailed', 'steps.failed', 'team.dept.stopped', 'today.working.stopped', 'clients.draft.failed', 'work.failedRun.chip', 'work.failedRun.noReason'];
     for (const key of FAILED) {
       expect(texts(CATALOGUES.en[key]).length, key).toBeGreaterThan(0);
       for (const text of texts(CATALOGUES.en[key])) expect(text, key).toMatch(/fail/i);
