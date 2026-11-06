@@ -41,7 +41,7 @@ export function useLeavingList<T>(items: readonly T[], keyOf: (item: T) => strin
 
   const known = useRef<Set<string> | null>(null);
   const seen = known.current;
-  const drawn: Drawn<T>[] = items.map((item, index) => ({ item, key: keys[index]!, leaving: false, arriving: seen !== null && !seen.has(keys[index]!) }));
+  const drawn: Drawn<T>[] = items.map((item, index) => ({ item, key: keys[index]!, leaving: false, arriving: !motionOff() && seen !== null && !seen.has(keys[index]!) }));
   // Each leaving row goes back where it stood: after the row it followed, or first.
   for (const [key, { item, after }] of gone) {
     const at = after === null ? 0 : drawn.findIndex((row) => row.key === after) + 1;
