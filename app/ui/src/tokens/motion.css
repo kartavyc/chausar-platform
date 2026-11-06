@@ -77,6 +77,51 @@
   animation: ink-fade-in var(--t-sheet) var(--ease) 1 both;
 }
 
+/* A fold (one-shot C3 task 7): every <details> eases its content's height from nothing to auto and fades, over the sheet
+   time (interpolate-size in tokens.css lets a height reach auto), and a marked chevron turns with it. B4's Fold part is a
+   <details> and gets this too; it marks its chevron with data-fold-chevron. A browser without ::details-content opens at
+   once. With motion off every time here is 0. */
+details::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition: block-size var(--t-sheet) var(--ease), opacity var(--t-sheet) var(--ease), content-visibility var(--t-sheet) allow-discrete;
+}
+
+details[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+}
+
+details > summary [data-fold-chevron] {
+  transition: transform var(--t-sheet) var(--ease);
+}
+
+details[open] > summary [data-fold-chevron] {
+  transform: rotate(90deg);
+}
+
+/* A count that changes (parts/Count.tsx): the old slides up and out, the new in, once. */
+@keyframes ink-roll-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-100%); }
+}
+
+@keyframes ink-roll-in {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A value the owner just changed (parts/useChanged.ts): one tint that fades, once. */
+@keyframes ink-changed {
+  from { background-color: var(--accent-soft); }
+  to { background-color: transparent; }
+}
+
+[data-changed] {
+  animation: ink-changed var(--t-settle) var(--ease) 1;
+}
+
 @keyframes ink-sheet-in {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: none; }

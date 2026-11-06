@@ -21,6 +21,7 @@ import { Icon } from '../../parts/Icon';
 import { SectionHead } from '../../parts/Tile';
 import { dayOf } from '../business/shared';
 import s from './Ideas.module.css';
+import { Reveal } from '../../parts/RevealBlock';
 
 const FORWARD: readonly IdeaStage[] = ['inbox', 'triage', 'drafted', 'made', 'published'];
 const GRADES: readonly IdeaGrade[] = ['worked', 'so-so', 'did-not'];
@@ -83,14 +84,14 @@ export function Ideas() {
         end={adding || open === 0 ? undefined : <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={16} />{t('kit-rules.add')}</Button>}
       />
       <p className={s.line}>{t('kit-rules.line')}</p>
-      {adding && (
+      <Reveal open={adding}>
         <AddForm
           busy={busy} onCancel={() => setAdding(false)}
           onAdd={async (text, source) => {
             if (await act(() => engine.request('venture.ideas.add', { text, source }), t('kit-rules.done.added'))) setAdding(false);
           }}
         />
-      )}
+      </Reveal>
       {said && <p className={s.said} role="status" data-said="">{said}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {open === 0 && !adding ? (

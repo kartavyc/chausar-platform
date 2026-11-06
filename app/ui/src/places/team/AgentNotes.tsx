@@ -8,6 +8,7 @@ import { Field } from '../../parts/Field';
 import { chatRefresh, dayWords } from './chat';
 import s from './Team.module.css';
 import c from './AgentChat.module.css';
+import { Reveal } from '../../parts/RevealBlock';
 
 const never = () => false;
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -129,9 +130,8 @@ export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** 
             ))}
           </ul>
         )}
-        {draft && draft.noteId === null ? form('team.notes.newLabel') : (
-          data && !readOnly && <Button size="sm" className={c.addNote} onClick={() => { setProblem(null); setForgetting(null); setDraft({ noteId: null, text: '', basedOn: null }); }}>{t('team.notes.add')}</Button>
-        )}
+        <Reveal open={Boolean(draft && draft.noteId === null)}>{form('team.notes.newLabel')}</Reveal>
+        {!(draft && draft.noteId === null) && data && !readOnly && <Button size="sm" className={c.addNote} onClick={() => { setProblem(null); setForgetting(null); setDraft({ noteId: null, text: '', basedOn: null }); }}>{t('team.notes.add')}</Button>}
         {problem && <p className={c.problem} role="alert">{problem}</p>}
       </section>
 

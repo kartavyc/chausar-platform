@@ -1,0 +1,29 @@
+/* Reveal (one-shot C3 task 7): grid rows take the block's height from 0fr to 1fr, so nothing measures it. The inner box
+   clips while it moves and leaves room for a focus ring at rest. */
+
+.reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows var(--t-sheet) var(--ease), opacity var(--t-sheet) var(--ease);
+}
+
+@starting-style {
+  .reveal {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+.reveal[data-open='false'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition-duration: var(--t-exit);
+  transition-timing-function: var(--ease-exit);
+}
+
+.inner {
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: var(--sp-1);
+}

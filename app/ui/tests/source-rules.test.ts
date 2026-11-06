@@ -161,7 +161,7 @@ const SVG_PAINT = /\b(?:fill|stroke|stopColor|floodColor|lightingColor)=\{?(['"`
 
 // W6 6C2 (DECISIONS D16a): About you turns A into B on Send, one motion of --t-settle.
 // One-shot C3: motion.css animates the view-transition pseudo elements of a place change; Swap fades a word in place.
-const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css', 'motion.css', 'Swap.module.css'];
+const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css', 'motion.css', 'Swap.module.css', 'Count.module.css'];
 const SPACING = /^(?:(?:padding|margin)(?:-[a-z]+)*|(?:row-|column-|grid-|grid-row-|grid-column-)?gap)$/;
 
 /** Each check takes one stylesheet (comments removed), or code for codeColours, and returns what breaks the rule. */
