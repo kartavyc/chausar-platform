@@ -5794,11 +5794,11 @@ export const VENTURE_METHODS = [
   'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   // Wave 6 money (6D1 to 6D4): billing settings, an invoice's PDF and share links, Razorpay Payment Links
   'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
+  // One-shot C6: a thank-you receipt for one payment, its words and its file (the owner sends it).
+  'venture.payment.receipt',
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
-  // One-shot C6: a thank-you receipt for one payment, its words and its file (the owner sends it).
-  'venture.payment.receipt',
   // P2-spend: what each paid call reserved and settled; the owner's monthly limit, ask-first figure and rate card
   'venture.spend.list', 'venture.spend.policy.get', 'venture.spend.policy.set',
   // P4 build and connectors
