@@ -6,7 +6,9 @@
 // recorder come after the rebase; this module is the recorder and the file.
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ChausarError } from '../../contracts.ts';
+import { refuseInsideRepo } from '../../run-root.mjs';
+import { ChausarError } from '../../portable.ts';
+import { encodePublicRecords } from './public-bytes.ts';
 import { maskContacts } from '../network/protected.ts';
 import { secretFindings } from '../core/secrets.ts';
 
@@ -16,7 +18,9 @@ export type CaptureEvent =
   | { kind: 'model'; purpose: string; request: string; answer: string }
   | { kind: 'driver'; driver: 'codex' | 'claude'; line: string }
   | { kind: 'fetch'; url: string; status: number; body: string }
-  | { kind: 'clock'; at: string };
+  | { kind: 'clock'; at: string }
+  | { kind: 'timer'; id: number }
+  | { kind: 'identity'; purpose: string; value: string };
 
 export type RunCapture = {
   format: typeof RUN_CAPTURE_FORMAT;
@@ -24,6 +28,8 @@ export type RunCapture = {
   label: 'sample business';
   capturedAt: string;
   startState: unknown;
+  runtime?: { modelReplay: boolean; draftState?: unknown };
+  operation?: { method: string; payload: Record<string, unknown> };
   events: CaptureEvent[];
   records: unknown[];
 };
@@ -33,6 +39,8 @@ export type RunRecorder = {
   driver(driver: 'codex' | 'claude', line: string): void;
   fetch(url: string, status: number, body: string): void;
   clock(at: string): void;
+  timer(id: number): void;
+  identity(purpose: string, value: string): void;
   finish(records: unknown[]): RunCapture;
 };
 
@@ -42,27 +50,38 @@ function refuseSecrets(where: string, text: string): void {
   if (found.length) throw new ChausarError('CAPTURE_REFUSED', `A run capture cannot hold a secret: ${where} holds ${[...new Set(found)].join(', ')}.`);
 }
 
+/** Contact masking must not turn a digest or UUID into a phone number. */
+export function maskCaptureText(text: string): string {
+  return text.split(/((?<![a-f0-9])(?:[a-f0-9]{64}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?![a-f0-9]))/g)
+    .map((part, index) => index % 2 ? part : maskContacts(part)).join('');
+}
+export const assertCaptureText = (text: string) => refuseSecrets('the request', text);
 const masked = (where: string, text: string) => {
-  const out = maskContacts(String(text));
+  refuseSecrets(where, text);
+  const out = maskCaptureText(String(text));
   refuseSecrets(where, out);
   return out;
 };
 
 /** A recorder for one run. Each call masks contacts and refuses secrets at once, so a bad text never sits in memory. */
 export function createRunRecorder({ startState, capturedAt }: { startState: unknown; capturedAt: string }): RunRecorder {
-  const start = JSON.parse(masked('the starting State', JSON.stringify(startState ?? null)));
+  const start = JSON.parse(masked('the starting State', JSON.stringify(encodePublicRecords(startState ?? null))));
   const events: CaptureEvent[] = [];
   let finished = false;
-  const open = () => { if (finished) throw new ChausarError('CAPTURE_FINISHED', 'This run capture is already finished.'); };
+  let refused = false;
+  const clean = (where: string, text: string) => { try { return masked(where, text); } catch (error) { refused = true; throw error; } };
+  const open = () => { if (refused) throw new ChausarError('CAPTURE_REFUSED', 'This run capture previously held a secret.'); if (finished) throw new ChausarError('CAPTURE_FINISHED', 'This run capture is already finished.'); };
   return {
-    model(purpose, request, answer) { open(); events.push({ kind: 'model', purpose, request: masked(`model call ${events.length + 1} (request)`, request), answer: masked(`model call ${events.length + 1} (answer)`, answer) }); },
-    driver(driver, line) { open(); events.push({ kind: 'driver', driver, line: masked(`a ${driver} driver line`, line) }); },
-    fetch(url, status, body) { open(); events.push({ kind: 'fetch', url: masked('a fetched address', url), status, body: masked(`the answer from ${url}`, body) }); },
+    model(purpose, request, answer) { open(); events.push({ kind: 'model', purpose, request: clean(`model call ${events.length + 1} (request)`, request), answer: clean(`model call ${events.length + 1} (answer)`, answer) }); },
+    driver(driver, line) { open(); events.push({ kind: 'driver', driver, line: clean(`a ${driver} driver line`, line) }); },
+    fetch(url, status, body) { open(); events.push({ kind: 'fetch', url: clean('a fetched address', url), status, body: clean(`the answer from ${url}`, body) }); },
     clock(at) { open(); events.push({ kind: 'clock', at }); },
+    timer(id) { open(); events.push({ kind: 'timer', id }); },
+    identity(purpose, value) { open(); events.push({ kind: 'identity', purpose: clean('identity purpose', purpose), value: clean('generated identity', value) }); },
     finish(records) {
       open();
       finished = true;
-      const capture: RunCapture = { format: RUN_CAPTURE_FORMAT, label: 'sample business', capturedAt, startState: start, events, records: JSON.parse(masked('the resulting records', JSON.stringify(records))) };
+      const capture: RunCapture = { format: RUN_CAPTURE_FORMAT, label: 'sample business', capturedAt, startState: start, events, records: JSON.parse(clean('the resulting records', JSON.stringify(encodePublicRecords(records)))) };
       refuseSecrets('the capture', JSON.stringify(capture));
       return capture;
     },
@@ -71,6 +90,7 @@ export function createRunRecorder({ startState, capturedAt }: { startState: unkn
 
 /** Writes a finished capture into dir as run-<time>.capture.json (through a temporary file and a rename). */
 export async function writeRunCapture(dir: string, capture: RunCapture): Promise<string> {
+  dir = refuseInsideRepo(dir, { env: {}, variable: 'capture.dir' });
   const text = `${JSON.stringify(capture, null, 2)}\n`;
   refuseSecrets('the capture', text);
   await mkdir(dir, { recursive: true });
