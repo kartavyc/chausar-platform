@@ -87,3 +87,13 @@ describe('Connections > Your AI: transcription on this computer', () => {
     await expect(new FakeEngine({ hosted: true }).request('venture.transcription.set', { command: CLI, model: MODEL })).rejects.toMatchObject({ code: 'TIER_UNAVAILABLE' });
   });
 });
+
+
+it('keeps local transcription fields out of the page until the owner turns it on (B4)', async () => {
+  start();
+  expect(await screen.findByRole('button', { name: 'Set up transcription' })).toBeTruthy();
+  expect(screen.queryByLabelText('whisper-cli program')).toBeNull();
+  expect(screen.queryByLabelText('Model file')).toBeNull();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Set up transcription' })); });
+  expect(await screen.findByLabelText('whisper-cli program')).toBeTruthy();
+});
