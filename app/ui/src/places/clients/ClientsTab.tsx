@@ -12,7 +12,7 @@ import { openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
-import { rich } from '../../parts/rich';
+import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
 import { Tile } from '../../parts/Tile';
 import type { ClientLite, OrderLite, VentureRunEvent } from '../../engine/types';
@@ -27,6 +27,7 @@ export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
   const t = useT();
   const engine = useEngine();
   const orders = useResource('venture.order.list', {}, { refreshOn });
+  const plan = useResource('venture.blueprint.get', {});
   useClientsChanged(engine, () => orders.reload());
 
   const list = clients.data ?? [];
@@ -53,14 +54,14 @@ export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
       <AiDefault />
       <Tile pad="compact">
         <ul className={s.list} aria-label={t('place.clients')}>
-          {list.map((client) => <ClientRow key={client.id} client={client} ordersKnown={ordersKnown} last={lastOrder.get(client.id)} />)}
+          {list.map((client) => <ClientRow key={client.id} client={client} ordersKnown={ordersKnown} last={lastOrder.get(client.id)} job={plan.data?.blueprint.offers.find(offer => offer.id === lastOrder.get(client.id)?.offerId)?.name.value ?? t('clients.job')} />)}
         </ul>
       </Tile>
     </>
   );
 }
 
-function ClientRow({ client, ordersKnown, last }: { client: ClientLite; ordersKnown: boolean; last: OrderLite | undefined }) {
+function ClientRow({ client, ordersKnown, last, job }: { client: ClientLite; ordersKnown: boolean; last: OrderLite | undefined; job: string }) {
   const t = useT();
   return (
     <Row
@@ -70,11 +71,11 @@ function ClientRow({ client, ordersKnown, last }: { client: ClientLite; ordersKn
       onOpen={(origin) => openSheet('client', client.id, origin)}
       line={ordersKnown ? (
         <span className={s.lineText}>
-          {/* What the client asked for is their words, typed by the owner, so it is marked as quoted. */}
-          {last ? rich(t, `clients.order.${last.status}`, {}, { request: <span data-content="">{last.request}</span> }) : t('clients.order.none')}
+          {last ? <><span data-content>{job}</span>{', '}{t(`clients.status.${last.status}`)}</> : t('clients.order.none')}
         </span>
       ) : undefined}
       aside={client.owed ? <Owed owed={client.owed} /> : undefined}
+      end={<span data-client-next=""><Icon name="chevron-right" size={16} /></span>}
     />
   );
 }

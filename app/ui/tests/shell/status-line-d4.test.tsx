@@ -26,7 +26,7 @@ describe('D4: start-up progress', () => {
 
   it('the client keeps the phase while starting, and ready ends it', () => {
     let push: ((status: { healthy: boolean; state: string; phase?: string }) => void) | undefined;
-    const bridge: ChausarBridge = { request: vi.fn(async () => ({})), onEngineStatus: callback => { push = callback; return () => {}; } } as never;
+    const bridge: ChausarBridge = { request: vi.fn(async () => ({})), onEngineStatus: (callback: NonNullable<typeof push>) => { push = callback; return () => {}; } } as never;
     const client = createEngineClient({ bridge });
     push!({ healthy: false, state: 'starting' });
     expect(client.status()).toEqual({ state: 'starting' });
@@ -39,7 +39,7 @@ describe('D4: start-up progress', () => {
   it('a request that gave up waiting shows the starting line, not the offline one, and keeps the phase it had', async () => {
     let push: ((status: { healthy: boolean; state: string; phase?: string }) => void) | undefined;
     const refused = Object.assign(new Error('Chausar is still starting. Try again in a moment.'), { code: 'ENGINE_STARTING', owner: true });
-    const bridge: ChausarBridge = { request: vi.fn(async () => { throw refused; }), onEngineStatus: callback => { push = callback; return () => {}; } } as never;
+    const bridge: ChausarBridge = { request: vi.fn(async () => { throw refused; }), onEngineStatus: (callback: NonNullable<typeof push>) => { push = callback; return () => {}; } } as never;
     const client = createEngineClient({ bridge });
     await expect(client.request('workspace.status', {} as never)).rejects.toMatchObject({ code: 'ENGINE_STARTING' });
     expect(client.status()).toEqual({ state: 'starting' });

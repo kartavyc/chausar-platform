@@ -5,7 +5,7 @@
     "today": 460,
     "team": 220,
     "work": 310,
-    "clients/pipeline": 190,
+    "clients/pipeline": 180,
     "money": 100,
     "apps": 160,
     "money/invoices": 73,
@@ -21,7 +21,7 @@
     "onboarding": 790,
     "chats": 150,
     "clients": 40,
-    "clients/network": 190,
+    "clients/network": 160,
     "business/goals": 60,
     "money/bills": 30,
     "money/margins": 70,
@@ -78,7 +78,7 @@
     "agent/instructions": 230,
     "agent/cando": 420,
     "agent/notes": 70,
-    "import": 70,
+    "import": 60,
     "accountant": 80
   },
   "firstSheets": {
